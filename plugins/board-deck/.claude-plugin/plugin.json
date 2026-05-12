@@ -1,0 +1,9 @@
+{
+  "name": "board-deck",
+  "version": "0.2.0",
+  "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Taskade, and GitHub (all-branch commit velocity) data",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": ["board-deck", "pptx", "reporting", "moxywolf"]
+}

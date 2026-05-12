@@ -1,0 +1,9 @@
+{
+  "name": "daily-ops",
+  "version": "1.3.0",
+  "description": "Energy-aware personal operations system with Full Inbox Intelligence and Fitness Coach. Combines Apple HealthKit/Oura sleep data, Google Calendar, Gmail inbox intelligence (5-query email scan with deduplication), Google Drive task persistence, and a data-driven personal fitness coach (Apple Health-aware workouts pushed to Google Calendar with iMessage notifications) into daily standups, backlog triage, weekly reviews, and daily workout prescriptions.",
+  "author": {
+    "name": "Dorian Cougias"
+  },
+  "keywords": ["daily-ops", "standup", "productivity", "health", "fitness", "fitness-coach", "workout", "apple-health", "google-drive", "google-calendar", "task-management", "gmail", "inbox-intelligence", "imessage"]
+}

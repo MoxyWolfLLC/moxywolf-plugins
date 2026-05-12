@@ -1,0 +1,9 @@
+{
+  "name": "saas-pricing-engine",
+  "version": "0.1.0",
+  "description": "End-to-end SaaS and API gateway pricing research, modeling, and copywriting engine. Combines competitor intelligence, pricing frameworks (Van Westendorp, Gabor-Granger, value-based), internal data analysis, and conversion-optimized pricing page generation for STIGViewer and MoxyWolf products.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": ["pricing", "saas", "api-gateway", "competitor-analysis", "tier-design", "value-metrics"]
+}

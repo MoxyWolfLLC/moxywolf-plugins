@@ -1,0 +1,20 @@
+{
+  "name": "product-orchestrator",
+  "version": "0.2.0",
+  "description": "Product decision engine that wraps Council deliberation with product-specific role prompts for scope, architecture, and GTM decisions. Routes deliberation outputs to downstream execution skills. Maintains decision records in the Obsidian vault.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "product",
+    "orchestrator",
+    "scope",
+    "architecture",
+    "gtm",
+    "deliberation",
+    "prd",
+    "sprint",
+    "council",
+    "product-management"
+  ]
+}

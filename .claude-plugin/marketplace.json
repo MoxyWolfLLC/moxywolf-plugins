@@ -1,0 +1,156 @@
+{
+  "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
+  "name": "moxywolf-plugins",
+  "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
+  "version": "1.0.0",
+  "owner": {
+    "name": "MoxyWolf LLC",
+    "email": "dorianc@moxywolf.com"
+  },
+  "plugins": [
+    {
+      "name": "board-deck",
+      "source": "./plugins/board-deck",
+      "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Taskade, and GitHub data.",
+      "version": "0.2.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "reporting",
+      "keywords": ["board-deck", "pptx", "reporting", "moxywolf"]
+    },
+    {
+      "name": "bibtex-builder",
+      "source": "./plugins/bibtex-builder",
+      "description": "Build and enrich BibTeX bibliographies with AI-generated abstracts from URLs or uploaded .bib files.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "research",
+      "keywords": ["bibtex", "bibliography", "research", "abstracts", "citations"]
+    },
+    {
+      "name": "council",
+      "source": "./plugins/council",
+      "description": "Multi-model AI deliberation with vault-aware institutional memory — structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
+      "version": "0.6.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "deliberation",
+      "keywords": ["deliberation", "multi-model", "consensus", "openrouter", "obsidian"]
+    },
+    {
+      "name": "daily-ops",
+      "source": "./plugins/daily-ops",
+      "description": "Energy-aware personal operations system with Inbox Intelligence and Fitness Coach. Combines Apple HealthKit/Oura, Google Calendar, Gmail, Google Drive tasks, and an Apple-Health-aware daily workout coach.",
+      "version": "1.3.0",
+      "author": { "name": "Dorian Cougias" },
+      "category": "productivity",
+      "keywords": ["daily-ops", "standup", "productivity", "health", "fitness", "gmail", "calendar"]
+    },
+    {
+      "name": "dev-infrastructure-skills",
+      "source": "./plugins/dev-infrastructure-skills",
+      "description": "Framework-specific development best practices for React, Next.js, Supabase/Postgres, TDD, and Playwright E2E testing.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "engineering",
+      "keywords": ["react", "nextjs", "supabase", "postgres", "tdd", "playwright"]
+    },
+    {
+      "name": "editorial-forge",
+      "source": "./plugins/editorial-forge",
+      "description": "Transform AI-generated content into author-owned work through structured editorial judgment, voice extraction, and Sorkin DOB narrative framing — with a complete authorship record.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "authoring",
+      "keywords": ["authoring", "voice", "editorial", "copyright", "DOB", "narrative"]
+    },
+    {
+      "name": "gstack-execution",
+      "source": "./plugins/gstack-execution",
+      "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, security audit, debugging, QA testing, and shipping. Pairs with product-orchestrator.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "engineering",
+      "keywords": ["code-review", "security-audit", "qa", "debugging", "shipping", "owasp"]
+    },
+    {
+      "name": "obsidian-update",
+      "source": "./plugins/obsidian-update",
+      "description": "Vault-native personal operating system with Council integration. Energy-aware daily ops, three-layer persistent memory, Kanban task management, and session knowledge extraction into the MoxyWolf Obsidian vault.",
+      "version": "2.4.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "productivity",
+      "keywords": ["personal-os", "memory", "obsidian", "kanban", "council-integration"]
+    },
+    {
+      "name": "product-orchestrator",
+      "source": "./plugins/product-orchestrator",
+      "description": "Product decision engine that wraps Council deliberation with product-specific role prompts for scope, architecture, and GTM decisions. Maintains decision records in the Obsidian vault.",
+      "version": "0.2.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "product",
+      "keywords": ["product", "scope", "architecture", "gtm", "prd", "deliberation"]
+    },
+    {
+      "name": "project-init",
+      "source": "./plugins/project-init",
+      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs, refreshes GitHub READMEs, and captures durable knowledge.",
+      "version": "0.8.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "productivity",
+      "keywords": ["cowork", "project-setup", "session-handoff", "moxywolf"]
+    },
+    {
+      "name": "research-pipeline",
+      "source": "./plugins/research-pipeline",
+      "description": "End-to-end academic research pipeline: literature discovery, citation verification, thematic synthesis, and perspective-driven content generation. AutoResearchClaw-inspired.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "research",
+      "keywords": ["research", "citations", "literature-review", "bibtex", "supabase", "academic"]
+    },
+    {
+      "name": "saas-frontend-designer",
+      "source": "./plugins/saas-frontend-designer",
+      "description": "Full-pipeline front-end design system for SaaS products and marketing sites. Generates, polishes, audits, and optimizes production-ready Next.js + React + Tailwind + shadcn/ui interfaces.",
+      "version": "1.0.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "design",
+      "keywords": ["frontend", "ui", "ux", "react", "nextjs", "tailwind", "shadcn", "saas"]
+    },
+    {
+      "name": "saas-pricing-engine",
+      "source": "./plugins/saas-pricing-engine",
+      "description": "End-to-end SaaS and API gateway pricing research, modeling, and copywriting. Combines competitor intelligence, pricing frameworks (Van Westendorp, Gabor-Granger, value-based), and conversion-optimized pricing-page generation.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "pricing",
+      "keywords": ["pricing", "saas", "api-gateway", "competitor-analysis", "value-metrics"]
+    },
+    {
+      "name": "team-kanban",
+      "source": "./plugins/team-kanban",
+      "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into a team-visible Slack Canvas kanban board with dual-authority completion and automatic sync-back.",
+      "version": "0.4.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "productivity",
+      "keywords": ["kanban", "slack", "team", "tasks", "obsidian"]
+    },
+    {
+      "name": "vtt-to-text",
+      "source": "./plugins/vtt-to-text",
+      "description": "Converts pasted WebVTT closed-caption content into clean, readable text. Strips timestamps, merges into flowing paragraphs.",
+      "version": "0.1.0",
+      "author": { "name": "Dorian Cougias" },
+      "category": "content",
+      "keywords": ["vtt", "captions", "transcription", "text"]
+    },
+    {
+      "name": "moxywolf-skills",
+      "source": "./skill-bundles/moxywolf-skills",
+      "description": "Bundle of 26 standalone skills used across MoxyWolf work — voice, brand, content ecosystems, plus the Anthropic-shipped reference skills, packaged as one installable plugin.",
+      "version": "1.0.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "bundle",
+      "keywords": ["skills", "bundle", "moxywolf", "voice", "brand", "writing", "content"]
+    }
+  ]
+}

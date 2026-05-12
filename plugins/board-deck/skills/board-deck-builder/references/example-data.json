@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "month": "February",
+    "year": 2026,
+    "tagline": "Turning Founder Insights into Impact"
+  },
+
+  "executiveSummary": {
+    "headline": "STIGViewer Go-Live Sprint drives 52.8% velocity; organic search surges +58% while SAMS checkout flow validated",
+    "learning": "SAMS Stripe integration and checkout flow testing revealed need for better API error handling documentation across all products",
+    "obstacle": "STIGViewer final branding cleanup (8 pts, critical) and pricing page corrections blocking go-live completion",
+    "priority": "Complete STIGViewer go-live sprint, create partner integration onboarding checklist, resolve GitHub access for OpenControls API"
+  },
+
+  "portfolio": [
+    {
+      "name": "STIGViewer",
+      "tof": "75,799 (-9.59%)",
+      "devStatus": "28/53 pts (52.8%) + 85 commits across 4 branches",
+      "health": "On Track",
+      "healthColor": "green"
+    },
+    {
+      "name": "PRFAQ",
+      "tof": "41 (new)",
+      "devStatus": "Needs input",
+      "devStatusMuted": true,
+      "health": "At Risk",
+      "healthColor": "yellow"
+    },
+    {
+      "name": "SAMS",
+      "tof": "No GA4 property",
+      "tofMuted": true,
+      "devStatus": "4 tasks done + 30 commits across 5 branches",
+      "health": "At Risk",
+      "healthColor": "yellow"
+    },
+    {
+      "name": "RegGenome",
+      "tof": "No GA4 property",
+      "tofMuted": true,
+      "devStatus": "1 active lead, API docs requested",
+      "health": "On Track",
+      "healthColor": "green"
+    }
+  ],
+
+  "northStar": {
+    "formula": "Milestone Velocity x Revenue Quality",
+    "currentScore": "0.589",
+    "scoreColor": "yellow",
+    "target": "<0.75",
+    "productsScoring": "2/3 (67%)",
+    "productsScoringColor": "yellow",
+    "trend": "Flat"
+  },
+
+  "financials": {
+    "leftCards": [
+      { "label": "Cash Position", "value": "($38,593)", "valueColor": "red" },
+      { "label": "Monthly Burn (Jan)", "value": "$12,816", "valueColor": "dark" },
+      { "label": "Feb MTD Burn (on pace ~$5K)", "value": "$2,591", "valueColor": "dark" },
+      { "label": "Revenue (Jan + Feb)", "value": "$0", "valueColor": "red" }
+    ],
+    "rightSections": [
+      {
+        "title": "January 2026 P&L",
+        "bgColor": "redBg",
+        "items": [
+          "Revenue: $0",
+          "Total Expenses: $12,816 (>999% vs forecast)",
+          "Breakdown: Expenses 98% | Wages 2%",
+          "Net Profit: ($12,816)"
+        ]
+      },
+      {
+        "title": "February 2026 MTD",
+        "bgColor": "yellowBg",
+        "items": [
+          "Revenue: $0 (Forecast: $0)",
+          "Total Expenses: $2,591 (on pace $5K vs $225 forecast)",
+          "Breakdown: Expenses 89% | Wages 11%",
+          "Net Profit: ($2,591)"
+        ]
+      },
+      {
+        "title": "Balance Sheet Snapshot",
+        "bgColor": "blueBg",
+        "items": [
+          "Cash Balance: ($38,593) -- down 414%",
+          "Accounts Receivable: $10,558",
+          "Accounts Payable: $0",
+          "Net Cash Flow: $0"
+        ]
+      }
+    ]
+  },
+
+  "stigviewerOKRs": {
+    "kr1Marketing": {
+      "items": [
+        { "text": "TOF: 75,799 sessions (-9.59% MoM)" },
+        { "text": "Organic Search: +58.39%", "highlight": true, "highlightColor": "green" },
+        { "text": "Engagement Rate: 33.54% (+69.59%)" },
+        { "text": "Key Events: 349" },
+        { "text": "MOF/BOF: Needs input", "muted": true }
+      ]
+    },
+    "kr2Dev": {
+      "label": "KR2: Development — At Risk",
+      "labelColor": "yellow",
+      "items": [
+        { "text": "Sprint Velocity: 28/53 pts (52.8%)" },
+        { "text": "Tasks: 7 done, 2 in progress, 3 to do" },
+        { "text": "Bugs: 1 minor (Safari logo) — resolved" },
+        { "text": "Go-Live Sprint: Feb 7–16" }
+      ]
+    },
+    "kr3Ops": {
+      "label": "KR3: Operations — On Track",
+      "labelColor": "green",
+      "items": [
+        { "text": "Critical: Branding cleanup (8 pts) — in progress" },
+        { "text": "Critical: Pricing page corrections (8 pts) — to do" },
+        { "text": "GitHub Access for OpenControls API — in progress" }
+      ]
+    },
+    "channels": [
+      { "text": "Direct: 35,848 (-40.31%)" },
+      { "text": "Organic Search: 34,270 (+58.39%)", "highlight": true, "highlightColor": "green" },
+      { "text": "Referral: 5,457 (+66.22%)" },
+      { "text": "Unassigned: 812" },
+      { "text": "Organic Social: 65 | Video: 19" }
+    ]
+  },
+
+  "prfaqOKRs": {
+    "kr1Marketing": {
+      "bigStat": "41",
+      "bigStatSub": "sessions\nnew (0 prior)",
+      "items": [
+        { "text": "Engagement rate: 34.15%" },
+        { "text": "Engaged sessions: 14" },
+        { "text": "100% Direct traffic" },
+        { "text": "First traffic period recorded", "highlight": true, "highlightColor": "green" }
+      ]
+    },
+    "kr2Dev": {
+      "placeholder": "Dev/Ops metrics, North Star, MOF/BOF: Needs input"
+    },
+    "productContext": [
+      "PRFAQ (formerly PRMVP) is MoxyWolf's press release/FAQ validation tool for product teams.",
+      "First traffic recorded this period -- all direct (no organic yet).",
+      "Engagement rate 34.15% suggests early visitors are exploring the product.",
+      { "text": "Next: Set up organic search pipeline and establish baseline KPIs.", "bold": true }
+    ],
+    "keyActions": [
+      "Establish GA4 goals and conversion events",
+      "SEO/content strategy for organic acquisition",
+      "Define north star metric and MOF/BOF funnel"
+    ]
+  },
+
+  "samsOKRs": {
+    "devLabel": "Development — On Track",
+    "devLabelColor": "green",
+    "devItems": [
+      "Stripe UPDATE endpoint fix — done",
+      "SupaStarter branding removal — done",
+      "API key checkout flow — tested & validated",
+      "Non-Technical Founder Docs — done",
+      { "text": "GitHub: 30 commits across 5 active branches (4 contributors)", "highlight": true, "highlightColor": "green" }
+    ],
+    "opsLabel": "Operations — At Risk",
+    "opsLabelColor": "yellow",
+    "opsItems": [
+      "Need better API error handling docs",
+      "Action: Create partner integration onboarding checklist"
+    ],
+    "footer": "TOF: No GA4 property  |  MOF/BOF/MRR: Needs input"
+  },
+
+  "reggenomeOKRs": {
+    "devItems": [
+      "API email outreach — completed",
+      { "text": "Partner confirmed interest, requested API docs (Feb 18)", "highlight": true, "highlightColor": "green" },
+      "Regulatory data vendor — outreach sent, awaiting response",
+      "Architecture discussion: REST API schema agreed, targeting Q2 beta"
+    ],
+    "footer": "TOF: No GA4 property  |  All other metrics: Needs input"
+  },
+
+  "githubVelocity": {
+    "aggregateUniqueCommits": 115,
+    "aggregateContributors": 6,
+    "repos": [
+      {
+        "product": "STIGViewer",
+        "repoName": "stigviewer",
+        "owner": "MoxyWolfLLC",
+        "totalBranches": 6,
+        "activeBranches": 4,
+        "totalUniqueCommits": 85,
+        "weeklyBreakdown": [
+          { "week": "W07", "commits": 32 },
+          { "week": "W08", "commits": 28 },
+          { "week": "W09", "commits": 25 }
+        ],
+        "contributors": [
+          { "login": "HeavenlyEntity", "commits": 52, "branches": ["main", "develop", "feature/go-live"] },
+          { "login": "jmonteroa05", "commits": 18, "branches": ["develop", "feature/branding"] },
+          { "login": "spiliero", "commits": 15, "branches": ["feature/pricing", "develop"] }
+        ],
+        "branches": [
+          { "name": "main", "category": "default", "commits": 20, "lastCommitDate": "2026-02-23T18:30:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "develop", "category": "integration", "commits": 65, "lastCommitDate": "2026-02-23T18:30:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "feature/go-live", "category": "feature", "commits": 30, "lastCommitDate": "2026-02-22T14:15:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "feature/pricing", "category": "feature", "commits": 12, "lastCommitDate": "2026-02-20T10:00:00Z", "topContributor": "spiliero", "status": "Active" }
+        ],
+        "staleBranches": [
+          { "name": "feature/old-nav", "lastCommitDate": "2026-01-10T09:00:00Z", "daysSinceLastCommit": 44, "author": "jmonteroa05" }
+        ],
+        "velocitySummary": "85 unique commits across 4 active branches (3 contributors)"
+      },
+      {
+        "product": "SAMS",
+        "repoName": "SAMS",
+        "owner": "MoxyWolfLLC",
+        "totalBranches": 8,
+        "activeBranches": 5,
+        "totalUniqueCommits": 30,
+        "weeklyBreakdown": [
+          { "week": "W07", "commits": 16 },
+          { "week": "W08", "commits": 6 },
+          { "week": "W09", "commits": 8 }
+        ],
+        "contributors": [
+          { "login": "HeavenlyEntity", "commits": 17, "branches": ["main", "develop", "feature/stripe-fix"] },
+          { "login": "jmonteroa05", "commits": 3, "branches": ["develop", "feature/branding"] },
+          { "login": "spiliero", "commits": 1, "branches": ["feature/docs"] },
+          { "login": "thecodemeister0", "commits": 1, "branches": ["feature/checkout"] }
+        ],
+        "branches": [
+          { "name": "main", "category": "default", "commits": 12, "lastCommitDate": "2026-02-23T18:30:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "develop", "category": "integration", "commits": 22, "lastCommitDate": "2026-02-23T18:30:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "feature/stripe-fix", "category": "feature", "commits": 5, "lastCommitDate": "2026-02-20T14:15:00Z", "topContributor": "HeavenlyEntity", "status": "Active" },
+          { "name": "feature/branding", "category": "feature", "commits": 3, "lastCommitDate": "2026-02-19T10:00:00Z", "topContributor": "jmonteroa05", "status": "Active" },
+          { "name": "feature/checkout", "category": "feature", "commits": 4, "lastCommitDate": "2026-02-18T16:45:00Z", "topContributor": "HeavenlyEntity", "status": "Active" }
+        ],
+        "staleBranches": [
+          { "name": "feature/old-auth", "lastCommitDate": "2026-01-15T09:00:00Z", "daysSinceLastCommit": 39, "author": "HeavenlyEntity" },
+          { "name": "feature/legacy-api", "lastCommitDate": "2025-12-20T12:00:00Z", "daysSinceLastCommit": 65, "author": "spiliero" }
+        ],
+        "velocitySummary": "30 unique commits across 5 active branches (4 contributors)"
+      }
+    ]
+  },
+
+  "reggenomeActivity": {
+    "emailSummary": "3 threads, 1 partnership response, 1 meeting transcript",
+    "threads": [
+      { "date": "2026-02-18", "subject": "RegGenome API Access — Follow Up", "participants": ["dorianc@moxywolf.com", "partner@example.com"], "outcome": "Partner confirmed interest, requested API documentation", "highlight": true },
+      { "date": "2026-02-12", "subject": "RegGenome Architecture Discussion", "participants": ["dorianc@moxywolf.com", "team@moxywolf.com"], "outcome": "Agreed on REST API schema, targeting Q2 beta" },
+      { "date": "2026-02-05", "subject": "Re: Regulatory Data Sources", "participants": ["dorianc@moxywolf.com", "vendor@example.com"], "outcome": "Outreach sent, no response yet" }
+    ],
+    "actionItems": [
+      "Send API documentation to interested partner",
+      "Follow up on regulatory data source vendor (no response since Feb 5)"
+    ],
+    "partnershipStatus": "1 active lead (API docs requested), 1 pending vendor response"
+  },
+
+  "sprint": {
+    "title": "Sprint Command: STIGViewer Go-Live",
+    "dates": "Feb 7 – Feb 16, 2026",
+    "velocityPct": 0.528,
+    "velocityLabel": "52.8%  (28/53 story points)",
+    "kpis": [
+      { "value": "7", "label": "Done", "color": "green" },
+      { "value": "2", "label": "In Progress", "color": "yellow" },
+      { "value": "3", "label": "To Do", "color": "gray" },
+      { "value": "0", "label": "Blocked", "color": "green" },
+      { "value": "1", "label": "Bugs (resolved)", "color": "green" }
+    ],
+    "doneTasks": [
+      "SAMS — Stripe UPDATE Endpoint Fix",
+      "SAMS — Remove SupaStarter Branding",
+      "SAMS — Test API Key Checkout Flow",
+      "SAMS — Non-Technical Founder Docs",
+      "Emails for RegGenome API",
+      "Emails for SouHimBou API / STIGViewer Docs",
+      "PR/FAQ for STIGViewer"
+    ],
+    "inProgress": [
+      "STIGViewer Final Branding Cleanup (Critical, 8 pts)",
+      "GitHub Access for OpenControls API (Medium, 3 pts)"
+    ],
+    "toDo": [
+      "STIGViewer Pricing Page Corrections (Critical, 8 pts)"
+    ]
+  },
+
+  "risks": [
+    { "priority": "P0", "category": "Technical", "description": "STIGViewer go-live: 2 critical tasks pending (branding 8pts + pricing 8pts), sprint ends Feb 16", "mitigation": "Both prioritized as critical; branding in progress", "color": "red" },
+    { "priority": "P1", "category": "Technical", "description": "GitHub Access & Transfer for OpenControls API — dependency for future dev", "mitigation": "Task in progress (3 story points)", "color": "yellow" },
+    { "priority": "P2", "category": "Ops", "description": "API error handling documentation gaps across products", "mitigation": "Action: partner integration onboarding checklist", "color": "blue" },
+    { "priority": "P2", "category": "Technical", "description": "SAMS + RegGenome: no GA4 tracking installed", "mitigation": "Set up GA4 properties (~1-2 pts each)", "color": "blue" }
+  ],
+
+  "decisions": [
+    {
+      "title": "STIGViewer Go-Live Timeline",
+      "context": "Sprint ends Feb 16 at 52.8% velocity. Two critical tasks remain. Organic search +58% shows strong SEO momentum.",
+      "recommendation": "Extend sprint 3–5 days if needed. Organic growth trajectory supports investing in a polished launch.",
+      "color": "orange"
+    },
+    {
+      "title": "PRFAQ Organic Growth Strategy",
+      "context": "First traffic period recorded (41 sessions, 100% direct). Engagement rate 34.15% is promising for a new product.",
+      "recommendation": "Invest in SEO/content strategy to build organic search pipeline. Define north star metric before next board meeting.",
+      "color": "blue"
+    },
+    {
+      "title": "GA4 Setup: SAMS & RegGenome",
+      "context": "Neither product has GA4 tracking. Creates blind spot in portfolio TOF reporting.",
+      "recommendation": "Prioritize GA4 setup next sprint. Minimal effort (1–2 pts each) with high reporting value.",
+      "color": "green"
+    }
+  ]
+}

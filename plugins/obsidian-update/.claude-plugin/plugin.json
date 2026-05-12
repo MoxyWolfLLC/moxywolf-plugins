@@ -1,0 +1,22 @@
+{
+  "name": "obsidian-update",
+  "version": "2.4.0",
+  "description": "Vault-native personal operating system with Council integration. Combines energy-aware daily ops, three-layer persistent memory, Kanban task management, session knowledge extraction, Slack Canvas team completions harvest, and bidirectional Council deliberation verification — all persisted to the MoxyWolf Obsidian vault on Google Drive.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "personal-os",
+    "memory",
+    "standup",
+    "productivity",
+    "obsidian",
+    "vault",
+    "knowledge-extraction",
+    "kanban",
+    "triage",
+    "daily-ops",
+    "council-integration",
+    "deliberation"
+  ]
+}

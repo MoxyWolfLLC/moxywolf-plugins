@@ -1,0 +1,12 @@
+.DS_Store
+**/.DS_Store
+*.swp
+*.swo
+Thumbs.db
+node_modules/
+.venv/
+__pycache__/
+
+# Cowork runtime caches (empty placeholder dirs that ship with rpm/ plugins)
+.mcpb-cache/
+**/.mcpb-cache/

@@ -1,0 +1,19 @@
+{
+  "name": "gstack-execution",
+  "version": "0.1.0",
+  "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, security audit, debugging, QA testing, and shipping. Pairs with Product Orchestrator for the full decide-then-build loop. Browser testing via Rube Playwright.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "gstack",
+    "code-review",
+    "security-audit",
+    "qa",
+    "debugging",
+    "shipping",
+    "playwright",
+    "owasp",
+    "execution"
+  ]
+}

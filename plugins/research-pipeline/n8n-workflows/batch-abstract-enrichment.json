@@ -1,0 +1,240 @@
+{
+  "name": "Research Pipeline - Batch Abstract Enrichment v2",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "Upload your BibTeX file and include your library_id (e.g., 'library_id: 5'). I'll enrich the abstracts and load them into Supabase.",
+        "options": {
+          "allowFileUploads": true,
+          "responseMode": "responseNodes"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [340, 360],
+      "id": "trigger-001",
+      "name": "When chat message received",
+      "webhookId": "research-pipeline-v2"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "data0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [560, 360],
+      "id": "extract-001",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse library_id from the chat message and batch BibTeX entries\nconst BATCH_SIZE = 190;\n\n// Extract library_id from chat input\nconst chatInput = $('When chat message received').first().json.chatInput || '';\nconst libMatch = chatInput.match(/library_id\\s*[:=]\\s*(\\d+)/i);\nconst library_id = libMatch ? parseInt(libMatch[1]) : null;\n\nif (!library_id) {\n  return [{ json: { error: 'No library_id found. Include library_id: <number> in your message.' } }];\n}\n\n// Get BibTeX content\nconst inputString = items[0].json.data;\nif (!inputString || typeof inputString !== 'string') {\n  return [{ json: { error: \"No valid 'data' property found in input.\" } }];\n}\n\n// Split into individual entries\nconst rawEntries = inputString.split(/(?=@\\w+\\{)/g);\nconst cleanEntries = rawEntries\n  .map(entry => entry.trim())\n  .filter(entry => entry.length > 5 && entry.startsWith('@'));\n\n// Batch the entries\nconst batches = [];\nfor (let i = 0; i < cleanEntries.length; i += BATCH_SIZE) {\n  const batchContent = cleanEntries.slice(i, i + BATCH_SIZE);\n  batches.push({\n    json: {\n      batch_index: batches.length + 1,\n      total_entries: cleanEntries.length,\n      entries_in_batch: batchContent.length,\n      library_id: library_id,\n      data: batchContent.join('\\n\\n')\n    }\n  });\n}\n\nreturn batches;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 360],
+      "id": "batch-001",
+      "name": "Parse & Batch BibTeX"
+    },
+    {
+      "parameters": {
+        "options": { "reset": false }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1060, 360],
+      "id": "loop-001",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data }}",
+        "options": {
+          "systemMessage": "You will help process a BibTeX bibliographic file by adding meaningful abstracts to entries that need them.\n\nInput Data (Batch): <bibtex_file> {{ $json.data }} </bibtex_file>\n\nBatch_Index: {{ $json.batch_index }}\nLibrary_ID: {{ $json.library_id }}\n\nYour Task:\nProcess every single entry in this batch. Do NOT deduplicate or remove entries.\n\nStep 1: Evaluate Existing Abstracts\n- Check if the entry has an 'abstract' field\n- Determine if content is meaningful (not empty, not placeholder)\n- If meaningful, preserve exactly as written\n\nStep 2: Handle Missing or Poor Abstracts\n- Look for 'url' or 'doi' fields\n- Attempt to fetch content from these sources\n- If fetching fails: do NOT create abstract, remove inaccessible url/doi fields\n\nStep 3: Generate New Abstracts (when content retrieval succeeds)\nCreate a 2-4 sentence abstract that:\n- States the central aim or problem\n- Synthesizes main arguments, methods, and findings\n- Highlights implications or significance\nTone: Academic yet readable. Accuracy: Use only retrieved facts.\n\nStep 4: Format Each Entry\n- Process every entry provided\n- Keep original entry type and citation key exactly as is\n- Preserve all existing fields except removing inaccessible url/doi\n- Add abstract field as the last field if generated\n- Maintain blank lines between entries\n\nOutput:\nPart 1: Analysis in <analysis> tags\nPart 2: Final BibTeX output ready for direct appending",
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [1320, 360],
+      "id": "agent-001",
+      "name": "Abstract Agent"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-3-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [1320, 200],
+      "id": "model-001",
+      "name": "OpenRouter Gemini",
+      "credentials": {
+        "openRouterApi": {
+          "id": "iJJgotNZpq3QxrEd",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge all batch outputs sorted by batch_index\nconst sourceNodeName = 'Abstract Agent';\nlet allBatches = [];\ntry { allBatches = $(sourceNodeName).all(); } catch (e) {}\n\nif (allBatches.length <= 1) {\n  allBatches = [];\n  let runIndex = 0;\n  let keepLooking = true;\n  while (keepLooking) {\n    try {\n      const item = $(sourceNodeName).first(0, runIndex);\n      if (item) { allBatches.push(item); runIndex++; }\n      else { keepLooking = false; }\n    } catch (e) { keepLooking = false; }\n    if (runIndex > 500) keepLooking = false;\n  }\n}\n\nallBatches.sort((a, b) => parseInt(a.json.batch_index || 0) - parseInt(b.json.batch_index || 0));\n\nconst mergedContent = allBatches\n  .map(item => {\n    let text = item.json.output || item.json.text || item.json.data || '';\n    if (typeof text !== 'string') text = JSON.stringify(text);\n    return text.replace(/^```bibtex\\s*/i, '').replace(/```$/i, '').trim();\n  })\n  .filter(text => text.length > 0)\n  .join('\\n\\n');\n\n// Preserve library_id from first batch\nconst library_id = allBatches.length > 0 ? (allBatches[0].json.library_id || null) : null;\n\nreturn [{ json: {\n  fileName: 'processed_bibliography.bib',\n  data: mergedContent,\n  library_id: library_id,\n  total_batches_found: allBatches.length\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 360],
+      "id": "formatter-001",
+      "name": "Abstract Formatter",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deduplicate BibTeX entries by citation_key + abstract signature\nconst items = $input.all();\nif (!items.length || !items[0].json.data) {\n  return [{ json: { error: 'No data found.' } }];\n}\n\nlet fullContent = items[0].json.data;\nconst library_id = items[0].json.library_id;\nconst rawEntries = fullContent.split(/(?=@\\w+\\s*\\{)/g);\nconst finalEntries = [];\nconst seenSignatures = new Set();\nlet duplicatesRemoved = 0;\n\nfor (const entry of rawEntries) {\n  const trimmed = entry.trim();\n  if (trimmed.length < 20) continue;\n\n  const keyMatch = trimmed.match(/@\\w+\\s*\\{\\s*([^,]+),/);\n  const key = keyMatch ? keyMatch[1].trim() : 'UNKNOWN_KEY';\n  const abstractMatch = trimmed.match(/abstract\\s*=\\s*\\{([\\s\\S]*?)\\}/);\n  const abstract = abstractMatch ? abstractMatch[1].trim() : 'NO_ABSTRACT';\n  const signature = `${key}|||${abstract}`;\n\n  if (seenSignatures.has(signature)) {\n    duplicatesRemoved++;\n    continue;\n  }\n  seenSignatures.add(signature);\n  finalEntries.push(trimmed);\n}\n\nconst finalContent = finalEntries.join('\\n\\n');\nconst markdownDoc = `# Annotated Bibliography\\n\\n\\`\\`\\`bibtex\\n${finalContent.trim()}\\n\\`\\`\\`\\n`;\n\nreturn [{ json: {\n  fileName: 'bibliography.md',\n  data: markdownDoc,\n  raw_bibtex: finalContent,\n  library_id: library_id,\n  stats: { total_entries_kept: finalEntries.length, duplicates_removed: duplicatesRemoved }\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 360],
+      "id": "cleaner-001",
+      "name": "Bib Cleaner",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "data",
+        "binaryPropertyName": "=data",
+        "options": { "fileName": "=bibliography_{{ $now }}.md" }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [2100, 360],
+      "id": "convert-001",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "value": "0AHxJ5CazJqxOUk9PVA",
+          "mode": "list",
+          "cachedResultName": "MoxyWolf Shared Files"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1mvIbIi293VTNvLz93MVARECmni_BeuqT",
+          "mode": "list",
+          "cachedResultName": "n8n Research Agent Docs"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2360, 360],
+      "id": "gdrive-001",
+      "name": "Upload to Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "128m9t6z1EkRrS4T",
+          "name": "Google Drive Moxy - PhilM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse BibTeX entries into individual citation objects for Supabase\nconst cleanerOutput = $('Bib Cleaner').first();\nconst rawBibtex = cleanerOutput.json.raw_bibtex || cleanerOutput.json.data || '';\nconst library_id = cleanerOutput.json.library_id;\nconst driveFile = $('Upload to Google Drive').first();\nconst gdrive_url = driveFile?.json?.webContentLink || null;\n\nconst entries = rawBibtex.split(/(?=@\\w+\\s*\\{)/g).filter(e => e.trim().length > 20);\nconst citations = [];\n\nfor (const entry of entries) {\n  const typeMatch = entry.match(/^@(\\w+)\\s*\\{/);\n  const keyMatch = entry.match(/^@\\w+\\s*\\{\\s*([^,]+),/);\n  \n  const getField = (name) => {\n    const re = new RegExp(name + '\\\\s*=\\\\s*\\\\{([\\\\s\\\\S]*?)\\\\}', 'i');\n    const m = entry.match(re);\n    return m ? m[1].trim() : null;\n  };\n\n  const yearField = getField('year');\n  const yearNum = yearField ? parseInt(yearField) : null;\n\n  citations.push({\n    json: {\n      library_id: library_id,\n      citation_key: keyMatch ? keyMatch[1].trim() : 'unknown',\n      entry_type: typeMatch ? typeMatch[1].toLowerCase() : 'misc',\n      title: getField('title') || 'Untitled',\n      authors: getField('author'),\n      year: (yearNum && !isNaN(yearNum)) ? yearNum : null,\n      journal: getField('journal') || getField('booktitle'),\n      abstract: getField('abstract'),\n      doi: getField('doi'),\n      arxiv_id: getField('eprint') || getField('arxivid'),\n      url: getField('url'),\n      bibtex_raw: entry.trim(),\n      verification_status: 'unverified',\n      source: 'bibtex_import'\n    }\n  });\n}\n\nreturn citations;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2620, 360],
+      "id": "citparse-001",
+      "name": "Citation Parser"
+    },
+    {
+      "parameters": {
+        "url": "=https://xoiazflgpfeuxmwhmsbv.supabase.co/rest/v1/citations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  library_id: $json.library_id,\n  citation_key: $json.citation_key,\n  entry_type: $json.entry_type,\n  title: $json.title,\n  authors: $json.authors,\n  year: $json.year,\n  journal: $json.journal,\n  abstract: $json.abstract,\n  doi: $json.doi,\n  arxiv_id: $json.arxiv_id,\n  url: $json.url,\n  bibtex_raw: $json.bibtex_raw,\n  verification_status: $json.verification_status,\n  source: $json.source\n}) }}",
+        "options": {
+          "batching": { "batch": { "batchSize": 50 } }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 360],
+      "id": "supainsert-001",
+      "name": "Insert Citations to Supabase",
+      "credentials": {
+        "supabaseApi": {
+          "id": "8mCZvK6DfZ7t7Nui",
+          "name": "Supabase account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "message": "=Research pipeline complete!\n\nBibliography: {{ $('Upload to Google Drive').item.json.webContentLink }}\n\nCitations loaded: {{ $('Bib Cleaner').item.json.stats.total_entries_kept }}\nDuplicates removed: {{ $('Bib Cleaner').item.json.stats.duplicates_removed }}\nLibrary ID: {{ $('Bib Cleaner').item.json.library_id }}\n\nNext: Run /verify-citations in Cowork to validate references.",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [3140, 360],
+      "id": "respond-001",
+      "name": "Respond to Chat"
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [[{ "node": "Extract from File", "type": "main", "index": 0 }]]
+    },
+    "Extract from File": {
+      "main": [[{ "node": "Parse & Batch BibTeX", "type": "main", "index": 0 }]]
+    },
+    "Parse & Batch BibTeX": {
+      "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+    },
+    "Loop Over Items": {
+      "main": [
+        [{ "node": "Abstract Formatter", "type": "main", "index": 0 }],
+        [{ "node": "Abstract Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Abstract Agent": {
+      "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+    },
+    "OpenRouter Gemini": {
+      "ai_languageModel": [[{ "node": "Abstract Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Abstract Formatter": {
+      "main": [[{ "node": "Bib Cleaner", "type": "main", "index": 0 }]]
+    },
+    "Bib Cleaner": {
+      "main": [[{ "node": "Convert to File", "type": "main", "index": 0 }]]
+    },
+    "Convert to File": {
+      "main": [[{ "node": "Upload to Google Drive", "type": "main", "index": 0 }]]
+    },
+    "Upload to Google Drive": {
+      "main": [[{ "node": "Citation Parser", "type": "main", "index": 0 }]]
+    },
+    "Citation Parser": {
+      "main": [[{ "node": "Insert Citations to Supabase", "type": "main", "index": 0 }]]
+    },
+    "Insert Citations to Supabase": {
+      "main": [[{ "node": "Respond to Chat", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "tags": [{ "name": "Research Pipeline" }],
+  "triggerCount": 1
+}

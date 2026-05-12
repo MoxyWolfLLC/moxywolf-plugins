@@ -1,0 +1,23 @@
+MoxyWolf Brand Identity Skill
+Copyright (c) 2025 MoxyWolf LLC. All rights reserved.
+
+PROPRIETARY LICENSE
+
+This skill and all associated brand guidelines, visual assets, and intellectual 
+property are the exclusive property of MoxyWolf LLC.
+
+PERMITTED USE:
+- This skill may be used within Claude for creating MoxyWolf-branded content
+- Authorized users may apply these guidelines for MoxyWolf projects
+- The skill may be referenced for maintaining brand consistency
+
+RESTRICTIONS:
+- No part of this skill may be reproduced, distributed, or transmitted outside
+  of its intended use for MoxyWolf LLC brand applications
+- Brand assets (colors, typography, logos, voice) are proprietary to MoxyWolf LLC
+- Unauthorized commercial use is strictly prohibited
+- Modification of brand guidelines requires approval from MoxyWolf LLC
+
+For licensing inquiries or permissions, contact MoxyWolf LLC.
+
+The MoxyWolf name, logo, and visual identity are trademarks of MoxyWolf LLC.

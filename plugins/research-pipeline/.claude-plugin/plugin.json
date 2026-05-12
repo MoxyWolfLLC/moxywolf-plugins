@@ -1,0 +1,18 @@
+{
+  "name": "research-pipeline",
+  "version": "0.1.0",
+  "description": "End-to-end academic research pipeline: literature discovery, citation verification, thematic synthesis, and perspective-driven content generation. Combines AutoResearchClaw-inspired automation with interactive Cowork synthesis.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "research",
+    "citations",
+    "literature-review",
+    "bibtex",
+    "mermaid",
+    "supabase",
+    "vector-store",
+    "academic"
+  ]
+}

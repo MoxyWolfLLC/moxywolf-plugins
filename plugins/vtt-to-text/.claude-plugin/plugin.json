@@ -1,0 +1,8 @@
+{
+  "name": "vtt-to-text",
+  "version": "0.1.0",
+  "description": "Converts pasted WebVTT closed caption content into clean, readable text files. Strips timestamps and formatting, merges into flowing paragraphs, and saves with a Tier/Class naming convention.",
+  "author": {
+    "name": "Dorian"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "saas-frontend-designer",
+  "version": "1.0.0",
+  "description": "Full-pipeline front-end design system for SaaS products and marketing sites. Generates, polishes, audits, and optimizes production-ready Next.js + React + Tailwind + shadcn/ui interfaces with optional Figma integration.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "frontend",
+    "design",
+    "ui",
+    "ux",
+    "react",
+    "nextjs",
+    "tailwind",
+    "shadcn",
+    "saas",
+    "accessibility",
+    "design-system",
+    "figma"
+  ]
+}

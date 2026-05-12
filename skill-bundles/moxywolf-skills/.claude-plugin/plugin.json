@@ -1,0 +1,19 @@
+{
+  "name": "moxywolf-skills",
+  "version": "1.0.0",
+  "description": "Bundle of 26 standalone skills used across MoxyWolf work — voice, brand, MoxyWolf-specific content ecosystems (STIGViewer, Sorkin DOB, podcast outreach), plus Anthropic-shipped reference skills (artifacts-builder, code-review-pro, mcp-builder, skill-creator, theme-factory, canvas-design, brand-guidelines, technical-writer, etc.) wrapped as a single installable plugin so any machine gets the full set.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "skills",
+    "bundle",
+    "moxywolf",
+    "voice",
+    "brand",
+    "content",
+    "writing",
+    "stigviewer",
+    "sorkin-dob"
+  ]
+}

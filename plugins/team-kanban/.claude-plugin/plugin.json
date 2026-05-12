@@ -1,0 +1,16 @@
+{
+  "name": "team-kanban",
+  "version": "0.4.0",
+  "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into a team-visible Slack Canvas kanban board. v0.4.0: Dual-authority completion model where items checked in either Obsidian or the Slack Canvas are treated as complete with automatic sync-back.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "kanban",
+    "slack",
+    "team",
+    "tasks",
+    "obsidian",
+    "daily-ops"
+  ]
+}
