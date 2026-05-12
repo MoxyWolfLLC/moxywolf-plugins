@@ -69,6 +69,96 @@ zip -r ../board-deck.plugin board-deck/
 # then drag board-deck.plugin into Cowork → Personal plugins → + → Upload plugin
 ```
 
+## How we work together — handoff protocol
+
+The marketplace gets the plugins installed. The protocol below is how the MoxyWolf team (Dorian, Michael, Phil, Steven) hands work off across Macs, projects, and humans.
+
+### The short version
+
+1. Every project gets configured with `/init-project` once. That writes a `cowork-project-instructions.md` to the project's Drive folder.
+2. At the end of every session, run `/session-end`. That writes a `cowork-session-handoff.md` to the same folder.
+3. The next person to work on that project — same Mac, different Mac, different human — runs `/session-start [Project]` and Claude reads the handoff and briefs them.
+4. Drive carries the protocol (instructions + handoff + vault knowledge). GitHub carries the code. Slack carries the "I'm picking this up now" ping.
+
+### What syncs through Drive vs. what doesn't
+
+| Thing | Lives in | Synced across the team? |
+|---|---|---|
+| Project Instructions, session handoff, decision records | Drive — project's `00 – Project Hub/` | Yes |
+| Vault notes, kanban, daily journal | Drive — `MoxyWolf Vault/` | Yes |
+| Plugin code (this repo) | GitHub | Yes (after marketplace update) |
+| Repo working trees (`~/Documents/GitHub/<repo>`) | Local clone | **No — sync via `git push` / `git pull`** |
+| Cowork plugin installs, mounted folders, MCP OAuth tokens, memory | Per Mac, per user | **No — each person sets up their own** |
+
+Rule of thumb: if it's about a project's state, it's in Drive. If it's about how *your* Claude has learned to work with *you*, it's on your machine.
+
+### Ending a session
+
+1. **Commit and push** any code in `~/Documents/GitHub/<repo>`. Don't leave a working tree dirty; the next person can't `git pull` over it cleanly.
+2. **Run `/session-end`.** Writes the handoff to Drive, refreshes writable repo READMEs against the canonical 16-section structure, optionally chains into `/obsidian-update` for vault knowledge capture.
+3. **Ping in Slack** if you're explicitly handing off to a teammate. If you're just stopping for the day, no ping needed.
+
+### Starting a session
+
+1. **Confirm Drive sync is current.** Check the project folder's modification timestamp.
+2. **`git pull`** on the repos the project's instructions list as active. Read-only repos: still pull, just don't push.
+3. **`/session-start [Project]`.** Claude mounts the three roots, reads the handoff, briefs you.
+4. **Read the "Procedural reminders for next-Claude" section.** That's where the previous session captured things like "the sandbox can't run tsx" or "this commit's title is cosmetically garbled, don't fix it." Skip it and you'll re-learn it the hard way.
+
+### Handoff frontmatter — proposed additions for team handoffs
+
+The current handoff carries `title`, `date`, `session_ended`, `project`, `type`, `status`, `prior_handoff`. For multi-person handoffs, add:
+
+- `author: dorian | michael | phil | steven` — who wrote this handoff
+- `for: michael` *(optional)* — explicit baton-pass target
+
+Not auto-written by `/session-end` yet. Add by hand when it matters; a future `project-init` bump will thread them in.
+
+### Conflict rules
+
+The handoff file is "last writer wins." With four people that's a real risk:
+
+1. **One project, one active session at a time.** Check the handoff's `session_ended` timestamp and Slack before starting.
+2. **Use `--archive`** on long-lived work. `/session-end --archive` keeps a dated copy in `00 – Project Hub/Session Handoffs/`.
+3. **If you do overlap, reconcile in Slack — not in the handoff.** Two people editing the handoff in Drive produces a merge conflict nobody wants to resolve.
+
+For genuinely parallel work — Dorian on Nexus, Michael on STIGViewer, Phil on SAMS, Steven on Nexus infrastructure — there's no conflict because the handoffs live in separate project folders.
+
+### Beyond the marketplace — what else a new teammate needs
+
+The marketplace install above is one of five setup steps. The rest:
+
+- **Google Drive desktop client**, signed in as your `@moxywolf.com` account, with "Available offline" set on the projects you'll work on (otherwise reads through Cowork are slow).
+- **`~/Documents/GitHub`** with clones of the repos the projects you'll touch need. For Nexus: `nexus-main` (read-only) + `lexicon-workbench` (read/write during Phase 2). For SAMS: ask Michael. Anyone editing plugins: this repo.
+- **MCP OAuth** in Cowork → Connectors: Slack, Gmail, Calendar, GitHub, Supabase, Drive, Rube — each needs its own auth flow per Mac.
+- **OpenRouter key** for Council and research-pipeline — ask Dorian for the team-shared key.
+
+First-session test: run `/session-start Nexus` (or any initialized project). The briefing surfaces the missing piece by name if something isn't right.
+
+### Memory — per-Mac, per-user, and that's the right design
+
+Each Mac has its own memory directory at `~/Library/Application Support/Claude/.../memory/`. It holds `user_*` (facts about you), `feedback_*` (guidance you gave Claude), `project_*` (your slice of project work), and `reference_*` (where you keep things) memories.
+
+Memory doesn't sync. Dorian's "no em-dashes" preference is his, not Phil's. Michael's "verify handoff claims against git" was learned by his Claude through an incident his Claude saw. If memory synced, every Claude would inherit every preference from every teammate, and the model would slowly become a worst-common-denominator of everyone's quirks.
+
+Durable *team* knowledge — decisions, research findings, conventions — belongs in the vault, not memory. `/obsidian-update` is how you promote a memory-worthy fact from your private memory to the shared vault. Run it at the end of any session that produced something durable.
+
+### Failure modes
+
+**"No saved Project Instructions for [Project]"** — that project hasn't been initialized. Run `/init-project` first.
+
+**Handoff is >14 days old** — `/session-start` flags it stale and falls back to kanban-driven priorities. Trust the kanban.
+
+**Handoff says "uncommitted code" but git says you're clean** — the previous session pushed after the handoff was written. Skip the paste step.
+
+**Plugin missing on your Mac** — install from this marketplace, retry the command.
+
+**Drive sync lag** — wait or refresh Finder. "Available offline" makes this near-instant for files already opened locally.
+
+**MCP server disconnected mid-session** — re-authorize in Cowork → Connectors. Don't try shell-call workarounds; the WebFetch / curl / requests fallbacks are deliberately disabled.
+
+**Two people ran `/session-end` close together** — the second overwrote the first. Recover from `00 – Project Hub/Session Handoffs/` if `--archive` was used; otherwise from Drive's version history. Reconcile in Slack so it doesn't repeat.
+
 ## Updating
 
 This repo is the **source of truth**. The flow is:
