@@ -4,6 +4,30 @@ Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the s
 
 Adding this marketplace on any Mac gives that machine all 16 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
+## Contents
+
+- [What's inside](#whats-inside)
+- [Install on a new computer](#install-on-a-new-computer)
+  - [From Cowork (most users)](#from-cowork-most-users)
+  - [From Claude Code CLI](#from-claude-code-cli)
+  - [Fallback: drag-drop a single plugin](#fallback-drag-drop-a-single-plugin)
+- [How we work together — handoff protocol](#how-we-work-together--handoff-protocol)
+  - [The short version](#the-short-version)
+  - [What syncs through Drive vs. what doesn't](#what-syncs-through-drive-vs-what-doesnt)
+  - [Ending a session](#ending-a-session)
+  - [Starting a session](#starting-a-session)
+  - [Handoff frontmatter — proposed additions for team handoffs](#handoff-frontmatter--proposed-additions-for-team-handoffs)
+  - [Conflict rules](#conflict-rules)
+  - [Beyond the marketplace — what else a new teammate needs](#beyond-the-marketplace--what-else-a-new-teammate-needs)
+  - [Memory — per-Mac, per-user, and that's the right design](#memory--per-mac-per-user-and-thats-the-right-design)
+  - [Failure modes](#failure-modes)
+- [Updating](#updating)
+- [Adding a new plugin](#adding-a-new-plugin)
+- [Adding a new standalone skill](#adding-a-new-standalone-skill)
+- [What is NOT in this marketplace (and why)](#what-is-not-in-this-marketplace-and-why)
+- [Reserved-name note](#reserved-name-note)
+- [Related](#related)
+
 ## What's inside
 
 ```
