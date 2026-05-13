@@ -16,7 +16,7 @@ Adding this marketplace on any Mac gives that machine all 16 plugins in one shot
   - [What syncs through Drive vs. what doesn't](#what-syncs-through-drive-vs-what-doesnt)
   - [Ending a session](#ending-a-session)
   - [Starting a session](#starting-a-session)
-  - [Handoff frontmatter — proposed additions for team handoffs](#handoff-frontmatter--proposed-additions-for-team-handoffs)
+  - [Handoff frontmatter — author and baton-pass fields](#handoff-frontmatter--author-and-baton-pass-fields)
   - [Conflict rules](#conflict-rules)
   - [Beyond the marketplace — what else a new teammate needs](#beyond-the-marketplace--what-else-a-new-teammate-needs)
   - [Memory — per-Mac, per-user, and that's the right design](#memory--per-mac-per-user-and-thats-the-right-design)
@@ -129,14 +129,23 @@ Rule of thumb: if it's about a project's state, it's in Drive. If it's about how
 3. **`/session-start [Project]`.** Claude mounts the three roots, reads the handoff, briefs you.
 4. **Read the "Procedural reminders for next-Claude" section.** That's where the previous session captured things like "the sandbox can't run tsx" or "this commit's title is cosmetically garbled, don't fix it." Skip it and you'll re-learn it the hard way.
 
-### Handoff frontmatter — proposed additions for team handoffs
+### Handoff frontmatter — author and baton-pass fields
 
-The current handoff carries `title`, `date`, `session_ended`, `project`, `type`, `status`, `prior_handoff`. For multi-person handoffs, add:
+Every handoff carries `title`, `date`, `session_ended`, `project`, `type`, `status`, plus two team-handoff fields that `/session-end` (project-init ≥ v0.9.0) auto-writes:
 
 - `author: dorian | michael | phil | steven` — who wrote this handoff
-- `for: michael` *(optional)* — explicit baton-pass target
+- `for: michael` *(optional)* — explicit baton-pass target. Omitted entirely when you're just stopping for the day.
 
-Not auto-written by `/session-end` yet. Add by hand when it matters; a future `project-init` bump will thread them in.
+How they get written:
+
+- **Default flow** — `/session-end` asks two questions in a single prompt: *"Who authored this handoff?"* and *"Is this a baton-pass to a teammate, or are you just stopping for the day?"* The second question defaults to *"Just stopping for the day"* — answering it as-is writes no `for` field.
+- **Flag overrides** — to skip the prompts, pass them inline:
+  - `/session-end <project> --author=<name>` — skips the author question.
+  - `/session-end <project> --handoff-to=<name>` — skips the baton-pass question; implies an active handoff.
+  - `/session-end <project> --solo` — skips the baton-pass question and writes no `for:` field.
+- **When `for` is set**, the wrap-up report ends with a one-line Slack-ping reminder: *"Baton passed to **[name]** — ping them in Slack so they know to pick this up."* Per "Ending a session" above, the Slack ping is required when handing off explicitly.
+
+`/session-start` reads both fields and surfaces them in the briefing as an *Authored by …* line, with an "explicit baton-pass to …" suffix when `for` is present. Older handoffs without these fields fall back to "author unknown, no explicit baton-pass" — the briefing keeps working either way.
 
 ### Conflict rules
 

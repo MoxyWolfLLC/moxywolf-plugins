@@ -92,11 +92,11 @@
     {
       "name": "project-init",
       "source": "./plugins/project-init",
-      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs, refreshes GitHub READMEs, and captures durable knowledge.",
-      "version": "0.8.0",
+      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs (with auto-written `author` / `for` baton-pass frontmatter), refreshes GitHub READMEs, and captures durable knowledge.",
+      "version": "0.9.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "productivity",
-      "keywords": ["cowork", "project-setup", "session-handoff", "moxywolf"]
+      "keywords": ["cowork", "project-setup", "session-handoff", "team-handoff", "moxywolf"]
     },
     {
       "name": "research-pipeline",

@@ -68,12 +68,14 @@ If the user declines to approve a particular root, note it in the briefing and c
 
 In a single message, run these reads in parallel:
 
-a. **Session handoff (highest priority)** — Read `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. This is the canonical handoff written by `/session-end` at the end of the previous session. Parse the handoff's frontmatter (`session_ended` timestamp) and these sections:
+a. **Session handoff (highest priority)** — Read `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. This is the canonical handoff written by `/session-end` at the end of the previous session. Parse the handoff's frontmatter (`session_ended` timestamp, plus the optional `author` and `for` fields — both lowercase first names) and these sections:
    - `## What landed this session`
    - `## Open work, in priority order`
    - `## Uncommitted code`
    - `## Procedural reminders for next-Claude`
    - `## Suggested opening line`
+
+   The `author` and `for` frontmatter fields tell next-Claude who wrote the handoff and whether it was an explicit baton-pass. They're optional — older handoffs predating the auto-write feature won't have them; treat the absence as "author unknown, no explicit baton-pass" and surface that in the briefing rather than guessing.
 
    Stale-detection: if `session_ended` is more than 14 days old, flag the handoff as **stale** in the briefing. The user may want to skip the suggested-opening-line and focus on current kanban state instead.
 
@@ -110,6 +112,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - GitHub/[repo-2] — [description]   (if applicable)
 
 **Last session ended:** YYYY-MM-DD HH:MM PT  [— stale (>14 days)]   (if handoff found)
+**Authored by:** [author, title-cased]   [— **explicit baton-pass to [for, title-cased]**]   (skip the "explicit baton-pass…" suffix if no `for`; skip the whole line if no `author`)
 
 **Last session left off with**
 [the "What landed this session" paragraph from the handoff, verbatim]

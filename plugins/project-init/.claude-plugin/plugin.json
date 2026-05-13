@@ -1,7 +1,7 @@
 {
   "name": "project-init",
-  "version": "0.8.0",
-  "description": "Cowork project lifecycle for MoxyWolf projects. /init-project scaffolds tailored Project Instructions. /session-start mounts the three standard roots and reads the previous session's handoff. /session-end writes the canonical-named handoff that the next /session-start picks up, refreshes each writable GitHub repo's README.md against a canonical 16-section structure, then runs /obsidian-update to capture durable knowledge into the MoxyWolf vault.",
+  "version": "0.9.0",
+  "description": "Cowork project lifecycle for MoxyWolf projects. /init-project scaffolds tailored Project Instructions. /session-start mounts the three standard roots and reads the previous session's handoff (including the new `author` / `for` baton-pass fields). /session-end asks who authored this handoff and whether it's a baton-pass to a teammate, then writes the canonical-named handoff with `author` and optional `for` frontmatter auto-populated. Supports --author, --handoff-to, and --solo flags. Refreshes each writable GitHub repo's README.md against a canonical 16-section structure, then runs /obsidian-update to capture durable knowledge into the MoxyWolf vault.",
   "author": {
     "name": "MoxyWolf LLC"
   },

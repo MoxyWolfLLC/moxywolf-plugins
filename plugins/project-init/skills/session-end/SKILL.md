@@ -1,6 +1,6 @@
 ---
 name: session-end
-description: This skill should be used when the user says "session-end", "end session", "wrap session", "save handoff", "/session-end", "we're done", "sign off", or any request to wrap up a Cowork session and persist what was done plus what's next for the following session. It scans the conversation for what landed, what's still open, what's uncommitted, then writes a canonical-named handoff document to the project's `00 – Project Hub/cowork-session-handoff.md`. Step 5c keeps each writable GitHub repo's README.md current against the canonical 16-section structure. The companion `/session-start` skill reads the handoff file to brief next-session Claude.
+description: This skill should be used when the user says "session-end", "end session", "wrap session", "save handoff", "/session-end", "we're done", "sign off", or any request to wrap up a Cowork session and persist what was done plus what's next for the following session. It scans the conversation for what landed, what's still open, what's uncommitted, asks who authored this handoff and whether it's a baton-pass to a teammate, then writes a canonical-named handoff document (with `author` and optional `for` frontmatter fields auto-populated) to the project's `00 – Project Hub/cowork-session-handoff.md`. Supports `--author=<name>`, `--handoff-to=<name>`, and `--solo` flags to skip the prompts. Step 5c keeps each writable GitHub repo's README.md current against the canonical 16-section structure. The companion `/session-start` skill reads the handoff file to brief next-session Claude.
 ---
 
 # Session End
@@ -12,6 +12,10 @@ Wrap a Cowork session by extracting what was done plus what's queued for next ti
 Trigger when the user is wrapping a Cowork session and wants the work persisted in a way the next session can pick up. Common triggers:
 
 - `/session-end [project-name]`
+- `/session-end [project-name] --author=<name>` *(skip the author prompt)*
+- `/session-end [project-name] --handoff-to=<name>` *(skip the baton-pass prompt; implies an active handoff)*
+- `/session-end [project-name] --solo` *(skip the baton-pass prompt; writes no `for:` field)*
+- `/session-end [project-name] --archive` *(also write a dated archive copy)*
 - "session-end" / "end session" / "wrap session"
 - "save handoff" / "save the handoff for tomorrow"
 - "we're done for the day"
@@ -106,6 +110,45 @@ The pointer sentence should be formatted exactly as: *"The full handoff is at `T
 
 Example: *"Picking up after the multi-axis classifier landed. Two commits to push (Bloom's importer + term-def backfill), then run the term-def backfill, then we can spec variant morphology. The full handoff is at `Taskade/Nexus/00 – Project Hub/cowork-session-handoff.md`."*
 
+### Step 3.5: Capture the handoff author and (optional) baton-pass target
+
+Every handoff carries an `author` field, and any explicit baton-pass to a teammate is captured as a `for` field. These were previously hand-added to the frontmatter; this step auto-writes them.
+
+Ask both questions in a **single `AskUserQuestion` call** so the user only sees one prompt. Don't ask if the answers are already supplied via flags (see "Flag overrides" below).
+
+Question 1 — **"Who authored this handoff?"** (header: "Author")
+Options, in this order:
+- `Dorian`
+- `Michael`
+- `Phil`
+- `Steven`
+
+Question 2 — **"Is this a baton-pass to a teammate, or are you just stopping for the day?"** (header: "Handoff target")
+Options, in this order:
+- `Just stopping for the day` *(default — writes no `for` field)*
+- `Dorian`
+- `Michael`
+- `Phil`
+- `Steven`
+
+Normalize both answers to lowercase first names (`dorian`, `michael`, `phil`, `steven`). Store them as `AUTHOR` and `FOR`. If the user answered "Just stopping for the day" to Question 2, leave `FOR` unset — the `for:` key is omitted entirely from the frontmatter in that case (it is NOT written as `for: null` or `for: ""`).
+
+If the user picks the same person for both Question 1 and Question 2, treat that as "just stopping for the day" — you don't baton-pass to yourself. Drop the `FOR` value silently; no need to re-prompt.
+
+#### Flag overrides
+
+The slash command accepts three optional flags that skip the prompt:
+
+- `--author=<name>` — sets the author without asking. Example: `/session-end Nexus --author=michael`.
+- `--handoff-to=<name>` — sets the baton-pass target without asking. Example: `/session-end Nexus --handoff-to=phil`. Implies an active baton-pass.
+- `--solo` — explicitly marks a non-handoff session. Skips Question 2 (writes no `for` field) but still asks Question 1 unless `--author` is also passed.
+
+Combining flags is fine: `/session-end Nexus --author=dorian --handoff-to=michael` skips both prompts. If a flag value isn't one of the four known names, fall back to asking the corresponding question rather than writing a bad value.
+
+#### When to remind the user to ping Slack
+
+If `FOR` is set (a baton-pass happened), include a one-line reminder in the Step 8 final report: *"Baton passed to **[FOR]** — ping them in Slack so they know to pick this up."* Per the marketplace README's handoff protocol, the Slack ping is required when explicitly handing off; if you're just stopping for the day, no ping needed.
+
 ### Step 4: Compose the handoff document
 
 Use this exact structure. The frontmatter format is fixed so `/session-start` can parse it.
@@ -118,11 +161,14 @@ session_ended: YYYY-MM-DDTHH:MM:SS-08:00
 project: [Project Name]
 type: session-handoff
 status: active
+author: [AUTHOR from Step 3.5]
+for: [FOR from Step 3.5]   # OMIT THIS LINE ENTIRELY if FOR is unset
 ---
 
 # Session Handoff — [Project Name]
 
 **Session ended:** YYYY-MM-DD HH:MM PT
+**Author:** [AUTHOR, title-cased]   [— **baton-passed to [FOR, title-cased]**]   (drop the "— baton-passed…" suffix if no FOR)
 
 ## What landed this session
 
@@ -328,6 +374,8 @@ Output a short summary in chat:
 
 ✅ [project]/00 – Project Hub/cowork-session-handoff.md
 
+Author: [AUTHOR, title-cased]   [→ baton-passed to [FOR, title-cased]]
+
 Top of stack for next session:
 1. [first open-work item title]
 2. [second open-work item title]
@@ -335,6 +383,9 @@ Top of stack for next session:
 
 [N] uncommitted commits drafted in the handoff.
 [N] procedural reminders captured.
+
+[If FOR is set (baton-pass):]
+🪝 **Ping [FOR, title-cased] in Slack** so they know to pick this up.
 
 [If Step 5c wrote README updates:]
 README updates written:
@@ -364,6 +415,9 @@ Keep it factual. Dorian can open the file in Obsidian to review the full handoff
 - **`/obsidian-update` skill unavailable in this Cowork install.** Skip Step 7 with a one-line warning in the final report ("Vault update skipped: obsidian-update skill not available"). Don't abort — the handoff (Step 5) is the load-bearing artifact.
 - **No writable GitHub repos listed in project instructions.** Skip Step 5c entirely — don't ask the user to nominate a repo. Project instructions are the source of truth for repo posture.
 - **Writable repo's README would need from-scratch authoring.** Step 5c can initialize a README using the canonical 16-section structure if the session produced substantive material. If the session didn't, flag "Author initial README" as Open work and continue.
+- **User declined or canceled the Step 3.5 prompt.** Default to `author: dorian` and no `for:` field. Mention the fallback in the Step 8 report (*"Author defaulted to Dorian — pass `--author=<name>` next time to override."*) so the user knows it happened. Don't block the handoff write on a missing answer; the handoff itself is the load-bearing artifact.
+- **Flag value isn't one of the four known names** (e.g. `--author=mike` or `--handoff-to=phillip`). Fall back to asking the corresponding question. Don't silently rewrite the value — the four canonical lowercase names (`dorian`, `michael`, `phil`, `steven`) are the only acceptable values, so the user needs to confirm.
+- **Author and baton-pass target are the same person.** Treat as "just stopping for the day"; drop the `FOR` and omit the `for:` field. Don't re-prompt.
 
 ## Why this filename, why this shape
 
