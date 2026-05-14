@@ -168,13 +168,37 @@ The marketplace install above is one of five setup steps. The rest:
 
 First-session test: run `/session-start Nexus` (or any initialized project). The briefing surfaces the missing piece by name if something isn't right.
 
-### Memory — per-Mac, per-user, and that's the right design
+### Memory — two layers: per-Mac for personal, Drive-shared for team-wide
 
-Each Mac has its own memory directory at `~/Library/Application Support/Claude/.../memory/`. It holds `user_*` (facts about you), `feedback_*` (guidance you gave Claude), `project_*` (your slice of project work), and `reference_*` (where you keep things) memories.
+There are two memory layers and they exist on purpose.
 
-Memory doesn't sync. Dorian's "no em-dashes" preference is his, not Phil's. Michael's "verify handoff claims against git" was learned by his Claude through an incident his Claude saw. If memory synced, every Claude would inherit every preference from every teammate, and the model would slowly become a worst-common-denominator of everyone's quirks.
+**Layer 1 — per-Mac, per-user (default).** Each Mac has its own memory directory at `~/Library/Application Support/Claude/.../memory/`. It holds `user_*` (facts about you), `feedback_*` (guidance you gave Claude), `project_*` (your slice of project work), and `reference_*` (where you keep things) memories. This layer **does not sync**. Dorian's "no em-dashes" preference is his, not Phil's. Michael's "verify handoff claims against git" was learned by his Claude through an incident his Claude saw. If this layer synced, every Claude would inherit every preference from every teammate and the model would slowly become a worst-common-denominator of everyone's quirks.
 
-Durable *team* knowledge — decisions, research findings, conventions — belongs in the vault, not memory. `/obsidian-update` is how you promote a memory-worthy fact from your private memory to the shared vault. Run it at the end of any session that produced something durable.
+**Layer 2 — team-shared behavioral memory (Drive).** Some rules really should apply to everyone — e.g. "format GitHub Desktop commit messages as plain text, not markdown." Those live in:
+
+```
+Taskade/_Shared Files/_shared-memory/
+├── INDEX.md
+└── feedback_<rule>.md            ← one file per rule, frontmatter carries scope: team-shared
+```
+
+This directory is on the shared Drive, so every team member's Cowork session can read it. Files carry `scope: team-shared` in their frontmatter. The Taskade copy is the source of truth; a local mirror in your per-Mac memory is fine but the Taskade copy wins on conflict.
+
+**Wiring each Mac to read it.** The vault's `CLAUDE.md` (in `MoxyWolf Vault/CLAUDE.md`) already instructs Claude to read `Taskade/_Shared Files/_shared-memory/INDEX.md` at session start — that covers any session run inside the vault. For sessions run **outside the vault** (plugin dev work in this repo, ad-hoc Claude Code sessions, etc.), each teammate needs to add the same instruction to their **user-level `~/.claude/CLAUDE.md`**:
+
+```markdown
+## Team-shared behavioral memory
+
+At the start of every session, read the team-shared memory index at:
+
+`~/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade/_Shared Files/_shared-memory/INDEX.md`
+
+Apply any rules listed there. They take precedence over local per-Mac memory when the two conflict. When the user gives behavioral feedback that should apply team-wide, write it to that directory (not just local memory) and add a one-line entry to its `INDEX.md`.
+```
+
+Substitute your own `@moxywolf.com` Google account in the path. If you've put your Drive mount somewhere non-default, fix the prefix accordingly.
+
+**Promotion path — local rule → team rule.** When a feedback memory in your local store is something the whole team should follow (not a personal quirk), copy it into `Taskade/_Shared Files/_shared-memory/` with `scope: team-shared` in frontmatter, add a one-line entry to that directory's `INDEX.md`, and leave a pointer in your local memory. Conversely, durable *project* knowledge — decisions, research findings, conventions — still belongs in the vault, not memory; `/obsidian-update` is the right tool for that.
 
 ### Failure modes
 
