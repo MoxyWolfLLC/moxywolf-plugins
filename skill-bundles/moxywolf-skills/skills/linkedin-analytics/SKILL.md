@@ -19,9 +19,8 @@ recommendations. The report is saved as a dated markdown file.
 
 ## Prerequisites
 
-- Rube MCP tools must be available (for web scraping LinkedIn pages).
-- The user must have an active LinkedIn session (logged in via their browser).
-- If LinkedIn shows a login gate, CAPTCHA, or blocks access, stop and inform the user.
+- **Claude in Chrome** extension installed, connected, and signed in. LinkedIn analytics pages require an active LinkedIn session — Chrome MCP runs in Dorian's real, already-logged-in browser, so no auth gate.
+- If LinkedIn shows an unexpected login gate, CAPTCHA, or blocks access, stop and inform the user — the session may have expired.
 
 ## Pages to Scrape
 
@@ -32,27 +31,24 @@ recommendations. The report is saved as a dated markdown file.
 
 ## Workflow
 
-### Step 1: Initialize Rube Tools
+### Step 1: Open a Chrome tab
 
-Use `RUBE_SEARCH_TOOLS` with use_case: "scrape or browse a LinkedIn webpage URL to read its content"
-
-Verify the `composio_search` toolkit has an active connection. If not, initiate via `RUBE_MANAGE_CONNECTIONS`.
-
-Store the `session_id` — reuse it for all subsequent tool calls.
+Call `mcp__Claude_in_Chrome__tabs_create_mcp` (or reuse an existing tab via `tabs_context_mcp` with `createIfEmpty: true`).
 
 ### Step 2: Scrape Content Analytics
 
-Fetch `https://www.linkedin.com/analytics/creator/content/` using:
+Navigate to `https://www.linkedin.com/analytics/creator/content/`:
 
 ```
-RUBE_MULTI_EXECUTE_TOOL
-  tool: COMPOSIO_SEARCH_FETCH_URL_CONTENT
-  arguments: { "urls": ["https://www.linkedin.com/analytics/creator/content/"], "max_characters": 15000, "text": true }
+mcp__Claude_in_Chrome__navigate
+  url: https://www.linkedin.com/analytics/creator/content/
 ```
 
-**Fallback chain:**
-1. Try `BROWSERLESS_UNBLOCK_PROTECTED_CONTENT` if initial fetch fails
-2. If all fetches fail, note "Content analytics unavailable" and proceed to audience page
+Wait ~3 seconds for the JS-rendered page to populate, then call `get_page_text` (or `read_page` if you want the structured DOM). Scroll with `computer` if metrics below the fold are needed.
+
+**Fallback:**
+- If `get_page_text` returns suspicious-looking content (login banner, empty body), use `javascript_tool` to inspect specific selectors and confirm the session is live before re-running.
+- If LinkedIn is truly blocking, note "Content analytics unavailable" and proceed to the audience page.
 
 From the returned content, extract:
 
@@ -74,17 +70,18 @@ From the returned content, extract:
   - Comment count
   - Repost count
 
-If the raw text is hard to parse, use `invoke_llm` via the Rube workbench to extract structured data from the scraped content.
+If the raw text is hard to parse, see "Handling Parse Difficulties" at the bottom of this skill for an in-conversation extraction pattern.
 
 ### Step 3: Scrape Audience Analytics
 
-Fetch `https://www.linkedin.com/analytics/creator/audience/` using the same tool chain.
+Navigate to `https://www.linkedin.com/analytics/creator/audience/` in the same tab.
 
 ```
-RUBE_MULTI_EXECUTE_TOOL
-  tool: COMPOSIO_SEARCH_FETCH_URL_CONTENT
-  arguments: { "urls": ["https://www.linkedin.com/analytics/creator/audience/"], "max_characters": 15000, "text": true }
+mcp__Claude_in_Chrome__navigate
+  url: https://www.linkedin.com/analytics/creator/audience/
 ```
+
+Wait ~3 seconds, then `get_page_text`. Scroll to capture demographic sections below the fold.
 
 From the returned content, extract:
 
@@ -222,39 +219,23 @@ Then share the file using `present_files`.
 
 ## Handling Parse Difficulties
 
-LinkedIn analytics pages can be complex. If the raw scraped text is hard to parse directly:
+LinkedIn analytics pages can be complex. If `get_page_text` returns content that's hard to parse directly:
 
-1. Use `RUBE_REMOTE_WORKBENCH` with `invoke_llm` to extract structured JSON from the raw page content
-2. Define the exact fields you need in the LLM prompt
-3. Parse the structured output to populate the report template
+1. Save the raw text to `${WORKSPACE_OUTPUTS}/linkedin-raw-YYYY-MM-DD.txt`
+2. Have Claude parse it in-conversation by reading the file and extracting the structured fields below. Claude is already an LLM — you don't need a sub-model call for this.
+3. If a single page is too long for one read, split it (top half / bottom half) using line offsets in `Read`.
 
-Example approach:
-```python
-raw_content = "..."  # from the fetch result
-prompt = f"""Extract LinkedIn analytics from this page content as JSON:
-{{
-  "impressions": {{"count": number, "change_pct": string}},
-  "members_reached": {{"count": number, "change_pct": string}},
+Required fields:
+
+```json
+{
+  "impressions": {"count": "number", "change_pct": "string"},
+  "members_reached": {"count": "number", "change_pct": "string"},
   "posts": [
-    {{"summary": "10-word topic summary", "type": "Original|Repost",
-      "impressions": number, "reactions": number, "comments": number, "reposts": number}}
+    {"summary": "10-word topic summary", "type": "Original|Repost",
+     "impressions": "number", "reactions": "number", "comments": "number", "reposts": "number"}
   ]
-}}
-
-Page content:
-{raw_content[:8000]}"""
-
-result, error = invoke_llm(prompt, reasoning_effort="medium")
+}
 ```
 
-## Alternate Execution Path: Claude in Chrome
-
-If Claude in Chrome browser tools are available instead of Rube, the workflow adapts:
-
-1. Use `tabs_context_mcp` with `createIfEmpty: true` to get a browser tab
-2. Navigate to each analytics URL using `navigate`
-3. Wait 3 seconds for page load, then use `read_page` or `get_page_text` to extract content
-4. Use `computer` to scroll down and capture additional sections
-5. Take screenshots at each major page for verification
-
-The report compilation and delivery steps remain identical regardless of which scraping method is used.
+For DOM-level extraction when text parsing fails, use `mcp__Claude_in_Chrome__javascript_tool` to evaluate selectors in-page and return structured JSON directly — bypasses the text-extraction step entirely.

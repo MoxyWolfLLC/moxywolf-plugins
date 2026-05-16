@@ -1,6 +1,6 @@
 # SparkToro Integration
 
-SparkToro provides audience intelligence not available through Rube MCP tools.
+SparkToro provides audience intelligence (sites, podcasts, follows, talking points by audience segment) that isn't available through general web search or Apify actors. It requires a SparkToro account.
 
 ## Data to Request from User
 

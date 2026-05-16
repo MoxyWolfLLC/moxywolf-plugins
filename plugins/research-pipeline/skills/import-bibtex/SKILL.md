@@ -22,8 +22,7 @@ within Cowork.
 
 - **Supabase MCP** — for creating libraries and inserting citations
 - **Google Drive MCP** — for uploading the annotated bibliography
-- **Rube MCP** — for calling OpenRouter API (abstract enrichment via Gemini)
-- If Rube is unavailable, use WebFetch against the OpenRouter API directly
+- **`OPENROUTER_API_KEY`** env var — for calling OpenRouter (abstract enrichment via Gemini); shares Council's `scripts/openrouter_dispatch.py` helper
 
 ## Step 1: Receive the File
 
@@ -78,36 +77,42 @@ For entries without meaningful abstracts (empty, placeholder text, or missing en
 ### Batch Strategy
 
 Group entries into batches of 10-15 for efficient LLM processing. For each batch,
-construct a prompt and send to OpenRouter via Rube MCP:
+build one job in a `bibtex-enrich-jobs.json` array — one job per batch, each with
+a unique `id` like `"batch-001"`. Then dispatch all batches in parallel via
+Council's helper:
 
-**Via Rube MCP (preferred):**
-
-Use `RUBE_REMOTE_WORKBENCH` or `RUBE_MULTI_EXECUTE_TOOL` to call the OpenRouter
-chat completions endpoint:
-
+```bash
+python3 "${COUNCIL_PLUGIN}/scripts/openrouter_dispatch.py" \
+    --jobs "${WORKSPACE_OUTPUTS}/bibtex-${LIBRARY_ID}/enrich-jobs.json" \
+    --out  "${WORKSPACE_OUTPUTS}/bibtex-${LIBRARY_ID}/enriched" \
+    --timeout 180
 ```
-POST https://openrouter.ai/api/v1/chat/completions
-Authorization: Bearer {OPENROUTER_API_KEY}
-Content-Type: application/json
 
+Each job shape:
+
+```json
 {
+  "id": "batch-001",
   "model": "google/gemini-3-pro-preview",
   "messages": [
     {"role": "system", "content": "...enrichment prompt..."},
-    {"role": "user", "content": "...batch of entries..."}
-  ]
+    {"role": "user", "content": "...batch of entries as JSON..."}
+  ],
+  "temperature": 0.2,
+  "max_tokens": 4000
 }
 ```
 
-**Via direct LLM call (fallback):**
+Read each `enriched/batch-XXX.json` back, extract `response.choices[0].message.content`,
+parse the JSON output, and update Supabase.
 
-If Rube is unavailable, process entries directly in conversation. For each entry
-missing an abstract:
+**Lightweight fallback (no API key, or LLM optional):**
+
+For each entry missing an abstract:
 1. Check if it has a DOI or URL
-2. If DOI exists, try to fetch metadata from CrossRef: `https://api.crossref.org/works/{doi}`
-3. If the API returns an abstract, use it directly
-4. If no API abstract available, generate a 2-4 sentence academic abstract based on
-   the title, authors, journal, and any other available metadata
+2. If DOI exists, fetch metadata from CrossRef directly via `WebFetch` or `curl`:
+   `https://api.crossref.org/works/{doi}` — returns an abstract field when available
+3. If no API abstract is available, leave the abstract blank rather than fabricate
 
 ### Enrichment Prompt
 

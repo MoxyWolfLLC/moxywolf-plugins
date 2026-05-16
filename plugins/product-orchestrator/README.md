@@ -1,8 +1,8 @@
 # Product Orchestrator Plugin
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Author:** MoxyWolf LLC
-**Requires:** Council plugin (v0.6.0+), Rube (OpenRouter connection)
+**Requires:** Council plugin (v0.7.0+), `OPENROUTER_API_KEY` env var
 
 ## Overview
 
@@ -43,9 +43,8 @@ This is not a project management tool. It's a decision quality tool.
 This plugin wraps the Council deliberation engine. It does not duplicate Council's mechanics.
 
 **Required:**
-- **Council plugin** (v0.6.0+) — provides the deliberation-engine skill that handles multi-model collection, peer review, and synthesis
-- **Rube** (rube.sh) — provides OpenRouter connection for multi-model calls
-- **OpenRouter** connection via Rube — access to multiple LLM providers
+- **Council plugin** (v0.7.0+) — provides the deliberation-engine skill that handles multi-model collection, peer review, and synthesis
+- **`OPENROUTER_API_KEY`** env var — Council dispatches directly to OpenRouter via its API; the key must be set in the shell environment (`~/.zshrc` or equivalent)
 
 **Optional:**
 - **Obsidian vault** (via Google Drive or local mount) — for persisting decision records

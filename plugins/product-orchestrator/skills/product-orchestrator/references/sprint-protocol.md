@@ -193,7 +193,7 @@ Code the feature (manual or dev-create-orchestrator)
 /gstack-cso (security check — especially for auth, payments, data)
     │
     ▼
-/gstack-qa (browser testing via Rube Playwright)
+/gstack-qa (browser testing via Claude in Chrome)
     │
     ▼
 /gstack-ship (test suite + PR creation)

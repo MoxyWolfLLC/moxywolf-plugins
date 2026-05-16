@@ -5,10 +5,10 @@ description: >
   "generate the monthly board report", "create the board meeting slides",
   "make the MoxyWolf board deck", or needs to prepare monthly reporting
   slides for a board meeting. It covers data collection from LivePlan,
-  GA4, Taskade, GitHub (all-branch commit velocity via Rube), and Gmail
-  (RegGenome activity intelligence), JSON data assembly, and PptxGenJS
-  deck generation.
-version: 0.1.0
+  GA4, Taskade, GitHub (all-branch commit velocity via the native GitHub
+  MCP + REST), and Gmail (RegGenome activity intelligence via the native
+  Gmail MCP), JSON data assembly, and PptxGenJS deck generation.
+version: 0.2.0
 ---
 
 # Board Deck Builder
@@ -43,8 +43,8 @@ follows a fixed layout with data-driven content populated from a JSON file.
 - **LivePlan** — Cash position, monthly burn, P&L, balance sheet, revenue, MRR
 - **GA4** — TOF sessions by product, channel breakdown, engagement rates, key events
 - **Taskade** — Sprint tasks (done/in-progress/to-do), story points, velocity
-- **GitHub** (via Rube) — All-branch commit velocity for STIGViewer (`MoxyWolfLLC/stigviewer`) and SAMS (`MoxyWolfLLC/SAMS`). Uses `GITHUB_LIST_BRANCHES` + `GITHUB_LIST_COMMITS` per branch with SHA deduplication. Essential for products where feature branches don't reach main until go-live.
-- **Gmail** (via Rube) — RegGenome activity intelligence from email. Searches for RegGenome-related threads, meeting transcripts, and partnership correspondence to populate `reggenomeActivity` and enrich `reggenomeOKRs`.
+- **GitHub** (native GitHub MCP + REST) — All-branch commit velocity for STIGViewer (`MoxyWolfLLC/stigviewer`) and SAMS (`MoxyWolfLLC/SAMS`). Uses the native MCP's `list_branches` to enumerate branches, then the GitHub REST API directly via `Bash`/`curl` for per-branch commit listings (the MCP doesn't expose `list_commits`). Dedupes by SHA. Essential for products where feature branches don't reach main until go-live.
+- **Gmail** (native Gmail MCP) — RegGenome activity intelligence from email. Uses `search_threads` to find RegGenome-related threads within the reporting month, then `get_thread` to extract meeting transcripts, partnership correspondence, action items, and decisions for `reggenomeActivity` and `reggenomeOKRs`.
 
 ## Portfolio Products (4)
 

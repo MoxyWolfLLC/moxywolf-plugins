@@ -279,11 +279,11 @@ Generate a comprehensive markdown report as the final deliverable. Save to `/mnt
 ## Appendix: Data Sources
 
 ### Tools Used
-- **Google Trends:** COMPOSIO_SEARCH_TRENDS via Rube MCP
-- **Web Search:** COMPOSIO_SEARCH_WEB via Rube MCP
-- **Reddit Search:** REDDIT_SEARCH_ACROSS_SUBREDDITS via Rube MCP
-- **News Search:** COMPOSIO_SEARCH_NEWS via Rube MCP
-[Add YouTube, SparkToro if used]
+- **Web Search:** built-in `WebSearch`
+- **Google Trends:** Apify `apify/google-trends-scraper`
+- **Reddit:** Apify `trudax/reddit-scraper`
+- **News:** built-in `WebSearch` (or Apify `apify/google-news-scraper` for deeper coverage)
+[Add YouTube via Apify `apify/youtube-scraper` or SparkToro manual input if used]
 
 ### Keywords Researched
 [Complete list of keywords tested]

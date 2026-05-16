@@ -163,8 +163,9 @@ The marketplace install above is one of five setup steps. The rest:
 
 - **Google Drive desktop client**, signed in as your `@moxywolf.com` account, with "Available offline" set on the projects you'll work on (otherwise reads through Cowork are slow).
 - **`~/Documents/GitHub`** with clones of the repos the projects you'll touch need. For Nexus: `nexus-main` (read-only) + `lexicon-workbench` (read/write during Phase 2). For SAMS: ask Michael. Anyone editing plugins: this repo.
-- **MCP OAuth** in Cowork → Connectors: Slack, Gmail, Calendar, GitHub, Supabase, Drive, Rube — each needs its own auth flow per Mac.
-- **OpenRouter key** for Council and research-pipeline — ask Dorian for the team-shared key.
+- **MCP OAuth** in Cowork → Connectors: Slack, Gmail, Calendar, GitHub, Supabase, Drive — each needs its own auth flow per Mac.
+- **Claude in Chrome extension** installed and signed in — used by gstack-execution for browser QA, by `moxywolf-skills` for LinkedIn scraping, and by saas-pricing-engine for JS-rendered pricing pages.
+- **`OPENROUTER_API_KEY`** env var set in your shell rc (`~/.zshrc` or `~/.bashrc`) for Council, research-pipeline, and product-orchestrator — ask Dorian for the team-shared key.
 
 First-session test: run `/session-start Nexus` (or any initialized project). The briefing surfaces the missing piece by name if something isn't right.
 

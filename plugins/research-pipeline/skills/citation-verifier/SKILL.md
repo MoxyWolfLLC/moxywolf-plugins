@@ -20,8 +20,7 @@ external APIs and semantic analysis. Modeled on AutoResearchClaw's citation inte
 ## Prerequisites
 
 - **Supabase MCP** — reading/writing citations table
-- **Rube MCP** or **web access** — for CrossRef, DataCite, arXiv API calls
-- If Rube is unavailable, use WebFetch to hit APIs directly
+- **`WebFetch` (built-in) and `Bash` (curl)** — for CrossRef, DataCite, arXiv, and Semantic Scholar API calls. All four APIs are public, no auth required for read-only verification.
 
 ## The Four Verification Layers
 

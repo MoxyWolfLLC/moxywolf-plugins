@@ -17,7 +17,7 @@ The vault is located by checking in order:
 
 1. **Cowork workspace mount**: Check if the current workspace folder (`/sessions/*/mnt/*/`) contains `CLAUDE.md` at root with MoxyWolf Vault markers. If yes, that IS the vault.
 2. **Google Drive mount**: Check `/sessions/*/mnt/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/`
-3. **Google Drive API fallback**: Use `proxy_execute` via `RUBE_REMOTE_WORKBENCH` with Composio googledrive connection (Team Drive ID: `0AHxJ5CazJqxOUk9PVA`).
+3. **Google Drive REST API fallback**: Use the bundled `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` helper. Team Drive ID: `0AHxJ5CazJqxOUk9PVA`. Requires the one-time service-account setup at `~/.config/moxywolf/drive-service-account.json` — see `references/scheduled-task-vm-setup.md`.
 4. If none work: use `request_cowork_directory` to ask Dorian to mount the vault.
 
 Once located, set `${VAULT}` to the resolved path.

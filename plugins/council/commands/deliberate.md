@@ -1,6 +1,6 @@
 ---
 description: Run a multi-model AI deliberation on a question
-allowed-tools: Read, Write, Grep, Bash(echo:*), mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_SEARCH_TOOLS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MULTI_EXECUTE_TOOL, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MANAGE_CONNECTIONS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_GET_TOOL_SCHEMAS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_REMOTE_WORKBENCH
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, TodoWrite, AskUserQuestion
 argument-hint: <question to deliberate on> [--size small|medium|large] [--fast] [--deep] [--thorough] [--template <name>] [--budget 0.15]
 ---
 
@@ -21,7 +21,13 @@ The query is everything in `$ARGUMENTS` that is not a flag.
 
 Load the deliberation-engine skill from `${CLAUDE_PLUGIN_ROOT}/skills/deliberation-engine/SKILL.md` and follow its execution steps (starting at Step 1, since Pre-Step routing is bypassed).
 
-If this is the first deliberation in this session, verify the OpenRouter connection is active by calling `RUBE_SEARCH_TOOLS` for `OPENROUTER_CREATE_CHAT_COMPLETION`. If not connected, call `RUBE_MANAGE_CONNECTIONS` with toolkit `openrouter` and present the auth link to the user.
+Before the first deliberation of the session, verify the OpenRouter setup by running:
+
+```bash
+test -n "$OPENROUTER_API_KEY" && echo "OPENROUTER_API_KEY: set" || echo "ERROR: OPENROUTER_API_KEY not set"
+```
+
+If unset, halt and instruct the user to add `export OPENROUTER_API_KEY="sk-or-v1-..."` to their shell rc, source it, and restart Cowork.
 
 After the deliberation completes:
 1. Present the formatted output as specified in the deliberation-engine skill (Step 7)

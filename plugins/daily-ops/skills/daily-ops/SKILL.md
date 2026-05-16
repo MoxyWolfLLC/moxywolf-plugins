@@ -28,49 +28,30 @@ All task state lives in Google Drive inside the **personal os** folder.
 
 ### How to Access
 
-#### Reading Documents
+#### Reading and Writing Documents
 
-1. Search Google Drive for the document by name (e.g., `name contains 'Daily Ops - Active Tasks'`)
-2. Fetch the document contents using `google_drive_fetch` with the document ID
+The vault is on a Shared/Team Drive. Two access paths depending on environment:
 
-#### Writing Documents (via proxy_execute — Team Drive Required)
+**Interactive Cowork session (vault is mounted as a workspace folder):** Use the standard `Read` / `Write` / `Edit` tools against the mounted vault path. This is the primary path. No further setup beyond mounting the vault in Cowork.
 
-> ⚠️ **TEAM DRIVE REQUIREMENT:** The Personal OS folder lives in a Team Drive (`driveId: 0AHxJ5CazJqxOUk9PVA`). Standard Composio tools (`GOOGLEDRIVE_RESUMABLE_UPLOAD`, `GOOGLEDOCS` write tools) return **404 "File not found"** for write operations against Team Drive files because they do not pass `supportsAllDrives=true`. You **MUST** use `proxy_execute` inside `RUBE_REMOTE_WORKBENCH` for all write operations.
+**Scheduled-task VM (no mount available):** Use the bundled Drive REST helper that ships with the `obsidian-update` plugin. It authenticates with a Google service account and always passes `supportsAllDrives=true`, so Team Drive 404s don't happen.
 
-**Write pattern (use this every time you write a file):**
+```bash
+# Read a file by ID:
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" download \
+    --file-id "${ACTIVE_TASKS_FILE_ID}" --out /tmp/active-tasks.md
 
-```python
-# In RUBE_REMOTE_WORKBENCH
-with open("/tmp/filename.md", "r") as f:
-    content = f.read()
+# Write/replace a file's content by ID:
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" upload \
+    --file-id "${ACTIVE_TASKS_FILE_ID}" --in /tmp/active-tasks.md --mime text/plain
 
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
-if error:
-    raise Exception(f"Upload failed: {error}")
-print("Upload success:", result)
+# Search for a file by name within a folder:
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" search \
+    --folder-id "${PERSONAL_OS_FOLDER_ID}" --name "Daily Ops - Active Tasks"
 ```
 
-**Verify after writing:**
-
-```python
-meta, err = proxy_execute(
-    "GET",
-    f"/files/{file_id}",
-    "googledrive",
-    query_params={"supportsAllDrives": "true", "fields": "id,name,modifiedTime,size"}
-)
-print(meta)
-```
-
-**Reading documents** — standard tools work fine for reads:
-- Use `GOOGLEDRIVE_DOWNLOAD_FILE` via `RUBE_MULTI_EXECUTE_TOOL` (reads work without `supportsAllDrives`)
+One-time service-account setup is documented in
+`obsidian-update/skills/personal-os/references/scheduled-task-vm-setup.md`.
 
 **Write rules per document:**
 - **ACTIVE TASKS**: Full overwrite — replace entire document content with new prioritized task list
@@ -380,34 +361,29 @@ Show the complete triage for review:
 - P1: [X/7 used]
 ```
 
-After Dorian confirms, write the updated ACTIVE TASKS directly to Google Drive using `RUBE_REMOTE_WORKBENCH`:
+After Dorian confirms, write the updated ACTIVE TASKS back.
 
-```python
-# Active Tasks file ID — resolve once via google_drive_search if not yet known
-active_tasks_file_id = "<resolved file ID>"
+**In an interactive session (vault mounted):** write directly to the mounted path with `Write` or `Edit`. No subprocess needed.
 
-new_content = """[full updated task list as markdown]"""
+**In a scheduled-task VM:** write via the bundled REST helper:
 
-with open("/tmp/active-tasks.md", "w") as f:
-    f.write(new_content)
+```bash
+# Active Tasks file ID — cache from the known-file-ids table at the bottom of the skill
+ACTIVE_TASKS_FILE_ID="<the cached id>"
 
-with open("/tmp/active-tasks.md", "r") as f:
-    content = f.read()
+# Write the new content to a tmp file first
+cat > /tmp/active-tasks.md <<'EOF'
+[full updated task list as markdown]
+EOF
 
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{active_tasks_file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
-if error:
-    raise Exception(f"Upload failed: {error}")
-print("Active Tasks updated:", result)
+# Upload via the obsidian-update plugin's drive_rest.py helper
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" upload \
+    --file-id "${ACTIVE_TASKS_FILE_ID}" \
+    --in /tmp/active-tasks.md \
+    --mime text/plain
 ```
 
-Confirm success to Dorian: "✅ Active Tasks updated in Google Drive."
+Confirm success to Dorian: "✅ Active Tasks updated."
 
 ---
 
@@ -537,72 +513,52 @@ Pull next week's calendar (gcal_list_events for the coming 7 days):
 [Anything stuck that needs escalation or a different approach]
 ```
 
-After Dorian confirms, write all changes directly to Google Drive using `RUBE_REMOTE_WORKBENCH`.
+After Dorian confirms, write all changes back to the vault.
 
-> ⚠️ Both files are in a Team Drive — you **must** use `proxy_execute` with `supportsAllDrives=true`. Do NOT use `GOOGLEDRIVE_RESUMABLE_UPLOAD` or `GOOGLEDOCS` write tools.
+**In an interactive session (vault mounted):** use `Read` + `Edit`/`Write` against the mounted files directly. Append to WEEKLY LOG, overwrite ACTIVE TASKS. No subprocess needed.
 
-**Step A — Update WEEKLY LOG (append new entry):**
+**In a scheduled-task VM:** use the bundled REST helper from the `obsidian-update` plugin.
 
-```python
-weekly_log_file_id = "1gOh0kIuygCAIMv18wGFPhc7CmsOfI-sI"
+**Step A — Update WEEKLY LOG (download → append → upload):**
+
+```bash
+WEEKLY_LOG_FILE_ID="1gOh0kIuygCAIMv18wGFPhc7CmsOfI-sI"
 
 # 1. Download current content
-result, error = run_composio_tool("GOOGLEDRIVE_DOWNLOAD_FILE", {"file_id": weekly_log_file_id})
-existing = result.get("data", {}).get("file_content", "")
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" download \
+    --file-id "${WEEKLY_LOG_FILE_ID}" --out /tmp/weekly-log.md
 
-# 2. Append new weekly review section
-new_weekly_entry = """
+# 2. Append new entry locally
+cat >> /tmp/weekly-log.md <<'EOF'
+
 ## Week of [Start Date] – [End Date]
 
 [generated review content]
-"""
-updated = existing + "\n" + new_weekly_entry
+EOF
 
-# 3. Write back
-with open("/tmp/weekly-log.md", "w") as f:
-    f.write(updated)
-with open("/tmp/weekly-log.md", "r") as f:
-    content = f.read()
-
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{weekly_log_file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
-if error:
-    raise Exception(f"WEEKLY LOG upload failed: {error}")
-print("WEEKLY LOG updated:", result)
+# 3. Upload the updated file
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" upload \
+    --file-id "${WEEKLY_LOG_FILE_ID}" \
+    --in /tmp/weekly-log.md \
+    --mime text/plain
 ```
 
 **Step B — Update ACTIVE TASKS (full overwrite):**
 
-```python
-active_tasks_file_id = "<resolved file ID>"
+```bash
+ACTIVE_TASKS_FILE_ID="<the cached id>"
 
-new_tasks_content = """[full updated task list]"""
+cat > /tmp/active-tasks.md <<'EOF'
+[full updated task list]
+EOF
 
-with open("/tmp/active-tasks.md", "w") as f:
-    f.write(new_tasks_content)
-with open("/tmp/active-tasks.md", "r") as f:
-    content = f.read()
-
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{active_tasks_file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
-if error:
-    raise Exception(f"ACTIVE TASKS upload failed: {error}")
-print("ACTIVE TASKS updated:", result)
+python3 "${OBSIDIAN_UPDATE_PLUGIN}/scripts/drive_rest.py" upload \
+    --file-id "${ACTIVE_TASKS_FILE_ID}" \
+    --in /tmp/active-tasks.md \
+    --mime text/plain
 ```
 
-Confirm success to Dorian: "✅ Weekly Log updated (new entry appended) and Active Tasks updated in Google Drive."
+Confirm success to Dorian: "✅ Weekly Log updated (new entry appended) and Active Tasks updated."
 
 ---
 
@@ -662,7 +618,7 @@ During morning standup, before pulling today's data, make a prediction based on 
 
 **Triggers:** "fitness," "workout," "what should I do today" (in a training context), "build my week" (in a workout context), "I only slept X hours" (with training implied), "I'm sore," "I tweaked my [body part]," "I'm bored with my workouts," "give me my monthly progress report," any phrase asking for an exercise prescription, or a recurring scheduled task at 6:00 AM PT.
 
-You are a personal fitness coach who uses real health data to build, adjust, and evolve workout plans. You connect to Dorian's health data (Apple Health via Rube/Composio) and Google Calendar. You never guess. You never use generic templates. You look at what actually happened yesterday and plan accordingly. Every workout is built for THIS person on THIS day based on THEIR data.
+You are a personal fitness coach who uses real health data to build, adjust, and evolve workout plans. You read Dorian's health data from the **Health Auto Export** iOS app's nightly JSON drop in Drive, and you connect to Google Calendar via the native MCP. You never guess. You never use generic templates. You look at what actually happened yesterday and plan accordingly. Every workout is built for THIS person on THIS day based on THEIR data.
 
 #### Profile and State Files
 
@@ -694,7 +650,7 @@ After they answer, confirm back: "Got it. You want to [goal], you have [equipmen
 
 #### Step 2: Read Today's Health Data
 
-Every single session, before prescribing anything, pull Dorian's data from the last 24-48 hours via Rube/Composio Apple HealthKit tools.
+Every single session, before prescribing anything, pull Dorian's data from the last 24-48 hours from the **Health Auto Export** Drive folder. The iOS Health Auto Export app writes a fresh JSON file nightly to `${VAULT}/../Personal OS/health-export/` (or the path stored in MEMORY.md → Health section). Read the most recent file and parse the metrics below. If the latest file is more than 36 hours old, treat the data as "stale" and pair this step with the iMessage fallback in Step 6.
 
 **Primary metrics (check every time):**
 - Sleep: total hours, time in bed, sleep quality/stages (deep, REM, core, awake)
@@ -713,7 +669,7 @@ Every single session, before prescribing anything, pull Dorian's data from the l
 - Body weight (if tracked)
 - Menstrual cycle phase (if tracked — significantly impacts energy and recovery)
 
-If a metric isn't available, skip it and work with what you have. Never ask Dorian to manually input data that his phone/watch already tracks. If HealthKit access fails entirely, message: "Open the Claude app on your iPhone → Settings → Permissions → Health and approve Sleep, Heart Rate, Steps, HRV, and Workouts."
+If a metric isn't available, skip it and work with what you have. Never ask Dorian to manually input data that his phone/watch already tracks. If the Health Auto Export folder is missing entirely or the latest file is unreadable, send the one-time setup iMessage in the fallback section ("Open Health Auto Export on your iPhone..."). If the file is just stale (more than 36 hours old), prescribe with what's there and note "based on last available export" in the brief.
 
 #### Step 3: Daily Decision Engine
 
@@ -950,20 +906,27 @@ Only give nutrition advice when asked. When he does ask:
 - ALWAYS track numbers in `workout-log.md` and reference past performance.
 - ALWAYS prioritize injury prevention over intensity.
 - If something hurts during a movement: STOP. Swap it. If it persists, tell him to see a professional.
-- If HealthKit access is broken, send the one-time setup iMessage about enabling Health permissions in the Claude iOS app.
+- If the Health Auto Export folder is missing or its files are unreadable, send the one-time setup iMessage about enabling Health Auto Export → Drive sync (see below).
 
-#### Apple Health Setup Reminder
+#### Health Auto Export Setup Reminder
 
-If the fitness mode runs and HealthKit data is unavailable (empty / 401 / "no data" / permission denied from Rube), send this iMessage once (don't spam — check `profile.md` for a `health_reminder_sent: true` flag and don't resend if already true):
+If the fitness mode runs and the Health Auto Export Drive folder is missing or empty, send this iMessage once (don't spam — check `profile.md` for a `health_reminder_sent: true` flag and don't resend if already true):
 
 ```
 🏋️ Fitness Coach needs Apple Health.
-Open the Claude app on your iPhone → Settings → Permissions → Health.
-Approve: Sleep, Heart Rate, HRV, Steps, Workouts, Active Energy.
-Reply "done" when set and I'll build your first workout.
+Install "Health Auto Export — JSON+CSV" from the App Store
+(developer: Lybrook Solutions). In the app:
+  → Automations → New → Format: JSON
+  → Frequency: Daily
+  → Destination: Google Drive → MoxyWolf Vault → Personal OS → health-export/
+  → Data types: Sleep, Heart Rate, HRV, Steps, Active Energy, Workouts
+  → Save and run once to verify.
+Reply "done" when the first file shows up in that folder.
 ```
 
 After sending, set `health_reminder_sent: true` in `profile.md` so it doesn't repeat.
+
+If Dorian is set up but the file is just stale (>36h old), don't resend the install message — the issue is sync, not setup. Send instead: "Heads up: last Health Auto Export was [N] hours ago. Open the app and run the automation manually so I have fresh data."
 
 ---
 

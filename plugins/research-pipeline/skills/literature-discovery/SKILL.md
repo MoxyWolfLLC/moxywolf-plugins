@@ -64,8 +64,9 @@ Flow:
 ## Prerequisites
 
 - **Supabase MCP** — creating libraries, reading/writing citations
-- **Rube MCP** — for web search (COMPOSIO_SEARCH_WEB) and API calls
-- **WebFetch** — fallback for direct API access
+- **Built-in `WebSearch`** — for general web search across blogs, whitepapers, NIST/DISA docs
+- **`WebFetch` and `Bash` (curl)** — for direct API calls (OpenAlex, Semantic Scholar, arXiv, CrossRef)
+- **`OPENROUTER_API_KEY`** env var + **Council plugin v0.7.0+** — the multi-model swarm reuses Council's `scripts/openrouter_dispatch.py` helper
 
 ## Step 1: Understand the Research Need
 
@@ -147,9 +148,9 @@ For cybersecurity/compliance topics, use category filter: `cat:cs.CR`
 
 These are just as important for practitioner-oriented research.
 
-#### Web Search (via Rube MCP)
+#### Web Search (built-in)
 
-Use `COMPOSIO_SEARCH_WEB` or `RUBE_SEARCH_TOOLS` to search for:
+Use Claude's built-in `WebSearch` tool to search for:
 
 Construct targeted queries for each source type:
 
@@ -203,9 +204,10 @@ each with different training data, web access, and knowledge bases.
 
 ### How It Works
 
-Send the same research prompt to 2-3 models via Rube MCP, targeting the OpenRouter
-chat completions endpoint. Each model returns sources it knows about. Claude then
-merges, deduplicates, and validates the combined results.
+Send the same research prompt to 2-3 models via Council's `scripts/openrouter_dispatch.py`
+helper, which hits the OpenRouter chat completions endpoint in parallel. Each model
+returns sources it knows about. Claude then merges, deduplicates, and validates the
+combined results.
 
 ### Models and Their Strengths
 
@@ -220,14 +222,15 @@ merges, deduplicates, and validates the combined results.
 | Model | Why |
 |-------|-----|
 | `openai/gpt-4o` | Fabricates URLs. Every single URL it returned in testing was `example.com`. Cannot be trusted for source discovery. |
-| `deepseek/deepseek-r1` | Reasoning phase takes too long, causes Rube MCP 60-second timeout. Use `deepseek/deepseek-chat` instead if you want DeepSeek coverage. |
+| `deepseek/deepseek-r1` | Usable — the dispatch helper's 180s default timeout covers R1's reasoning phase. Still slower than chat variants, so default to `deepseek/deepseek-chat` unless deep reasoning is worth the latency. |
 | `google/gemini-2.5-pro-preview-05-06` | Spends most of its token budget on internal reasoning, then hits max_tokens before outputting results. Use Flash instead. |
 
 ### Execution Strategy
 
-Run Perplexity + one other model as a pair via `RUBE_MULTI_EXECUTE_TOOL`.
-Two models in parallel completes within the 60-second Rube timeout.
-Three models risks timeout — run the third separately if needed.
+Run Perplexity + one or two other models as a parallel batch via Council's
+`scripts/openrouter_dispatch.py` (see "Executing via the dispatch helper" below).
+The 180s default timeout comfortably accommodates 3 models in one batch; only
+split if you're chaining `deepseek-r1` with another reasoning model.
 
 ### The Swarm Prompt
 
@@ -275,32 +278,51 @@ Format your response as a JSON array:
 ]
 ```
 
-### Executing via Rube MCP
+### Executing via the dispatch helper
 
-Use `RUBE_MULTI_EXECUTE_TOOL` or make parallel `RUBE_REMOTE_WORKBENCH` calls
-to the OpenRouter API:
+Reuse Council's `scripts/openrouter_dispatch.py` (resolves at
+`${CLAUDE_PLUGIN_ROOT}/../council/scripts/openrouter_dispatch.py` when both plugins
+are installed in the same marketplace, or copy it to this plugin if you prefer
+no cross-plugin coupling).
 
+Build a swarm jobs file at `${WORKSPACE_OUTPUTS}/lit-discovery-{run_id}/swarm-jobs.json`:
+
+```json
+[
+  {
+    "id": "perplexity",
+    "model": "perplexity/sonar-pro",
+    "messages": [{"role": "user", "content": "{swarm_prompt}"}],
+    "temperature": 0.3,
+    "max_tokens": 4000
+  },
+  {
+    "id": "gemini",
+    "model": "google/gemini-2.5-flash-preview-05-20",
+    "messages": [{"role": "user", "content": "{swarm_prompt}"}],
+    "temperature": 0.3,
+    "max_tokens": 4000
+  },
+  {
+    "id": "claude",
+    "model": "anthropic/claude-sonnet-4",
+    "messages": [{"role": "user", "content": "{swarm_prompt}"}],
+    "temperature": 0.3,
+    "max_tokens": 4000
+  }
+]
 ```
-POST https://openrouter.ai/api/v1/chat/completions
-Headers:
-  Authorization: Bearer {OPENROUTER_API_KEY}
-  Content-Type: application/json
-  HTTP-Referer: https://moxywolf.com
-  X-Title: MoxyWolf Research Pipeline
 
-Body:
-{
-  "model": "{model_id}",
-  "messages": [
-    {"role": "user", "content": "{swarm_prompt}"}
-  ],
-  "temperature": 0.3,
-  "max_tokens": 4000
-}
+Then dispatch in parallel:
+
+```bash
+python3 "${COUNCIL_PLUGIN}/scripts/openrouter_dispatch.py" \
+    --jobs "${WORKSPACE_OUTPUTS}/lit-discovery-${RUN_ID}/swarm-jobs.json" \
+    --out  "${WORKSPACE_OUTPUTS}/lit-discovery-${RUN_ID}/swarm" \
+    --timeout 180
 ```
 
-Send all model requests in parallel. Don't wait for one to finish before
-starting the next.
+The helper writes one `{id}.json` per model. Read each, extract `response.choices[0].message.content`, then process as below.
 
 ### Processing Swarm Results
 

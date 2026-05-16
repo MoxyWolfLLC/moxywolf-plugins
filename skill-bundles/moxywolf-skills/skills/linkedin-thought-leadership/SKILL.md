@@ -1,11 +1,11 @@
 ---
 name: linkedin-thought-leadership
-description: Scrape a LinkedIn top-content page via Rube tools, scan all posts on the page, intelligently select 2-3 with highest engagement potential, then draft practitioner-level comments in MoxyWolf voice. This is the preferred LinkedIn engagement skill — it includes an already-commented check that skips posts Dorian has already commented on. Use this skill whenever a linkedin.com URL is shared and engagement is implied, when asked to respond to or comment on LinkedIn posts, for LinkedIn thought leadership sessions around cybersecurity, compliance, IR, GRC, or operational security topics. Trigger on phrases like "draft a comment for this post," "engage with this LinkedIn content," "what should I say to this," "run the LinkedIn responder," or any pasted linkedin.com URL. Always use this skill even without explicit LinkedIn mention if a linkedin.com URL appears.
+description: Scrape a LinkedIn top-content page via Claude in Chrome (running in Dorian's logged-in browser), scan all posts on the page, intelligently select 2-3 with highest engagement potential, then draft practitioner-level comments in MoxyWolf voice. This is the preferred LinkedIn engagement skill — it includes an already-commented check that skips posts Dorian has already commented on. Use this skill whenever a linkedin.com URL is shared and engagement is implied, when asked to respond to or comment on LinkedIn posts, for LinkedIn thought leadership sessions around cybersecurity, compliance, IR, GRC, or operational security topics. Trigger on phrases like "draft a comment for this post," "engage with this LinkedIn content," "what should I say to this," "run the LinkedIn responder," or any pasted linkedin.com URL. Always use this skill even without explicit LinkedIn mention if a linkedin.com URL appears.
 ---
 
 # LinkedIn Engagement Responder
 
-Reads a single LinkedIn content page using Rube web scraping, scans all posts on the page, selects the best 2-3, and drafts practitioner-level comments in Dorian's voice following MoxyWolf brand guidelines.
+Reads a single LinkedIn content page using Claude in Chrome (which runs in Dorian's real, logged-in browser — bypassing LinkedIn's anti-bot gates that block standard fetches), scans all posts on the page, selects the best 2-3, and drafts practitioner-level comments in Dorian's voice following MoxyWolf brand guidelines.
 
 ## URL Input
 
@@ -21,16 +21,17 @@ If Dorian provides a specific URL, use that instead.
 
 ### Step 1: Fetch the LinkedIn Content
 
-LinkedIn blocks standard `web_fetch`. Always use Rube.
+LinkedIn blocks standard `WebFetch`. Use Claude in Chrome — it runs in the user's actual browser with their authenticated LinkedIn session, so the anti-bot gate doesn't trigger.
 
 **Tool chain:**
-1. `RUBE_SEARCH_TOOLS` — use_case: "scrape or browse a LinkedIn webpage URL to read its content"
-2. Verify `composio_search` toolkit has an active connection via the response
-3. `RUBE_MULTI_EXECUTE_TOOL` — tool: `COMPOSIO_SEARCH_FETCH_URL_CONTENT`, arguments: `{ "urls": ["<the-url>"], "max_characters": 10000, "text": true }`
+1. `mcp__Claude_in_Chrome__tabs_create_mcp` (or reuse a tab via `tabs_context_mcp` with `createIfEmpty: true`)
+2. `mcp__Claude_in_Chrome__navigate` — url: the target LinkedIn URL
+3. Wait ~3 seconds for the page to render
+4. `mcp__Claude_in_Chrome__get_page_text` — returns the rendered text
 
 **Fallbacks (in order):**
-1. `BROWSERLESS_UNBLOCK_PROTECTED_CONTENT` (initiate via `RUBE_MANAGE_CONNECTIONS` if needed)
-2. If the URL fails after fallbacks, log it in the artifact as "FETCH FAILED" and stop.
+1. If `get_page_text` returns suspicious content (login banner, empty body), use `javascript_tool` to confirm session state. If the LinkedIn session has expired, ask the user to re-authenticate in the browser, then retry.
+2. If the URL fails after retry, log it in the artifact as "FETCH FAILED" and stop.
 
 **Note:** LinkedIn "top-content" aggregation pages render multiple posts inline without individual permalink URLs. The skill reads and responds to content but can't reliably extract direct comment links from these pages.
 
@@ -160,7 +161,7 @@ If Dorian specifies a single post (individual URL or pointing to a specific one 
 
 Aggregation pages lack permalinks. If Dorian needs the direct URL:
 
-1. Search via `COMPOSIO_SEARCH_WEB` with distinctive phrases from the post in quotes + `site:linkedin.com`
+1. Search via the built-in `WebSearch` with distinctive phrases from the post in quotes + `site:linkedin.com`
 2. If that fails, provide a manual path: author's profile URL, a distinctive phrase for LinkedIn search, and approximate post age
 
 Be upfront about this limitation. Don't waste cycles on repeated failed attempts.
@@ -172,5 +173,5 @@ Be upfront about this limitation. Don't waste cycles on repeated failed attempts
 - **Reshares**: Respond to original content unless Dorian specifies otherwise.
 - **Non-English content**: Flag and ask for direction.
 - **Empty or blocked pages**: Log in artifact and continue to next URL.
-- **Rate limiting**: If Rube returns rate limit errors, pause and inform Dorian. Don't retry indefinitely.
+- **Rate limiting**: If LinkedIn surfaces a rate-limit page or unusual challenge, pause and inform Dorian — don't retry indefinitely. Chrome MCP runs in his real browser, so abusive scraping would affect his account.
 - **All candidates already commented**: If every relevant post has already been commented on by Dorian, inform him and stop — no selection catalog needed.

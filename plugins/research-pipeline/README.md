@@ -56,7 +56,8 @@ Already done. The Supabase project `research-pipeline` is live at
 - **Supabase MCP** — already connected
 - **Google Drive MCP** — for file uploads
 - **Mermaid MCP** — for diagram validation/rendering
-- **Rube MCP** — for web search, API calls, and OpenRouter swarm
+- **`OPENROUTER_API_KEY`** env var — for the multi-model literature swarm (shares Council's `openrouter_dispatch.py` helper; install Council v0.7.0+)
+- Built-in **WebSearch** + **WebFetch** for general web; **Apify** MCP for heavier scraping if needed
 
 ## Architecture
 

@@ -17,20 +17,22 @@ reference files it points to.
 Read `skills/board-deck-builder/references/data-collection.md` for source-specific
 instructions.
 
-Collect data from these sources (use browser scraping and Rube tools where possible):
+Collect data from these sources (use Claude in Chrome for web-facing UIs, native MCPs for everything else):
 
 1. **LivePlan** — Cash position, monthly burn, P&L, balance sheet, revenue
 2. **GA4** — TOF sessions by product, channel breakdown, engagement rates
 3. **Taskade** — Sprint tasks by status, story points, velocity
-4. **GitHub** (via Rube) — All-branch commit velocity for **STIGViewer** (`MoxyWolfLLC/stigviewer`)
-   and **SAMS** (`MoxyWolfLLC/SAMS`). Use `GITHUB_LIST_BRANCHES` to enumerate every branch
-   in each repo, then `GITHUB_LIST_COMMITS` per branch with the reporting month as the date
-   range. Deduplicate commits by SHA for true project-wide velocity. Both repos use feature
-   branches that don't reach main until go-live.
-5. **Gmail** (via Rube) — **RegGenome** activity intelligence. Search Dorian's inbox for
-   emails mentioning "reggenome", "regulatory genome", or "reg genome" within the reporting
-   month. Extract meeting transcripts, partnership correspondence, action items, and decisions
-   to populate `reggenomeActivity` and enrich `reggenomeOKRs`.
+4. **GitHub** (native GitHub MCP + REST) — All-branch commit velocity for **STIGViewer**
+   (`MoxyWolfLLC/stigviewer`) and **SAMS** (`MoxyWolfLLC/SAMS`). Use the native GitHub MCP's
+   `list_branches` to enumerate every branch in each repo, then call the GitHub REST API
+   directly via `Bash`/`curl` for `GET /repos/{owner}/{repo}/commits?sha={branch}&since=...&until=...`
+   per branch (the GitHub MCP does not expose a commit-list tool). Deduplicate commits by SHA
+   for true project-wide velocity. Both repos use feature branches that don't reach main until go-live.
+5. **Gmail** (native Gmail MCP) — **RegGenome** activity intelligence. Use `search_threads`
+   to query Dorian's inbox for `reggenome OR "regulatory genome" OR "reg genome"` within the
+   reporting month, then `get_thread` to read the full content of each matching thread.
+   Extract meeting transcripts, partnership correspondence, action items, and decisions to
+   populate `reggenomeActivity` and enrich `reggenomeOKRs`.
 
 For any data that cannot be automatically collected, ask the user to provide it.
 

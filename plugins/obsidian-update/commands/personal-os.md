@@ -1,6 +1,6 @@
 ---
 description: "Personal OS: vault-native standup, triage, review, or memory operations. Usage: /personal-os [standup|triage|review|extract|recall <topic>]"
-allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "TodoWrite", "AskUserQuestion", "Agent", "mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search", "mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_fetch", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_SEARCH_TOOLS", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MANAGE_CONNECTIONS", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MULTI_EXECUTE_TOOL", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_GET_TOOL_SCHEMAS", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_REMOTE_WORKBENCH", "mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_REMOTE_BASH_TOOL", "mcp__1be1916d-cb9d-4355-9832-c5b1b6332416__gcal_list_events", "mcp__1be1916d-cb9d-4355-9832-c5b1b6332416__gcal_find_my_free_time", "mcp__50d37d97-704a-41ad-82c9-63bafa29236e__gmail_search_messages", "mcp__50d37d97-704a-41ad-82c9-63bafa29236e__gmail_read_message", "mcp__cowork__request_cowork_directory"]
+allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "TodoWrite", "AskUserQuestion", "Agent", "mcp__cowork__request_cowork_directory"]
 ---
 
 # Personal OS — Vault-Native Operating System
@@ -11,8 +11,8 @@ Before doing ANYTHING else, resolve the vault and read memory files:
 
 1. **Resolve vault path** — check in order:
    a. Current workspace folder contains `CLAUDE.md` → that IS the vault
-   b. Google Drive mount path
-   c. Google Drive API via RUBE_REMOTE_WORKBENCH
+   b. Google Drive mount path (already-mounted MoxyWolf Vault folder)
+   c. Google Drive REST API via `scripts/drive_rest.py` (scheduled-task VM path only — requires service account; see `references/scheduled-task-vm-setup.md`)
    d. Ask Dorian to mount via `request_cowork_directory`
 2. Read `${VAULT}/_System/IDENTITY.md` — internalize identity
 3. Read `${VAULT}/_System/MEMORY.md` — internalize tacit knowledge

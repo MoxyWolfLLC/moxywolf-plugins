@@ -7,10 +7,10 @@ description: >
   "design consultation", "run QA", "test this in a browser", "check this page",
   or any request that involves executing software development work on a codebase
   in the workspace. Adapted from Garry Tan's gstack (MIT licensed) for Cowork's
-  environment with Rube-powered browser testing. Pairs with the Product
-  Orchestrator plugin: Product Orchestrator decides what to build, this plugin
-  builds it.
-version: 0.1.0
+  environment, with browser testing via Claude in Chrome (the user's real
+  logged-in browser). Pairs with the Product Orchestrator plugin: Product
+  Orchestrator decides what to build, this plugin builds it.
+version: 0.2.0
 ---
 
 # gstack Execution Engine
@@ -30,8 +30,8 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 | `/gstack-cso` | Security audit (OWASP + STRIDE + supply chain) | Full — grep + code analysis |
 | `/gstack-ship` | Test + review + PR creation pipeline | Partial — needs `gh` CLI for PR |
 | `/gstack-design` | Design system consultation and generation | Full — analysis + code gen |
-| `/gstack-qa` | Browser QA testing with bug fixing | Full — via Rube Playwright |
-| `/gstack-browse` | Headless browser for verification and dogfooding | Full — via Rube Playwright |
+| `/gstack-qa` | Browser QA testing with bug fixing | Full — via Claude in Chrome |
+| `/gstack-browse` | Browser-based page verification and dogfooding | Full — via Claude in Chrome |
 
 ## How It Connects to Product Orchestrator
 
@@ -56,34 +56,45 @@ This plugin works within Cowork's sandboxed Bash environment. It needs:
 - **A codebase in the workspace** — mount the project folder via Cowork's folder selector.
 
 Required for browser commands (`/gstack-qa`, `/gstack-browse`):
-- **Rube** (rube.sh) — provides `RUBE_REMOTE_BASH_TOOL` and `RUBE_REMOTE_WORKBENCH` for running Playwright in a remote sandbox. Browser operations run through Rube's execution environment, not the local Cowork sandbox.
+- **Claude in Chrome** — Chrome extension that exposes the user's real, logged-in browser to Claude. Tools used: `mcp__Claude_in_Chrome__navigate`, `get_page_text`, `read_page`, `read_console_messages`, `read_network_requests`, `javascript_tool`, `tabs_create_mcp`, `resize_window`, `shortcuts_execute`. If the extension isn't connected when a browser command runs, halt and ask the user to install and sign in — do not silently fall through to a headless tool.
 
 Optional (enhances functionality):
 - **gh CLI** — for PR creation in `/gstack-ship`. If not available, the plugin prepares everything and instructs the user to create the PR manually.
 - **npm/bun** — for dependency auditing in `/gstack-cso`.
 
-## Browser Operations via Rube
+## Browser Operations via Claude in Chrome
 
-gstack's original `/qa` and `/browse` skills use a compiled Chromium binary. In Cowork, we route all browser operations through Rube's remote execution tools instead.
+gstack's original `/qa` and `/browse` skills use a compiled Chromium binary. In Cowork, we route all browser operations through the **Claude in Chrome** extension — Claude controls the user's real, signed-in Chrome session.
 
-**How it works:**
+**Why this is better than headless tooling:**
 
-1. Use `RUBE_REMOTE_BASH_TOOL` to run Playwright commands in Rube's sandbox
-2. Playwright scripts navigate, screenshot, interact with forms, and verify page state
-3. Screenshots are returned as base64 and can be viewed with the Read tool
-4. Results feed back into the QA report or verification checklist
+- The user's authenticated sessions (LinkedIn, Gmail, Supabase dashboards, deployed staging URLs gated by SSO) are already live — no separate auth dance.
+- Real cookies, real extensions, real network conditions — the QA verdict is what an actual user would see.
+- DOM-aware tools (`javascript_tool`, `get_page_text`, `read_page`) extract structured data more reliably than screen-scraping a headless screenshot.
 
-**Rube browser session pattern:**
+**Standard session pattern:**
 
 ```
-1. RUBE_REMOTE_WORKBENCH: Install playwright + chromium if not cached
-2. RUBE_REMOTE_BASH_TOOL: Launch playwright script for navigation/screenshots
-3. Read returned screenshots for visual verification
-4. RUBE_REMOTE_BASH_TOOL: Run interaction scripts (fill forms, click, assert)
-5. Compile results into QA report
+1. tabs_create_mcp                       — open a fresh tab
+2. navigate(url)                          — go to the target
+3. read_console_messages / read_network_requests   — capture errors
+4. get_page_text / read_page              — pull rendered content
+5. javascript_tool(code)                  — run structural / a11y checks in-page
+6. form_input / shortcuts_execute         — drive interactions
+7. resize_window(w, h)                    — responsive checks
 ```
 
-This gives us real browser testing without needing a local binary. The tradeoff is latency (remote execution adds ~2-5s per operation vs gstack's ~100ms local), but the testing fidelity is identical.
+**Capturing visuals:** Claude in Chrome ships `gif_creator` for short interaction recordings. For single still frames, take a native screenshot with `mcp__computer-use__screenshot` while the Chrome window is frontmost.
+
+**Headless fallback (rare):** for fully unattended runs (scheduled regression suites with no human around to host Chrome), install Playwright inside the workspace bash sandbox:
+
+```bash
+npm i -g playwright
+npx playwright install chromium
+node /path/to/regression-suite.js
+```
+
+This is the legacy code path. Prefer Claude in Chrome whenever a real session is available.
 
 ## Execution Voice
 

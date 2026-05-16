@@ -15,7 +15,7 @@ The vault is the single source of truth. Locate it by checking in order:
 
 1. **Cowork workspace mount**: Check if the current workspace folder (`/sessions/*/mnt/*/`) contains `CLAUDE.md` at root with MoxyWolf Vault markers. If yes, that IS the vault. Set `${VAULT}` to that path.
 2. **Google Drive mount**: Check `/sessions/*/mnt/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/`
-3. **Google Drive API fallback**: Use `proxy_execute` via `RUBE_REMOTE_WORKBENCH` with Composio googledrive connection. Team Drive ID: `0AHxJ5CazJqxOUk9PVA`. This is the ONLY path available in scheduled task VM sessions.
+3. **Google Drive REST API fallback**: Use the bundled `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` helper to read/write directly against the Drive v3 API. Team Drive ID: `0AHxJ5CazJqxOUk9PVA`. This is the ONLY path available in scheduled-task VM sessions. **One-time setup required:** Drive service account JSON at `~/.config/moxywolf/drive-service-account.json` (or pointed-to via `DRIVE_SERVICE_ACCOUNT_JSON` env var), with the service account email granted Editor/Manager access to the Shared Drive. See `references/scheduled-task-vm-setup.md` for the full provisioning checklist.
 4. If all fail: use `request_cowork_directory` to ask Dorian to mount the vault.
 
 Once resolved, store the path as `${VAULT}` for all subsequent operations.
@@ -38,22 +38,30 @@ Once resolved, store the path as `${VAULT}` for all subsequent operations.
 
 These rules apply to ALL modes that read or write KANBAN_VIEW.md.
 
-**Reading the Kanban (always get fresh content):**
-```
-run_composio_tool("GOOGLEDRIVE_DOWNLOAD_FILE", {"file_id": "18W69E1XIVwtTEEhcMXFcNs96zYrV5hzh"})
-# Returns an S3 URL — fetch that URL to get the actual markdown content
-```
-Do NOT use `proxy_execute GET /files/{id}?alt=media` — it may return stale cached content.
+**In an interactive Cowork session (vault is mounted as a workspace folder):**
+Use the standard `Read` and `Write`/`Edit` file tools against the mounted path
+(e.g. `${VAULT}/Tasks/KANBAN_VIEW.md`). This is the primary path and avoids all
+Drive API quirks.
 
-**Writing the Kanban (only this works):**
+**In a scheduled-task VM (no vault mount):**
+Use the bundled helper for both reads and writes. The helper passes
+`supportsAllDrives=true` automatically.
+
+```bash
+# Read — downloads current content to a local file
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" download \
+    --file-id 18W69E1XIVwtTEEhcMXFcNs96zYrV5hzh \
+    --out /tmp/kanban.md
+
+# Write — uploads the full updated markdown
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" upload \
+    --file-id 18W69E1XIVwtTEEhcMXFcNs96zYrV5hzh \
+    --in /tmp/kanban-updated.md \
+    --mime text/plain
 ```
-run_composio_tool("GOOGLEDRIVE_EDIT_FILE", {
-  "file_id": "18W69E1XIVwtTEEhcMXFcNs96zYrV5hzh",
-  "content": "<full updated markdown>",
-  "mime_type": "text/plain"
-})
-```
-⚠️ `proxy_execute("PATCH", /files/{id}, "googledrive", ...)` returns HTTP 200 but **silently discards the write** — no new revision is created, the file is not changed. Never use it for Kanban writes.
+
+Always do a fresh `download` before any `upload` so you have the current state to
+diff against — the helper does a full content replace, not a patch.
 
 **Emoji-safe writes (prevents mojibake):**
 The Kanban column headers contain emoji (🔥, ⭐, 📅, 💭, ⏳, ✅, 📥). When writing through Google Drive API, emoji can get mangled into `â€` garbage if not handled carefully. To prevent this:
@@ -184,7 +192,7 @@ Combines daily-ops standup with memory context.
    **If the Canvas is unreachable or empty:** Log "Slack Canvas unavailable — skipping team completions harvest" and continue to Step 3. Do not block the standup on a Canvas read failure.
 
 3. **Stepson Schedule Check** — Determine if this is a stepson week. Check MEMORY.md Life Rhythm section and recent daily notes. Adjust energy expectations accordingly.
-4. **Health Data Pull** — Pull sleep/health data via Rube HealthKit tools. If unavailable, note it and continue.
+4. **Health Data Pull** — Read sleep/health data from the Health Auto Export JSON drop in Drive (`${VAULT}/../Personal OS/health-export/` or the path stored in MEMORY.md → Health section). The iOS Health Auto Export app writes a fresh JSON file nightly. If the latest file is more than 36 hours old, note "stale" and continue. If no file exists at all, fall back to the iMessage-prompt pattern described in `references/health-fallback.md` (delegated from `daily-ops`).
 5. **Energy Assessment** — Compare to baselines:
    | Metric | Baseline | Yellow | Red |
    |--------|----------|--------|-----|
@@ -206,7 +214,8 @@ Combines daily-ops standup with memory context.
    - Folder ID: `1MjSabHDWYjjnp17DshdO9pnESLyvm6Gs`
    - WEEKLY LOG file ID: `1gOh0kIuygCAIMv18wGFPhc7CmsOfI-sI`
    - GOALS file ID: `1cBpTwIPCFDZ4YTqkqn21dM-5AjX6R9Wp`
-   - **CRITICAL:** Use `proxy_execute` with `supportsAllDrives=true` via `RUBE_REMOTE_WORKBENCH` for ALL writes.
+   - **In interactive Cowork sessions:** read/write via the mounted vault path — standard `Read`/`Write`/`Edit`.
+   - **In scheduled-task VMs:** use `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` for both reads (`download --file-id ...`) and writes (`upload --file-id ... --in ... --mime text/plain`). The helper passes `supportsAllDrives=true` automatically. See `references/scheduled-task-vm-setup.md` for one-time service-account setup.
 9. **Kanban State (READ + CANVAS RECONCILIATION)** — Read `${VAULT}/Tasks/KANBAN_VIEW.md` in full. This is the canonical task board — parse all items by column. Surface any P0 items still open, flag items that are overdue based on their `#due/` tag. **Surface all `## ⏳ Waiting On` items** — flag any waiting > 3 days for a nudge/follow-up recommendation. Carry forward all existing board items into the briefing — the Kanban is the source of truth for what's in-flight.
 
    **Canvas Reconciliation (uses Step 2 data):** Compare the Completions Report from Step 2 against the Obsidian Kanban state. Flag discrepancies:
@@ -252,7 +261,7 @@ Combines daily-ops standup with memory context.
     - **Create individual task files** in `${VAULT}/Tasks/` for any newly added items (following the Individual Task File Format).
     - **Respect priority limits** — max 3 P0, max 7 P1. If the reconciliation would exceed limits, present the conflict and let Dorian decide.
     - Write the complete updated KANBAN_VIEW.md back to the vault. Do NOT skip this step.
-    - **⚠️ CRITICAL — USE `GOOGLEDRIVE_EDIT_FILE` for all Kanban writes.** `proxy_execute("PATCH", /files/{id}, "googledrive", ...)` returns HTTP 200 but silently discards the content — no new revision is created. Always use: `run_composio_tool("GOOGLEDRIVE_EDIT_FILE", {"file_id": "...", "content": "...", "mime_type": "text/plain"})`. To read fresh content use `GOOGLEDRIVE_DOWNLOAD_FILE` (not `proxy_execute GET alt=media` which may return stale cached data).
+    - **Kanban writes:** Interactive sessions write directly to the mounted file. Scheduled-task VMs use `scripts/drive_rest.py upload ...` against the Kanban file ID. Always `download` fresh first, modify locally, then `upload` — the helper does a full content replace.
 
 ---
 
@@ -301,7 +310,7 @@ Retrospective with memory consolidation.
    - Do NOT auto-move checked items without confirmation — respect column placement per KANBAN WRITE RULES.
    - **Purge stale Done items:** remove any items from the `## ✅ Done` column that are older than 2 days (see DONE COLUMN CLEANUP for date detection logic). Individual task files in `${VAULT}/Tasks/` are preserved as permanent records.
    - Normalize tags on remaining Done items: ensure `- [x]` and `#status/d`.
-   - Write the complete updated KANBAN_VIEW.md back using `run_composio_tool("GOOGLEDRIVE_EDIT_FILE", {"file_id": "...", "content": "...", "mime_type": "text/plain"})`. **NEVER use `proxy_execute PATCH` for file writes — it silently discards changes.** Remember to preserve emoji headers (see KANBAN WRITE RULES).
+   - Write the complete updated KANBAN_VIEW.md back. In interactive sessions: write to the mounted path. In scheduled-task VMs: `python3 scripts/drive_rest.py upload --file-id ${KANBAN_FILE_ID} --in /tmp/kanban-updated.md --mime text/plain`. Remember to preserve emoji headers (see KANBAN WRITE RULES).
 10. **Write weekly summary** to today's daily note
 
 ---
@@ -310,7 +319,7 @@ Retrospective with memory consolidation.
 
 Designed for the scheduled nightly task. Reviews the day's work and extracts durable knowledge.
 
-**Note:** In scheduled task VMs, the vault is NOT mounted locally. All reads/writes go through Google Drive API via RUBE_REMOTE_WORKBENCH.
+**Note:** In scheduled-task VMs, the vault is NOT mounted locally. All reads/writes go through the Drive REST API via `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py`. Requires the one-time service-account setup at `~/.config/moxywolf/drive-service-account.json`.
 
 **Steps:**
 
@@ -488,60 +497,29 @@ Shared task persistence on Google Drive Team Drive:
 - **WEEKLY LOG file ID:** `1gOh0kIuygCAIMv18wGFPhc7CmsOfI-sI`
 - **GOALS file ID:** `1cBpTwIPCFDZ4YTqkqn21dM-5AjX6R9Wp`
 
-### CRITICAL: Team Drive Write Pattern
+### Team Drive Read/Write Pattern (scheduled-task VM only)
 
-Standard Composio Google Drive tools return 404 for Team Drive writes. You MUST use `proxy_execute` via `RUBE_REMOTE_WORKBENCH` with **relative paths** (no `/drive/v3` prefix).
+In an interactive Cowork session, the vault is mounted as a workspace folder — use the normal `Read`/`Write`/`Edit` tools and skip this section. The patterns below only apply in scheduled-task VMs where there's no mount.
 
-**Update existing file content:**
-```python
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
-```
+The bundled helper at `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` hits the Drive v3 REST API directly with a service account, always passing `supportsAllDrives=true`. See `references/scheduled-task-vm-setup.md` for one-time provisioning of `~/.config/moxywolf/drive-service-account.json`.
 
 **Read file content:**
-```python
-result, error = proxy_execute(
-    "GET",
-    f"/files/{file_id}",
-    "googledrive",
-    query_params={"alt": "media", "supportsAllDrives": "true"}
-)
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" download \
+    --file-id "${FILE_ID}" --out /tmp/file.md
+# Then read /tmp/file.md normally.
 ```
 
-**Create new file in Team Drive:**
-```python
-# Step 1: Create metadata
-result, error = proxy_execute(
-    "POST",
-    "/files",
-    "googledrive",
-    query_params={"supportsAllDrives": "true"},
-    body={
-        "name": "filename",
-        "parents": ["1MjSabHDWYjjnp17DshdO9pnESLyvm6Gs"],
-        "driveId": "0AHxJ5CazJqxOUk9PVA",
-        "mimeType": "text/plain"
-    }
-)
-# Step 2: Upload content
-file_id = result["data"]["id"]
-result, error = proxy_execute(
-    "PATCH",
-    f"/files/{file_id}",
-    "googledrive",
-    query_params={"uploadType": "media", "supportsAllDrives": "true"},
-    body=content,
-    headers={"Content-Type": "text/markdown"}
-)
+**Update existing file content:**
+```bash
+# Edit /tmp/file.md locally, then:
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" upload \
+    --file-id "${FILE_ID}" --in /tmp/file.md --mime text/plain
 ```
 
-**CRITICAL — Google Drive .md files:** Standard `google_drive_fetch` cannot read `.md` files. ALL reads/writes require `proxy_execute` via Rube/Composio with `supportsAllDrives=true`.
+**Create a new file in the Team Drive:** the helper currently exposes `download`, `upload`, `search`, and `ls`. For first-time creation, either (a) create the file once in the Drive UI and then `upload` to its ID, or (b) extend `drive_rest.py` with a `create` subcommand that does a metadata POST + media upload (the two-step pattern is documented in Google's Drive API reference). The vast majority of personal-os writes are updates to existing files (Kanban, MEMORY, WEEKLY LOG, daily notes) so first-time creation is rare in the nightly path.
+
+**.md file reads:** the helper's `download` uses `alt=media`, which works for `.md`, `.txt`, and other plain MIME types in a Team Drive. There's no special handling needed for markdown files in this path.
 
 ---
 
@@ -798,9 +776,9 @@ This plugin works with Claude's scheduled task system:
 ## FAILURE MODES & RECOVERY
 
 ### If vault is not mounted:
-1. Fall back to Google Drive API via RUBE_REMOTE_WORKBENCH
-2. If Google Drive API is also unavailable (no Rube connection), warn Dorian
-3. Queue updates for next successful connection
+1. Fall back to the Drive REST API via `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` (scheduled-task VM path)
+2. If the helper fails authentication (no service-account JSON, expired credentials), warn Dorian and pause — don't try to write blind
+3. Queue updates locally and re-attempt on the next successful run
 
 ### If MEMORY.md is corrupted or missing:
 1. Check `${VAULT}/_System/backups/` for most recent backup

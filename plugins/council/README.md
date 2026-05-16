@@ -6,15 +6,19 @@ Council gives any Cowork user access to structured multi-model deliberation. Ins
 
 The smart router learns which questions actually benefit from full deliberation. The autoresearch loop systematically improves deliberation prompts from your actual usage data. And starting in v0.6.0, the Obsidian vault integration means Council reads organizational context before deliberating and writes decision records back to the vault afterward. Verification becomes institutional knowledge.
 
-No backend required. Runs entirely inside Cowork using Rube's OpenRouter connection.
+No backend required. Council dispatches directly to OpenRouter via its public API from within Cowork's bash sandbox.
 
 ## Setup
 
 1. Install the plugin in Cowork
-2. Ensure you have an active [Rube](https://rube.sh) connection with OpenRouter enabled
+2. Set the `OPENROUTER_API_KEY` env var in your shell rc (`~/.zshrc` or `~/.bashrc`):
+   ```bash
+   export OPENROUTER_API_KEY="sk-or-v1-..."
+   ```
+   Source the rc (`source ~/.zshrc`) and restart Cowork so the new env reaches the bash sandbox.
 3. Run `/deliberate` with any question
 
-On first use, if your OpenRouter connection isn't active, the plugin will provide an authentication link.
+If `OPENROUTER_API_KEY` is unset when a deliberation runs, Council will halt and tell you exactly which env var to set.
 
 ## Commands
 

@@ -24,14 +24,14 @@ Required headers:
 |-------|-----|-----|------|
 | Google Gemini 2.5 Flash | `google/gemini-2.5-flash-preview-05-20` | Fast, strong on government/standards docs. Use Flash not Pro — Pro burns tokens on reasoning before output. | $0.15/$0.60 |
 | Anthropic Claude Sonnet | `anthropic/claude-sonnet-4` | Deep reasoning, honest about uncertainty, strong cross-domain connections. Good complement to Perplexity. | $3/$15 |
-| DeepSeek Chat | `deepseek/deepseek-chat` | Cheap, fast, good at academic literature. Use Chat not R1 — R1's reasoning causes Rube timeout. | $0.14/$0.28 |
+| DeepSeek Chat | `deepseek/deepseek-chat` | Cheap, fast, good at academic literature. Default DeepSeek pick for everyday use; switch to R1 when deep reasoning is worth the latency. | $0.14/$0.28 |
 
 ### Models to Avoid
 
 | Model | ID | Why |
 |-------|-----|-----|
 | OpenAI GPT-4o | `openai/gpt-4o` | **Fabricates URLs.** Every URL it returned in testing was `example.com`. Cannot be trusted for source discovery. |
-| DeepSeek R1 | `deepseek/deepseek-r1` | Reasoning phase exceeds Rube MCP 60-second timeout. Use `deepseek-chat` instead. |
+| DeepSeek R1 | `deepseek/deepseek-r1` | Slower than chat variants — reasoning phase routinely runs 30-90s. Usable now that the dispatch helper has a 180s timeout, but default to `deepseek-chat` unless reasoning depth matters. |
 | Google Gemini 2.5 Pro | `google/gemini-2.5-pro-preview-05-06` | Spends most of its 3000-token budget on internal reasoning, hits max_tokens before generating output. Use Flash. |
 
 ### Tier 3: Specialist (Use for Specific Needs)
@@ -148,19 +148,17 @@ For sources found by only 1 model:
 
 ## Rate Limits and Parallelism
 
-OpenRouter handles rate limiting per-model. Send requests in pairs via
-`RUBE_MULTI_EXECUTE_TOOL`:
+OpenRouter handles rate limiting per-model. Dispatch all models in one batch
+via Council's `scripts/openrouter_dispatch.py`:
 
+```bash
+python3 "${COUNCIL_PLUGIN}/scripts/openrouter_dispatch.py" \
+    --jobs swarm-jobs.json --out swarm/ --timeout 180 --max-workers 6
 ```
-┌─ POST /chat/completions (perplexity/sonar-pro)
-└─ POST /chat/completions (google/gemini-2.5-flash-preview-05-20)
-```
 
-Two models in parallel completes within the 60-second Rube timeout.
-Three models risks timeout — run the third separately if needed.
-
-If a model fails or times out, proceed without it.
-Log the failure but don't block the pipeline.
+The helper's 180s default timeout and 6-worker pool comfortably handles 2-3 models
+in parallel. Failed models write `ok: false` to their `{id}.json` — read the
+`_summary.json` for the per-model picture and proceed with whichever returned.
 
 ## Example Cost Breakdown
 

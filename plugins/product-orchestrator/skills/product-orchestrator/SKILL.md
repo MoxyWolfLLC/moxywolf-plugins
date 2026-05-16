@@ -119,7 +119,7 @@ Signs it's execute-only:
 
 ## Invoking Council Deliberation
 
-When deliberation is needed, format the Council invocation with product-specific structure. Do NOT call `RUBE_MULTI_EXECUTE_TOOL` directly. Instead, trigger the `deliberation-engine` skill, which handles the full pipeline (routing, collection, peer review, synthesis).
+When deliberation is needed, format the Council invocation with product-specific structure. Do not dispatch models yourself — trigger the `deliberation-engine` skill from the Council plugin, which handles the full pipeline (routing, parallel OpenRouter dispatch, peer review, synthesis).
 
 ### Preparing the Council Call
 

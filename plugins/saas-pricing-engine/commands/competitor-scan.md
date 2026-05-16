@@ -9,7 +9,7 @@ Deep-dive a single competitor's pricing structure and extract actionable intelli
 
 2. Take the competitor URL or name from $ARGUMENTS. If a name is provided without a URL, search for their pricing page.
 
-3. Scrape and analyze the competitor's pricing page. Use Rube/Apify tools if available, otherwise use web search and browsing tools. Capture:
+3. Scrape and analyze the competitor's pricing page. Use Apify actors or Claude in Chrome for full rendering; fall back to `WebFetch` for static pages. Capture:
    - All tier names and published price points (monthly and annual)
    - Value metric (what they charge per)
    - Feature gating across tiers (what's in each tier)

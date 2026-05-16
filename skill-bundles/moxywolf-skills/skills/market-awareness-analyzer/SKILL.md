@@ -1,6 +1,6 @@
 ---
 name: market-awareness-analyzer
-description: "Analyzes market awareness distribution from a PR/FAQ document using web search, Google Trends, Reddit, YouTube, and news via Rube MCP tools. Use when (1) you have a PR/FAQ and need content strategy recommendations, (2) determining what keywords to target for each awareness stage, (3) creating a content calendar based on where your market sits, (4) validating PR/FAQ positioning against actual market search behavior, or (5) finding content gaps and placement opportunities. Triggers on phrases like 'analyze my PR/FAQ,' 'content strategy for,' 'keyword research,' 'where is my market,' 'what content should I create,' 'awareness stage analysis.' Requires Rube MCP connection for COMPOSIO_SEARCH_WEB, COMPOSIO_SEARCH_TRENDS, COMPOSIO_SEARCH_NEWS, REDDIT_SEARCH_ACROSS_SUBREDDITS. Optional SERPAPI_YOU_TUBE_SEARCH (requires SERPAPI connection) and SparkToro data (manual input). Use problem-awareness-discovery skill BEFORE this one if you don't yet have a validated PR/FAQ."
+description: "Analyzes market awareness distribution from a PR/FAQ document using built-in web search, Apify actors for Google Trends and Reddit, and news/YouTube via Apify or direct API. Use when (1) you have a PR/FAQ and need content strategy recommendations, (2) determining what keywords to target for each awareness stage, (3) creating a content calendar based on where your market sits, (4) validating PR/FAQ positioning against actual market search behavior, or (5) finding content gaps and placement opportunities. Triggers on phrases like 'analyze my PR/FAQ,' 'content strategy for,' 'keyword research,' 'where is my market,' 'what content should I create,' 'awareness stage analysis.' Uses Claude's built-in `WebSearch` for SERP/news, Apify actors (via `mcp__Apify__call-actor`) for Trends/Reddit/YouTube. Optional SparkToro data (manual input). Use problem-awareness-discovery skill BEFORE this one if you don't yet have a validated PR/FAQ."
 ---
 
 # Market Awareness Analyzer
@@ -61,15 +61,15 @@ See [references/keyword-patterns.md](references/keyword-patterns.md) for pattern
 
 ## Phase 3: Multi-Source Validation
 
-Execute via RUBE_MULTI_EXECUTE_TOOL. See [references/tool-execution.md](references/tool-execution.md).
+Each source maps to a directly-callable tool. See [references/tool-execution.md](references/tool-execution.md) for the exact invocation patterns.
 
 | Source | Tool | Purpose |
 |--------|------|---------|
-| Web | COMPOSIO_SEARCH_WEB | SERP intent, competitor content |
-| Trends | COMPOSIO_SEARCH_TRENDS | Relative volume, rising queries |
-| News | COMPOSIO_SEARCH_NEWS | Forcing functions, media angles |
-| YouTube | SERPAPI_YOU_TUBE_SEARCH | Content gaps, creator landscape |
-| Reddit | REDDIT_SEARCH_ACROSS_SUBREDDITS | Language validation, sentiment |
+| Web | Built-in `WebSearch` | SERP intent, competitor content |
+| Trends | Apify `apify/google-trends-scraper` via `mcp__Apify__call-actor` | Relative volume, rising queries |
+| News | Built-in `WebSearch` (filter to news domains) | Forcing functions, media angles |
+| YouTube | Apify `apify/youtube-scraper` via `mcp__Apify__call-actor` | Content gaps, creator landscape |
+| Reddit | Apify `trudax/reddit-scraper` via `mcp__Apify__call-actor` | Language validation, sentiment |
 
 ## Phase 4: Distribution Synthesis
 

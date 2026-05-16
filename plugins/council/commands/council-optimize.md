@@ -1,6 +1,6 @@
 ---
 description: Run the autoresearch optimization loop on Council's prompts
-allowed-tools: Read, Write, Edit, Grep, Bash(echo:*), mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_SEARCH_TOOLS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MULTI_EXECUTE_TOOL, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_MANAGE_CONNECTIONS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_GET_TOOL_SCHEMAS, mcp__b51b4119-1c0a-4c04-ae60-0d11c60b2fe8__RUBE_REMOTE_WORKBENCH
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash, TodoWrite
 argument-hint: "[--budget 2.00] [--dry-run] [--variable <name>]"
 ---
 

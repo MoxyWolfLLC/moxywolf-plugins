@@ -1,85 +1,105 @@
 # Tool Execution Guide
 
-## Session Setup
-
-```
-RUBE_SEARCH_TOOLS with session: {generate_id: true}
-```
-
-Pass returned session_id to ALL subsequent tool calls.
+The market-awareness-analyzer uses a mix of built-in tools and Apify actors. There is no session-id concept — every call is independent.
 
 ## Execution Sequence
 
 ```
-1. RUBE_SEARCH_TOOLS → Get session_id, verify connections
+1. Web search batch (built-in WebSearch, called in parallel via multiple tool invocations):
+   - WebSearch for each Stage 2 keyword (3-5 calls)
+   - WebSearch for each Stage 3 keyword (3-5 calls)
+   - WebSearch for each Stage 4 keyword (2-3 calls)
 
-2. RUBE_MULTI_EXECUTE_TOOL (Web Search Batch):
-   - COMPOSIO_SEARCH_WEB for Stage 2 keywords (3-5)
-   - COMPOSIO_SEARCH_WEB for Stage 3 keywords (3-5)
-   - COMPOSIO_SEARCH_WEB for Stage 4 keywords (2-3)
+2. Google Trends (Apify actor):
+   - mcp__Apify__call-actor with actorId "apify/google-trends-scraper"
+   - One call comparing problem vs solution (TIMESERIES)
+   - One call expanding the single dominant term (RELATED_QUERIES)
 
-3. RUBE_MULTI_EXECUTE_TOOL (Trends Batch):
-   - COMPOSIO_SEARCH_TRENDS comparing problem vs solution
-   - COMPOSIO_SEARCH_TRENDS with RELATED_QUERIES
-   
-4. RUBE_MULTI_EXECUTE_TOOL (News + Reddit):
-   - COMPOSIO_SEARCH_NEWS for problem + industry
-   - REDDIT_SEARCH_ACROSS_SUBREDDITS for problem terms
-   - REDDIT_SEARCH_ACROSS_SUBREDDITS for solution terms
+3. News (built-in WebSearch with site filter, OR Apify news actor):
+   - WebSearch query: "[problem terms] news"
+   - Filter results by date (last 30 days)
+   - For deeper news scraping, use Apify actor "apify/google-news-scraper"
 
-5. If SERPAPI connected:
-   - SERPAPI_YOU_TUBE_SEARCH for problem content
-   - SERPAPI_YOU_TUBE_SEARCH for solution content
+4. Reddit cross-subreddit search (Apify actor):
+   - mcp__Apify__call-actor with actorId "trudax/reddit-scraper"
+   - One call for problem terms
+   - One call for solution terms
+
+5. YouTube landscape (Apify actor, optional):
+   - mcp__Apify__call-actor with actorId "apify/youtube-scraper"
+   - One call for problem content
+   - One call for solution content
 ```
+
+Tip: Apify actor IDs sometimes change. Use `mcp__Apify__search-actors` with a keyword like "google trends" or "reddit search" to discover current alternatives if a hard-coded ID 404s.
 
 ## Tool Parameters
 
-### COMPOSIO_SEARCH_WEB
-```json
-{
-  "query": "[keyword]"
-}
+### Built-in `WebSearch`
+
 ```
+WebSearch:
+  query: "[keyword phrase]"
+  allowed_domains: ["site1.com", "site2.com"]   # optional
+  blocked_domains: ["spam-site.com"]            # optional
+```
+
 Analyze: Content types ranking, competitor presence, SERP intent match.
 
-### COMPOSIO_SEARCH_TRENDS
+### Apify Google Trends (`apify/google-trends-scraper`)
+
 ```json
-{
-  "query": "problem term, solution term",
-  "data_type": "TIMESERIES"
-}
-```
-Or for expansion:
-```json
-{
-  "query": "single term",
-  "data_type": "RELATED_QUERIES"
-}
+mcp__Apify__call-actor:
+  actor: "apify/google-trends-scraper"
+  input: {
+    "searchTerms": ["problem term", "solution term"],
+    "timeRange": "today 12-m",
+    "geo": "US"
+  }
 ```
 
-### COMPOSIO_SEARCH_NEWS
-```json
-{
-  "query": "[problem or industry terms]",
-  "when": "m",
-  "gl": "us"
-}
+For related-queries expansion, set `"includeRelatedQueries": true`.
+
+### News via WebSearch
+
+```
+WebSearch:
+  query: "[problem or industry terms] news 2026"
 ```
 
-### REDDIT_SEARCH_ACROSS_SUBREDDITS
+Then filter the result list for recency (most results include published dates). For higher fidelity, use the Apify news actor:
+
 ```json
-{
-  "search_query": "[problem or solution terms]",
-  "sort": "relevance",
-  "limit": 50
-}
+mcp__Apify__call-actor:
+  actor: "apify/google-news-scraper"
+  input: {
+    "queries": "[problem or industry terms]",
+    "language": "EN",
+    "maxItems": 50
+  }
 ```
 
-### SERPAPI_YOU_TUBE_SEARCH
+### Apify Reddit (`trudax/reddit-scraper`)
+
 ```json
-{
-  "query": "[how to + problem] or [solution category]"
-}
+mcp__Apify__call-actor:
+  actor: "trudax/reddit-scraper"
+  input: {
+    "searches": ["problem terms", "solution terms"],
+    "sort": "relevance",
+    "maxItems": 50
+  }
+```
+
+### Apify YouTube (`apify/youtube-scraper`)
+
+```json
+mcp__Apify__call-actor:
+  actor: "apify/youtube-scraper"
+  input: {
+    "searchKeywords": "[how to + problem] OR [solution category]",
+    "maxResults": 30
+  }
 ```
 
 ## Interpretation Framework

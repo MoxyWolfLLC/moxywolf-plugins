@@ -40,17 +40,17 @@ Four operating modes:
 
 Results are deduplicated by thread ID and sorted by priority. The Step 8 briefing now includes a **"Your Inbox Says"** section with categorized email summaries: Needs Reply, Meeting Prep, VIP/Key Contacts, Urgent/Time-Sensitive, and Could Reply.
 
-## What's New in v1.1.0
+## What's New in v1.4.0
 
-**Direct Google Drive Writes** — Uses `proxy_execute` with `supportsAllDrives=true` for Team Drive operations instead of standard Composio tools (which return 404).
+**Native-MCP-only architecture.** Interactive Cowork sessions use the mounted MoxyWolf Vault filesystem for all reads/writes. Scheduled-task VMs use the bundled `drive_rest.py` helper that ships with the `obsidian-update` plugin (set up once per Mac with a Google service account — see that plugin's `references/scheduled-task-vm-setup.md`). Apple HealthKit data is read from the **Health Auto Export** iOS app's nightly JSON drop in Drive — no live HealthKit MCP needed. See `MIGRATION-rube-deprecation.md` at the repo root for the history.
 
 ## Requirements
 
-- Google Drive (Team Drive with operations folder)
-- Google Calendar
-- Gmail
-- Rube/Composio connection (for HealthKit and Drive writes)
-- Apple HealthKit or Oura (for sleep/health data)
+- Google Drive (the MoxyWolf Vault — Shared Drive)
+- Google Calendar (native MCP connector in Cowork)
+- Gmail (native MCP connector in Cowork)
+- **For scheduled-task VMs only:** Drive service account at `~/.config/moxywolf/drive-service-account.json` — see `obsidian-update`'s `references/scheduled-task-vm-setup.md`
+- **Apple Health Auto Export** iOS app, configured to write JSON exports to a known Drive folder (Dorian: see your Health Auto Export settings → Export Destination)
 - iMessage MCP / Messages app (for fitness coach notifications — Mac required)
 
 ## Trigger Phrases

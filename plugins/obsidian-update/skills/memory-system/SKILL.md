@@ -42,7 +42,7 @@ ${VAULT}/
 └── GOALS.md
 ```
 
-**Dual access pattern:** In interactive Cowork sessions, the vault is the mounted workspace folder — read/write using standard Read/Write/Edit tools. In scheduled task VMs, the vault must be accessed via Google Drive API (`proxy_execute` via `RUBE_REMOTE_WORKBENCH` with Composio googledrive, `supportsAllDrives=true`). The parent personal-os skill resolves the vault path and determines which access method to use.
+**Dual access pattern:** In interactive Cowork sessions, the vault is the mounted workspace folder — read/write using standard `Read`/`Write`/`Edit` tools. In scheduled-task VMs, the vault must be accessed via the Drive v3 REST API using the bundled `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` helper, which authenticates with a service account and always passes `supportsAllDrives=true`. The parent personal-os skill resolves the vault path and determines which access method to use.
 
 ---
 
@@ -59,14 +59,19 @@ Called at the start of every session (Step 0 in main skill).
 5. Return combined context (do NOT echo to user)
 ```
 
-### Scheduled task VM (Google Drive API):
-```
-1. Search Google Drive for "IDENTITY.md" in MoxyWolf Vault/_System/
-   - Use proxy_execute GET /files with q="name='IDENTITY.md'" and supportsAllDrives=true
-2. Read content via proxy_execute GET /files/{id} with alt=media
-3. Repeat for MEMORY.md
-4. Search for files in MoxyWolf Vault/Daily Journal/ sorted by name desc
-5. Read top 3 results
+### Scheduled-task VM (Drive REST API):
+```bash
+# 1. Find IDENTITY.md by name within the _System folder
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" search \
+    --folder-id "${SYSTEM_FOLDER_ID}" --name "IDENTITY.md"
+# Parse the JSON response for the file id, then download:
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" download \
+    --file-id "${IDENTITY_FILE_ID}" --out /tmp/IDENTITY.md
+# 2. Repeat for MEMORY.md
+# 3. List Daily Journal/ and pull the 3 most-recently-modified files:
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" ls \
+    --folder-id "${DAILY_JOURNAL_FOLDER_ID}"
+# Sort the returned JSON by modifiedTime desc, take the top 3, download each.
 ```
 
 If MEMORY.md doesn't exist, return warning string for the main skill to handle.

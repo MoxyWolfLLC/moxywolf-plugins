@@ -55,7 +55,7 @@ Scrape and analyze pricing pages for direct competitors. For each competitor, ca
 - **Add-ons** — premium support, dedicated instances, compliance packages
 - **Pricing page UX** — toggle design, comparison tables, FAQ, social proof
 
-Use Rube/Apify tools when available for automated scraping. Fall back to manual URL analysis.
+Use Apify actors or Claude in Chrome for automated scraping (Chrome handles JS-rendered pricing pages cleanly). Fall back to `WebFetch` for static pages, then manual URL analysis if both fail.
 
 Read `references/competitor-matrix-template.md` for the structured capture format.
 

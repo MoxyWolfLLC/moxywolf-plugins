@@ -79,7 +79,7 @@ Called automatically by the deliberation-engine after Stage 3 completes (Step 8)
 
 2. **Generate the record ID.** Format: `d_{YYYYMMDD}_{NNN}` where NNN is a zero-padded sequence number. Count existing deliberations with today's date prefix to determine the next sequence number.
 
-3. **Hash the query.** Compute a short hash of the query text for dedup detection. Use the first 8 characters of a SHA-256 hash. In Cowork, compute this via `RUBE_REMOTE_WORKBENCH` with a simple hash function, or use a deterministic substring of the query as a fingerprint. **Never store the full query text.**
+3. **Hash the query.** Compute a short hash of the query text for dedup detection. Use the first 8 characters of a SHA-256 hash. Compute it in the workspace bash sandbox: `echo -n "$QUERY" | shasum -a 256 | cut -c1-8` (or `python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:8])' "$QUERY"`). **Never store the full query text.**
 
 4. **Summarize the query.** Generate a natural-language summary of the query in under 80 characters. This is what appears in `/council-stats history`. Example: "Compare microservices vs monolith for early SaaS" — descriptive but not the full query.
 

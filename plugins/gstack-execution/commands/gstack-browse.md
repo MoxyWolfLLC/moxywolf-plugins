@@ -1,65 +1,48 @@
 ---
-description: Headless browser for verification and dogfooding via Rube
+description: Browser-based page verification and dogfooding via Claude in Chrome
 allowed-tools: Read, Grep, Bash, Write, Agent
 argument-hint: [url]
 ---
 
-Headless browser for page verification, deploy checking, and dogfooding. Uses Rube's remote Playwright. Lighter weight than `/gstack-qa` — point it at a URL and get a quick health check.
+Browser-based page verification, deploy checking, and dogfooding. Uses Claude in Chrome (the user's real browser) so any authenticated session, cookies, and extensions are present. Lighter weight than `/gstack-qa` — point it at a URL and get a quick health check.
 
-Read the gstack-execution skill for context, especially the "Browser Operations via Rube" section.
+Read the gstack-execution skill for context, especially the "Browser Operations via Claude in Chrome" section.
 
 ## Target
 
 $ARGUMENTS — a URL to check.
 
+## Prerequisites
+
+- The **Claude in Chrome** extension is installed, signed in, and at least one Chrome window is open.
+- If the extension isn't connected, halt and ask the user to install it. Don't fall back to a headless tool — `/gstack-browse` is specifically about verifying what the real user sees.
+
 ## Quick Verification Workflow
 
-Use `RUBE_REMOTE_WORKBENCH` to run a Playwright verification:
+Use the Claude in Chrome MCP. Open a tab, navigate, and inspect:
 
-```python
-from playwright.sync_api import sync_playwright
-import json
+1. `mcp__Claude_in_Chrome__tabs_create_mcp` — opens a new tab (or reuse an existing one via `tabs_context_mcp` with `createIfEmpty: true`).
+2. `mcp__Claude_in_Chrome__navigate` with `url: $ARGUMENTS`. Wait ~3 seconds after navigation for the page to fully render.
+3. `mcp__Claude_in_Chrome__read_console_messages` — surface any errors logged during navigation.
+4. `mcp__Claude_in_Chrome__read_network_requests` — surface any failed requests (status >= 400 or `failed`).
+5. `mcp__Claude_in_Chrome__get_page_text` — get the rendered text content (this is what a user would see).
+6. For structural checks, run a JS evaluation in-page:
 
-results = {"url": "{url}", "checks": []}
+   ```js
+   mcp__Claude_in_Chrome__javascript_tool with code:
+       JSON.stringify({
+         title: document.title,
+         has_h1: document.querySelectorAll("h1").length > 0,
+         has_nav: document.querySelectorAll("nav").length > 0,
+         has_footer: document.querySelectorAll("footer").length > 0,
+         links: document.querySelectorAll("a").length,
+         images: document.querySelectorAll("img").length,
+         forms: document.querySelectorAll("form").length,
+         status: window.performance.getEntriesByType('navigation')[0]?.responseStatus || null,
+       })
+   ```
 
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page(viewport={"width": 1280, "height": 720})
-
-    # Capture console errors
-    console_errors = []
-    page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
-
-    # Capture network failures
-    failed_requests = []
-    page.on("requestfailed", lambda req: failed_requests.append({"url": req.url, "error": req.failure}))
-
-    # Navigate
-    response = page.goto("{url}", wait_until="networkidle", timeout=30000)
-
-    # Screenshot
-    page.screenshot(path="/tmp/browse-full.png", full_page=True)
-
-    # Collect results
-    results["status_code"] = response.status
-    results["console_errors"] = console_errors
-    results["failed_requests"] = failed_requests
-    results["title"] = page.title()
-
-    # Check key elements
-    results["has_h1"] = page.locator("h1").count() > 0
-    results["has_nav"] = page.locator("nav").count() > 0
-    results["has_footer"] = page.locator("footer").count() > 0
-    results["links_count"] = page.locator("a").count()
-    results["images_count"] = page.locator("img").count()
-    results["forms_count"] = page.locator("form").count()
-
-    browser.close()
-
-print(json.dumps(results, indent=2))
-```
-
-Read the returned screenshot to visually verify the page.
+7. If a visual record is needed, use `mcp__Claude_in_Chrome__gif_creator` for a short capture, or fall back to native `mcp__computer-use__screenshot` for a single frame.
 
 ## Report
 
@@ -88,15 +71,17 @@ If issues are found, list each with severity. If the page is healthy, say so and
 
 If the user provides multiple URLs or asks to "check the whole site":
 1. Start from the provided URL
-2. Extract all internal links
-3. Visit each (up to 20 pages)
+2. Extract all internal links from the page (via `javascript_tool`: `[...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => h.startsWith(location.origin))`)
+3. Visit each (up to 20 pages) via `navigate` in the same tab — no need to open 20 tabs
 4. Report health for each page
 5. Produce a site-wide summary
 
 ## Responsive Check
 
 If asked to check responsive behavior:
-1. Screenshot at 375px (mobile)
-2. Screenshot at 768px (tablet)
-3. Screenshot at 1280px (desktop)
-4. Read all three screenshots and report layout issues at each breakpoint
+1. `mcp__Claude_in_Chrome__resize_window` to 375×667 (mobile), capture
+2. Resize to 768×1024 (tablet), capture
+3. Resize to 1280×800 (desktop), capture
+4. Read each capture and report layout issues at each breakpoint
+
+Restore the window to the user's preferred size when done.

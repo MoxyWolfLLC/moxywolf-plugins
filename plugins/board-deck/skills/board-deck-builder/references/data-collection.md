@@ -131,17 +131,26 @@ only the default branch drastically undercounts actual development velocity.
 
 ### Steps
 
-1. Use Rube `GITHUB_LIST_BRANCHES` tool for each product repo with a GitHub presence:
-   - **STIGViewer**: owner `MoxyWolfLLC`, repo `stigviewer`, per_page 100
-   - **SAMS**: owner `MoxyWolfLLC`, repo `SAMS`, per_page 100
+1. Use the native GitHub MCP's `list_branches` tool for each product repo with a GitHub presence:
+   - **STIGViewer**: owner `MoxyWolfLLC`, repo `stigviewer`
+   - **SAMS**: owner `MoxyWolfLLC`, repo `SAMS`
 
-2. For EACH repo above, and for EACH branch returned, use `GITHUB_LIST_COMMITS` with:
-   - owner: `MoxyWolfLLC`
-   - repo: [repo name — `stigviewer` or `SAMS`]
-   - sha: [branch name]
-   - since: first day of reporting month (ISO 8601)
-   - until: last day of reporting month (ISO 8601)
-   - per_page: 100
+2. For EACH repo above, and for EACH branch returned, call the GitHub REST API directly
+   via `Bash` (the MCP does not expose a per-branch commit listing). Use `gh` if installed,
+   otherwise `curl`:
+
+   ```bash
+   # Preferred (uses Dorian's GitHub Desktop auth via gh):
+   gh api -X GET "/repos/MoxyWolfLLC/${REPO}/commits" \
+     -f sha="${BRANCH}" -f since="${SINCE_ISO}" -f until="${UNTIL_ISO}" -F per_page=100
+
+   # Fallback (requires GITHUB_TOKEN env var):
+   curl -sS -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+     "https://api.github.com/repos/MoxyWolfLLC/${REPO}/commits?sha=${BRANCH}&since=${SINCE_ISO}&until=${UNTIL_ISO}&per_page=100"
+   ```
+
+   Where `SINCE_ISO` is the first day of the reporting month and `UNTIL_ISO` is the
+   last day, both in ISO 8601 (e.g. `2026-02-01T00:00:00Z` and `2026-02-28T23:59:59Z`).
 
 3. Collect per branch:
 
@@ -195,19 +204,19 @@ only the default branch drastically undercounts actual development velocity.
 ## Source 5: Gmail (RegGenome Activity Intelligence)
 
 RegGenome does not have a GitHub repo or GA4 property, so its development and
-partnership activity is tracked through email. Use Rube `GMAIL_FETCH_EMAILS` to
-search Dorian's inbox for RegGenome-related transcripts, meeting notes, and
-correspondence from the reporting month.
+partnership activity is tracked through email. Use the native Gmail MCP to search
+Dorian's inbox for RegGenome-related transcripts, meeting notes, and correspondence
+from the reporting month.
 
 ### Steps
 
-1. Use Rube `GMAIL_FETCH_EMAILS` with:
-   - query: `reggenome after:YYYY/MM/01 before:YYYY/MM+1/01` (reporting month boundaries)
-   - max_results: 50
-   - include_payload: true
-
-2. Also search for related terms that may appear without "reggenome" explicitly:
+1. Call `search_threads` (native Gmail MCP, server prefix `mcp__50d37d97-…__`) with:
    - query: `(reggenome OR "regulatory genome" OR "reg genome") after:YYYY/MM/01 before:YYYY/MM+1/01`
+     — the reporting month boundaries; combine all three spellings in a single search
+   - Adjust the max results to ~50 if the MCP exposes a limit parameter.
+
+2. For each thread ID returned, call `get_thread` to read the full message bodies
+   (the search response gives metadata; `get_thread` gives content).
 
 3. For each matching email/thread, extract:
    - Subject line
