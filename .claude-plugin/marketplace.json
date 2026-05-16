@@ -72,6 +72,15 @@
       "keywords": ["code-review", "security-audit", "qa", "debugging", "shipping", "owasp"]
     },
     {
+      "name": "github-repo-analyzer",
+      "source": "./plugins/github-repo-analyzer",
+      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Uses native GitHub MCP + gh CLI / REST.",
+      "version": "0.5.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "engineering",
+      "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification"]
+    },
+    {
       "name": "obsidian-update",
       "source": "./plugins/obsidian-update",
       "description": "Vault-native personal operating system with Council integration. Energy-aware daily ops, three-layer persistent memory, Kanban task management, and session knowledge extraction into the MoxyWolf Obsidian vault.",

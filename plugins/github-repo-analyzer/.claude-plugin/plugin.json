@@ -1,0 +1,9 @@
+{
+  "name": "github-repo-analyzer",
+  "version": "0.5.0",
+  "description": "Analyze GitHub repositories for health, tech stack conformance, structured issue reviews with CWE/OWASP/NIST security classification, HITL code fix suggestions with embedded security reference catalog, and closure verification audits that detect unfixed issues marked as resolved — built for MoxyWolf LLC internal use.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": ["github", "repository", "analysis", "prd", "tech-stack", "health-report", "security", "cwe", "owasp", "nist", "issue-review", "vulnerability-classification", "code-fix", "hitl", "remediation", "asvs", "verify-fix", "closure-audit", "remediation-verification", "mass-closure-detection"]
+}
