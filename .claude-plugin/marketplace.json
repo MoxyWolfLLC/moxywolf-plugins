@@ -75,7 +75,7 @@
       "name": "github-repo-analyzer",
       "source": "./plugins/github-repo-analyzer",
       "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": { "name": "MoxyWolf LLC" },
       "category": "engineering",
       "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification"]
@@ -101,8 +101,8 @@
     {
       "name": "project-init",
       "source": "./plugins/project-init",
-      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs (with auto-written `author` / `for` baton-pass frontmatter), refreshes GitHub READMEs, and captures durable knowledge.",
-      "version": "0.9.0",
+      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs (with auto-written `author` / `for` baton-pass frontmatter), refreshes GitHub READMEs, and captures durable knowledge. /session-start now auto-detects the project from the launch directory.",
+      "version": "0.10.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "productivity",
       "keywords": ["cowork", "project-setup", "session-handoff", "team-handoff", "moxywolf"]

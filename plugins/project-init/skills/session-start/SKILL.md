@@ -34,15 +34,26 @@ The skill mounts these three constants every time. The Project Instructions assu
 
 ### Step 1: Resolve which project
 
-If the user passed a project name with the slash command (e.g. `/session-start SAMS`), use it directly. Otherwise:
+**Resolution order** (use the first method that yields a project):
 
-a. Scan `Taskade/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Also scan `MoxyWolf Vault/Projects/` for vault-only projects with the same file.
+1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. An explicit argument always wins.
 
-b. Sort candidates by recency of modification of the saved instructions file (most-recently-edited first).
+2. **Auto-detect from the launch directory.** Inspect the user's selected folder path from the session environment and parse it for a project segment:
+   - `.../MoxyWolf Vault/Projects/<NAME>/...` → project is `<NAME>`
+   - `.../Taskade/<NAME>/...` where `<NAME>` is not `_Shared Files` → project is `<NAME>`
+   - `.../GitHub/<REPO>/...` → look up which project's `cowork-project-instructions.md` lists `<REPO>` as an active GitHub repo; if exactly one match, use it.
 
-c. Present the top ~6 candidates as multiple-choice options via AskUserQuestion. The final option is "Other — type a project name" for the rare case where the user wants a project not yet in the list.
+   If a project is detected, announce it in the briefing as: *"Detected project from launch directory: **<NAME>**."* and skip to Step 2. This is the expected path — Dorian's normal workflow is to launch Cowork from inside a project folder, so auto-detection should succeed most of the time.
 
-d. If the user types a name that doesn't match any folder, list the available project folders and ask them to pick from the list (don't try to create a new project — that's `/init-project`'s job).
+3. **Fall back to scan + pick** only when neither (1) nor (2) produces a project (e.g. user launched from the vault root, the Taskade root, or the GitHub root):
+
+   a. Scan `Taskade/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Also scan `MoxyWolf Vault/Projects/` for vault-only projects with the same file.
+
+   b. Sort candidates by recency of modification of the saved instructions file (most-recently-edited first).
+
+   c. Present the top ~6 candidates as multiple-choice options via AskUserQuestion. The final option is "Other — type a project name" for the rare case where the user wants a project not yet in the list.
+
+   d. If the user types a name that doesn't match any folder, list the available project folders and ask them to pick from the list (don't try to create a new project — that's `/init-project`'s job).
 
 ### Step 2: Read the saved Project Instructions
 

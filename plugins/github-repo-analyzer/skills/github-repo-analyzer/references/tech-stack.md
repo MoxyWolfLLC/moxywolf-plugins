@@ -2,7 +2,7 @@
 
 | Area / Concern                    | Tool / Platform                                              | Purpose / Role                                               | Notes                                                        |
 | --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| CMS Platform                      | **Directus**                                                 | Headless CMS managing dynamic data and content for all modules. | Chosen for flexibility, self-hosting, and strong API generation. |
+| CMS Platform                      | **Payload CMS**                                              | Headless CMS managing dynamic data and content for all modules; runs in-process with Next.js. | Open source (MIT), TypeScript-first, code-defined schemas — shipped inside our Next.js app rather than as a separate hosted service. |
 | Frontend / Framework              | **Next.js**                                                  | Full-stack React framework for the web app frontend and API routes. | Provides SSR/ISR and seamless Vercel integration.            |
 | Hosting / Deployment              | **Vercel**                                                   | Cloud hosting and CI/CD for frontend and edge functions.     | Optimized for Next.js and global performance.                |
 | Project Structure / Monorepo      | **Turborepo**                                                | Organizes multiple packages/services under one repo.         | Ensures shared configs and efficient builds.                 |
@@ -19,9 +19,9 @@
 | Database ORM (Optional)           | **Prisma**                                                   | Type-safe ORM for database access.                           | Optional for advanced queries or migrations.                 |
 | Compliance Platform Integration   | **SAMS (OpenControls.ai)**                                   | Compliance and audit automation integration.                 | Helps automate SOC2/GDPR frameworks.                         |
 | Payments / Billing                | **Paid.ai**                                                  | Manages subscriptions and payment processing.                | Simplifies SaaS billing automation.                          |
-| Background Jobs / Scheduling      | **Supabase + Directus Flows**                                | Handles async tasks and scheduled jobs.                      | Low-maintenance workflow automation.                         |
-| Email / Notifications             | **Directus / Resend**                                        | Sends transactional and system emails.                       | Reliable and API-based notification delivery.                |
-| Internationalization (i18n)       | **Directus i18n + Next.js**                                  | Localized content management and frontend translations.      | Streamlined for multilingual SaaS use.                       |
+| Background Jobs / Scheduling      | **Supabase + Payload Jobs**                                | Handles async tasks and scheduled jobs.                      | Low-maintenance workflow automation.                         |
+| Email / Notifications             | **Payload Email + Resend**                                   | Sends transactional and system emails.                       | Payload's email adapter sends through Resend; reliable and API-based notification delivery. |
+| Internationalization (i18n)       | **Payload Localization + Next.js**                           | Localized content management and frontend translations.      | Per-field localization configured in Payload, surfaced through Next.js. |
 | CRM                               | **GoHighLevel**                                              | Manages leads, customers, and marketing flows.               | Integrates well with SaaS sales funnels.                     |
 | Analytics / Monitoring            | **Google Analytics**, **Microsoft Clarity**, **Vercel Analytics** | Tracks usage, user behavior, and engagement.                 | Provides insights for UX optimization.                       |
 | Observability / Monitoring        | **Trench**                                                   | Logs, traces, and error monitoring.                          | Unified monitoring for APIs and frontend.                    |
@@ -58,21 +58,22 @@
 - Direct database access via Supabase client or Prisma ORM
 - RESTful and type-safe APIs consumed by Next.js frontend
 
-**Directus CMS (Content Management)**
+**Payload CMS (Content Management)**
 
-- Headless CMS for managing dynamic content and structured data
+- TypeScript-native headless CMS for managing dynamic content and structured data
 - Auto-generated REST & GraphQL APIs for content delivery
 - Built-in admin interface for content editors
-- Content versioning and workflows via Directus Flows
-- Multi-language content support (i18n)
-- Asset management integrated with Supabase Storage
-- Webhooks for content change notifications
+- Content versioning and drafts; scheduled and background work via Payload Jobs
+- Multi-language content support (Payload Localization, per-field)
+- Asset management integrated with Supabase Storage (via Payload's S3-compatible storage adapter)
+- Webhooks and lifecycle hooks for content change notifications
+- Runs in-process inside the Next.js app — no separate hosted service to operate
 
 ### Layer 3: Specialized Processing
 **Background Jobs & Automation**
 
 - Supabase functions for database triggers and scheduled tasks
-- Directus Flows for content-driven workflow automation
+- Payload Jobs for content-driven workflow automation and background queues
 - Complex async processing and job queuing
 - Email notifications via Resend
 - Webhook handling for external integrations
@@ -117,14 +118,14 @@ flowchart TB
     C[API Layer
       Trench + tRPC]
     D[CMS / Content Layer
-      nDirectus]
+      Payload CMS]
   end
 
   subgraph Infrastructure["Infrastructure ðŸŸ¨"]
     E[(Database & Storage
        Supabase + Prisma)]
     F[Background Jobs / Flows
-      Directus Flows]
+      Payload Jobs]
   end
 
   subgraph Integrations["External Integrations ðŸŸ¥"]
@@ -161,11 +162,11 @@ The SaaS platform follows a **modular three-tier architecture** with clear separ
 
 **Layer 1 (Frontend):** End users interact with the **Next.js frontend** hosted on Vercel, which manages routing, UI rendering, and client-side state via **TanStack Query**. The frontend is fully type-safe with TypeScript and uses modern design patterns with Tailwind CSS and shadcn/ui components. Marketing pages are built with Relume for rapid iteration.
 
-**Layer 2 (Backend):** The core application logic runs through a **custom API layer built with Trench + tRPC**, providing type-safe endpoints from frontend to backend. This layer handles authentication, business logic, and data operations. **Directus** operates as a separate **headless CMS** specifically for managing dynamic content, providing its own APIs for content delivery and a built-in admin interface for content editors.
+**Layer 2 (Backend):** The core application logic runs through a **custom API layer built with Trench + tRPC**, providing type-safe endpoints from frontend to backend. This layer handles authentication, business logic, and data operations. **Payload CMS** runs in-process inside the Next.js app as the **headless CMS** for managing dynamic content, exposing its own REST and GraphQL APIs for content delivery and a built-in admin interface for content editors.
 
-**Layer 3 (Specialized Processing):** Background jobs and workflow automation are handled through **Supabase functions** and **Directus Flows**. This layer manages async tasks, scheduled jobs, email notifications via Resend, and webhook integrations with external services.
+**Layer 3 (Specialized Processing):** Background jobs and workflow automation are handled through **Supabase functions** and **Payload Jobs**. This layer manages async tasks, scheduled jobs, email notifications via Resend, and webhook integrations with external services.
 
-**Layer 4 (Data & Storage):** **Supabase** provides the underlying PostgreSQL database and blob storage. It offers real-time subscriptions, row-level security for multi-tenancy, and automatic backups. Both the custom backend and Directus connect to this data layer.
+**Layer 4 (Data & Storage):** **Supabase** provides the underlying PostgreSQL database and blob storage. It offers real-time subscriptions, row-level security for multi-tenancy, and automatic backups. Both the custom backend and Payload CMS connect to this data layer.
 
 **Layer 5 (External Integrations):** The platform integrates with external services including **Paid.ai** (payments), **SAMS** (compliance), **GoHighLevel** (CRM), **Resend** (email), and various analytics tools (**Google Analytics**, **Microsoft Clarity**, **Trench**).
 
@@ -182,11 +183,11 @@ Next.js Frontend â†’ Vercel Edge Cache â†’ tRPC API (Trench) â†’ 
 
 ### Content Delivery Flow
 ```
-Next.js Frontend â†’ Directus REST/GraphQL APIs â†’ Supabase Postgres
+Next.js Frontend â†’ Payload REST/GraphQL APIs â†’ Supabase Postgres
 ```
-- Dynamic content is served directly from Directus
-- Content editors manage content via Directus admin UI
-- Directus provides versioning and workflow automation for content
+- Dynamic content is served directly from Payload CMS (running inside the Next.js app)
+- Content editors manage content via the Payload admin UI
+- Payload provides versioning, drafts, and lifecycle hooks for content workflows
 - Same Supabase database, different access pattern
 
 ### Authentication Flow
@@ -225,7 +226,7 @@ Customer Login â†’ Authentication â†’ Organization Context
 This architecture provides:
 
 - **Type Safety:** End-to-end type safety from frontend through tRPC to database with TypeScript and Prisma
-- **Content Flexibility:** Directus CMS allows non-technical users to manage content independently
+- **Content Flexibility:** Payload CMS allows non-technical users to manage content independently via its admin UI
 - **Performance:** Edge caching via Vercel and optimized data fetching with TanStack Query
 - **Scalability:** Modular architecture allows independent scaling of frontend, backend, and content services
 - **Developer Experience:** Modern tooling (tRPC, Tailwind, shadcn/ui) enables rapid development
@@ -237,14 +238,14 @@ This architecture provides:
 
 ## Architecture Philosophy
 
-**Separation of Concerns:** The architecture clearly separates application logic (tRPC backend) from content management (Directus CMS). This allows developers to build custom features while content editors independently manage dynamic content.
+**Separation of Concerns:** The architecture clearly separates application logic (tRPC backend) from content management (Payload CMS). Payload runs inside the same Next.js app but stays a distinct module, so developers build custom features while content editors independently manage dynamic content.
 
 **Type-Safe First:** TypeScript is used throughout the stack, with tRPC providing compile-time type safety between frontend and backend, eliminating entire classes of runtime errors.
 
 **Platform Leverage:** The architecture leverages best-in-class platforms for their strengths:
 - Vercel for frontend hosting and edge optimization
 - Supabase for database and storage infrastructure
-- Directus for content management workflows
+- Payload CMS for content management workflows (in-process with Next.js)
 - Trench for comprehensive observability
 
 **Key Principles:**
