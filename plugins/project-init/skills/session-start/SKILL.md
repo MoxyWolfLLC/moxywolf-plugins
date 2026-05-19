@@ -103,6 +103,31 @@ d. **Open GitHub PRs and recent issues** — For each repo in the parsed GitHub 
    - All open PRs (title, author, last-updated)
    - Top 5 most-recently-updated open issues (title, author, last-updated)
 
+e. **Shared team services probe** — Check the team-shared OpenRouter API key file at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`. The canonical setup is documented in [[DR-010-openrouter-key-vault-file]]; it's read by Council, research-pipeline, and product-orchestrator. Surface one of four states in the briefing:
+
+   - **resolved** — file exists and contains a value matching `^sk-or-v1-` (real OpenRouter key prefix). Status line: `OpenRouter key: ✓ resolved from vault`.
+   - **placeholder** — file exists but the value is still `REPLACE_WITH_TEAM_SHARED_KEY` (or any value containing `REPLACE` / `PLACEHOLDER`). Status line: `OpenRouter key: ⚠ placeholder — ask Dorian for the real key`.
+   - **malformed** — file exists but no `OPENROUTER_API_KEY=` line, or value doesn't match the `sk-or-v1-` prefix. Status line: `OpenRouter key: ⚠ file present but key value looks wrong — check format`.
+   - **missing** — file doesn't exist at the canonical path. Status line: `OpenRouter key: ⚠ not found — see DR-010 for the canonical location`.
+
+   Probe implementation (run via `mcp__workspace__bash`, in the same parallel batch as the other reads):
+
+   ```bash
+   KEY_FILE="$(ls -d /sessions/*/mnt/MoxyWolf\ Vault 2>/dev/null | head -1)/_Shared Knowledge/Agents and Plugins/openrouter.env"
+   if [ ! -f "$KEY_FILE" ]; then
+       echo "missing"
+   else
+       VAL=$(grep -E '^[[:space:]]*(export[[:space:]]+)?OPENROUTER_API_KEY[[:space:]]*=' "$KEY_FILE" \
+           | head -1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^["'\'']//; s/["'\'']$//')
+       if [ -z "$VAL" ]; then echo "malformed"
+       elif echo "$VAL" | grep -qE 'REPLACE|PLACEHOLDER'; then echo "placeholder"
+       elif echo "$VAL" | grep -qE '^sk-or-v1-'; then echo "resolved"
+       else echo "malformed"; fi
+   fi
+   ```
+
+   This probe is project-agnostic — the OpenRouter key is shared infrastructure that every council/research-pipeline/product-orchestrator invocation needs regardless of which project session-start was called from. The cost is one bash call and a few-line file read, so run it unconditionally. The probe doesn't read or echo the key value itself — only the resolution status — so the key never leaves the file via the briefing.
+
 If any of these sources is unavailable (file missing, MCP not connected), capture the failure in the briefing instead of aborting. The remaining context is still useful.
 
 ### Step 5: Display the briefing
@@ -159,6 +184,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Open issues** (top 5 per repo)
 - [repo-name]
   - #456 [title] — [author], updated [date]
+
+**Shared services**
+- OpenRouter key: [✓ resolved from vault | ⚠ placeholder — ask Dorian for the real key | ⚠ file present but key value looks wrong — check format | ⚠ not found — see DR-010 for the canonical location]
 ```
 
 Keep each line tight. This is a briefing, not a report.
@@ -203,6 +231,8 @@ If no handoff was found, options pull from kanban only:
 - **Project name passed with slash command doesn't match any folder.** List the available project folders (sorted by recency) and ask the user to pick from the list.
 - **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff at the same vault path. Skip Taskade-subfolder references in the briefing.
 - **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
+- **OpenRouter key probe returns `placeholder` or `missing`.** Surface the warning in the Shared services line but do not block the session — most projects don't use OpenRouter on every task. If the user invokes anything that touches Council, research-pipeline, or product-orchestrator later, those skills do their own preflight check (`python3 plugins/council/scripts/openrouter_key.py --where`) and will halt with an actionable error then. The session-start briefing is a heads-up, not a gate.
+- **OpenRouter key probe returns `resolved` but a council/research-pipeline/product-orchestrator skill still errors out later in the session.** The probe only verifies the file exists at the canonical path with a valid-looking value. It doesn't verify the key is actually accepted by OpenRouter (no network call — that would slow down session-start and cost tokens). If the resolved key gets rejected by OpenRouter (rotated, revoked), the user should ask Dorian to update `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` per DR-010.
 
 ## Notes
 

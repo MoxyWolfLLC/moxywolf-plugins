@@ -101,8 +101,8 @@
     {
       "name": "project-init",
       "source": "./plugins/project-init",
-      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs (with auto-written `author` / `for` baton-pass frontmatter), refreshes GitHub READMEs, and captures durable knowledge. /session-start now auto-detects the project from the launch directory.",
-      "version": "0.10.0",
+      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project, /session-start, /session-end — scaffolds project instructions, handles session handoffs (with auto-written `author` / `for` baton-pass frontmatter), refreshes GitHub READMEs, and captures durable knowledge. /session-start auto-detects the project from the launch directory and probes the team-shared OpenRouter key (see DR-010) so new sessions know its status immediately.",
+      "version": "0.11.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "productivity",
       "keywords": ["cowork", "project-setup", "session-handoff", "team-handoff", "moxywolf"]
