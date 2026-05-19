@@ -30,7 +30,7 @@
       "name": "council",
       "source": "./plugins/council",
       "description": "Multi-model AI deliberation with vault-aware institutional memory — structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "author": { "name": "MoxyWolf LLC" },
       "category": "deliberation",
       "keywords": ["deliberation", "multi-model", "consensus", "openrouter", "obsidian"]

@@ -56,7 +56,7 @@ Already done. The Supabase project `research-pipeline` is live at
 - **Supabase MCP** — already connected
 - **Google Drive MCP** — for file uploads
 - **Mermaid MCP** — for diagram validation/rendering
-- **`OPENROUTER_API_KEY`** env var — for the multi-model literature swarm (shares Council's `openrouter_dispatch.py` helper; install Council v0.7.0+)
+- **OpenRouter API key** — for the multi-model literature swarm. Stored as a team-shared `.env` file in the vault at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` (one line, `OPENROUTER_API_KEY=sk-or-v1-...`). research-pipeline delegates to Council's `scripts/openrouter_dispatch.py` and `scripts/openrouter_key.py`, both of which auto-discover the file in the Cowork bash sandbox vault mount or a native macOS Google Drive mount — no shell-rc edits needed. Requires Council v0.7.0+ installed alongside.
 - Built-in **WebSearch** + **WebFetch** for general web; **Apify** MCP for heavier scraping if needed
 
 ## Architecture

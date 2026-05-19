@@ -21,13 +21,13 @@ The query is everything in `$ARGUMENTS` that is not a flag.
 
 Load the deliberation-engine skill from `${CLAUDE_PLUGIN_ROOT}/skills/deliberation-engine/SKILL.md` and follow its execution steps (starting at Step 1, since Pre-Step routing is bypassed).
 
-Before the first deliberation of the session, verify the OpenRouter setup by running:
+Before the first deliberation of the session, verify the OpenRouter key resolves:
 
 ```bash
-test -n "$OPENROUTER_API_KEY" && echo "OPENROUTER_API_KEY: set" || echo "ERROR: OPENROUTER_API_KEY not set"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/openrouter_key.py" --where
 ```
 
-If unset, halt and instruct the user to add `export OPENROUTER_API_KEY="sk-or-v1-..."` to their shell rc, source it, and restart Cowork.
+This prints the source label and path the loader resolved (env var, `OPENROUTER_KEY_FILE`, `MOXYWOLF_VAULT`, or the team-shared vault file at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`). If it instead prints an error listing every path it tried, halt and tell the user to either (a) mount the MoxyWolf Vault in Cowork → Folders, or (b) paste the real team-shared key into the vault file (currently the placeholder).
 
 After the deliberation completes:
 1. Present the formatted output as specified in the deliberation-engine skill (Step 7)

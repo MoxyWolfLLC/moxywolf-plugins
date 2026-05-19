@@ -166,7 +166,7 @@ The marketplace install above is one of five setup steps. The rest:
 - **`~/Documents/GitHub`** with clones of the repos the projects you'll touch need. For Nexus: `nexus-main` (read-only) + `lexicon-workbench` (read/write during Phase 2). For SAMS: ask Michael. Anyone editing plugins: this repo.
 - **MCP OAuth** in Cowork → Connectors: Slack, Gmail, Calendar, GitHub, Supabase, Drive — each needs its own auth flow per Mac.
 - **Claude in Chrome extension** installed and signed in — used by gstack-execution for browser QA, by `moxywolf-skills` for LinkedIn scraping, and by saas-pricing-engine for JS-rendered pricing pages.
-- **`OPENROUTER_API_KEY`** env var set in your shell rc (`~/.zshrc` or `~/.bashrc`) for Council, research-pipeline, and product-orchestrator — ask Dorian for the team-shared key.
+- **OpenRouter API key** for Council, research-pipeline, and product-orchestrator. Stored as a team-shared `.env` file in the vault at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` — one line, `OPENROUTER_API_KEY=sk-or-v1-...`. The Drive ACL on the vault is the security boundary; do not copy this file out of the vault. Plugin scripts auto-discover the file in either the Cowork bash sandbox mount or a native macOS Google Drive mount, so no shell-rc edits are needed. To override per-session, set `OPENROUTER_API_KEY` directly or point `OPENROUTER_KEY_FILE` at a different path. Ask Dorian if the placeholder value is still in the file.
 
 First-session test: run `/session-start Nexus` (or any initialized project). The briefing surfaces the missing piece by name if something isn't right.
 

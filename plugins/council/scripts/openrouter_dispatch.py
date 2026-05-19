@@ -28,7 +28,13 @@ Output: one file per job at `{out}/{id}.json`, each containing either:
 or
     {"id": "...", "ok": false, "error": "<message>"}
 
-Reads OPENROUTER_API_KEY from the environment. Fails fast if unset.
+Resolves the OpenRouter API key via `openrouter_key.load_key()`:
+    1. OPENROUTER_API_KEY env var, or
+    2. The team-shared file at
+       `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`
+       (auto-discovered under the Cowork bash sandbox mount or a native macOS
+       Google Drive mount).
+See `openrouter_key.py` for the full lookup order.
 
 Designed to be called from inside Cowork via `mcp__workspace__bash`. Pure-stdlib
 to avoid pip install steps in the sandbox; uses urllib for HTTPS.
@@ -44,6 +50,10 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Sibling module — same scripts/ directory
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from openrouter_key import load_key, KeyNotFoundError  # noqa: E402
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -113,15 +123,12 @@ def main() -> int:
     p.add_argument("--max-workers", type=int, default=6, help="Max parallel calls (default: 6)")
     args = p.parse_args()
 
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        print(
-            "ERROR: OPENROUTER_API_KEY not set in environment.\n"
-            "Add to ~/.zshrc:  export OPENROUTER_API_KEY='sk-or-v1-...'\n"
-            "Then source the rc and restart Cowork.",
-            file=sys.stderr,
-        )
+    try:
+        api_key, source = load_key(return_source=True)
+    except KeyNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
         return 2
+    print(f"[openrouter_dispatch] key source: {source}", file=sys.stderr)
 
     jobs_path = Path(args.jobs)
     out_dir = Path(args.out)

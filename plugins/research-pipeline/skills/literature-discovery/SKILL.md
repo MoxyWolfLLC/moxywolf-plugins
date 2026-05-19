@@ -66,7 +66,7 @@ Flow:
 - **Supabase MCP** — creating libraries, reading/writing citations
 - **Built-in `WebSearch`** — for general web search across blogs, whitepapers, NIST/DISA docs
 - **`WebFetch` and `Bash` (curl)** — for direct API calls (OpenAlex, Semantic Scholar, arXiv, CrossRef)
-- **`OPENROUTER_API_KEY`** env var + **Council plugin v0.7.0+** — the multi-model swarm reuses Council's `scripts/openrouter_dispatch.py` helper
+- **OpenRouter API key** + **Council plugin v0.7.0+** — the multi-model swarm reuses Council's `scripts/openrouter_dispatch.py` (and `scripts/openrouter_key.py`), which auto-resolves the key from the `OPENROUTER_API_KEY` env var or the team-shared vault file at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`
 
 ## Step 1: Understand the Research Need
 

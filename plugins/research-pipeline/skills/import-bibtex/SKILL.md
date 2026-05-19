@@ -22,7 +22,7 @@ within Cowork.
 
 - **Supabase MCP** — for creating libraries and inserting citations
 - **Google Drive MCP** — for uploading the annotated bibliography
-- **`OPENROUTER_API_KEY`** env var — for calling OpenRouter (abstract enrichment via Gemini); shares Council's `scripts/openrouter_dispatch.py` helper
+- **OpenRouter API key** — for calling OpenRouter (abstract enrichment via Gemini). Shares Council's `scripts/openrouter_dispatch.py`, which resolves the key via `scripts/openrouter_key.py` — first the `OPENROUTER_API_KEY` env var, then the team-shared file at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`. Requires Council v0.7.0+ installed.
 
 ## Step 1: Receive the File
 

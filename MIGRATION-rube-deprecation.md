@@ -228,7 +228,7 @@ After all 9 migrations land:
 
 ## Open questions for Dorian
 
-1. **OpenRouter API key storage.** Where should plugins read it from? Options: `OPENROUTER_API_KEY` env var injected by Cowork, file in vault (`_Shared Knowledge/Agents and Plugins/openrouter.env`), 1Password CLI. **Recommendation:** env var, with a one-time setup note in each affected plugin's README.
+1. ~~**OpenRouter API key storage.**~~ **Resolved 2026-05-18.** Stored as a team-shared `.env` file in the vault at `_Shared Knowledge/Agents and Plugins/openrouter.env`. Council's new `scripts/openrouter_key.py` resolves it through this chain: `OPENROUTER_API_KEY` env var → `$OPENROUTER_KEY_FILE` → `$MOXYWOLF_VAULT/...` → glob of Cowork sandbox vault mount → glob of macOS Google Drive vault mount. No shell-rc edits needed. Vault Drive ACL is the security boundary.
 2. **Scheduled-task VM vault access.** Is it possible to mount Drive in those VMs? This decision drives whether obsidian-update/daily-ops need the direct Drive REST path or can lean on the filesystem.
 3. **Health Auto Export.** Is the iOS app already configured to export to a known Drive folder? If yes, point me at the path. If no, this needs a one-time setup.
 4. **moxywolf-skills bundle overlap.** Should the bundle stop re-vendoring skills that ship as their own plugin (daily-ops at minimum)?
@@ -263,11 +263,7 @@ All 10 migrations landed in one Cowork session. Final version table:
 
 ### One-time setup per Mac (post-merge)
 
-1. **`OPENROUTER_API_KEY`** in `~/.zshrc`:
-   ```bash
-   export OPENROUTER_API_KEY="sk-or-v1-..."
-   ```
-   Source it and restart Cowork.
+1. **MoxyWolf Vault mounted in Cowork.** Cowork → Folders → add `/Users/<you>/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`. The team-shared file at `_Shared Knowledge/Agents and Plugins/openrouter.env` contains the OpenRouter key. Council, research-pipeline, and product-orchestrator auto-discover it through `scripts/openrouter_key.py` — no shell-rc edits needed. (Override per-session by exporting `OPENROUTER_API_KEY` or pointing `OPENROUTER_KEY_FILE` at a different file.) **Update 2026-05-18:** this replaced the original `~/.zshrc` env-var approach.
 
 2. **Claude in Chrome extension** — Chrome Web Store, sign in. Needed by gstack-execution browser commands, moxywolf-skills LinkedIn skills, and saas-pricing-engine's competitor scan.
 

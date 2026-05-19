@@ -16,13 +16,18 @@ Run a 3-stage multi-model deliberation pipeline against OpenRouter. Collect inde
 
 ## Prerequisites
 
-Requires `OPENROUTER_API_KEY` in the environment of the Cowork bash sandbox. Verify before first use:
+Requires a usable OpenRouter API key. The dispatch helper (`scripts/openrouter_dispatch.py`) resolves it through `scripts/openrouter_key.py`, which checks (1) the `OPENROUTER_API_KEY` env var, (2) `$OPENROUTER_KEY_FILE`, then (3) the team-shared file at `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` — auto-discovered in either the Cowork bash sandbox vault mount or a native macOS Google Drive mount.
+
+Verify before first use:
 
 ```bash
-test -n "$OPENROUTER_API_KEY" && echo "OK" || echo "ERROR: OPENROUTER_API_KEY not set"
+python3 "${COUNCIL_PLUGIN}/scripts/openrouter_key.py" --where
 ```
 
-If unset, halt and tell the user to add `export OPENROUTER_API_KEY="sk-or-v1-..."` to their shell rc (`~/.zshrc` or `~/.bashrc`), source it, and restart Cowork so the new env reaches the sandbox.
+This prints the source label and path the loader resolved (e.g. `Cowork bash sandbox mount (/sessions/.../MoxyWolf Vault/.../openrouter.env)`). If it instead prints an error listing every path it tried, halt and tell the user:
+
+- The MoxyWolf Vault is not mounted in this Cowork session — add it via Cowork → Folders, **or**
+- The vault key file is missing or still has the placeholder value — ask Dorian for the team-shared key and paste it into `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` (single line: `OPENROUTER_API_KEY=sk-or-v1-...`).
 
 No 60-second timeout. The dispatch helper's default timeout is 180s per call, so models that need real reasoning time (DeepSeek R1, o1, Claude Opus extended thinking) are usable again.
 
@@ -435,7 +440,7 @@ Only runs if `vault_context_loaded: true` from Pre-Step A. This step writes the 
 
 - If a model call fails or times out, proceed with the remaining models. A deliberation with 3 models is still valuable. The dispatch helper writes one JSON per job — `{id}.json` with `ok: false` indicates a failed model; surface those errors in the output footer.
 - If fewer than 2 models respond in Stage 1, abort and tell the user which models failed (read `_summary.json` for the per-job picture).
-- If `OPENROUTER_API_KEY` is unset, the dispatch helper exits with code 2 and a stderr message — surface that directly to the user with instructions to set the env var.
+- If the OpenRouter key can't be resolved, the dispatch helper exits with code 2 and a stderr message listing every path it tried. Surface that to the user along with the two likely fixes (mount the MoxyWolf Vault, or paste the team-shared key into `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`).
 - If estimated cost exceeds `--budget`, warn the user before proceeding.
 - If vault is not accessible in Pre-Step A, proceed without vault context — log a note in the output footer.
 

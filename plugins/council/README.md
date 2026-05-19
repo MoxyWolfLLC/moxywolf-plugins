@@ -10,15 +10,36 @@ No backend required. Council dispatches directly to OpenRouter via its public AP
 
 ## Setup
 
-1. Install the plugin in Cowork
-2. Set the `OPENROUTER_API_KEY` env var in your shell rc (`~/.zshrc` or `~/.bashrc`):
-   ```bash
-   export OPENROUTER_API_KEY="sk-or-v1-..."
+1. Install the plugin in Cowork.
+2. Make sure the team-shared OpenRouter key file exists in the MoxyWolf Vault at
+   `_Shared Knowledge/Agents and Plugins/openrouter.env` with a single line:
    ```
-   Source the rc (`source ~/.zshrc`) and restart Cowork so the new env reaches the bash sandbox.
-3. Run `/deliberate` with any question
+   OPENROUTER_API_KEY=sk-or-v1-...
+   ```
+   Ask Dorian if the placeholder is still in the file. The vault must be mounted
+   in your Cowork session. Council's `scripts/openrouter_key.py` auto-discovers
+   the file in either the Cowork bash sandbox mount or a native macOS Google
+   Drive mount — no shell-rc edits required.
+3. Run `/deliberate` with any question.
 
-If `OPENROUTER_API_KEY` is unset when a deliberation runs, Council will halt and tell you exactly which env var to set.
+**Lookup order** when the dispatch script resolves the key:
+
+1. `OPENROUTER_API_KEY` env var, if you've exported it for the session.
+2. File at `$OPENROUTER_KEY_FILE`, if set.
+3. `$MOXYWOLF_VAULT/_Shared Knowledge/Agents and Plugins/openrouter.env`.
+4. Cowork bash sandbox vault mount (`/sessions/*/mnt/MoxyWolf Vault/...`).
+5. macOS Google Drive vault mount (`~/Library/CloudStorage/GoogleDrive-*/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/...`).
+
+If none of those yield a key, Council halts with a message listing every path it
+tried.
+
+**Quick sanity check** from any bash call:
+
+```bash
+python3 "${COUNCIL_PLUGIN}/scripts/openrouter_key.py" --where
+```
+
+prints the source label and path the loader resolved.
 
 ## Commands
 
