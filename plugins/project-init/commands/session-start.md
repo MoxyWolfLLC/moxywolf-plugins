@@ -11,7 +11,7 @@ It then:
 1. Resolves which project — uses the argument after `/session-start` if provided, otherwise lists candidate projects (subfolders of `Taskade/` and `MoxyWolf Vault/Projects/` that have saved Project Instructions, sorted by recency) and asks the user to pick.
 2. Reads the project's saved `cowork-project-instructions.md` to learn the active Taskade subfolder and the active GitHub repo(s).
 3. Mounts the three standard MoxyWolf roots — MoxyWolf Vault, GitHub, Taskade — for this session by calling `mcp__cowork__request_cowork_directory` with each explicit path. The user approves each one (or skips if already mounted).
-4. Reads the previous session's handoff at `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. Parses the canonical sections (What landed / Open work / Uncommitted code / Procedural reminders / Suggested opening line). Flags the handoff as stale if `session_ended` is more than 14 days old.
+4. Reads the previous session's handoff at `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. Parses the canonical sections (What landed / Open work / Commit & push state / Procedural reminders / Suggested opening line). Flags the handoff as stale if `session_ended` is more than 14 days old.
 5. Reads the kanban view at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` and filters to this project's P0 / P1 / Waiting items.
 6. Surfaces recent (≤14 days) decision records (`DR-*.md`) from the project folder.
 7. Lists open PRs and recent open issues from each of the project's GitHub repo(s) via the GitHub MCP.

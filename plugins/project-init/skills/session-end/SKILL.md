@@ -1,6 +1,6 @@
 ---
 name: session-end
-description: This skill should be used when the user says "session-end", "end session", "wrap session", "save handoff", "/session-end", "we're done", "sign off", or any request to wrap up a Cowork session and persist what was done plus what's next for the following session. It scans the conversation for what landed, what's still open, what's uncommitted, asks who authored this handoff and whether it's a baton-pass to a teammate, then writes a canonical-named handoff document (with `author` and optional `for` frontmatter fields auto-populated) to the project's `00 – Project Hub/cowork-session-handoff.md`. Supports `--author=<name>`, `--handoff-to=<name>`, and `--solo` flags to skip the prompts. Step 5c keeps each writable GitHub repo's README.md current against the canonical 16-section structure. The companion `/session-start` skill reads the handoff file to brief next-session Claude.
+description: This skill should be used when the user says "session-end", "end session", "wrap session", "save handoff", "/session-end", "we're done", "sign off", or any request to wrap up a Cowork session and persist what was done plus what's next for the following session. It scans the conversation for what landed, what's still open, and the commit/push state of the active repo(s), asks who authored this handoff and whether it's a baton-pass to a teammate, then writes a canonical-named handoff document (with `author` and optional `for` frontmatter fields auto-populated) to the project's `00 – Project Hub/cowork-session-handoff.md`. Supports `--author=<name>`, `--handoff-to=<name>`, and `--solo` flags to skip the prompts. Step 5c keeps each writable GitHub repo's README.md current against the canonical 16-section structure. The companion `/session-start` skill reads the handoff file to brief next-session Claude.
 ---
 
 # Session End
@@ -54,7 +54,7 @@ This gives you:
 - The list of active GitHub repo(s)
 - Any project-specific overrides
 
-You'll cite specific repo names in the handoff's "Uncommitted code" section so next-session Claude knows where to look.
+You'll cite specific repo names in the handoff's "Commit & push state" section so next-session Claude knows where to look.
 
 ### Step 3: Scan the session for extractable handoff content
 
@@ -77,15 +77,17 @@ A numbered list. Each item gets:
 - The exact commands (if applicable) to run, in fenced code blocks
 - Any inspection criteria for "done"
 
-Items should be ordered by what next-session Claude should do **first**. Push uncommitted code typically goes first because most other work depends on it.
+Items should be ordered by what next-session Claude should do **first**. Pushing any local-but-unpushed commits typically goes first because most other work depends on it.
 
-#### c. Uncommitted code
+#### c. Commit & push state
 
-For every set of changes sitting in a working tree without a commit, write a full commit block: file list, summary line (under ~72 chars, imperative mood), description body in fenced code blocks. The point is that next-session Claude can paste these directly into GitHub Desktop without re-deriving them.
+Per the team-shared rule `Taskade/_Shared Files/_shared-memory/feedback_repos_writable_commits_via_github_desktop.md`, **Claude commits directly** during the session — so by session-end the working tree is normally clean and the session's work already sits in atomic local commits. This section records the **push state**, not draft commit messages:
 
-Per the operating norm `norm-commit-messages-always-supplied-2026-05-08.md`: every commit prompt must include both summary and description ready to paste.
+- List the local commits made this session that are not yet pushed (short hash + summary line each), and name the repo. The human pushes them via GitHub Desktop — Claude never pushes.
+- If the working tree still has genuinely uncommitted changes (rare — e.g. a change Claude deliberately left for the human to commit, or a repo not writable from the sandbox), write a full commit block for it: file list, plain-text summary line (under ~72 chars, imperative), description body in a fenced block, ready for the fallback hand-off path.
+- Before declaring the repo pushable, confirm `find <repo>/.git -name "*.lock"` returns nothing.
 
-If there's no uncommitted code, write `_(none — working tree clean as of session end)_` and skip the section.
+If everything is committed and pushed, write `_(none — all commits pushed, working tree clean as of session end)_` and skip the rest.
 
 #### d. Procedural reminders for next-Claude
 
@@ -186,26 +188,26 @@ for: [FOR from Step 3.5]   # OMIT THIS LINE ENTIRELY if FOR is unset
 
 [...]
 
-## Uncommitted code
+## Commit & push state
 
-### Commit A — [short title]
+**[repo name]** — local commits made this session, not yet pushed (the human pushes via GitHub Desktop):
 
-Files:
+- `[short hash]` [commit summary line]
+- `[short hash]` [commit summary line]
 
-- `path/to/file1.ext`
-- `path/to/file2.ext`
+[If a genuinely uncommitted change was deliberately left for the human — fallback hand-off path — give it a plain-text commit block:]
 
-**Summary:**
+Summary:
 \`\`\`
 [commit summary line]
 \`\`\`
 
-**Description:**
+Description:
 \`\`\`
 [commit description body]
 \`\`\`
 
-[repeat per commit, or write _(none — working tree clean as of session end)_]
+[If everything is committed and pushed, write _(none — all commits pushed, working tree clean as of session end)_]
 
 ## Procedural reminders for next-Claude
 
@@ -294,36 +296,27 @@ Optional 17th section if the repo has unusual contributor conventions: **Contrib
 3. **Apply minimal edits via the Edit tool.** Preserve voice, structure, section ordering, badge style, and table conventions already in place.
 4. **Cascade derived sections.** If a new script lands in the Commands Reference table, check Data Initialization, Common Workflows, Project Structure, and Key Features for cascade edits. If a migration lands, refresh the Database Schema migrations list and the ERD if a table was added/dropped.
 5. **Bump version badges** if a real version bump landed.
-6. **Don't commit.** Just write the README file. The commit lands via GitHub Desktop next session.
+6. **Commit the README change directly.** Per the team-shared rule (`feedback_repos_writable_commits_via_github_desktop.md`), Claude commits — make an atomic commit for the README refresh, ordered **after** the session's substantive code commits (the README documents the code, so code lands first). Quit GitHub Desktop during the git op and clear any stray `.git/*.lock` first. The human pushes it with the rest.
 
 #### Surface the README change in the handoff
 
-In the handoff's `## Uncommitted code` section, add a **separate commit block** for the README change. Per operating norm `feedback_commit_messages_always`, every commit prompt includes both summary and description in fenced code blocks. Example:
+In the handoff's `## Commit & push state` section, list the README commit alongside the other local-but-unpushed commits (short hash + summary line) so next-session Claude and the user know it's part of what needs pushing. A sample commit message for the README refresh:
 
 ````markdown
-### Commit B — Update README for v0.2 dedup migration
-
-Files:
-
-- `README.md`
-
-**Summary:**
+Summary:
 ```
 docs: surface dedup migration + dedup:nouns scripts in README
 ```
 
-**Description:**
+Description:
 ```
-- Add migration 20260511180000_lexicon_noun_lemma_key_unique.sql to the
-  migrations table
-- Add lexicon_dedup_review_queue to Database Schema
-- Add migrate-noun-dedup.ts to Data Initialization with dry-run and
-  production npm scripts
-- Note the partial-unique index posture on lexicon_nouns.lemma_key
+Add migration 20260511180000_lexicon_noun_lemma_key_unique.sql to the
+migrations table. Add lexicon_dedup_review_queue to Database Schema. Add
+migrate-noun-dedup.ts to Data Initialization with dry-run and production
+npm scripts. Note the partial-unique index posture on
+lexicon_nouns.lemma_key.
 ```
 ````
-
-Order the README commit **after** the substantive code commits (the README documents the code, so code lands first).
 
 #### Initializing a README for a repo that doesn't have one yet
 
@@ -331,7 +324,7 @@ If a writable repo has no README (or just a create-next-app boilerplate), and th
 
 #### Edge cases
 
-- **Multiple writable repos changed this session.** Update each one independently. Each gets its own commit block in the handoff's "Uncommitted code" section.
+- **Multiple writable repos changed this session.** Update each one independently. Each repo's README commit is its own atomic commit, listed under that repo in the handoff's "Commit & push state" section.
 - **README diff would be huge.** If the README needs a substantial restructure (not just additive edits), don't try to do it inside session-end. Flag it as a follow-up task in the handoff and let the next session schedule a dedicated rewrite.
 - **Session changed code that no README section covers.** That's a signal of a README gap. Add a short new section if the change is small; otherwise flag the gap as follow-up work.
 - **Project has no writable GitHub repos listed.** Skip Step 5c entirely. Don't ask the user to point at a repo — the project instructions are the source of truth.
@@ -381,16 +374,16 @@ Top of stack for next session:
 2. [second open-work item title]
 3. [third open-work item title, if applicable]
 
-[N] uncommitted commits drafted in the handoff.
+[N] local commits this session — pushed / awaiting push (state in the handoff).
 [N] procedural reminders captured.
 
 [If FOR is set (baton-pass):]
 🪝 **Ping [FOR, title-cased] in Slack** so they know to pick this up.
 
 [If Step 5c wrote README updates:]
-README updates written:
+README updates written + committed:
 - [repo-name]/README.md — [one-line summary of what changed]
-(Commits drafted in the handoff; push via GitHub Desktop next session.)
+(Committed directly; the human pushes via GitHub Desktop with the rest.)
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
@@ -430,5 +423,5 @@ Keep it factual. Dorian can open the file in Obsidian to review the full handoff
 
 - This skill complements `/session-start` (read the handoff next time) and bundles `/obsidian-update` (extract durable knowledge to the vault) as a final step. One wrap-up command writes the project-scoped handoff AND captures cross-project knowledge in the vault — no need to remember to run two commands.
 - The handoff is intentionally project-scoped. Cross-project knowledge belongs in the vault via `/obsidian-update`, which now runs automatically at Step 7.
-- The skill writes but does not commit. Code commits are still Dorian-via-GitHub-Desktop; the handoff just makes sure the commit messages and the "what to commit" are drafted and ready to paste.
+- Claude commits its code changes directly during the session and at session-end (the README refresh in Step 5c included), per the team-shared rule `feedback_repos_writable_commits_via_github_desktop.md`. Claude does not push — the human reviews and pushes via GitHub Desktop. The handoff's "Commit & push state" section records which local commits are still awaiting push.
 - Step ordering matters: handoff (Step 5) before Cowork session-memory (Step 6) before vault update (Step 7). The handoff is the load-bearing artifact for tomorrow; memory is Claude's own context; the vault is the long-term institutional record. If anything fails, the earlier steps stand on their own.

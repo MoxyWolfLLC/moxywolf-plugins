@@ -82,7 +82,7 @@ In a single message, run these reads in parallel:
 a. **Session handoff (highest priority)** — Read `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. This is the canonical handoff written by `/session-end` at the end of the previous session. Parse the handoff's frontmatter (`session_ended` timestamp, plus the optional `author` and `for` fields — both lowercase first names) and these sections:
    - `## What landed this session`
    - `## Open work, in priority order`
-   - `## Uncommitted code`
+   - `## Commit & push state` (older handoffs may title this `## Uncommitted code` — accept either)
    - `## Procedural reminders for next-Claude`
    - `## Suggested opening line`
 
@@ -161,9 +161,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Suggested opening line from previous session**
 > *"[the handoff's suggested-opening-line, verbatim]"*
 
-[If the handoff has uncommitted code:]
-**Uncommitted code drafted in the handoff**
-- [N] commits with summary + description ready to paste into GitHub Desktop. See handoff §Uncommitted code.
+[If the handoff lists local commits awaiting push:]
+**Commits awaiting push**
+- [N] local commits from last session not yet pushed. Push them via GitHub Desktop. See handoff §Commit & push state.
 
 [If no handoff was found, replace the four sections above with:]
 **Last session left off with**
