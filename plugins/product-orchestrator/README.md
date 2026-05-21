@@ -126,3 +126,7 @@ Every deliberation produces a decision record:
 
 - **0.2.0** — Enhanced PRD template. Added User Personas (required, conditional), Non-Functional Requirements, Dependencies & Integrations, Risks & Mitigations, and Verification Approach sections (all optional). New deliberation routing rules for NFR/dependency-driven architecture questions and unmitigated risk-driven scope reconsideration. Section inclusion rules keep lean PRDs lean.
 - **0.1.0** — Initial release. Scope, architecture, and GTM deliberation templates. PRD generation. Sprint orchestration. Vault persistence via memory-system.
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

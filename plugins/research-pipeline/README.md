@@ -89,3 +89,7 @@ Already done. The Supabase project `research-pipeline` is live at
 All data -> Supabase (citations, thematic_maps, research_perspectives)
 All files -> Google Drive
 ```
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

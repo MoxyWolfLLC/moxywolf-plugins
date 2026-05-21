@@ -1,0 +1,15 @@
+{
+  "name": "composio",
+  "version": "0.1.0",
+  "description": "Composio integration for Cowork. Teaches Claude to use Composio's Tool Router — 1000+ app toolkits through a session-based MCP connector — for apps with no native connector, and operationalizes the connector setup. Native MCPs stay first; Composio is the reach layer.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "composio",
+    "mcp",
+    "tool-router",
+    "connector",
+    "integration"
+  ]
+}

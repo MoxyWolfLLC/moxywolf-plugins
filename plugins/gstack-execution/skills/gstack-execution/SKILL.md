@@ -124,3 +124,9 @@ Borrowed from gstack: AI makes completeness near-free. Always do the complete th
 | Security audit | 2 days | 15 min | ~100x |
 | Bug investigation | 4 hours | 15 min | ~16x |
 | Design consultation | 1 day | 10 min | ~50x |
+
+## Composio fallback — apps with no native MCP
+
+If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
+
+Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.

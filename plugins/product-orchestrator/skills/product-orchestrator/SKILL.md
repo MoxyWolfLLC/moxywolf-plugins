@@ -270,3 +270,9 @@ For full sprint orchestration (`/product-sprint`), see `references/sprint-protoc
 - **Not a project management tool.** It produces decisions and next actions. Tracking those actions is the user's domain (Obsidian Kanban, task lists, whatever).
 - **Not a code generator.** When architecture decisions need implementation, this plugin routes to `dev-create-orchestrator` or similar. It doesn't write code itself.
 - **Not needed for every product question.** If you already know what to build and just need to build it, skip this entirely. The value is in the hard calls, not the obvious ones.
+
+## Composio fallback — apps with no native MCP
+
+If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
+
+Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.

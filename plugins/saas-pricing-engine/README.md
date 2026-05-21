@@ -49,3 +49,7 @@ This plugin includes specialized guidance for pricing compliance/GRC SaaS tools 
 - Defense contractor buyer psychology
 - FedRAMP/IL-level pricing premiums
 - GSA Schedule and contract vehicle considerations
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

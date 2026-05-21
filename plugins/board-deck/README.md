@@ -46,3 +46,7 @@ Or ask Claude to "build the board deck" or "generate the monthly board report."
 - Node.js (for PptxGenJS)
 - Access to LivePlan, GA4, and Taskade for data collection
 - LibreOffice (optional, for QA image extraction)
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

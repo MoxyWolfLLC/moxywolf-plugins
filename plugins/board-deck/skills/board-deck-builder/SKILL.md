@@ -91,3 +91,9 @@ Default output: `MoxyWolf-Board-{Month}-{Year}.pptx` in the same directory as th
 - **`references/data-schema.md`** — Complete JSON schema with field descriptions
 - **`references/qa-workflow.md`** — How to QA verify the generated deck
 - **`references/example-data.json`** — February 2026 data file as a working example
+
+## Composio fallback — apps with no native MCP
+
+If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
+
+Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.

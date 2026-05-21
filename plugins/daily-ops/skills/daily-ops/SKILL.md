@@ -981,3 +981,9 @@ Direct. Specific. No hedging. Calibrated to Dorian.
 - When the body says light day, the skill says light day. It does not optimize around exhaustion.
 - Contractions. Spaced en-dashes where flow demands. Typographer's quotes in any published output.
 - The "One Thing to Let Go Of" section is never optional and never trivial.
+
+## Composio fallback — apps with no native MCP
+
+If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
+
+Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.

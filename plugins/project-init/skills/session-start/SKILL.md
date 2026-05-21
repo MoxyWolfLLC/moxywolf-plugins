@@ -34,9 +34,11 @@ The skill mounts these three constants every time. The Project Instructions assu
 
 ### Step 1: Resolve which project
 
+This skill **never shows a project picker.** It resolves the project on its own and announces the choice in the briefing. The only question the skill asks the user is Step 6's "what to focus on first", scoped to the resolved project.
+
 **Resolution order** (use the first method that yields a project):
 
-1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. An explicit argument always wins.
+1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. An explicit argument always wins. If the argument doesn't match any project folder, don't ask — fall through to method 3 and note the unmatched argument in the briefing.
 
 2. **Auto-detect from the launch directory.** Inspect the user's selected folder path from the session environment and parse it for a project segment:
    - `.../MoxyWolf Vault/Projects/<NAME>/...` → project is `<NAME>`
@@ -45,15 +47,13 @@ The skill mounts these three constants every time. The Project Instructions assu
 
    If a project is detected, announce it in the briefing as: *"Detected project from launch directory: **<NAME>**."* and skip to Step 2. This is the expected path — Dorian's normal workflow is to launch Cowork from inside a project folder, so auto-detection should succeed most of the time.
 
-3. **Fall back to scan + pick** only when neither (1) nor (2) produces a project (e.g. user launched from the vault root, the Taskade root, or the GitHub root):
+3. **Fall back to auto-selecting the most recently active project** when neither (1) nor (2) produces a project (e.g. the user launched from the vault root, the Taskade root, or the GitHub root). Do **not** ask the user which project — pick it automatically:
 
    a. Scan `Taskade/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Also scan `MoxyWolf Vault/Projects/` for vault-only projects with the same file.
 
-   b. Sort candidates by recency of modification of the saved instructions file (most-recently-edited first).
+   b. Rank the candidates by recency of activity: the most recent `cowork-session-handoff.md` (`session_ended` timestamp) wins; for projects with no handoff, fall back to the modification time of the saved instructions file. The single most-recently-active project is the resolved project.
 
-   c. Present the top ~6 candidates as multiple-choice options via AskUserQuestion. The final option is "Other — type a project name" for the rare case where the user wants a project not yet in the list.
-
-   d. If the user types a name that doesn't match any folder, list the available project folders and ask them to pick from the list (don't try to create a new project — that's `/init-project`'s job).
+   c. Use that project directly and skip to Step 2. Announce it at the top of the briefing as: *"No project named in the launch path — resumed the most recently active project: **<NAME>** (last session <DATE>). Say another project name if you meant a different one."* That announced line is the only correction surface — there is no picker, and the user switches projects simply by naming a different one.
 
 ### Step 2: Read the saved Project Instructions
 
@@ -228,7 +228,7 @@ If no handoff was found, options pull from kanban only:
 - **One of the three standard roots not approved.** Note it in the briefing's "Mounted folders" section and continue with whichever were approved.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
 - **Kanban view file missing.** Skip the kanban section, note that the file wasn't found at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`, and continue.
-- **Project name passed with slash command doesn't match any folder.** List the available project folders (sorted by recency) and ask the user to pick from the list.
+- **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
 - **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff at the same vault path. Skip Taskade-subfolder references in the briefing.
 - **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
 - **OpenRouter key probe returns `placeholder` or `missing`.** Surface the warning in the Shared services line but do not block the session — most projects don't use OpenRouter on every task. If the user invokes anything that touches Council, research-pipeline, or product-orchestrator later, those skills do their own preflight check (`python3 plugins/council/scripts/openrouter_key.py --where`) and will halt with an actionable error then. The session-start briefing is a heads-up, not a gate.
@@ -240,4 +240,5 @@ If no handoff was found, options pull from kanban only:
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
 - The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
+- The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.

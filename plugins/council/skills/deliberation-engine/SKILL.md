@@ -458,3 +458,9 @@ With `--deep` (adds MoA Round 2): add ~$0.03-0.05
 With `--thorough` (adds CI round): add ~$0.02-0.04
 With `--deep --thorough` (both): add ~$0.05-0.09
 With `--fast` (skips Stage 2): subtract ~$0.03-0.04
+
+## Composio fallback — apps with no native MCP
+
+If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
+
+Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.

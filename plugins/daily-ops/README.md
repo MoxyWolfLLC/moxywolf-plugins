@@ -56,3 +56,7 @@ Results are deduplicated by thread ID and sorted by priority. The Step 8 briefin
 ## Trigger Phrases
 
 "morning standup", "daily ops", "what should I focus on", "brain dump", "triage my tasks", "process my backlog", "weekly review", "how did my week go", "what's my day look like", "fitness", "workout", "what should I do today" (gym context), "build my week" (workout context), "I'm sore", "I only slept X hours"
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

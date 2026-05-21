@@ -160,3 +160,7 @@ Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or
 ## License
 
 MIT — MoxyWolf LLC
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

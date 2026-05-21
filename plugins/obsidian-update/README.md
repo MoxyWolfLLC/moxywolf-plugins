@@ -69,3 +69,7 @@ All vault writes go through the memory-system skill, which enforces frontmatter 
 ## License
 
 MIT — MoxyWolf LLC
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

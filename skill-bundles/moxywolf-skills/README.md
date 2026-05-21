@@ -30,3 +30,7 @@ A single plugin that bundles all 26 standalone skills the team uses day-to-day, 
 Cowork ships some of these by default, but the standalone-skills set on this machine drifts (custom edits, new MoxyWolf-built ones, occasional renames). Bundling everything into one installable plugin means a new computer gets the same set we actually use, not "whatever Cowork ships this week."
 
 If Cowork already ships a skill with the same name, the plugin-namespaced version wins inside agent invocations; you can disable individual entries with `/plugin disable moxywolf-skills`.
+
+## Composio fallback
+
+For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.
