@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 17 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 18 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -33,27 +33,28 @@ Adding this marketplace on any Mac gives that machine all 17 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (17 plugins)
+│   └── marketplace.json                ← catalog (18 plugins)
 ├── README.md                            ← this file
-├── plugins/                             ← 16 MoxyWolf-owned plugins
-│   ├── board-deck/             0.3.0   PPTX board deck from LivePlan/GA4/Taskade/GitHub
+├── plugins/                             ← 17 MoxyWolf-owned plugins
+│   ├── board-deck/             0.3.1   PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/         0.1.0   Build + enrich BibTeX with AI-generated abstracts
-│   ├── council/                0.7.0   Multi-model deliberation with vault-aware memory
-│   ├── daily-ops/              1.4.0   Energy-aware standup/triage/review + fitness coach
+│   ├── composio/               0.1.0   Composio Tool Router — 1000+ app toolkits for apps with no native MCP
+│   ├── council/                0.7.2   Multi-model deliberation with vault-aware memory
+│   ├── daily-ops/              1.4.1   Energy-aware standup/triage/review + fitness coach
 │   ├── dev-infrastructure-skills/ 0.1.0  React/Next/Supabase/TDD/Playwright best practices
 │   ├── editorial-forge/        0.1.0   AI content → author-owned via voice + DOB framing
-│   ├── github-repo-analyzer/   0.5.0   Repo health, security issue review, PRD reverse-engineering, fix verification
-│   ├── gstack-execution/       0.2.0   Code review, security audit, debug, QA, ship
-│   ├── obsidian-update/        2.5.0   Vault-native personal OS + Council integration
-│   ├── product-orchestrator/   0.3.0   Council-backed product scope/arch/GTM decisions
-│   ├── project-init/           0.9.0   /init-project /session-start /session-end
-│   ├── research-pipeline/      0.2.0   Literature discovery, verification, synthesis
+│   ├── github-repo-analyzer/   0.5.1   Repo health, security issue review, PRD reverse-engineering, fix verification
+│   ├── gstack-execution/       0.2.1   Code review, security audit, debug, QA, ship
+│   ├── obsidian-update/        2.5.1   Vault-native personal OS + Council integration
+│   ├── product-orchestrator/   0.3.1   Council-backed product scope/arch/GTM decisions
+│   ├── project-init/           0.11.0  /init-project /session-start /session-end
+│   ├── research-pipeline/      0.2.1   Literature discovery, verification, synthesis
 │   ├── saas-frontend-designer/ 1.0.0   Next/React/Tailwind/shadcn SaaS UI pipeline
-│   ├── saas-pricing-engine/    0.1.1   Pricing research, modeling, page copy
+│   ├── saas-pricing-engine/    0.1.2   Pricing research, modeling, page copy
 │   ├── team-kanban/            0.4.0   Slack Canvas kanban from Obsidian/GDrive/Cal/Gmail
 │   └── vtt-to-text/            0.1.0   WebVTT captions → clean text
 └── skill-bundles/
-    └── moxywolf-skills/        1.1.0   25 standalone skills bundled as one plugin
+    └── moxywolf-skills/        1.1.1   25 standalone skills bundled as one plugin
 ```
 
 The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewer-content-ecosystem`, `sorkin-dob-weekly-blog`, `blog-content-ecosystem`, `market-awareness-analyzer`, `podcast-booking-ladder`, `birds-of-a-feather-outreach`, `linkedin-thought-leadership`, `linkedin-analytics`, `refinement-prompts`, plus the Anthropic reference skills (`artifacts-builder`, `canvas-design`, `brand-guidelines`, `theme-factory`, `code-review-pro`, `database-schema-designer`, `api-documentation-writer`, `technical-writer`, `mcp-builder`, `skill-creator`, `dev-create-orchestrator`, `dev-review-orchestrator`, `screenshot-to-code`, `color-palette-extractor`). The `daily-ops` skill that previously shipped here was moved out in v1.1.0 — install the standalone `daily-ops` plugin instead.
@@ -67,7 +68,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 17 plugins appear in the marketplace list.
+3. Click **Sync**. The 18 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -76,7 +77,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
 claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 
 # install everything in one go
-for p in board-deck bibtex-builder council daily-ops dev-infrastructure-skills \
+for p in board-deck bibtex-builder composio council daily-ops dev-infrastructure-skills \
          editorial-forge github-repo-analyzer gstack-execution obsidian-update \
          product-orchestrator project-init research-pipeline saas-frontend-designer \
          saas-pricing-engine team-kanban vtt-to-text moxywolf-skills; do
