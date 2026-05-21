@@ -72,6 +72,20 @@ c. After each repo is picked, ask via AskUserQuestion (separately) for a short o
 
 d. Repeat until all N repos are picked. If the user wants to add a repo that isn't yet cloned under `GitHub/`, offer a follow-up "Type a custom name" option after the picker is dismissed; accept the name as free text and flag in the final output that the repo subfolder doesn't exist locally yet.
 
+### 5. Kanban project tag(s)
+
+The global kanban at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` is a single board shared by every MoxyWolf project. Each task line is tagged with a `#project/<slug>` tag. `/session-start` uses that tag to brief the user on this project's tasks only, so every project must declare which `#project/…` slug(s) its tasks carry.
+
+Ask via AskUserQuestion (multi-select): *"Which `#project/…` tag(s) do this project's tasks carry in the global kanban?"* Build the options from:
+
+- The kebab-cased project name (e.g. project "Team Plugins" → `#project/team-plugins`)
+- Each GitHub repo subfolder name picked in section 4 (e.g. `#project/moxywolf-plugins`)
+- `none — this project has no kanban presence`
+
+The user can pick one option, several (multi-select), or type a custom slug via "Other". Most projects carry exactly one slug, and it usually matches either the kebab-cased project name or a repo name — but not always (the "Team Plugins" project's kanban slug is `moxywolf-plugins`, the repo name, not the project name). Don't assume; let the user confirm. Confirm back: "Got it — kanban scope `#project/<slug>`."
+
+Store the result as `[KANBAN_SLUG]`: a single slug, a comma-separated list of slugs, or `none`.
+
 If the user can't answer a question or wants to defer, accept "skip" and proceed with reasonable defaults; flag deferred items in the output so the user knows to fill them in later.
 
 ## Steps
@@ -96,6 +110,10 @@ Replace placeholders with the user's answers:
   - **0 repos:** in *Project Setup*, replace the `Active GitHub repo:` line with `**Active GitHub repo:** none`. Remove the entire section 3 block (heading and body). Leave the *Mounted Roots* section unchanged — the GitHub root stays mounted as a constant even if this project doesn't use a repo, since other Cowork sessions on the same machine will.
   - **1 repo:** substitute the `[REPO_SUBFOLDER]` placeholder with the single repo subfolder name in both *Project Setup* and section 3. If you have a one-line description, append it after the path in section 3.
   - **2+ repos:** in *Project Setup*, replace the `Active GitHub repo:` bullet with multiple bullets under `**Active GitHub repos:**` (plural), one per repo, each formatted as `` `GitHub/[repo-subfolder]` — short description ``. Update section 3's heading to "GitHub repos — READ-ONLY" and write its body as a list of repos with paths and descriptions, retaining the READ-ONLY rule for every repo.
+- The `[KANBAN_SLUG]` placeholder in the *Project Setup* block's `Kanban project tag(s):` line:
+  - **one slug:** substitute `#project/[KANBAN_SLUG]` (e.g. `#project/moxywolf-plugins`).
+  - **multiple slugs:** write them comma-separated, each wrapped in backticks as `` `#project/<slug>` `` (e.g. `` `#project/sams`, `#project/ghl` ``).
+  - **none:** write `none`.
 
 If the project's Active Taskade subfolder is `none` (vault-only project), replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
 

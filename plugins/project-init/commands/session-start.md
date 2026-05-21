@@ -12,11 +12,11 @@ It then:
 2. Reads the project's saved `cowork-project-instructions.md` to learn the active Taskade subfolder and the active GitHub repo(s).
 3. Mounts the three standard MoxyWolf roots — MoxyWolf Vault, GitHub, Taskade — for this session by calling `mcp__cowork__request_cowork_directory` with each explicit path. The user approves each one (or skips if already mounted).
 4. Reads the previous session's handoff at `[project]/00 – Project Hub/cowork-session-handoff.md` if it exists. Parses the canonical sections (What landed / Open work / Commit & push state / Procedural reminders / Suggested opening line). Flags the handoff as stale if `session_ended` is more than 14 days old.
-5. Reads the kanban view at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` and filters to this project's P0 / P1 / Waiting items.
+5. Reads the project's own `04 – Backlog & Sprints/` folder and the global kanban at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`, strictly filtering the kanban to the `#project/…` tag(s) declared in the project's instructions — so only this project's tasks surface, never another project's.
 6. Surfaces recent (≤14 days) decision records (`DR-*.md`) from the project folder.
 7. Lists open PRs and recent open issues from each of the project's GitHub repo(s) via the GitHub MCP.
 8. Displays a structured briefing in chat with mounted folders, active subfolders, last-session handoff (open work + suggested opening line), top kanban tasks, recent decisions, and open PRs/issues.
-9. Asks the user what to focus on first, with options pulled from the handoff's open work first (if found and not stale), falling back to the top of the kanban.
+9. Asks the user what to focus on first, with options pulled from the handoff's open work first (if found and not stale), falling back to the project-scoped backlog folder and the project-filtered kanban — never an unscoped task.
 
 If the user passed a project name as an argument, use it directly; otherwise the skill auto-resolves the project (launch directory, then most recently active) without asking. If no saved Project Instructions exist for the resolved project, the skill stops and routes the user to `/init-project` first. If no handoff file exists, the briefing simply omits the handoff sections — the rest of the briefing is still useful.
 

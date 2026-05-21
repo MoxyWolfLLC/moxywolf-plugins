@@ -1,11 +1,11 @@
 ---
 name: session-start
-description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the three standard MoxyWolf roots, reads the project's saved Project Instructions, and surfaces a briefing — kanban tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
+description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the three standard MoxyWolf roots, reads the project's saved Project Instructions, and surfaces a briefing — project-scoped tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
 ---
 
 # Session Start
 
-Start or resume a Cowork session for an existing MoxyWolf project. Mount the three standard roots (MoxyWolf Vault, GitHub, Taskade) for this session, read the project's saved Project Instructions to learn the active Taskade subfolder and GitHub repo(s), then surface a focused briefing — kanban P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
+Start or resume a Cowork session for an existing MoxyWolf project. Mount the three standard roots (MoxyWolf Vault, GitHub, Taskade) for this session, read the project's saved Project Instructions to learn the active Taskade subfolder and GitHub repo(s), then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
 
 ## When to use
 
@@ -63,6 +63,7 @@ Parse to extract:
 
 - The active Taskade subfolder name (or `none` for vault-only projects)
 - The list of active GitHub repos (subfolder names + descriptions) — there may be 0, 1, or many
+- The **Kanban project tag(s)** — the `Kanban project tag(s):` bullet in the *Project Setup* block. This is the `#project/<slug>` tag (or a comma-separated list of tags) this project's tasks carry in the global kanban. It may be `none` (the project has no kanban presence) or absent entirely (instructions written before this field existed). Record whichever you find — Step 4b uses it to scope the kanban.
 - Any `## Project-Specific Overrides` block at the bottom
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
@@ -92,10 +93,21 @@ a. **Session handoff (highest priority)** — Read `[project]/00 – Project Hub
 
    If the file doesn't exist, that's fine — older projects predating `/session-end` won't have one. Note "no handoff from previous session" in the briefing and continue.
 
-b. **Kanban / task board** — Read `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`. Filter to items tagged with this project's name or its known acronym/alias (e.g. SAMS, STIGViewer, RegGenome). Pull:
-   - Top 3 P0 items
-   - Top 3 P1 items
-   - All Waiting items for this project
+b. **Project task board (project-scoped, dual-source)** — Surface only tasks that belong to *this* project. There are two sources; both are scoped to the resolved project, and the skill never shows another project's tasks.
+
+   **Source 1 — the project's own backlog folder (primary).** Scan the project's `04 – Backlog & Sprints/` folder (its `Backlog/`, `Sprint Logs/`, and `Retrospectives/` subfolders) for `.md` files. These are inherently project-scoped — they live inside the project's own directory. For each file, read its frontmatter `title` and `status`; skip anything marked `done` or `archived`. Surface the open ones as the project's backlog. If the folder is empty or missing, note "no project backlog files" and move on — many projects keep granular tasks only in the kanban.
+
+   **Source 2 — the global kanban, strictly filtered (backup).** Read `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`. This is a single board shared by *every* MoxyWolf project. Each task line carries inline tags, including a project tag of the form `#project/<slug>` — for example `#project/sams`, `#project/stigviewer`, `#project/moxywolf-plugins`. Apply the strict project filter below, then pull — from the in-scope lines only — the top 3 P0 (`#priority/p0`), top 3 P1 (`#priority/p1`), and all `Waiting On` items.
+
+   **Strict project filter (fail-closed).** First decide the in-scope `#project/` slug set:
+
+   1. **Field declared** — Step 2 found a `Kanban project tag(s)` value that is not `none`: that value is authoritative. Parse each `#project/<slug>` token; the slug set is exactly those slugs.
+   2. **Field is `none`** — the project has no kanban presence. Surface zero kanban items, note "this project declares no kanban scope", and skip the kanban entirely. Do not filter, do not fall back.
+   3. **Field absent** — older instructions: derive an *inferred* slug set from the kebab-cased project name plus each active GitHub repo subfolder name. Filter on that inferred set, and add this one-line warning to the briefing: *"Kanban Scope not declared — filtered the kanban on inferred tags [list]. Add a `Kanban project tag(s):` line to `00 – Project Hub/cowork-project-instructions.md` (or rerun `/init-project`) to make this exact."*
+
+   Then apply the filter: a kanban line is **in scope only if** it contains a `#project/<slug>` tag whose `<slug>` exactly matches (case-insensitive) a slug in the set. Every other line is **out of scope and must be excluded** — this includes lines with no `#project/` tag at all (cross-cutting, personal, or company-wide tasks) and lines whose `#project/` slug is not in the set. When in doubt, exclude.
+
+   The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero lines match, write "no kanban items tagged for this project" on one line and move on. A global board can only be made safe by showing a task *only* when it is positively tagged for the resolved project; that fail-closed rule is the entire point of this step.
 
 c. **Recent decision records** — Search the project's folder structure (Taskade subfolder + the project's `MoxyWolf Vault/Projects/[PROJECT_NAME]/` mirror, if it exists) for files matching `DR-*.md` modified in the last 14 days. Extract the title and one-line summary from each file's frontmatter. Cap at 5 items.
 
@@ -169,10 +181,12 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Last session left off with**
 - _(no handoff from previous session — pre-`/session-end` project, or first session)_
 
-**Top tasks (kanban)**
-- P0: …
-- P1: …
-- Waiting: …
+**Project tasks** (scoped to [PROJECT_NAME])
+- Backlog files: [open files in 04 – Backlog & Sprints/, or "none"]
+- Kanban P0: …   (kanban filtered to #project/[slug])
+- Kanban P1: …
+- Kanban Waiting: …
+[If the Kanban Scope was inferred or undeclared, add the one-line "Kanban Scope not declared…" warning here. If it is `none`, write "this project declares no kanban scope" here instead.]
 
 **Recent decisions (last 14 days)**
 - [DR title] — [one-line summary]
@@ -191,25 +205,25 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 
 Keep each line tight. This is a briefing, not a report.
 
-If a section had no findings (e.g. "no DRs in last 14 days", "no open PRs in [repo]"), say so on one line rather than omitting the section silently.
+If a section had no findings (e.g. "no DRs in last 14 days", "no open PRs in [repo]", "no kanban items tagged for this project"), say so on one line rather than omitting the section silently.
 
 ### Step 6: Ask what to work on first
 
-End with a single AskUserQuestion: *"What do you want to focus on first?"* with options pulled, in this order of priority:
+End with a single AskUserQuestion: *"What do you want to focus on first?"* Every option must come from a **project-scoped** source — the handoff, the project's `04 – Backlog & Sprints/` folder, or the project-filtered kanban from Step 4b. Never offer a task that wasn't scoped to the resolved project. Pull options in this order of priority:
 
 - The handoff's first open-work item (if a handoff was found and not stale)
 - The handoff's second open-work item (if applicable)
-- Top 1 P0 from kanban (if any, and not duplicating a handoff item)
+- Top 1 P0 from the project-filtered kanban (if any, and not duplicating a handoff item); if there is no in-scope P0, use the top open backlog file or the top in-scope P1 instead
 - "Just brief me — I'll decide"
 
 Do not exceed 4 options total.
 
-If the handoff was stale (>14 days old), drop the handoff items from the focus options and fall back to kanban-only — stale handoffs probably don't reflect current priorities.
+If the handoff was stale (>14 days old), drop the handoff items from the focus options and fall back to the project-filtered kanban and backlog folder only — stale handoffs probably don't reflect current priorities.
 
-If no handoff was found, options pull from kanban only:
+If no handoff was found, options pull from the project-scoped task board only:
 
-- Top 1–2 P0 items (if any)
-- Top 1–2 P1 items (if any)
+- Top 1–2 in-scope P0 items (if any)
+- Top 1–2 in-scope P1 items (if any)
 - "Just brief me — I'll decide"
 - "Something else" (free-text fallback)
 
@@ -222,14 +236,17 @@ If no handoff was found, options pull from kanban only:
 ## Edge cases
 
 - **No saved Project Instructions for this project.** Stop and route to `/init-project`. Do not invent a config.
-- **No `cowork-session-handoff.md` file.** Treat as "no previous handoff" and skip the handoff sections of the briefing. The kanban / DRs / GitHub MCP sections still surface project state. This is normal for projects predating `/session-end` or for a project's first session.
-- **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to kanban / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
+- **No `cowork-session-handoff.md` file.** Treat as "no previous handoff" and skip the handoff sections of the briefing. The task-board / DRs / GitHub MCP sections still surface project state. This is normal for projects predating `/session-end` or for a project's first session.
+- **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to task-board / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
 - **One of the three standard roots not approved.** Note it in the briefing's "Mounted folders" section and continue with whichever were approved.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
-- **Kanban view file missing.** Skip the kanban section, note that the file wasn't found at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`, and continue.
+- **Kanban view file missing.** Skip the kanban portion of the project-tasks section, note that the file wasn't found at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`, and continue with the project's backlog folder.
+- **Kanban Scope not declared in the Project Instructions.** Don't widen to the whole board. Derive inferred slugs from the kebab-cased project name and the GitHub repo names, filter strictly on those (Step 4b case 3), and add the "add a `Kanban project tag(s):` line" warning to the briefing. If the inferred set matches nothing, show "no kanban items tagged for this project" — still never show the unfiltered board.
+- **Kanban Scope declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
+- **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
 - **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
-- **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff at the same vault path. Skip Taskade-subfolder references in the briefing.
+- **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path. Skip Taskade-subfolder references in the briefing.
 - **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
 - **OpenRouter key probe returns `placeholder` or `missing`.** Surface the warning in the Shared services line but do not block the session — most projects don't use OpenRouter on every task. If the user invokes anything that touches Council, research-pipeline, or product-orchestrator later, those skills do their own preflight check (`python3 plugins/council/scripts/openrouter_key.py --where`) and will halt with an actionable error then. The session-start briefing is a heads-up, not a gate.
 - **OpenRouter key probe returns `resolved` but a council/research-pipeline/product-orchestrator skill still errors out later in the session.** The probe only verifies the file exists at the canonical path with a valid-looking value. It doesn't verify the key is actually accepted by OpenRouter (no network call — that would slow down session-start and cost tokens). If the resolved key gets rejected by OpenRouter (rotated, revoked), the user should ask Dorian to update `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` per DR-010.
@@ -239,6 +256,7 @@ If no handoff was found, options pull from kanban only:
 - This skill complements `/init-project` and `/session-end`. `/init-project` configures a project once; `/session-end` writes the per-session handoff at the end of each session; `/session-start` reads that handoff to brief next-session Claude in one step.
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
+- The kanban at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` is a single global board shared by every project. session-start only ever surfaces lines positively tagged `#project/<slug>` for the resolved project — an untagged line, or one tagged for a different project, is never shown. See Step 4b.
 - The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.
