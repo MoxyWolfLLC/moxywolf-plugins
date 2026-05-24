@@ -12,7 +12,7 @@
       "name": "academic-pipeline",
       "source": "./plugins/academic-pipeline",
       "description": "End-to-end academic content pipeline: BibTeX theme mapping, perspective and voice capture, Academia.edu formatting, structure planning, iterative drafting, bibliography generation, and a 10-phase professor critique. Voice-first — voice and formatting are fixed before drafting, not retrofitted.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": { "name": "MoxyWolf LLC" },
       "category": "research",
       "keywords": ["academic", "research", "writing", "bibtex", "academia-edu", "citations", "critique", "pipeline"]

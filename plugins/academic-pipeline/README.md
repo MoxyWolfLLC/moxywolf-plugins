@@ -2,6 +2,8 @@
 
 End-to-end academic content pipeline for Cowork: take a BibTeX bibliography all the way to a critiqued, publication-ready article — with the author's authentic voice and Academia.edu formatting baked in from the first draft.
 
+**New here?** [`HOWTO.md`](HOWTO.md) is the full how-to guide — it covers the three ways to start (an idea, a `.bib` file, or an already-written paper), every checkpoint, the run folder, and troubleshooting.
+
 ## Why it exists
 
 Most AI writing pipelines draft first, then try to bolt on a voice and a journal format afterward, then rewrite. This one is **voice-first**: it fixes the writing perspective, the author's voice, and the formatting rules *before* a single section is drafted. Stage 6 then writes in that voice and that format from the first sentence. No retrofitting, no second-pass rewrites.
