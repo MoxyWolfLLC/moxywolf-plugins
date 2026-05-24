@@ -2,12 +2,21 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
   },
   "plugins": [
+    {
+      "name": "academic-pipeline",
+      "source": "./plugins/academic-pipeline",
+      "description": "End-to-end academic content pipeline: BibTeX theme mapping, perspective and voice capture, Academia.edu formatting, structure planning, iterative drafting, bibliography generation, and a 10-phase professor critique. Voice-first — voice and formatting are fixed before drafting, not retrofitted.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "research",
+      "keywords": ["academic", "research", "writing", "bibtex", "academia-edu", "citations", "critique", "pipeline"]
+    },
     {
       "name": "board-deck",
       "source": "./plugins/board-deck",
