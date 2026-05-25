@@ -1,0 +1,16 @@
+{
+  "name": "frontier-founder",
+  "version": "0.1.0",
+  "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready blog post — formats it to the blog's frontmatter spec, applies the MoxyWolf typographic rules, generates a brand-aligned hero image, and saves the post and hero into the FrontierFounder repo with a shared slug-based naming convention.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "frontier-founder",
+    "blog",
+    "markdown",
+    "content",
+    "hero-image",
+    "moxywolf"
+  ]
+}
