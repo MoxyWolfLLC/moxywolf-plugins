@@ -1,130 +1,165 @@
 ---
 name: blog-init
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," "initialize a new blog project," "wire up the blog engine to my GitHub repo," or "tell the plugin where to put my posts." It runs an interactive 4-question setup that produces a blog-project-instructions.md file at the root of the user's blog project directory. This file is the marker that /4d-blog-engine:blog-start and the 4d-blog-engine orchestrator's STEP 1 discovery walk look for. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:publish).
-allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob]
+  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," "initialize a new blog project," "wire up the blog engine to my Payload site," or "tell the plugin where to publish my posts." It runs an interactive setup that produces a blog-project-instructions.md file at the root of the user's blog project directory. The plugin assumes a Payload CMS backend — content publishes to a Payload collection via the REST API, not as markdown files in a static-site-generator folder. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:publish).
+allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, mcp__cowork__request_cowork_directory]
 ---
 
-# Blog-Init — one-time setup for a blog project
+# Blog-Init — one-time setup for a Payload-backed blog
 
-> **Read this when:** the user runs `/4d-blog-engine:blog-init` or asks to set up the 4d-blog-engine plugin for their blog repo. The skill collects four pieces of configuration and writes a single marker file to the blog project directory.
+> **Read this when:** the user runs `/4d-blog-engine:blog-init` or asks to set up the 4d-blog-engine plugin. The plugin is hard-wired to Payload CMS — don't ask the user what static site generator they're using. The output is a single `blog-project-instructions.md` file at the root of their blog project directory.
 
 ## What this skill produces
 
-A single file at `<blog-project-dir>/blog-project-instructions.md`. The orchestrator's discovery walk treats this file as the marker that identifies a blog project. The skill also creates the directory if it doesn't exist yet and sets up `Posts/` as a subdirectory (where pipeline pieces will land).
+A single file at `<blog-project-dir>/blog-project-instructions.md`. The orchestrator's discovery walk treats this file as the marker that identifies a blog project. The skill also ensures `Posts/` exists inside the blog project directory (where the pipeline writes its working drafts).
 
-After running this once, the user runs `/4d-blog-engine:blog-start` to load the project, then `/4d-blog-engine:blog <base-doc>` to actually write a post, then `/4d-blog-engine:publish <slug>` to ship it.
+After running this once, the user runs `/4d-blog-engine:blog-start` to load the project, then `/4d-blog-engine:blog <base-doc>` to write a post, then `/4d-blog-engine:publish <slug>` to ship it (in v0.3.0 publish still uses git; the Payload-API publish flow is a planned change).
+
+## Folder-picker convention — use the OS picker, not text inputs
+
+For directory questions, **call `mcp__cowork__request_cowork_directory` with no `path` argument** — that opens the native OS folder picker in local Cowork sessions. The user sees a real Finder dialog, picks the folder visually, and the tool returns the path string. Do not present text-input fallbacks unless the picker is unavailable (only in remote sessions, where the user has no local filesystem).
+
+Specifically: never ask the user to type a path like `/Users/<you>/Documents/GitHub/my-blog` into a textarea. That's the friction the picker eliminates.
 
 ## STEP 0 — Check if this is a re-init
 
-Before asking anything, check whether the user already has a `blog-project-instructions.md` somewhere on disk. Use `Glob` against a small set of common paths the user might point you at later. If you find an existing file, read its frontmatter and tell the user:
+Before asking anything, use `Glob` to look for an existing `blog-project-instructions.md` in standard locations. If one is found, Read it and tell the user:
 
-> *I found an existing setup at `<path>`. Re-running blog-init will update it. Your existing answers are pre-filled as defaults; press enter to keep each one or type a new value.*
+> *I found an existing setup at `<path>`. Re-running blog-init will update it. Your existing answers are pre-filled as defaults below.*
 
-Use the existing answers as defaults in the questions below. If no existing file is found, proceed with empty defaults.
+Use the existing answers as defaults below.
 
-## STEP 1 — Question 1: Blog project directory
+## STEP 1 — Pick the blog project directory
+
+Call `mcp__cowork__request_cowork_directory` with no path. The user picks a folder via the OS dialog.
+
+After the user picks, the response includes the absolute path. Use Bash to confirm it exists. Store as `BLOG_PROJECT_DIR`.
+
+If the user dismisses the picker without selecting, ask once via `AskUserQuestion` whether to retry the picker or cancel.
+
+## STEP 2 — Pick the Payload GitHub repo
+
+Call `mcp__cowork__request_cowork_directory` again with no path. The user picks the local clone of their Payload site's GitHub repo.
+
+After the user picks, validate it's a Payload project + git repo:
+
+```bash
+# Is it a git repo?
+test -d "<picked-path>/.git" && echo "yes_git" || echo "no_git"
+
+# Does it have a payload.config.ts (or .js)?
+find "<picked-path>" -maxdepth 4 -name "payload.config.*" -type f 2>/dev/null | head -1
+```
+
+If either check fails, tell the user clearly what's missing and offer to retry the picker:
+
+- Not a git repo → *"That folder isn't a git repo. Pick the cloned repo's root folder (the one that contains the .git directory)."*
+- No payload.config.* → *"I couldn't find a payload.config.ts (or .js) in that folder. The plugin assumes Payload CMS — pick the root of your Payload project."*
+
+Also capture the remote URL for the user-facing summary:
+
+```bash
+git -C "<picked-path>" config --get remote.origin.url 2>/dev/null
+```
+
+Store as `PAYLOAD_REPO_DIR`, `PAYLOAD_CONFIG_PATH` (the path to payload.config.*), and `PAYLOAD_GIT_REMOTE`.
+
+## STEP 3 — Detect Payload collections
+
+Read `PAYLOAD_CONFIG_PATH` and any imported collection files to identify what collections the user has. Look for the `collections:` array in the config and the collection slugs they reference.
+
+Surface the detected collections to the user via `AskUserQuestion`:
+
+> *Your Payload config has these collections: `<detected list>`. Which one do new blog posts get written to?*
+
+Provide each detected collection as an option, plus a "Custom — type the slug" fallback.
+
+Default recommendation: if a collection named `posts` exists, recommend it (the Payload-template convention). Otherwise recommend the first collection that is neither a media/upload collection nor an auth/user collection.
+
+Also identify the **media collection** automatically (usually `media`) by looking for a collection with `upload: true` or `type: 'upload'` fields. If multiple, ask. Store as `MEDIA_COLLECTION` (default `media`).
+
+Store the chosen content collection as `CONTENT_COLLECTION`.
+
+## STEP 4 — Payload server URL
 
 Ask via `AskUserQuestion`:
 
-> *Where is (or should be) your blog project directory? This is where the plugin writes drafts, hero images, slop reports, and signed posts. It's separate from your GitHub repo — think of it as your workshop, the GitHub repo is your storefront.*
+> *What's the Payload server URL the publish command should POST to?*
 
-Provide 3 options:
+Options:
 
-1. `~/Documents/MyBlog` (Recommended) — Standard location. Skill will create it if missing.
-2. `~/Blog` — Shorter path, also fine.
-3. Other — Free-text input, user supplies their own path.
+1. `http://localhost:3000` — local dev server (Payload + Next.js default)
+2. `https://<your-site>.com` — production
+3. Both (dev for drafts, prod for final) — Custom routing
+4. Custom — type your own
 
-After the user picks, expand `~` to the absolute path. Use Bash to check whether the directory exists. If it doesn't, ask:
+Store as `PAYLOAD_API_BASE` (single value for v0.3.0; multi-environment publishing is a v0.4+ concern).
 
-> *That directory doesn't exist yet. Create it now?*
+Hint to the user: the publish flow that ships in v0.3.0 still uses git; the Payload REST API publish flow is the next planned change. Store this value so it's ready when that lands.
 
-If yes, `mkdir -p` the directory. If no, halt with: *"Blog project directory must exist before init can continue. Create it manually and re-run /4d-blog-engine:blog-init."*
-
-Store the absolute path as `BLOG_PROJECT_DIR`.
-
-## STEP 2 — Question 2: GitHub repo for publishing
+## STEP 5 — Auth approach for the Payload API
 
 Ask:
 
-> *Where is the local clone of the GitHub repo your live blog site is built from? This is the repo `/4d-blog-engine:publish` will commit your finished posts into. It's the repo whose `git push` triggers your site rebuild on GitHub Pages / Vercel / Netlify / whatever you use.*
+> *How should `/publish` authenticate to your Payload API?*
 
-Provide options:
+Options:
 
-1. `~/Documents/GitHub/<your-blog-repo>` — Standard MoxyWolf location, Mac default.
-2. Other — Free-text input.
+1. **API key on a Staff user (Recommended)** — Add an `apiKey: true` field on your Staff collection. The publish command reads the key from `<repo>/.env.local` as `PAYLOAD_API_KEY` (gitignored).
+2. **Email/password login** — publish performs `POST /api/staff/login` at publish time to get a session token. Slower; not ideal for automated workflows.
+3. **Configure later** — skip this now. Set up before first publish.
 
-After the user supplies a path, validate it with Bash:
+Store as `PAYLOAD_AUTH_MODE`.
 
-```bash
-test -d "<path>/.git" && echo "valid_git_repo" || echo "not_a_repo"
-```
+If option 1, also tell the user the exact change to make in their Staff collection (`apiKey: true` flag, regenerate types) and where to drop the key (`<repo>/.env.local`).
 
-If `not_a_repo`, halt with:
-
-> *That folder isn't a git repo. Clone your blog's repo locally first (GitHub Desktop's "Clone a repository from the Internet" works, or `git clone <url>` in Terminal), then re-run /4d-blog-engine:blog-init.*
-
-If `valid_git_repo`, also read the remote URL so you can show it back to the user later:
-
-```bash
-git -C "<path>" config --get remote.origin.url 2>/dev/null
-```
-
-If git is unavailable in the sandbox, skip this read — it's just for the confirmation summary. The publish command does its own checks.
-
-Store the absolute path as `GITHUB_REPO_DIR` and the remote URL as `GITHUB_REMOTE_URL` (may be empty).
-
-## STEP 3 — Question 3: Posts folder inside the repo
+## STEP 6 — Live site URL pattern (optional)
 
 Ask:
 
-> *Where inside that repo do new posts go? The default depends on your static site generator:*
+> *What's your live site URL pattern? Used to preview the live URL after publish. Use `{YYYY}`, `{MM}`, `{DD}`, `{slug}` as placeholders. Example: `https://myblog.com/posts/{slug}/`. Skip if you don't have one.*
 
-Provide options:
+Free-text. Store as `LIVE_URL_PATTERN`.
 
-1. `content/blog/` (Recommended) — Hugo default.
-2. `_posts/` — Jekyll default.
-3. `src/content/blog/` — Astro default.
-4. Other — Free-text input.
+## STEP 7 — Hero image brand style
 
-Store as `POSTS_SUBFOLDER`. Trailing slash optional; the publish skill normalizes.
+The Release Owner Gate's Stage 3 generates a hero image for each post. The image prompt is composed from a brand-style block + the post's central metaphor. The plugin reads the brand-style block from this file at gate time — so it stays per-blog instead of being hardcoded to any particular site's look.
 
-If the user picks one and Bash shows the folder doesn't exist inside the repo yet, ask whether to create it. Don't force the create — some site generators are fussy about which folder triggers them.
+Ask via `AskUserQuestion`:
 
-## STEP 4 — Question 4: Images folder inside the repo
+> *What style should hero images use?*
 
-Ask:
+Options:
 
-> *Where do hero images go inside the repo?*
+1. **Neutral / minimalist (Recommended)** — abstract, geometric, no text, no logos, no people. Two-tone palette (off-white + dark gray). Safe default for any blog.
+2. **Configure custom** — supply your own palette, style keywords, and forbidden-element list.
+3. **Skip** — fall back to the neutral default. You can edit `brand_style:` in `blog-project-instructions.md` later.
 
-Provide options:
+If the user picks **Configure custom**, ask three follow-up questions in sequence:
 
-1. `static/images/blog/` (Recommended) — Hugo convention.
-2. `assets/images/` — Jekyll convention.
-3. `public/images/blog/` — Astro convention.
-4. Other — Free-text input.
+- **Palette.** Free-text. Expect 2-5 hex codes, comma-separated. Example: `#1A1A1A, #FFFFFF, #C9A66B`.
+- **Style keywords.** Free-text. Expect 2-5 words/phrases, comma-separated. Example: `geometric, abstract, soft gradient`.
+- **Forbidden elements.** Free-text. Defaults to `text, logos, people, faces, hands`. Expand if the user has specific exclusions.
 
-Store as `IMAGES_SUBFOLDER`.
+Store the four values as `BRAND_PALETTE`, `BRAND_KEYWORDS`, `BRAND_FORBIDDEN`. For the neutral default, populate them as:
 
-## STEP 5 — Question 5: Live site URL pattern (optional)
+- `BRAND_PALETTE = "#F4F4F2, #1A1A1A"`
+- `BRAND_KEYWORDS = "abstract, geometric, minimalist"`
+- `BRAND_FORBIDDEN = "text, logos, people, faces, hands"`
 
-Ask:
+Also fix `BRAND_ASPECT = "16:9"` and `BRAND_DIMENSIONS = "1600x900"` — these are standard for OpenGraph / social-share heroes and not worth asking about. Users who want different dimensions can edit the marker file by hand.
 
-> *What's your live site URL pattern, if you know it? After `/publish` runs, the plugin uses this to show you the predicted live URL. Use `{YYYY}`, `{MM}`, `{DD}`, and `{slug}` as placeholders. Example: `https://myblog.com/{YYYY}/{MM}/{slug}/`. Type "skip" if you don't know or don't have one.*
-
-This is free-text. Store as `LIVE_URL_PATTERN` (may be empty/skip).
-
-## STEP 6 — Question 6: Author name
+## STEP 8 — Author name
 
 Ask:
 
 > *What name should appear as the author in post frontmatter and commit messages?*
 
-Free-text. Store as `AUTHOR_NAME`.
+Free-text. Store as `AUTHOR_NAME`. (For Payload, "author" maps to an Authors collection record — handling that mapping is a publish-flow concern, deferred.)
 
-## STEP 7 — Write blog-project-instructions.md
+## STEP 9 — Write blog-project-instructions.md
 
-Compose the file content and write it to `<BLOG_PROJECT_DIR>/blog-project-instructions.md`:
+Compose and write the file to `<BLOG_PROJECT_DIR>/blog-project-instructions.md`:
 
 ```markdown
 ---
@@ -133,23 +168,37 @@ date: <today YYYY-MM-DD>
 type: reference
 status: active
 plugin: 4d-blog-engine
-plugin_version_at_init: 0.2.0
-schema: blog-project-instructions/v1
+plugin_version_at_init: 0.3.0
+schema: blog-project-instructions/v2
+backend: payload
 ---
 
-# 4D Blog Engine — Project Instructions
+# 4D Blog Engine — Project Instructions (Payload backend)
 
 This file is the marker the 4d-blog-engine plugin uses to find your blog project. Don't move or rename it — the plugin walks up the filesystem looking for it.
 
 ## Project Setup
 
 - **Blog project directory:** `<BLOG_PROJECT_DIR>`
-- **GitHub repo for publishing:** `<GITHUB_REPO_DIR>`
-- **GitHub remote URL:** `<GITHUB_REMOTE_URL or "(unknown)">`
-- **Posts folder inside repo:** `<POSTS_SUBFOLDER>`
-- **Images folder inside repo:** `<IMAGES_SUBFOLDER>`
+- **Payload repo:** `<PAYLOAD_REPO_DIR>`
+- **Payload config path:** `<PAYLOAD_CONFIG_PATH>`
+- **Git remote:** `<PAYLOAD_GIT_REMOTE or "(unknown)">`
+- **Content collection:** `<CONTENT_COLLECTION>` (typical Payload-blog default: `posts`)
+- **Media collection:** `<MEDIA_COLLECTION>` (default `media`)
+- **Payload API base URL:** `<PAYLOAD_API_BASE>`
+- **Auth mode:** `<PAYLOAD_AUTH_MODE>`
 - **Live site URL pattern:** `<LIVE_URL_PATTERN or "(not set)">`
 - **Author:** `<AUTHOR_NAME>`
+
+## Hero image brand style
+
+The Release Owner Gate's Stage 3 reads this block to compose the hero-image prompt for each post. Edit the values directly to change the look without re-running blog-init.
+
+- **Palette:** `<BRAND_PALETTE>`
+- **Style keywords:** `<BRAND_KEYWORDS>`
+- **Forbidden elements:** `<BRAND_FORBIDDEN>`
+- **Aspect ratio:** `<BRAND_ASPECT>` (default `16:9`)
+- **Dimensions:** `<BRAND_DIMENSIONS>` (default `1600x900`)
 
 ## How the plugin uses these
 
@@ -157,79 +206,79 @@ When you run `/4d-blog-engine:blog <base-doc>`, the plugin writes pieces to:
 
 `<BLOG_PROJECT_DIR>/Posts/<YYYY-MM-DD-slug>/`
 
-Each piece directory holds the four-phase artifacts (delegation, description, discernment, diligence) plus the signed blog and LinkedIn pair.
+Each piece directory holds the four-phase artifacts plus the signed blog and LinkedIn pair.
 
-When you run `/4d-blog-engine:publish <slug>`, the plugin:
+When you run `/4d-blog-engine:publish <slug>` (current behavior in v0.3.0 is git-based; Payload REST-API publishing is a planned upgrade):
 
-1. Copies `<BLOG_PROJECT_DIR>/Posts/<slug>/04-diligence/blog.md` → `<GITHUB_REPO_DIR>/<POSTS_SUBFOLDER>/<slug>.md`
-2. Copies the hero image → `<GITHUB_REPO_DIR>/<IMAGES_SUBFOLDER>/<slug>.png`
-3. Rewrites the image reference in the post's frontmatter to point to the new path.
-4. Auto-generates a plain-text commit message (`Publish: <title>`).
-5. Runs `git add` + `git commit` + `git push` against the default branch.
-6. Reports the GitHub commit URL and (if set above) the predicted live URL.
+1. Verifies Phase 4 signed (`Verified — <initials>, <date>` in changelog.md).
+2. Uses the values above to ship the post.
 
-The plugin never publishes for you automatically. `/publish` only runs when you explicitly ask it to, and only on a piece that has passed Phase 4 (the Release Owner Gate) and been signed by hand.
+## Planned: Payload REST-API publish flow
+
+In a future plugin version, `/publish` will:
+
+1. POST the hero image to `<PAYLOAD_API_BASE>/api/<MEDIA_COLLECTION>` using the configured auth.
+2. POST the structured fields (title, slug, subtitle, abstract, keyIdeas, citations, status) to `<PAYLOAD_API_BASE>/api/<CONTENT_COLLECTION>`.
+3. Link the hero image record to the content record.
+4. Report the admin URL and the live URL.
+
+The current file captures the config so that upgrade is a drop-in.
 
 ## Rules
 
 - This file is the marker. Don't move or rename it.
 - The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`.
-- If anything moves on disk, re-run `/4d-blog-engine:blog-init` to update the paths.
+- If anything moves on disk or the Payload config changes, re-run `/4d-blog-engine:blog-init` to update.
 ```
 
-Write the file at `<BLOG_PROJECT_DIR>/blog-project-instructions.md`.
+## STEP 10 — Create the Posts/ subdirectory
 
-## STEP 8 — Create the Posts/ subdirectory
-
-If `<BLOG_PROJECT_DIR>/Posts/` doesn't exist, create it with Bash:
+If `<BLOG_PROJECT_DIR>/Posts/` doesn't exist, create it:
 
 ```bash
 mkdir -p "<BLOG_PROJECT_DIR>/Posts"
 ```
 
-## STEP 9 — Sanity-check the repo's posts and images folders
+## STEP 11 — Report back to the user
 
-For each of `POSTS_SUBFOLDER` and `IMAGES_SUBFOLDER`, test whether the path exists inside `GITHUB_REPO_DIR`. If either is missing, ask:
-
-> *`<subfolder>` doesn't exist inside `<GITHUB_REPO_DIR>` yet. Create it now? (Some site generators expect it to exist; others auto-create on first post. Pick "yes" if unsure.)*
-
-On yes, `mkdir -p` the path. On no, leave it; `/publish` will fail clearly later if the folder is required.
-
-## STEP 10 — Report back to the user
-
-End the skill with a summary:
+End the skill with a concise summary:
 
 ```
-Blog project initialized.
+Blog project initialized for Payload.
 
-  Blog project dir:     <BLOG_PROJECT_DIR>
-  GitHub repo:          <GITHUB_REPO_DIR>
-  Posts → repo path:    <GITHUB_REPO_DIR>/<POSTS_SUBFOLDER>
-  Images → repo path:   <GITHUB_REPO_DIR>/<IMAGES_SUBFOLDER>
-  Live URL pattern:     <LIVE_URL_PATTERN or "(not set)">
-  Author:               <AUTHOR_NAME>
+  Blog project dir:    <BLOG_PROJECT_DIR>
+  Payload repo:        <PAYLOAD_REPO_DIR>
+  Payload config:      <PAYLOAD_CONFIG_PATH>
+  Content collection:  <CONTENT_COLLECTION>
+  Media collection:    <MEDIA_COLLECTION>
+  API base:            <PAYLOAD_API_BASE>
+  Auth mode:           <PAYLOAD_AUTH_MODE>
+  Live URL pattern:    <LIVE_URL_PATTERN or "(not set)">
+  Hero brand style:    palette=<BRAND_PALETTE>; keywords=<BRAND_KEYWORDS>
+  Author:              <AUTHOR_NAME>
 
-Instructions file written: <BLOG_PROJECT_DIR>/blog-project-instructions.md
+Instructions file:     <BLOG_PROJECT_DIR>/blog-project-instructions.md
 
 Next steps:
-  1. Open a fresh Cowork session inside <BLOG_PROJECT_DIR>.
-     (Or stay here — but blog-start works best in a session rooted at your blog dir.)
-  2. Run /4d-blog-engine:blog-start to confirm the plugin sees your project.
-  3. Run /4d-blog-engine:blog <path-to-your-base-document> to write your first post.
+  1. Run /4d-blog-engine:blog-start to confirm the plugin sees your project.
+  2. Run /4d-blog-engine:blog <path-to-base-doc> to write your first post.
+  3. (When the Payload-API publish flow lands.) Add the apiKey field to your
+     Staff collection and drop your key in <repo>/.env.local.
 
-If anything's wrong above, re-run /4d-blog-engine:blog-init — it'll keep your previous answers as defaults.
+If anything's wrong above, re-run /4d-blog-engine:blog-init — it'll keep your
+previous answers as defaults.
 ```
 
 ## What this skill does NOT do
 
-- It does not install the plugin. The user already did that to reach this command.
-- It does not write to the GitHub repo. Only `<BLOG_PROJECT_DIR>/blog-project-instructions.md` and (optionally, with the user's nod) the `Posts/` subdirectory inside the blog project dir.
-- It does not validate that the GitHub repo has a remote that the user can push to. That check belongs in `/publish`.
-- It does not run the discovery walk that the orchestrator uses. It just writes the marker file the walk looks for.
+- It does not install the plugin.
+- It does not write to the Payload repo. Only `<BLOG_PROJECT_DIR>/blog-project-instructions.md` and (optionally) `<BLOG_PROJECT_DIR>/Posts/`.
+- It does not validate Payload auth, generate API keys, or touch `.env.local`. It just records the user's stated intent.
+- It does not POST anything to the Payload API. That's the publish skill's job.
 
 ## Degradation behaviors
 
-- **`mkdir -p` fails** (permission denied, full disk): surface the error and halt. Don't try to write the instructions file elsewhere.
-- **User picks an existing path that has a different layout than expected** (e.g., already contains a Posts/ folder with old content): just use it. The plugin doesn't reorganize anything that's already there.
-- **Bash is unavailable** (extremely rare in Cowork): fall back to plain Read/Write checks and ask the user to confirm paths manually.
-- **GitHub remote URL is `git@github.com:...` rather than `https://...`**: store as-is. Both work for `git push`.
+- **Folder picker isn't available** (remote Cowork session): fall back to `AskUserQuestion` with two or three plausible default paths plus a "Custom" free-text option. Surface a one-line warning that the picker is unavailable.
+- **payload.config.* not found** in the picked repo: don't auto-fail — ask the user whether to proceed anyway (some Payload setups use non-standard locations). If yes, set `PAYLOAD_CONFIG_PATH` to `(unknown)` and continue.
+- **Collection auto-detection fails** (config too dynamic to parse statically): fall back to asking the user to type the collection slug. Suggest `posts` as the typical Payload-blog default.
+- **User cancels mid-flow:** save partial answers to a stash file at `<BLOG_PROJECT_DIR>/.blog-init-draft.md` so the next run picks up where they left off.

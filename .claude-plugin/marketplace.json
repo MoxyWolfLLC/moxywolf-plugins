@@ -11,11 +11,11 @@
     {
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
-      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. /blog-init declares the blog project dir + GitHub repo + posts/images subfolders. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in MoxyWolf voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric) before a long-form LinkedIn article and a short hook-led teaser are derived. /publish ships a signed post to the live site via git add/commit/push — the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
-      "version": "0.2.0",
+      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. Hard-wired to Payload CMS as the publishing backend. /blog-init uses the OS folder picker to capture the blog project dir + Payload GitHub repo, auto-detects Payload collections from payload.config.*, and records the API base URL + auth mode for the publish flow. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in MoxyWolf voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric) before a long-form LinkedIn article and a short hook-led teaser are derived. /publish (currently git-based, Payload REST-API publishing planned) ships a signed post — the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
+      "version": "0.3.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "authoring",
-      "keywords": ["4d", "blog", "linkedin", "content", "voice", "aeo", "seo", "citations", "bibliography", "release-owner", "anti-ai-slop", "publish", "git", "moxywolf"]
+      "keywords": ["4d", "blog", "linkedin", "content", "voice", "aeo", "seo", "citations", "bibliography", "release-owner", "anti-ai-slop", "publish", "payload", "payload-cms", "moxywolf"]
     },
     {
       "name": "academic-pipeline",

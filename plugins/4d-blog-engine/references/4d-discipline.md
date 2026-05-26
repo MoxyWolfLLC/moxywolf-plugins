@@ -69,7 +69,7 @@ This is the literal Release Owner Gate from the *Beyond the Prompt* whitepaper, 
 
 1. **Capability** — every claim sources to a Tier 1-3 source; every URL resolves (link checker); zero `[F]` data in body.
 2. **Format** — frontmatter validates (UUIDv4 id, ISO-8601 date, no em-dash, spaced en-dash, typographer's quotes, blank lines before lists/headings).
-3. **Visual** — hero image generated via `frontier-founder/blog-post`'s fixed brand style spec (geometric/abstract, palette hex, no text/logos/people), 16:9 ~1600x900. Shown for human approval **before** generation. Saved alongside an `og-hero-prompt.md` artifact (AI transparency).
+3. **Visual** — hero image generated using the brand-style spec from each project's `blog-project-instructions.md` (palette, style keywords, forbidden elements, aspect ratio, dimensions). The prompt is composed inline from the brand spec plus the post's central metaphor, then shown for human approval **before** generation. The image generator is whichever MCP is connected (Krea, HuggingFace Spaces, Gemini, etc.); the spec is provider-agnostic. Saved alongside an `og-hero-prompt.md` artifact (AI transparency).
 4. **Content Review** — BLOCKING reviewer agent (no Bash tool, no Edit tool; tool-restricted by trust boundary). Scores 100-point rubric (`release-owner-rubric.md`). **Must** echo the CSPRNG nonce written to `.review-nonce` verbatim in its scorecard, and end with a machine-readable `BLOCKING: true|false (reason)` line. Iterates up to 3 times; nothing below 90/100 reaches the user; on iteration 3 still failing, escalates.
 5. **Asset Integrity** — every referenced media file exists on disk; slug ties post + hero + bibliography names.
 

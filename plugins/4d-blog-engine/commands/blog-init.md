@@ -1,23 +1,25 @@
 ---
-description: One-time setup. Tell the plugin where your blog project lives, where its GitHub repo is, and where new posts go inside that repo.
-argument-hint: (no arguments — runs interactively)
-allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob]
+description: One-time setup for a Payload-backed blog. Pick your blog project folder, pick your Payload GitHub repo, and the skill captures the rest.
+argument-hint: (no arguments — runs interactively with native folder pickers)
+allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, mcp__cowork__request_cowork_directory]
 ---
 
 # /4d-blog-engine:blog-init — one-time blog project setup
 
-Invoke the `blog-init` skill. It walks you through three or four short questions and writes a single `blog-project-instructions.md` file to the top of your blog project directory. After that, `/4d-blog-engine:blog-start` will know how to find your project, and `/4d-blog-engine:publish` will know how to ship a finished post to your live site.
+The plugin is hard-wired to **Payload CMS** as the publishing backend. It does not ask you whether you're using Hugo or Jekyll, because the answer is always Payload — published posts land in your Payload database via the REST API, hero images upload to your media collection, and the live site reads from Payload. The plugin is independent of any particular Payload site — it auto-detects your collections and adapts to your setup.
 
-This command only needs to run once per blog project. If you need to change anything later, re-run it — it'll preserve your existing answers as defaults.
+The skill walks you through:
 
-The four questions:
+1. **Pick your blog project directory** via the native folder picker — this is where the plugin writes drafts, hero images, slop reports, and signed posts. Think of it as your workshop.
+2. **Pick the local clone of your Payload GitHub repo** via the same folder picker — the skill confirms it's a git repo and finds your `payload.config.ts`.
+3. **Auto-detect your Payload collections** and ask which one new posts go to (the typical Payload-blog convention is `posts`, but the skill recommends whichever content-shaped collection your config actually has). Auto-detects the media collection too.
+4. **Payload API base URL** — typically `http://localhost:3000` for dev or your production domain.
+5. **Auth approach for the Payload API** — Staff API key (recommended), or email/password.
+6. **Live site URL pattern, optional** — used to show you the predicted live URL after publish.
+7. **Author name** for post frontmatter and commit messages.
 
-1. **Blog project directory.** The folder where the plugin writes drafts, hero images, slop reports, and signed posts. If you don't have one yet, the skill suggests creating `~/Documents/MyBlog/` (or similar) and helps you make it.
-2. **GitHub repo for publishing.** The local clone of the GitHub repo your live site is built from. Usually under `~/Documents/GitHub/<your-blog-repo>/`. The plugin reads its `.git/config` to confirm there's a remote — if not, it stops and tells you to clone the repo first.
-3. **Posts folder inside the repo.** Where finished posts land. Default `content/blog/` (Hugo). Jekyll users override to `_posts/`, Astro to `src/content/blog/`.
-4. **Images folder inside the repo.** Where hero images land. Default `static/images/blog/`.
-5. **Live site URL pattern, optional.** Used after `/publish` to preview the live URL. Example: `https://myblog.com/{YYYY}/{MM}/{slug}/`. Skip if you don't know it — `/publish` will still work, you just won't see a predicted link.
-
-After the skill writes the file, it tells you how to verify the setup (start a fresh session, run `/4d-blog-engine:blog-start`, confirm the plugin reports your project).
+After the skill writes `blog-project-instructions.md` to the top of your blog project directory, run `/4d-blog-engine:blog-start` to confirm setup, then `/4d-blog-engine:blog <base-doc>` to write your first post.
 
 Read `skills/blog-init/SKILL.md` for the full flow.
+
+**Note on publish flow:** v0.3.0 still uses git-based publishing (carried over from v0.2.0). The Payload REST-API publish flow — POST the hero image to `/api/<media-collection>`, POST the post fields to `/api/<content-collection>` — is the next planned change. `blog-init` captures the Payload config now so that upgrade is a drop-in.

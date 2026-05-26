@@ -17,7 +17,7 @@ Refuses to run if Phase 3 didn't pass (grade ≤ C) or is more than 24 hours sta
 Hands off **entirely** to the `release-owner-gate` skill. That skill:
 
 1. Stages the draft from `<piece>/03-discernment/draft.md` to `<piece>/04-diligence/blog.md`.
-2. Generates the hero image via `frontier-founder/blog-post`'s fixed brand style spec — shown for approval before generation, saved as `og-hero.png` with an `og-hero-prompt.md` AI-transparency artifact.
+2. Generates the hero image using the brand-style spec from your project's `blog-project-instructions.md` (palette + style keywords + forbidden elements + aspect/dimensions). Composes the prompt inline, shows it for approval before generation, then calls whichever image-generation MCP is connected. Saved as `og-hero.png` with an `og-hero-prompt.md` AI-transparency artifact.
 3. Rotates the CSPRNG nonce in `<piece>/.review-nonce`.
 4. Dispatches the BLOCKING reviewer subagent (Read, Write, Glob, Grep only — **no Bash, no Edit**) with `references/release-owner-rubric.md` and the rubric's exact output contract. The reviewer must echo the nonce verbatim and end with `BLOCKING: true|false (reason)`.
 5. Runs `scripts/preflight.py` to validate format, hero presence, nonce match, score parsing, and asset integrity.

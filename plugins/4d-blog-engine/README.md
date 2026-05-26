@@ -80,7 +80,7 @@ The plugin is **mostly composition** over existing MoxyWolf plugins. It calls:
 - `bibtex-builder/bibtex-from-urls` — bibliography with AI-generated abstracts
 - `editorial-forge/voice-architect` — voice profile capture (when extending beyond Dorian's voice)
 - `council/deliberate` — multi-model synthesis on the discourse harvest
-- `frontier-founder/blog-post` — hero image generation (fixed brand style spec)
+- Any connected image-generation MCP (Krea, HuggingFace Spaces, Gemini, etc.) — hero image generation, with the brand-style spec read from each project's `blog-project-instructions.md`
 - MoxyWolf voice anchor: `_Shared Knowledge/Brand and Voice/dorian-cougias.md`
 
 What's genuinely new in this plugin: the 30-day discourse sweep (`scripts/discourse_sweep.py` + `skills/discourse-sweep/`), the engineered Release Owner Gate (`scripts/preflight.py` + `scripts/prose_lint.py` + the BLOCKING reviewer sub-agent), the 3-axis LinkedIn scorecard, the AEO checklist, and the orchestrator that sequences everything under the 4D discipline.
