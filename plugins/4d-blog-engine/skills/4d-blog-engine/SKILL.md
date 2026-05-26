@@ -51,25 +51,41 @@ else:
     ACTIVE_PROJECT_DIR = "$HOME/4d-blog-engine-work"  # fallback
 ```
 
-Implement with Bash:
+Implement with Bash. **Numbered MoxyWolf project folders may use either an en-dash (`–`, U+2013) or a plain hyphen (`-`, U+002D) as the separator** — folders 00-09 + 99 typically use en-dash; folders 11-12 (Project Knowledge + MARCOM) sometimes use hyphen depending on when they were created. Path resolution must tolerate both:
 
 ```bash
+# tolerant of en-dash (U+2013) and hyphen (U+002D) in numbered folder names
 find_active_project() {
   local d="$PWD"
   while [ "$d" != "/" ]; do
-    if [ -f "$d/00 – Project Hub/cowork-project-instructions.md" ]; then
-      echo "$d"; return 0
-    fi
+    for sep in '–' '-'; do
+      if [ -f "$d/00 ${sep} Project Hub/cowork-project-instructions.md" ]; then
+        echo "$d"; return 0
+      fi
+    done
     d="$(dirname "$d")"
   done
   echo "$HOME/4d-blog-engine-work"
 }
 ACTIVE_PROJECT=$(find_active_project)
+
+# Resolve the MARCOM folder tolerantly. Returns the actual path the project uses.
+resolve_marcom() {
+  local proj="$1"
+  for d in "$proj"/12\ *MARCOM "$proj"/12-MARCOM; do
+    [ -d "$d" ] && { echo "$d"; return 0; }
+  done
+  # No MARCOM folder exists — create with en-dash convention as default
+  local dest="$proj/12 – MARCOM"
+  mkdir -p "$dest"
+  echo "$dest"
+}
+MARCOM_DIR=$(resolve_marcom "$ACTIVE_PROJECT")
 ```
 
 **Report the resolved active project to the user** in one line — `Active project: <name> (<path>)` — before proceeding. If the fallback was used, say so explicitly: `Active project: NONE — falling back to $HOME/4d-blog-engine-work`.
 
-The per-piece working directory is then `<ACTIVE_PROJECT>/12 – MARCOM/Posts/<YYYY-MM-DD-slug>/`. The slug is computed from the chosen post title (kebab-cased, ASCII, ≤40 chars, leading articles dropped).
+The per-piece working directory is then `<MARCOM_DIR>/Posts/<YYYY-MM-DD-slug>/` — `<MARCOM_DIR>` uses whichever separator the project actually has on disk (as resolved by `resolve_marcom`), so the path works regardless of typographic inconsistency. The slug is computed from the chosen post title (kebab-cased, ASCII, ≤40 chars, leading articles dropped).
 
 Create the per-piece directory tree at the start of the run:
 
@@ -108,13 +124,28 @@ Triggered by `/4d-blog-engine:describe` or as Phase 2 of `:blog`. Refuses to run
 
 **Workflow:**
 
-1. **Run the 8-question MoxyWolf voice interview.** Use the question set from `research-pipeline/content-writer` — Trigger / Evidence / Contrarian Take / Authority / Specific Reader / Business Connection / Call to Action / Emotional Core. **One question per message.** Push back on vague answers; the discipline of specifics is what makes the rest work.
-2. **Pick the structure.** Default: Sorkin DOB (Desire / Obstacle / Battle). Alternatives: Hero's Journey, Story Circle, Inverted Pyramid. State the choice and explain why.
-3. **Build the outline.** H2-by-H2, 60-70% of H2s phrased as natural questions per `references/aeo-checklist.md`. Per-section word budget. Per-section evidence-mapping ("what does the 30-day sweep need to find for this section?"). Per-section "what's the citation capsule's load-bearing claim?"
-4. **Draft the "At a Glance" block.** 60-90 words. Self-contained. Takes a point of view. Use the template in `references/aeo-checklist.md`.
-5. **Pre-load the anti-slop catalog.** Read `references/ai-anti-patterns.md` in full; state in one line which Tier-2-Major patterns you'll specifically guard against in this piece's prose.
-6. **Write `02-description.md`** with frontmatter `_phase: 02, _status: passed, _timestamp: <ISO>`. Body: voice interview Q&A, structure choice + reason, outline (H2s with section budgets and evidence needs), At-a-Glance block, anti-slop watch list.
-7. **Gate.** Show the outline + At-a-Glance to the user and ask "proceed / revise <specific>". Cap at 2 revision rounds before escalating.
+1. **Phase 1 → Phase 2 carry (v0.1.1+).** Before invoking the voice interview, read `<piece>/01-delegation.md`'s `earned_secret` field and the `angle` + `audience` blocks. Scan the earned-secret text for content matching each of the 8 voice-injection slots:
+
+   - **Trigger** — a recent event that prompted the topic
+   - **Evidence** — a specific number, fact, or anecdote that grounds the claim
+   - **Contrarian Take** — the "but actually" the post pushes against
+   - **Authority** — why this author specifically gets to say this
+   - **Specific Reader** — the named persona the post is for (also drawn from the audience block)
+   - **Business Connection** — how it connects to the author's product/service
+   - **Call to Action** — the Monday move the reader should make
+   - **Emotional Core** — the visceral phrase or image that sticks
+
+   For each slot where a substantive match is detectable, pre-fill a draft answer. Present the pre-filled set to the user with one confirmation message: *"Based on your earned secret + angle, I have draft answers for: [Trigger, Evidence, Emotional Core, ...]. Use these, refine them, or re-ask?"* If the user accepts, skip the corresponding slots in step 2. If the user wants to refine, capture the refinement. If the user wants to re-ask, queue that slot for step 2.
+
+   This step exists because the Phase 1 earned-secret answer frequently substantively answers Trigger, Evidence, and Emotional Core — re-asking those wastes the user's turns and risks thinner second-pass answers.
+
+2. **Voice interview (carried slots skipped).** For any of the 8 voice-injection slots NOT pre-filled in step 1, ask the question from `research-pipeline/content-writer`'s set (Trigger / Evidence / Contrarian Take / Authority / Specific Reader / Business Connection / Call to Action / Emotional Core). **One question per message.** Push back on vague answers; the discipline of specifics is what makes the rest work.
+3. **Pick the structure.** Default: Sorkin DOB (Desire / Obstacle / Battle). Alternatives: Hero's Journey, Story Circle, Inverted Pyramid. State the choice and explain why.
+4. **Build the outline.** H2-by-H2, 60-70% of H2s phrased as natural questions per `references/aeo-checklist.md`. Per-section word budget. Per-section evidence-mapping ("what does the 30-day sweep need to find for this section?"). Per-section "what's the citation capsule's load-bearing claim?"
+5. **Draft the "At a Glance" block.** 60-90 words. Self-contained. Takes a point of view. Use the template in `references/aeo-checklist.md`.
+6. **Pre-load the anti-slop catalog.** Read `references/ai-anti-patterns.md` in full; state in one line which Tier-2-Major patterns you'll specifically guard against in this piece's prose.
+7. **Write `02-description.md`** with frontmatter `_phase: 02, _status: passed, _timestamp: <ISO>`. Body: voice interview Q&A (including carried slots, marked as carried-from-Phase-1), structure choice + reason, outline (H2s with section budgets and evidence needs), At-a-Glance block, anti-slop watch list.
+8. **Gate.** Show the outline + At-a-Glance to the user and ask "proceed / revise <specific>". Cap at 2 revision rounds before escalating.
 
 ### Phase 3 — Discernment
 

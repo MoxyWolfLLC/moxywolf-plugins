@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -12,7 +12,7 @@
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
       "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. Turns a base document plus an angle into a publication-ready blog post, a long-form LinkedIn article (full mirror), and a short hook-led LinkedIn teaser. Runs a 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass; builds a verified bibliography via bibtex-builder; drafts in MoxyWolf voice via research-pipeline/content-writer; runs a two-tier anti-AI-slop pass with a second-pass audit; and ships through a nonce-bound Release Owner Gate scoring against a 100-point rubric. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper. Use when you want to turn a base document into a blog + LinkedIn pair with engineered human-in-the-loop quality gates.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": { "name": "MoxyWolf LLC" },
       "category": "authoring",
       "keywords": ["4d", "blog", "linkedin", "content", "voice", "aeo", "seo", "citations", "bibliography", "release-owner", "anti-ai-slop", "moxywolf"]
