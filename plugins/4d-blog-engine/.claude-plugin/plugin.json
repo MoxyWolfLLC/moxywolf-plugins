@@ -1,0 +1,22 @@
+{
+  "name": "4d-blog-engine",
+  "version": "0.1.0",
+  "description": "4D Blog Engine — operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. Takes a base document and an angle question; runs a 30-day discourse sweep across reddit, X, Hacker News, Substack, Facebook, Quora, podcasts, and academic sources; layers a /council:deliberate synthesis pass; builds a verified bibliography with AI-generated abstracts; drafts the blog post in MoxyWolf voice using the existing research-pipeline + editorial-forge skills; runs a two-tier anti-AI-slop pass (deterministic linter + LLM structural review with a second-pass audit); and ships through a nonce-bound Release Owner Gate scoring against a 100-point rubric. On a clean gate, produces a publication-ready blog post, a long-form LinkedIn article (full mirror, blog stays canonical), and a short hook-led LinkedIn teaser with a 3-axis scorecard (thought leadership / pain / audience fit). Use when you want to turn a base document into a publication-ready blog post and LinkedIn pair with engineered human-in-the-loop quality gates. Trigger phrases: 'write a blog post from this document', 'derive a blog from this whitepaper', '/4d-blog-engine', 'run the 4D blog pipeline', 'write the LinkedIn version', 'release-owner gate'. Implements the Release Owner Gate from MoxyWolf's 'Beyond the Prompt' whitepaper as the literal Monday-installable gate the framework prescribes.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "4d",
+    "blog",
+    "linkedin",
+    "content",
+    "voice",
+    "aeo",
+    "seo",
+    "citations",
+    "bibliography",
+    "release-owner",
+    "anti-ai-slop",
+    "moxywolf"
+  ]
+}

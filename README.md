@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 20 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 21 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -33,9 +33,10 @@ Adding this marketplace on any Mac gives that machine all 20 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (20 plugins) — source of truth for versions
+│   └── marketplace.json                ← catalog (21 plugins) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 19 MoxyWolf-owned plugins
+├── plugins/                             ← 20 MoxyWolf-owned plugins
+│   ├── 4d-blog-engine/             Base doc → 4-phase pipeline → blog + LinkedIn pair with Release Owner Gate
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
@@ -70,7 +71,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 20 plugins appear in the marketplace list.
+3. Click **Sync**. The 21 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
