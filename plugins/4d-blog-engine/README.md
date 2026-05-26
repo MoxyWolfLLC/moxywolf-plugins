@@ -15,6 +15,16 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 
 ## Commands
 
+**Lifecycle** (run these to set up and resume blog work):
+
+| Command | What it does |
+|---|---|
+| `/4d-blog-engine:blog-init` | One-time setup — declare your blog project directory, your GitHub repo, the posts/images subfolders inside the repo, your live URL pattern. Writes `blog-project-instructions.md` to the project dir. |
+| `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
+| `/4d-blog-engine:publish <slug>` | Ship a signed post to your live site. Copies the post + hero into the GitHub repo, commits, and pushes — no git words required from the writer. |
+
+**Pipeline** (run these to actually write a post):
+
 | Command | What it does |
 |---|---|
 | `/4d-blog-engine:blog <base-doc> [--angle "..."]` | Runs the full 4-phase pipeline end-to-end |
@@ -27,10 +37,17 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 
 ## Working directory layout
 
-The plugin saves into the **active Cowork project's** directory under a standardized structure. The active project is auto-detected by walking up from CWD until a `00 – Project Hub/cowork-project-instructions.md` is found. If none is found, the plugin falls back to `~/4d-blog-engine-work/`.
+The plugin saves into the **active project's** directory under a standardized structure. The active project is auto-detected by walking up from CWD looking for one of two marker files (MoxyWolf-internal marker first):
+
+- **MoxyWolf-internal:** `00 – Project Hub/cowork-project-instructions.md` → pieces land at `<project>/12 – MARCOM/Posts/<slug>/`
+- **External blog (slim):** `blog-project-instructions.md` at the project root, created by `/4d-blog-engine:blog-init` → pieces land at `<project>/Posts/<slug>/`
+
+If neither is found, the plugin falls back to `~/4d-blog-engine-work/` and recommends running `/4d-blog-engine:blog-init`.
+
+The per-piece directory layout is the same regardless of mode:
 
 ```
-<active-project>/12 – MARCOM/Posts/<YYYY-MM-DD-slug>/
+<posts-dir>/<YYYY-MM-DD-slug>/
 ├── state.md                          # current_phase, gates_passed, target_words, modality
 ├── 01-delegation.md                  # base doc, angle, earned secret, audience persona
 ├── 02-description.md                 # voice interview answers, outline, At-a-Glance block
@@ -70,19 +87,30 @@ What's genuinely new in this plugin: the 30-day discourse sweep (`scripts/discou
 
 ## Important rules
 
-- **Plugin never commits or pushes.** It writes to disk; you commit via GitHub Desktop per the standard MoxyWolf one-aggregated-commit-per-push workflow.
 - **Plugin never auto-publishes to LinkedIn.** It writes the article and teaser to disk; you paste / use Buffer / use the LinkedIn editor.
 - **Plugin never fabricates citations.** Unverified data gets `[CITATION NEEDED]` placeholders, not invented text.
 - **The Release Owner Gate is load-bearing.** Disabling it or auto-passing it defeats the whole framework. The whole point of the plugin is that one named human signs for every AI output before it ships.
+- **Publishing is one explicit command, not automatic.** `/4d-blog-engine:publish <slug>` is the only path that touches the GitHub repo. It refuses to run on an unsigned piece. The MoxyWolf-internal one-aggregated-commit-per-push workflow still applies if you're committing other repo changes outside of `/publish`.
 
 ## Install
 
-This plugin lives in the `moxywolf-plugins` marketplace. Install via Cowork (Settings → Plugins → MoxyWolf marketplace) or via Claude Code:
+This plugin lives in the `moxywolf-plugins` marketplace.
+
+**In Claude Cowork:**
+
+1. Open **Browse plugins** from the sidebar.
+2. Switch to the **Personal** tab.
+3. Click **Add Marketplace** and paste: `MoxyWolfLLC/moxywolf-plugins`.
+4. Find **4d-blog-engine** in the listed plugins and click **Install**.
+
+**In Claude Code CLI:**
 
 ```bash
-/plugin marketplace add MoxyWolfLLC/moxywolf-plugins
-/plugin install 4d-blog-engine@moxywolf-plugins
+claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
+claude plugin install 4d-blog-engine@moxywolf-plugins
 ```
+
+After install, run `/4d-blog-engine:blog-init` once to set up your blog project. After that, `/4d-blog-engine:blog-start` opens any future session and `/4d-blog-engine:publish` ships finished posts.
 
 ## Source
 

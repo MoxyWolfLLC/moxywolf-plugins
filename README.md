@@ -36,7 +36,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   └── marketplace.json                ← catalog (21 plugins) — source of truth for versions
 ├── README.md                            ← this file
 ├── plugins/                             ← 20 MoxyWolf-owned plugins
-│   ├── 4d-blog-engine/             Base doc → 4-phase pipeline → blog + LinkedIn pair with Release Owner Gate
+│   ├── 4d-blog-engine/             /blog-init /blog-start /blog /publish — base doc → 4-phase pipeline → blog + LinkedIn pair with Release Owner Gate
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
@@ -80,10 +80,11 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
 claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 
 # install everything in one go
-for p in academic-pipeline board-deck bibtex-builder composio council daily-ops \
-         dev-infrastructure-skills editorial-forge frontier-founder github-repo-analyzer \
-         gstack-execution obsidian-update product-orchestrator project-init research-pipeline \
-         saas-frontend-designer saas-pricing-engine team-kanban vtt-to-text moxywolf-skills; do
+for p in 4d-blog-engine academic-pipeline board-deck bibtex-builder composio council \
+         daily-ops dev-infrastructure-skills editorial-forge frontier-founder \
+         github-repo-analyzer gstack-execution obsidian-update product-orchestrator \
+         project-init research-pipeline saas-frontend-designer saas-pricing-engine \
+         team-kanban vtt-to-text moxywolf-skills; do
   claude plugin install "$p@moxywolf-plugins"
 done
 ```

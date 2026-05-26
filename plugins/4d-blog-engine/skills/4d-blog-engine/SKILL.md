@@ -13,16 +13,19 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 This skill turns a base document plus a chosen angle/question into a publication-ready blog post, a long-form LinkedIn article, and a short hook-led LinkedIn teaser — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of seven commands, four of which map directly to the four D's:
+It is composed of ten commands, four of which map directly to the four D's, three lifecycle commands (init/start/publish) added in v0.2.0, and three convenience commands:
 
-| Command | Phase | Specialist skill invoked |
+| Command | Purpose | Specialist skill invoked |
 |---|---|---|
+| `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + post/image folders | `blog-init` |
+| `/4d-blog-engine:blog-start` | Open or resume a session — mount the two directories, surface in-progress/unpublished pieces | `blog-start` |
 | `/4d-blog-engine:delegate` | Delegation — triage, angle pick, earned-secret stall | inline (this skill) |
 | `/4d-blog-engine:describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
 | `/4d-blog-engine:discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
 | `/4d-blog-engine:diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
 | `/4d-blog-engine:linkedin` | Derivative output | `linkedin-deriver` |
-| `/4d-blog-engine:blog` | End-to-end (all four phases sequentially) | all of the above |
+| `/4d-blog-engine:blog` | End-to-end pipeline (all four phases sequentially) | all of the above |
+| `/4d-blog-engine:publish` | Ship a signed piece to the live site via the configured GitHub repo | `publish` |
 | `/4d-blog-engine:status` | Print current piece state | inline (this skill) |
 
 ## STEP 0 — Always load these references first
@@ -35,21 +38,17 @@ When this skill is invoked, **immediately Read these three files in this order b
 
 **Report back to the user** what was loaded (voice tone, sentence-length range, contraction rate target, fragment frequency, conjunction-starter frequency, top forbidden phrases). Silent loading causes voice drift in long sessions. This is the jamon8888/cc-suite STEP 0 LOAD DNA discipline — never skip the report-back.
 
-## STEP 1 — Detect the active Cowork project and compute the working directory
+## STEP 1 — Detect the active project and compute the working directory
 
-The plugin saves everything into the active Cowork project's directory using a standardized structure. To find the active project, walk up from the current working directory looking for the marker file:
+The plugin saves everything into the active project's directory using a standardized structure. There are **two supported project markers**, in this priority order:
 
-```bash
-# Pseudocode for the discovery walk
-CWD = current working directory
-while CWD != /:
-    if exists CWD/00 – Project Hub/cowork-project-instructions.md:
-        ACTIVE_PROJECT_DIR = CWD
-        break
-    CWD = parent(CWD)
-else:
-    ACTIVE_PROJECT_DIR = "$HOME/4d-blog-engine-work"  # fallback
-```
+1. **MoxyWolf-internal marker:** `<project>/00 – Project Hub/cowork-project-instructions.md` (full MoxyWolf Cowork project)
+2. **External blog marker:** `<project>/blog-project-instructions.md` (slim blog-only setup created by `/4d-blog-engine:blog-init`)
+
+The discovery walk checks for both at every ancestor directory, MoxyWolf-internal first. Whichever it finds first determines the project mode:
+
+- **MoxyWolf mode** → posts land at `<project>/12 – MARCOM/Posts/<slug>/` (the MoxyWolf MARCOM convention).
+- **External-blog mode** → posts land at `<project>/Posts/<slug>/` (the slim convention, no numbered folders).
 
 Implement with Bash. **Numbered MoxyWolf project folders may use either an en-dash (`–`, U+2013) or a plain hyphen (`-`, U+002D) as the separator** — folders 00-09 + 99 typically use en-dash; folders 11-12 (Project Knowledge + MARCOM) sometimes use hyphen depending on when they were created. Path resolution must tolerate both:
 
@@ -58,34 +57,64 @@ Implement with Bash. **Numbered MoxyWolf project folders may use either an en-da
 find_active_project() {
   local d="$PWD"
   while [ "$d" != "/" ]; do
+    # MoxyWolf-internal marker — checked first
     for sep in '–' '-'; do
       if [ -f "$d/00 ${sep} Project Hub/cowork-project-instructions.md" ]; then
-        echo "$d"; return 0
+        echo "moxywolf:$d"; return 0
       fi
     done
+    # External-blog marker — checked second
+    if [ -f "$d/blog-project-instructions.md" ]; then
+      echo "blog:$d"; return 0
+    fi
     d="$(dirname "$d")"
   done
-  echo "$HOME/4d-blog-engine-work"
-}
-ACTIVE_PROJECT=$(find_active_project)
-
-# Resolve the MARCOM folder tolerantly. Returns the actual path the project uses.
-resolve_marcom() {
-  local proj="$1"
-  for d in "$proj"/12\ *MARCOM "$proj"/12-MARCOM; do
-    [ -d "$d" ] && { echo "$d"; return 0; }
+  # Standard fallback locations for external blog mode
+  for fallback in "$HOME/Documents/MyBlog" "$HOME/Blog"; do
+    if [ -f "$fallback/blog-project-instructions.md" ]; then
+      echo "blog:$fallback"; return 0
+    fi
   done
-  # No MARCOM folder exists — create with en-dash convention as default
-  local dest="$proj/12 – MARCOM"
-  mkdir -p "$dest"
-  echo "$dest"
+  echo "fallback:$HOME/4d-blog-engine-work"
 }
-MARCOM_DIR=$(resolve_marcom "$ACTIVE_PROJECT")
+
+# Returns the per-piece base directory for the resolved project + mode.
+# - MoxyWolf mode: <project>/12 – MARCOM/Posts (creates the MARCOM folder if absent, en-dash form)
+# - External-blog mode: <project>/Posts
+# - Fallback mode: <fallback>/Posts
+resolve_posts_dir() {
+  local raw="$1"          # "moxywolf:<path>" | "blog:<path>" | "fallback:<path>"
+  local mode="${raw%%:*}"
+  local proj="${raw#*:}"
+  case "$mode" in
+    moxywolf)
+      for d in "$proj"/12\ *MARCOM "$proj"/12-MARCOM; do
+        [ -d "$d" ] && { echo "$d/Posts"; return 0; }
+      done
+      local dest="$proj/12 – MARCOM"
+      mkdir -p "$dest/Posts"
+      echo "$dest/Posts"
+      ;;
+    blog|fallback)
+      mkdir -p "$proj/Posts"
+      echo "$proj/Posts"
+      ;;
+  esac
+}
+
+RAW=$(find_active_project)
+PROJECT_MODE="${RAW%%:*}"          # moxywolf | blog | fallback
+ACTIVE_PROJECT="${RAW#*:}"
+POSTS_DIR=$(resolve_posts_dir "$RAW")
 ```
 
-**Report the resolved active project to the user** in one line — `Active project: <name> (<path>)` — before proceeding. If the fallback was used, say so explicitly: `Active project: NONE — falling back to $HOME/4d-blog-engine-work`.
+**Report the resolved project to the user** in one line, with the mode explicit:
 
-The per-piece working directory is then `<MARCOM_DIR>/Posts/<YYYY-MM-DD-slug>/` — `<MARCOM_DIR>` uses whichever separator the project actually has on disk (as resolved by `resolve_marcom`), so the path works regardless of typographic inconsistency. The slug is computed from the chosen post title (kebab-cased, ASCII, ≤40 chars, leading articles dropped).
+- MoxyWolf mode: `Active project: <name> (MoxyWolf — <path>)`
+- External-blog mode: `Active blog project: <name> (<path>)`
+- Fallback: `No project found — falling back to $HOME/4d-blog-engine-work. Run /4d-blog-engine:blog-init to set up a real blog project.`
+
+The per-piece working directory is `<POSTS_DIR>/<YYYY-MM-DD-slug>/`. The slug is computed from the chosen post title (kebab-cased, ASCII, ≤40 chars, leading articles dropped).
 
 Create the per-piece directory tree at the start of the run:
 
