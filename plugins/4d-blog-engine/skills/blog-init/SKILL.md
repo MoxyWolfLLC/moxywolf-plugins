@@ -1,165 +1,137 @@
 ---
 name: blog-init
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," "initialize a new blog project," "wire up the blog engine to my Payload site," or "tell the plugin where to publish my posts." It runs an interactive setup that produces a blog-project-instructions.md file at the root of the user's blog project directory. The plugin assumes a Payload CMS backend — content publishes to a Payload collection via the REST API, not as markdown files in a static-site-generator folder. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:publish).
-allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, mcp__cowork__request_cowork_directory]
+  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," "initialize a new blog project," or "wire up the blog engine." The plugin's user is a WRITER, not a developer — so this skill auto-detects every Payload-technical value (collections, server URL, auth) from payload.config.* and .env.local rather than asking the user. The interactive form asks only what a writer can answer: folder picks, author name, and a hero-image brand vibe. Output is a single blog-project-instructions.md file at the root of the blog project directory. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:publish).
+allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, Grep, mcp__cowork__request_cowork_directory]
 ---
 
-# Blog-Init — one-time setup for a Payload-backed blog
+# Blog-Init — writer-friendly setup
 
-> **Read this when:** the user runs `/4d-blog-engine:blog-init` or asks to set up the 4d-blog-engine plugin. The plugin is hard-wired to Payload CMS — don't ask the user what static site generator they're using. The output is a single `blog-project-instructions.md` file at the root of their blog project directory.
+> **Read this when:** the user runs `/4d-blog-engine:blog-init`. The user is a WRITER. They don't know what a Payload collection is. They don't have a Payload API base URL in their head. Don't ask them about any of that. Detect it from the repo and the env file. The form asks the writer ONLY what a writer can answer.
 
-## What this skill produces
+## Hard rules — read these first
 
-A single file at `<blog-project-dir>/blog-project-instructions.md`. The orchestrator's discovery walk treats this file as the marker that identifies a blog project. The skill also ensures `Posts/` exists inside the blog project directory (where the pipeline writes its working drafts).
+These rules exist because earlier versions of this skill kept regressing toward asking the writer technical Payload questions. Don't.
 
-After running this once, the user runs `/4d-blog-engine:blog-start` to load the project, then `/4d-blog-engine:blog <base-doc>` to write a post, then `/4d-blog-engine:publish <slug>` to ship it (in v0.3.0 publish still uses git; the Payload-API publish flow is a planned change).
+1. **Do not ask about Payload collections.** Read `payload.config.*` and detect them. Pick the content collection and the media collection by the heuristics below. Record the choices in the marker file. If the writer wants to override, they edit the marker file by hand — that's a power-user path, not a setup-form question.
+2. **Do not ask about Payload API base URL.** Read `<repo>/.env.local` for `PAYLOAD_PUBLIC_SERVER_URL`, `NEXT_PUBLIC_PAYLOAD_URL`, `PAYLOAD_API_URL`, `PAYLOAD_SERVER_URL`, or `NEXT_PUBLIC_SERVER_URL` (in that priority order). Fall back to `http://localhost:3000` if none. No question.
+3. **Do not ask about auth mode.** Detect whether `<repo>/.env.local` has `PAYLOAD_API_KEY` set; record `apiKey` if yes, `unconfigured` if no. The writer fixes this later by adding the key to `.env.local` when they're ready to publish. No question.
+4. **Never add a brand option named after any specific blog or site, even if the user's selected folder belongs to one.** The plugin is generic. The four brand vibes below are the only allowed options. Do not infer additional brand options from context.
+5. **Total writer-facing question count: 5.** Folder pick (project dir), folder pick (repo), author name, brand vibe, optional live URL pattern. Anything beyond that needs explicit re-spec.
 
-## Folder-picker convention — use the OS picker, not text inputs
+## STEP 0 — Re-init check (silent)
 
-For directory questions, **call `mcp__cowork__request_cowork_directory` with no `path` argument** — that opens the native OS folder picker in local Cowork sessions. The user sees a real Finder dialog, picks the folder visually, and the tool returns the path string. Do not present text-input fallbacks unless the picker is unavailable (only in remote sessions, where the user has no local filesystem).
+Use `Glob` to look for an existing `blog-project-instructions.md` at standard locations. If found, read it and use its values as pre-filled defaults below. Don't surface the re-init banner unless something asks — silently use the existing values.
 
-Specifically: never ask the user to type a path like `/Users/<you>/Documents/GitHub/my-blog` into a textarea. That's the friction the picker eliminates.
+## STEP 1 — Pick the blog project directory (folder picker)
 
-## STEP 0 — Check if this is a re-init
+Call `mcp__cowork__request_cowork_directory` with no `path` argument. The user picks via the OS folder picker.
 
-Before asking anything, use `Glob` to look for an existing `blog-project-instructions.md` in standard locations. If one is found, Read it and tell the user:
+If the user dismisses without picking, ask once whether to retry or cancel.
 
-> *I found an existing setup at `<path>`. Re-running blog-init will update it. Your existing answers are pre-filled as defaults below.*
+Store as `BLOG_PROJECT_DIR`.
 
-Use the existing answers as defaults below.
+## STEP 2 — Pick the publishing repo (folder picker)
 
-## STEP 1 — Pick the blog project directory
+Call `mcp__cowork__request_cowork_directory` again with no `path`. The user picks the local clone of their Payload-backed blog repo.
 
-Call `mcp__cowork__request_cowork_directory` with no path. The user picks a folder via the OS dialog.
-
-After the user picks, the response includes the absolute path. Use Bash to confirm it exists. Store as `BLOG_PROJECT_DIR`.
-
-If the user dismisses the picker without selecting, ask once via `AskUserQuestion` whether to retry the picker or cancel.
-
-## STEP 2 — Pick the Payload GitHub repo
-
-Call `mcp__cowork__request_cowork_directory` again with no path. The user picks the local clone of their Payload site's GitHub repo.
-
-After the user picks, validate it's a Payload project + git repo:
+Validate behind the scenes (no question to the user unless validation fails):
 
 ```bash
-# Is it a git repo?
-test -d "<picked-path>/.git" && echo "yes_git" || echo "no_git"
-
-# Does it have a payload.config.ts (or .js)?
-find "<picked-path>" -maxdepth 4 -name "payload.config.*" -type f 2>/dev/null | head -1
+test -d "<picked>/.git" || echo "not_git"
+find "<picked>" -maxdepth 4 -name "payload.config.*" -type f 2>/dev/null | head -1
 ```
 
-If either check fails, tell the user clearly what's missing and offer to retry the picker:
+If either check fails, surface a clear single-line message and ask whether to retry the picker:
 
-- Not a git repo → *"That folder isn't a git repo. Pick the cloned repo's root folder (the one that contains the .git directory)."*
-- No payload.config.* → *"I couldn't find a payload.config.ts (or .js) in that folder. The plugin assumes Payload CMS — pick the root of your Payload project."*
+- Not a git repo → *"That folder isn't a git repo. Pick the root of your cloned blog repo (the folder containing `.git`)."*
+- No payload.config.* → *"I couldn't find a `payload.config.ts` (or `.js`) in that folder. The plugin assumes Payload CMS. Pick the root of your Payload project."*
 
-Also capture the remote URL for the user-facing summary:
+Store as `PAYLOAD_REPO_DIR`. Capture for the marker file (silently, no user question):
 
-```bash
-git -C "<picked-path>" config --get remote.origin.url 2>/dev/null
-```
+- `PAYLOAD_CONFIG_PATH` — path to the payload.config.* file
+- `PAYLOAD_GIT_REMOTE` — `git -C <repo> config --get remote.origin.url` (may be empty)
 
-Store as `PAYLOAD_REPO_DIR`, `PAYLOAD_CONFIG_PATH` (the path to payload.config.*), and `PAYLOAD_GIT_REMOTE`.
+## STEP 3 — Auto-detect Payload config (silent)
 
-## STEP 3 — Detect Payload collections
+Read `PAYLOAD_CONFIG_PATH` and any imported collection files. Detect:
 
-Read `PAYLOAD_CONFIG_PATH` and any imported collection files to identify what collections the user has. Look for the `collections:` array in the config and the collection slugs they reference.
+### Content collection
 
-Surface the detected collections to the user via `AskUserQuestion`:
+Scan the `collections:` array. Pick the content collection using these heuristics in order:
 
-> *Your Payload config has these collections: `<detected list>`. Which one do new blog posts get written to?*
+1. A collection named `posts` exists → pick it.
+2. Otherwise: the first collection that has BOTH a `slug` field AND a rich-text/lexical/textarea body-shaped field, AND is NOT an upload collection (`upload: true`) AND is NOT obviously an auth/user collection (slug like `users`, `staff`, `authors`, `members`, `admins`).
+3. Otherwise: the first non-upload, non-auth collection.
+4. Otherwise: default to `posts` and record `auto_detected: false` in the marker file.
 
-Provide each detected collection as an option, plus a "Custom — type the slug" fallback.
+Store as `CONTENT_COLLECTION`.
 
-Default recommendation: if a collection named `posts` exists, recommend it (the Payload-template convention). Otherwise recommend the first collection that is neither a media/upload collection nor an auth/user collection.
+### Media collection
 
-Also identify the **media collection** automatically (usually `media`) by looking for a collection with `upload: true` or `type: 'upload'` fields. If multiple, ask. Store as `MEDIA_COLLECTION` (default `media`).
+Scan the `collections:` array. Pick the media collection using these heuristics:
 
-Store the chosen content collection as `CONTENT_COLLECTION`.
+1. A collection with `upload: true` (or `type: 'upload'` on any field) AND a slug of exactly `media` → pick it.
+2. Otherwise: the first collection with `upload: true`.
+3. Otherwise: default to `media` and record `auto_detected: false`.
 
-## STEP 4 — Payload server URL
+Store as `MEDIA_COLLECTION`.
 
-Ask via `AskUserQuestion`:
+### Payload API base URL
 
-> *What's the Payload server URL the publish command should POST to?*
+Read `<PAYLOAD_REPO_DIR>/.env.local`. Look for these variable names in priority order:
 
-Options:
+1. `PAYLOAD_PUBLIC_SERVER_URL`
+2. `NEXT_PUBLIC_PAYLOAD_URL`
+3. `PAYLOAD_API_URL`
+4. `PAYLOAD_SERVER_URL`
+5. `NEXT_PUBLIC_SERVER_URL`
 
-1. `http://localhost:3000` — local dev server (Payload + Next.js default)
-2. `https://<your-site>.com` — production
-3. Both (dev for drafts, prod for final) — Custom routing
-4. Custom — type your own
+If none, fall back to `http://localhost:3000`. Store as `PAYLOAD_API_BASE`. Never ask the user.
 
-Store as `PAYLOAD_API_BASE` (single value for v0.3.0; multi-environment publishing is a v0.4+ concern).
+### Auth status
 
-Hint to the user: the publish flow that ships in v0.3.0 still uses git; the Payload REST API publish flow is the next planned change. Store this value so it's ready when that lands.
+Check whether `<PAYLOAD_REPO_DIR>/.env.local` defines `PAYLOAD_API_KEY` (any non-empty value).
 
-## STEP 5 — Auth approach for the Payload API
+- If yes → `PAYLOAD_AUTH_STATUS = "apiKey configured"`.
+- If no → `PAYLOAD_AUTH_STATUS = "unconfigured — add PAYLOAD_API_KEY to .env.local before first publish"`.
 
-Ask:
+Never read or store the key value itself. Only the presence flag.
 
-> *How should `/publish` authenticate to your Payload API?*
+## STEP 4 — Ask the writer for their name (free text)
 
-Options:
+> *What name should appear as the author on posts you publish?*
 
-1. **API key on a Staff user (Recommended)** — Add an `apiKey: true` field on your Staff collection. The publish command reads the key from `<repo>/.env.local` as `PAYLOAD_API_KEY` (gitignored).
-2. **Email/password login** — publish performs `POST /api/staff/login` at publish time to get a session token. Slower; not ideal for automated workflows.
-3. **Configure later** — skip this now. Set up before first publish.
+Free-text. Store as `AUTHOR_NAME`.
 
-Store as `PAYLOAD_AUTH_MODE`.
+## STEP 5 — Ask the writer for a hero image vibe
 
-If option 1, also tell the user the exact change to make in their Staff collection (`apiKey: true` flag, regenerate types) and where to drop the key (`<repo>/.env.local`).
+The Release Owner Gate generates a hero image for each post. The vibe sets the palette and style keywords used when composing the image prompt.
 
-## STEP 6 — Live site URL pattern (optional)
+Present exactly these four options via `AskUserQuestion`. **Do not add additional options inferred from context. Do not name any option after a specific site or brand.**
 
-Ask:
+| Vibe | Palette | Style keywords |
+|---|---|---|
+| Neutral / minimalist (Recommended) | `#F4F4F2`, `#1A1A1A` | abstract, geometric, minimalist |
+| Warm / editorial | `#F8F1E5`, `#2C3E50`, `#C9A66B` | organic, soft, textured |
+| Bold / graphic | `#FFFFFF`, `#000000`, `#FF3333` | high-contrast, graphic, modern |
+| Dark / atmospheric | `#0A0A0A`, `#E8E8E8`, `#6B7280` | minimalist, atmospheric, monochrome |
 
-> *What's your live site URL pattern? Used to preview the live URL after publish. Use `{YYYY}`, `{MM}`, `{DD}`, `{slug}` as placeholders. Example: `https://myblog.com/posts/{slug}/`. Skip if you don't have one.*
+All four share a fixed forbidden list: `text, logos, people, faces, hands`. All four use 16:9 at 1600×900.
 
-Free-text. Store as `LIVE_URL_PATTERN`.
+Store the picked vibe's palette as `BRAND_PALETTE`, keywords as `BRAND_KEYWORDS`, plus `BRAND_FORBIDDEN`, `BRAND_ASPECT`, `BRAND_DIMENSIONS` (the last three fixed). Also store `BRAND_VIBE_NAME` for the marker file's human-readable label.
 
-## STEP 7 — Hero image brand style
+If the writer wants something other than these four, they edit the marker file by hand. That's deliberate — vibes are easy to pick; bespoke palettes are easy to type into a markdown file.
 
-The Release Owner Gate's Stage 3 generates a hero image for each post. The image prompt is composed from a brand-style block + the post's central metaphor. The plugin reads the brand-style block from this file at gate time — so it stays per-blog instead of being hardcoded to any particular site's look.
+## STEP 6 — Live site URL pattern (optional, single text question)
 
-Ask via `AskUserQuestion`:
+> *Optional. What's your blog's live URL pattern? Used to show you the live link after publishing. Use `{slug}` for the post slug. Example: `https://myblog.com/blog/{slug}/`. Leave blank to skip.*
 
-> *What style should hero images use?*
+Free-text, blank-allowed. Store as `LIVE_URL_PATTERN` (may be empty).
 
-Options:
+## STEP 7 — Write blog-project-instructions.md
 
-1. **Neutral / minimalist (Recommended)** — abstract, geometric, no text, no logos, no people. Two-tone palette (off-white + dark gray). Safe default for any blog.
-2. **Configure custom** — supply your own palette, style keywords, and forbidden-element list.
-3. **Skip** — fall back to the neutral default. You can edit `brand_style:` in `blog-project-instructions.md` later.
-
-If the user picks **Configure custom**, ask three follow-up questions in sequence:
-
-- **Palette.** Free-text. Expect 2-5 hex codes, comma-separated. Example: `#1A1A1A, #FFFFFF, #C9A66B`.
-- **Style keywords.** Free-text. Expect 2-5 words/phrases, comma-separated. Example: `geometric, abstract, soft gradient`.
-- **Forbidden elements.** Free-text. Defaults to `text, logos, people, faces, hands`. Expand if the user has specific exclusions.
-
-Store the four values as `BRAND_PALETTE`, `BRAND_KEYWORDS`, `BRAND_FORBIDDEN`. For the neutral default, populate them as:
-
-- `BRAND_PALETTE = "#F4F4F2, #1A1A1A"`
-- `BRAND_KEYWORDS = "abstract, geometric, minimalist"`
-- `BRAND_FORBIDDEN = "text, logos, people, faces, hands"`
-
-Also fix `BRAND_ASPECT = "16:9"` and `BRAND_DIMENSIONS = "1600x900"` — these are standard for OpenGraph / social-share heroes and not worth asking about. Users who want different dimensions can edit the marker file by hand.
-
-## STEP 8 — Author name
-
-Ask:
-
-> *What name should appear as the author in post frontmatter and commit messages?*
-
-Free-text. Store as `AUTHOR_NAME`. (For Payload, "author" maps to an Authors collection record — handling that mapping is a publish-flow concern, deferred.)
-
-## STEP 9 — Write blog-project-instructions.md
-
-Compose and write the file to `<BLOG_PROJECT_DIR>/blog-project-instructions.md`:
+Compose and write to `<BLOG_PROJECT_DIR>/blog-project-instructions.md`:
 
 ```markdown
 ---
@@ -168,117 +140,93 @@ date: <today YYYY-MM-DD>
 type: reference
 status: active
 plugin: 4d-blog-engine
-plugin_version_at_init: 0.3.0
+plugin_version_at_init: 0.3.2
 schema: blog-project-instructions/v2
 backend: payload
 ---
 
-# 4D Blog Engine — Project Instructions (Payload backend)
+# 4D Blog Engine — Project Instructions
 
-This file is the marker the 4d-blog-engine plugin uses to find your blog project. Don't move or rename it — the plugin walks up the filesystem looking for it.
+This file is the marker the 4d-blog-engine plugin uses to find your blog project. Don't move or rename it.
 
-## Project Setup
+## What you told the plugin
 
 - **Blog project directory:** `<BLOG_PROJECT_DIR>`
-- **Payload repo:** `<PAYLOAD_REPO_DIR>`
+- **Publishing repo:** `<PAYLOAD_REPO_DIR>`
+- **Author:** `<AUTHOR_NAME>`
+- **Live site URL pattern:** `<LIVE_URL_PATTERN or "(not set)">`
+- **Hero image vibe:** `<BRAND_VIBE_NAME>`
+
+## What the plugin detected (you don't need to touch these)
+
 - **Payload config path:** `<PAYLOAD_CONFIG_PATH>`
 - **Git remote:** `<PAYLOAD_GIT_REMOTE or "(unknown)">`
-- **Content collection:** `<CONTENT_COLLECTION>` (typical Payload-blog default: `posts`)
-- **Media collection:** `<MEDIA_COLLECTION>` (default `media`)
-- **Payload API base URL:** `<PAYLOAD_API_BASE>`
-- **Auth mode:** `<PAYLOAD_AUTH_MODE>`
-- **Live site URL pattern:** `<LIVE_URL_PATTERN or "(not set)">`
-- **Author:** `<AUTHOR_NAME>`
+- **Content collection:** `<CONTENT_COLLECTION>` (auto-detected from `payload.config.*`)
+- **Media collection:** `<MEDIA_COLLECTION>` (auto-detected)
+- **Payload API base URL:** `<PAYLOAD_API_BASE>` (from `.env.local`, or `http://localhost:3000` default)
+- **Auth status:** `<PAYLOAD_AUTH_STATUS>`
 
 ## Hero image brand style
 
-The Release Owner Gate's Stage 3 reads this block to compose the hero-image prompt for each post. Edit the values directly to change the look without re-running blog-init.
+The Release Owner Gate uses this block to compose the hero-image prompt for each post. Edit values directly to change the look without re-running blog-init.
 
 - **Palette:** `<BRAND_PALETTE>`
 - **Style keywords:** `<BRAND_KEYWORDS>`
 - **Forbidden elements:** `<BRAND_FORBIDDEN>`
-- **Aspect ratio:** `<BRAND_ASPECT>` (default `16:9`)
-- **Dimensions:** `<BRAND_DIMENSIONS>` (default `1600x900`)
+- **Aspect ratio:** `<BRAND_ASPECT>`
+- **Dimensions:** `<BRAND_DIMENSIONS>`
 
-## How the plugin uses these
+## How to override anything
 
-When you run `/4d-blog-engine:blog <base-doc>`, the plugin writes pieces to:
+If something the plugin detected is wrong (a different collection should receive posts, a different server URL, a different vibe), edit the values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`. No need to re-run `/blog-init` for an override.
 
-`<BLOG_PROJECT_DIR>/Posts/<YYYY-MM-DD-slug>/`
-
-Each piece directory holds the four-phase artifacts plus the signed blog and LinkedIn pair.
-
-When you run `/4d-blog-engine:publish <slug>` (current behavior in v0.3.0 is git-based; Payload REST-API publishing is a planned upgrade):
-
-1. Verifies Phase 4 signed (`Verified — <initials>, <date>` in changelog.md).
-2. Uses the values above to ship the post.
-
-## Planned: Payload REST-API publish flow
-
-In a future plugin version, `/publish` will:
-
-1. POST the hero image to `<PAYLOAD_API_BASE>/api/<MEDIA_COLLECTION>` using the configured auth.
-2. POST the structured fields (title, slug, subtitle, abstract, keyIdeas, citations, status) to `<PAYLOAD_API_BASE>/api/<CONTENT_COLLECTION>`.
-3. Link the hero image record to the content record.
-4. Report the admin URL and the live URL.
-
-The current file captures the config so that upgrade is a drop-in.
-
-## Rules
-
-- This file is the marker. Don't move or rename it.
-- The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`.
-- If anything moves on disk or the Payload config changes, re-run `/4d-blog-engine:blog-init` to update.
+If the directory paths themselves change (you move folders), re-run `/blog-init`.
 ```
 
-## STEP 10 — Create the Posts/ subdirectory
-
-If `<BLOG_PROJECT_DIR>/Posts/` doesn't exist, create it:
+## STEP 8 — Create Posts/ subdirectory (silent)
 
 ```bash
 mkdir -p "<BLOG_PROJECT_DIR>/Posts"
 ```
 
-## STEP 11 — Report back to the user
+No question, no announcement.
 
-End the skill with a concise summary:
+## STEP 9 — Report back (keep it short)
+
+End the skill with a concise summary. Don't list every detected value — surface what the writer needs to know:
 
 ```
-Blog project initialized for Payload.
+Blog project ready.
 
-  Blog project dir:    <BLOG_PROJECT_DIR>
-  Payload repo:        <PAYLOAD_REPO_DIR>
-  Payload config:      <PAYLOAD_CONFIG_PATH>
-  Content collection:  <CONTENT_COLLECTION>
-  Media collection:    <MEDIA_COLLECTION>
-  API base:            <PAYLOAD_API_BASE>
-  Auth mode:           <PAYLOAD_AUTH_MODE>
-  Live URL pattern:    <LIVE_URL_PATTERN or "(not set)">
-  Hero brand style:    palette=<BRAND_PALETTE>; keywords=<BRAND_KEYWORDS>
-  Author:              <AUTHOR_NAME>
+  Project folder: <BLOG_PROJECT_DIR>
+  Publishing to:  <PAYLOAD_REPO_DIR>
+  Author:         <AUTHOR_NAME>
+  Hero vibe:      <BRAND_VIBE_NAME>
 
-Instructions file:     <BLOG_PROJECT_DIR>/blog-project-instructions.md
+Setup file: <BLOG_PROJECT_DIR>/blog-project-instructions.md
 
-Next steps:
-  1. Run /4d-blog-engine:blog-start to confirm the plugin sees your project.
-  2. Run /4d-blog-engine:blog <path-to-base-doc> to write your first post.
-  3. (When the Payload-API publish flow lands.) Add the apiKey field to your
-     Staff collection and drop your key in <repo>/.env.local.
+<one-line auth note if PAYLOAD_AUTH_STATUS is unconfigured:>
+Before you publish your first post, add `PAYLOAD_API_KEY=<your-key>` to
+<PAYLOAD_REPO_DIR>/.env.local. You only do this once.
 
-If anything's wrong above, re-run /4d-blog-engine:blog-init — it'll keep your
-previous answers as defaults.
+Next: run /4d-blog-engine:blog <path-to-your-base-document>
+to write your first post.
 ```
+
+If `PAYLOAD_AUTH_STATUS` is `"apiKey configured"`, drop the auth note entirely.
 
 ## What this skill does NOT do
 
 - It does not install the plugin.
-- It does not write to the Payload repo. Only `<BLOG_PROJECT_DIR>/blog-project-instructions.md` and (optionally) `<BLOG_PROJECT_DIR>/Posts/`.
-- It does not validate Payload auth, generate API keys, or touch `.env.local`. It just records the user's stated intent.
-- It does not POST anything to the Payload API. That's the publish skill's job.
+- It does not write to the publishing repo.
+- It does not read, store, or transmit the actual Payload API key value.
+- It does not ask the writer technical Payload questions. Auto-detect, don't interrogate.
+- It does not add brand vibes inferred from the user's folder choice. The four vibes above are the only options.
 
 ## Degradation behaviors
 
-- **Folder picker isn't available** (remote Cowork session): fall back to `AskUserQuestion` with two or three plausible default paths plus a "Custom" free-text option. Surface a one-line warning that the picker is unavailable.
-- **payload.config.* not found** in the picked repo: don't auto-fail — ask the user whether to proceed anyway (some Payload setups use non-standard locations). If yes, set `PAYLOAD_CONFIG_PATH` to `(unknown)` and continue.
-- **Collection auto-detection fails** (config too dynamic to parse statically): fall back to asking the user to type the collection slug. Suggest `posts` as the typical Payload-blog default.
-- **User cancels mid-flow:** save partial answers to a stash file at `<BLOG_PROJECT_DIR>/.blog-init-draft.md` so the next run picks up where they left off.
+- **Folder picker unavailable** (remote Cowork session): fall back to `AskUserQuestion` with plausible default paths plus a "Custom" free-text option. Surface a one-line note that the picker is unavailable.
+- **`payload.config.*` not found** in the picked repo: ask the user whether to proceed (some Payload setups use non-standard config locations). If yes, set `PAYLOAD_CONFIG_PATH = (unknown)`, default `CONTENT_COLLECTION = posts`, `MEDIA_COLLECTION = media`, mark both as `auto_detected: false`, and continue.
+- **`.env.local` not found:** silently use the default `PAYLOAD_API_BASE = http://localhost:3000` and set `PAYLOAD_AUTH_STATUS = "unconfigured — no .env.local found"`. Mention in the auth note that they'll need to create one.
+- **Collection auto-detection ambiguous** (multiple plausible content collections): default to `posts`; don't ask. The writer can edit the marker file if the default is wrong.
+- **User wants something outside the 4 brand vibes:** point them at the marker file's brand-style block. Don't add a fifth option to this skill.
