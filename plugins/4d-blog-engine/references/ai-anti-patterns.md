@@ -10,7 +10,7 @@ maintenance: "If a pattern keeps slipping past the linter, extend scripts/prose_
 
 Aspirational rules ("write naturally") fail. This file is the catalog that the deterministic linter (`scripts/prose_lint.py`) and the LLM structural reviewer scan against. Pair vocabulary (Tier 1) with structure (Tier 2) — vocabulary tells survive vocabulary swaps, so the structural scan is mandatory.
 
-The full MoxyWolf voice profile lives at `MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md`. This file is the **enforceable subset** — patterns measurable by script or scannable by an LLM scoped specifically to detection.
+The writer's full voice profile lives at `<blog-project-dir>/<author-slug>-voice.md` (created by `/4d-blog-engine:blog-voice`). This file is the **enforceable subset** — generic anti-AI-slop patterns measurable by script or scannable by an LLM scoped specifically to detection. The two work together: the voice profile says what the writer *does* sound like; this catalog says what AI prose tends to sound like *regardless of writer*.
 
 ## Tier 1 — vocabulary blocklist
 
@@ -135,6 +135,6 @@ After the rewrite against findings, the sub-agent re-reads the rewrite against t
 
 ## What this catalog is NOT
 
-- It is not a writing style guide. The voice guide is `MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md`.
+- It is not a writing style guide. The writer's voice guide is `<blog-project-dir>/<author-slug>-voice.md` (created by `/4d-blog-engine:blog-voice`).
 - It is not a hedge against bad writing in general. It targets *AI-specific* tells. Bad human writing usually has different problems (under-edited rambling, jargon dumps, unclear thesis); this catalog won't catch those.
 - It is not exhaustive. As new AI tells appear, extend `scripts/prose_lint.py` and add a section here. **Never** ask Claude to remember a new rule that isn't in this file.

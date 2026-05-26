@@ -19,8 +19,8 @@ Refuses to run if:
 
 It does:
 
-1. Re-load the voice anchor (`dorian-cougias.md`) and report what was loaded.
-2. Run the 8-question MoxyWolf voice interview from `research-pipeline/content-writer` — one question per message, push back on vague answers.
+1. Re-load the writer's voice profile (`<blog-project-dir>/<author-slug>-voice.md`, created by `/4d-blog-engine:blog-voice`) and report what was loaded.
+2. Run the 8-question per-post voice interview from `research-pipeline/content-writer` — one question per message, push back on vague answers. (This is the per-post interview that captures this specific post's Trigger / Evidence / Contrarian Take / etc. — it's distinct from the one-time `/blog-voice` interview that builds the standing voice profile.)
 3. Pick the narrative structure (Sorkin DOB default).
 4. Build the outline — H2-by-H2, 60-70% question-phrased H2s, per-section word budget, per-section evidence needs (which sources the 30-day sweep will need to find).
 5. Draft the 60-90 word "At a Glance" block per `references/aeo-checklist.md`.

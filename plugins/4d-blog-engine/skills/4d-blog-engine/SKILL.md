@@ -13,11 +13,12 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 This skill turns a base document plus a chosen angle/question into a publication-ready blog post, a long-form LinkedIn article, and a short hook-led LinkedIn teaser — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of ten commands, four of which map directly to the four D's, three lifecycle commands (init/start/publish) added in v0.2.0, and three convenience commands:
+It is composed of eleven commands: four map directly to the four D's, four lifecycle commands (init/start/voice/publish), and three convenience commands:
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
-| `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + post/image folders | `blog-init` |
+| `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + author + hero vibe | `blog-init` |
+| `/4d-blog-engine:blog-voice` | One-time voice capture — 8-question interview, writes `<author-slug>-voice.md` | `blog-voice` |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mount the two directories, surface in-progress/unpublished pieces | `blog-start` |
 | `/4d-blog-engine:delegate` | Delegation — triage, angle pick, earned-secret stall | inline (this skill) |
 | `/4d-blog-engine:describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
@@ -30,11 +31,17 @@ It is composed of ten commands, four of which map directly to the four D's, thre
 
 ## STEP 0 — Always load these references first
 
-When this skill is invoked, **immediately Read these three files in this order before doing any other work**:
+When this skill is invoked, **immediately Read these files in this order before doing any other work**:
 
 1. `${CLAUDE_PLUGIN_ROOT}/references/4d-discipline.md` — the framework, the gate definitions, the load-bearing rules.
 2. `${CLAUDE_PLUGIN_ROOT}/references/ai-anti-patterns.md` — the slop catalog (two-tier).
-3. `MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md` — the MoxyWolf voice anchor.
+3. **The writer's voice profile** — resolved by globbing `<blog-project-dir>/*-voice.md` (after walking up from CWD to find `blog-project-instructions.md`). The multi-voice resolution:
+
+   - **Zero voice files:** halt with *"No voice profile found in `<blog-project-dir>`. Run `/4d-blog-engine:blog-voice` to create one, then retry."* The plugin never falls back to any preset.
+   - **One voice file:** use it. Report the author name (from frontmatter) and the file path in the STEP 0 voice-load report.
+   - **Two or more voice files:** ask the writer via `AskUserQuestion` which voice to use for this post. Options are one-per-voice-file, labeled with the author name from each file's frontmatter. After they pick, proceed with that file.
+
+   The voice profile is per-writer and per-blog; the plugin never falls back to any preset.
 
 **Report back to the user** what was loaded (voice tone, sentence-length range, contraction rate target, fragment frequency, conjunction-starter frequency, top forbidden phrases). Silent loading causes voice drift in long sessions. This is the jamon8888/cc-suite STEP 0 LOAD DNA discipline — never skip the report-back.
 

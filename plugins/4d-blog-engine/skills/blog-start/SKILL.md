@@ -65,6 +65,16 @@ The user approves each mount in Cowork. If a mount is already active, the tool r
 
 If running outside Cowork (e.g., Claude Code CLI), the file tools (Read/Write/Edit/Glob/Grep) already have host-level access — the mount step is a no-op there. Detect this gracefully: if the mount tool isn't available, skip it and continue.
 
+## STEP 3.5 — Voice file inventory
+
+Glob `<BLOG_PROJECT_DIR>/*-voice.md` to enumerate voice files. The set determines what's shown to the writer:
+
+- **Zero voice files:** flag this in the briefing. The pipeline can't write a post without a voice profile. The "What to do next" prompt should lead with *"Run `/4d-blog-engine:blog-voice` to capture your voice."*
+- **One voice file:** record its path as `SELECTED_VOICE_FILE` silently. Mention it on a single line in the briefing as the active voice. No question asked.
+- **Two or more voice files:** list them in the briefing with the author name pulled from each file's frontmatter, but do not auto-pick. The "What to do next" prompt for a `/blog` action will ask which voice to use at that point (the orchestrator handles this at pipeline STEP 0). This skill just surfaces the available voices.
+
+Capture the count and the author-name list in `VOICE_FILES_AVAILABLE` for use in STEP 5.
+
 ## STEP 4 — Scan for in-progress pieces
 
 List `<BLOG_PROJECT_DIR>/Posts/`. For each piece subdirectory:
@@ -97,11 +107,19 @@ Compose a structured briefing to the user. Skip empty sections.
 Blog session ready.
 
 Project:               <BLOG_PROJECT_DIR>
-GitHub repo:           <GITHUB_REPO_DIR>
-Posts → repo path:     <GITHUB_REPO_DIR>/<POSTS_SUBFOLDER>
-Images → repo path:    <GITHUB_REPO_DIR>/<IMAGES_SUBFOLDER>
+Publishing repo:       <PUBLISHING_REPO_DIR>
 Live URL pattern:      <LIVE_URL_PATTERN or "(not set)">
-Author:                <AUTHOR_NAME>
+Default author:        <AUTHOR_NAME>
+
+Voices available:
+  <If 0 voice files:>
+    None yet — run /4d-blog-engine:blog-voice before /blog.
+  <If 1 voice file:>
+    • <author-name-from-frontmatter> (<filename>)
+  <If 2+ voice files:>
+    • <author-1> (<filename-1>)
+    • <author-2> (<filename-2>)
+    ... (the pipeline will ask which voice to use when you start writing)
 
 In-progress pieces (most recent first):
   • <slug-1>  —  Phase <N>, gates passed [<list>]  —  last touched <date>

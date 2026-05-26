@@ -9,8 +9,8 @@ The whitepaper's claim: the company that wins the AI era isn't the one with the 
 Given a base document (uploaded file or referenced URL) and an angle or question chosen by the author, the plugin runs four phases:
 
 - **Delegation** — Triages whether the topic warrants a post. Picks the angle from 3-5 candidates. Forces you to name the "earned secret" — something from direct experience the audience doesn't have. Stalls if you can't.
-- **Description** — Runs the existing 8-question MoxyWolf voice interview. Loads `dorian-cougias.md` as the voice anchor. Lays out structure (Sorkin DOB by default), per-section word budget, the "At a Glance" 60-90 word AI-citation block, and the AEO-shaped outline.
-- **Discernment** — Runs a 30-day discourse sweep across reddit, X, Hacker News, Substack, Facebook, Quora, podcasts, and academic sources. Layers a `/council:deliberate` synthesis pass to separate consensus from noise. Builds a verified bibliography with AI-generated abstracts via `bibtex-builder`. Drafts the post in MoxyWolf voice via `research-pipeline/content-writer`. Runs a two-tier anti-AI-slop pass (deterministic linter + LLM structural review). Runs a second-pass audit on the rewrite to catch survivors.
+- **Description** — Runs the per-post 8-question voice interview (Trigger / Evidence / Contrarian Take / Authority / Specific Reader / Business Connection / Call to Action / Emotional Core). Loads the writer's standing voice profile from `<blog-project-dir>/<author-slug>-voice.md` (created once via `/4d-blog-engine:blog-voice`). Lays out structure (Sorkin DOB by default), per-section word budget, the "At a Glance" 60-90 word AI-citation block, and the AEO-shaped outline.
+- **Discernment** — Runs a 30-day discourse sweep across reddit, X, Hacker News, Substack, Facebook, Quora, podcasts, and academic sources. Layers a `/council:deliberate` synthesis pass to separate consensus from noise. Builds a verified bibliography with AI-generated abstracts via `bibtex-builder`. Drafts the post in the writer's voice (from `<author-slug>-voice.md`) via `research-pipeline/content-writer`. Runs a two-tier anti-AI-slop pass (deterministic linter + LLM structural review). Runs a second-pass audit on the rewrite to catch survivors.
 - **Diligence** — The Release Owner Gate: a nonce-bound 5-stage contract scored against a 100-point rubric. A BLOCKING reviewer agent must echo a CSPRNG nonce verbatim and end its verdict with `BLOCKING: true|false (reason)`. Only on a clean gate does the plugin generate the LinkedIn article (full mirror, blog stays canonical) plus a short hook-led teaser, each with a 3-axis scorecard (thought leadership / pain / audience fit). The Release Owner signs the changelog by hand. Nothing auto-publishes.
 
 ## Commands
@@ -19,7 +19,8 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 
 | Command | What it does |
 |---|---|
-| `/4d-blog-engine:blog-init` | One-time setup — declare your blog project directory, your GitHub repo, the posts/images subfolders inside the repo, your live URL pattern. Writes `blog-project-instructions.md` to the project dir. |
+| `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero vibe, optional live URL. Writes `blog-project-instructions.md`. |
+| `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
 | `/4d-blog-engine:publish <slug>` | Ship a signed post to your live site. Copies the post + hero into the GitHub repo, commits, and pushes — no git words required from the writer. |
 
@@ -78,10 +79,10 @@ The plugin is **mostly composition** over existing MoxyWolf plugins. It calls:
 - `research-pipeline/literature-discovery` — academic search (OpenAlex, Semantic Scholar, arXiv)
 - `research-pipeline/citation-verifier` — 4-layer citation verification
 - `bibtex-builder/bibtex-from-urls` — bibliography with AI-generated abstracts
-- `editorial-forge/voice-architect` — voice profile capture (when extending beyond Dorian's voice)
+- `blog-voice` (in this plugin) — 8-question voice interview, produces `<author-slug>-voice.md`
 - `council/deliberate` — multi-model synthesis on the discourse harvest
 - Any connected image-generation MCP (Krea, HuggingFace Spaces, Gemini, etc.) — hero image generation, with the brand-style spec read from each project's `blog-project-instructions.md`
-- MoxyWolf voice anchor: `_Shared Knowledge/Brand and Voice/dorian-cougias.md`
+- Writer's voice anchor: `<blog-project-dir>/<author-slug>-voice.md` (per-writer, produced by `/4d-blog-engine:blog-voice`)
 
 What's genuinely new in this plugin: the 30-day discourse sweep (`scripts/discourse_sweep.py` + `skills/discourse-sweep/`), the engineered Release Owner Gate (`scripts/preflight.py` + `scripts/prose_lint.py` + the BLOCKING reviewer sub-agent), the 3-axis LinkedIn scorecard, the AEO checklist, and the orchestrator that sequences everything under the 4D discipline.
 

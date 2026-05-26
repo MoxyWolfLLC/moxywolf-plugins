@@ -66,7 +66,7 @@ Experience / Expertise / Authority / Trust signals. From schwepps/skills, amplit
 
 ## §4 — Voice match (15 points)
 
-Verified against `MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md`.
+Verified against the writer's voice profile — `<blog-project-dir>/<author-slug>-voice.md` — produced by `/4d-blog-engine:blog-voice`. The reviewer reads the profile and scores generated prose against its "Forbidden patterns" and "Anti-detection markers" sections. There is no preset voice baseline; this rubric grades against whatever the writer's profile says.
 
 | Criterion | Max | Score guidance |
 |---|---|---|

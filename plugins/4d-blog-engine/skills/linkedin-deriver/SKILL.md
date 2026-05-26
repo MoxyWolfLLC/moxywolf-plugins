@@ -27,7 +27,7 @@ Read in order:
 2. `<piece>/04-diligence/blog.md` — the signed blog post (the canonical source for both LinkedIn artifacts).
 3. `<piece>/01-delegation.md` — angle, audience persona, earned secret. The LinkedIn artifacts must lean MORE personal/opinion than the blog (per agricidaniel/claude-blog rule); the earned secret is the anchor for that personal weight.
 4. `<piece>/02-description.md` — voice interview answers (carry the same voice into the LinkedIn pair).
-5. `MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md` — voice anchor (re-load right before writing per naveedharri's voice-drift-stop rule).
+5. **The writer's voice profile** — locate by walking up from `<piece>` to find `blog-project-instructions.md`, then resolve `<blog-project-dir>/<author-slug>-voice.md`. Re-load right before writing (per naveedharri's voice-drift-stop rule). If the voice profile is missing, halt with a pointer to `/4d-blog-engine:blog-voice`.
 
 ## STEP 2 — Generate 3 candidate hooks
 

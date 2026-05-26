@@ -16,4 +16,6 @@ Built for writers. You answer five short questions:
 
 That's the whole form. No backend questions, no API URLs, no environment-variable questions. If your blog repo needs technical configuration to publish, the `/publish` command sorts that out at publish time — not here.
 
+After the form, the skill checks whether you already have a voice profile at `<blog-project-dir>/<your-name-slug>-voice.md`. If you do, you're done. If not, it offers to hand off to `/4d-blog-engine:blog-voice` to capture your voice through an 8-question interview. You can also defer the voice interview and run it later — but the pipeline can't write a post in your voice without it.
+
 Read `skills/blog-init/SKILL.md` for the full workflow.

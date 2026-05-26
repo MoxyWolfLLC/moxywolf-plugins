@@ -76,7 +76,13 @@ Store the picked vibe's `BRAND_VIBE_NAME`, `BRAND_PALETTE`, `BRAND_KEYWORDS`, pl
 
 Free-text, blank-allowed. Store as `LIVE_URL_PATTERN`.
 
-## STEP 6 — Write the marker file
+## STEP 6 — Voice file check (silent)
+
+Slugify `AUTHOR_NAME` to kebab-case (lowercase, ASCII, spaces and punctuation become hyphens). Example: "Jane Doe" → `jane-doe`. Store as `AUTHOR_SLUG`.
+
+Check whether `<BLOG_PROJECT_DIR>/<AUTHOR_SLUG>-voice.md` already exists. Store the boolean as `VOICE_FILE_EXISTS`. Don't ask the writer about voice yet — that happens at the end. The check is just so the summary can route them to the right next step.
+
+## STEP 7 — Write the marker file
 
 Compose and write to `<BLOG_PROJECT_DIR>/blog-project-instructions.md`:
 
@@ -87,8 +93,8 @@ date: <today YYYY-MM-DD>
 type: reference
 status: active
 plugin: 4d-blog-engine
-plugin_version_at_init: 0.3.3
-schema: blog-project-instructions/v3
+plugin_version_at_init: 0.4.0
+schema: blog-project-instructions/v4
 ---
 
 # 4D Blog Engine — Project Instructions
@@ -100,6 +106,8 @@ This file is the marker the 4d-blog-engine plugin uses to find your blog project
 - **Blog project directory:** `<BLOG_PROJECT_DIR>`
 - **Publishing repo:** `<PUBLISHING_REPO_DIR>`
 - **Author:** `<AUTHOR_NAME>`
+- **Author slug:** `<AUTHOR_SLUG>` (used to resolve the voice file path)
+- **Voice files:** any `*-voice.md` in this directory. The pipeline picks based on which one(s) exist. Default author's file would be `<AUTHOR_SLUG>-voice.md`. Create with `/4d-blog-engine:blog-voice`; run more than once for multiple authors (guest contributors, co-writers).
 - **Hero image vibe:** `<BRAND_VIBE_NAME>`
 - **Live site URL pattern:** `<LIVE_URL_PATTERN or "(not set)">`
 
@@ -118,7 +126,7 @@ The Release Owner Gate uses this block to compose the hero-image prompt for each
 Edit values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`. No need to re-run `/blog-init` unless the directory paths themselves change.
 ```
 
-## STEP 7 — Create Posts/ subdirectory
+## STEP 8 — Create Posts/ subdirectory
 
 ```bash
 mkdir -p "<BLOG_PROJECT_DIR>/Posts"
@@ -126,7 +134,11 @@ mkdir -p "<BLOG_PROJECT_DIR>/Posts"
 
 Silent. No announcement.
 
-## STEP 8 — Report back
+## STEP 9 — Report back and route to next step
+
+The report-back depends on whether a voice file already exists (the `VOICE_FILE_EXISTS` boolean from STEP 6).
+
+**If a voice file already exists** at `<BLOG_PROJECT_DIR>/<AUTHOR_SLUG>-voice.md`:
 
 ```
 Blog project ready.
@@ -134,12 +146,37 @@ Blog project ready.
   Project folder: <BLOG_PROJECT_DIR>
   Publishing to:  <PUBLISHING_REPO_DIR>
   Author:         <AUTHOR_NAME>
+  Voice file:     <AUTHOR_SLUG>-voice.md (found)
   Hero vibe:      <BRAND_VIBE_NAME>
 
 Next: run /4d-blog-engine:blog <path-to-your-base-document> to write your first post.
 ```
 
-That's the entire summary. No "auth status," no "API base," no "content collection," no Payload anything. The writer sees what the writer chose.
+**If no voice file exists yet**, offer to run `/blog-voice` now via `AskUserQuestion`:
+
+```
+Blog project ready.
+
+  Project folder: <BLOG_PROJECT_DIR>
+  Publishing to:  <PUBLISHING_REPO_DIR>
+  Author:         <AUTHOR_NAME>
+  Voice file:     <AUTHOR_SLUG>-voice.md (not created yet)
+  Hero vibe:      <BRAND_VIBE_NAME>
+
+The pipeline needs a voice profile before it can write in your voice.
+That's an 8-question interview — usually 15-40 minutes — that produces
+the file the pipeline uses as STEP 0 of every post.
+
+Want to do the voice interview now, or later?
+```
+
+Options for `AskUserQuestion`:
+
+1. **Run /blog-voice now** — hands off to the `blog-voice` skill.
+2. **Later** — leave the marker file as is. The writer can run `/4d-blog-engine:blog-voice` whenever they're ready. Note in the report-back that they must complete the voice interview before `/blog` will run.
+3. **I have a voice file from elsewhere — let me drop it in** — surfaces a one-line instruction: *"Copy your voice file to `<BLOG_PROJECT_DIR>/<AUTHOR_SLUG>-voice.md` and you're done. The plugin reads from disk, doesn't care who produced the file."*
+
+That's the entire summary. The writer sees what the writer chose plus a clear path to the voice file. No technical infrastructure values.
 
 ## What this skill does NOT do
 

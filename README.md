@@ -36,7 +36,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   └── marketplace.json                ← catalog (21 plugins) — source of truth for versions
 ├── README.md                            ← this file
 ├── plugins/                             ← 20 MoxyWolf-owned plugins
-│   ├── 4d-blog-engine/             /blog-init /blog-start /blog /publish — base doc → 4-phase pipeline → blog + LinkedIn pair with Release Owner Gate
+│   ├── 4d-blog-engine/             /blog-init /blog-voice /blog-start /blog /publish — base doc → 4-phase pipeline → blog + LinkedIn pair with Release Owner Gate
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
