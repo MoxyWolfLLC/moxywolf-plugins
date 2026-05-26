@@ -80,6 +80,32 @@ def strip_frontmatter(text: str) -> str:
     return re.sub(r"^---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
 
 
+def extract_body_section(text: str) -> str:
+    """Extract the postable body.
+
+    For teaser files (and any file that follows the hook-library.md output
+    contract), the postable content is the `## Body` section — not the whole
+    file. Scaffold sections (Selected hook, Alternates considered, Posting
+    metadata) are LLM workspace, not LinkedIn-bound text.
+
+    For article files (which don't carry scaffold sections), no `## Body`
+    header is expected; return the text as-is in that case.
+
+    Heuristic: if the file contains a `## Body` heading, return everything
+    between that heading and the next `## ` heading (or EOF). Otherwise,
+    return the input unchanged.
+    """
+    m = re.search(r"^##\s+Body\s*$", text, flags=re.MULTILINE | re.IGNORECASE)
+    if not m:
+        return text
+    start = m.end()
+    # find next H2 (or EOF) — that's where the body section ends
+    rest = text[start:]
+    end_m = re.search(r"^##\s+", rest, flags=re.MULTILINE)
+    body = rest[: end_m.start()] if end_m else rest
+    return body.strip()
+
+
 def first_n_chars_visible(text: str, n: int) -> str:
     """Approximate the first-N-chars view (strip markdown headers/lists for fold check)."""
     cleaned = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
@@ -202,6 +228,10 @@ def main() -> int:
 
     text = args.file.read_text(encoding="utf-8")
     body = strip_frontmatter(text)
+    # v0.1.2 fix: if the file follows hook-library.md's output contract
+    # (teaser scaffold with Selected hook / Alternates / Body / Posting metadata
+    # sections), score only the postable Body section, not the whole file.
+    body = extract_body_section(body)
 
     findings: list[dict[str, Any]] = []
     metrics: dict[str, Any] = {}

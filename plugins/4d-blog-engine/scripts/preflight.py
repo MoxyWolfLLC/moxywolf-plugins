@@ -64,7 +64,12 @@ def stage1_capability(blog_md: str) -> dict[str, Any]:
 
 
 def stage2_format(blog_md: str) -> dict[str, Any]:
-    """Frontmatter validity and typography rules."""
+    """Frontmatter validity and typography rules.
+
+    v0.1.2 — typography checks exclude <script>, <style>, ``` fences, and
+    inline `code` regions (JSON-LD requires straight quotes; em-dashes inside
+    code blocks are syntactic, not typographic).
+    """
     findings: list[str] = []
     m = re.match(r"^---\n(.*?)\n---\n", blog_md, re.DOTALL)
     if not m:
@@ -84,12 +89,17 @@ def stage2_format(blog_md: str) -> dict[str, Any]:
         else:
             findings.append("Frontmatter `date` missing or unparseable.")
 
-    if "—" in blog_md:
-        em_count = blog_md.count("—")
+    # Strip frontmatter + protected regions before typographic checks
+    prose = re.sub(r"^---\n.*?\n---\n", "", blog_md, count=1, flags=re.DOTALL)
+    prose = re.sub(r"```[^\n]*\n.*?\n```", "", prose, flags=re.DOTALL)
+    prose = re.sub(r"<script\b[^>]*>.*?</script>", "", prose, flags=re.DOTALL | re.IGNORECASE)
+    prose = re.sub(r"<style\b[^>]*>.*?</style>", "", prose, flags=re.DOTALL | re.IGNORECASE)
+    prose = re.sub(r"`[^`\n]+`", "", prose)
+
+    if "—" in prose:
+        em_count = prose.count("—")
         findings.append(f"Body contains {em_count} em-dash character(s) — replace with spaced en-dash.")
-    # straight quotes
-    body = re.sub(r"^---\n.*?\n---\n", "", blog_md, count=1, flags=re.DOTALL)
-    if '"' in body:
+    if '"' in prose:
         findings.append("Body contains straight double-quotes; use typographer's quotes.")
     return {"stage": "format", "passed": not findings, "findings": findings}
 

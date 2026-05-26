@@ -135,9 +135,24 @@ def find_locations(text: str, pattern: re.Pattern[str]) -> list[tuple[int, str]]
 # ─── Scan ───
 
 
+def _strip_protected_regions(text: str) -> str:
+    """Strip <script>, <style>, ``` fences, and inline `code` from text — v0.1.2 fix.
+
+    These regions contain code/data where quote-curling and em-dash rules
+    don't apply (JSON-LD requires straight quotes; code blocks shouldn't be
+    auto-prettified). Frontmatter is also stripped.
+    """
+    out = re.sub(r"^---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
+    out = re.sub(r"```[^\n]*\n.*?\n```", "", out, flags=re.DOTALL)
+    out = re.sub(r"<script\b[^>]*>.*?</script>", "", out, flags=re.DOTALL | re.IGNORECASE)
+    out = re.sub(r"<style\b[^>]*>.*?</style>", "", out, flags=re.DOTALL | re.IGNORECASE)
+    out = re.sub(r"`[^`\n]+`", "", out)
+    return out
+
+
 def scan(text: str) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
-    body = text  # full document including frontmatter; YAML matters too
+    body = _strip_protected_regions(text)  # v0.1.2 — exclude script/style/code from scan
 
     # banned words (whole-word, case-insensitive)
     for word in sorted(BANNED_WORDS):
@@ -220,6 +235,11 @@ def scan(text: str) -> dict[str, Any]:
     prose = re.sub(r"^---\n.*?\n---\n", "", body, count=1, flags=re.DOTALL)
     # strip code fences before measuring
     prose = re.sub(r"```[^\n]*\n.*?\n```", "", prose, flags=re.DOTALL)
+    # strip <script> and <style> blocks (e.g. JSON-LD) — v0.1.2 fix
+    prose = re.sub(r"<script\b[^>]*>.*?</script>", "", prose, flags=re.DOTALL | re.IGNORECASE)
+    prose = re.sub(r"<style\b[^>]*>.*?</style>", "", prose, flags=re.DOTALL | re.IGNORECASE)
+    # strip inline `code` runs (cheap protection against quote-curling in inline tech)
+    prose = re.sub(r"`[^`\n]+`", "", prose)
     sentences = split_sentences(prose)
     paragraphs = split_paragraphs(prose)
     sentence_lengths = [word_count(s) for s in sentences if word_count(s) > 0]
@@ -353,10 +373,34 @@ def scan(text: str) -> dict[str, Any]:
 
 
 def auto_fix(text: str) -> tuple[str, dict[str, int]]:
-    """Auto-replace em-dashes and straight quotes; return (new_text, counts)."""
+    """Auto-replace em-dashes and straight quotes; return (new_text, counts).
+
+    v0.1.2 — protects <script>, <style>, ``` fences, and inline `code` runs
+    from quote-curling and em-dash replacement (JSON-LD requires straight
+    quotes; code shouldn't be auto-prettified).
+    """
     counts: dict[str, int] = {"em_dash": 0, "straight_double": 0, "straight_single": 0}
-    new = text.replace("—", " – ")
-    counts["em_dash"] = text.count("—")
+
+    # Carve out protected regions (script/style/code-fence/inline-code) and
+    # apply transforms only to the prose between them.
+    PROTECT = re.compile(
+        r"(```[^\n]*\n.*?\n```"          # fenced code
+        r"|<script\b[^>]*>.*?</script>"  # script blocks (JSON-LD)
+        r"|<style\b[^>]*>.*?</style>"    # style blocks
+        r"|`[^`\n]+`)",                  # inline code
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+    parts = PROTECT.split(text)
+    # Even indices = prose, odd indices = protected
+    for i, p in enumerate(parts):
+        if i % 2 == 1:
+            continue  # protected — leave verbatim
+        counts["em_dash"] += p.count("—")
+        # Collapse surrounding whitespace so "X — Y" becomes "X – Y" (single-spaced),
+        # not "X  –  Y" (doubled). v0.1.2 fix.
+        parts[i] = re.sub(r"\s*—\s*", " – ", p)
+    new = "".join(parts)
     # straight double quotes → typographer's. Naive alternating heuristic.
     def replace_doubles(s: str) -> str:
         out: list[str] = []
@@ -383,8 +427,15 @@ def auto_fix(text: str) -> tuple[str, dict[str, int]]:
             prev = ch
         return "".join(out)
 
-    new = replace_doubles(new)
-    new = replace_singles(new)
+    # Apply quote-curling only to prose regions (re-split to preserve protections)
+    parts = PROTECT.split(new)
+    for i, p in enumerate(parts):
+        if i % 2 == 1:
+            continue
+        p = replace_doubles(p)
+        p = replace_singles(p)
+        parts[i] = p
+    new = "".join(parts)
     return new, counts
 
 
