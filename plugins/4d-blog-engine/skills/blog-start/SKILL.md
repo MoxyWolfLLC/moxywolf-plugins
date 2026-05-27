@@ -56,12 +56,23 @@ If the file's schema version (`schema:` field in frontmatter) is unknown to this
 
 ## STEP 3 — Mount both directories in Cowork
 
-Use the Cowork directory-mount tool (`mcp__cowork__request_cowork_directory`) once for each path:
+The whole point of mounting both directories at session start is that **`/publish` shouldn't have to do this mid-flow**. The writer should never see "Cowork is requesting access to X" right in the middle of a publish confirmation. So this step is load-bearing.
 
-1. `BLOG_PROJECT_DIR`
-2. `GITHUB_REPO_DIR`
+Use the Cowork directory-mount tool (`mcp__cowork__request_cowork_directory`) once for each path, even if you think they're already mounted:
 
-The user approves each mount in Cowork. If a mount is already active, the tool reports that and continues without prompting.
+1. `BLOG_PROJECT_DIR` — where pieces live
+2. `PUBLISHING_REPO_DIR` — where the publish skill writes finished posts
+
+The tool is idempotent — if the path is already mounted, it reports that and continues without prompting. If a mount fails (the writer dismissed the dialog or the path no longer exists), surface a clear one-line note in the briefing so they can fix it before publish time, not during.
+
+After mounting, verify each path is actually reachable:
+
+```bash
+ls "$BLOG_PROJECT_DIR" >/dev/null 2>&1 && echo "blog_ok"
+ls "$PUBLISHING_REPO_DIR/.git" >/dev/null 2>&1 && echo "repo_ok"
+```
+
+Capture both states. Use them in STEP 5's briefing display. If `PUBLISHING_REPO_DIR` isn't reachable, note "Publishing repo not mounted — `/publish` will mount it on demand, but resolve now to avoid mid-flow friction" in the briefing.
 
 If running outside Cowork (e.g., Claude Code CLI), the file tools (Read/Write/Edit/Glob/Grep) already have host-level access — the mount step is a no-op there. Detect this gracefully: if the mount tool isn't available, skip it and continue.
 

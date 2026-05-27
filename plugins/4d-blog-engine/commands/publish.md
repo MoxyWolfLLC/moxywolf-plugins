@@ -1,34 +1,38 @@
 ---
-description: Ship a signed blog post to your live site. Copies post + hero into your blog's GitHub repo, commits, and pushes — so the site rebuild fires automatically.
-argument-hint: <piece-slug>
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob]
+description: Ship a signed blog post to your live site. One command, no git words required.
+argument-hint: [<piece-slug>] [--draft]
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory]
 ---
 
-# /4d-blog-engine:publish — ship a signed post to your live site
+# /4d-blog-engine:publish — ship a signed post
 
-Invoke the `publish` skill. The skill takes a signed piece (Phase 4 passed, changelog signed by hand) and ships it to your live site via the GitHub repo you declared in `/4d-blog-engine:blog-init`.
-
-You never write a commit message. You never type a git command. You see a confirmation dialog and a "pushed" message.
+Invoke the `publish` skill. Takes a Phase-4-signed post and ships it to the GitHub repo you declared in `/blog-init`. The writer never types a git command, never writes a commit message, never picks a branch.
 
 **Arguments:**
 
-- `$1` — the piece slug, e.g., `2026-05-26-how-ai-changes-marketing`. Match the folder name under `<blog-project-dir>/Posts/`. If omitted, the skill picks the most recently signed-but-not-yet-published piece. If there isn't one, it lists candidates and asks.
+- `$1` — the piece slug, e.g., `2026-05-26-my-post`. If omitted, the skill picks the most recently signed-but-not-yet-published piece. If there are several, it asks.
+- `--draft` — optional. Ships at `status: draft` instead of the default `published`. Useful when your site has a staging environment that picks up drafts so you can preview before going live. Without the flag, the post goes live on push.
 
-**What the skill does, end to end:**
+**What the skill does:**
 
-1. Verifies the piece passed Phase 4 (`changelog.md` contains a `Verified — <initials>, <YYYY-MM-DD>` line).
-2. Reads `blog-project-instructions.md` for the repo path, posts subfolder, images subfolder, and live URL pattern.
-3. Validates the GitHub repo (it's a real git repo, has a remote, the working tree is clean).
-4. Stages the post + hero image with a destination preview.
-5. Asks you to `Cmd+Q` GitHub Desktop (its file-watcher conflicts with multi-file writes).
-6. Copies files, rewrites the image reference in the post's frontmatter to point to the new in-repo path, and runs `git add` + `git commit` + `git push` against the default branch.
-7. Reports the GitHub commit URL and (if you configured a live URL pattern) the predicted live URL.
-8. Marks the piece as published in its `state.md`.
+1. Verifies Phase 4 signed (`Verified — <initials>, <date>` in `changelog.md`).
+2. Mounts the publishing repo if it isn't already (no mid-flow friction).
+3. Auto-detects the posts and images subfolders inside the repo (Hugo's `content/blog/`, Jekyll's `_posts/`, Next.js's `public/blog-hero/`, etc.).
+4. Applies the typographer's-quote transform reliably via the vendored `scripts/smart_quotes.py` — YAML frontmatter and JSON-LD `<script>` blocks are preserved verbatim. The bug from the earlier hand-rolled Python script can't return.
+5. Normalizes the post's `status:` to `published` (or `draft` with the flag).
+6. Rewrites the hero image reference in the frontmatter to its in-repo path.
+7. Copies post + hero to the repo.
+8. Auto-generates the commit message (`Publish: <title>`).
+9. Runs `git add` + `git commit` + `git push` against the default branch.
+10. Reports the GitHub commit URL and the predicted live URL.
 
 **What the skill never does:**
 
-- Push a piece that hasn't signed Phase 4. The Release Owner Gate is the prerequisite, not a suggestion.
-- Run on a dirty working tree without explicit confirmation. If your blog repo has uncommitted edits unrelated to this post, the skill stops and asks before mixing them into the publish commit.
-- Auto-resolve git conflicts. If the push is rejected because your local is behind the remote, the skill stops and tells you to pull/sync in GitHub Desktop, then retry.
+- Publish an unsigned post (use `--force` only if you know what you're doing).
+- Push to anything other than the default branch.
+- Modify the source post in `<piece>/04-diligence/blog.md` — the transform writes to the repo path; the piece archive stays untouched.
+- Open a pull request.
+
+**Heads-up the skill will surface during the publish confirmation:** Cmd+Q GitHub Desktop before the push. The Cowork sandbox's file watcher conflicts with GitHub Desktop and can leave a stale `.git/index.lock`.
 
 Read `skills/publish/SKILL.md` for the full workflow.

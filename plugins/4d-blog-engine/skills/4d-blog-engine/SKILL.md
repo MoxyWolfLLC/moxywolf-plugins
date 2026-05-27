@@ -150,7 +150,34 @@ Triggered by `/4d-blog-engine:delegate <base-doc>` or as the first step of `/4d-
 2. **Classify the doc type** (LLM judgment): blog post / whitepaper / meeting notes / transcript / report / email / braindump / code commit log / other. State the classification in one line.
 3. **Capability triage** — apply a fast yes/no test from `references/4d-discipline.md` (Delegation section): does this topic warrant a post against the jagged frontier? If NO, surface the one-line reason and exit with a clean message ("Triage NO: topic falls outside the model's reliable frontier — recommend a manual brief instead").
 4. **Angle elicitation.** If the user supplied an angle, restate it and confirm. If not, propose 3-5 candidate angles via `AskUserQuestion`. Each angle = one-sentence thesis + audience + a slot for the earned secret. Angles must be genuinely different (not three rephrasings).
-5. **Earned-secret stall.** Ask: *"What do you know from direct experience about this that most of your audience does not? It cannot be something you read."* Push back hard on weak answers — paraphrase the question if the user offers something abstract. **Do not proceed until you get a concrete, lived-experience answer.** If the user can't supply one within 2 rounds, write a state.md note ("blocked: no earned secret") and exit. This stall is the feature.
+5. **Earned-secret stall — enforce these deterministic checks before accepting any answer.** This stall is the most load-bearing gate in the framework. An LLM judging "is this concrete?" by feel has been observed to accept weak answers from non-Dorian writers because the model defaults to politeness. Run these checks explicitly:
+
+   **Reject the answer if any of these are true:**
+
+   - Length under 80 characters (real lived experience can't fit; the writer is brushing the question off)
+   - Contains zero of: a number, a date, a named person, a named company/product, a specific event location, a specific dollar amount, a specific duration. (Concrete artifacts are required. *"It surprised me how often I see this"* has no artifact; *"In April 2025 our team ran a 30-person experiment"* has three.)
+   - Pattern-matches one of these platitude shapes:
+     - *"I want to help [audience]"* / *"My goal is to..."* — that's an intention, not experience.
+     - *"I think it's important that..."* — that's an opinion, not experience.
+     - *"In my experience, [generic claim with no specifics]"* — uses the words but has no artifact.
+     - *"As [a role], I've seen [generic pattern]"* — credentials don't count as experience for this question.
+     - Anything starting with *"It's interesting that..."* / *"It's worth noting that..."* — both AI-prose tells and evasions.
+
+   **On reject (round 1):** paraphrase the question with a concrete prompt:
+
+   > *That's the kind of thing you might have read. The question is asking for something specific you LIVED through. A moment, a number, a person who said something to you, a thing that broke. What did YOU do, see, or measure that the reader hasn't?*
+
+   **On reject (round 2):** narrow further with a multiple-choice-style nudge:
+
+   > *Try answering one of these instead of the open question: (a) a recent experiment you ran with a number attached, (b) a customer or colleague who said something specific that changed how you think about this, (c) a moment when you tried the advice you'd normally give and it didn't work, (d) a thing you noticed in your data that surprised you.*
+
+   **On reject (round 3):** hard-block. Write to `state.md` frontmatter `_status: blocked, _block_reason: no earned secret after 3 rounds` and exit Phase 1 with:
+
+   > *I can't find a concrete lived-experience anchor for this piece. The framework's design says the post will read as generic restatement without one. Two paths from here: (a) write a different post — one you have a specific story for, (b) go run the experiment or have the conversation that gives you the story, then come back. Both are legitimate. The plugin won't generate a post without an earned secret.*
+
+   The 3-round hard cap is intentional. The writer can re-invoke `/4d-blog-engine:delegate` later when they have a real answer.
+
+   **On accept:** record the earned secret in `01-delegation.md` frontmatter as `earned_secret: <one line summary>` and proceed. Save the full answer in the body of `01-delegation.md` for downstream phases to anchor against.
 6. **Modality decision.** Ask which modality (automation / augmentation / agency, default automation) — see `references/4d-discipline.md`. Most pieces are automation: the plugin drafts, the human signs.
 7. **Write `01-delegation.md`** with frontmatter `_phase: 01, _status: passed, _timestamp: <ISO-8601>, earned_secret: <one line>, modality: <choice>`. Body: base doc location, doc type, angle, candidate angles considered + why rejected, audience persona (forced to specifics — name, role, recent context, frustration).
 

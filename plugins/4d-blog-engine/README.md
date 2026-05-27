@@ -22,7 +22,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero vibe, optional live URL. Writes `blog-project-instructions.md`. |
 | `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
-| `/4d-blog-engine:publish <slug>` | Ship a signed post to your live site. Copies the post + hero into the GitHub repo, commits, and pushes — no git words required from the writer. |
+| `/4d-blog-engine:publish <slug> [--draft]` | Ship a signed post to your live site. Auto-detects posts/images subfolders, applies the YAML/JSON-LD-preserving typographer's-quote transform via the vendored script, normalizes status to `published` (or `draft` with the flag), copies post + hero into the repo, commits, and pushes — no git words required from the writer. |
 
 **Pipeline** (run these to actually write a post):
 
