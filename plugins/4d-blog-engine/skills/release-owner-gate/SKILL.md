@@ -151,12 +151,25 @@ Then say "signed" and I'll generate the LinkedIn pair.
 
 Wait for the user's explicit "signed" (or equivalent confirmation). Do not generate the LinkedIn pair before this. The signature is the whole point of the framework.
 
-## STEP 6 — On signature: hand off to linkedin-deriver
+## STEP 6 — On signature: stage the draft + hand off to linkedin-deriver
 
 When the user confirms the signature:
 
 1. Verify `<piece>/changelog.md` contains a `Verified — <initials>, <date>` line dated today.
-2. Update `<piece>/state.md`: `gates_passed: [01, 02, 03, 04]`, append `<ISO> — Phase 04 passed, signed by <initials>` to the process log.
+2. **Stage the signed post as a clean draft** at `<blog-project-dir>/drafts/<slug>.md`. The `drafts/` folder is the writer-facing handoff between sign-off and publish — a clean copy of the signed post, easy to find without digging into `Posts/<slug>/04-diligence/`. The piece directory remains the forensic archive (delegation, description, discernment artifacts stay where they are).
+
+    ```bash
+    # Walk up from <piece> to find the blog project directory (where blog-project-instructions.md lives)
+    BLOG_PROJECT_DIR=$(find_blog_project_dir "<piece>")
+    mkdir -p "$BLOG_PROJECT_DIR/drafts"
+    cp "<piece>/04-diligence/blog.md" "$BLOG_PROJECT_DIR/drafts/<slug>.md"
+    ```
+
+    The hero image is NOT copied to `drafts/` — it stays in `<piece>/04-diligence/og-hero.png` until publish. Drafts/ is markdown-only by convention (matches the writer's mental model of "where my finished drafts live as files I can read").
+
+    If `<blog-project-dir>/drafts/<slug>.md` already exists (re-running Phase 4 on a piece that's been signed before), overwrite it without asking — the freshly-signed version is canonical.
+
+3. Update `<piece>/state.md`: `gates_passed: [01, 02, 03, 04]`, append `<ISO> — Phase 04 passed, signed by <initials>. Staged to <blog-project-dir>/drafts/<slug>.md` to the process log.
 3. Invoke the `linkedin-deriver` skill to produce the LinkedIn article + teaser.
 
 ## What the reviewer subagent IS allowed to do

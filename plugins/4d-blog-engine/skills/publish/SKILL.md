@@ -1,20 +1,22 @@
 ---
 name: publish
 description: |
-  This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a signed piece (Phase 4 passed, changelog hand-signed), copies the post + hero into the user's GitHub repo at the paths declared in blog-project-instructions.md, applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim — no more YAML-breaking bug from ad-hoc Python), and runs git add/commit/push from the bash sandbox after the user closes GitHub Desktop. The user never sees a git word; they see a confirmation dialog and a "pushed" message. Supports --draft to ship at status=draft for staging-environment validation; without the flag, ships at status=published. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned drafts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+  This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, copies post + hero into the user's GitHub repo at the paths declared in blog-project-instructions.md, and runs git add/commit/push from the bash sandbox after the user closes GitHub Desktop. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /publish always ships from drafts/ to content/blog/ with status=published. The user never sees a git word; they see a confirmation dialog and a "pushed" message. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory]
 ---
 
 # Publish — ship a signed post to the writer's blog
 
-> **Read this when:** the user runs `/4d-blog-engine:publish [<slug>] [--draft]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, and push to the default branch — without making the writer type a single git command and without the YAML-breaking quote bug.
+> **Read this when:** the user runs `/4d-blog-engine:publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and push to the default branch — without making the writer type a single git command and without the YAML-breaking quote bug.
 
 ## Design principles (read first — this skill regressed before because these weren't explicit)
 
 1. **The writer never types a git word.** Commit message is auto-generated. Push is automatic on confirm. The only word the writer sees is "publish."
 2. **The typographer's-quote transform is vendored, not improvised.** Use `scripts/smart_quotes.py` — it explicitly preserves YAML frontmatter and JSON-LD `<script>` blocks. Never write ad-hoc Python that touches the file's quote characters; that's what shipped broken YAML last time.
 3. **The publishing repo must be mounted before this skill runs.** `blog-start` mounts both directories. If the writer skipped `blog-start` and the repo isn't mounted, this skill mounts it itself rather than failing.
-4. **Default ship status is `published`.** Phase 4 signed the post — the writer chose to publish. `--draft` exists for staging-environment validation but isn't the default. The two-step "publish then flip" UX (from older versions) was needless friction.
+4. **Source of truth is `<blog-project-dir>/drafts/<slug>.md`.** Phase 4 sign-off stages the signed post there as a clean writer-facing copy. `/publish` reads from `drafts/`, applies the transform, writes to the publishing repo's `content/blog/<slug>.md` with `status: published`. There is no `--draft` flag and no `content/draft/` folder in the publishing repo — the local `drafts/` folder is the draft state. `/publish` is the one and only repo-write operation.
+
+5. **The piece directory at `<blog-project-dir>/Posts/<slug>/` stays untouched.** It's the forensic archive (delegation, description, discernment, diligence artifacts). The signed `<piece>/04-diligence/blog.md` is preserved as the source-of-truth pre-publish version; the `drafts/<slug>.md` copy is what /publish actually reads.
 5. **The post file in `<piece>/04-diligence/blog.md` is the source of truth.** Never re-edit it. The transform writes to the repo path; the source stays untouched.
 
 ## STEP 0 — Resolve the piece slug
@@ -26,14 +28,13 @@ If `$1` (the slug) was passed:
 
 If `$1` was omitted:
 
-1. Scan `<BLOG_PROJECT_DIR>/Posts/` for signed-but-not-yet-published pieces (Phase 4 passed, no matching file in the repo's posts folder).
-2. **One candidate:** use it.
-3. **Multiple candidates:** ask the user via `AskUserQuestion` which to publish.
-4. **No candidates:** halt with: *"No signed pieces ready to publish. Sign a piece by completing Phase 4 first (`/4d-blog-engine:diligence`)."*
+1. Glob `<BLOG_PROJECT_DIR>/drafts/*.md` to enumerate signed-and-staged drafts.
+2. Filter out drafts whose slug already exists in the publishing repo's posts folder (they've been published; you can still re-publish them by passing the slug explicitly).
+3. **One unpublished candidate:** use it.
+4. **Multiple candidates:** ask the user via `AskUserQuestion` which to publish.
+5. **No candidates:** halt with: *"No drafts ready to publish. Sign a piece by completing Phase 4 first (`/4d-blog-engine:diligence`) — that stages a clean copy to `<blog-project-dir>/drafts/<slug>.md`."*
 
 Store as `SLUG` and `PIECE_DIR = <BLOG_PROJECT_DIR>/Posts/<SLUG>`.
-
-Parse the `--draft` flag if present. Store as `DRAFT_MODE` (boolean, default false).
 
 ## STEP 1 — Read project config
 
@@ -46,20 +47,30 @@ Read it and extract:
 - `LIVE_URL_PATTERN` (may be empty)
 - `AUTHOR_NAME`
 
-The writer's marker file does not pin a posts subfolder or images subfolder anymore (per v0.3.x writer-first design). Detect them from the repo's content layout at publish time:
+The writer's marker file does not pin subfolders (per v0.3.x writer-first design). Detect them from the repo's content layout at publish time.
+
+**Conceptual model:** Phase 4 sign-off stages the signed post at `<blog-project-dir>/drafts/<slug>.md` — that's the writer-facing draft file (clean, single, easy to find). The writer reviews and refines there if needed. `/publish` reads from `drafts/`, applies the transform, and ships to `content/blog/<slug>.md` in the publishing repo, status `published`. There's no `content/draft/` folder in the publishing repo and no `--draft` flag on `/publish` — the local `drafts/` folder IS the draft state.
+
+**The audit-trail tradeoff (explicit by design):** `drafts/<slug>.md` is editable. If the writer fixes a typo, a broken link, or a small phrasing tweak in `drafts/` after Phase 4 signed, that change ships when `/publish` runs — and it does NOT propagate back to `Posts/<slug>/04-diligence/blog.md`. So the forensic archive shows "what the Release Owner Gate signed" and `drafts/` shows "what got published." For small polish, divergence is fine — the substantive content that passed the gate is still in the audit trail. For substantive edits, the framework's expectation is: go back to the pipeline, re-run Phase 3 or Phase 4, re-sign. Don't smuggle a structural rewrite past the gate through a post-sign-off `drafts/` edit.
 
 ```bash
-# Common static-site-generator conventions, in priority order:
+# Posts folder — common static-site-generator conventions, priority order:
 for posts_dir in "content/blog" "content/posts" "_posts" "src/content/blog" "src/content/posts" "posts"; do
   [ -d "$PUBLISHING_REPO_DIR/$posts_dir" ] && POSTS_SUBFOLDER="$posts_dir" && break
 done
 
+# Images folder:
 for images_dir in "public/blog-hero" "public/images/blog" "static/images/blog" "assets/images/blog" "public/images" "static/images"; do
   [ -d "$PUBLISHING_REPO_DIR/$images_dir" ] && IMAGES_SUBFOLDER="$images_dir" && break
 done
 ```
 
-If either detection fails, ask the writer via `AskUserQuestion` which subfolder to use (give the detected candidates as options plus a "Custom — type the path" fallback). Store the choices in the writer's marker file under a new section `## Publish paths (auto-detected)` so the next publish doesn't re-ask.
+**Resolution rules:**
+
+- **If both subfolders detected:** proceed.
+- **If either detection fails:** ask via `AskUserQuestion` for the missing one, with the conventional defaults as options plus a "Custom — type the path" fallback.
+
+Store the resolved choices in the writer's marker file under `## Publish paths (auto-detected)` so the next publish doesn't re-ask.
 
 ## STEP 2 — Mount the publishing repo if needed
 
@@ -87,11 +98,13 @@ The date must be today or earlier.
 - **If missing AND `--force` flag NOT passed:** halt with *"Piece `<SLUG>` has not been signed. Run `/4d-blog-engine:diligence` and complete the Release Owner sign-off, or pass `--force` to publish anyway (not recommended)."*
 - **If missing AND `--force` passed:** proceed but record `forced: true` in the changelog log entry.
 
-Also verify `<PIECE_DIR>/04-diligence/blog.md` exists. If not, halt: *"Phase 4 artifact missing. Re-run /4d-blog-engine:diligence."*
+Also verify `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md` exists. If not, halt: *"Staged draft missing at `<blog-project-dir>/drafts/<SLUG>.md`. Re-run `/4d-blog-engine:diligence` to re-stage from the signed Phase 4 artifact."*
+
+Store the source path as `DRAFT_PATH = <BLOG_PROJECT_DIR>/drafts/<SLUG>.md`.
 
 ## STEP 4 — Read post + extract title and hero ref
 
-Read `<PIECE_DIR>/04-diligence/blog.md`. Parse the frontmatter (YAML between leading `---` lines). Extract:
+Read `$DRAFT_PATH`. Parse the frontmatter (YAML between leading `---` lines). Extract:
 
 - `title` — for the commit message
 - Hero image reference (check `og_hero`, `hero_image`, `image`, `cover` fields, in that priority order). The value is typically a relative filename like `og-hero.png` — we'll rewrite it to the in-repo path.
@@ -129,16 +142,10 @@ DEST_POST = <PUBLISHING_REPO_DIR>/<POSTS_SUBFOLDER>/<SLUG>.md
 DEST_HERO = <PUBLISHING_REPO_DIR>/<IMAGES_SUBFOLDER>/<SLUG>.png
 ```
 
-Check whether either already exists. If yes, ask:
+Check whether either already exists:
 
-> *A previous version of `<title>` is already in the repo. Overwrite (republish)?*
-
-If overwrite, proceed. If cancel, halt cleanly.
-
-Compute the commit message:
-
-- **Default:** `Publish: <title>`
-- **--draft mode:** `Publish (draft): <title>`
+- **If neither exists:** new publish. Commit message: `Publish: <title>`.
+- **If `DEST_POST` already exists:** republish. Ask the writer to confirm overwrite: *"A previous version of `<title>` is already in the repo at `<DEST_POST>`. Overwrite (republish)?"* Commit message on accept: `Republish: <title>`.
 
 Truncate the title in the commit subject to keep total subject ≤72 chars; add ellipsis if truncated.
 
@@ -151,17 +158,16 @@ Display the plan to the writer:
 ```
 About to publish "<title>" to your live site.
 
-  Source:           <PIECE_DIR>/04-diligence/blog.md
-  Hero:             <PIECE_DIR>/04-diligence/og-hero.png
-  
-  Will write to:    <DEST_POST>
-                    <DEST_HERO>
-  
-  Status:           <published | draft>
-  Repo:             <REMOTE_URL>
-  Branch:           <DEFAULT_BRANCH>
-  Commit:           <commit-subject>
-  Predicted URL:    <computed URL or "(no pattern set)">
+  Source:        <BLOG_PROJECT_DIR>/drafts/<SLUG>.md
+  Hero:          <PIECE_DIR>/04-diligence/og-hero.png
+
+  Will write:    <DEST_POST>
+                 <DEST_HERO>
+
+  Repo:          <REMOTE_URL>
+  Branch:        <DEFAULT_BRANCH>
+  Commit:        <commit-subject>
+  Predicted URL: <computed URL or "(no pattern set)">
 
 Heads up: please Cmd+Q GitHub Desktop NOW if it's open.
 Type "go" to publish, or "cancel" to stop.
@@ -171,26 +177,27 @@ Wait for the writer's reply. Accept "go" / "yes" / "publish" as confirmation. An
 
 ## STEP 8 — Run the typographer's-quote transform via the vendored script
 
-Copy the source post into a temp location, then apply the transform:
+Copy the source draft into a temp location, then apply the transform:
 
 ```bash
 TMP=$(mktemp)
-cp "$PIECE_DIR/04-diligence/blog.md" "$TMP"
+cp "$DRAFT_PATH" "$TMP"
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/smart_quotes.py" --in "$TMP" --in-place
 ```
 
-If the script exits non-zero, halt with the script's stderr and tell the writer their source post may have malformed frontmatter — they should look at `<PIECE_DIR>/04-diligence/blog.md`.
+If the script exits non-zero, halt with the script's stderr and tell the writer their draft may have malformed frontmatter — they should look at `$DRAFT_PATH`.
 
-The transformed file at `$TMP` is what gets copied to the repo in STEP 9. The original at `<PIECE_DIR>/04-diligence/blog.md` is never modified.
+The transformed file at `$TMP` is what gets copied to the repo in STEP 9. The original at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md` is never modified — it remains as the canonical local draft, available for re-publish without going through Phase 4 again.
 
 ## STEP 9 — Normalize status, rewrite hero reference, copy files
 
-Apply the status normalization in-memory (Python or sed on the temp file):
+Apply the status normalization in-memory (Python on the temp file):
 
 - Find the `status:` field in the YAML frontmatter.
-- **Default mode:** replace value with `published`.
-- **--draft mode:** replace value with `draft`.
-- If no `status:` field exists, insert one at the end of the frontmatter.
+- Replace its value with `published`.
+- If no `status:` field exists, insert `status: published` at the end of the frontmatter.
+
+(The local `drafts/` folder is the draft state. `/publish` always ships to `published`.)
 
 Rewrite the hero image reference to its in-repo path. The repo's templates typically expect an absolute-from-repo-root path like `/blog-hero/<slug>.png`. Use:
 
@@ -287,15 +294,12 @@ hosting (GitHub Pages, Vercel, Netlify) takes 1-5 minutes.
 It's safe to reopen GitHub Desktop now.
 ```
 
-If `--draft` was used, add a one-line note at the end:
-
-> *Note: published at status=draft. If your site config respects draft status, the post won't appear publicly yet. Re-run `/4d-blog-engine:publish <SLUG>` (without --draft) when you're ready to flip it live.*
-
 ## What this skill does NOT do
 
 - It does not publish to LinkedIn. The LinkedIn artifacts live at `<PIECE_DIR>/04-diligence/linkedin-{article,teaser}.md` for you to paste by hand.
 - It does not open a pull request. Direct push to default branch only.
-- It does not delete the source files in `<PIECE_DIR>/04-diligence/`. The piece directory remains the canonical archive.
+- It does not delete the source draft at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md`. The draft stays as the canonical local copy. Re-running `/publish <slug>` re-publishes it.
+- It does not delete files in `<PIECE_DIR>/04-diligence/`. The piece directory remains the forensic archive.
 - It does not run `git pull` for you. If push is rejected, the writer resolves it in GitHub Desktop.
 - It does not trigger your site's rebuild. The push triggers your hosting webhook; nothing in this plugin touches the hosting.
 - It does not rewrite source images. The hero PNG goes into the repo as-is.

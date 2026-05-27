@@ -126,13 +126,19 @@ The Release Owner Gate uses this block to compose the hero-image prompt for each
 Edit values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`. No need to re-run `/blog-init` unless the directory paths themselves change.
 ```
 
-## STEP 8 — Create Posts/ subdirectory
+## STEP 8 — Create Posts/ and drafts/ subdirectories
 
 ```bash
 mkdir -p "<BLOG_PROJECT_DIR>/Posts"
+mkdir -p "<BLOG_PROJECT_DIR>/drafts"
 ```
 
 Silent. No announcement.
+
+The two folders have distinct roles in the writer's mental model:
+
+- **`Posts/<slug>/`** — the pipeline's forensic working directory for each piece. Holds the four-phase artifacts (`01-delegation.md`, `02-description.md`, `03-discernment/*`, `04-diligence/*`), the state file, the changelog. Heavy and detailed.
+- **`drafts/<slug>.md`** — clean single-file drafts. Phase 4 sign-off copies the signed `04-diligence/blog.md` here automatically. The writer can read and tweak the draft directly without digging into the pipeline folders. `/publish` reads from `drafts/` (not from `Posts/`).
 
 ## STEP 9 — Report back and route to next step
 
