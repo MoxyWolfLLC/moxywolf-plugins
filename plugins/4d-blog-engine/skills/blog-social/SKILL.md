@@ -1,9 +1,8 @@
 ---
 name: blog-social
 description: |
-  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine. Supports LinkedIn (long-form article + short feed teaser), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "derive the LinkedIn pair", "make the Twitter thread", "write a Facebook post from this", "social derivatives". Specialist skill — invoked by the blog-social command, not by the orchestrator's Phase 4.
+  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (long-form article + short feed teaser), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn pair", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
 allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion]
-user-invocable: false
 ---
 
 # Blog Social Deriver — multi-platform social derivatives from a signed blog
