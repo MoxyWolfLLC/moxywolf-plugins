@@ -1,7 +1,7 @@
 ---
-description: Ship a signed blog post to your live site. One command. The plugin pushes for you via the GitHub API — no git words, no GitHub Desktop required.
+description: Ship a signed blog post to your live site. One command, one confirmation. The plugin commits and pushes for you — no git words, no GitHub Desktop, no commit messages to write.
 argument-hint: [<piece-slug>]
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory, mcp__cowork__allow_cowork_file_delete]
 ---
 
 # /4d-blog-engine:publish — ship a signed post
