@@ -430,7 +430,7 @@ Predicted live URL: <computed URL or "(check your hosting dashboard for the actu
 - It does not push to the remote. The writer clicks "Push origin" in GitHub Desktop after the plugin reports the commit is prepared. GitHub Desktop handles auth.
 - It does not open a pull request. The commit targets the default branch directly.
 - It does not configure any GitHub token, PAT, or auth setup. The push is GitHub Desktop's job, with whatever auth the writer already has.
-- It does not delete the source draft at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md`. The draft stays as the canonical local copy. Re-running `/publish <slug>` re-publishes it.
+- It does not delete the source draft at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md`. The draft stays as the canonical local copy. Re-running `/blog-publish <slug>` re-publishes it.
 - It does not delete files in `<PIECE_DIR>/04-diligence/`. The piece directory remains the forensic archive.
 - It does not trigger your site's rebuild. The push (which the writer does via GitHub Desktop) triggers your hosting webhook; nothing in this plugin touches the hosting.
 - It does not rewrite source images. The hero PNG goes into the repo as-is.

@@ -161,6 +161,6 @@ Verified — {{ initials }}, {{ YYYY-MM-DD }}
 - **Whether the post should exist.** That's Phase 1 (Delegation) — the capability triage. If it shouldn't, it doesn't reach Phase 4.
 - **Whether the angle is right.** Phase 1 again.
 - **Whether the research was thorough enough.** Phase 3 grades research quality (`[V]/[S]/[F]` tags + Tier ladder) before drafting begins.
-- **Whether the post will perform on LinkedIn.** That's the 3-axis LinkedIn scorecard (`linkedin-scorecards.md`) Phase 4 generates separately AFTER the blog passes.
+- **Whether the post will perform on social platforms.** That's the 3-axis per-platform scorecard produced by `/blog-social` (LinkedIn / Twitter / Facebook), opt-in AFTER the blog signs off.
 
 This rubric scores only: does the draft pass quality, AEO, E-E-A-T, voice, and citation-readiness gates well enough that a Release Owner can put their name on it.

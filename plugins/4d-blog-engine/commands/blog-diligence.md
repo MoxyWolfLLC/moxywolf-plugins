@@ -25,7 +25,7 @@ Hands off **entirely** to the `release-owner-gate` skill. That skill:
    - Is every claim grounded?
    - Does it sound like us?
    - Would you send this with your own name on it?
-7. On signature (`Verified — <initials>, <YYYY-MM-DD>` appended to `<piece>/changelog.md` by the Release Owner): updates state and hands off to the `linkedin-deriver` skill.
+7. On signature (`Verified — <initials>, <YYYY-MM-DD>` appended to `<piece>/changelog.md` by the Release Owner): stages the signed post to `<blog-project-dir>/drafts/<slug>.md` and surfaces the writer's next-step options — `/4d-blog-engine:blog-publish` to ship the post, and `/4d-blog-engine:blog-social` (opt-in) to derive LinkedIn / Twitter / Facebook posts. Phase 4 does NOT auto-invoke social derivation.
 8. On failure: iterates (up to 3 rounds) revising the staged blog against the findings. Round 4+ escalates.
 
 **The plugin never auto-signs.** The signature is the whole point of the framework.

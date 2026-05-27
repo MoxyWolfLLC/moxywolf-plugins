@@ -1,5 +1,5 @@
 ---
-description: Run the full 4D pipeline end-to-end — base document to publication-ready blog post + LinkedIn pair.
+description: Run the full 4D pipeline end-to-end — base document to publication-ready blog post. Social derivatives (LinkedIn / Twitter / Facebook) are opt-in via /blog-social after sign-off.
 argument-hint: <path-or-url-to-base-doc> [--angle "<one-sentence question>"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
@@ -14,12 +14,12 @@ Invoke the `4d-blog-engine` orchestrator skill in full-pipeline mode. The skill 
 4. Run Phase 2 (Description) — 8-question voice interview, structure pick (Sorkin DOB default), outline with question-H2s and per-section evidence needs, At-a-Glance block. Writes `02-description.md`. Gate-checks with the user.
 5. Run Phase 3 (Discernment) — invoke the `discourse-sweep` skill for the 30-day platform-targeted sweep; layer a `/council:deliberate` synthesis pass; build the bibliography via `bibtex-builder/bibtex-from-urls`; verify citations via `research-pipeline/citation-verifier`; draft via `research-pipeline/content-writer`; run `prose_lint.py` (Layer 1) + Tier-2 LLM scan; second-pass audit on the rewrite. Writes `03-discernment/*`.
 6. Run Phase 4 (Diligence) — invoke the `release-owner-gate` skill: nonce rotation, hero image generation, BLOCKING reviewer subagent (restricted tools, no Bash, no Edit), preflight.py 5-stage gate, iteration loop (max 3 rounds), human Release Owner sign-off. Writes `04-diligence/blog.md` and the signed `changelog.md`.
-7. On signature, invoke the `linkedin-deriver` skill to produce `04-diligence/linkedin-article.md` and `04-diligence/linkedin-teaser.md` with 3-axis scorecards.
+7. On signature, the pipeline ends with the blog signed and staged to `<blog-project-dir>/drafts/<slug>.md`. It surfaces the writer's next-step options — `/4d-blog-engine:blog-publish` to ship the post, and `/4d-blog-engine:blog-social` (opt-in) to derive social posts for any subset of LinkedIn (article + teaser), Twitter (X) (5-10 post thread), and Facebook (single post). Social derivation is **not** auto-invoked.
 
 **Arguments:**
 - `$1` — the base document. Can be a file path (`.md`, `.txt`, `.pdf`, `.docx`), a URL, or "paste" to use content from a prior message.
 - `--angle "<text>"` — optional. If omitted, Phase 1 will elicit the angle interactively.
 
-The plugin never auto-commits, never auto-publishes, and never auto-signs the Release Owner gate. Those are human actions, by design.
+The plugin never auto-commits, never auto-publishes, never auto-signs the Release Owner gate, and never auto-derives social posts. Those are human actions, by design.
 
 Read `skills/4d-blog-engine/SKILL.md` for the full orchestration logic.

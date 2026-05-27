@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -11,11 +11,11 @@
     {
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
-      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile at <blog-project-dir>/<author-slug>-voice.md; multi-voice supported (run /blog-voice repeatedly for guest contributors). The pipeline globs *-voice.md and asks which voice to use when there are more than one — fully decoupled from any preset voice. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric) before a long-form LinkedIn article and a short hook-led teaser are derived. /blog-publish ships a signed post — the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
-      "version": "0.7.0",
+      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile; multi-voice supported. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog-pipeline runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric). On sign-off, the pipeline ends — social derivatives are opt-in. /blog-social derives any subset of: LinkedIn (article 800-1200 words + short feed teaser ~1,300 chars), Twitter/X (5-10 post thread with ≤280-char per-post hard cap, script-enforced), Facebook (single 300-500 char post with body-inline link). One voice profile, per-platform register shifts (Twitter compressed; Facebook warmer; LinkedIn professional). /blog-publish ships a signed post — the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
+      "version": "0.8.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "authoring",
-      "keywords": ["4d", "blog", "linkedin", "content", "voice", "aeo", "seo", "citations", "bibliography", "release-owner", "anti-ai-slop", "blog-publish", "drafts", "media", "ingest", "github-desktop", "payload", "payload-cms", "moxywolf"]
+      "keywords": ["4d", "blog", "linkedin", "twitter", "x", "facebook", "social", "content", "voice", "aeo", "seo", "citations", "bibliography", "release-owner", "anti-ai-slop", "blog-publish", "drafts", "media", "ingest", "github-desktop", "payload", "payload-cms", "moxywolf"]
     },
     {
       "name": "academic-pipeline",

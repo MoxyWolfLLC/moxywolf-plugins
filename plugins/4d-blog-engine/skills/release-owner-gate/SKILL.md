@@ -146,12 +146,12 @@ If all three answers hold, append this line to <piece>/changelog.md:
 
   Verified — <your initials>, <today YYYY-MM-DD>
 
-Then say "signed" and I'll generate the LinkedIn pair.
+Then say "signed" and I'll stage the draft for publish.
 ```
 
-Wait for the user's explicit "signed" (or equivalent confirmation). Do not generate the LinkedIn pair before this. The signature is the whole point of the framework.
+Wait for the user's explicit "signed" (or equivalent confirmation). Do not stage the draft before this. The signature is the whole point of the framework.
 
-## STEP 6 — On signature: stage the draft + hand off to linkedin-deriver
+## STEP 6 — On signature: stage the draft
 
 When the user confirms the signature:
 
@@ -170,7 +170,23 @@ When the user confirms the signature:
     If `<blog-project-dir>/drafts/<slug>.md` already exists (re-running Phase 4 on a piece that's been signed before), overwrite it without asking — the freshly-signed version is canonical.
 
 3. Update `<piece>/state.md`: `gates_passed: [01, 02, 03, 04]`, append `<ISO> — Phase 04 passed, signed by <initials>. Staged to <blog-project-dir>/drafts/<slug>.md` to the process log.
-3. Invoke the `linkedin-deriver` skill to produce the LinkedIn article + teaser.
+
+4. **Tell the writer their next-step options** (do NOT auto-invoke anything):
+
+    ```
+    Phase 4 passed and signed. The post is staged for publish.
+
+    Next steps (run when you're ready):
+
+      • /4d-blog-engine:blog-publish     — push the post to your live site
+      • /4d-blog-engine:blog-social      — derive social posts (LinkedIn pair, Twitter thread, Facebook post)
+                                            You pick which platforms; nothing is auto-generated.
+
+    Both commands are optional and can run in any order. The blog is the canonical artifact;
+    social derivatives are downstream and the writer decides when (and whether) to make them.
+    ```
+
+   Critical: the release-owner-gate skill ends here. It does **not** invoke `blog-social` automatically. Social derivation is opt-in and writer-driven. This is a deliberate decoupling — the writer often wants to publish first, see how the post reads in the wild for a day, and *then* decide which social platforms to derive for.
 
 ## What the reviewer subagent IS allowed to do
 

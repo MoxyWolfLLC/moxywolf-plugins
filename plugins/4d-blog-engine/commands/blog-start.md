@@ -16,7 +16,8 @@ The skill:
 4. Scans `<blog-project-dir>/Posts/` for in-progress pieces (anything with a `state.md` that hasn't reached Phase 4 sign-off) and signed pieces awaiting publish.
 5. Proposes the most likely next step:
    - Resume the most recent in-progress piece (`/4d-blog-engine:<phase>`).
-   - Publish a signed-but-not-yet-pushed piece (`/4d-blog-engine:publish <slug>`).
+   - Publish a signed-but-not-yet-pushed piece (`/4d-blog-engine:blog-publish <slug>`).
+   - Derive social posts for an already-published piece (`/4d-blog-engine:blog-social <slug>`).
    - Start a new piece (`/4d-blog-engine:blog-pipeline <base-doc>`).
 
 If no `blog-project-instructions.md` is found, the skill stops and tells you to run `/4d-blog-engine:blog-init` first.

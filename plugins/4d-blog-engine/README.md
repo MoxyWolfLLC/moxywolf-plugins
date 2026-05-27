@@ -33,7 +33,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-describe` | Phase 2 only — voice interview, structure, outline |
 | `/4d-blog-engine:blog-discern` | Phase 3 only — discourse sweep + draft + slop pass |
 | `/4d-blog-engine:blog-diligence` | Phase 4 only — Release Owner Gate against an existing draft |
-| `/4d-blog-engine:blog-linkedin` | Derive the LinkedIn article + teaser from a Diligence-passed blog |
+| `/4d-blog-engine:blog-social` | Multi-platform social derivatives — LinkedIn (article + teaser), Twitter/X (5-10 post thread), Facebook (single post). Opt-in; writer picks platforms. |
 | `/4d-blog-engine:blog-status` | Print the current piece's phase, gates passed, next step |
 
 ## Working directory layout
@@ -61,12 +61,15 @@ The per-piece directory layout is the same regardless of mode:
 │   └── slop-findings-pass2.md        # second-pass audit (survivors)
 ├── 04-diligence/
 │   ├── blog.md                       # publish-ready blog post + JSON-LD schema
-│   ├── linkedin-article.md           # 800-1200w full mirror
-│   ├── linkedin-teaser.md            # ~1,300-char hook-led teaser
-│   ├── linkedin-scorecards.md        # 3-axis: thought leadership / pain / audience fit
 │   ├── og-hero.png                   # 16:9 brand-aligned hero
 │   ├── og-hero-prompt.md             # AI-transparency prompt artifact
-│   └── release-owner.signed.md       # the audit trail
+│   ├── release-owner.signed.md       # the audit trail
+│   └── social/                       # created by /blog-social (opt-in, post-sign-off)
+│       ├── linkedin-article.md       # 800-1200w (only if writer picked LinkedIn)
+│       ├── linkedin-teaser.md        # ~1,300-char hook-led teaser
+│       ├── twitter-thread.md         # 5-10 ## Post N blocks, ≤280 chars per post
+│       ├── facebook-post.md          # 300-500 chars, body-inline link
+│       └── scorecards/               # per-platform 3-axis scorecards
 ├── .review-nonce                     # CSPRNG, fresh per Diligence pass
 └── changelog.md                      # Verified — <initials>, <YYYY-MM-DD>
 ```

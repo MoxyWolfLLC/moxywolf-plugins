@@ -1,7 +1,7 @@
 ---
 name: 4d-blog-engine
 description: |
-  This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post + LinkedIn pair under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (blog-delegate, blog-describe, blog-discern, blog-diligence) and the two derivative commands (blog-linkedin, blog-status). It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing a blog + LinkedIn pair. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
+  This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "make a Twitter thread from this blog", "write a Facebook post from my blog", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post (and optional multi-platform social derivatives) under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (blog-delegate, blog-describe, blog-discern, blog-diligence), the social derivative command (blog-social), and the lifecycle commands. It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing multi-platform social derivatives. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
@@ -11,9 +11,9 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 ## What this skill does
 
-This skill turns a base document plus a chosen angle/question into a publication-ready blog post, a long-form LinkedIn article, and a short hook-led LinkedIn teaser — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
+This skill turns a base document plus a chosen angle/question into a publication-ready blog post, plus optional multi-platform social derivatives (LinkedIn article + teaser, Twitter thread, Facebook post) — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of eleven commands, all prefixed `blog-` for consistency: four map directly to the four D's (delegate / describe / discern / diligence), four lifecycle commands (init / voice / start / publish), the end-to-end pipeline shortcut, the LinkedIn derivative, and the status report.
+It is composed of eleven commands, all prefixed `blog-` for consistency: four map directly to the four D's (delegate / describe / discern / diligence), four lifecycle commands (init / voice / start / publish), the end-to-end pipeline shortcut, the social derivative, and the status report.
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
@@ -24,8 +24,8 @@ It is composed of eleven commands, all prefixed `blog-` for consistency: four ma
 | `/4d-blog-engine:blog-describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
 | `/4d-blog-engine:blog-discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
 | `/4d-blog-engine:blog-diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
-| `/4d-blog-engine:blog-linkedin` | Derivative output | `linkedin-deriver` |
-| `/4d-blog-engine:blog-pipeline` | End-to-end pipeline (all four phases sequentially) | all of the above |
+| `/4d-blog-engine:blog-social` | Multi-platform social derivatives (LinkedIn article+teaser, Twitter thread, Facebook post) — opt-in, writer picks platforms | `blog-social` |
+| `/4d-blog-engine:blog-pipeline` | End-to-end pipeline (all four phases sequentially; social derivation is NOT auto-invoked — run `blog-social` after) | all of the above |
 | `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo | `blog-publish` |
 | `/4d-blog-engine:blog-status` | Print current piece state | inline (this skill) |
 
@@ -243,9 +243,9 @@ Triggered by `/4d-blog-engine:blog-diligence` or as Phase 4 of `:blog`. Refuses 
 
 Hand off entirely to the `release-owner-gate` skill (in this plugin). Detailed orchestration is in `skills/release-owner-gate/SKILL.md`. Phase 4 is non-trivial — read that skill's instructions in full before invoking it.
 
-### Derivative — LinkedIn pair
+### Derivative — Social posts (multi-platform)
 
-Triggered by `/4d-blog-engine:blog-linkedin` (on an existing Diligence-passed blog) or as the final step of `:blog`. Hand off entirely to the `linkedin-deriver` skill.
+Triggered by `/4d-blog-engine:blog-social` on an existing Diligence-passed blog. **Opt-in only** — social derivation is NOT auto-invoked by `:blog-pipeline` or by Phase 4 sign-off. The writer runs `blog-social` explicitly when they want derivatives, then picks which platforms (LinkedIn pair, Twitter thread, Facebook post) via `AskUserQuestion`. Hand off entirely to the `blog-social` skill.
 
 ## Status command
 
