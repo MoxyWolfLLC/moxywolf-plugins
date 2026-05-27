@@ -2,7 +2,7 @@
 name: publish
 description: |
   This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and pushes the post + hero into the user's GitHub repo via the GitHub MCP push_file API (two API calls, hero first then post). No bash git, no GitHub Desktop coordination, no working-tree validation, no lockfile races — the writer's local clone (if any) is irrelevant to the publish. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /publish always ships from drafts/ to content/blog/ with status=published. The user sees a one-line confirmation and a success message; no git words. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__push_file, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__list_branches]
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
 ---
 
 # Publish — ship a signed post to the writer's blog
@@ -132,17 +132,18 @@ If no title, halt. Don't invent.
 
 If no hero image reference in frontmatter, scan the first 20 lines of body for an inline `![<alt>](og-hero.png)` pattern. If found, treat that as the hero ref and we'll rewrite the inline path too. If still not found, warn but don't halt — some templates render the hero from a fixed convention based on the slug.
 
-## STEP 5 — Look up the default branch via GitHub API
+## STEP 5 — Resolve the default branch
 
-Use the GitHub MCP to resolve the repo's default branch (no local git needed):
+Prefer reading from the local clone (no API call needed):
 
+```bash
+# .git/HEAD's symbolic ref usually tracks origin/HEAD; otherwise read the packed-refs
+DEFAULT_BRANCH=$(cat "$PUBLISHING_REPO_DIR/.git/refs/remotes/origin/HEAD" 2>/dev/null | sed 's@^ref: refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH=$(grep "refs/remotes/origin/HEAD" "$PUBLISHING_REPO_DIR/.git/packed-refs" 2>/dev/null | awk '{print $2}' | sed 's@^refs/remotes/origin/@@')
+[ -z "$DEFAULT_BRANCH" ] && DEFAULT_BRANCH="main"
 ```
-mcp__<github>__list_branches with branch_name="HEAD" (or use list_repos to get default_branch)
-```
 
-If MCP returns `main`, use `main`. If `master`, use `master`. Other defaults are rare but accept whatever the API reports.
-
-If the API call fails (no token, network issue), fall back: read `.git/refs/remotes/origin/HEAD` from the local clone if available; otherwise default to `main` and proceed.
+If the local clone isn't reachable, discover a `list_branches`-style tool via `ToolSearch` and query the GitHub API for the default branch. Fall back to `main` if neither path works.
 
 Store as `DEFAULT_BRANCH`.
 
@@ -248,12 +249,16 @@ HERO_B64=$(base64 < "$PIECE_DIR/04-diligence/og-hero.png" | tr -d '\n')
 
 ## STEP 10 — Push via the GitHub MCP
 
-Two API calls — hero first (so the post's reference to it is valid in the second commit), then post:
+**Discover the push tool at runtime, do not hardcode a specific MCP server UUID.** Different Cowork installs may wire GitHub push into different MCP servers (Mermaid Chart bundles it; the official MCP-GitHub server exposes it; a custom server may too). Use `ToolSearch` with query `push_file` to find an available implementation. Pick the first result whose name ends in `__push_file` and whose description mentions creating or updating a file in a GitHub repository.
+
+If `ToolSearch` returns no GitHub push tool, halt with the **first-run setup message** in the error-handling section below.
+
+Two push calls — hero first (so the post's reference to it is valid in the second commit), then post:
 
 **Call 1 — push the hero image:**
 
 ```
-mcp__<github>__push_file with:
+<discovered-push-file-tool> with:
   owner: <OWNER>
   repo: <REPO>
   branch: <DEFAULT_BRANCH>
@@ -267,7 +272,7 @@ Capture the returned commit SHA as `HERO_COMMIT_SHA`.
 **Call 2 — push the post markdown:**
 
 ```
-mcp__<github>__push_file with:
+<discovered-push-file-tool> with:
   owner: <OWNER>
   repo: <REPO>
   branch: <DEFAULT_BRANCH>
@@ -280,12 +285,50 @@ Capture the returned commit SHA as `POST_COMMIT_SHA`. This is the commit URL sho
 
 **On `push_file` errors:**
 
-- *"sha mismatch"* (file already exists with different content, push needs the existing blob's sha to update): re-fetch the existing file's sha via `read_file` or list_branches contents and retry the push_file call with the `sha` parameter.
+- *"sha mismatch"* (file already exists with different content, push needs the existing blob's sha to update): re-fetch the existing file's sha (via the same MCP's read tool if available, or via a `list_branches`/`get_file_contents`-style tool) and retry the push call with the `sha` parameter.
 - *"branch not found"*: halt and ask the writer to confirm the branch name — fallback list `main`, `master`, `production` via `AskUserQuestion`.
-- *"401 / 403 unauthorized"*: halt with *"GitHub access isn't set up. Open Cowork → Settings → Connectors → GitHub and connect your account. Then re-run /4d-blog-engine:publish <slug>."* This is a one-time setup; after that publish works.
+- *"401 / 403 unauthorized"* OR *"Github-Token missing"* OR *"GITHUB_TOKEN not set"*: this is the first-run setup case. Surface the **PAT setup message** below.
 - *"network error"*: halt with the error, advise the writer to retry.
 
-**Byte-identical content** (the file at `<POSTS_SUBFOLDER>/<SLUG>.md` on the remote has the same content we're pushing): push_file will silently no-op or return a "no change" indicator. In that case, the dateModified bump from STEP 9 normally already created a diff. If somehow we're still byte-identical (the dateModified was already today), surface a quiet note in the success report — the push went through but no actual diff resulted; site rebuild may not fire.
+### First-run setup message (no push tool / no token)
+
+When push fails because the GitHub MCP has no token, the writer needs to set up a Personal Access Token. Surface this exactly:
+
+```
+GitHub push access isn't configured yet. One-time setup, then /publish
+works silently from here on.
+
+Step 1 — Generate a fine-grained Personal Access Token on GitHub:
+  1. Open https://github.com/settings/personal-access-tokens
+  2. Click "Generate new token"
+  3. Name: anything (e.g., "cowork-4d-blog-engine")
+  4. Expiration: pick whatever you're comfortable with (90 days is fine)
+  5. Repository access: "Only select repositories" → pick <OWNER>/<REPO>
+  6. Permissions → Repository permissions → Contents: Read and write
+  7. Click "Generate token" and copy the value (starts with github_pat_...)
+
+Step 2 — Wire the token into Cowork's MCP config:
+  1. Open Cowork → Settings → MCP servers (or Connectors, depending on
+     your Cowork version)
+  2. Find the GitHub-tool-providing server. It's often called
+     "Mermaid Chart" (which bundles GitHub tools) or "GitHub MCP."
+     Look for one whose tools include push_file.
+  3. Edit the server's environment variables / headers. Add:
+       GITHUB_TOKEN=<your-PAT>
+     OR (if the server takes HTTP headers):
+       Github-Token: <your-PAT>
+  4. Save the change.
+
+Step 3 — Restart your Cowork session, then re-run:
+  /4d-blog-engine:publish <SLUG>
+
+If you don't see a GitHub-tool MCP server in Cowork's settings, install
+the official one: search Cowork's MCP marketplace for "GitHub" and add
+the modelcontextprotocol/server-github (or similar). Configure your PAT
+there.
+```
+
+**Byte-identical content** (the file at `<POSTS_SUBFOLDER>/<SLUG>.md` on the remote has the same content we're pushing): the discovered push tool may silently no-op or return a "no change" indicator. In that case, the dateModified bump from STEP 9 normally already created a diff. If somehow we're still byte-identical (the dateModified was already today), surface a quiet note in the success report — the push went through but no actual diff resulted; site rebuild may not fire.
 
 **Build the public commit URL** for the success message:
 

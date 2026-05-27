@@ -1,7 +1,7 @@
 ---
 description: Ship a signed blog post to your live site. One command. The plugin pushes for you via the GitHub API — no git words, no GitHub Desktop required.
 argument-hint: [<piece-slug>]
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__push_file, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__list_branches]
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
 ---
 
 # /4d-blog-engine:publish — ship a signed post
@@ -36,5 +36,7 @@ Invoke the `publish` skill. Takes a Phase-4-signed post and ships it to the GitH
 - Modify the source post in `<piece>/04-diligence/blog.md` — the piece archive stays untouched.
 - Open a pull request.
 - Ask you to close GitHub Desktop, run a git command, or care about a local clone. The push happens via GitHub's API; your local clone (if you have one) drifts from origin until you next fetch.
+
+**First-time setup (one-time):** the plugin needs a GitHub Personal Access Token wired into your Cowork MCP config to authenticate the push. If your first `/publish` attempt halts with a "GitHub push access isn't configured yet" message, the skill walks you through three short steps: generate a fine-grained PAT on github.com, paste it into your Cowork MCP server's config as `GITHUB_TOKEN`, and restart the session. After that, all publishes are silent. The PAT only needs **Contents: Read and write** scope on the specific repo you're publishing to.
 
 Read `skills/publish/SKILL.md` for the full workflow.
