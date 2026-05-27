@@ -72,6 +72,13 @@ done
 for media_dir in "public/blog-media" "public/media/blog" "static/blog-media" "static/media/blog" "public/media" "static/media"; do
   [ -d "$PUBLISHING_REPO_DIR/$media_dir" ] && MEDIA_SUBFOLDER="$media_dir" && break
 done
+
+# Social derivatives folder (for the LinkedIn/Twitter/Facebook source-of-truth files produced by /blog-social):
+for social_dir in "$POSTS_SUBFOLDER/social" "content/social" "social"; do
+  [ -d "$PUBLISHING_REPO_DIR/$social_dir" ] && SOCIAL_SUBFOLDER="$social_dir" && break
+done
+# Default silently to <POSTS_SUBFOLDER>/social — the directory is created on first social publish.
+[ -z "$SOCIAL_SUBFOLDER" ] && SOCIAL_SUBFOLDER="$POSTS_SUBFOLDER/social"
 ```
 
 **Resolution rules:**
@@ -79,6 +86,7 @@ done
 - **If posts and images subfolders detected:** proceed.
 - **If either detection fails:** ask via `AskUserQuestion` for the missing one, with the conventional defaults as options plus a "Custom — type the path" fallback.
 - **If `MEDIA_SUBFOLDER` detection fails (no media folder yet exists in repo):** default silently to `public/blog-media` (Next.js convention — served at `/blog-media/<file>`). Only ask the writer if the post actually references media files (STEP 4 catches this). Don't bug them about a folder they may not need.
+- **`SOCIAL_SUBFOLDER` defaults silently** to `<POSTS_SUBFOLDER>/social` if no existing convention is detected. Created on first publish that ships social derivatives. Don't ask the writer about it — most pieces won't have social yet, and the default mirrors the blog folder cleanly (`content/blog/foo.md` + `content/blog/social/foo/*.md`).
 
 Store the resolved choices in the writer's marker file under `## Publish paths (auto-detected)` so the next publish doesn't re-ask.
 
@@ -171,6 +179,62 @@ Store the parsed media list as `MEDIA_FILES` — an array of `(source_path, dest
 
 If `media:` is absent or empty, set `MEDIA_FILES = []` and proceed silently.
 
+### STEP 4c — Detect social derivatives
+
+After Phase 4 sign-off, the writer may have run `/4d-blog-engine:blog-social` to produce social-platform derivatives. If they have, those files land at:
+
+```
+<piece>/04-diligence/social/
+├── linkedin-article.md       (optional — one or more may exist)
+├── linkedin-teaser.md
+├── twitter-thread.md
+├── facebook-post.md
+└── scorecards/
+    ├── *.score.md
+    └── *.score.json
+```
+
+The publish skill ships any of these that exist, in the same commit as the post, so downstream distribution automation (or a teammate) can read them straight from the repo. The plugin still does NOT auto-post to LinkedIn / Twitter / Facebook — pasting on each platform remains a manual step, by design (see the whitepaper's Diligence ethos). What changed: the source-of-truth derivative files now ship to the repo alongside the post, instead of forcing the writer to copy them out of the local `<piece>/04-diligence/` archive every time.
+
+**Detection:**
+
+```bash
+SOCIAL_SRC="$PIECE_DIR/04-diligence/social"
+if [ -d "$SOCIAL_SRC" ]; then
+  # Enumerate the top-level .md files (the four supported platform names).
+  SOCIAL_POST_FILES=$(find "$SOCIAL_SRC" -maxdepth 1 -name '*.md' -type f 2>/dev/null)
+  # Enumerate scorecards (both .md and .json sidecars).
+  SOCIAL_SCORECARD_FILES=$(find "$SOCIAL_SRC/scorecards" -maxdepth 1 -type f 2>/dev/null)
+else
+  SOCIAL_POST_FILES=""
+  SOCIAL_SCORECARD_FILES=""
+fi
+```
+
+If `SOCIAL_SRC` doesn't exist at all (writer hasn't run `/blog-social` yet), set `SOCIAL_FILES = []` and proceed silently. **Do not warn.** Most pieces won't have social derivatives, and the publish skill must stay quiet about absent optional artifacts.
+
+For each `.md` post file found, build:
+
+- **Source:** `<piece>/04-diligence/social/<basename>.md`
+- **Dest:** `<PUBLISHING_REPO_DIR>/<SOCIAL_SUBFOLDER>/<SLUG>/<basename>.md`
+
+For each scorecard file:
+
+- **Source:** `<piece>/04-diligence/social/scorecards/<basename>`
+- **Dest:** `<PUBLISHING_REPO_DIR>/<SOCIAL_SUBFOLDER>/<SLUG>/scorecards/<basename>`
+
+Combine into a single list `SOCIAL_FILES` — an array of `(source_path, dest_path)` tuples. Use it in STEPs 7, 9, and 10.
+
+**Pre-flight check:** every source file must be readable. If `find` enumerated a file but `cat` can't read it, halt with the path and the filesystem error — almost always a permissions issue, never a missing file (since `find` just listed it).
+
+**Frontmatter rewrite for social .md files (STEP 9 detail, surfaced here for completeness):** the `source_blog:` field in each social post originally points to the local archive path (`Posts/<slug>/04-diligence/blog.md`). On the way into the repo, rewrite it to the in-repo path:
+
+```
+source_blog: <POSTS_SUBFOLDER>/<SLUG>.md
+```
+
+Downstream automation reading from the GitHub repo can then resolve the source post cleanly. The local archive path is meaningless in the repo context, so this rewrite is mechanical, not a content edit. Scorecards copy verbatim — no rewrites.
+
 ## STEP 5 — Resolve the default branch
 
 Prefer reading from the local clone (no API call needed):
@@ -220,11 +284,13 @@ Files going in:
   - <IMAGES_SUBFOLDER>/<SLUG>.png      (hero)
 <for each media file in MEDIA_FILES:>
   - <MEDIA_SUBFOLDER>/<basename>      (media — from drafts/blog-media/)
+<if SOCIAL_FILES non-empty, one section:>
+  - <SOCIAL_SUBFOLDER>/<SLUG>/        (social derivatives — N files + scorecards)
 
 Type "go" to publish, or "cancel" to stop.
 ```
 
-Only show the "Files going in" media line(s) when `MEDIA_FILES` is non-empty. If the hero is already in the repo unchanged, annotate it as `(hero — already in repo)`.
+Only show the "Files going in" media line(s) when `MEDIA_FILES` is non-empty. Likewise, only show the social line when `SOCIAL_FILES` is non-empty — display it as a single summary line naming the directory and the file count, not one line per social file (the social bundle is typically 4 posts + 8 scorecards; listing each would drown the plan). If the hero is already in the repo unchanged, annotate it as `(hero — already in repo)`.
 
 Wait for the writer's reply. Accept "go" / "yes" / "publish" as confirmation. Anything else cancels.
 
@@ -299,18 +365,32 @@ rm "$TMP"
 for entry in MEDIA_FILES:
   mkdir -p "$(dirname "${entry.dest_path}")"
   cp "${entry.source_path}" "${entry.dest_path}"
+
+# Copy each social derivative into the repo's social subfolder.
+# .md files get the source_blog rewrite (see STEP 4c); scorecards copy verbatim.
+for entry in SOCIAL_FILES:
+  mkdir -p "$(dirname "${entry.dest_path}")"
+  if [[ "${entry.source_path}" == *.md && "${entry.source_path}" != */scorecards/* ]]; then
+    # Rewrite the source_blog: frontmatter field to the in-repo path on the way in.
+    sed -E 's|^source_blog:.*$|source_blog: '"$POSTS_SUBFOLDER"/"$SLUG"'.md|' \
+      "${entry.source_path}" > "${entry.dest_path}"
+  else
+    cp "${entry.source_path}" "${entry.dest_path}"
+  fi
 ```
 
-If `MEDIA_FILES` is empty, the loop is a no-op. The `mkdir -p` is safe to run multiple times — it'll create `<repo>/<MEDIA_SUBFOLDER>/` the first time a post references media.
+If `MEDIA_FILES` is empty, the media loop is a no-op. If `SOCIAL_FILES` is empty (writer never ran `/blog-social`), the social loop is a no-op and the publish ships post + hero + media only — same behavior as pre-v0.9. The `mkdir -p` calls are safe to run multiple times — they'll create `<repo>/<MEDIA_SUBFOLDER>/` and `<repo>/<SOCIAL_SUBFOLDER>/<SLUG>/` (and the nested `scorecards/` subdir) the first time those folders are needed.
 
 Then create the commit from bash. The Summary and Description are auto-generated so the writer never types either:
 
 ```bash
 cd "$PUBLISHING_REPO_DIR"
 
-# Stage the post + hero + any media files
+# Stage the post + hero + any media files + any social files
 git add "$POSTS_SUBFOLDER/$SLUG.md" "$IMAGES_SUBFOLDER/$SLUG.png"
 for entry in MEDIA_FILES:
+  git add "${entry.dest_path_relative_to_repo}"
+for entry in SOCIAL_FILES:
   git add "${entry.dest_path_relative_to_repo}"
 
 # Auto-generated commit message
@@ -324,6 +404,8 @@ Post:   $POSTS_SUBFOLDER/$SLUG.md
 Hero:   $IMAGES_SUBFOLDER/$SLUG.png
 <if MEDIA_FILES non-empty:>
 Media:  <comma-separated list of dest paths relative to repo root>
+<if SOCIAL_FILES non-empty:>
+Social: <SOCIAL_SUBFOLDER>/<SLUG>/ (N posts + M scorecards)
 Status: published
 Slug:   $SLUG"
 
@@ -411,6 +493,8 @@ Files staged:
   - <IMAGES_SUBFOLDER>/<SLUG>.png
 <for each media file in MEDIA_FILES, one line each:>
   - <MEDIA_SUBFOLDER>/<basename>
+<if SOCIAL_FILES non-empty, one summary line:>
+  - <SOCIAL_SUBFOLDER>/<SLUG>/ (N social posts + M scorecards)
 
 One last step — push to deploy:
 
@@ -426,7 +510,7 @@ Predicted live URL: <computed URL or "(check your hosting dashboard for the actu
 
 ## What this skill does NOT do
 
-- It does not publish to LinkedIn. The LinkedIn artifacts live at `<PIECE_DIR>/04-diligence/linkedin-{article,teaser}.md` for you to paste by hand.
+- It does not post to LinkedIn, Twitter/X, or Facebook on your behalf. The skill ships the *source-of-truth* social derivative files (`<piece>/04-diligence/social/*.md`) into the repo at `<SOCIAL_SUBFOLDER>/<SLUG>/`, so downstream automation (or a teammate) can read them straight from GitHub. The actual paste-and-post on each platform is still manual, by design — see the whitepaper's Diligence ethos.
 - It does not push to the remote. The writer clicks "Push origin" in GitHub Desktop after the plugin reports the commit is prepared. GitHub Desktop handles auth.
 - It does not open a pull request. The commit targets the default branch directly.
 - It does not configure any GitHub token, PAT, or auth setup. The push is GitHub Desktop's job, with whatever auth the writer already has.

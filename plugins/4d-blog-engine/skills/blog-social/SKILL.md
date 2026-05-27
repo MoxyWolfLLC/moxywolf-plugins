@@ -262,7 +262,18 @@ Posting reminders:
   - Twitter: blog URL in FINAL POST. Best window: Tue/Wed/Thu 9:00-11:00 AM PT.
   - Facebook: blog URL in BODY (renders preview card). Best window: weekdays 1:00-3:00 PM PT.
 
-The plugin does NOT auto-publish. Paste and post by hand on each platform.
+The plugin does NOT auto-publish to any platform. Paste and post by hand on each platform.
+
+Next step — ship these files to your repo so a teammate or downstream automation
+can pick them up:
+
+  /4d-blog-engine:blog-publish <slug>
+
+The publish skill detects this `social/` directory and includes the .md files
+plus scorecards in the same commit as the post. The blog post itself gets
+treated as a republish (dateModified bump → site rebuild). If the post was
+already published before social existed, this is how the social files reach
+the repo.
 ```
 
 (Only list the platforms the writer actually selected.)
@@ -270,7 +281,8 @@ The plugin does NOT auto-publish. Paste and post by hand on each platform.
 ## What this skill does NOT do
 
 - It does NOT modify the signed blog. The blog is canonical and read-only after the Release Owner signs.
-- It does NOT publish to any platform. The writer pastes by hand. This is intentional — see the whitepaper's Diligence ethos.
+- It does NOT post to LinkedIn, Twitter/X, or Facebook on the writer's behalf. The writer pastes by hand on each platform. This is intentional — see the whitepaper's Diligence ethos.
+- It does NOT ship the derivative files into the writer's publishing repo. The files land under `<piece>/04-diligence/social/` only — `/4d-blog-engine:blog-publish` is the skill that copies them into the GitHub repo (auto-detected on its next run for the same slug). Keeping the publish step in one skill avoids two skills both writing into the repo.
 - It does NOT generate carousels, video clips, infographics, or YouTube descriptions — that's outside scope. Article + teaser (LinkedIn), thread (Twitter), single post (Facebook) — that's the scope.
 - It does NOT auto-invoke after Phase 4 sign-off. The writer runs `/4d-blog-engine:blog-social` explicitly when they want derivatives.
 

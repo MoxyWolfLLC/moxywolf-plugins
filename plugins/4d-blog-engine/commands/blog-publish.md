@@ -22,15 +22,16 @@ After the commit is prepared, you click GitHub Desktop's **"Push origin"** butto
 
 1. Verifies Phase 4 signed (`Verified — <initials>, <date>` in `changelog.md`).
 2. Mounts the publishing repo if it isn't already (no mid-flow friction).
-3. Auto-detects the posts, images, and media subfolders inside the repo (Hugo's `content/blog/`, Next.js's `public/blog-hero/`, `public/blog-media/`, etc.).
+3. Auto-detects the posts, images, media, and social subfolders inside the repo (Hugo's `content/blog/`, Next.js's `public/blog-hero/`, `public/blog-media/`, `content/blog/social/`, etc.).
 4. Applies the typographer's-quote transform reliably via the vendored `scripts/smart_quotes.py` — YAML frontmatter and JSON-LD `<script>` blocks are preserved verbatim.
 5. Normalizes the post's `status:` to `published`.
 6. Bumps `dateModified` to today (so byte-identical republishes still create a real diff and fire the site rebuild).
 7. Rewrites the hero image reference in the frontmatter to its in-repo path.
 8. **Parses the `media:` array in the YAML frontmatter** and copies each referenced file from `<blog-project-dir>/drafts/blog-media/<basename>` to the repo's `public/blog-media/<basename>`. Creates `public/blog-media/` if it doesn't exist. Halts pre-flight if any referenced media file is missing from `drafts/blog-media/`.
-9. Copies post + hero + media into the repo.
-10. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, media, status, slug).
-11. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
+9. **If `/blog-social` has been run for this piece**, detects the social derivatives at `<piece>/04-diligence/social/` (LinkedIn article + teaser, Twitter thread, Facebook post, plus scorecards) and ships them to the repo at `<social-subfolder>/<slug>/` — defaulting to `content/blog/social/<slug>/` if no existing convention is detected. Rewrites each social file's `source_blog:` frontmatter to the in-repo path of the published post so downstream distribution automation resolves cleanly. If no social derivatives exist, the social step is silently skipped — no warning, no flag, same behavior as pre-v0.9.
+10. Copies post + hero + media + social into the repo.
+11. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, media, social bundle, status, slug).
+12. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
 
 **How media files work:** drop any non-hero attachments (spreadsheets, PDFs, audio, etc.) into `<blog-project-dir>/drafts/blog-media/`. Reference them in your post's YAML as:
 
@@ -42,9 +43,12 @@ media:
 
 The plugin handles copy + commit + create-the-dir-if-missing automatically.
 
+**How social derivatives work (new in v0.9):** run `/4d-blog-engine:blog-social` *after* Phase 4 sign-off to generate the LinkedIn / Twitter / Facebook source files. Then re-run `/4d-blog-engine:blog-publish <slug>` — the social bundle gets included in the same commit as the post. Re-running publish after social adds the social files to the repo; the post itself is treated as a republish (the `dateModified` bump fires the site rebuild). If you don't want social on a piece, just don't run `/blog-social` — publish stays post-only with no warning.
+
 **What the skill never does:**
 
 - Publish an unsigned post (use `--force` only if you really know what you're doing).
+- Post to LinkedIn, Twitter, or Facebook on your behalf. The skill ships the source files into the repo; the paste-and-post step on each platform stays manual, by design.
 - Push to the remote — GitHub Desktop does that. Plugin only prepares the commit.
 - Open a pull request — the commit targets the default branch directly.
 - Configure any GitHub token / PAT / API auth — none needed; GitHub Desktop's existing auth handles the push.

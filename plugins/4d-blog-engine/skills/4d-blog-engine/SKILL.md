@@ -24,9 +24,9 @@ It is composed of eleven commands, all prefixed `blog-` for consistency: four ma
 | `/4d-blog-engine:blog-describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
 | `/4d-blog-engine:blog-discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
 | `/4d-blog-engine:blog-diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
-| `/4d-blog-engine:blog-social` | Multi-platform social derivatives (LinkedIn article+teaser, Twitter thread, Facebook post) — opt-in, writer picks platforms | `blog-social` |
+| `/4d-blog-engine:blog-social` | Multi-platform social derivatives (LinkedIn article+teaser, Twitter thread, Facebook post) — opt-in, writer picks platforms. Writes to `<piece>/04-diligence/social/`. Re-run `/blog-publish` after to ship the files to the repo. | `blog-social` |
 | `/4d-blog-engine:blog-pipeline` | End-to-end pipeline (all four phases sequentially; social derivation is NOT auto-invoked — run `blog-social` after) | all of the above |
-| `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo | `blog-publish` |
+| `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo. Auto-includes any social derivatives that exist for the piece in the same commit. | `blog-publish` |
 | `/4d-blog-engine:blog-status` | Print current piece state | inline (this skill) |
 
 ## STEP 0 — Always load these references first

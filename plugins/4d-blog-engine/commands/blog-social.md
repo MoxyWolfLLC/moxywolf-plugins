@@ -38,4 +38,6 @@ Hands off **entirely** to the `blog-social` skill. That skill:
 - **Facebook:** blog URL goes in the **body** (FB renders a preview card — this is the only platform where the link belongs inline). Best window: weekdays 1:00-3:00 PM PT.
 - The plugin does NOT auto-publish on any platform. Paste and post by hand.
 
+**To ship the social files to your repo** (so a teammate or downstream distribution automation can read them from GitHub), run `/4d-blog-engine:blog-publish <slug>` after `/blog-social` finishes. The publish skill detects the new `social/` directory and includes the .md files + scorecards in the same commit as the post. If the post was already published before social existed, this re-publish ships just the social bundle plus a `dateModified` bump on the post.
+
 Read `skills/blog-social/SKILL.md` and `references/hook-library.md` for the full workflow.
