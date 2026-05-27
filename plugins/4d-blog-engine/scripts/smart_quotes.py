@@ -4,7 +4,7 @@ smart_quotes.py — apply typographer's quotes to a markdown post body, preservi
 YAML frontmatter and JSON-LD script blocks exactly.
 
 Why this is a script and not ad-hoc code:
-The /publish skill writes the post into the publishing repo. If we ad-hoc Python
+The /blog-publish skill writes the post into the publishing repo. If we ad-hoc Python
 each publish, we hit the same YAML-breaking bug we hit before — curly-quoting
 the YAML frontmatter and breaking the static-site-generator build. This script
 encodes the exact split logic so the bug doesn't return.
@@ -14,18 +14,28 @@ Usage:
     python3 smart_quotes.py --in <source-md> --in-place
 
 Behavior:
-- YAML frontmatter (delimited by leading `---\n...\n---\n`): passed through unchanged.
-- <script type="application/ld+json">...</script> blocks in the body: passed through unchanged.
-- Markdown body text outside those blocks: typographer's quotes applied.
-- Existing curly quotes in the body: left as-is.
+- YAML frontmatter (delimited by leading `---\n...\n---\n`): curly quotes are
+  normalized back to straight ASCII. YAML parsers don't recognize curly
+  quotes as string delimiters — they're treated as literal characters in a
+  plain scalar. If a value contains a colon-space, that splits the key and
+  produces invalid YAML. Forcing straight quotes in the frontmatter keeps
+  the build green.
+- <script type="application/ld+json">...</script> blocks in the body: same
+  treatment as YAML — curly quotes normalized to straight, because JSON
+  requires straight double quotes.
+- Markdown body text outside those blocks: typographer's (curly) quotes
+  applied. Existing curly quotes in the body are left as-is.
 - Em-dashes / en-dashes: not touched (this script is quotes-only).
 
-Quote transform rules (single pass per text region):
+Quote transform rules for body text (single pass per text region):
 - `"` after start/whitespace/punctuation → left double `“` ("LEFT DOUBLE QUOTATION MARK")
 - `"` after a letter or digit → right double `”`
 - `'` after a letter or digit (apostrophe in contractions, possessives) → right single `’`
 - `'` after start/whitespace/punctuation followed by non-space → left single `‘`
 - Any remaining straight `"` defaults to left double; remaining `'` defaults to right single.
+
+Quote rules for YAML frontmatter and JSON-LD script blocks:
+- All curly quotes (left/right double, left/right single) → straight ASCII.
 
 Exit codes:
 - 0: success, file written.
@@ -38,10 +48,96 @@ import re
 import sys
 from pathlib import Path
 
-LDQUO = "“"  # "
-RDQUO = "”"  # "
-LSQUO = "‘"  # '
-RSQUO = "’"  # '
+LDQUO = "“"  # "  LEFT DOUBLE QUOTATION MARK
+RDQUO = "”"  # "  RIGHT DOUBLE QUOTATION MARK
+LSQUO = "‘"  # '  LEFT SINGLE QUOTATION MARK
+RSQUO = "’"  # '  RIGHT SINGLE QUOTATION MARK
+
+
+def force_straight_quotes(text):
+    """
+    Convert any curly quotes back to straight ASCII (the dumb version).
+    Use this on regions where naive replacement is safe — generally JSON
+    blocks, where content is machine-generated and already has straight
+    string delimiters.
+
+    For YAML, prefer normalize_yaml_quotes (below). Naive curly→straight
+    in YAML produces invalid scalars when the original used curly singles
+    as the wrapping AND the content contains apostrophes (e.g.,
+    `excerpt: ‘We wrote about AI's polish bias.'` → after naive replace,
+    `excerpt: 'We wrote about AI's polish bias.'` which YAML can't parse).
+    """
+    return (
+        text
+        .replace(LDQUO, '"')
+        .replace(RDQUO, '"')
+        .replace(LSQUO, "'")
+        .replace(RSQUO, "'")
+    )
+
+
+# Regex matching a YAML mapping line where the value is wrapped in curly
+# quotes: e.g.  `title: "..."`  or  `excerpt: '...'` (with curly quotes).
+# Groups: 1=prefix (key + colon + spaces), 2=opening curly quote,
+# 3=content between curly quotes, 4=closing curly quote, 5=trailing space.
+_YAML_CURLY_WRAPPED_VALUE = re.compile(
+    r'^(\s*[\w-]+\s*:\s*)([“”‘’])(.*)([“”‘’])(\s*)$'
+)
+
+_DOUBLE_CURLY = (LDQUO, RDQUO)
+
+
+def normalize_yaml_quotes(text):
+    """
+    Convert curly quotes in a YAML frontmatter region to straight ASCII
+    such that the result is still parseable YAML.
+
+    Per-line strategy:
+
+    - If the line is a mapping entry whose value is wrapped in curly
+      quotes, pick the wrapping character (straight single or double)
+      that doesn't collide with any straight-equivalent quote inside
+      the content.
+    - If the line isn't a wrapped scalar (no quotes, or block scalars,
+      or whatever), just do the dumb curly→straight replacement.
+
+    This handles the common authoring patterns where a writer typed
+    "curly-styled" values:
+        title: "Eating our own dogfood: how..."
+        excerpt: 'We wrote about AI's polish bias.'  ← apostrophe inside
+
+    For the apostrophe-inside case, the wrapping flips to straight
+    double quotes so the YAML stays valid.
+    """
+    out_lines = []
+    for line in text.split("\n"):
+        m = _YAML_CURLY_WRAPPED_VALUE.match(line)
+        if m is None:
+            # Not a curly-wrapped scalar. Dumb-convert any stray curly
+            # quotes anyway (rare but harmless).
+            out_lines.append(force_straight_quotes(line))
+            continue
+
+        prefix, _open_q, content, _close_q, suffix = m.groups()
+        # Convert curly quotes INSIDE the content to straight equivalents.
+        content_straight = force_straight_quotes(content)
+        has_single_inside = "'" in content_straight
+        has_double_inside = '"' in content_straight
+
+        # Pick a wrapping that doesn't collide with content.
+        if not has_double_inside:
+            wrapped = f'"{content_straight}"'
+        elif not has_single_inside:
+            wrapped = f"'{content_straight}'"
+        else:
+            # Content has both. Escape inner doubles with backslash and
+            # use double-quote wrapping (YAML double-quoted scalar style).
+            escaped = content_straight.replace("\\", "\\\\").replace('"', '\\"')
+            wrapped = f'"{escaped}"'
+
+        out_lines.append(f"{prefix}{wrapped}{suffix}")
+
+    return "\n".join(out_lines)
 
 
 def split_frontmatter(text):
@@ -111,13 +207,26 @@ def apply_smart_quotes(text):
 
 def transform(text):
     """
-    Top-level transform. Splits off YAML frontmatter, then splits the body
-    around JSON-LD script blocks, applies smart quotes only to the text
-    chunks, and reassembles.
+    Top-level transform.
+
+    1. Split off YAML frontmatter. Force any curly quotes in the
+       frontmatter back to straight ASCII (YAML parsers need straight
+       quotes as string delimiters; curly quotes break parsing).
+    2. Split the body around JSON-LD <script> blocks.
+    3. For each text chunk between JSON-LD blocks: apply smart quotes
+       (straight → curly).
+    4. For each JSON-LD block: force straight quotes (JSON requires
+       straight, and a curly quote inside a JSON value breaks parsers).
+    5. Reassemble.
     """
     frontmatter, body = split_frontmatter(text)
     if frontmatter is None:
         raise ValueError("Malformed frontmatter: opening --- without closing ---")
+
+    # YAML frontmatter MUST have straight quotes — and the wrapping
+    # quote character has to be picked so it doesn't collide with quotes
+    # inside the value (e.g., apostrophes in a single-quoted scalar).
+    frontmatter = normalize_yaml_quotes(frontmatter)
 
     chunks = split_around_jsonld(body)
     transformed_chunks = []
@@ -125,8 +234,8 @@ def transform(text):
         if kind == "text":
             transformed_chunks.append(apply_smart_quotes(content))
         else:
-            # JSON-LD block — preserve verbatim
-            transformed_chunks.append(content)
+            # JSON-LD block — force straight quotes (JSON requires it).
+            transformed_chunks.append(force_straight_quotes(content))
 
     return frontmatter + "".join(transformed_chunks)
 

@@ -22,7 +22,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero vibe, optional live URL. Writes `blog-project-instructions.md`. |
 | `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
-| `/4d-blog-engine:publish <slug>` | Ship a signed draft to your live site. Reads from `<blog-project-dir>/drafts/<slug>.md` (staged automatically by Phase 4 sign-off), applies the YAML/JSON-LD-preserving typographer's-quote transform via the vendored script, normalizes status to `published`, copies post + hero to the publishing repo's `content/blog/<slug>.md`, commits, and pushes — no git words required from the writer. |
+| `/4d-blog-engine:blog-publish <slug>` | Ship a signed draft to your live site. Reads from `<blog-project-dir>/drafts/<slug>.md` (staged automatically by Phase 4 sign-off), applies the YAML/JSON-LD-preserving typographer's-quote transform via the vendored script, normalizes status to `published`, copies post + hero to the publishing repo's `content/blog/<slug>.md`, commits, and pushes — no git words required from the writer. |
 
 **Pipeline** (run these to actually write a post):
 
@@ -91,7 +91,7 @@ What's genuinely new in this plugin: the 30-day discourse sweep (`scripts/discou
 - **Plugin never auto-publishes to LinkedIn.** It writes the article and teaser to disk; you paste / use Buffer / use the LinkedIn editor.
 - **Plugin never fabricates citations.** Unverified data gets `[CITATION NEEDED]` placeholders, not invented text.
 - **The Release Owner Gate is load-bearing.** Disabling it or auto-passing it defeats the whole framework. The whole point of the plugin is that one named human signs for every AI output before it ships.
-- **Publishing is one explicit command, not automatic.** `/4d-blog-engine:publish <slug>` is the only path that touches the GitHub repo. It refuses to run on an unsigned piece. The MoxyWolf-internal one-aggregated-commit-per-push workflow still applies if you're committing other repo changes outside of `/publish`.
+- **Publishing is one explicit command, not automatic.** `/4d-blog-engine:blog-publish <slug>` is the only path that touches the GitHub repo. It refuses to run on an unsigned piece. The MoxyWolf-internal one-aggregated-commit-per-push workflow still applies if you're committing other repo changes outside of `/blog-publish`.
 
 ## Install
 
@@ -111,7 +111,7 @@ claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 claude plugin install 4d-blog-engine@moxywolf-plugins
 ```
 
-After install, run `/4d-blog-engine:blog-init` once to set up your blog project. After that, `/4d-blog-engine:blog-start` opens any future session and `/4d-blog-engine:publish` ships finished posts.
+After install, run `/4d-blog-engine:blog-init` once to set up your blog project. After that, `/4d-blog-engine:blog-start` opens any future session and `/4d-blog-engine:blog-publish` ships finished posts.
 
 ## Source
 

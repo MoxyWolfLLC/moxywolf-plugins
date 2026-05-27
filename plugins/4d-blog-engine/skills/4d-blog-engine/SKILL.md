@@ -13,7 +13,7 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 This skill turns a base document plus a chosen angle/question into a publication-ready blog post, a long-form LinkedIn article, and a short hook-led LinkedIn teaser — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of eleven commands: four map directly to the four D's, four lifecycle commands (init/start/voice/publish), and three convenience commands:
+It is composed of eleven commands: four map directly to the four D's, four lifecycle commands (init/start/voice/blog-publish), and three convenience commands:
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
@@ -26,7 +26,7 @@ It is composed of eleven commands: four map directly to the four D's, four lifec
 | `/4d-blog-engine:diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
 | `/4d-blog-engine:linkedin` | Derivative output | `linkedin-deriver` |
 | `/4d-blog-engine:blog` | End-to-end pipeline (all four phases sequentially) | all of the above |
-| `/4d-blog-engine:publish` | Ship a signed piece to the live site via the configured GitHub repo | `publish` |
+| `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo | `publish` |
 | `/4d-blog-engine:status` | Print current piece state | inline (this skill) |
 
 ## STEP 0 — Always load these references first

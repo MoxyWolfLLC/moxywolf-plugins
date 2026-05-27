@@ -1,7 +1,7 @@
 ---
 name: blog-init
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," or "initialize a new blog project." The plugin's user is a WRITER. The setup form asks only what a writer can answer in plain English. Output is a single blog-project-instructions.md file in the writer's blog project directory. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:publish).
+  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," or "initialize a new blog project." The plugin's user is a WRITER. The setup form asks only what a writer can answer in plain English. Output is a single blog-project-instructions.md file in the writer's blog project directory. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:blog-publish).
 allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, mcp__cowork__request_cowork_directory]
 ---
 
@@ -123,7 +123,7 @@ The Release Owner Gate uses this block to compose the hero-image prompt for each
 
 ## How to change anything
 
-Edit values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`. No need to re-run `/blog-init` unless the directory paths themselves change.
+Edit values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/blog-publish`. No need to re-run `/blog-init` unless the directory paths themselves change.
 ```
 
 ## STEP 8 — Create Posts/, drafts/, and drafts/blog-media/ subdirectories
@@ -139,8 +139,8 @@ Silent. No announcement.
 The folders have distinct roles in the writer's mental model:
 
 - **`Posts/<slug>/`** — the pipeline's forensic working directory for each piece. Holds the four-phase artifacts (`01-delegation.md`, `02-description.md`, `03-discernment/*`, `04-diligence/*`), the state file, the changelog. Heavy and detailed.
-- **`drafts/<slug>.md`** — clean single-file drafts. Phase 4 sign-off copies the signed `04-diligence/blog.md` here automatically. The writer can read and tweak the draft directly without digging into the pipeline folders. `/publish` reads from `drafts/` (not from `Posts/`).
-- **`drafts/blog-media/`** — non-hero attachments referenced from a post's `media:` YAML frontmatter (spreadsheets, PDFs, audio, etc.). Drop files here; reference them in your post as `media: [{ file: /blog-media/<filename>, caption: "..." }]`. On `/publish`, the file is copied to the publishing repo's `public/blog-media/<filename>` so the post's link resolves at the live URL `/blog-media/<filename>`.
+- **`drafts/<slug>.md`** — clean single-file drafts. Phase 4 sign-off copies the signed `04-diligence/blog.md` here automatically. The writer can read and tweak the draft directly without digging into the pipeline folders. `/blog-publish` reads from `drafts/` (not from `Posts/`).
+- **`drafts/blog-media/`** — non-hero attachments referenced from a post's `media:` YAML frontmatter (spreadsheets, PDFs, audio, etc.). Drop files here; reference them in your post as `media: [{ file: /blog-media/<filename>, caption: "..." }]`. On `/blog-publish`, the file is copied to the publishing repo's `public/blog-media/<filename>` so the post's link resolves at the live URL `/blog-media/<filename>`.
 
 ## STEP 9 — Report back and route to next step
 

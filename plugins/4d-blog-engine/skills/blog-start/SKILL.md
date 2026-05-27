@@ -1,7 +1,7 @@
 ---
 name: blog-start
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-start or asks any variant of "open my blog project," "resume my blog work," "start a blog session," "what's in progress on the blog," or "load the blog plugin." It locates the user's blog-project-instructions.md marker file, mounts the two declared directories (blog project + GitHub repo), surfaces in-progress and unpublished pieces, and proposes the next step. Do NOT use this skill for: first-time setup (use /4d-blog-engine:blog-init), running the pipeline (use /4d-blog-engine:blog), or publishing (use /4d-blog-engine:publish).
+  This skill should be used when the user runs /4d-blog-engine:blog-start or asks any variant of "open my blog project," "resume my blog work," "start a blog session," "what's in progress on the blog," or "load the blog plugin." It locates the user's blog-project-instructions.md marker file, mounts the two declared directories (blog project + GitHub repo), surfaces in-progress and unpublished pieces, and proposes the next step. Do NOT use this skill for: first-time setup (use /4d-blog-engine:blog-init), running the pipeline (use /4d-blog-engine:blog), or publishing (use /4d-blog-engine:blog-publish).
 allowed-tools: [Read, Glob, Grep, Bash, AskUserQuestion]
 ---
 
@@ -56,7 +56,7 @@ If the file's schema version (`schema:` field in frontmatter) is unknown to this
 
 ## STEP 3 — Mount both directories in Cowork
 
-The whole point of mounting both directories at session start is that **`/publish` shouldn't have to do this mid-flow**. The writer should never see "Cowork is requesting access to X" right in the middle of a publish confirmation. So this step is load-bearing.
+The whole point of mounting both directories at session start is that **`/blog-publish` shouldn't have to do this mid-flow**. The writer should never see "Cowork is requesting access to X" right in the middle of a publish confirmation. So this step is load-bearing.
 
 Use the Cowork directory-mount tool (`mcp__cowork__request_cowork_directory`) once for each path, even if you think they're already mounted:
 
@@ -72,7 +72,7 @@ ls "$BLOG_PROJECT_DIR" >/dev/null 2>&1 && echo "blog_ok"
 ls "$PUBLISHING_REPO_DIR/.git" >/dev/null 2>&1 && echo "repo_ok"
 ```
 
-Capture both states. Use them in STEP 5's briefing display. If `PUBLISHING_REPO_DIR` isn't reachable, note "Publishing repo not mounted — `/publish` will mount it on demand, but resolve now to avoid mid-flow friction" in the briefing.
+Capture both states. Use them in STEP 5's briefing display. If `PUBLISHING_REPO_DIR` isn't reachable, note "Publishing repo not mounted — `/blog-publish` will mount it on demand, but resolve now to avoid mid-flow friction" in the briefing.
 
 If running outside Cowork (e.g., Claude Code CLI), the file tools (Read/Write/Edit/Glob/Grep) already have host-level access — the mount step is a no-op there. Detect this gracefully: if the mount tool isn't available, skip it and continue.
 
@@ -125,7 +125,7 @@ After the copy, hand off to the orchestrator: invoke `/4d-blog-engine:blog <mark
 
 ### When the writer accepts "add media to an existing piece"
 
-Same media copy to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Then tell the writer: *"Media files copied. When you next run `/4d-blog-engine:describe` (or resume Phase 2) on `<slug>`, the pipeline will ask you to caption each new file. Or, if Phase 4 is already signed, edit `drafts/<slug>.md` directly to add a `media:` YAML entry before `/publish`."*
+Same media copy to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Then tell the writer: *"Media files copied. When you next run `/4d-blog-engine:describe` (or resume Phase 2) on `<slug>`, the pipeline will ask you to caption each new file. Or, if Phase 4 is already signed, edit `drafts/<slug>.md` directly to add a `media:` YAML entry before `/blog-publish`."*
 
 ## STEP 4 — Scan for in-progress pieces
 
@@ -195,7 +195,7 @@ Use `AskUserQuestion` with options pulled from the briefing in this priority ord
 2. **If `UPLOAD_INTENT.kind == "markdown-only"`:** offer *"Start a new post from `<draft.md>`."*
 3. **If `UPLOAD_INTENT.kind == "media-only"` and there's an in-progress piece:** offer *"Add the `<N>` uploaded media file(s) to `<most-recent-in-progress-slug>`."*
 4. **If `UPLOAD_INTENT.kind == "media-only"` and no in-progress piece:** offer *"Copy the `<N>` uploaded media files to `drafts/blog-media/` for later use."*
-5. **If signed-but-not-published exists:** *"Publish `<most-recent-signed-slug>` to your live site"* (runs `/4d-blog-engine:publish <slug>`).
+5. **If signed-but-not-published exists:** *"Publish `<most-recent-signed-slug>` to your live site"* (runs `/4d-blog-engine:blog-publish <slug>`).
 6. **If in-progress exists:** *"Resume `<most-recent-in-progress-slug>` at Phase <N>"* (runs the appropriate phase command).
 7. **Always:** *"Start a new piece"* (prompts for a base doc, then runs `/4d-blog-engine:blog`).
 8. **Always:** *"Just looking — exit"*.
@@ -204,7 +204,7 @@ Cap the question at four options. Upload-intent options take precedence over pub
 
 ## STEP 7 — Hand off
 
-When the user picks, route to the appropriate command. For publish, format the invocation: `/4d-blog-engine:publish <slug>`. For resume, route to the matching phase command. For new, prompt for the base doc path and then call `/4d-blog-engine:blog`.
+When the user picks, route to the appropriate command. For publish, format the invocation: `/4d-blog-engine:blog-publish <slug>`. For resume, route to the matching phase command. For new, prompt for the base doc path and then call `/4d-blog-engine:blog`.
 
 If the user picks "just looking — exit," report cleanly and stop.
 
@@ -212,7 +212,7 @@ If the user picks "just looking — exit," report cleanly and stop.
 
 - It does not write any files. Read-only briefing.
 - It does not run the discovery walk that the orchestrator skill (`4d-blog-engine`) uses during pipeline runs. That walk is in the orchestrator's STEP 1. This skill uses a simpler walk because at session-start the user hasn't necessarily told us a piece slug yet.
-- It does not validate the GitHub repo. That's `/publish`'s job at publish time.
+- It does not validate the GitHub repo. That's `/blog-publish`'s job at publish time.
 
 ## Degradation behaviors
 

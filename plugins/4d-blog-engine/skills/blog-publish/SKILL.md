@@ -1,13 +1,13 @@
 ---
-name: publish
+name: blog-publish
 description: |
-  This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+  This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
 ---
 
 # Publish — ship a signed post to the writer's blog
 
-> **Read this when:** the user runs `/4d-blog-engine:publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and create a commit on the default branch — without making the writer type a single git command and without the YAML-breaking quote bug. The writer then clicks "Push origin" in GitHub Desktop to deploy.
+> **Read this when:** the user runs `/4d-blog-engine:blog-publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and create a commit on the default branch — without making the writer type a single git command and without the YAML-breaking quote bug. The writer then clicks "Push origin" in GitHub Desktop to deploy.
 
 ## Design principles (read first)
 
@@ -16,7 +16,7 @@ allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp_
 3. **Auto-generated commit messages.** Summary: `Publish: <title>` (≤72 chars). Description: a short structured body naming the files written, the status, and the slug. The writer never types either.
 3. **The typographer's-quote transform is vendored, not improvised.** Use `scripts/smart_quotes.py` — it explicitly preserves YAML frontmatter and JSON-LD `<script>` blocks. Never write ad-hoc Python that touches the file's quote characters.
 4. **The publishing repo must be reachable** — either mounted in the session so we can read `.git/config` to find the remote URL, or the writer supplies the remote URL directly. `blog-start` handles the mount; if missed, this skill mounts on demand.
-5. **Source of truth is `<blog-project-dir>/drafts/<slug>.md`.** Phase 4 sign-off stages the signed post there as a clean writer-facing copy. `/publish` reads from `drafts/`, applies the transform, commits to the GitHub repo's `content/blog/<slug>.md` with `status: published`. There is no `--draft` flag and no `content/draft/` folder in the publishing repo.
+5. **Source of truth is `<blog-project-dir>/drafts/<slug>.md`.** Phase 4 sign-off stages the signed post there as a clean writer-facing copy. `/blog-publish` reads from `drafts/`, applies the transform, commits to the GitHub repo's `content/blog/<slug>.md` with `status: published`. There is no `--draft` flag and no `content/draft/` folder in the publishing repo.
 
 6. **The piece directory at `<blog-project-dir>/Posts/<slug>/` stays untouched.** Forensic archive (delegation, description, discernment, diligence artifacts).
 
@@ -53,9 +53,9 @@ Read it and extract:
 
 The writer's marker file does not pin subfolders (per v0.3.x writer-first design). Detect them from the repo's content layout at publish time.
 
-**Conceptual model:** Phase 4 sign-off stages the signed post at `<blog-project-dir>/drafts/<slug>.md` — that's the writer-facing draft file (clean, single, easy to find). The writer reviews and refines there if needed. `/publish` reads from `drafts/`, applies the transform, and ships to `content/blog/<slug>.md` in the publishing repo, status `published`. There's no `content/draft/` folder in the publishing repo and no `--draft` flag on `/publish` — the local `drafts/` folder IS the draft state.
+**Conceptual model:** Phase 4 sign-off stages the signed post at `<blog-project-dir>/drafts/<slug>.md` — that's the writer-facing draft file (clean, single, easy to find). The writer reviews and refines there if needed. `/blog-publish` reads from `drafts/`, applies the transform, and ships to `content/blog/<slug>.md` in the publishing repo, status `published`. There's no `content/draft/` folder in the publishing repo and no `--draft` flag on `/blog-publish` — the local `drafts/` folder IS the draft state.
 
-**The audit-trail tradeoff (explicit by design):** `drafts/<slug>.md` is editable. If the writer fixes a typo, a broken link, or a small phrasing tweak in `drafts/` after Phase 4 signed, that change ships when `/publish` runs — and it does NOT propagate back to `Posts/<slug>/04-diligence/blog.md`. So the forensic archive shows "what the Release Owner Gate signed" and `drafts/` shows "what got published." For small polish, divergence is fine — the substantive content that passed the gate is still in the audit trail. For substantive edits, the framework's expectation is: go back to the pipeline, re-run Phase 3 or Phase 4, re-sign. Don't smuggle a structural rewrite past the gate through a post-sign-off `drafts/` edit.
+**The audit-trail tradeoff (explicit by design):** `drafts/<slug>.md` is editable. If the writer fixes a typo, a broken link, or a small phrasing tweak in `drafts/` after Phase 4 signed, that change ships when `/blog-publish` runs — and it does NOT propagate back to `Posts/<slug>/04-diligence/blog.md`. So the forensic archive shows "what the Release Owner Gate signed" and `drafts/` shows "what got published." For small polish, divergence is fine — the substantive content that passed the gate is still in the audit trail. For substantive edits, the framework's expectation is: go back to the pipeline, re-run Phase 3 or Phase 4, re-sign. Don't smuggle a structural rewrite past the gate through a post-sign-off `drafts/` edit.
 
 ```bash
 # Posts folder — common static-site-generator conventions, priority order:
@@ -165,7 +165,7 @@ For each entry:
    >
    > *  Missing: `<basename>` (referenced as `<entry.file>`)*
    >
-   > *Drop the file into `<BLOG_PROJECT_DIR>/drafts/blog-media/`, then re-run `/4d-blog-engine:publish <SLUG>`.*
+   > *Drop the file into `<BLOG_PROJECT_DIR>/drafts/blog-media/`, then re-run `/4d-blog-engine:blog-publish <SLUG>`.*
 
 Store the parsed media list as `MEDIA_FILES` — an array of `(source_path, dest_path, in_repo_url)` tuples. Use it in STEPs 7, 9, and 10.
 
@@ -252,7 +252,7 @@ Apply the status normalization in-memory (Python on the temp file):
 - Replace its value with `published`.
 - If no `status:` field exists, insert `status: published` at the end of the frontmatter.
 
-(The local `drafts/` folder is the draft state. `/publish` always ships to `published`.)
+(The local `drafts/` folder is the draft state. `/blog-publish` always ships to `published`.)
 
 **Always bump `dateModified` to today.** This is what makes byte-identical republishes still produce a real diff (and trigger the site rebuild) without the writer needing to think about it.
 
@@ -318,7 +318,7 @@ COMMIT_SUBJECT="Publish: $TITLE"
 # Truncate subject to 72 chars if needed
 [ ${#COMMIT_SUBJECT} -gt 72 ] && COMMIT_SUBJECT="${COMMIT_SUBJECT:0:69}..."
 
-COMMIT_BODY="Published via /4d-blog-engine:publish.
+COMMIT_BODY="Published via /4d-blog-engine:blog-publish.
 
 Post:   $POSTS_SUBFOLDER/$SLUG.md
 Hero:   $IMAGES_SUBFOLDER/$SLUG.png
@@ -360,7 +360,7 @@ LOCKFILE="$PUBLISHING_REPO_DIR/.git/index.lock"
 
 Retry up to **two** times. If still failing after the second retry, surface this — only after recovery attempts have failed:
 
-> *Something inside your blog repo is holding a lock — usually that's GitHub Desktop scanning the folder. Quit GitHub Desktop entirely (`Cmd+Q`), then re-run `/4d-blog-engine:publish <SLUG>`. The plugin will create the commit, then you can reopen GitHub Desktop and click Push.*
+> *Something inside your blog repo is holding a lock — usually that's GitHub Desktop scanning the folder. Quit GitHub Desktop entirely (`Cmd+Q`), then re-run `/4d-blog-engine:blog-publish <SLUG>`. The plugin will create the commit, then you can reopen GitHub Desktop and click Push.*
 
 This message ONLY shows up after silent recovery fails. The vast majority of publishes succeed silently on the first try.
 

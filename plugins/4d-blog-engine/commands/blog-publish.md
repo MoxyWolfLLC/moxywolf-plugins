@@ -4,7 +4,7 @@ argument-hint: [<piece-slug>]
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory, mcp__cowork__allow_cowork_file_delete]
 ---
 
-# /4d-blog-engine:publish — prepare the commit; you click Push
+# /4d-blog-engine:blog-publish — prepare the commit; you click Push
 
 Invoke the `publish` skill. Takes a Phase-4-signed post, applies the typographer's-quote transform, normalizes status to `published`, bumps `dateModified` to today, copies the post + hero into the GitHub repo's `content/blog/` and `public/blog-hero/` folders (or your generator's equivalents), and creates a commit with an **auto-generated Summary and Description**. The writer doesn't write the commit message.
 
@@ -12,7 +12,7 @@ After the commit is prepared, you click GitHub Desktop's **"Push origin"** butto
 
 **The piece directory is the draft.** Every blog starts in draft state — that's the file at `<blog-project-dir>/Posts/<slug>/04-diligence/blog.md`, which Phase 4 sign-off copies to a clean handoff at `<blog-project-dir>/drafts/<slug>.md`. The writer reviews and refines from `drafts/`.
 
-`/publish` is the one and only repo-write operation. No `--draft` flag, no `content/draft/` folder in the repo, no token configuration.
+`/blog-publish` is the one and only repo-write operation. No `--draft` flag, no `content/draft/` folder in the repo, no token configuration.
 
 **Argument:**
 
@@ -52,4 +52,4 @@ The plugin handles copy + commit + create-the-dir-if-missing automatically.
 
 **Lockfile recovery:** if GitHub Desktop's file-watcher races the commit (rare), the plugin silently recovers via `mcp__cowork__allow_cowork_file_delete` + `rm` + retry. Only after two failed silent retries will it ask you to quit GitHub Desktop briefly.
 
-Read `skills/publish/SKILL.md` for the full workflow.
+Read `skills/blog-publish/SKILL.md` for the full workflow.
