@@ -1,13 +1,17 @@
 ---
 name: blog-social
 description: |
-  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (long-form article + short feed teaser), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn pair", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
+  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
 allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion]
 ---
 
 # Blog Social Deriver — multi-platform social derivatives from a signed blog
 
-> **Read this when:** Phase 4 (Diligence) has signed off and the writer wants to derive social-platform posts. Your job is to produce one or more of: `<piece>/04-diligence/social/linkedin-article.md`, `<piece>/04-diligence/social/linkedin-teaser.md`, `<piece>/04-diligence/social/twitter-thread.md`, `<piece>/04-diligence/social/facebook-post.md` — based on which platforms the writer picks.
+> **Read this when:** Phase 4 (Diligence) has signed off and the writer wants to derive social-platform posts. Your job is to produce one or more of: `<piece>/04-diligence/social/linkedin-post.md` (+ its companion `linkedin-first-comment.md`), `<piece>/04-diligence/social/linkedin-article.md` (optional long-form), `<piece>/04-diligence/social/twitter-thread.md`, `<piece>/04-diligence/social/facebook-post.md` — based on which platforms the writer picks.
+
+## Why LinkedIn produces two files
+
+LinkedIn's algorithm deprioritizes posts that contain outbound links (the platform wants readers staying in the feed). The workaround everyone in the field uses is to paste substantive content directly into the **Post** body — no links — and put the link plus source citations in the **first comment** under the post. That's why this skill produces a Post / first-comment **pair** as the LinkedIn default, not a single artifact. The optional long-form Article (the "Write article" path) is a separate publishing surface — different button on LinkedIn, different URL, far less reach per piece, but indexed by Google and permanent on the writer's profile. Most writers only need the Post + first-comment.
 
 ## STEP 0 — Confirm the gate signed
 
@@ -32,11 +36,14 @@ Read in order:
 
 Use `AskUserQuestion` (multiSelect: true) with options:
 
-- **LinkedIn pair** — long-form Article (800-1200 words) + short feed Teaser (~1,300 chars). Both go out under the writer's LinkedIn handle. (Recommended)
+- **LinkedIn Post + first comment** — feed Post (1,300-2,500 chars sweet spot; 2,900 hard cap) plus its companion first-comment file carrying the blog URL and the 2-3 sources the Post quotes inline. This is the primary LinkedIn surface. (Recommended)
+- **LinkedIn Article (long-form)** — separate from the Post. Long-form article (800-1200 words) published via LinkedIn's "Write article" path. Gets a stable URL, indexed by Google, lives on the writer's profile. Lower initial reach than a Post, longer shelf life. Pick this in addition to the Post if the piece warrants both surfaces.
 - **Twitter (X) thread** — 5-10 connected posts, each ≤280 chars. Post 1 is the hook; Post N closes with the blog URL + ≤2 hashtags.
 - **Facebook post** — single post, 300-500 chars sweet spot, blog URL allowed inline (Facebook renders a preview card).
 
-The writer can pick one, two, or all three. If they pick nothing, halt with: *"No platforms selected; nothing to derive."*
+The writer can pick any combination. If they pick nothing, halt with: *"No platforms selected; nothing to derive."*
+
+**Note on the LinkedIn pair:** if the writer selects "LinkedIn Post + first comment", you produce TWO files (`linkedin-post.md` AND `linkedin-first-comment.md`) — never one without the other. The first comment is what makes the no-body-link post-format strategy work; producing the Post without the first comment leaves the writer without the source-and-link payload to paste into the comment box after publishing.
 
 Create the output directory if it doesn't exist:
 
@@ -48,8 +55,9 @@ mkdir -p <piece>/04-diligence/social/scorecards
 
 For each platform the writer selected, generate **3 candidate hooks** using formulas from `references/hook-library.md`. The per-platform formula-fit table in that file indicates which formulas land best where:
 
-- **LinkedIn teaser** — Stat-Led, Story (single-line), Contrarian work best. Use a different formula than the article.
-- **LinkedIn article** — Story, Pattern Interrupt, Bold Claim work for long-form openers.
+- **LinkedIn Post** — Stat-Led, Story (single-line), Contrarian work best. If Article is also selected for this piece, use a different formula on the Post than the Article so the two surfaces don't read as duplicates.
+- **LinkedIn first comment** — no hook is generated. The first comment is a utilitarian payload (intro line + URL + cited sources), not a content artifact. Skip hook selection for this file.
+- **LinkedIn Article** — Story, Pattern Interrupt, Bold Claim work for long-form openers.
 - **Twitter Post 1** — Stat-Led, Pattern Interrupt, Question lead the thread. Must fit ≤260 chars (leave room for "🧵" or "1/").
 - **Facebook** — Story (one-line), Question, Stat-Led. FB's audience tolerates conversational warmth better than LinkedIn.
 
@@ -67,25 +75,97 @@ Present hooks to the writer via `AskUserQuestion` — one question per platform,
 
 The voice profile is the anchor — every platform sounds like the same writer. But each platform has a register the voice should bend toward:
 
-- **LinkedIn article (long-form)** — closest to blog voice. Slightly more first-person, opinion-led. Surface the earned secret in the first third.
-- **LinkedIn teaser (feed)** — same voice, compressed. One earned-secret-anchored line in the middle. Conversational but professional.
+- **LinkedIn Article (long-form)** — closest to blog voice. Slightly more first-person, opinion-led. Surface the earned secret in the first third.
+- **LinkedIn Post (feed)** — same voice, compressed. One earned-secret-anchored line in the middle. Conversational but professional. No outbound links in the body — the first comment carries them.
+- **LinkedIn first comment** — register shifts OFF here. The first comment is utilitarian, not voicey: a friendly one-liner inviting research, the blog URL, and the source citations the Post quoted inline. Write it as a reader-respecting service note, not as another voice performance.
 - **Twitter thread** — most compressed register. Drop articles ("the," "a") where natural. Each post is a stand-alone thought. No setup paragraphs — the thread structure IS the setup. Slightly more declarative, less hedging.
 - **Facebook post** — warmer, more conversational than LinkedIn. Personal-essay register. OK to open with "Last week," or "I keep thinking about…" — language that would feel too soft on LinkedIn lands fine on FB.
 
-The voice profile's rules (no em-dashes, contractions, two-reader frame, etc.) still apply on every platform. The register shift is *tone within voice*, not a different voice.
+The voice profile's rules (no em-dashes, contractions, two-reader frame, etc.) still apply on every platform except the first comment. The register shift is *tone within voice*, not a different voice.
 
-## STEP 5a — Write the LinkedIn pair (if selected)
+## STEP 5a — Write the LinkedIn Post + first-comment pair (if selected)
 
-### Article (long-form)
+This is the default LinkedIn output. Both files are produced together — never one without the other.
+
+### Post (feed)
+
+Targets:
+
+- **Char count:** 1,300-2,500 (sweet spot). **2,900 hard cap** — LinkedIn rejects posts over 3,000 chars, and the script enforces the safety margin. If your draft exceeds 2,900, compress before saving.
+- **Word count:** ~200-500.
+- **Hook:** the user-picked Post hook from STEP 3, landing complete before char 210 (the mobile-fold "See more" cutoff).
+- **Body structure:** 3 acts — `Hook → Stakes/Setup → Soft CTA`. One earned-secret line woven into the middle (one sentence, concrete, never a story arc — that's the Article's job if it was selected).
+- **Closing line:** a specific question naming a concrete decision the reader is actually facing. Not "What do you think?" or "Agree?"
+- **Hashtags:** 0-3, at the very end after a line break.
+- **Formatting:** LinkedIn-native — single-line paragraphs, generous whitespace. NO markdown tables. NO markdown bold-italic stacks.
+- **External links:** ZERO in the body. The blog URL and source citations go in the companion `linkedin-first-comment.md` file. This is what makes the Post format strategy work — link-in-body posts get throttled by ~25-60% on reach.
+
+Save to `<piece>/04-diligence/social/linkedin-post.md` with frontmatter:
+
+```yaml
+---
+type: linkedin-post
+source_blog: <piece>/04-diligence/blog.md
+companion_file: linkedin-first-comment.md
+hook_formula: <name>
+audience: <persona from 01-delegation.md>
+target_chars: 1800
+posting_notes:
+  link_placement: first-comment-file
+  hashtag_count_max: 3
+  best_window: "Tue/Wed/Thu 7:30-8:30 AM PT"
+---
+```
+
+### First comment (companion to the Post)
+
+Targets:
+
+- **Char count:** 80-1,200 (LinkedIn's comment limit is ~1,250; stay under it with margin).
+- **Voice:** OFF. This is a utilitarian service note, not voice prose.
+- **Structure (fixed template — don't improvise):**
+
+  ```
+  If you want to do your own research, here are the cited sources in my article:
+  <blog-url>
+
+  1. <source-1-title> — <source-1-url>
+  2. <source-2-title> — <source-2-url>
+  3. <source-3-title> — <source-3-url>
+  ```
+
+- **Which sources to include:** only the 2-3 citations the Post text **quotes inline** (e.g. the Anthropic stat, the 269-row catalog count). Do **not** include the full bibliography from the blog — those live on the blog post itself, not in the comment. If the Post quotes zero external sources, the comment still gets the intro line + blog URL (the sources block is just omitted).
+- **No hashtags.** No emoji as bullets. Sequential numbering 1, 2, 3.
+- **URL handling:** bare URLs only. LinkedIn auto-links them on render. Don't use markdown link syntax `[title](url)` — the comment box renders as plain text.
+
+Save to `<piece>/04-diligence/social/linkedin-first-comment.md` with frontmatter:
+
+```yaml
+---
+type: linkedin-first-comment
+source_blog: <piece>/04-diligence/blog.md
+companion_to: linkedin-post.md
+target_chars: 600
+posting_notes:
+  paste_as: "the writer's own first comment under the published Post"
+  inline_sources_only: true
+---
+```
+
+The opening line is fixed for now — *"If you want to do your own research, here are the cited sources in my article:"* — keep the phrasing verbatim unless the writer overrides it via a follow-up edit. The verbatim phrasing is what we've calibrated against; rewording it ad-hoc each time defeats the calibration.
+
+## STEP 5d — Write the LinkedIn Article (optional, only if selected)
+
+Only generate this file if the writer explicitly selected **"LinkedIn Article (long-form)"** in STEP 2. If the writer only selected the Post + first-comment pair, skip this section entirely.
 
 Targets:
 
 - **Word count:** 800-1200.
+- **Char count band:** 4,000-9,000 (validated by `social_score.py --type article`).
 - **Tone:** more personal and opinion-led than the blog; earned secret surfaces in the first third.
-- **First 2-3 lines:** the "See more" hook (the formula the writer picked for the article). Never "I'm excited to share."
+- **First 2-3 lines:** the "See more" hook (the formula the writer picked for the Article). Never "I'm excited to share."
 - **Formatting:** LinkedIn-native — bold for emphasis (sparingly), single-line paragraphs, generous whitespace. NO markdown tables (LinkedIn renders as raw text). NO markdown bold-italic stacks.
-- **Citations:** 2-3 sourced statistics carrying the FLOW evidence triple (year + publisher + URL).
-- **External links:** zero in the body. The blog URL goes in the **first comment** (a posting-metadata note records this).
+- **Citations:** 2-3 sourced statistics carrying the FLOW evidence triple (year + publisher + URL). Inline citations are fine in the Article (different surface from the Post — Articles aren't penalized the same way).
 - **Ending:** an engagement question — specific, not "What do you think?" or "Agree?"
 
 Save to `<piece>/04-diligence/social/linkedin-article.md` with frontmatter:
@@ -98,25 +178,11 @@ hook_formula: <name>
 audience: <persona from 01-delegation.md>
 target_words: 1000
 posting_notes:
-  link_placement: first-comment
+  link_placement: inline-ok
   hashtag_count_max: 5
   best_window: "Tue/Wed/Thu 7:30-8:30 AM PT"
 ---
 ```
-
-### Teaser (short feed post)
-
-Targets:
-
-- **Char count:** 800-1500 (sweet spot ~1,300).
-- **Word count:** ~150-280.
-- **Hook:** the user-picked teaser hook from STEP 3, landing complete before char 210.
-- **Body structure:** 3 acts — `Hook → Stakes/Setup → Soft CTA`. One earned-secret line woven into the middle (one sentence, concrete, never a story arc — that's the article's job).
-- **Closing line:** a specific question naming a concrete decision the reader is actually facing.
-- **Hashtags:** 0-3, at the very end after a line break.
-- **No external links in body.** Blog URL goes in the first comment.
-
-Save to `<piece>/04-diligence/social/linkedin-teaser.md` with the same frontmatter shape, `type: linkedin-teaser`.
 
 ## STEP 5b — Write the Twitter thread (if selected)
 
@@ -197,14 +263,19 @@ posting_notes:
 Run the format checker against every file produced. The script lives at `${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py`. One call per file:
 
 ```bash
-# LinkedIn pair
+# LinkedIn Post + first comment (the default LinkedIn pair)
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
+  --file <piece>/04-diligence/social/linkedin-post.md --type post \
+  --out <piece>/04-diligence/social/scorecards/linkedin-post.score.md
+
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
+  --file <piece>/04-diligence/social/linkedin-first-comment.md --type first-comment \
+  --out <piece>/04-diligence/social/scorecards/linkedin-first-comment.score.md
+
+# LinkedIn Article (only if selected)
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
   --file <piece>/04-diligence/social/linkedin-article.md --type article \
   --out <piece>/04-diligence/social/scorecards/linkedin-article.score.md
-
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
-  --file <piece>/04-diligence/social/linkedin-teaser.md --type teaser \
-  --out <piece>/04-diligence/social/scorecards/linkedin-teaser.score.md
 
 # Twitter thread
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
@@ -217,13 +288,17 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
   --out <piece>/04-diligence/social/scorecards/facebook-post.score.md
 ```
 
-Each call emits a scorecard scaffold (with 3-axis judgment scores empty) and a JSON sidecar with deterministic findings. Exit code 1 means format checks failed — fix the issues (length, hook position, per-post char limit, hashtag placement, external-link-in-body for LinkedIn) and re-run. **Don't proceed to STEP 7 until every file returns exit code 0.**
+Each call emits a scorecard scaffold (with 3-axis judgment scores empty) and a JSON sidecar with deterministic findings. Exit code 1 means format checks failed — fix the issues (length, hook position, per-post char limit, hashtag placement, external-link-in-body for LinkedIn Post) and re-run. **Don't proceed to STEP 7 until every file returns exit code 0.**
 
-For Twitter specifically: if any single post is over 280 chars, the script flags it. Rewrite that post — there is no auto-truncate fallback.
+For the LinkedIn Post specifically: if char count exceeds 2,900, the script flags it. Compress — there is no auto-truncate fallback. The 2,900 cap exists because LinkedIn rejects posts over 3,000 chars, and we keep a 100-char safety margin for typographic-quote substitution and any trailing-whitespace surprises.
 
-## STEP 7 — Fill in the 3-axis scorecard for each platform
+For the first-comment file specifically: the script requires at least one URL in the body (opposite of the Post rule). A first-comment with no URLs has nothing useful for the reader; it fails the check.
 
-The format checker produces a scaffold per platform; you (the LLM) fill in three /10 scores by judgment for each scorecard file. For each axis:
+For Twitter: if any single post is over 280 chars, the script flags it. Rewrite that post — there is no auto-truncate fallback.
+
+## STEP 7 — Fill in the 3-axis scorecard for each content artifact
+
+The format checker produces a scaffold per artifact; you (the LLM) fill in three /10 scores by judgment for each scorecard file. For each axis:
 
 - **Thought leadership /10** — Is the insight non-obvious enough that a senior practitioner would forward this to a peer? 10 = "I hadn't thought of it that way" reaction guaranteed. 5 = competent restatement of conventional wisdom. 0 = generic.
 - **Pain (lands on the reader, not a third party) /10** — Does the pain land on the reader's own job/identity/recent week, or on a third party they observe? 10 = the reader thinks "this is about me." 5 = "this is about someone I know." 0 = abstract pain on no one in particular.
@@ -231,7 +306,9 @@ The format checker produces a scaffold per platform; you (the LLM) fill in three
 
 Each score needs a **one-sentence justification** — specific, not generic.
 
-Recommendation per platform: ship if all three axes ≥ 7. Revise if any axis is 4-6. Discard if any axis is ≤ 3.
+Recommendation per artifact: ship if all three axes ≥ 7. Revise if any axis is 4-6. Discard if any axis is ≤ 3.
+
+**Exception — `linkedin-first-comment.md` skips the 3-axis scorecard.** The first comment is a utilitarian service note, not a content artifact. The format checker still runs on it (URL-present check, length band, hashtag/emoji-bullet sanity), but the scorecard scaffold for the first-comment file is just a one-line "deterministic check only — no LLM-judgment axes apply" note. Don't try to score it on thought leadership / pain / audience fit.
 
 ## STEP 8 — Update state and report
 
@@ -248,17 +325,24 @@ Report to the writer:
 ```
 Social derivatives produced.
 
-LinkedIn Article: <piece>/04-diligence/social/linkedin-article.md (<words> words)
-LinkedIn Teaser:  <piece>/04-diligence/social/linkedin-teaser.md (<chars> chars)
-Twitter Thread:   <piece>/04-diligence/social/twitter-thread.md (<N> posts)
-Facebook Post:    <piece>/04-diligence/social/facebook-post.md (<chars> chars)
+LinkedIn Post:          <piece>/04-diligence/social/linkedin-post.md (<chars> chars)
+LinkedIn first comment: <piece>/04-diligence/social/linkedin-first-comment.md (<chars> chars)
+LinkedIn Article:       <piece>/04-diligence/social/linkedin-article.md (<words> words)   [only if Article selected]
+Twitter Thread:         <piece>/04-diligence/social/twitter-thread.md (<N> posts)
+Facebook Post:          <piece>/04-diligence/social/facebook-post.md (<chars> chars)
 
 Scorecards: <piece>/04-diligence/social/scorecards/
-  Per platform: thought leadership /10, pain /10, audience fit /10
-  Recommendation per platform: ship | revise | discard
+  Per content artifact: thought leadership /10, pain /10, audience fit /10
+  Recommendation per artifact: ship | revise | discard
+  (Note: linkedin-first-comment.md is a utilitarian payload — format-check only, no 3-axis scoring.)
 
 Posting reminders:
-  - LinkedIn: blog URL in FIRST COMMENT, not body. Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
+  - LinkedIn Post: paste the POST body first. NO link in the body. As soon as the
+    post publishes, paste the contents of linkedin-first-comment.md as the FIRST
+    COMMENT under the post (under your own handle). The first comment is what
+    carries the blog URL and source citations. Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
+  - LinkedIn Article (if produced): published via "Write article" — separate
+    LinkedIn surface, gets its own URL. Inline links allowed in the body.
   - Twitter: blog URL in FINAL POST. Best window: Tue/Wed/Thu 9:00-11:00 AM PT.
   - Facebook: blog URL in BODY (renders preview card). Best window: weekdays 1:00-3:00 PM PT.
 
