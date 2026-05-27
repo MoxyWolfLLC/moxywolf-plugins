@@ -1,7 +1,7 @@
 ---
 name: blog-voice
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-voice or asks any variant of "build my voice profile," "do the voice interview," "capture how I write," "create a voice file," "how do I sound when I write," or "set up the voice anchor for the blog plugin." The skill runs an 8-question structured interview, analyzes the answers, and writes a voice profile to <blog-project-dir>/<author-slug>-voice.md. This file is the voice anchor the 4D pipeline loads in STEP 0 of every post. Self-contained inside the 4d-blog-engine plugin — no dependency on editorial-forge or any other plugin. Derived from the voice-architect interview structure in editorial-forge. Do NOT use this skill for: writing prose (use /4d-blog-engine:blog), running the full pipeline, or applying a pre-existing voice (the pipeline loads the file you produce here automatically).
+  This skill should be used when the user runs /4d-blog-engine:blog-voice or asks any variant of "build my voice profile," "do the voice interview," "capture how I write," "create a voice file," "how do I sound when I write," or "set up the voice anchor for the blog plugin." The skill runs an 8-question structured interview, analyzes the answers, and writes a voice profile to <blog-project-dir>/<author-slug>-voice.md. This file is the voice anchor the 4D pipeline loads in STEP 0 of every post. Self-contained inside the 4d-blog-engine plugin — no dependency on editorial-forge or any other plugin. Derived from the voice-architect interview structure in editorial-forge. Do NOT use this skill for: writing prose (use /4d-blog-engine:blog-pipeline), running the full pipeline, or applying a pre-existing voice (the pipeline loads the file you produce here automatically).
 allowed-tools: [Read, Write, Edit, AskUserQuestion, Glob, Bash]
 ---
 
@@ -244,7 +244,7 @@ Calibrated checklist for prose generated in this writer's voice. Phase 4's slop 
 
 ## Notes for the pipeline
 
-- Phase 2 of `/4d-blog-engine:blog` loads this file at STEP 0 and reports back what it found.
+- Phase 2 of `/4d-blog-engine:blog-pipeline` loads this file at STEP 0 and reports back what it found.
 - Phase 4's reviewer scores generated prose against the Forbidden Patterns and the Anti-Detection Markers above.
 - If the writer's voice shifts over time, re-run `/4d-blog-engine:blog-voice` to refresh this profile.
 ```
@@ -275,7 +275,7 @@ asked which voice to use for that post.
 To add another author's voice (guest contributors, co-writers), re-run
 /4d-blog-engine:blog-voice and pick "Someone else" at STEP 0.
 
-Next: run /4d-blog-engine:blog <path-to-base-document> to write a post.
+Next: run /4d-blog-engine:blog-pipeline <path-to-base-document> to write a post.
 ```
 
 ## What this skill does NOT do

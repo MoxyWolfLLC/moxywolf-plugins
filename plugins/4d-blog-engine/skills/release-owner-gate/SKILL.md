@@ -1,7 +1,7 @@
 ---
 name: release-owner-gate
 description: |
-  This skill should be used when Phase 4 (Diligence) of the 4D Blog Engine runs. It orchestrates the nonce-bound 5-stage Release Owner Gate from MoxyWolf's "Beyond the Prompt" whitepaper — Layer-1 deterministic preflight script + Layer-2 BLOCKING reviewer subagent with restricted tools + a CSPRNG nonce echo requirement + a 100-point rubric + an iteration cap + the human Release Owner sign-off. Triggers: "/4d-blog-engine:diligence", "run the release-owner gate", "score this draft", "is this ready to ship", "preflight my blog post". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
+  This skill should be used when Phase 4 (Diligence) of the 4D Blog Engine runs. It orchestrates the nonce-bound 5-stage Release Owner Gate from MoxyWolf's "Beyond the Prompt" whitepaper — Layer-1 deterministic preflight script + Layer-2 BLOCKING reviewer subagent with restricted tools + a CSPRNG nonce echo requirement + a 100-point rubric + an iteration cap + the human Release Owner sign-off. Triggers: "/4d-blog-engine:blog-diligence", "run the release-owner gate", "score this draft", "is this ready to ship", "preflight my blog post". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
 allowed-tools: [Read, Write, Edit, Bash, Glob]
 user-invocable: false
 ---

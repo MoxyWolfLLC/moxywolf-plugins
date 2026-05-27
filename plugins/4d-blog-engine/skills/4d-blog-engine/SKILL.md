@@ -1,7 +1,7 @@
 ---
 name: 4d-blog-engine
 description: |
-  This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post + LinkedIn pair under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (delegate, describe, discern, diligence) and the two derivative commands (linkedin, status). It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing a blog + LinkedIn pair. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
+  This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post + LinkedIn pair under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (blog-delegate, blog-describe, blog-discern, blog-diligence) and the two derivative commands (blog-linkedin, blog-status). It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing a blog + LinkedIn pair. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
@@ -13,21 +13,21 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 This skill turns a base document plus a chosen angle/question into a publication-ready blog post, a long-form LinkedIn article, and a short hook-led LinkedIn teaser — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of eleven commands: four map directly to the four D's, four lifecycle commands (init/start/voice/blog-publish), and three convenience commands:
+It is composed of eleven commands, all prefixed `blog-` for consistency: four map directly to the four D's (delegate / describe / discern / diligence), four lifecycle commands (init / voice / start / publish), the end-to-end pipeline shortcut, the LinkedIn derivative, and the status report.
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
 | `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + author + hero vibe | `blog-init` |
 | `/4d-blog-engine:blog-voice` | One-time voice capture — 8-question interview, writes `<author-slug>-voice.md` | `blog-voice` |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mount the two directories, surface in-progress/unpublished pieces | `blog-start` |
-| `/4d-blog-engine:delegate` | Delegation — triage, angle pick, earned-secret stall | inline (this skill) |
-| `/4d-blog-engine:describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
-| `/4d-blog-engine:discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
-| `/4d-blog-engine:diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
-| `/4d-blog-engine:linkedin` | Derivative output | `linkedin-deriver` |
-| `/4d-blog-engine:blog` | End-to-end pipeline (all four phases sequentially) | all of the above |
-| `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo | `publish` |
-| `/4d-blog-engine:status` | Print current piece state | inline (this skill) |
+| `/4d-blog-engine:blog-delegate` | Delegation — triage, angle pick, earned-secret stall | inline (this skill) |
+| `/4d-blog-engine:blog-describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
+| `/4d-blog-engine:blog-discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
+| `/4d-blog-engine:blog-diligence` | Diligence — Release Owner Gate | `release-owner-gate` |
+| `/4d-blog-engine:blog-linkedin` | Derivative output | `linkedin-deriver` |
+| `/4d-blog-engine:blog-pipeline` | End-to-end pipeline (all four phases sequentially) | all of the above |
+| `/4d-blog-engine:blog-publish` | Ship a signed piece to the live site via the configured GitHub repo | `blog-publish` |
+| `/4d-blog-engine:blog-status` | Print current piece state | inline (this skill) |
 
 ## STEP 0 — Always load these references first
 
@@ -142,7 +142,7 @@ After STEP 0 and STEP 1, route to the requested phase. Each phase has its own sk
 
 ### Phase 1 — Delegation (inline)
 
-Triggered by `/4d-blog-engine:delegate <base-doc>` or as the first step of `/4d-blog-engine:blog`.
+Triggered by `/4d-blog-engine:blog-delegate <base-doc>` or as the first step of `/4d-blog-engine:blog-pipeline`.
 
 **Workflow:**
 
@@ -175,7 +175,7 @@ Triggered by `/4d-blog-engine:delegate <base-doc>` or as the first step of `/4d-
 
    > *I can't find a concrete lived-experience anchor for this piece. The framework's design says the post will read as generic restatement without one. Two paths from here: (a) write a different post — one you have a specific story for, (b) go run the experiment or have the conversation that gives you the story, then come back. Both are legitimate. The plugin won't generate a post without an earned secret.*
 
-   The 3-round hard cap is intentional. The writer can re-invoke `/4d-blog-engine:delegate` later when they have a real answer.
+   The 3-round hard cap is intentional. The writer can re-invoke `/4d-blog-engine:blog-delegate` later when they have a real answer.
 
    **On accept:** record the earned secret in `01-delegation.md` frontmatter as `earned_secret: <one line summary>` and proceed. Save the full answer in the body of `01-delegation.md` for downstream phases to anchor against.
 6. **Modality decision.** Ask which modality (automation / augmentation / agency, default automation) — see `references/4d-discipline.md`. Most pieces are automation: the plugin drafts, the human signs.
@@ -183,7 +183,7 @@ Triggered by `/4d-blog-engine:delegate <base-doc>` or as the first step of `/4d-
 
 ### Phase 2 — Description
 
-Triggered by `/4d-blog-engine:describe` or as Phase 2 of `:blog`. Refuses to run if `01-delegation.md`'s `_status` isn't `passed` or its timestamp is >24h old.
+Triggered by `/4d-blog-engine:blog-describe` or as Phase 2 of `:blog`. Refuses to run if `01-delegation.md`'s `_status` isn't `passed` or its timestamp is >24h old.
 
 **Workflow:**
 
@@ -231,7 +231,7 @@ Triggered by `/4d-blog-engine:describe` or as Phase 2 of `:blog`. Refuses to run
 
 ### Phase 3 — Discernment
 
-Triggered by `/4d-blog-engine:discern` or as Phase 3 of `:blog`. Refuses to run on stale Phase 2.
+Triggered by `/4d-blog-engine:blog-discern` or as Phase 3 of `:blog`. Refuses to run on stale Phase 2.
 
 **Workflow:** Hand off to the `discourse-sweep` skill (in this plugin) for steps 1-2, then call `research-pipeline/content-writer` for the draft, then `prose_lint.py` and the Tier-2 LLM sub-agent for the slop pass. Detailed orchestration is in `skills/discourse-sweep/SKILL.md` and the discern command file.
 
@@ -239,17 +239,17 @@ The orchestrator's responsibility in Phase 3: **chain the sub-skills in order**,
 
 ### Phase 4 — Diligence
 
-Triggered by `/4d-blog-engine:diligence` or as Phase 4 of `:blog`. Refuses to run on stale Phase 3.
+Triggered by `/4d-blog-engine:blog-diligence` or as Phase 4 of `:blog`. Refuses to run on stale Phase 3.
 
 Hand off entirely to the `release-owner-gate` skill (in this plugin). Detailed orchestration is in `skills/release-owner-gate/SKILL.md`. Phase 4 is non-trivial — read that skill's instructions in full before invoking it.
 
 ### Derivative — LinkedIn pair
 
-Triggered by `/4d-blog-engine:linkedin` (on an existing Diligence-passed blog) or as the final step of `:blog`. Hand off entirely to the `linkedin-deriver` skill.
+Triggered by `/4d-blog-engine:blog-linkedin` (on an existing Diligence-passed blog) or as the final step of `:blog`. Hand off entirely to the `linkedin-deriver` skill.
 
 ## Status command
 
-`/4d-blog-engine:status [<piece-slug>]` — if no slug given, pick the most-recently-modified piece directory. Read its `state.md` and print: current phase, gates passed, next command to run, slop grade if Phase 3 ran, preflight verdict if Phase 4 ran. Useful when resuming a multi-day piece.
+`/4d-blog-engine:blog-status [<piece-slug>]` — if no slug given, pick the most-recently-modified piece directory. Read its `state.md` and print: current phase, gates passed, next command to run, slop grade if Phase 3 ran, preflight verdict if Phase 4 ran. Useful when resuming a multi-day piece.
 
 ## state.md template
 

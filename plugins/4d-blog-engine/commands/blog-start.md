@@ -17,7 +17,7 @@ The skill:
 5. Proposes the most likely next step:
    - Resume the most recent in-progress piece (`/4d-blog-engine:<phase>`).
    - Publish a signed-but-not-yet-pushed piece (`/4d-blog-engine:publish <slug>`).
-   - Start a new piece (`/4d-blog-engine:blog <base-doc>`).
+   - Start a new piece (`/4d-blog-engine:blog-pipeline <base-doc>`).
 
 If no `blog-project-instructions.md` is found, the skill stops and tells you to run `/4d-blog-engine:blog-init` first.
 

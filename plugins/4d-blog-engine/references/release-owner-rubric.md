@@ -6,7 +6,7 @@ based_on: "agricidaniel/claude-blog 5-gate Blog Delivery Contract (100-point rub
 
 # Release Owner Rubric — the 100-point Diligence scorecard
 
-> **Read this when:** invoking `/4d-blog-engine:diligence`. The BLOCKING reviewer scores the draft against this rubric, then `scripts/preflight.py` parses the verdict against the gate logic.
+> **Read this when:** invoking `/4d-blog-engine:blog-diligence`. The BLOCKING reviewer scores the draft against this rubric, then `scripts/preflight.py` parses the verdict against the gate logic.
 
 This is the rubric the Release Owner Gate uses. The whitepaper's gate description is precise:
 

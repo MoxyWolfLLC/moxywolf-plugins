@@ -4,7 +4,7 @@ argument-hint: [<piece-slug>]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
-# /4d-blog-engine:diligence — Phase 4 only
+# /4d-blog-engine:blog-diligence — Phase 4 only
 
 Invoke the `4d-blog-engine` orchestrator skill and run **only Phase 4** against an existing Phase-3 artifact.
 

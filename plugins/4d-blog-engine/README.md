@@ -28,13 +28,13 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 
 | Command | What it does |
 |---|---|
-| `/4d-blog-engine:blog <base-doc> [--angle "..."]` | Runs the full 4-phase pipeline end-to-end |
-| `/4d-blog-engine:delegate` | Phase 1 only — triage, angle pick, earned-secret stall |
-| `/4d-blog-engine:describe` | Phase 2 only — voice interview, structure, outline |
-| `/4d-blog-engine:discern` | Phase 3 only — discourse sweep + draft + slop pass |
-| `/4d-blog-engine:diligence` | Phase 4 only — Release Owner Gate against an existing draft |
-| `/4d-blog-engine:linkedin` | Derive the LinkedIn article + teaser from a Diligence-passed blog |
-| `/4d-blog-engine:status` | Print the current piece's phase, gates passed, next step |
+| `/4d-blog-engine:blog-pipeline <base-doc> [--angle "..."]` | Runs the full 4-phase pipeline end-to-end |
+| `/4d-blog-engine:blog-delegate` | Phase 1 only — triage, angle pick, earned-secret stall |
+| `/4d-blog-engine:blog-describe` | Phase 2 only — voice interview, structure, outline |
+| `/4d-blog-engine:blog-discern` | Phase 3 only — discourse sweep + draft + slop pass |
+| `/4d-blog-engine:blog-diligence` | Phase 4 only — Release Owner Gate against an existing draft |
+| `/4d-blog-engine:blog-linkedin` | Derive the LinkedIn article + teaser from a Diligence-passed blog |
+| `/4d-blog-engine:blog-status` | Print the current piece's phase, gates passed, next step |
 
 ## Working directory layout
 

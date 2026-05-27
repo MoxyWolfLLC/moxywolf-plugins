@@ -1,7 +1,7 @@
 ---
 name: blog-start
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-start or asks any variant of "open my blog project," "resume my blog work," "start a blog session," "what's in progress on the blog," or "load the blog plugin." It locates the user's blog-project-instructions.md marker file, mounts the two declared directories (blog project + GitHub repo), surfaces in-progress and unpublished pieces, and proposes the next step. Do NOT use this skill for: first-time setup (use /4d-blog-engine:blog-init), running the pipeline (use /4d-blog-engine:blog), or publishing (use /4d-blog-engine:blog-publish).
+  This skill should be used when the user runs /4d-blog-engine:blog-start or asks any variant of "open my blog project," "resume my blog work," "start a blog session," "what's in progress on the blog," or "load the blog plugin." It locates the user's blog-project-instructions.md marker file, mounts the two declared directories (blog project + GitHub repo), surfaces in-progress and unpublished pieces, and proposes the next step. Do NOT use this skill for: first-time setup (use /4d-blog-engine:blog-init), running the pipeline (use /4d-blog-engine:blog-pipeline), or publishing (use /4d-blog-engine:blog-publish).
 allowed-tools: [Read, Glob, Grep, Bash, AskUserQuestion]
 ---
 
@@ -121,11 +121,11 @@ Store the classification in `UPLOAD_INTENT` for STEP 6 to use:
 
 Copy the media files (only) to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Use `mkdir -p` to ensure the folder exists. Do NOT copy the markdown — the orchestrator reads it once at Phase 1 directly from the uploads path; copying it would litter `drafts/` with unsigned drafts.
 
-After the copy, hand off to the orchestrator: invoke `/4d-blog-engine:blog <markdown-uploads-path>`. The orchestrator's Phase 2 will scan `drafts/blog-media/` and ask the writer for a caption for each newly-arrived file.
+After the copy, hand off to the orchestrator: invoke `/4d-blog-engine:blog-pipeline <markdown-uploads-path>`. The orchestrator's Phase 2 will scan `drafts/blog-media/` and ask the writer for a caption for each newly-arrived file.
 
 ### When the writer accepts "add media to an existing piece"
 
-Same media copy to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Then tell the writer: *"Media files copied. When you next run `/4d-blog-engine:describe` (or resume Phase 2) on `<slug>`, the pipeline will ask you to caption each new file. Or, if Phase 4 is already signed, edit `drafts/<slug>.md` directly to add a `media:` YAML entry before `/blog-publish`."*
+Same media copy to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Then tell the writer: *"Media files copied. When you next run `/4d-blog-engine:blog-describe` (or resume Phase 2) on `<slug>`, the pipeline will ask you to caption each new file. Or, if Phase 4 is already signed, edit `drafts/<slug>.md` directly to add a `media:` YAML entry before `/blog-publish`."*
 
 ## STEP 4 — Scan for in-progress pieces
 
@@ -197,14 +197,14 @@ Use `AskUserQuestion` with options pulled from the briefing in this priority ord
 4. **If `UPLOAD_INTENT.kind == "media-only"` and no in-progress piece:** offer *"Copy the `<N>` uploaded media files to `drafts/blog-media/` for later use."*
 5. **If signed-but-not-published exists:** *"Publish `<most-recent-signed-slug>` to your live site"* (runs `/4d-blog-engine:blog-publish <slug>`).
 6. **If in-progress exists:** *"Resume `<most-recent-in-progress-slug>` at Phase <N>"* (runs the appropriate phase command).
-7. **Always:** *"Start a new piece"* (prompts for a base doc, then runs `/4d-blog-engine:blog`).
+7. **Always:** *"Start a new piece"* (prompts for a base doc, then runs `/4d-blog-engine:blog-pipeline`).
 8. **Always:** *"Just looking — exit"*.
 
 Cap the question at four options. Upload-intent options take precedence over publish/resume because the writer's most-recent action was the upload — surface what they just did first.
 
 ## STEP 7 — Hand off
 
-When the user picks, route to the appropriate command. For publish, format the invocation: `/4d-blog-engine:blog-publish <slug>`. For resume, route to the matching phase command. For new, prompt for the base doc path and then call `/4d-blog-engine:blog`.
+When the user picks, route to the appropriate command. For publish, format the invocation: `/4d-blog-engine:blog-publish <slug>`. For resume, route to the matching phase command. For new, prompt for the base doc path and then call `/4d-blog-engine:blog-pipeline`.
 
 If the user picks "just looking — exit," report cleanly and stop.
 
@@ -216,7 +216,7 @@ If the user picks "just looking — exit," report cleanly and stop.
 
 ## Degradation behaviors
 
-- **`Posts/` directory missing entirely:** report "No `Posts/` directory yet — your first `/4d-blog-engine:blog` run will create it." Then go straight to the "start a new piece" prompt.
+- **`Posts/` directory missing entirely:** report "No `Posts/` directory yet — your first `/4d-blog-engine:blog-pipeline` run will create it." Then go straight to the "start a new piece" prompt.
 - **A piece directory has no `state.md`:** skip it silently. Likely an aborted run; the user can clean up manually.
 - **GitHub repo path is invalid or moved:** report the failure, recommend re-running `/4d-blog-engine:blog-init` to update paths. Don't halt the briefing — in-progress writing work can continue without the repo being reachable.
 - **The mount tool isn't available** (CLI-only environment): silently skip the mount step. The file tools already have host access there.

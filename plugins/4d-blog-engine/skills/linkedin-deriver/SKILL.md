@@ -1,7 +1,7 @@
 ---
 name: linkedin-deriver
 description: |
-  This skill should be used when deriving the LinkedIn article + teaser pair from a Diligence-passed blog post in the 4D Blog Engine. It reads <piece>/04-diligence/blog.md (after the Release Owner has signed), pulls the angle and earned secret from 01-delegation.md, generates a full-mirror LinkedIn article (800-1200 words) plus a short hook-led teaser (~1,300 chars), runs scripts/linkedin_score.py for format compliance checks, and produces the 3-axis scorecard (thought leadership / pain / audience fit). Triggers: "/4d-blog-engine:linkedin", "derive the LinkedIn pair", "write the LinkedIn version", "make the LinkedIn article and teaser". This is a specialist skill — invoked by the 4d-blog-engine orchestrator after the Release Owner Gate passes, not directly by the user in normal usage.
+  This skill should be used when deriving the LinkedIn article + teaser pair from a Diligence-passed blog post in the 4D Blog Engine. It reads <piece>/04-diligence/blog.md (after the Release Owner has signed), pulls the angle and earned secret from 01-delegation.md, generates a full-mirror LinkedIn article (800-1200 words) plus a short hook-led teaser (~1,300 chars), runs scripts/linkedin_score.py for format compliance checks, and produces the 3-axis scorecard (thought leadership / pain / audience fit). Triggers: "/4d-blog-engine:blog-linkedin", "derive the LinkedIn pair", "write the LinkedIn version", "make the LinkedIn article and teaser". This is a specialist skill — invoked by the 4d-blog-engine orchestrator after the Release Owner Gate passes, not directly by the user in normal usage.
 allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion]
 user-invocable: false
 ---
@@ -17,7 +17,7 @@ Before generating anything, verify:
 1. `<piece>/04-diligence/preflight-report.json` exists and `passed: true`.
 2. `<piece>/changelog.md` exists and contains a line matching `^Verified — .+, \d{4}-\d{2}-\d{2}` dated today (or any past date).
 
-If either check fails, **stop and report**: *"The Release Owner Gate has not been signed. Cannot derive LinkedIn output. Run /4d-blog-engine:diligence first."*
+If either check fails, **stop and report**: *"The Release Owner Gate has not been signed. Cannot derive LinkedIn output. Run /4d-blog-engine:blog-diligence first."*
 
 ## STEP 1 — Load the references and context
 

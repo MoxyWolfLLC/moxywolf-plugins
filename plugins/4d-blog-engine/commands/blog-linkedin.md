@@ -4,7 +4,7 @@ argument-hint: [<piece-slug>]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
-# /4d-blog-engine:linkedin — LinkedIn pair from a signed blog
+# /4d-blog-engine:blog-linkedin — LinkedIn pair from a signed blog
 
 Invoke the `4d-blog-engine` orchestrator skill and run the LinkedIn derivative step on an existing Phase-4-signed piece.
 

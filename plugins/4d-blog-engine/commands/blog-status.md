@@ -4,7 +4,7 @@ argument-hint: [<piece-slug>]
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
-# /4d-blog-engine:status — print current piece state
+# /4d-blog-engine:blog-status — print current piece state
 
 Print a concise status report for an in-progress piece.
 
@@ -40,7 +40,7 @@ Phase 4 details (if Phase 4 has run):
   Release Owner:     <signed by initials on date | UNSIGNED>
 
 Suggested next command:
-  /4d-blog-engine:discern  <slug>   (because Phase 3 is in progress)
+  /4d-blog-engine:blog-discern  <slug>   (because Phase 3 is in progress)
 ```
 
 The status command is read-only. It does not modify state, does not advance phases, and does not invoke any sub-skill.

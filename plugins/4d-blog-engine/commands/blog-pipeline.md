@@ -4,7 +4,7 @@ argument-hint: <path-or-url-to-base-doc> [--angle "<one-sentence question>"]
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
-# /4d-blog-engine:blog — end-to-end pipeline
+# /4d-blog-engine:blog-pipeline — end-to-end pipeline
 
 Invoke the `4d-blog-engine` orchestrator skill in full-pipeline mode. The skill will:
 

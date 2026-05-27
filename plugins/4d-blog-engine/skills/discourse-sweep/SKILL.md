@@ -1,7 +1,7 @@
 ---
 name: discourse-sweep
 description: |
-  This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery), then ranks the findings via combined_score = relevance×0.6 + recency×0.4, dedupes by 70% title-overlap, applies cross-source clustering, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
+  This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery), then ranks the findings via combined_score = relevance×0.6 + recency×0.4, dedupes by 70% title-overlap, applies cross-source clustering, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
 allowed-tools: [Read, Write, Bash, WebSearch, Glob]
 user-invocable: false
 ---

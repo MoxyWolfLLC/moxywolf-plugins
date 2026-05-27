@@ -1,7 +1,7 @@
 ---
 name: blog-init
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," or "initialize a new blog project." The plugin's user is a WRITER. The setup form asks only what a writer can answer in plain English. Output is a single blog-project-instructions.md file in the writer's blog project directory. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog), or publishing a finished post (use /4d-blog-engine:blog-publish).
+  This skill should be used when the user runs /4d-blog-engine:blog-init or asks any variant of "set up the blog plugin," "configure 4d-blog-engine for my repo," or "initialize a new blog project." The plugin's user is a WRITER. The setup form asks only what a writer can answer in plain English. Output is a single blog-project-instructions.md file in the writer's blog project directory. Do NOT use this skill for: starting a session on an already-initialized project (use /4d-blog-engine:blog-start), running the actual pipeline (use /4d-blog-engine:blog-pipeline), or publishing a finished post (use /4d-blog-engine:blog-publish).
 allowed-tools: [Read, Write, AskUserQuestion, Bash, Glob, mcp__cowork__request_cowork_directory]
 ---
 
@@ -157,7 +157,7 @@ Blog project ready.
   Voice file:     <AUTHOR_SLUG>-voice.md (found)
   Hero vibe:      <BRAND_VIBE_NAME>
 
-Next: run /4d-blog-engine:blog <path-to-your-base-document> to write your first post.
+Next: run /4d-blog-engine:blog-pipeline <path-to-your-base-document> to write your first post.
 ```
 
 **If no voice file exists yet**, offer to run `/blog-voice` now via `AskUserQuestion`:

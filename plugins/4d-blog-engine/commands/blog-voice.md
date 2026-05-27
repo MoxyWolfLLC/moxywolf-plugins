@@ -14,11 +14,11 @@ The skill writes a voice file to your blog project directory:
 <blog-project-dir>/<your-name-slug>-voice.md
 ```
 
-For example, if your author name is "Jane Doe," the file lands at `<blog-project-dir>/jane-doe-voice.md`. Every subsequent `/4d-blog-engine:blog` run loads this file as STEP 0 of the pipeline (Phase 2's voice anchor and Phase 4's voice-match check).
+For example, if your author name is "Jane Doe," the file lands at `<blog-project-dir>/jane-doe-voice.md`. Every subsequent `/4d-blog-engine:blog-pipeline` run loads this file as STEP 0 of the pipeline (Phase 2's voice anchor and Phase 4's voice-match check).
 
 **One voice file per author.** You can run `/blog-voice` more than once in the same blog project to capture additional voices — guest contributors, co-writers, multiple staff bylines. At STEP 0 the skill asks whose voice this interview is for; pick the project's default author or "Someone else" and type the guest's name.
 
-When the pipeline runs (`/4d-blog-engine:blog` or `/4d-blog-engine:blog-start`) and finds more than one `*-voice.md` file in the blog project directory, it asks which voice to use for that post.
+When the pipeline runs (`/4d-blog-engine:blog-pipeline` or `/4d-blog-engine:blog-start`) and finds more than one `*-voice.md` file in the blog project directory, it asks which voice to use for that post.
 
 If you've already done a voice profile in another project and want to import it, drop the file at `<blog-project-dir>/<your-name-slug>-voice.md` directly — the plugin reads from disk and doesn't care whether the interview ran here or somewhere else.
 

@@ -4,7 +4,7 @@ argument-hint: <path-or-url-to-base-doc> [--angle "<question>"]
 allowed-tools: [Read, Write, Glob, Grep, Bash, AskUserQuestion]
 ---
 
-# /4d-blog-engine:delegate — Phase 1 only
+# /4d-blog-engine:blog-delegate — Phase 1 only
 
 Invoke the `4d-blog-engine` orchestrator skill and run **only Phase 1**.
 

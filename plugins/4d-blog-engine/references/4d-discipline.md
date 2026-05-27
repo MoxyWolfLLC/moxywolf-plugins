@@ -15,7 +15,7 @@ The 4D AI Fluency Framework (Dakan and Feller, 2025) defines AI fluency as the c
 
 This plugin maps each D to a phase, and each phase to a command. The mapping is exact, not metaphorical.
 
-## Delegation — `/4d-blog-engine:delegate`
+## Delegation — `/4d-blog-engine:blog-delegate`
 
 **The question this phase answers:** *Is this the right work to hand to AI in the first place, and what part of it?*
 
@@ -30,7 +30,7 @@ This plugin maps each D to a phase, and each phase to a command. The mapping is 
 
 **Gate:** Writes `_phase: 01, _status: passed, _timestamp: <ISO>, earned_secret: <one-line>, modality: <automation|augmentation|agency>` to `01-delegation.md` frontmatter. Phase 2 refuses to start if `passed != true` or the timestamp is >24h old.
 
-## Description — `/4d-blog-engine:describe`
+## Description — `/4d-blog-engine:blog-describe`
 
 **The question this phase answers:** *Have we told the AI the goal and constraints precisely enough that it can behave usefully?*
 
@@ -44,7 +44,7 @@ This plugin maps each D to a phase, and each phase to a command. The mapping is 
 
 **Gate:** Writes `02-description.md`. Human reviews the outline + At-a-Glance block and types `proceed` or `revise <specific>`. No prose generated yet. Cap: 2 revision rounds before escalating.
 
-## Discernment — `/4d-blog-engine:discern`
+## Discernment — `/4d-blog-engine:blog-discern`
 
 **The question this phase answers:** *Did the draft survive a real check — including a 30-day reality check from the world outside our heads?*
 
@@ -59,7 +59,7 @@ This plugin maps each D to a phase, and each phase to a command. The mapping is 
 
 **Gate:** Writes letter grade (heymitch/ai-pattern-hunter): F = 3+ majors or 6+ total flags; D = 2+ majors. C or worse blocks Phase 4.
 
-## Diligence — `/4d-blog-engine:diligence`
+## Diligence — `/4d-blog-engine:blog-diligence`
 
 **The question this phase answers:** *Will a named human put their signature on this before it ships?*
 
