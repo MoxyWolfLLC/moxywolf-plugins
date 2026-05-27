@@ -187,6 +187,25 @@ Triggered by `/4d-blog-engine:describe` or as Phase 2 of `:blog`. Refuses to run
 
 **Workflow:**
 
+0. **Media-file caption capture (new in v0.5.7).** Before the voice load and interview steps, scan `<blog-project-dir>/drafts/blog-media/` for files. Read the base-doc's YAML (if any) for an existing `media:` array — those entries are already captioned, skip them. For each file in `drafts/blog-media/` that is NOT yet referenced in the YAML, ask the writer one question per file via separate messages (not a single bulk question):
+
+   > *I see `<basename>` in your `drafts/blog-media/` folder. What's the caption for it? (Short description shown alongside the download link in the post.)*
+
+   Record each (basename, caption) pair. Persist to `<piece>/state.md` frontmatter under:
+
+   ```yaml
+   media:
+     - file: /blog-media/<basename>
+       caption: <writer's caption>
+   ```
+
+   This `media:` block in state.md is the canonical list Phase 3's `content-writer` reads when generating the YAML in the signed `blog.md`. The outline step (step 4 below) can also use the media list to plan where in the post to introduce each file.
+
+   If `drafts/blog-media/` has no files, this step is a no-op — proceed silently.
+
+   If the writer wants to skip captioning a file (because they don't want it in this post), accept a `(skip)` answer and DON'T add it to state.md's media list. The file stays in `drafts/blog-media/` but won't be referenced or copied at publish time.
+
+
 1. **Phase 1 → Phase 2 carry (v0.1.1+).** Before invoking the voice interview, read `<piece>/01-delegation.md`'s `earned_secret` field and the `angle` + `audience` blocks. Scan the earned-secret text for content matching each of the 8 voice-injection slots:
 
    - **Trigger** — a recent event that prompted the topic

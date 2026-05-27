@@ -126,19 +126,21 @@ The Release Owner Gate uses this block to compose the hero-image prompt for each
 Edit values above directly. The plugin reads this file every time you run `/blog-start`, `/blog`, or `/publish`. No need to re-run `/blog-init` unless the directory paths themselves change.
 ```
 
-## STEP 8 — Create Posts/ and drafts/ subdirectories
+## STEP 8 — Create Posts/, drafts/, and drafts/blog-media/ subdirectories
 
 ```bash
 mkdir -p "<BLOG_PROJECT_DIR>/Posts"
 mkdir -p "<BLOG_PROJECT_DIR>/drafts"
+mkdir -p "<BLOG_PROJECT_DIR>/drafts/blog-media"
 ```
 
 Silent. No announcement.
 
-The two folders have distinct roles in the writer's mental model:
+The folders have distinct roles in the writer's mental model:
 
 - **`Posts/<slug>/`** — the pipeline's forensic working directory for each piece. Holds the four-phase artifacts (`01-delegation.md`, `02-description.md`, `03-discernment/*`, `04-diligence/*`), the state file, the changelog. Heavy and detailed.
 - **`drafts/<slug>.md`** — clean single-file drafts. Phase 4 sign-off copies the signed `04-diligence/blog.md` here automatically. The writer can read and tweak the draft directly without digging into the pipeline folders. `/publish` reads from `drafts/` (not from `Posts/`).
+- **`drafts/blog-media/`** — non-hero attachments referenced from a post's `media:` YAML frontmatter (spreadsheets, PDFs, audio, etc.). Drop files here; reference them in your post as `media: [{ file: /blog-media/<filename>, caption: "..." }]`. On `/publish`, the file is copied to the publishing repo's `public/blog-media/<filename>` so the post's link resolves at the live URL `/blog-media/<filename>`.
 
 ## STEP 9 — Report back and route to next step
 

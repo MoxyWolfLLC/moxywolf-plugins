@@ -22,14 +22,25 @@ After the commit is prepared, you click GitHub Desktop's **"Push origin"** butto
 
 1. Verifies Phase 4 signed (`Verified — <initials>, <date>` in `changelog.md`).
 2. Mounts the publishing repo if it isn't already (no mid-flow friction).
-3. Auto-detects the posts and images subfolders inside the repo (Hugo's `content/blog/`, Jekyll's `_posts/`, Next.js's `public/blog-hero/`, etc.).
+3. Auto-detects the posts, images, and media subfolders inside the repo (Hugo's `content/blog/`, Next.js's `public/blog-hero/`, `public/blog-media/`, etc.).
 4. Applies the typographer's-quote transform reliably via the vendored `scripts/smart_quotes.py` — YAML frontmatter and JSON-LD `<script>` blocks are preserved verbatim.
 5. Normalizes the post's `status:` to `published`.
 6. Bumps `dateModified` to today (so byte-identical republishes still create a real diff and fire the site rebuild).
 7. Rewrites the hero image reference in the frontmatter to its in-repo path.
-8. Copies post + hero into the repo.
-9. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, status, slug).
-10. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
+8. **Parses the `media:` array in the YAML frontmatter** and copies each referenced file from `<blog-project-dir>/drafts/blog-media/<basename>` to the repo's `public/blog-media/<basename>`. Creates `public/blog-media/` if it doesn't exist. Halts pre-flight if any referenced media file is missing from `drafts/blog-media/`.
+9. Copies post + hero + media into the repo.
+10. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, media, status, slug).
+11. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
+
+**How media files work:** drop any non-hero attachments (spreadsheets, PDFs, audio, etc.) into `<blog-project-dir>/drafts/blog-media/`. Reference them in your post's YAML as:
+
+```yaml
+media:
+  - file: /blog-media/your-file.xlsx
+    caption: "Short description shown alongside the download link"
+```
+
+The plugin handles copy + commit + create-the-dir-if-missing automatically.
 
 **What the skill never does:**
 

@@ -63,16 +63,22 @@ for posts_dir in "content/blog" "content/posts" "_posts" "src/content/blog" "src
   [ -d "$PUBLISHING_REPO_DIR/$posts_dir" ] && POSTS_SUBFOLDER="$posts_dir" && break
 done
 
-# Images folder:
+# Images (hero) folder:
 for images_dir in "public/blog-hero" "public/images/blog" "static/images/blog" "assets/images/blog" "public/images" "static/images"; do
   [ -d "$PUBLISHING_REPO_DIR/$images_dir" ] && IMAGES_SUBFOLDER="$images_dir" && break
+done
+
+# Media folder (for non-hero attachments referenced via `media:` in YAML — spreadsheets, PDFs, audio, etc.):
+for media_dir in "public/blog-media" "public/media/blog" "static/blog-media" "static/media/blog" "public/media" "static/media"; do
+  [ -d "$PUBLISHING_REPO_DIR/$media_dir" ] && MEDIA_SUBFOLDER="$media_dir" && break
 done
 ```
 
 **Resolution rules:**
 
-- **If both subfolders detected:** proceed.
+- **If posts and images subfolders detected:** proceed.
 - **If either detection fails:** ask via `AskUserQuestion` for the missing one, with the conventional defaults as options plus a "Custom — type the path" fallback.
+- **If `MEDIA_SUBFOLDER` detection fails (no media folder yet exists in repo):** default silently to `public/blog-media` (Next.js convention — served at `/blog-media/<file>`). Only ask the writer if the post actually references media files (STEP 4 catches this). Don't bug them about a folder they may not need.
 
 Store the resolved choices in the writer's marker file under `## Publish paths (auto-detected)` so the next publish doesn't re-ask.
 
@@ -133,6 +139,38 @@ If no title, halt. Don't invent.
 
 If no hero image reference in frontmatter, scan the first 20 lines of body for an inline `![<alt>](og-hero.png)` pattern. If found, treat that as the hero ref and we'll rewrite the inline path too. If still not found, warn but don't halt — some templates render the hero from a fixed convention based on the slug.
 
+### STEP 4b — Parse the media: array (non-hero attachments)
+
+Many posts reference additional files in their frontmatter via a `media:` array. These are NOT hero images; they're spreadsheets, PDFs, audio clips, supplementary downloads, etc. The publish skill must copy each one into the repo's media folder so the rendered post can link to it.
+
+Parse the YAML frontmatter for a `media:` field. Expected shape:
+
+```yaml
+media:
+  - file: /blog-media/4d-blog-engine-feature-comparison-2026-05-26.xlsx
+    caption: "Feature-comparison workbook — 269 catalog entries × 40 features"
+  - file: /blog-media/another-file.pdf
+    caption: "..."
+```
+
+For each entry:
+
+1. **Source path:** the file's basename, looked up under `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. The writer keeps media files in `drafts/blog-media/` alongside their markdown drafts.
+
+2. **Dest path:** `<PUBLISHING_REPO_DIR>/<MEDIA_SUBFOLDER>/<basename>`. The YAML's `/blog-media/<file>` is the URL path (e.g., Next.js serves `public/blog-media/foo` at `/blog-media/foo`); the repo location is `MEDIA_SUBFOLDER/<basename>`.
+
+3. **Pre-flight check:** verify the source file exists. If any media entry's source is missing, HALT before any writes with:
+
+   > *Media file referenced in the post but not found in `<BLOG_PROJECT_DIR>/drafts/blog-media/`:*
+   >
+   > *  Missing: `<basename>` (referenced as `<entry.file>`)*
+   >
+   > *Drop the file into `<BLOG_PROJECT_DIR>/drafts/blog-media/`, then re-run `/4d-blog-engine:publish <SLUG>`.*
+
+Store the parsed media list as `MEDIA_FILES` — an array of `(source_path, dest_path, in_repo_url)` tuples. Use it in STEPs 7, 9, and 10.
+
+If `media:` is absent or empty, set `MEDIA_FILES = []` and proceed silently.
+
 ## STEP 5 — Resolve the default branch
 
 Prefer reading from the local clone (no API call needed):
@@ -177,8 +215,16 @@ Ready to publish "<title>" to your live site.
   Repo:          <OWNER>/<REPO>
   Predicted URL: <computed URL or "(your site will pick it up on rebuild)">
 
+Files going in:
+  - <POSTS_SUBFOLDER>/<SLUG>.md       (the post)
+  - <IMAGES_SUBFOLDER>/<SLUG>.png      (hero)
+<for each media file in MEDIA_FILES:>
+  - <MEDIA_SUBFOLDER>/<basename>      (media — from drafts/blog-media/)
+
 Type "go" to publish, or "cancel" to stop.
 ```
+
+Only show the "Files going in" media line(s) when `MEDIA_FILES` is non-empty. If the hero is already in the repo unchanged, annotate it as `(hero — already in repo)`.
 
 Wait for the writer's reply. Accept "go" / "yes" / "publish" as confirmation. Anything else cancels.
 
@@ -247,15 +293,25 @@ mkdir -p "$(dirname "$DEST_HERO")"
 cp "$TMP" "$DEST_POST"
 cp "$PIECE_DIR/04-diligence/og-hero.png" "$DEST_HERO"
 rm "$TMP"
+
+# Copy each media file from drafts/blog-media/ into the repo's media subfolder.
+# Create the media subfolder if it doesn't exist yet (first publish with media).
+for entry in MEDIA_FILES:
+  mkdir -p "$(dirname "${entry.dest_path}")"
+  cp "${entry.source_path}" "${entry.dest_path}"
 ```
+
+If `MEDIA_FILES` is empty, the loop is a no-op. The `mkdir -p` is safe to run multiple times — it'll create `<repo>/<MEDIA_SUBFOLDER>/` the first time a post references media.
 
 Then create the commit from bash. The Summary and Description are auto-generated so the writer never types either:
 
 ```bash
 cd "$PUBLISHING_REPO_DIR"
 
-# Stage the two files
+# Stage the post + hero + any media files
 git add "$POSTS_SUBFOLDER/$SLUG.md" "$IMAGES_SUBFOLDER/$SLUG.png"
+for entry in MEDIA_FILES:
+  git add "${entry.dest_path_relative_to_repo}"
 
 # Auto-generated commit message
 COMMIT_SUBJECT="Publish: $TITLE"
@@ -266,6 +322,8 @@ COMMIT_BODY="Published via /4d-blog-engine:publish.
 
 Post:   $POSTS_SUBFOLDER/$SLUG.md
 Hero:   $IMAGES_SUBFOLDER/$SLUG.png
+<if MEDIA_FILES non-empty:>
+Media:  <comma-separated list of dest paths relative to repo root>
 Status: published
 Slug:   $SLUG"
 
@@ -351,6 +409,8 @@ Local commit: <COMMIT_SHA> (on branch <DEFAULT_BRANCH>)
 Files staged:
   - <POSTS_SUBFOLDER>/<SLUG>.md
   - <IMAGES_SUBFOLDER>/<SLUG>.png
+<for each media file in MEDIA_FILES, one line each:>
+  - <MEDIA_SUBFOLDER>/<basename>
 
 One last step — push to deploy:
 

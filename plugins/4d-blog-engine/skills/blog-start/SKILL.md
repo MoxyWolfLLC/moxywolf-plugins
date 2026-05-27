@@ -86,6 +86,47 @@ Glob `<BLOG_PROJECT_DIR>/*-voice.md` to enumerate voice files. The set determine
 
 Capture the count and the author-name list in `VOICE_FILES_AVAILABLE` for use in STEP 5.
 
+## STEP 3.7 — Scan uploads for dropped files (new-post ingest)
+
+After mounting and voice resolution, scan the session's uploads folder for files the writer dragged into Cowork chat during this session. The uploads folder is read-only to the plugin; copy what we need to the right places in the blog project folder.
+
+```bash
+# Resolve the uploads dir from the session — actual path varies, but it's
+# /sessions/<session-id>/mnt/uploads in the sandbox. List its contents.
+UPLOADS_DIR=$(ls -d /sessions/*/mnt/uploads 2>/dev/null | head -1)
+
+if [ -n "$UPLOADS_DIR" ] && [ -d "$UPLOADS_DIR" ]; then
+  # Group by type
+  MARKDOWN_UPLOADS=$(find "$UPLOADS_DIR" -maxdepth 1 -type f -iname "*.md" 2>/dev/null)
+  OTHER_UPLOADS=$(find "$UPLOADS_DIR" -maxdepth 1 -type f ! -iname "*.md" ! -name ".*" 2>/dev/null)
+fi
+```
+
+Classification:
+
+- **No uploads:** skip to STEP 4. Don't mention it in the briefing.
+- **Markdown upload(s) only, no media:** treat each markdown as a potential new-post base-doc. Surface in STEP 6's briefing.
+- **Markdown + media:** the new-post-with-media intent. Surface in STEP 6 with a "start a new post?" option (priority placement).
+- **Media only, no markdown:** likely the writer is adding attachments to an existing in-progress piece. Surface in STEP 6 as "<N> media files uploaded — add to which piece?" with the in-progress pieces as options. If no in-progress pieces, ask whether to just copy them to `drafts/blog-media/` for later use.
+
+For markdown uploads, check whether each file is already a base-doc for an in-progress piece (look at `Posts/<slug>/01-delegation.md`'s recorded `base_doc:` path). If it matches an existing piece, deduplicate — don't offer to start a new post from a file that's already in flight.
+
+Store the classification in `UPLOAD_INTENT` for STEP 6 to use:
+
+- `UPLOAD_INTENT.kind` = `"none" | "new-post" | "media-only" | "markdown-only"`
+- `UPLOAD_INTENT.markdown_files` = list of (path, basename) tuples
+- `UPLOAD_INTENT.media_files` = list of (path, basename) tuples
+
+### When the writer accepts "start a new post"
+
+Copy the media files (only) to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Use `mkdir -p` to ensure the folder exists. Do NOT copy the markdown — the orchestrator reads it once at Phase 1 directly from the uploads path; copying it would litter `drafts/` with unsigned drafts.
+
+After the copy, hand off to the orchestrator: invoke `/4d-blog-engine:blog <markdown-uploads-path>`. The orchestrator's Phase 2 will scan `drafts/blog-media/` and ask the writer for a caption for each newly-arrived file.
+
+### When the writer accepts "add media to an existing piece"
+
+Same media copy to `<BLOG_PROJECT_DIR>/drafts/blog-media/<basename>`. Then tell the writer: *"Media files copied. When you next run `/4d-blog-engine:describe` (or resume Phase 2) on `<slug>`, the pipeline will ask you to caption each new file. Or, if Phase 4 is already signed, edit `drafts/<slug>.md` directly to add a `media:` YAML entry before `/publish`."*
+
 ## STEP 4 — Scan for in-progress pieces
 
 List `<BLOG_PROJECT_DIR>/Posts/`. For each piece subdirectory:
@@ -150,12 +191,16 @@ Recently published (last 5):
 
 Use `AskUserQuestion` with options pulled from the briefing in this priority order:
 
-1. **If signed-but-not-published exists:** lead with *"Publish `<most-recent-signed-slug>` to your live site"* (runs `/4d-blog-engine:publish <slug>`).
-2. **If in-progress exists:** offer *"Resume `<most-recent-in-progress-slug>` at Phase <N>"* (runs the appropriate phase command).
-3. **Always:** offer *"Start a new piece"* (prompts for a base doc, then runs `/4d-blog-engine:blog`).
-4. **Always:** offer *"Just looking — exit"* so the user can stop without picking.
+1. **If `UPLOAD_INTENT.kind == "new-post"`:** lead with *"Start a new post from your uploads (`<draft.md>` + `<N>` media files)."* This is the highest priority because the writer explicitly just dropped files and almost certainly wants to act on them. Route this option to STEP 3.7's "start a new post" handler (copy media, invoke `/blog`).
+2. **If `UPLOAD_INTENT.kind == "markdown-only"`:** offer *"Start a new post from `<draft.md>`."*
+3. **If `UPLOAD_INTENT.kind == "media-only"` and there's an in-progress piece:** offer *"Add the `<N>` uploaded media file(s) to `<most-recent-in-progress-slug>`."*
+4. **If `UPLOAD_INTENT.kind == "media-only"` and no in-progress piece:** offer *"Copy the `<N>` uploaded media files to `drafts/blog-media/` for later use."*
+5. **If signed-but-not-published exists:** *"Publish `<most-recent-signed-slug>` to your live site"* (runs `/4d-blog-engine:publish <slug>`).
+6. **If in-progress exists:** *"Resume `<most-recent-in-progress-slug>` at Phase <N>"* (runs the appropriate phase command).
+7. **Always:** *"Start a new piece"* (prompts for a base doc, then runs `/4d-blog-engine:blog`).
+8. **Always:** *"Just looking — exit"*.
 
-Cap the question at four options. If there are more than two in-progress or signed pieces, only surface the most recent and note in the prompt body that older pieces exist (user can ask explicitly).
+Cap the question at four options. Upload-intent options take precedence over publish/resume because the writer's most-recent action was the upload — surface what they just did first.
 
 ## STEP 7 — Hand off
 
