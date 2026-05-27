@@ -1,26 +1,26 @@
 ---
 name: publish
 description: |
-  This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and pushes the post + hero into the user's GitHub repo via the GitHub MCP push_file API (two API calls, hero first then post). No bash git, no GitHub Desktop coordination, no working-tree validation, no lockfile races — the writer's local clone (if any) is irrelevant to the publish. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /publish always ships from drafts/ to content/blog/ with status=published. The user sees a one-line confirmation and a success message; no git words. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+  This skill should be used when the user runs /4d-blog-engine:publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
 ---
 
 # Publish — ship a signed post to the writer's blog
 
-> **Read this when:** the user runs `/4d-blog-engine:publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and push to the default branch — without making the writer type a single git command and without the YAML-breaking quote bug.
+> **Read this when:** the user runs `/4d-blog-engine:publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and create a commit on the default branch — without making the writer type a single git command and without the YAML-breaking quote bug. The writer then clicks "Push origin" in GitHub Desktop to deploy.
 
 ## Design principles (read first)
 
-1. **The writer never writes a commit message, never picks a branch, never types a git command, never opens GitHub Desktop.** The plugin auto-generates the Summary and Description, creates the commit on the default branch, and pushes to origin. Writer runs `/publish`, confirms once, sees "✓ done."
-2. **Bash git from the sandbox handles commit AND push.** Authentication is via a fine-grained PAT stored at `<blog-project-dir>/.github-pat` (a one-line file with the PAT, perms `600`). The sandbox can't read the writer's macOS Keychain, so we store the PAT locally in a known location. The PAT is fine-grained, scoped to just the publishing repo, with `Contents: Read and write` only.
-3. **First-publish detects no PAT and walks the writer through setup.** Generate PAT on github.com, paste it into the interactive prompt; the plugin saves the file and proceeds with the push. After that one-time step, all publishes are silent.
+1. **The writer never writes a commit message, never picks a branch, never types a git command.** The plugin auto-generates the Summary and Description and creates the commit on the default branch. The writer's only action is clicking GitHub Desktop's "Push origin" button — one click to deploy.
+2. **The plugin commits but does not push.** Bash git from the sandbox runs `git add` + `git commit` only. The push happens through GitHub Desktop (which the writer is assumed to have installed for managing their blog repo). This split eliminates the need for any GitHub token configuration in the plugin — the writer's existing GitHub Desktop auth handles the push.
+3. **Auto-generated commit messages.** Summary: `Publish: <title>` (≤72 chars). Description: a short structured body naming the files written, the status, and the slug. The writer never types either.
 3. **The typographer's-quote transform is vendored, not improvised.** Use `scripts/smart_quotes.py` — it explicitly preserves YAML frontmatter and JSON-LD `<script>` blocks. Never write ad-hoc Python that touches the file's quote characters.
 4. **The publishing repo must be reachable** — either mounted in the session so we can read `.git/config` to find the remote URL, or the writer supplies the remote URL directly. `blog-start` handles the mount; if missed, this skill mounts on demand.
-5. **Source of truth is `<blog-project-dir>/drafts/<slug>.md`.** Phase 4 sign-off stages the signed post there as a clean writer-facing copy. `/publish` reads from `drafts/`, applies the transform, pushes to the GitHub repo's `content/blog/<slug>.md` with `status: published`. There is no `--draft` flag and no `content/draft/` folder in the publishing repo.
+5. **Source of truth is `<blog-project-dir>/drafts/<slug>.md`.** Phase 4 sign-off stages the signed post there as a clean writer-facing copy. `/publish` reads from `drafts/`, applies the transform, commits to the GitHub repo's `content/blog/<slug>.md` with `status: published`. There is no `--draft` flag and no `content/draft/` folder in the publishing repo.
 
 6. **The piece directory at `<blog-project-dir>/Posts/<slug>/` stays untouched.** Forensic archive (delegation, description, discernment, diligence artifacts).
 
-7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, push. Site rebuild fires from the real diff.
+7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, commit. Site rebuild fires from the real diff once the writer pushes.
 5. **The post file in `<piece>/04-diligence/blog.md` is the source of truth.** Never re-edit it. The transform writes to the repo path; the source stays untouched.
 
 ## STEP 0 — Resolve the piece slug
@@ -76,12 +76,12 @@ done
 
 Store the resolved choices in the writer's marker file under `## Publish paths (auto-detected)` so the next publish doesn't re-ask.
 
-## STEP 2 — Reach the publishing repo (locally and via API)
+## STEP 2 — Reach the publishing repo (local clone)
 
 We need two things from the repo:
 
-- **Owner + repo name** — for the GitHub MCP push_file calls. Derived by parsing the `remote.origin.url` from the local clone's `.git/config`.
-- **Default branch** — looked up via the GitHub API.
+- **Owner + repo name** — for the success-message commit URL. Derived by parsing the `remote.origin.url` from the local clone's `.git/config`.
+- **Default branch** — read from `.git/refs/remotes/origin/HEAD` in the local clone.
 
 If the local clone is mounted in this session, read the remote URL directly from `<PUBLISHING_REPO_DIR>/.git/config`:
 
@@ -148,7 +148,7 @@ If the local clone isn't reachable, discover a `list_branches`-style tool via `T
 
 Store as `DEFAULT_BRANCH`.
 
-**No working-tree validation.** The local clone's working-tree state is irrelevant — we're not pushing from it. The writer's local clone might have uncommitted unrelated changes; those stay where they are. The plugin pushes only the publish content via the API.
+**Working-tree state** — the publish skill is going to add files and create a commit in the local clone, so if there are unrelated uncommitted changes already there, surface that to the writer before proceeding. Most writers won't have any (their blog repo is just for blog posts, no parallel editing). If there are unrelated changes, ask: *"Your blog repo has uncommitted changes unrelated to this post. Continue? The publish commit will only include the new post and hero — your other changes stay uncommitted alongside."* On decline, halt.
 
 ## STEP 6 — Compute destination paths and stage the publish plan
 
@@ -182,7 +182,7 @@ Type "go" to publish, or "cancel" to stop.
 
 Wait for the writer's reply. Accept "go" / "yes" / "publish" as confirmation. Anything else cancels.
 
-(The plugin handles the push end-to-end via GitHub's API. No local repo coordination, no GitHub Desktop concerns — those are implementation details the writer doesn't need to think about.)
+(The plugin handles the commit. The writer clicks "Push origin" in GitHub Desktop after the commit is prepared.)
 
 ## STEP 8 — Run the typographer's-quote transform via the vendored script
 
@@ -235,18 +235,7 @@ Also in body:
 
 Use Python on `$TMP` for this (not sed — sed can break on YAML edge cases). Embed the rewrite logic inline; it's straightforward.
 
-Read the transformed file content into memory (will be passed to the GitHub MCP in STEP 10):
-
-```bash
-POST_CONTENT=$(cat "$TMP")
-rm "$TMP"
-```
-
-For the hero image (binary PNG), base64-encode it for the API push:
-
-```bash
-HERO_B64=$(base64 < "$PIECE_DIR/04-diligence/og-hero.png" | tr -d '\n')
-```
+The transformed file at `$TMP` is what STEP 10 will copy into the publishing repo. Hero image is copied as-is (no encoding — it's a regular file copy via bash, not an API call).
 
 ## STEP 10 — Copy files, then auto-commit (no push)
 
@@ -283,75 +272,21 @@ Slug:   $SLUG"
 git commit --no-verify -m "$COMMIT_SUBJECT" -m "$COMMIT_BODY"
 ```
 
-After the commit succeeds, push to origin silently using the PAT stored at `<BLOG_PROJECT_DIR>/.github-pat`:
+**Do NOT push from the sandbox.** The push happens through GitHub Desktop, by the writer, with one click. After a successful commit, surface a clear next-step instruction in the success message (STEP 12).
 
-```bash
-PAT_FILE="$BLOG_PROJECT_DIR/.github-pat"
-
-if [ ! -f "$PAT_FILE" ]; then
-  # First-publish: walk writer through PAT setup (see PAT setup section below)
-  # ...prompt + save...
-fi
-
-PAT=$(cat "$PAT_FILE")
-
-# Push to origin via an HTTPS URL with embedded credentials.
-# This is a one-shot URL; it does NOT modify the remote's stored URL.
-PUSH_URL="https://x-access-token:${PAT}@github.com/${OWNER}/${REPO}.git"
-
-git push "$PUSH_URL" "$DEFAULT_BRANCH" 2>&1
-```
-
-**Why `x-access-token` as the username:** GitHub's HTTPS auth for fine-grained PATs uses any non-empty username with the PAT as the password. `x-access-token` is the canonical placeholder.
-
-**Capture the result and surface the commit URL on success:**
+**Capture the commit SHA for the success message:**
 
 ```bash
 COMMIT_SHA=$(cd "$PUBLISHING_REPO_DIR" && git rev-parse --short HEAD)
-COMMIT_URL="https://github.com/${OWNER}/${REPO}/commit/${COMMIT_SHA}"
 ```
 
-**On push errors:**
+The commit is local-only until the writer pushes. The success message uses this SHA to identify the prepared commit.
 
-- *"403" / "401" / "Authentication failed"*: the PAT has expired or doesn't have the right scope. Surface: *"Your GitHub token for this repo expired or doesn't have permission. Re-generate a fine-grained PAT with `Contents: Read and write` on `<OWNER>/<REPO>`, then paste it now (replaces the existing one)."* Prompt for fresh PAT; save; retry the push once.
-- *"Updates were rejected because the remote contains work that you do not have locally"*: someone else pushed to the repo between your last fetch and this publish. Halt with: *"Your local copy is behind origin. Open GitHub Desktop, click Fetch / Pull, then re-run `/4d-blog-engine:publish <SLUG>`. (Or quit GitHub Desktop and let me know — I can pull from the sandbox too.)"*
-- *"network error"*: surface and advise retry.
+### Byte-identical content edge case
 
-### First-publish: PAT setup walkthrough
+If the file at `<DEST_POST>` is byte-identical to what was already there AND nothing else changed (the dateModified bump from STEP 9 normally prevents this), `git commit` will fail with `nothing to commit`. Surface a quiet message:
 
-When `<BLOG_PROJECT_DIR>/.github-pat` doesn't exist, halt the publish at this point and surface the walkthrough via `AskUserQuestion` (with a free-text input option) and a clear pre-text:
-
-```
-First time publishing — let's set up your GitHub access (one minute, one time).
-
-The plugin needs a fine-grained GitHub Personal Access Token to push
-your post to your repo. It'll be saved locally at
-<BLOG_PROJECT_DIR>/.github-pat and never leaves your machine.
-
-Generate the token:
-  1. Open https://github.com/settings/personal-access-tokens
-  2. Click "Generate new token" (top right)
-  3. Token name: anything (e.g., "cowork-4d-blog-engine")
-  4. Expiration: 90 days is fine — you'll be told here when it expires
-  5. Repository access: "Only select repositories" → pick <OWNER>/<REPO>
-  6. Permissions → Repository permissions → Contents: Read and write
-  7. Click "Generate token" at the bottom
-  8. COPY the token (starts with "github_pat_...") — you won't see it again
-
-Paste the token below.
-```
-
-`AskUserQuestion` with one option labeled *"Paste your token"* and a free-text input field, plus a *"Cancel"* option.
-
-On receiving the PAT:
-
-1. Validate it looks like a GitHub PAT (starts with `github_pat_` or `ghp_`).
-2. Write it to `$PAT_FILE`.
-3. `chmod 600 "$PAT_FILE"` so only the owner can read it.
-4. Suggest the writer add `.github-pat` to their `<BLOG_PROJECT_DIR>/.gitignore` if they version-control the blog project dir — but don't force it.
-5. Proceed with the push using the new PAT.
-
-If the writer cancels, halt cleanly: *"Publish cancelled. Re-run `/4d-blog-engine:publish <SLUG>` when you have the PAT ready."*
+> *Nothing changed since the last publish — your draft and the staged file are already byte-identical. If you wanted to force a republish, edit the post and try again.*
 
 ### Silent lockfile recovery
 
@@ -410,28 +345,34 @@ Update the state.md frontmatter:
 ## STEP 12 — Report back
 
 ```
-✓ Published "<title>".
+✓ Commit prepared for "<title>".
 
-Commit:  <COMMIT_URL>
-Files:
+Local commit: <COMMIT_SHA> (on branch <DEFAULT_BRANCH>)
+Files staged:
   - <POSTS_SUBFOLDER>/<SLUG>.md
   - <IMAGES_SUBFOLDER>/<SLUG>.png
 
-Predicted live URL: <computed URL or "(check your hosting dashboard for the actual URL)">
+One last step — push to deploy:
 
-Pushed to origin. Your site rebuild should fire automatically. Most
-static-site hosting (GitHub Pages, Vercel, Netlify) takes 1-5 minutes
-to deploy.
+  1. Open GitHub Desktop.
+  2. The top toolbar will show "Push origin" with a "1" badge.
+  3. Click it.
+
+That's it. Your site rebuild fires from the push — most hosting
+(GitHub Pages, Vercel, Netlify) deploys in 1-5 minutes.
+
+Predicted live URL: <computed URL or "(check your hosting dashboard for the actual URL)">
 ```
 
 ## What this skill does NOT do
 
 - It does not publish to LinkedIn. The LinkedIn artifacts live at `<PIECE_DIR>/04-diligence/linkedin-{article,teaser}.md` for you to paste by hand.
-- It does not open a pull request. Direct push to default branch only.
+- It does not push to the remote. The writer clicks "Push origin" in GitHub Desktop after the plugin reports the commit is prepared. GitHub Desktop handles auth.
+- It does not open a pull request. The commit targets the default branch directly.
+- It does not configure any GitHub token, PAT, or auth setup. The push is GitHub Desktop's job, with whatever auth the writer already has.
 - It does not delete the source draft at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md`. The draft stays as the canonical local copy. Re-running `/publish <slug>` re-publishes it.
 - It does not delete files in `<PIECE_DIR>/04-diligence/`. The piece directory remains the forensic archive.
-- It does not modify the writer's local clone of the publishing repo. The push is via GitHub's API; the local clone (if any) drifts from origin until the writer next fetches. The writer is free to ignore the local clone entirely.
-- It does not trigger your site's rebuild. The push triggers your hosting webhook; nothing in this plugin touches the hosting.
+- It does not trigger your site's rebuild. The push (which the writer does via GitHub Desktop) triggers your hosting webhook; nothing in this plugin touches the hosting.
 - It does not rewrite source images. The hero PNG goes into the repo as-is.
 - It does not modify the source post's quotes. The transform writes to the repo path; the source stays untouched.
 
