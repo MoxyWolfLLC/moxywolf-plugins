@@ -1,7 +1,7 @@
 ---
-description: Ship a signed blog post to your live site. One command, no git words required.
+description: Ship a signed blog post to your live site. One command. The plugin pushes for you via the GitHub API — no git words, no GitHub Desktop required.
 argument-hint: [<piece-slug>]
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory]
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, mcp__cowork__request_cowork_directory, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__push_file, mcp__417094ff-ba6a-4250-85fd-94569f9872e6__list_branches]
 ---
 
 # /4d-blog-engine:publish — ship a signed post
@@ -33,9 +33,8 @@ Invoke the `publish` skill. Takes a Phase-4-signed post and ships it to the GitH
 
 - Publish an unsigned post (use `--force` only if you really know what you're doing).
 - Push to anything other than the default branch.
-- Modify the source post in `<piece>/04-diligence/blog.md` — the transform writes to the repo path; the piece archive stays untouched.
+- Modify the source post in `<piece>/04-diligence/blog.md` — the piece archive stays untouched.
 - Open a pull request.
-
-**Heads-up the skill will surface during the publish confirmation:** Cmd+Q GitHub Desktop before the push. The Cowork sandbox's file watcher conflicts with GitHub Desktop and can leave a stale `.git/index.lock`.
+- Ask you to close GitHub Desktop, run a git command, or care about a local clone. The push happens via GitHub's API; your local clone (if you have one) drifts from origin until you next fetch.
 
 Read `skills/publish/SKILL.md` for the full workflow.
