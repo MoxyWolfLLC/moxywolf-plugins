@@ -91,13 +91,19 @@ If everything is committed and pushed, write `_(none — all commits pushed, wor
 
 #### d. Procedural reminders for next-Claude
 
-A bulleted list of cross-session memory references and project-specific gotchas. Pull from:
+A bulleted list of cross-session memory references and project-specific gotchas. **Every general behavioral reminder MUST cite a currently-existing team-shared memory file by exact filename**, or be explicitly tagged `(session-specific)`. Free-form recollections without a memory citation are how stale rules propagate session-to-session — don't do that.
 
-- The Cowork session-memory layer (`feedback_*` and `reference_*` memories that apply)
-- The vault's Operating Norms folder
-- This-session-specific traps: "FileMaker import is dead — don't propose running it" / "Sandbox can't run tsx — execute on Mac" / etc.
+Source order, applied in this order:
+
+1. **Team-shared memory INDEX (authoritative).** Read `Taskade/_Shared Files/_shared-memory/INDEX.md` first. Any general behavioral rule the next session should follow must already exist as a file in that directory. If a rule belongs in team-shared memory but isn't there yet, write the file at Step 6 BEFORE citing it in the handoff. Never cite a memory file that doesn't currently exist, has been renamed, or whose content has been revised away from the rule you're transcribing.
+2. **Cross-check stale handoff reminders.** Compare the previous handoff's procedural reminders (if any) against the current team-shared INDEX. If a reminder cited a file that no longer exists, or cites a rule that has been reversed since the prior handoff was written, DROP it. Don't propagate it forward. Stale-reminder propagation is the failure mode this step exists to prevent.
+3. **Local Cowork session-memory** (`feedback_*` and `reference_*` files Claude wrote to its own per-Mac memory) — fine to cite as secondary sources, but team-shared wins on conflict.
+4. **The vault's Operating Norms folder** — for project-process rules.
+5. **This-session-specific traps** — short context the next session can't infer otherwise. Mark with `(session-specific)` rather than a memory citation. Examples: "FileMaker import is dead — don't propose running it" / "Sandbox can't run tsx — execute on Mac".
 
 Don't repeat universal rules (the `cowork-project-instructions.md` covers those). Capture the project-specific gotchas next-session Claude wouldn't otherwise know.
+
+**Why this matters:** the procedural-reminders section is what next-session Claude reads via `/session-start`'s briefing. A stale rule transcribed from a months-old handoff can override the canonical team-shared memory if next-Claude trusts the handoff blindly. The cross-check at session-end is where the stale-reminder propagation gets stopped — `/session-start` does its own cross-check too (belt and braces), but stopping it at the write-side is cheaper.
 
 #### e. Suggested opening line
 
@@ -211,7 +217,8 @@ Description:
 
 ## Procedural reminders for next-Claude
 
-- **[Reminder title]:** [body]. (Memory: `feedback_xxx`. Operating Norm: `path/to/norm.md`.)
+- **[Reminder title]:** [body]. (Memory: `Taskade/_Shared Files/_shared-memory/feedback_xxx.md` — verified present at session-end.)
+- **[Reminder title — no current team-shared file applies]:** [body]. (session-specific)
 - ...
 
 ## Suggested opening line

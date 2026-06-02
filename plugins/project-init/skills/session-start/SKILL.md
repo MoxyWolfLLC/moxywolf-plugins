@@ -140,6 +140,12 @@ e. **Shared team services probe** — Check the team-shared OpenRouter API key f
 
    This probe is project-agnostic — the OpenRouter key is shared infrastructure that every council/research-pipeline/product-orchestrator invocation needs regardless of which project session-start was called from. The cost is one bash call and a few-line file read, so run it unconditionally. The probe doesn't read or echo the key value itself — only the resolution status — so the key never leaves the file via the briefing.
 
+f. **Team-shared behavioral memory (authoritative rules)** — Read `Taskade/_Shared Files/_shared-memory/INDEX.md` and parse the entries listed under each section heading. This directory is the canonical source for cross-plugin team-wide behavioral rules — Git/commit workflow, lockfile precautions, plain-text commit-message formatting, the moxywolf-plugins-Claude-authors-commit rule, etc. Surface the parsed entries in the Step 5 briefing under a "Team-shared rules in effect" section so next-Claude SEES the rules rather than having to remember to look them up.
+
+   **Then cross-check the handoff's "Procedural reminders for next-Claude" section against the INDEX.** If a handoff reminder cites a memory file that is no longer in the INDEX (renamed, deleted) or whose current content reverses the reminder's claim, mark the reminder as **STALE** in the briefing's reminders list. Stale-handoff propagation is the documented failure mode this step exists to prevent — see the 2026-06-02 case where a 2026-05-21 handoff carried forward a "never run git from the sandbox" reminder that had actually been reversed on 2026-05-20, and next-session Claude (me) followed the stale handoff instead of the current memory. The cross-check at session-start is the second line of defense — `/session-end` does its own cross-check at write time (belt and braces).
+
+   If the INDEX file is missing entirely at the expected path, capture that as a critical anomaly in the briefing's Shared services line and treat the project's procedural-reminder situation as undefined — but still proceed with the rest of the briefing.
+
 If any of these sources is unavailable (file missing, MCP not connected), capture the failure in the briefing instead of aborting. The remaining context is still useful.
 
 ### Step 5: Display the briefing
@@ -198,6 +204,18 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Open issues** (top 5 per repo)
 - [repo-name]
   - #456 [title] — [author], updated [date]
+
+**Team-shared rules in effect** (from `Taskade/_Shared Files/_shared-memory/INDEX.md`)
+- [Rule title from INDEX] ([filename]) — [the INDEX entry's one-line summary]
+- ...
+[If the file at the canonical path is missing, write: "⚠ Team-shared memory INDEX not found at expected path — procedural-rule situation is undefined for this session." and skip the rules list.]
+
+**Procedural reminders from handoff** (cross-checked against team-shared memory)
+- ✓ [Handoff reminder verbatim] — aligned with current `[file]`
+- ⚠ STALE [Handoff reminder verbatim] — cites `[file]` which doesn't exist in current INDEX (or has been revised); follow `[current-file]` instead
+- ✓ session-specific: [Handoff reminder verbatim]
+[If the handoff had no procedural-reminders section, write "_(none in handoff)_".]
+[If the team-shared INDEX is missing, downgrade this section to plain transcription of the handoff's reminders, with a note that no cross-check was possible.]
 
 **Shared services**
 - OpenRouter key: [✓ resolved from vault | ⚠ placeholder — ask Dorian for the real key | ⚠ file present but key value looks wrong — check format | ⚠ not found — see DR-010 for the canonical location]
