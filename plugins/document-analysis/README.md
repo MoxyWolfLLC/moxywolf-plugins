@@ -58,6 +58,7 @@ Wraps [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft, MIT Li
 
 ## Version History
 
+- **0.1.4** — `/extract-terms` note corrected: the repo's LLM prose lane is now wired (document-analysis repo v0.2.0), so prose definition sections extract when `OPENROUTER_API_KEY` is set (no longer a stub).
 - **0.1.3** — Added the `/extract-terms` command: a thin wrapper over the `document-analysis` repo's glossary extractor (`docanalysis` package) that turns converted Markdown into a lexicon `/glossary-promote` package for lexicon-workbench's importer. The extraction logic lives in the repo (so GitHub Actions runs the same code); this command is the interactive entry point. See DR-001.
 - **0.1.2** — Added `references/azure-document-intelligence.md`: a research-backed adoption reference for layout-faithful Azure Document Intelligence extraction (provisioning, verified markitdown mechanics, current pricing, data-handling posture, proposed `--docintel` wiring, open decisions). Documentation only — the code path is not yet wired.
 - **Renamed** `markitdown` → `document-analysis` (the plugin/skill identity; commands stay `markitdown-*` and the wrapped MarkItDown tool is unchanged). The plugin is the document-analysis ingestion front-end; MarkItDown is the conversion engine inside it.

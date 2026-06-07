@@ -25,7 +25,7 @@ Parse `$ARGUMENTS`: the input markdown path, `--framework`, `--source-slug`, opt
 pip install pydantic pyyaml --break-system-packages -q
 ```
 
-(The deterministic table/inline extraction needs no LLM key. To enable the prose LLM lane, export `OPENROUTER_API_KEY` first — but that lane is currently a stub; see the repo README.)
+(Deterministic extraction — tables, definition lists, inline forms — needs no key. To also cover prose definition sections, export `OPENROUTER_API_KEY` first; the LLM lane is wired against OpenRouter at temperature 0. Resolve the team key from the vault: `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env`.)
 
 ## Step 3: Run the extractor
 
