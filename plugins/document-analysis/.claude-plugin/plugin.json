@@ -1,6 +1,6 @@
 {
   "name": "document-analysis",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Document-to-Markdown ingestion for the document-analysis pipeline. Wraps Microsoft's MarkItDown (PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, EPub) with batch folder conversion, YAML frontmatter, a hash-based manifest for idempotent re-runs, per-file error isolation, and optional LLM image descriptions + OCR via the team OpenRouter key.",
   "author": {
     "name": "MoxyWolf LLC"

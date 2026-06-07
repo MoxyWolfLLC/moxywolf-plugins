@@ -25,8 +25,9 @@ MarkItDown preserves document *structure* (headings, lists, tables, links) rathe
 |---------|-------------|
 | `/markitdown-setup` | Install MarkItDown + the document-set extras + `markitdown-ocr` + `openai` in the sandbox; report `ffmpeg`/`exiftool` availability; resolve the OpenRouter key. Run once per session before converting. |
 | `/markitdown-convert` | Convert a single file or a whole folder into a mirrored Markdown tree, with frontmatter, a manifest, and optional LLM/OCR. |
+| `/extract-terms` | Extract glossary/definition terms from converted Markdown into a lexicon `/glossary-promote` package (for lexicon-workbench's importer). Thin wrapper over the `document-analysis` repo's extractor. |
 
-Both commands drive `scripts/convert.py`, which holds the actual conversion logic.
+The `markitdown-*` commands drive `scripts/convert.py` (conversion). `/extract-terms` wraps the `document-analysis` repo's `docanalysis` package (the same code GitHub Actions runs) — see DR-001.
 
 ## Supported formats (document set)
 

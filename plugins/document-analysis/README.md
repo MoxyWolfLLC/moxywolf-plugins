@@ -17,6 +17,7 @@ MarkItDown converts PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, and EPub i
 |---------|-------------|
 | `/markitdown-setup` | Install MarkItDown + document-set extras + `markitdown-ocr` + `openai`; verify the toolchain; resolve the OpenRouter key. Run once per session. |
 | `/markitdown-convert` | Convert a file or folder → mirrored Markdown tree with frontmatter + manifest. Flags: `--out`, `--formats`, `--use-llm`, `--force`, `--no-recursive`. |
+| `/extract-terms` | Extract glossary terms from converted Markdown into a lexicon `/glossary-promote` package. Thin wrapper over the `document-analysis` repo's `docanalysis` extractor (the code GitHub Actions runs). See DR-001. |
 
 ## What makes it more than a CLI wrapper
 
@@ -57,6 +58,7 @@ Wraps [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft, MIT Li
 
 ## Version History
 
+- **0.1.3** — Added the `/extract-terms` command: a thin wrapper over the `document-analysis` repo's glossary extractor (`docanalysis` package) that turns converted Markdown into a lexicon `/glossary-promote` package for lexicon-workbench's importer. The extraction logic lives in the repo (so GitHub Actions runs the same code); this command is the interactive entry point. See DR-001.
 - **0.1.2** — Added `references/azure-document-intelligence.md`: a research-backed adoption reference for layout-faithful Azure Document Intelligence extraction (provisioning, verified markitdown mechanics, current pricing, data-handling posture, proposed `--docintel` wiring, open decisions). Documentation only — the code path is not yet wired.
 - **Renamed** `markitdown` → `document-analysis` (the plugin/skill identity; commands stay `markitdown-*` and the wrapped MarkItDown tool is unchanged). The plugin is the document-analysis ingestion front-end; MarkItDown is the conversion engine inside it.
 - **0.1.1** — Settings-aware idempotency: the skip check now compares `ocr` / `llm_model` / `converter_version` alongside the source hash, so a later `--use-llm` run re-OCRs files that were converted text-only (closes a silent-skip trap) and a markitdown upgrade re-converts. Added a per-file `--timeout` (default 300s) so a hung document or stalled vision call fails that file instead of freezing the batch. Single timestamp per file (frontmatter and manifest now agree).
