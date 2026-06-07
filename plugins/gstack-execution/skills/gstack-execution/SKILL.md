@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.2.0
+version: 0.3.0
 ---
 
 # gstack Execution Engine
@@ -26,6 +26,7 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
+| `/gstack-codex-review` | Adversarial review of just-committed code; real Codex when present, Claude fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
 | `/gstack-investigate` | Root cause debugging with hypothesis testing | Full — git + grep + read |
 | `/gstack-cso` | Security audit (OWASP + STRIDE + supply chain) | Full — grep + code analysis |
 | `/gstack-ship` | Test + review + PR creation pipeline | Partial — needs `gh` CLI for PR |
@@ -40,6 +41,7 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 | Product Orchestrator Decision | gstack Command |
 |------------------------------|----------------|
 | "Build this feature" | Manual coding → `/gstack-review` → `/gstack-ship` |
+| "Challenge what I just committed" | `/gstack-codex-review` (adversarial, post-commit, pre-push) |
 | "Fix this bug" | `/gstack-investigate` → fix → `/gstack-review` |
 | "Security audit before launch" | `/gstack-cso` |
 | "Design the UI" | `/gstack-design` → build → `/gstack-review` |
@@ -112,7 +114,7 @@ Adapted from gstack's communication philosophy:
 
 - **No deployment.** `/gstack-ship` prepares PRs but doesn't merge or deploy. Use your CI/CD pipeline.
 - **No planning.** gstack's `/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, and `/plan-design-review` are replaced by Product Orchestrator's deliberation engine. Don't duplicate planning here.
-- **No code modification during review or security audit.** `/gstack-review` and `/gstack-cso` are read-only analysis. They produce findings and recommendations. Fixes are a separate step.
+- **No code modification during review or security audit.** `/gstack-review`, `/gstack-codex-review`, and `/gstack-cso` are read-only analysis. They produce findings and recommendations. Fixes are a separate step.
 
 ## Completeness Principle
 
