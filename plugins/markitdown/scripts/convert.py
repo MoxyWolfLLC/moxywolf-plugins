@@ -18,10 +18,12 @@ Exit code is 0 if every file converted or was skipped, 1 if any file failed.
 """
 
 import argparse
+import contextlib
 import datetime
 import hashlib
 import json
 import os
+import signal
 import sys
 import traceback
 
@@ -61,6 +63,30 @@ def now_pt_iso():
         return datetime.datetime.now(ZoneInfo("America/Los_Angeles")).isoformat(timespec="seconds")
     except Exception:
         return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+@contextlib.contextmanager
+def time_limit(seconds):
+    """Best-effort per-file timeout via SIGALRM (Unix main-thread only).
+
+    Interrupts when the blocked call returns control to the Python
+    interpreter — reliable for network (vision) calls and most parsing,
+    best-effort for a pure C-loop. No-op where SIGALRM is unavailable.
+    """
+    if not seconds or not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise TimeoutError(f"conversion exceeded --timeout of {seconds}s")
+
+    old = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(int(seconds))
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 def yaml_escape(value):
@@ -144,7 +170,9 @@ def main():
     ap.add_argument("--use-llm", action="store_true", help="Enable LLM image descriptions + embedded-image OCR.")
     ap.add_argument("--llm-model", default=os.environ.get("MARKITDOWN_LLM_MODEL", "openai/gpt-4o"), help="OpenRouter vision model slug.")
     ap.add_argument("--openrouter-env", default="", help="Path to openrouter.env if OPENROUTER_API_KEY isn't already exported.")
-    ap.add_argument("--force", action="store_true", help="Re-convert even if the source hash is unchanged.")
+    ap.add_argument("--force", action="store_true", help="Re-convert even if the source hash and settings are unchanged.")
+    ap.add_argument("--timeout", type=int, default=int(os.environ.get("MARKITDOWN_TIMEOUT", "300")),
+                    help="Per-file conversion timeout in seconds (0 disables). Default 300.")
     args = ap.parse_args()
 
     input_path = os.path.abspath(args.input)
@@ -171,6 +199,7 @@ def main():
             manifest = {}
 
     md, ocr_on, model_used = make_markitdown(args.use_llm, args.llm_model, args.openrouter_env or None)
+    cur_version = _mid_version()
 
     converted, skipped, failed = [], [], []
 
@@ -181,21 +210,33 @@ def main():
         try:
             digest = sha256_of(src)
             prior = manifest.get(rel)
+            # Skip only when BOTH the source bytes AND the effective conversion
+            # settings are unchanged. Comparing settings is what makes a later
+            # --use-llm run actually re-OCR previously text-only files instead of
+            # silently skipping them (and forces a re-run after a markitdown upgrade).
+            settings_match = (prior is not None
+                              and prior.get("ocr") == ocr_on
+                              and prior.get("llm_model") == model_used
+                              and prior.get("converter_version") == cur_version)
             if (not args.force and prior and prior.get("sha256") == digest
-                    and prior.get("status") == "ok" and os.path.isfile(out_path)):
+                    and prior.get("status") == "ok" and settings_match
+                    and os.path.isfile(out_path)):
                 skipped.append(rel)
                 continue
 
-            result = md.convert(src)
+            with time_limit(args.timeout):
+                result = md.convert(src)
+
+            stamp = now_pt_iso()
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             fm = build_frontmatter({
                 "source_file": rel,
                 "source_type": src_type,
                 "sha256": digest,
                 "bytes": os.path.getsize(src),
-                "converted_at": now_pt_iso(),
+                "converted_at": stamp,
                 "converter": "markitdown",
-                "converter_version": _mid_version(),
+                "converter_version": cur_version,
                 "ocr": ocr_on,
                 "llm_model": model_used,
                 "title": os.path.splitext(os.path.basename(src))[0],
@@ -204,10 +245,11 @@ def main():
                 f.write(fm)
                 f.write(result.text_content or "")
             manifest[rel] = {"source": src, "sha256": digest, "out": out_path,
-                             "converted_at": now_pt_iso(), "status": "ok",
-                             "ocr": ocr_on, "source_type": src_type}
+                             "converted_at": stamp, "status": "ok",
+                             "ocr": ocr_on, "llm_model": model_used,
+                             "converter_version": cur_version, "source_type": src_type}
             converted.append(rel)
-        except Exception as e:  # per-file isolation
+        except Exception as e:  # per-file isolation (incl. TimeoutError from --timeout)
             manifest[rel] = {"source": src, "status": "error",
                              "error": f"{type(e).__name__}: {e}", "source_type": src_type}
             failed.append((rel, f"{type(e).__name__}: {e}"))
@@ -221,8 +263,8 @@ def main():
     print("=================")
     print(f"Input:   {input_path}")
     print(f"Output:  {out_dir}")
-    print(f"Engine:  markitdown {_mid_version()}  |  LLM/OCR: {'on (' + str(model_used) + ')' if ocr_on else 'off'}")
-    print(f"Converted: {len(converted)}   Skipped (unchanged): {len(skipped)}   Failed: {len(failed)}")
+    print(f"Engine:  markitdown {cur_version}  |  LLM/OCR: {'on (' + str(model_used) + ')' if ocr_on else 'off'}  |  timeout: {str(args.timeout) + 's' if args.timeout else 'off'}")
+    print(f"Converted: {len(converted)}   Skipped (unchanged + same settings): {len(skipped)}   Failed: {len(failed)}")
     if failed:
         print("\nFailures:")
         for rel, err in failed:

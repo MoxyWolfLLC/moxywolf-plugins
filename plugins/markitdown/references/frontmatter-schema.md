@@ -21,7 +21,7 @@ title: msa-acme                               # source filename without extensio
 
 ## Rules
 
-- `sha256` is the **idempotency key**. On re-run, a source whose hash matches the manifest entry and whose output still exists is skipped unless `--force` is passed.
+- `sha256` is the **idempotency key**, but it is *not the only* skip condition. On re-run, a source is skipped only when its hash matches the manifest entry **and** the effective conversion settings (`ocr`, `llm_model`, `converter_version`) also match **and** the output still exists. This means a later `--use-llm` run re-OCRs files that were previously converted text-only (different `ocr`/`llm_model`), and a markitdown upgrade (different `converter_version`) re-converts everything. `--force` skips the check entirely.
 - `ocr` reflects whether the LLM/OCR path actually ran (not just whether `--use-llm` was requested — if no key resolved, it falls back to text-only and `ocr: false`).
 - `llm_model` is only written when `ocr: true`.
 - `converted_at` is Pacific per MoxyWolf convention.
@@ -40,6 +40,8 @@ Alongside the outputs, `.markitdown-manifest.json` in the output root holds one 
     "converted_at": "2026-06-07T16:40:12-07:00",
     "status": "ok",
     "ocr": true,
+    "llm_model": "openai/gpt-4o",
+    "converter_version": "0.1.5",
     "source_type": "pdf"
   },
   "broken/scan.pdf": {
@@ -51,4 +53,4 @@ Alongside the outputs, `.markitdown-manifest.json` in the output root holds one 
 }
 ```
 
-The manifest is the audit trail and the skip-list. Failed files carry `status: error` and the reason, so a later run (or `--force`, or `--use-llm`) can retry just those.
+The manifest is the audit trail and the skip-list. Failed files carry `status: error` and the reason (including `TimeoutError` when a file exceeds `--timeout`), so a later run can retry just those — and because the skip check compares `ocr` / `llm_model` / `converter_version`, re-running a failed-or-text-only file with `--use-llm` actually re-processes it rather than skipping.

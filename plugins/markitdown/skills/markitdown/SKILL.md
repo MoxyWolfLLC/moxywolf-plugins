@@ -62,9 +62,9 @@ For every converted file the driver writes `<out>/<mirrored-relative-path>.md` c
 1. **YAML frontmatter** — `source_file`, `source_type`, `sha256`, `bytes`, `converted_at` (Pacific), `converter`, `converter_version`, `ocr`, `llm_model`, `title`. Schema in `references/frontmatter-schema.md`. This makes outputs first-class citizens for Obsidian and the research-pipeline.
 2. **The Markdown body** from MarkItDown.
 
-It also maintains `.markitdown-manifest.json` in the output root: source path, sha256, status, and timestamp per file. On re-run, a file whose source hash is unchanged and whose output still exists is **skipped** — pass `--force` to override. This keeps re-converting a growing corpus cheap and idempotent.
+It also maintains `.markitdown-manifest.json` in the output root: source path, sha256, status, timestamp, and the conversion settings (`ocr`, `llm_model`, `converter_version`) per file. On re-run, a file is **skipped only when both its source bytes and the effective conversion settings are unchanged** — so flipping on `--use-llm` later actually re-OCRs previously text-only files instead of silently skipping them, and a markitdown version bump triggers re-conversion. `--force` overrides regardless. This keeps re-converting a growing corpus cheap without the stale-skip trap.
 
-Per-file failures are isolated: a corrupt or unsupported file is recorded in the manifest with its error and the batch continues. The final report lists converted / skipped / failed counts and every failure reason.
+Per-file failures are isolated: a corrupt or unsupported file is recorded in the manifest with its error and the batch continues. Each file also has a conversion **timeout** (`--timeout`, default 300s; `0` disables) so one hung document or stalled vision call can't freeze the whole batch — a timeout is recorded as a per-file error like any other. The final report lists converted / skipped / failed counts and every failure reason.
 
 ## LLM image descriptions + OCR
 

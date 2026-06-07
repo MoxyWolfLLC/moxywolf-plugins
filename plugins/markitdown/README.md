@@ -1,6 +1,6 @@
 # markitdown Plugin
 
-**Version:** 0.1.0
+**Version:** 0.1.1
 **Author:** MoxyWolf LLC
 **Wraps:** [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft (MIT License)
 **Requires:** Python 3.10+ (Cowork sandbox has it). Optional: team OpenRouter key for LLM image descriptions + OCR.
@@ -22,7 +22,8 @@ MarkItDown converts PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, and EPub i
 
 - **Batch + tree mirroring** — point it at a folder; get a parallel `sources-md/` tree of `.md`.
 - **Provenance frontmatter** — `source_file`, `sha256`, `converted_at`, `converter`, `source_type`, `ocr`, `llm_model` on every output. See `references/frontmatter-schema.md`.
-- **Idempotent manifest** — re-runs skip files whose source hash is unchanged (`--force` overrides). Cheap to re-run on a growing corpus.
+- **Idempotent manifest** — re-runs skip a file only when its source hash *and* conversion settings (`ocr`/`llm_model`/`converter_version`) are unchanged, so a later `--use-llm` run re-OCRs previously text-only files instead of silently skipping them (`--force` overrides). Cheap to re-run on a growing corpus.
+- **Per-file timeout** — `--timeout` (default 300s) stops one hung document or stalled vision call from freezing the whole batch.
 - **Per-file error isolation** — a corrupt file is logged in the manifest and the batch continues; the report lists every failure.
 - **LLM image descriptions + OCR** — `--use-llm` routes an OpenAI-compatible client at OpenRouter (team key) for image descriptions and `markitdown-ocr` embedded-image OCR, so scanned PDFs and image-heavy decks produce real text.
 
@@ -55,4 +56,5 @@ Wraps [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft, MIT Li
 
 ## Version History
 
+- **0.1.1** — Settings-aware idempotency: the skip check now compares `ocr` / `llm_model` / `converter_version` alongside the source hash, so a later `--use-llm` run re-OCRs files that were converted text-only (closes a silent-skip trap) and a markitdown upgrade re-converts. Added a per-file `--timeout` (default 300s) so a hung document or stalled vision call fails that file instead of freezing the batch. Single timestamp per file (frontmatter and manifest now agree).
 - **0.1.0** — Initial release. `/markitdown-setup`, `/markitdown-convert`, the `convert.py` driver (batch, frontmatter, manifest, error isolation, OpenRouter LLM/OCR), and the formats + frontmatter references.

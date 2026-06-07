@@ -1,7 +1,7 @@
 ---
 description: Convert a file or folder to Markdown — mirrored tree, frontmatter, manifest, optional OCR
 allowed-tools: Bash, Read, AskUserQuestion
-argument-hint: [input-path] [--out <dir>] [--formats pdf,docx,...] [--use-llm] [--force] [--no-recursive]
+argument-hint: [input-path] [--out <dir>] [--formats pdf,docx,...] [--use-llm] [--force] [--no-recursive] [--timeout <secs>]
 ---
 
 Convert documents to Markdown via the markitdown driver. Single file or a whole folder.
@@ -37,10 +37,10 @@ Confirm the resolved input and output paths with the user in one line before a l
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/convert.py" \
   --input "<resolved-input>" \
   --out "<resolved-out>" \
-  [--formats <list>] [--use-llm --openrouter-env "$KEY_FILE"] [--force] [--no-recursive]
+  [--formats <list>] [--use-llm --openrouter-env "$KEY_FILE"] [--force] [--no-recursive] [--timeout <secs>]
 ```
 
-For a large folder with `--use-llm` (many vision calls can run long), launch it with the Bash tool's `run_in_background` and tell the user to check back; otherwise run in the foreground.
+For a large folder with `--use-llm` (many vision calls can run long), launch it with the Bash tool's `run_in_background` and tell the user to check back; otherwise run in the foreground. Each file has a `--timeout` (default 300s; `0` disables) so a single hung document or stalled vision call fails that file and the batch keeps going.
 
 ## Step 4: Report
 
@@ -48,6 +48,6 @@ Relay the driver's CONVERSION REPORT: converted / skipped / failed counts, the o
 
 ## Notes
 
-- The driver is **idempotent** — re-running skips files whose source hash is unchanged. Use `--force` to re-convert everything.
+- The driver is **idempotent** — re-running skips a file only when its source hash *and* its conversion settings (`ocr`/`llm_model`/`converter_version`) are unchanged. So re-running with `--use-llm` re-OCRs files that were previously text-only; a markitdown upgrade re-converts everything. Use `--force` to re-convert regardless.
 - Output is **not committed**. Converted Markdown lands in `document-analysis/sources-md/`; committing it to the repo is a separate, human-driven step.
 - This command converts only. Analysis of the resulting Markdown is downstream (document-analysis pipeline), not here.
