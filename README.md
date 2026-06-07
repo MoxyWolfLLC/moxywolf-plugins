@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 21 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 22 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -33,9 +33,9 @@ Adding this marketplace on any Mac gives that machine all 21 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (21 plugins) — source of truth for versions
+│   └── marketplace.json                ← catalog (22 plugins) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 20 MoxyWolf-owned plugins
+├── plugins/                             ← 21 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate; /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
@@ -47,7 +47,8 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── editorial-forge/            AI content → author-owned via voice + DOB framing
 │   ├── frontier-founder/           Draft markdown → publication-ready blog post + hero image
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
-│   ├── gstack-execution/           Code review, security audit, debug, QA, ship
+│   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
+│   ├── markitdown/                 Document → Markdown ingestion (batch, frontmatter, manifest, OCR) for document-analysis
 │   ├── obsidian-update/            Vault-native personal OS + Council integration
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions
 │   ├── project-init/               /init-project /session-start /session-end
@@ -71,7 +72,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 21 plugins appear in the marketplace list.
+3. Click **Sync**. The 22 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -82,7 +83,7 @@ claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 # install everything in one go
 for p in 4d-blog-engine academic-pipeline board-deck bibtex-builder composio council \
          daily-ops dev-infrastructure-skills editorial-forge frontier-founder \
-         github-repo-analyzer gstack-execution obsidian-update product-orchestrator \
+         github-repo-analyzer gstack-execution markitdown obsidian-update product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \
          team-kanban vtt-to-text moxywolf-skills; do
   claude plugin install "$p@moxywolf-plugins"
