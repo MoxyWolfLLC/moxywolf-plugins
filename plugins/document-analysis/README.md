@@ -41,6 +41,7 @@ Document set by default: PDF, `.docx`, `.pptx`, `.xlsx`/`.xls`, HTML, CSV/TSV, J
 |------|---------|
 | `formats-and-extras.md` | Format ↔ dependency-group map; OCR and Azure DI options; sandbox notes. |
 | `frontmatter-schema.md` | Output frontmatter fields + the manifest format. |
+| `azure-document-intelligence.md` | Adoption reference for layout-faithful Azure DI extraction — provisioning, verified markitdown mechanics, current pricing, data handling, proposed wiring. Documented; not yet wired. |
 
 ## Pipeline position
 
@@ -56,6 +57,7 @@ Wraps [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft, MIT Li
 
 ## Version History
 
+- **0.1.2** — Added `references/azure-document-intelligence.md`: a research-backed adoption reference for layout-faithful Azure Document Intelligence extraction (provisioning, verified markitdown mechanics, current pricing, data-handling posture, proposed `--docintel` wiring, open decisions). Documentation only — the code path is not yet wired.
 - **Renamed** `markitdown` → `document-analysis` (the plugin/skill identity; commands stay `markitdown-*` and the wrapped MarkItDown tool is unchanged). The plugin is the document-analysis ingestion front-end; MarkItDown is the conversion engine inside it.
 - **0.1.1** — Settings-aware idempotency: the skip check now compares `ocr` / `llm_model` / `converter_version` alongside the source hash, so a later `--use-llm` run re-OCRs files that were converted text-only (closes a silent-skip trap) and a markitdown upgrade re-converts. Added a per-file `--timeout` (default 300s) so a hung document or stalled vision call fails that file instead of freezing the batch. Single timestamp per file (frontmatter and manifest now agree).
 - **0.1.0** — Initial release. `/markitdown-setup`, `/markitdown-convert`, the `convert.py` driver (batch, frontmatter, manifest, error isolation, OpenRouter LLM/OCR), and the formats + frontmatter references.
