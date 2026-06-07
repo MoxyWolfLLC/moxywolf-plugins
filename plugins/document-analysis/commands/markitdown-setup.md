@@ -6,7 +6,7 @@ argument-hint: [--with-audio | --all]
 
 Prepare the Cowork sandbox to convert documents. Run this once per session before `/markitdown-convert`.
 
-Read the markitdown skill for context.
+Read the document-analysis skill for context.
 
 ## Step 1: Install
 

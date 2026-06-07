@@ -1,5 +1,5 @@
 ---
-name: markitdown
+name: document-analysis
 description: >
   This skill should be used when the user asks to "convert documents to markdown",
   "turn these PDFs into markdown", "ingest these files for analysis", "markitdown
@@ -13,9 +13,9 @@ description: >
 version: 0.1.0
 ---
 
-# markitdown — document → Markdown ingestion
+# document-analysis — document → Markdown ingestion
 
-Convert documents into LLM-friendly Markdown using Microsoft's [MarkItDown](https://github.com/microsoft/markitdown), with the workflow MoxyWolf needs wrapped around it. This is the **ingestion stage** of the document-analysis pipeline: raw documents in, structured Markdown (with provenance) out, ready for downstream chunking, synthesis, and analysis.
+Convert documents into LLM-friendly Markdown using Microsoft's [MarkItDown](https://github.com/microsoft/markitdown), with the workflow MoxyWolf needs wrapped around it. This is the `document-analysis` plugin; MarkItDown is the underlying conversion tool it wraps. This is the **ingestion stage** of the document-analysis pipeline: raw documents in, structured Markdown (with provenance) out, ready for downstream chunking, synthesis, and analysis.
 
 MarkItDown preserves document *structure* (headings, lists, tables, links) rather than visual fidelity. The output is meant to be read by text-analysis tools, not to look pixel-identical to the source.
 

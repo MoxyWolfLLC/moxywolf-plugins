@@ -6,7 +6,7 @@ argument-hint: [input-path] [--out <dir>] [--formats pdf,docx,...] [--use-llm] [
 
 Convert documents to Markdown via the markitdown driver. Single file or a whole folder.
 
-Read the markitdown skill for context. If `markitdown` isn't importable yet, run `/markitdown-setup` first (or do the install inline).
+Read the document-analysis skill for context. If `markitdown` isn't importable yet, run `/markitdown-setup` first (or do the install inline).
 
 ## Step 1: Resolve input and output paths
 

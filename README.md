@@ -48,7 +48,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── frontier-founder/           Draft markdown → publication-ready blog post + hero image
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
 │   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
-│   ├── markitdown/                 Document → Markdown ingestion (batch, frontmatter, manifest, OCR) for document-analysis
+│   ├── document-analysis/          Document → Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)
 │   ├── obsidian-update/            Vault-native personal OS + Council integration
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions
 │   ├── project-init/               /init-project /session-start /session-end
@@ -83,7 +83,7 @@ claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 # install everything in one go
 for p in 4d-blog-engine academic-pipeline board-deck bibtex-builder composio council \
          daily-ops dev-infrastructure-skills editorial-forge frontier-founder \
-         github-repo-analyzer gstack-execution markitdown obsidian-update product-orchestrator \
+         document-analysis github-repo-analyzer gstack-execution obsidian-update product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \
          team-kanban vtt-to-text moxywolf-skills; do
   claude plugin install "$p@moxywolf-plugins"
