@@ -6,7 +6,7 @@ argument-hint: <markdown-file> --framework <NAME> --source-slug <slug> [--out <d
 
 Interactive wrapper over the `document-analysis` repo's glossary extractor. Takes a converted Markdown file (from `/markitdown-convert`'s `sources-md/` tree), locates glossary/definition sections, extracts term/definition pairs, and writes a `/glossary-promote` package that lexicon-workbench's `import-glossary.ts` ingests.
 
-This command is a thin wrapper — the real logic lives in the `document-analysis` repo (`docanalysis/`), so the same code runs here and in GitHub Actions. See DR-001.
+This command is a thin wrapper — the real logic lives in the `document-analysis` repo (`docanalysis/`), so the same code runs here and in GitHub Actions. See DR-003.
 
 Read the document-analysis skill for context.
 
@@ -17,7 +17,7 @@ REPO="$(ls -d /sessions/*/mnt/GitHub/document-analysis 2>/dev/null | head -1)"
 [ -z "$REPO" ] && { echo "document-analysis repo not mounted — add the GitHub folder in Cowork → Folders"; exit 1; }
 ```
 
-Parse `$ARGUMENTS`: the input markdown path, `--framework`, `--source-slug`, optional `--out` (default `$REPO/packages/<source-slug>`) and `--category` (default `regulatory_compliance`). Framework + source-slug are **operator-supplied** per source (DR-001) — don't infer them from the document.
+Parse `$ARGUMENTS`: the input markdown path, `--framework`, `--source-slug`, optional `--out` (default `$REPO/packages/<source-slug>`) and `--category` (default `regulatory_compliance`). Framework + source-slug are **operator-supplied** per source (DR-003) — don't infer them from the document.
 
 ## Step 2: Ensure deps
 
@@ -43,5 +43,5 @@ Relay the CLI's summary: spans located, terms extracted, and the package path (`
 
 ## Notes
 
-- **Review before import.** The package is for human review, then `import-glossary.ts` against a Supabase **preview branch** before production (DR-001 gate). This command never writes the lexicon DB.
+- **Review before import.** The package is for human review, then `import-glossary.ts` against a Supabase **preview branch** before production (DR-003 gate). This command never writes the lexicon DB.
 - **Conversion is upstream.** Run `/markitdown-convert` first to produce the Markdown; this command consumes it.

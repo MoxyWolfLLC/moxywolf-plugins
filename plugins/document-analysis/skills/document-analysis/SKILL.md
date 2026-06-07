@@ -27,7 +27,7 @@ MarkItDown preserves document *structure* (headings, lists, tables, links) rathe
 | `/markitdown-convert` | Convert a single file or a whole folder into a mirrored Markdown tree, with frontmatter, a manifest, and optional LLM/OCR. |
 | `/extract-terms` | Extract glossary/definition terms from converted Markdown into a lexicon `/glossary-promote` package (for lexicon-workbench's importer). Thin wrapper over the `document-analysis` repo's extractor. |
 
-The `markitdown-*` commands drive `scripts/convert.py` (conversion). `/extract-terms` wraps the `document-analysis` repo's `docanalysis` package (the same code GitHub Actions runs) — see DR-001.
+The `markitdown-*` commands drive `scripts/convert.py` (conversion). `/extract-terms` wraps the `document-analysis` repo's `docanalysis` package (the same code GitHub Actions runs) — see DR-003.
 
 ## Supported formats (document set)
 
