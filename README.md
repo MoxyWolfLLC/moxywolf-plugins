@@ -50,7 +50,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
 │   ├── document-analysis/          Document → Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)
 │   ├── obsidian-update/            Vault-native personal OS + Council integration
-│   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions
+│   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions + project charter governance
 │   ├── project-init/               /init-project /session-start /session-end
 │   ├── research-pipeline/          Literature discovery, verification, synthesis
 │   ├── saas-frontend-designer/     Next/React/Tailwind/shadcn SaaS UI pipeline
