@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -137,11 +137,11 @@
     {
       "name": "product-orchestrator",
       "source": "./plugins/product-orchestrator",
-      "description": "Product decision engine that wraps Council deliberation with product-specific role prompts for scope, architecture, and GTM decisions. Maintains decision records in the Obsidian vault.",
-      "version": "0.3.1",
+      "description": "Product decision engine that wraps Council deliberation with product-specific role prompts for scope, architecture, and GTM decisions. Maintains a project charter of durable governing principles the Council consults before scope and PRD decisions. Routes outputs to downstream execution skills and maintains decision records in the Obsidian vault.",
+      "version": "0.4.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "product",
-      "keywords": ["product", "scope", "architecture", "gtm", "prd", "deliberation"]
+      "keywords": ["product", "scope", "architecture", "gtm", "prd", "deliberation", "charter", "governance"]
     },
     {
       "name": "project-init",

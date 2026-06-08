@@ -10,7 +10,9 @@ description: >
   Also trigger when the user uses /product-scope, /product-arch, /product-gtm,
   or /product-sprint. This plugin wraps the Council deliberation engine with
   product-specific role prompts and routes outputs to downstream execution skills.
-version: 0.2.0
+  Also triggers on /project-charter to create or update a project's durable
+  governing principles, which the Council consults before scope and PRD decisions.
+version: 0.3.0
 ---
 
 # Product Orchestrator
@@ -117,6 +119,14 @@ Signs it's execute-only:
 - It's reversible in under a day. Wrong answer costs hours, not months.
 - There's an obvious right answer that doesn't depend on perspective.
 
+## Project Charter (governance context)
+
+A project may carry a `CHARTER.md` at its root — the project's constitution: durable principles, technical constraints, and architectural boundaries that hold across every feature (adapted from spec-kit's `constitution` primitive; see DR-004). The `/project-charter` command creates and maintains it; `references/charter-template.md` defines the format and interview protocol.
+
+The charter is **passive governance** — it informs deliberation, it never blocks work. Before running a `/product-scope` or `/product-prd` deliberation, check the project root for `CHARTER.md`. If present, load it and inject it into the Council context block (see the `[PROJECT CHARTER]` block in the next section). Instruct the models to check the proposed decision against the charter and flag any principle or boundary it would violate — but treat the charter as binding context, not a veto. A decision that must break a charter principle is allowed if it says so explicitly and justifies it (which is also the signal the charter may need a versioned amendment).
+
+Honor **progressive opt-in rigor**: tiny/reversible changes ignore the charter; medium changes let it inform deliberation; large/hard-to-reverse changes treat it as load-bearing. Absent a `CHARTER.md`, every command behaves exactly as before.
+
 ## Invoking Council Deliberation
 
 When deliberation is needed, format the Council invocation with product-specific structure. Do not dispatch models yourself — trigger the `deliberation-engine` skill from the Council plugin, which handles the full pipeline (routing, parallel OpenRouter dispatch, peer review, synthesis).
@@ -135,6 +145,14 @@ Team: {solo / small team / growing}
 Current users: {none / early adopters / established base}
 Revenue: {pre-revenue / early revenue / established}
 Key constraint: {time / money / technical / market}
+
+[PROJECT CHARTER — load-bearing invariants; include this block only if CHARTER.md exists at the project root]
+Mission: {charter mission line}
+Principles: {numbered principles}
+Constraints: {technical constraints}
+Boundaries: {architectural boundaries}
+Non-negotiables: {non-negotiables}
+Instruction to models: check the proposed decision against these invariants; flag any the decision would violate. Treat as binding context, not a veto.
 
 [DECISION REQUIRED]
 Type: {scope / architecture / gtm}

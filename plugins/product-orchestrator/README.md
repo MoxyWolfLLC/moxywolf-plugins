@@ -1,6 +1,6 @@
 # Product Orchestrator Plugin
 
-**Version:** 0.3.0
+**Version:** 0.4.0
 **Author:** MoxyWolf LLC
 **Requires:** Council plugin (v0.7.0+) and the team-shared OpenRouter API key file in the MoxyWolf Vault (see Council's README — no shell-rc edits required)
 
@@ -18,6 +18,7 @@ This is not a project management tool. It's a decision quality tool.
 
 | Command | Description |
 |---------|-------------|
+| `/project-charter` | Create or update a project's `CHARTER.md` — durable principles and boundaries the Council consults before scope and PRD decisions |
 | `/product-prd` | Generate a Product Requirements Document through guided interview |
 | `/product-scope` | Deliberate on scope decisions (what to build, defer, or cut) |
 | `/product-arch` | Deliberate on architecture choices (tech stack, infrastructure, patterns) |
@@ -32,6 +33,7 @@ This is not a project management tool. It's a decision quality tool.
 
 | File | Purpose |
 |------|---------|
+| `charter-template.md` | Project charter format + interview protocol; how the Council consults the charter; progressive opt-in rigor rules |
 | `prd-template.md` | PRD format, interview protocol (14 inputs), section inclusion rules, status lifecycle |
 | `scope-templates.md` | Four role prompts for scope deliberation (User Advocate, Business Strategist, Ship-It Pragmatist, Long-Game Architect) |
 | `architecture-templates.md` | Four role prompts for architecture deliberation (Scalability Realist, Security & Compliance Advocate, DX Champion, Migration Strategist) |
