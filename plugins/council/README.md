@@ -135,8 +135,8 @@ The router automatically reduces cost by routing simple queries to single models
 |------|----------|----------|
 | Analyst | `openai/gpt-4o` | OpenAI |
 | Strategist | `anthropic/claude-sonnet-4` | Anthropic |
-| Challenger | `google/gemini-2.0-flash` | Google |
-| Synthesist | `x-ai/grok-3` | xAI |
+| Challenger | `google/gemini-2.5-flash` | Google |
+| Synthesist | `x-ai/grok-4.3` | xAI |
 
 Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or any OpenRouter model ID. The router also learns which models perform best for different query categories and adjusts recommendations automatically.
 

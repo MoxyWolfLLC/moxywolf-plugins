@@ -10,7 +10,7 @@ description: >
   "suggest a remediation", "what's the fix for this vulnerability",
   or needs a structured health report, issue review, or code fix suggestion
   for any public or accessible GitHub repository.
-version: 0.4.0
+version: 0.5.0
 ---
 
 # GitHub Repo Analyzer
@@ -40,6 +40,23 @@ This skill uses native Cowork tooling end-to-end — no third-party broker:
 
 Authentication: `gh` reuses your already-authenticated GitHub Desktop session, so no token plumbing is required on a normal MoxyWolf workstation. If `gh` isn't installed, fall back to `curl` with `GITHUB_TOKEN` set in the shell.
 
+### Optional structural enrichment — graphify knowledge graph
+
+[graphify](https://github.com/safishamsi/graphify) (the pinned MoxyWolf tool — see `MoxyWolf Vault/_Shared Knowledge/Tech Stack/tool-graphify-knowledge-graph.md` and DR-005) builds a code knowledge graph with exactly the structural signal the Architecture & Structure section and the reverse-PRD architecture inference reconstruct by hand: **god nodes** (most-connected core abstractions), **communities** (module clusters), **import cycles**, and **isolated/weakly-connected nodes**. This skill **reads that graph if it already exists — it never runs, installs, or depends on graphify** (consistent with DR-005: graphify is a tool the analyzer opportunistically consumes, not a wrapped dependency).
+
+**Read-if-present protocol:**
+
+1. After cloning the repo for `deep` analysis, check the clone root for `graphify-out/graph.json` (graphify's default output). Also accept a user-supplied path via a `graphify_graph` argument.
+2. **If present**, parse it and use it to *ground* the architecture analysis instead of inferring purely from the file tree:
+   - God nodes → name the core abstractions in **Architecture & Structure** and the PRD's component breakdown, with edge counts as evidence.
+   - Communities → corroborate or correct the module/layer decomposition.
+   - Import cycles → feed **Technical Debt Indicators**.
+   - Isolated/weakly-connected nodes → flag as candidate dead code or undocumented seams under Technical Debt.
+   - Cross-reference graphify's findings against your own tree walk; where they disagree, trust the source files and note the discrepancy.
+3. **If absent**, proceed exactly as before (tree walk + Glob/Read/Grep). Optionally note in the report that running graphify on the repo (`graphify extract <path> --backend openrouter` per the Tech Stack note) would deepen the architecture section on a future pass. Never block on it.
+
+**Caveat — weight by repo type.** graphify's signal is strong on **code-bearing repos** (functions, classes, imports, data flow) and noticeably noisier on **markdown/config-heavy repos** (e.g. a plugin/marketplace repo, where `plugin.json` key fragments surface as isolated nodes and near-duplicate "metadata" communities). Lean on the graph for source-heavy repos; treat it as a weak hint and prefer the file tree when the repo is mostly docs/config.
+
 ## Inputs
 
 ### Health Report / PRD Inputs
@@ -50,6 +67,7 @@ Authentication: `gh` reuses your already-authenticated GitHub Desktop session, s
 | `include_prd` | No | Set to `true` to reverse-engineer a PRD alongside the health report. Default: `false` |
 | `analysis_depth` | No | `deep` for full recursive tree traversal, `quick` for root-level only. Default: `deep` |
 | `client_name` | No | Client or project name for report branding |
+| `graphify_graph` | No | Path to an existing graphify `graph.json` to ground the architecture analysis. Auto-detected at `<clone>/graphify-out/graph.json` if not given. Optional — the analyzer never runs graphify itself |
 
 ### Issue Review Inputs
 
@@ -102,6 +120,7 @@ Match the user's intent to the appropriate analysis mode:
 
 1. **Accept the repo URL** from the user. Extract owner and repo name.
 2. **Gather repo data.** Prefer a local clone for `deep` analysis: `gh repo clone "${OWNER}/${REPO}" /tmp/analyze-$$` and walk it with `Glob` / `Read` / `Grep`. For `quick` mode or when cloning isn't possible, use `gh api` against the tree and contents endpoints (see the Backend table above).
+   - **Check for a graphify graph** at `<clone>/graphify-out/graph.json` (or a user-supplied `graphify_graph` path). If present, parse it per the read-if-present protocol in the Backend section and use its god nodes / communities / cycles / isolated nodes to ground the architecture analysis. If absent, continue normally.
 3. **Inspect the gathered data** into structured sections — package manifests, configs, code samples, doc files, contributor patterns.
 4. **Stack conformance** — Compare detected technologies against the approved tech stack in `references/tech-stack.md`. Flag deviations, missing expected tools, and unexpected additions.
 5. **PRD generation** (if requested) — Use the template in `references/prd-template.md` to structure the reverse-engineered PRD. Fill in as many sections as the codebase evidence supports.
@@ -297,7 +316,7 @@ Verify whether closed issue(s) were actually fixed with code changes, or merely 
 The health report covers these sections:
 
 - **Repository Overview** — Name, description, primary language, license, visibility, last updated
-- **Architecture & Structure** — Directory layout, monorepo detection, framework identification, design patterns
+- **Architecture & Structure** — Directory layout, monorepo detection, framework identification, design patterns. When a graphify graph is available, anchor this section on its god nodes (core abstractions, with edge counts) and communities (module decomposition) rather than tree-shape alone.
 - **Tech Stack Inventory** — Languages, frameworks, databases, infrastructure, CI/CD, detected from package files, configs, and imports
 - **Stack Conformance** — Side-by-side comparison against MoxyWolf's approved stack with match/deviation/missing status for each layer
 - **Code Quality Signals** — Linter configs, test frameworks, CI pipelines, code coverage indicators, formatting tools
@@ -305,7 +324,7 @@ The health report covers these sections:
 - **Contributor Health** — Active contributors, commit frequency, bus factor, PR merge patterns
 - **Documentation Assessment** — README quality, API docs, inline comments, architecture docs
 - **Security Posture** — .env handling, secret detection patterns, auth approach, dependency audit configs
-- **Technical Debt Indicators** — TODO/FIXME density, large files, complex modules, stale branches
+- **Technical Debt Indicators** — TODO/FIXME density, large files, complex modules, stale branches. When a graphify graph is available, add its import cycles and isolated/weakly-connected nodes (candidate dead code or undocumented seams) as evidence.
 - **Recommendations** — Prioritized action items grouped by urgency (critical, important, nice-to-have)
 
 ## Issue Review Report Structure
@@ -392,6 +411,7 @@ After generation, assess PRD completeness using the rubric in `references/prd-as
 - Private repos require appropriate GitHub permissions on whichever account `gh` / the MCP is authenticated as
 - PRD sections dependent on business context (user personas, KPIs, pricing) will be marked as needing stakeholder input
 - Analysis quality depends on repository documentation and conventional project structure
+- graphify enrichment is read-if-present only — the analyzer never installs or runs graphify, and gracefully omits it when no `graph.json` exists. graphify's signal is strong on code-heavy repos and noisier on markdown/config-heavy ones, so it's weighted accordingly
 - Issue review depends on issue quality — poorly written issues with no file references will have limited classification
 - Closure audit uses the Events API which returns the most recent 100 events; older history may not be available
 - CWE/OWASP classification is based on issue descriptions, not dynamic code scanning

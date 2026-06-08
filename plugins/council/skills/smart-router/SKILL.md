@@ -182,8 +182,8 @@ Assemble the final response object:
   "recommended_models": [
     "anthropic/claude-sonnet-4",
     "openai/gpt-4o",
-    "x-ai/grok-3",
-    "google/gemini-2.0-flash"
+    "x-ai/grok-4.3",
+    "google/gemini-2.5-flash"
   ],
   "excluded_models": [],
   "recommended_protocol": "voting",

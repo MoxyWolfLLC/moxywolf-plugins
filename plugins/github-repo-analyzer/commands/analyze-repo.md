@@ -34,6 +34,8 @@ Analyze the GitHub repository at $1 and produce a structured health report.
 
    Use `quick` mode when `--quick` is set: only inspect root-level files (package.json, README, top-level configs) and skip recursive tree walks.
 
+3b. **Optional graphify enrichment (read-if-present).** Check the clone root for `graphify-out/graph.json` (or a `--graphify-graph <path>` argument). If it exists, parse it and use its god nodes, communities, import cycles, and isolated nodes to ground the Architecture and Technical Debt sections per the skill's "Optional structural enrichment" protocol. If it doesn't exist, skip silently — never install or run graphify, and optionally note that generating a graph (`graphify extract <path> --backend openrouter`) would deepen a future pass. Weight the graph by repo type: strong signal for code-heavy repos, weak hint for markdown/config-heavy ones.
+
 4. Read the approved tech stack from `${CLAUDE_PLUGIN_ROOT}/skills/github-repo-analyzer/references/tech-stack.md`.
 
 5. Compare detected technologies against the approved stack. For each layer (Frontend, Backend, Database, Hosting, etc.), mark technologies as:

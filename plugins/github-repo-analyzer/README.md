@@ -10,6 +10,7 @@ Analyze any GitHub repository for health, tech stack conformance, structured iss
 - **PRD Generation** — Reverse-engineers a 17-section PRD from existing codebases using MoxyWolf's standard PRD template
 - **Fix Suggestions** — Generates code fix reports for open issues one at a time with HITL reviewer approval, using three-tier file path extraction and CWE Top 25 fix pattern catalog
 - **Fix Verification** — Cross-references closed issue metadata against current source code to determine whether issues were actually fixed, partially fixed, or left unresolved
+- **graphify enrichment (optional, read-if-present)** — When a [graphify](https://github.com/safishamsi/graphify) `graph.json` exists at the clone's `graphify-out/` (or is passed via `--graphify-graph`), the architecture and technical-debt analysis is grounded on its god nodes, communities, import cycles, and isolated nodes. The plugin never installs or runs graphify; it just consumes the graph if it's there, and weights it by repo type (strong for code-heavy repos, a weak hint for markdown/config-heavy ones). See the MoxyWolf Tech Stack note `tool-graphify-knowledge-graph.md` and DR-005.
 
 ## Commands
 

@@ -10,8 +10,10 @@ Default model lineup and configuration for the Council deliberation pipeline.
 |------|----------|----------|------|----------------|
 | Analyst | `openai/gpt-4o` | OpenAI | Precise, structured | Strong at structured reasoning, code, and quantitative analysis |
 | Strategist | `anthropic/claude-sonnet-4` | Anthropic | Nuanced, contextual | Excels at nuanced analysis, long-form reasoning, and considering context |
-| Challenger | `google/gemini-2.0-flash` | Google | Fast, contrarian | Fast inference, good at lateral thinking, cost-effective |
-| Synthesist | `x-ai/grok-3` | xAI | Cross-domain lateral | Strong general knowledge, unconventional perspectives |
+| Challenger | `google/gemini-2.5-flash` | Google | Fast, contrarian | Fast inference, good at lateral thinking, cost-effective |
+| Synthesist | `x-ai/grok-4.3` | xAI | Cross-domain lateral | Strong general knowledge, unconventional perspectives |
+
+> **Model IDs go stale.** OpenRouter deprecates/renames models (e.g. `x-ai/grok-3` → `x-ai/grok-4.3`, `google/gemini-2.0-flash` → `google/gemini-2.5-flash`, both retired by 2026-06). If Stage 1 returns an HTTP 404/400 naming a model, update the IDs here, in `skills/smart-router/SKILL.md` (`recommended_models`), and in the README lineup table. Verify current IDs at https://openrouter.ai/models. Last verified: 2026-06-08.
 
 ## Small Lineup (2 models)
 
@@ -30,8 +32,8 @@ For high-stakes deliberations. Adds two more perspectives.
 |------|----------|----------|------|
 | Analyst | `openai/gpt-4o` | OpenAI | Precise, structured |
 | Strategist | `anthropic/claude-sonnet-4` | Anthropic | Nuanced, contextual |
-| Challenger | `google/gemini-2.0-flash` | Google | Fast, contrarian |
-| Synthesist | `x-ai/grok-3` | xAI | Cross-domain lateral |
+| Challenger | `google/gemini-2.5-flash` | Google | Fast, contrarian |
+| Synthesist | `x-ai/grok-4.3` | xAI | Cross-domain lateral |
 | Specialist | `meta-llama/llama-3.3-70b-instruct` | Meta | Open-source perspective |
 | Verifier | `deepseek/deepseek-r1` | DeepSeek | Reasoning chain verification |
 
@@ -67,8 +69,8 @@ Approximate cost per call at March 2026 OpenRouter pricing:
 |-------|----------------------|----------------------|
 | openai/gpt-4o | $2.50 | $10.00 |
 | anthropic/claude-sonnet-4 | $3.00 | $15.00 |
-| google/gemini-2.0-flash | $0.10 | $0.40 |
-| x-ai/grok-3 | $3.00 | $15.00 |
+| google/gemini-2.5-flash | $0.30 | $2.50 |
+| x-ai/grok-4.3 | $3.00 | $15.00 |
 | meta-llama/llama-3.3-70b-instruct | $0.40 | $0.40 |
 | deepseek/deepseek-r1 | $0.55 | $2.19 |
 

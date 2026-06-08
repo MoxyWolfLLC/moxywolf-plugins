@@ -33,6 +33,8 @@ Analyze the GitHub repository at $1 and reverse-engineer a Product Requirements 
 
    The PRD generation step in this command requires deep file reading (data models, API contracts, business logic). If using Path B in `--quick` mode, scope the PRD to architectural sections and explicitly mark the rest as "Requires stakeholder input" — don't pretend deep insight from shallow data.
 
+3b. **Optional graphify enrichment (read-if-present).** Check the clone root for `graphify-out/graph.json` (or a `--graphify-graph <path>` argument). If it exists, parse it and let its god nodes (core abstractions) and communities (module decomposition) drive the PRD's architecture and component sections, and its import cycles / isolated nodes inform the health report's Technical Debt section — per the skill's "Optional structural enrichment" protocol. If absent, skip silently; never install or run graphify. Weight by repo type: strong signal for code-heavy repos, weak hint for markdown/config-heavy ones.
+
 4. Read the approved tech stack from `${CLAUDE_PLUGIN_ROOT}/skills/github-repo-analyzer/references/tech-stack.md`.
 
 5. Read the PRD template from `${CLAUDE_PLUGIN_ROOT}/skills/github-repo-analyzer/references/prd-template.md`.

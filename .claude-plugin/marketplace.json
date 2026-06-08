@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.5.4",
+  "version": "1.5.6",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -57,7 +57,7 @@
       "name": "council",
       "source": "./plugins/council",
       "description": "Multi-model AI deliberation with vault-aware institutional memory — structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "author": { "name": "MoxyWolf LLC" },
       "category": "deliberation",
       "keywords": ["deliberation", "multi-model", "consensus", "openrouter", "obsidian"]
@@ -110,11 +110,11 @@
     {
       "name": "github-repo-analyzer",
       "source": "./plugins/github-repo-analyzer",
-      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.5.1",
+      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Optionally grounds architecture analysis on a graphify knowledge graph when present. Uses native GitHub MCP + gh CLI / REST.",
+      "version": "0.6.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "engineering",
-      "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification"]
+      "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification", "graphify"]
     },
     {
       "name": "document-analysis",
