@@ -10,7 +10,7 @@ description: >
   "suggest a remediation", "what's the fix for this vulnerability",
   or needs a structured health report, issue review, or code fix suggestion
   for any public or accessible GitHub repository.
-version: 0.5.0
+version: 0.7.0
 ---
 
 # GitHub Repo Analyzer
@@ -40,20 +40,36 @@ This skill uses native Cowork tooling end-to-end — no third-party broker:
 
 Authentication: `gh` reuses your already-authenticated GitHub Desktop session, so no token plumbing is required on a normal MoxyWolf workstation. If `gh` isn't installed, fall back to `curl` with `GITHUB_TOKEN` set in the shell.
 
-### Optional structural enrichment — graphify knowledge graph
+### Structural enrichment — graphify knowledge graph (run-first)
 
-[graphify](https://github.com/safishamsi/graphify) (the pinned MoxyWolf tool — see `MoxyWolf Vault/_Shared Knowledge/Tech Stack/tool-graphify-knowledge-graph.md` and DR-005) builds a code knowledge graph with exactly the structural signal the Architecture & Structure section and the reverse-PRD architecture inference reconstruct by hand: **god nodes** (most-connected core abstractions), **communities** (module clusters), **import cycles**, and **isolated/weakly-connected nodes**. This skill **reads that graph if it already exists — it never runs, installs, or depends on graphify** (consistent with DR-005: graphify is a tool the analyzer opportunistically consumes, not a wrapped dependency).
+[graphify](https://github.com/safishamsi/graphify) (the pinned MoxyWolf tool — see `MoxyWolf Vault/_Shared Knowledge/Tech Stack/tool-graphify-knowledge-graph.md`) builds a code knowledge graph carrying exactly the structural signal the Architecture & Structure section and the reverse-PRD architecture inference would otherwise reconstruct by hand: **god nodes** (most-connected core abstractions), **communities** (module clusters), **import cycles**, and **isolated/weakly-connected nodes**. For `deep` analysis the analyzer **generates this graph as its first step, then reads it** — it is no longer optional.
 
-**Read-if-present protocol:**
+> **Behavior change (run-first, supersedes DR-005).** DR-005 originally scoped graphify as a tool the analyzer *opportunistically consumes if already present, never runs*. This skill now **runs graphify itself as Step 0** of `deep` analysis. It still **degrades gracefully**: if graphify can't be produced for any reason, fall back to the plain tree walk and note it in the report. Never hard-fail the analysis on graphify. If you formalize this, log a follow-up DR superseding DR-005.
 
-1. After cloning the repo for `deep` analysis, check the clone root for `graphify-out/graph.json` (graphify's default output). Also accept a user-supplied path via a `graphify_graph` argument.
-2. **If present**, parse it and use it to *ground* the architecture analysis instead of inferring purely from the file tree:
+**Step 0 — generate the graph (run before the tree walk):**
+
+1. **Skip** Step 0 only if the caller passes `--skip-graphify`, if `analysis_depth=quick`, or if a usable `graphify-out/graph.json` already exists at the clone root (or a user-supplied `graphify_graph` path) — then jump straight to "Consume the graph" below.
+2. **Ensure the CLI** (idempotent): `pip install graphifyy anthropic --break-system-packages -q`. The PyPI package is `graphifyy`; the CLI is `graphify`, installed to `~/.local/bin` — add it to `PATH`. The `anthropic` extra is only needed for the keyed path.
+3. **Extract**, writing to `<clone>/graphify-out`:
+   - **Keyed path (preferred — named communities + multimodal concepts).** When an LLM key is available (`ANTHROPIC_API_KEY`, or any backend graphify auto-detects via `graphify_backend`), run `graphify extract <clone> --backend <auto>` then `graphify label <clone> --backend <auto>`. This folds README/docs/diagrams/images in as concept nodes and yields human-readable community names.
+   - **Keyless path (always works, offline).** With no key, build a **code-only** graph: scope to source files (`.ts .tsx .js .mjs .py .go .rs .java .c .cpp .rb .cs .kt .php`, excluding `node_modules`, `.next`, `dist`, and build output), then `graphify extract <code-scope> --no-cluster` followed by `graphify cluster-only <code-scope> --no-label`. Communities come out numbered rather than named — fine; god nodes, communities, cycles, and isolated nodes are all still present.
+4. **Confirm** `graphify-out/graph.json` exists, then consume it.
+
+**Execution notes (heed these — they are failure modes seen in practice):**
+
+- `graphify extract` **refuses to run when non-code files (`.md`, images) are present and no LLM key is set** ("a code-only corpus needs no key"). The keyless path **must** be scoped to code files only or it will error.
+- Community **naming** needs a key; AST extraction and Leiden **clustering do not**. `--no-label` + `cluster-only` produce a complete graph offline.
+- In time-boxed or sandboxed runners (per-command timeouts; backgrounded processes killed with the launching shell), a full keyed extract over a large README can exceed the limit and partial runs may not cache. Mitigations: prefer the keyless code-only path (fast, offline); exclude oversized docs from the semantic pass; or run `graphify label` as an isolated step against an already-built `graph.json`. Keep graphify best-effort — fall back to the tree walk rather than blocking.
+- The `anthropic` Python package must be installed for `--backend claude` (`pip install anthropic`), separate from the `graphifyy` CLI.
+
+**Consume the graph (after Step 0, or if one already existed):**
+
+1. Parse `graphify-out/graph.json` and use it to *ground* the architecture analysis instead of inferring purely from the file tree:
    - God nodes → name the core abstractions in **Architecture & Structure** and the PRD's component breakdown, with edge counts as evidence.
    - Communities → corroborate or correct the module/layer decomposition.
    - Import cycles → feed **Technical Debt Indicators**.
    - Isolated/weakly-connected nodes → flag as candidate dead code or undocumented seams under Technical Debt.
-   - Cross-reference graphify's findings against your own tree walk; where they disagree, trust the source files and note the discrepancy.
-3. **If absent**, proceed exactly as before (tree walk + Glob/Read/Grep). Optionally note in the report that running graphify on the repo (`graphify extract <path> --backend openrouter` per the Tech Stack note) would deepen the architecture section on a future pass. Never block on it.
+2. Cross-reference graphify's findings against your own tree walk; where they disagree, trust the source files and note the discrepancy.
 
 **Caveat — weight by repo type.** graphify's signal is strong on **code-bearing repos** (functions, classes, imports, data flow) and noticeably noisier on **markdown/config-heavy repos** (e.g. a plugin/marketplace repo, where `plugin.json` key fragments surface as isolated nodes and near-duplicate "metadata" communities). Lean on the graph for source-heavy repos; treat it as a weak hint and prefer the file tree when the repo is mostly docs/config.
 
@@ -67,7 +83,9 @@ Authentication: `gh` reuses your already-authenticated GitHub Desktop session, s
 | `include_prd` | No | Set to `true` to reverse-engineer a PRD alongside the health report. Default: `false` |
 | `analysis_depth` | No | `deep` for full recursive tree traversal, `quick` for root-level only. Default: `deep` |
 | `client_name` | No | Client or project name for report branding |
-| `graphify_graph` | No | Path to an existing graphify `graph.json` to ground the architecture analysis. Auto-detected at `<clone>/graphify-out/graph.json` if not given. Optional — the analyzer never runs graphify itself |
+| `graphify_graph` | No | Path to an existing graphify `graph.json` to ground the architecture analysis. Auto-detected at `<clone>/graphify-out/graph.json`. If absent, the analyzer **generates one as Step 0** (see Structural enrichment) |
+| `graphify_backend` | No | LLM backend for graphify's keyed path (`claude`/`gemini`/`openai`/…). Defaults to whichever API key is set; falls back to the keyless code-only graph when no key is available |
+| `--skip-graphify` | No | Skip Step 0 graph generation and run the plain tree walk only. Default: graphify runs on `deep` analysis |
 
 ### Issue Review Inputs
 
@@ -120,7 +138,7 @@ Match the user's intent to the appropriate analysis mode:
 
 1. **Accept the repo URL** from the user. Extract owner and repo name.
 2. **Gather repo data.** Prefer a local clone for `deep` analysis: `gh repo clone "${OWNER}/${REPO}" /tmp/analyze-$$` and walk it with `Glob` / `Read` / `Grep`. For `quick` mode or when cloning isn't possible, use `gh api` against the tree and contents endpoints (see the Backend table above).
-   - **Check for a graphify graph** at `<clone>/graphify-out/graph.json` (or a user-supplied `graphify_graph` path). If present, parse it per the read-if-present protocol in the Backend section and use its god nodes / communities / cycles / isolated nodes to ground the architecture analysis. If absent, continue normally.
+   - **Build the graphify graph first (Step 0).** Before walking the tree, run graphify per the "Structural enrichment — graphify knowledge graph (run-first)" protocol in the Backend section: install the CLI, extract to `<clone>/graphify-out` (keyed path if an LLM key is available, else the keyless code-only path), and confirm `graph.json`. Skip only on `--skip-graphify`, `quick` mode, or when a usable graph already exists. Then parse it and use its god nodes / communities / cycles / isolated nodes to ground the architecture analysis. If graphify can't be produced, fall back to the tree walk and note it — never block.
 3. **Inspect the gathered data** into structured sections — package manifests, configs, code samples, doc files, contributor patterns.
 4. **Stack conformance** — Compare detected technologies against the approved tech stack in `references/tech-stack.md`. Flag deviations, missing expected tools, and unexpected additions.
 5. **PRD generation** (if requested) — Use the template in `references/prd-template.md` to structure the reverse-engineered PRD. Fill in as many sections as the codebase evidence supports.
@@ -411,7 +429,7 @@ After generation, assess PRD completeness using the rubric in `references/prd-as
 - Private repos require appropriate GitHub permissions on whichever account `gh` / the MCP is authenticated as
 - PRD sections dependent on business context (user personas, KPIs, pricing) will be marked as needing stakeholder input
 - Analysis quality depends on repository documentation and conventional project structure
-- graphify enrichment is read-if-present only — the analyzer never installs or runs graphify, and gracefully omits it when no `graph.json` exists. graphify's signal is strong on code-heavy repos and noisier on markdown/config-heavy ones, so it's weighted accordingly
+- graphify enrichment is run-first on `deep` analysis — the analyzer installs (if needed) and runs graphify as Step 0, then reads the resulting `graph.json`. It still degrades gracefully: any graphify failure falls back to the plain tree walk rather than blocking. The keyless path produces a code-only graph with numbered communities; named communities and multimodal (docs/image) concept nodes require an LLM key. graphify's signal is strong on code-heavy repos and noisier on markdown/config-heavy ones, so it's weighted accordingly. Skippable via `--skip-graphify` or `quick` mode
 - Issue review depends on issue quality — poorly written issues with no file references will have limited classification
 - Closure audit uses the Events API which returns the most recent 100 events; older history may not be available
 - CWE/OWASP classification is based on issue descriptions, not dynamic code scanning

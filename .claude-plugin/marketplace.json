@@ -110,8 +110,8 @@
     {
       "name": "github-repo-analyzer",
       "source": "./plugins/github-repo-analyzer",
-      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Optionally grounds architecture analysis on a graphify knowledge graph when present. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.6.0",
+      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the first step of deep analysis (keyless code-only by default, named/multimodal with an LLM key) to ground architecture and tech-debt findings, with graceful fallback. Uses native GitHub MCP + gh CLI / REST.",
+      "version": "0.7.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "engineering",
       "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification", "graphify"]

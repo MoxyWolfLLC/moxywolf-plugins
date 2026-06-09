@@ -1,7 +1,7 @@
 {
   "name": "github-repo-analyzer",
-  "version": "0.6.0",
-  "description": "Analyze GitHub repositories for health, tech stack conformance, structured issue reviews with CWE/OWASP/NIST security classification, HITL code fix suggestions with embedded security reference catalog, and closure verification audits that detect unfixed issues marked as resolved. Optionally grounds architecture analysis on a graphify knowledge graph when one is present. Built for MoxyWolf LLC internal use.",
+  "version": "0.7.0",
+  "description": "Analyze GitHub repositories for health, tech stack conformance, structured issue reviews with CWE/OWASP/NIST security classification, HITL code fix suggestions with embedded security reference catalog, and closure verification audits that detect unfixed issues marked as resolved. Runs a graphify knowledge graph as the first step of deep analysis (keyless code-only by default, named/multimodal when an LLM key is available) to ground architecture and technical-debt findings, with graceful fallback to a plain tree walk. Built for MoxyWolf LLC internal use.",
   "author": {
     "name": "MoxyWolf LLC"
   },
