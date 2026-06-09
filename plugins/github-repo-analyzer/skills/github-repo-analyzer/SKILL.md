@@ -10,7 +10,7 @@ description: >
   "suggest a remediation", "what's the fix for this vulnerability",
   or needs a structured health report, issue review, or code fix suggestion
   for any public or accessible GitHub repository.
-version: 0.7.0
+version: 0.8.0
 ---
 
 # GitHub Repo Analyzer
@@ -44,23 +44,33 @@ Authentication: `gh` reuses your already-authenticated GitHub Desktop session, s
 
 [graphify](https://github.com/safishamsi/graphify) (the pinned MoxyWolf tool — see `MoxyWolf Vault/_Shared Knowledge/Tech Stack/tool-graphify-knowledge-graph.md`) builds a code knowledge graph carrying exactly the structural signal the Architecture & Structure section and the reverse-PRD architecture inference would otherwise reconstruct by hand: **god nodes** (most-connected core abstractions), **communities** (module clusters), **import cycles**, and **isolated/weakly-connected nodes**. For `deep` analysis the analyzer **generates this graph as its first step, then reads it** — it is no longer optional.
 
-> **Behavior change (run-first, supersedes DR-005).** DR-005 originally scoped graphify as a tool the analyzer *opportunistically consumes if already present, never runs*. This skill now **runs graphify itself as Step 0** of `deep` analysis. It still **degrades gracefully**: if graphify can't be produced for any reason, fall back to the plain tree walk and note it in the report. Never hard-fail the analysis on graphify. If you formalize this, log a follow-up DR superseding DR-005.
+> **Behavior change (run-first + keyed-mandatory, supersedes DR-005).** DR-005 originally scoped graphify as a tool the analyzer *opportunistically consumes if already present, never runs*. This skill now **runs graphify itself as Step 0** of `deep` analysis, and **the keyed pass (LLM-named communities over the full repo) is mandatory, not optional** — the MoxyWolf team OpenRouter key (DR-010) is always resolvable from the vault, so "no key available" is not an acceptable reason to skip it. The keyless code-only graph is a *fallback for when the key genuinely cannot be loaded*, not the default. graphify still **degrades gracefully** on hard failure: if neither the keyed nor keyless graph can be produced, fall back to the plain tree walk and note it. Never hard-fail the whole analysis on graphify. If you formalize this, log a follow-up DR superseding DR-005.
 
 **Step 0 — generate the graph (run before the tree walk):**
 
-1. **Skip** Step 0 only if the caller passes `--skip-graphify`, if `analysis_depth=quick`, or if a usable `graphify-out/graph.json` already exists at the clone root (or a user-supplied `graphify_graph` path) — then jump straight to "Consume the graph" below.
-2. **Ensure the CLI** (idempotent): `pip install graphifyy anthropic --break-system-packages -q`. The PyPI package is `graphifyy`; the CLI is `graphify`, installed to `~/.local/bin` — add it to `PATH`. The `anthropic` extra is only needed for the keyed path.
-3. **Extract**, writing to `<clone>/graphify-out`:
-   - **Keyed path (preferred — named communities + multimodal concepts).** When an LLM key is available (`ANTHROPIC_API_KEY`, or any backend graphify auto-detects via `graphify_backend`), run `graphify extract <clone> --backend <auto>` then `graphify label <clone> --backend <auto>`. This folds README/docs/diagrams/images in as concept nodes and yields human-readable community names.
-   - **Keyless path (always works, offline).** With no key, build a **code-only** graph: scope to source files (`.ts .tsx .js .mjs .py .go .rs .java .c .cpp .rb .cs .kt .php`, excluding `node_modules`, `.next`, `dist`, and build output), then `graphify extract <code-scope> --no-cluster` followed by `graphify cluster-only <code-scope> --no-label`. Communities come out numbered rather than named — fine; god nodes, communities, cycles, and isolated nodes are all still present.
-4. **Confirm** `graphify-out/graph.json` exists, then consume it.
+1. **Skip** Step 0 only if the caller passes `--skip-graphify`, if `analysis_depth=quick`, or if a usable keyed `graphify-out/graph.json` already exists at the clone root (or a user-supplied `graphify_graph` path) — then jump straight to "Consume the graph" below.
+2. **Ensure the CLI + OpenAI-compat client** (idempotent): `pip install graphifyy openai --break-system-packages -q`. The PyPI package is `graphifyy`; the CLI is `graphify`, installed to `~/.local/bin` — add it to `PATH`. **`openai` is required** — the team OpenRouter backend goes through graphify's OpenAI-compatible client, and the keyed pass silently fails its semantic/label chunks without it (the error is `the 'openai' package is required for this backend`).
+3. **Resolve the LLM key + register OpenRouter as a graphify backend (keyed pass is mandatory).** graphify does **not** read `OPENROUTER_API_KEY` natively and has **no built-in OpenRouter backend**, but OpenRouter is OpenAI-compatible, so register it as a custom provider:
+   - Load the team key (value never printed) from the canonical DR-010 path: `set -a; . "$VAULT/_Shared Knowledge/Agents and Plugins/openrouter.env"; set +a` where `$VAULT` is the mounted MoxyWolf Vault. The env-var path wins if `OPENROUTER_API_KEY` is already exported.
+   - Write `~/.graphify/providers.json` once:
+     ```json
+     {"openrouter": {"base_url": "https://openrouter.ai/api/v1", "default_model": "openai/gpt-4o-mini", "model_env_key": "GRAPHIFY_OPENROUTER_MODEL", "env_key": "OPENROUTER_API_KEY", "pricing": {"input": 0.15, "output": 0.60}, "temperature": 0, "max_tokens": 16384, "vision": true}}
+     ```
+   - All keyed graphify commands then take `--backend openrouter`. (Native keys still work if present: `ANTHROPIC_API_KEY` → `--backend claude`, `GEMINI_API_KEY`/`GOOGLE_API_KEY` → `--backend gemini`, etc. Prefer whichever is available; OpenRouter is the always-available default for MoxyWolf.)
+4. **Build the graph as TWO passes (this is what survives the Cowork sandbox — a single full keyed `extract` over a large monorepo exceeds the per-command timeout and does not checkpoint AST progress).**
+   - **Pass A — full-repo AST graph (deterministic, fast, writes `graph.json`).** Copy the **entire** repo's source into a scratch corpus (`.ts .tsx .js .mjs .py .go .rs .java .c .cpp .rb .cs .kt .php .prisma`, excluding `node_modules`, `.next`, `dist`, `.git`) — the *whole* tree, not just shared packages; on a monorepo include both `apps/*` and `packages/*`. Then `graphify extract <code-scope> --no-cluster -o <code-scope>/graphify-out`. This writes a full-repo `graph.json` with god nodes, edges, and (after clustering) communities. **Strip `.md`/`.mdx`/images from this Pass-A corpus** or the AST-only extract refuses ("a code-only corpus needs no key").
+   - **Pass B — cluster + LLM-name communities (the keyed payoff).** `graphify cluster-only <code-scope> --no-label` (Leiden, deterministic) to assign communities, then `graphify label <code-scope> --backend openrouter` to NAME them. `label` re-clusters + names + regenerates `GRAPH_REPORT.md` and `graph.html` in one call and is bounded by community count, so it fits the time box where a full `extract` does not. **Do not** run `cluster-only --no-label` *after* `label` — it wipes the names; `label` must be the last mutation.
+   - **Optional Pass C — multimodal concept folding (best-effort).** To fold README/docs/diagrams in as concept nodes, run a keyed `graphify extract <corpus-with-docs> --backend openrouter` over a corpus that *includes* `.md`/`.mdx`; iterate within the time box (semantic chunks cache). Skip if it can't complete — Pass A+B already deliver the mandatory keyed, full-repo, named-community graph.
+5. **Confirm** `graphify-out/graph.json` exists and `GRAPH_REPORT.md` shows real community names (not `Community N`), then consume it.
 
-**Execution notes (heed these — they are failure modes seen in practice):**
+**Execution notes (heed these — they are failure modes seen in practice in the Cowork sandbox):**
 
-- `graphify extract` **refuses to run when non-code files (`.md`, images) are present and no LLM key is set** ("a code-only corpus needs no key"). The keyless path **must** be scoped to code files only or it will error.
-- Community **naming** needs a key; AST extraction and Leiden **clustering do not**. `--no-label` + `cluster-only` produce a complete graph offline.
-- In time-boxed or sandboxed runners (per-command timeouts; backgrounded processes killed with the launching shell), a full keyed extract over a large README can exceed the limit and partial runs may not cache. Mitigations: prefer the keyless code-only path (fast, offline); exclude oversized docs from the semantic pass; or run `graphify label` as an isolated step against an already-built `graph.json`. Keep graphify best-effort — fall back to the tree walk rather than blocking.
-- The `anthropic` Python package must be installed for `--backend claude` (`pip install anthropic`), separate from the `graphifyy` CLI.
+- **`openai` package is mandatory** for the OpenRouter backend. Without it, AST extraction succeeds but every semantic/label chunk fails silently and you get `Community N` placeholders. Install it in Step 0.2.
+- A **single full keyed `extract`** over a real monorepo (hundreds of files) **exceeds the ~45s per-command sandbox limit** and its AST pass does not checkpoint across calls — so it restarts each time and never reaches the LLM stage. The **two-pass split (AST `extract --no-cluster`, then `label`)** is the working pattern: Pass A writes `graph.json` on first run; Pass B's `label` is community-bounded and completes within the window. Verify names landed (`grep -v 'Community [0-9]' graphify-out/.graphify_labels.json`).
+- `graphify extract` **refuses to run when non-code files (`.md`, images) are present and no LLM key is set**. Pass A is therefore code-only by construction; docs go only into the optional keyed Pass C.
+- Community **naming** needs the LLM; AST extraction and Leiden **clustering do not**.
+- Leiden over-fragments large graphs (a full monorepo can yield hundreds of small communities). That's expected — lean on the **largest** named communities and the **god nodes** as the load-bearing signal, not the raw community count.
+- The `anthropic` Python package is only needed for `--backend claude`; it is **not** needed for the OpenRouter/`openai`-compat default.
 
 **Consume the graph (after Step 0, or if one already existed):**
 
@@ -429,7 +439,7 @@ After generation, assess PRD completeness using the rubric in `references/prd-as
 - Private repos require appropriate GitHub permissions on whichever account `gh` / the MCP is authenticated as
 - PRD sections dependent on business context (user personas, KPIs, pricing) will be marked as needing stakeholder input
 - Analysis quality depends on repository documentation and conventional project structure
-- graphify enrichment is run-first on `deep` analysis — the analyzer installs (if needed) and runs graphify as Step 0, then reads the resulting `graph.json`. It still degrades gracefully: any graphify failure falls back to the plain tree walk rather than blocking. The keyless path produces a code-only graph with numbered communities; named communities and multimodal (docs/image) concept nodes require an LLM key. graphify's signal is strong on code-heavy repos and noisier on markdown/config-heavy ones, so it's weighted accordingly. Skippable via `--skip-graphify` or `quick` mode
+- graphify enrichment is run-first **and keyed-mandatory** on `deep` analysis — the analyzer installs `graphifyy`+`openai` (if needed), loads the team OpenRouter key from the vault (DR-010), registers OpenRouter as a custom backend, and produces a **full-repo, LLM-named-community** graph as Step 0 via the two-pass split (AST `extract --no-cluster`, then `label --backend openrouter`). The keyless code-only graph is only a fallback for when the key genuinely can't load. It still degrades gracefully: any hard graphify failure falls back to the plain tree walk rather than blocking. Leiden over-fragments large monorepos (hundreds of small communities) — lean on the largest named communities and god nodes. graphify's signal is strong on code-heavy repos and noisier on markdown/config-heavy ones, so it's weighted accordingly. Skippable only via `--skip-graphify` or `quick` mode
 - Issue review depends on issue quality — poorly written issues with no file references will have limited classification
 - Closure audit uses the Events API which returns the most recent 100 events; older history may not be available
 - CWE/OWASP classification is based on issue descriptions, not dynamic code scanning
