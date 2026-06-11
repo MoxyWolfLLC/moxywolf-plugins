@@ -15,9 +15,9 @@ Build a graphify knowledge graph of an Obsidian vault and land the Obsidian-form
    - Copy `.md` files from the scope. Add a `.graphifyignore` excluding `_Templates/`, `99 – Archive/`, `.obsidian/`, and any generated graph output folders (`Vault Graph/`, `graphs/`) so the graph never ingests itself.
    - The vault is cloud-synced: if many files are cloud-only, tell the user what will be downloaded and why before copying in bulk.
 
-4. **Run the docs-first protocol**: this is a markdown corpus, so the keyed `extract --backend openrouter` is the primary pass — there is no keyless fallback for docs. Iterate within the time box (semantic chunks cache). Then `cluster-only` + `label` per the core protocol.
+4. **Run the docs-first protocol** with the mandatory docs-corpus defaults from graphify-core: `GRAPHIFY_OPENROUTER_MODEL=openai/gpt-4o graphify extract <corpus> --backend openrouter --mode deep --token-budget 4000 --no-cluster`. There is no keyless fallback for docs. Mind the cache trap: after changing mode/model/budget, `rm -rf <corpus>/graphify-out` before re-running. Then `cluster-only` + `label` per the core protocol.
 
-5. **Export and place** (unless `--no-obsidian-export`): generate the Obsidian-format output (`--obsidian`, falling back to `--wiki` if the CLI rejects the flag) and copy it per the core routing convention:
+5. **Export and place** (unless `--no-obsidian-export`): generate the Obsidian-format output from `graph.json` per graphify-core's *Export surfaces* (the headless CLI has no `--obsidian` flag) and copy it per the core routing convention:
    - Whole-vault corpus → `MoxyWolf Vault/_Shared Knowledge/Vault Graph/`
    - `Projects/<project>` scope → `MoxyWolf Vault/Projects/<project>/06-Engineering/graphs/vault/`
 

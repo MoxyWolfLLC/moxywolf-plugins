@@ -27,5 +27,6 @@ Per-project graphs (repo, database) → `MoxyWolf Vault/Projects/<project>/06-En
 
 ## Versioning
 
+- **0.2.1** — runtime lessons from the first /graphify-vault proof run (DR-007): mandatory docs-corpus extraction defaults (`--mode deep --token-budget 4000`, `GRAPHIFY_OPENROUTER_MODEL=openai/gpt-4o`), the semantic-cache trap (clear `graphify-out/` after settings changes), and the Obsidian export generated from `graph.json` as the primary path (headless CLI 0.8.37 has no `--obsidian`/`--wiki`).
 - **0.2.0** — Obsidian integration: docs-first corpus flow, export surfaces in core (`--obsidian`/`--wiki`/global registry), `/graphify-vault`, `--obsidian` on `/graphify` and `/graphify-supabase`, vault routing convention; `/graphify-supabase` now prefers native `--postgres` DSN introspection with the MCP corpus emit as fallback.
 - **0.1.0** — initial breakout from github-repo-analyzer 0.8.0: graphify-core skill (protocol lifted verbatim, generalized corpus-in/graph-out contract), `/graphify`, `/graphify-supabase`.

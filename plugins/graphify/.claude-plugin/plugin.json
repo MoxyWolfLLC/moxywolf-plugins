@@ -1,6 +1,6 @@
 {
   "name": "graphify",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Standalone graphify knowledge-graph runner with Obsidian integration. Points graphify at any corpus — a directory of code, a Supabase database schema (native --postgres introspection or MCP corpus emit), or an Obsidian vault itself via /graphify-vault — and produces a full LLM-named-community knowledge graph (god nodes, communities, import cycles, isolated nodes) without running a whole repo analysis. Obsidian-format exports land back in the MoxyWolf Vault (per-project graphs under Projects/<project>/06-Engineering/graphs/, the vault-wide graph under _Shared Knowledge/Vault Graph/) so they cross-link with real notes. Carries the canonical MoxyWolf runner protocol (team OpenRouter key via DR-010, two-pass AST-then-label split that survives the Cowork sandbox, docs-first keyed flow for markdown corpora, keyless fallback) as the single source of truth; github-repo-analyzer delegates its Step 0 here. Built for MoxyWolf LLC internal use.",
   "author": {
     "name": "MoxyWolf LLC"

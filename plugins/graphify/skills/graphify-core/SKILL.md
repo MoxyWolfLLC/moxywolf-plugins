@@ -35,6 +35,12 @@ This skill is the **single source of truth** for running graphify at MoxyWolf. O
 
 When the corpus is mostly or entirely markdown — an Obsidian vault is the canonical case — the two-pass code flow above does not apply: **docs require the LLM, so the keyed `extract --backend openrouter` IS the primary pass and there is no keyless fallback.** Run it over the docs corpus directly, iterating within the sandbox time box (semantic chunks cache across calls, so repeated invocations make progress where a code AST pass would restart). Then `cluster-only` + `label` as usual. Exclude template and archive folders (`_Templates/`, `99 – Archive/`, `.obsidian/`) via a `.graphifyignore` in the corpus root — same syntax as `.gitignore`.
 
+**Mandatory docs-corpus extraction defaults (proven 2026-06-11; without them extraction collapses to one node per file):**
+
+- `--mode deep --token-budget 4000` — the default 60k budget puts the whole corpus in one chunk and yields file-level summary nodes, not concepts. Small chunks force concept-level extraction.
+- `export GRAPHIFY_OPENROUTER_MODEL=openai/gpt-4o` — the `gpt-4o-mini` provider default is too weak for concept extraction over prose. (Pricing in `providers.json` is informational only; cost stays cents on small corpora.)
+- **Cache trap:** the semantic cache is keyed by file content, not extraction settings — after changing `--mode`, model, or budget, `rm -rf <corpus>/graphify-out` first, or the re-run silently returns the stale shallow graph (`semantic cache: N hit / 0 miss`).
+
 ## The protocol
 
 1. **Ensure the CLI + OpenAI-compat client** (idempotent): `pip install graphifyy openai --break-system-packages -q`. The PyPI package is `graphifyy`; the CLI is `graphify`, installed to `~/.local/bin` — add it to `PATH`. **`openai` is required** — the team OpenRouter backend goes through graphify's OpenAI-compatible client, and the keyed pass silently fails its semantic/label chunks without it (the error is `the 'openai' package is required for this backend`).
@@ -75,9 +81,8 @@ Cross-reference graph findings against the underlying files; where they disagree
 
 Upstream graphify can re-render a finished graph in several formats. These run **after** Pass B (never between `cluster-only` and `label`):
 
-- **Obsidian vault** — `--obsidian` generates a vault of wiki-linked markdown notes (backlinks + an `index.md` wiki) that Obsidian's native graph view renders. **Verify flag availability at runtime**: it is documented for the `/graphify` skill invocation; if the installed headless CLI rejects it, fall back to `--wiki` (agent-crawlable markdown wiki, same linking) and note the difference.
-- **Wiki** — `--wiki` for a plain markdown wiki.
-- **Other** — `--svg`, `--graphml` (Gephi/yEd), `--neo4j` exist upstream; use only on request.
+- **Obsidian vault — generate from `graph.json` (primary path).** The headless CLI (verified at 0.8.37) has **no** `--obsidian` or `--wiki` flags — those exist only in the `/graphify` skill invocation. The working pattern is to generate the export directly from `graph.json` + `.graphify_labels.json`: one note per node (frontmatter: `type: graph-node`, `generated_by: graphify`, `derived_artifact: true`, `community: "<label>"`), a `## Connections` section of `[[wikilinks]]` from the edge list (relation-labeled, both directions), and an `index.md` listing communities with members sorted by degree. Filenames are sanitized node titles so wikilinks resolve. Copy `graph.json`, `GRAPH_REPORT.md`, and `graph.html` alongside (note: `graph.html` opens in a browser, not Obsidian).
+- **Other** — `--svg`, `--graphml` (Gephi/yEd), `--neo4j` exist upstream as extract-time extras; use only on request.
 
 **MoxyWolf vault routing convention** for Obsidian-format outputs:
 
