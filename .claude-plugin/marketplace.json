@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.5.6",
+  "version": "1.6.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -110,11 +110,20 @@
     {
       "name": "github-repo-analyzer",
       "source": "./plugins/github-repo-analyzer",
-      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the first step of deep analysis (keyless code-only by default, named/multimodal with an LLM key) to ground architecture and tech-debt findings, with graceful fallback. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.7.0",
+      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the mandatory first step of deep analysis — corpus from the clone, runner protocol delegated to the graphify plugin's graphify-core skill — with keyless and plain-tree-walk fallbacks. Uses native GitHub MCP + gh CLI / REST.",
+      "version": "0.9.0",
       "author": { "name": "MoxyWolf LLC" },
       "category": "engineering",
       "keywords": ["github", "repo-analysis", "prd", "security-audit", "cwe", "owasp", "issue-review", "fix-verification", "graphify"]
+    },
+    {
+      "name": "graphify",
+      "source": "./plugins/graphify",
+      "description": "Standalone graphify knowledge-graph runner. Graph any corpus — a code directory via /graphify, a Supabase database schema via /graphify-supabase (tables→classes, FKs→edges, schema domains→named communities) — without running a whole repo analysis. Hosts the canonical graphify-core runner protocol (team OpenRouter key per DR-010, two-pass AST-then-label sandbox-safe split, keyless fallback); github-repo-analyzer delegates its Step 0 here.",
+      "version": "0.1.0",
+      "author": { "name": "MoxyWolf LLC" },
+      "category": "engineering",
+      "keywords": ["graphify", "knowledge-graph", "code-graph", "supabase", "schema-graph", "communities", "god-nodes", "architecture"]
     },
     {
       "name": "document-analysis",
