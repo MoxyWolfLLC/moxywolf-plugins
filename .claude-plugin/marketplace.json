@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -120,7 +120,7 @@
       "name": "graphify",
       "source": "./plugins/graphify",
       "description": "Standalone graphify knowledge-graph runner with Obsidian integration. Graph any corpus — a code directory via /graphify, a Supabase database via /graphify-supabase (native --postgres introspection preferred, MCP corpus emit fallback), or the Obsidian vault itself via /graphify-vault (docs-first keyed flow). Obsidian-format exports land back in the MoxyWolf Vault (Projects/<project>/06-Engineering/graphs/ per project, _Shared Knowledge/Vault Graph/ vault-wide) so they cross-link with real notes. Hosts the canonical graphify-core runner protocol (team OpenRouter key per DR-010, two-pass AST-then-label sandbox-safe split, keyless fallback); github-repo-analyzer delegates its Step 0 here.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": { "name": "MoxyWolf LLC" },
       "category": "engineering",
       "keywords": ["graphify", "knowledge-graph", "code-graph", "supabase", "postgres", "schema-graph", "obsidian", "vault", "communities", "god-nodes", "architecture"]
