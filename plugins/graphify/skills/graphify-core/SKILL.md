@@ -37,9 +37,11 @@ When the corpus is mostly or entirely markdown — an Obsidian vault is the cano
 
 **Mandatory docs-corpus extraction defaults (proven 2026-06-11; without them extraction collapses to one node per file):**
 
-- `--mode deep --token-budget 4000` — the default 60k budget puts the whole corpus in one chunk and yields file-level summary nodes, not concepts. Small chunks force concept-level extraction.
-- `export GRAPHIFY_OPENROUTER_MODEL=openai/gpt-4o` — the `gpt-4o-mini` provider default is too weak for concept extraction over prose. (Pricing in `providers.json` is informational only; cost stays cents on small corpora.)
+- `--mode deep --token-budget 4000` — the default 60k budget puts the whole corpus in one chunk and yields file-level summary nodes, not concepts. **The small chunk budget is the load-bearing fix** (A/B-verified 2026-06-11: `gpt-4o-mini` at 4000 produced 26 concept nodes where the same model at 60k produced 9 file nodes). The provider-default `gpt-4o-mini` is fine; escalate `GRAPHIFY_OPENROUTER_MODEL` to a stronger model only if concepts still come back shallow.
 - **Cache trap:** the semantic cache is keyed by file content, not extraction settings — after changing `--mode`, model, or budget, `rm -rf <corpus>/graphify-out` first, or the re-run silently returns the stale shallow graph (`semantic cache: N hit / 0 miss`).
+- **Large corpora must run host-side** (Desktop Commander), not in the sandbox: the cache does not persist across the sandbox's ~45s per-command kills, so a multi-hundred-chunk extraction restarts forever (observed: 9 sandbox attempts, 1 cache file). Host-side install via `uv tool install "graphifyy[openai]"`; a 593-doc vault (273 chunks, `--max-concurrency 16`) completed in ~6 minutes.
+- **Community assignments live in `graph.html`**, not `graph.json` — after `label`, parse the embedded vis.js node array (`community`, `community_name` fields) when generating exports.
+- **Scale the Obsidian export to the corpus**: per-node notes for everything is wrong at thousands of nodes (it floods the vault and Drive sync). Default tiering — index + one page per community with 3+ members + individual notes only for hub nodes (degree ≥ 4); leaf nodes are listed as plain text on their community page.
 
 ## The protocol
 
