@@ -69,7 +69,7 @@ You can also trigger the analyzer conversationally:
 
 The plugin bundles six reference documents:
 
-- **tech-stack.md** — MoxyWolf's approved technology stack (Directus, Next.js, Vercel, Supabase, tRPC, shadcn/ui, etc.)
+- **tech-stack.md** — MoxyWolf's approved technology stack (Next.js, Payload CMS, Vercel, Supabase, tRPC, shadcn/ui, etc.)
 - **prd-template.md** — 17-section PRD template for structuring reverse-engineered PRDs
 - **prd-assessment-template.md** — Evaluation rubric for scoring PRD completeness
 - **issue-review-template.md** — Structured issue review report template with CWE/OWASP/NIST classification framework and closure audit format
