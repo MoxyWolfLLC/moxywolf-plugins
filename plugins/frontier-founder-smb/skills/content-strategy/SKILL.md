@@ -23,7 +23,7 @@ When an SMB owner asks "what should I post this month?" or "what's my content pl
 2. **Identifies patterns** — top-selling products, slow movers, seasonal trends
 3. **Layers in context** — seasonality (user-provided or industry benchmarks), past performance
 4. **Produces a 30-day brief** — ranked recommendations of what to push, what to hold, what offers to consider
-5. **Gets owner approval** before the brief feeds into `canva-creator` for asset generation
+5. **Gets owner approval** before the brief feeds into `campaign-creator` for asset generation
 
 The output is strategic only — no calendar scheduling, no creative assets.
 
@@ -102,7 +102,7 @@ Example length: **200–400 words** (brief and actionable, not essay-length).
 Present the brief to the owner. Ask:
 - "Does this match your gut?"
 - "Anything to adjust?"
-- "Ready to feed this to canva-creator for asset generation?"
+- "Ready to feed this to campaign-creator for asset generation?"
 
 Iterate if needed; once approved, return the final brief as structured JSON (ready for downstream tools).
 

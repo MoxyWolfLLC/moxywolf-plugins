@@ -20,9 +20,9 @@ Trigger the `content-strategy` skill workflow:
 
 If the owner edits the brief, incorporate edits and re-present.
 
-## Step 2 — Asset generation + send staging (canva-creator)
+## Step 2 — Asset generation + send staging (campaign-creator)
 
-After Step 1 approval, trigger the `canva-creator` skill workflow:
+After Step 1 approval, trigger the `campaign-creator` skill workflow:
 1. Take the approved brief from Step 1 as input.
 2. Build the posting calendar matched to the brief's priorities.
 3. Generate on-brand claude.ai/design assets for each post (apply each on screen for owner approval before moving on).
@@ -45,7 +45,7 @@ After Step 2 approval, trigger the `lead-triage` skill workflow:
 
 - Never auto-progress between steps. Each handoff requires explicit owner approval.
 - Never send the Clarify campaign without the owner's "send" command in Step 3.
-- If any connector is unreachable (QuickBooks, Stripe, claude.ai/design, Clarify), stop, report which connector failed, and ask whether to retry or abort.
+- If any connector is unreachable (QuickBooks, Stripe, Clarify), stop, report which connector failed, and ask whether to retry or abort.
 
 ## Output
 
