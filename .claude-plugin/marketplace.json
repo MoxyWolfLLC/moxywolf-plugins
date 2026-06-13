@@ -11,7 +11,7 @@
     {
       "name": "frontier-founder-smb",
       "source": "./plugins/frontier-founder-smb",
-      "description": "Frontier Founder SMB (FFSMB) — pre-built small-business workflows on a modern indie-founder stack: Clarify AI CRM, Stripe payments, QuickBooks accounting, DocuSign, Gmail/Google, and claude.ai/design. Cash flow, month-end close, invoice chasing, weekly briefs, CRM upkeep, customer pulse, contract review, hiring, growth campaigns — with an approval gate on anything touching money or customers. A MoxyWolf public fork of Anthropic's Small Business plugin, re-homed off PayPal/HubSpot/Square/Canva. Companion to the Apollo plugin for B2B prospecting. v0.3.0: all skills migrated, design lane rewritten for claude.ai/design; .mcp.json hand-placement pending before install.",
+      "description": "Frontier Founder SMB (FFSMB) — pre-built small-business workflows on a modern indie-founder stack: Clarify AI CRM, Stripe payments, QuickBooks accounting, DocuSign, Gmail/Google, and claude.ai/design. Cash flow, month-end close, invoice chasing, weekly briefs, CRM upkeep, customer pulse, contract review, hiring, growth campaigns — with an approval gate on anything touching money or customers. A MoxyWolf public fork of Anthropic's Small Business plugin, re-homed off PayPal/HubSpot/Square/Canva. Companion to the Apollo plugin for B2B prospecting. v0.3.1: installable — all 31 skills migrated, design lane rewritten for claude.ai/design, connector manifest in place. Team-beta; a dogfood pass over the transformed money/CRM skills is recommended before public release.",
       "version": "0.3.1",
       "author": {
         "name": "MoxyWolf LLC"
