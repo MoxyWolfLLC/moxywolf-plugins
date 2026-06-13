@@ -15,7 +15,7 @@
 | State / Data Fetching             | **TanStack Query**                                           | Manages async state and server data caching.                 | Enhances data consistency and performance.                   |
 | Authentication (Frontend)         | **better-auth**                                              | Client-side authentication and session handling.             | Lightweight alternative to NextAuth for modern stacks.       |
 | Specialized API Layer             | **Trench + tRPC**                                            | Type-safe API layer bridging frontend and backend.           | Reduces boilerplate and improves API reliability.            |
-| Database & Storage                | **Supabase**                                                 | Primary PostgreSQL database and file storage.                | Combines database, auth, and realtime features.              |
+| Database & Storage                | **Supabase**                                                 | Primary PostgreSQL database and file/object storage (Supabase Storage). | S3-compatible (SigV4), 50 GB resumable uploads. **Default object/blob store** across MoxyWolf; Cloudflare R2 only when egress volume is large. Raw AWS S3 / R2 without an egress justification is a deviation. |
 | Database ORM (Optional)           | **Prisma**                                                   | Type-safe ORM for database access.                           | Optional for advanced queries or migrations.                 |
 | Compliance Platform Integration   | **SAMS (OpenControls.ai)**                                   | Compliance and audit automation integration.                 | Helps automate SOC2/GDPR frameworks.                         |
 | Payments / Billing                | **Paid.ai**                                                  | Manages subscriptions and payment processing.                | Simplifies SaaS billing automation.                          |
@@ -85,7 +85,7 @@
 - Primary PostgreSQL database for all application data
 - Row-Level Security (RLS) for multi-tenant data isolation
 - Real-time subscriptions for live data updates
-- File and asset storage (blob storage)
+- File and asset storage (Supabase Storage — default object/blob store; Cloudflare R2 only when egress volume is large)
 - Automatic backups and point-in-time recovery
 - Database connection pooling and optimization
 - Optional Prisma ORM layer for type-safe database access
