@@ -2,7 +2,7 @@
 
 Pre-built small-business workflows for Cowork — run your whole business in plain English, with an approval gate on anything that touches money or customers. A MoxyWolf-owned public fork of Anthropic's **Small Business** plugin, re-homed from its original stack onto a modern indie-founder stack.
 
-> **Build status: v0.1.0 — scaffold + front door.** Connector decisions are locked (below) and the router/onboarding skills are rewritten. The remaining skill bodies are being migrated off the original connectors per the rewrite spec (`Taskade/Team Plugins/06 – Engineering/smb-plugin-fork-connector-rewrite-spec.md`). Not yet install-ready.
+> **Build status: v0.2.0 — all 31 skills migrated (connector pass).** Every skill body is re-homed onto the new stack; the CRM reference model is rewritten to Clarify's schema-first tool surface. Still pending: the **design lane** (`canva-creator`, `run-campaign`) needs a real claude.ai/design rewrite, and the `.mcp.json` connector manifest must be hand-placed (Cowork blocks writing it from the sandbox — staged at `outputs/ffsmb.mcp.json`). A semantic review pass against the rewrite spec is recommended before public release.
 
 ## The stack
 
@@ -37,4 +37,5 @@ Forked from Anthropic's Small Business plugin (Cowork marketplace). MoxyWolf re-
 
 ## Versioning
 
-- **0.1.0** — fork scaffold: branding, connector manifest (Clarify/Stripe/QuickBooks/DocuSign/Google/Slack), README, rewritten `smb-router` + `smb-onboard`. Remaining skill bodies in progress.
+- **0.2.0** — full skill migration: all 31 skills re-homed onto the new stack (PayPal→Stripe, Square dropped, HubSpot→Clarify, Canva→claude.ai/design) via a controlled transform pass; CRM reference model rewritten to Clarify's schema-first tools (`get-schema`, `query-data`, `create-or-update-records`, `merge-records`, `add-comment`). Design lane and `.mcp.json` placement pending.
+- **0.1.0** — fork scaffold: branding, connector manifest (Clarify/Stripe/QuickBooks/DocuSign/Google/Slack), README, rewritten `smb-router` + `smb-onboard`.

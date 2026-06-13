@@ -1,6 +1,6 @@
 {
   "name": "frontier-founder-smb",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Frontier Founder SMB (FFSMB) — pre-built small-business workflows (cash flow, month-end close, invoice chasing, weekly briefs, CRM upkeep, customer pulse, contract review, hiring, growth campaigns) on Stripe, QuickBooks, Clarify AI CRM, DocuSign, Gmail/Google, and claude.ai/design. You approve every step that touches money or customers. A MoxyWolf-owned public fork of Anthropic's Small Business plugin, re-homed onto a modern indie-founder stack.",
   "author": {
     "name": "MoxyWolf LLC"
