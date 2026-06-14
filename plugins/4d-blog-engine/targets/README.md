@@ -35,7 +35,7 @@ publisher_name: MoxyWolf LLC
 hero_style: brand-abstract            # named hero-image style (notes carry the prompt)
 voice_profile: <blog-project>/<author-slug>-voice.md
 # --- hub / pillar conventions ---
-pillar_route_pattern: https://thefrontierfounder.com/<pillar-slug>   # where hubs live
+pillar_route_pattern: https://thefrontierfounder.com/series/<pillar-slug>   # where hubs live
 pillar_schema: [Article, FAQPage, Organization]   # richer than a post's BlogPosting
 linking_map_dir: content/blog/_clusters           # where linking maps are committed
 auto_linker: none | lib/blog-methodology-link.tsx # site render-pipeline first-mention auto-linker
