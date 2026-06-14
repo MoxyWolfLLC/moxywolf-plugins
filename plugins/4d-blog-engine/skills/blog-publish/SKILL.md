@@ -349,6 +349,38 @@ Use Python on `$TMP` for this (not sed — sed can break on YAML edge cases). Em
 
 The transformed file at `$TMP` is what STEP 10 will copy into the publishing repo. Hero image is copied as-is (no encoding — it's a regular file copy via bash, not an API call).
 
+## STEP 9b — Register the spoke in the pillar's linking map
+
+Hub-and-spoke upkeep. Every post is a spoke on one pillar (set at orchestrator
+STEP 1.5). Read `target`, `pillar`, and `hub_url` from `<piece>/state.md`. Load
+the target descriptor `${CLAUDE_PLUGIN_ROOT}/targets/<target>.md` for
+`linking_map_dir`, `auto_linker`, and the pillar's `hub_term`.
+
+1. **Open the linking map** at
+   `<PUBLISHING_REPO_DIR>/<linking_map_dir>/<pillar-slug>.md` (scaffolded by STEP
+   1.5 / `/blog-pillar` from `references/linking-map-template.md`). If it does not
+   exist, HALT — the pillar must exist before a spoke publishes.
+2. **Add this post to the spoke inventory** table: title, in-repo path, direction
+   `spoke → hub`, anchor/treatment, action `published`. Bump the map's
+   frontmatter `updated` to today. Add this linking-map file to the set STEP 10
+   stages, so the map update lands in the **same commit** as the post.
+3. **Spoke → hub link.** Confirm the post body mentions the pillar's `hub_term`
+   at least once. If the target has an `auto_linker` (e.g. STIGViewer's
+   `lib/blog-methodology-link.tsx`), the site wires the first-mention link at
+   render — do nothing more. If there's no auto-linker, ensure the first mention
+   links to `hub_url`, **varying the anchor text** across spokes (exact / partial
+   / natural). Link to the URL, never a screenshot.
+4. **Hold-until-hub-exists.** If the map's `hub_status` is `planned` (the hub page
+   isn't live), register the spoke and add the plain-text "Part of *<Pillar>*"
+   note, but do **not** ship a live spoke→hub link to a page that 404s — a link to
+   nothing is worse than no link. Add the live link when the hub ships
+   (`hub_status: built|deployed`).
+5. **Hub → spoke "Related reading."** Do not auto-add this spoke to the hub's
+   down-links — that block is curated and held until the cluster has enough real
+   spokes. Leave it to `/blog-pillar edit`.
+6. **register-only target:** also print the descriptor's site-side gaps that block
+   a clean render.
+
 ## STEP 10 — Copy files, then auto-commit (no push)
 
 First, copy the transformed post and the hero into the repo:

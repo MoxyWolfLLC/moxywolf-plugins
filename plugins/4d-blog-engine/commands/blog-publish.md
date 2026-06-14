@@ -30,8 +30,9 @@ After the commit is prepared, you click GitHub Desktop's **"Push origin"** butto
 8. **Parses the `media:` array in the YAML frontmatter** and copies each referenced file from `<blog-project-dir>/drafts/blog-media/<basename>` to the repo's `public/blog-media/<basename>`. Creates `public/blog-media/` if it doesn't exist. Halts pre-flight if any referenced media file is missing from `drafts/blog-media/`.
 9. **If `/blog-social` has been run for this piece**, detects the social derivatives at `<piece>/04-diligence/social/` (LinkedIn article + teaser, Twitter thread, Facebook post, plus scorecards) and ships them to the repo at `<social-subfolder>/<slug>/` — defaulting to `content/blog/social/<slug>/` if no existing convention is detected. Rewrites each social file's `source_blog:` frontmatter to the in-repo path of the published post so downstream distribution automation resolves cleanly. If no social derivatives exist, the social step is silently skipped — no warning, no flag, same behavior as pre-v0.9.
 10. Copies post + hero + media + social into the repo.
-11. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, media, social bundle, status, slug).
-12. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
+11. **Registers the spoke in the pillar's linking map** (hub-and-spoke upkeep): adds the post to the pillar's spoke inventory, ensures the spoke→hub link on the pillar's `hub_term` (held if the hub page isn't live yet), and includes the updated linking map in the same commit. See STEP 9b in the skill.
+12. Runs `git add` + `git commit` with auto-generated Summary (`Publish: <title>`) and Description (a structured body naming the files, media, social bundle, status, slug).
+13. Reports the prepared commit and tells you to click "Push origin" in GitHub Desktop.
 
 **How media files work:** drop any non-hero attachments (spreadsheets, PDFs, audio, etc.) into `<blog-project-dir>/drafts/blog-media/`. Reference them in your post's YAML as:
 
