@@ -195,15 +195,15 @@ Template — fill the `<…>` per-post fields, keep the shared `@id`s exactly:
   "@graph": [
     {
       "@type": "BlogPosting",
-      "@id": "https://moxywolf.com/frontier-founder/<slug>#post",
+      "@id": "https://thefrontierfounder.com/blog/<slug>#post",
       "headline": "<title>",
       "description": "<excerpt>",
-      "image": "<heroImage>",
+      "image": "https://thefrontierfounder.com<heroImage>",
       "author": {"@id": "https://moxywolf.com/people/dorian-cougias#author"},
       "publisher": {"@id": "https://moxywolf.com#publisher"},
       "datePublished": "<date>",
       "dateModified": "<date — or a later update date if the post was revised>",
-      "mainEntityOfPage": {"@type": "WebPage", "@id": "https://moxywolf.com/frontier-founder/<slug>"}
+      "mainEntityOfPage": {"@type": "WebPage", "@id": "https://thefrontierfounder.com/blog/<slug>"}
     },
     {
       "@type": "Person",
@@ -235,10 +235,12 @@ Template — fill the `<…>` per-post fields, keep the shared `@id`s exactly:
 - If the author is not Dorian, replace the `Person` node with the real author
   (name, url, sameAs) under a new `@id` — never reuse Dorian's `@id` for someone
   else, and never invent a name or profile URL.
-- Note for the maintainer: the `@id`/canonical uses `moxywolf.com/frontier-founder/<slug>`
-  (the shipping house convention), while the site's `metadataBase` is
-  `thefrontierfounder.com`. Keep the shipping convention; if Dorian wants the
-  two reconciled, that is a separate site-code change.
+- The page URL — `BlogPosting` `@id`, `mainEntityOfPage`, and the absolute
+  `image` — uses `thefrontierfounder.com/blog/<slug>`, the blog's canonical
+  home and the URL the site sets as `alternates.canonical`. The author `Person`
+  and publisher `Organization` `@id`s deliberately stay on `moxywolf.com`: those
+  are stable entity identifiers, shared across MoxyWolf properties for entity
+  consolidation, not page URLs.
 
 ## Step 8 — Assemble and save
 
