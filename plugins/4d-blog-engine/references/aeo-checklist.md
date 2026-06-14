@@ -1,12 +1,15 @@
 ---
 read_when: "Phase 2 (Description) loads this when laying out the outline. Phase 3 (Discernment) verifies the draft against it. Phase 4 (Diligence) scores the post against the AEO portion of the 100-point rubric."
 status: canonical
+canonical_for: "The single source of truth for SEO/AEO structure across every MoxyWolf blog pipeline — 4d-blog-engine, frontier-founder (commands/blog-post.md), and (phase 2) the stigviewer / blog-content ecosystems. Other formatters REFERENCE this file; they must not restate or fork its thresholds. When AEO behavior shifts (revisit quarterly), update the numbers here and only here."
 based_on: "Princeton GEO research (Aggarwal et al., 2024); SERP-passage extraction patterns from liminalarc/claude-marketplace, agricidaniel/claude-blog, freema/seo-blog, amplitude/builder-skills."
 ---
 
 # AEO checklist — structure for AI-answer-engine citation
 
 > **Read this when:** designing the post outline (Phase 2) or auditing the draft against AI-citation readiness (Phase 3, Phase 4).
+
+> **Canonical across pipelines:** this is the one AEO spec all MoxyWolf blog formatters point to. If you are running the Frontier Founder `/blog-post` command or any other pipeline, the thresholds live here — read them, apply them, and do not maintain a second copy.
 
 AI search engines (ChatGPT, Perplexity, Gemini AIO, Claude with web access) cite **passages, not articles**. AEO (Answer Engine Optimization) is the discipline of writing those passages to be self-contained, extractable, and citation-worthy. It is distinct from classical SEO — classical SEO gets you ranked; AEO gets you cited.
 

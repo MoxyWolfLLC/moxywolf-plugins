@@ -6,9 +6,11 @@ argument-hint: [path to a draft .md file, or paste the draft markdown]
 # Convert a draft into a Frontier Founder blog post
 
 Take a rough markdown draft and turn it into a publication-ready post for The
-Frontier Founder blog: format it to the blog's frontmatter spec, apply the
-MoxyWolf typographic rules, generate a brand-aligned hero image, and save both
-files into the FrontierFounder repo with a shared, slug-based naming convention.
+Frontier Founder blog: format it to the blog's frontmatter spec, structure it
+for AI answer engines and search (AEO), apply the MoxyWolf typographic rules,
+embed JSON-LD structured data, generate a brand-aligned hero image, and save
+both files into the FrontierFounder repo with a shared, slug-based naming
+convention.
 
 The draft can come from anyone — a guest writer, a teammate, you — written in
 any editor, with no frontmatter and no knowledge of this blog's conventions.
@@ -46,9 +48,12 @@ asking the user:
   otherwise kebab-case the title: lowercase, ASCII only, words joined by single
   hyphens, punctuation stripped. "Why Agents Change the Org Chart" becomes
   `why-agents-change-the-org-chart`.
-- **Excerpt** — frontmatter `excerpt`, else write one: a single plain sentence,
-  roughly 20 to 40 words, drawn from the opening. It is used on cards and as
-  the search-result snippet.
+- **Excerpt** — frontmatter `excerpt`, else write one. This field does triple
+  duty: the site feeds it to `<meta name="description">`, to OpenGraph, and to
+  the JSON-LD `description` (Step 7). Write it as the meta description:
+  **150–160 characters**, declarative (not a teaser), leading with the post's
+  primary keyword phrase. Carry an existing good excerpt over; only rewrite one
+  that is missing, too long, or too vague to earn a click.
 - **Category** — frontmatter `category`, else infer a short one- or two-word
   category from the subject, else ask.
 - **Author** — frontmatter `author`, else `Dorian Cougias`. If the draft is
@@ -60,7 +65,45 @@ asking the user:
 - **linkedinUrl** — carry it over if present; otherwise leave it out. It is
   added later, once the LinkedIn edition exists.
 
-## Step 3 — Format the body
+## Step 3 — Apply the AEO structure
+
+Structure the post so AI answer engines (ChatGPT, Perplexity, Gemini, Claude)
+and classical search can extract and cite it. The rules and every threshold
+live in the **canonical AEO checklist** — the single source of truth shared by
+all MoxyWolf blog pipelines:
+
+`plugins/4d-blog-engine/references/aeo-checklist.md` in the `moxywolf-plugins`
+repo (the installed 4d-blog-engine plugin ships an identical copy). Load it and
+apply its numbers. Do not restate or fork its thresholds here — when AEO
+guidance changes, that one file changes.
+
+Unlike Step 4, this step may **add** structural scaffolding the draft lacks. It
+never rewrites the author's argument and never invents evidence: build every
+element only from claims and numbers already in the draft. If a slot has no
+provable number or named example in the source, leave it out and tell the user
+— MoxyWolf never fabricates a statistic, a name, or a source.
+
+Ensure the post carries these, in order (see the checklist for the exact word
+counts and the question-H2 ratio):
+
+1. **Direct-answer opener** — the first 40–60 words answer the post's implied
+   question, primary keyword phrase in the first sentence.
+2. **At a Glance** — a blockquote led by `> **At a Glance**` carrying the
+   load-bearing claim plus the one number that proves it. This is the passage
+   AI engines lift verbatim.
+3. **Key Takeaways** — a `> **Key Takeaways**` blockquote of 3–5 bullets, each a
+   complete claim with a concrete number, name, or outcome (not a teaser).
+4. **Question-style H2s** — phrase most section headings as the natural
+   questions a reader would ask an AI engine, one idea per H2.
+5. **FAQ** — an `## FAQ` section near the end, 4–6 `###` questions in
+   natural-prompt language, each answered self-contained and answer-first.
+
+The live posts already model this house style — match
+`content/blog/polish-bias-smb-founders.md`. If the draft is too thin to add
+these honestly without inventing evidence, stop and tell the user it needs more
+source material first.
+
+## Step 4 — Format the body
 
 This is a formatting pass, not a rewrite. Do not change the author's words,
 their argument, or the structure of their ideas. Fix only mechanics:
@@ -78,7 +121,7 @@ A full voice pass — rewriting flat or generic passages into the author's
 voice — is a separate step, the voice-injection skill, and is not part of this
 command. Mention it to the user only if the draft reads as visibly AI-generic.
 
-## Step 4 — Inline media
+## Step 5 — Inline media
 
 Scan the body for image, video, and audio references.
 
@@ -94,7 +137,7 @@ Scan the body for image, video, and audio references.
   validator fails the deploy if a published post references a file that is not
   there. Never invent or fabricate a media file.
 
-## Step 5 — Generate the hero image
+## Step 6 — Generate the hero image
 
 Every post gets one hero image, generated in the **brand-aligned abstract**
 style so the blog stays visually cohesive.
@@ -126,15 +169,86 @@ none is available, do not fail the whole command — save the formatted post,
 set `heroImage` to the intended `/blog-hero/<slug>.png` path, and tell the user
 the hero image still needs to be generated and dropped at that path.
 
-## Step 6 — Assemble and save
+## Step 7 — Generate the JSON-LD block
+
+The FrontierFounder site renders structured data from a single JSON-LD block in
+the post body. `src/lib/posts.ts` extracts the **first**
+`<script type="application/ld+json">…</script>` block, validates it as JSON,
+strips it from the visible body, and emits it as a real `<script>` tag for
+crawlers. Honor that contract exactly:
+
+- Emit **exactly one** `ld+json` block, and make it valid JSON. A malformed
+  block is left visible in the body; a second block renders as escaped text.
+- Put it as the **last thing in the body**, after the FAQ.
+- Hold every node in one `@graph`. Follow the house convention already shipping
+  in `content/blog/polish-bias-smb-founders.md`: a `BlogPosting`, the author
+  `Person`, the publisher `Organization` (MoxyWolf LLC), and — when the post has
+  an FAQ — a `FAQPage`. Reuse the shared `@id`s verbatim so entities consolidate
+  across MoxyWolf properties; only the per-post fields change.
+
+Template — fill the `<…>` per-post fields, keep the shared `@id`s exactly:
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BlogPosting",
+      "@id": "https://moxywolf.com/frontier-founder/<slug>#post",
+      "headline": "<title>",
+      "description": "<excerpt>",
+      "image": "<heroImage>",
+      "author": {"@id": "https://moxywolf.com/people/dorian-cougias#author"},
+      "publisher": {"@id": "https://moxywolf.com#publisher"},
+      "datePublished": "<date>",
+      "dateModified": "<date — or a later update date if the post was revised>",
+      "mainEntityOfPage": {"@type": "WebPage", "@id": "https://moxywolf.com/frontier-founder/<slug>"}
+    },
+    {
+      "@type": "Person",
+      "@id": "https://moxywolf.com/people/dorian-cougias#author",
+      "name": "Dorian Cougias",
+      "url": "https://moxywolf.com",
+      "sameAs": ["https://www.linkedin.com/in/doriancougias/"]
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://moxywolf.com#publisher",
+      "name": "MoxyWolf LLC",
+      "url": "https://moxywolf.com",
+      "logo": {"@type": "ImageObject", "url": "https://moxywolf.com/logo.png"}
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {"@type": "Question", "name": "<question>", "acceptedAnswer": {"@type": "Answer", "text": "<answer>"}}
+      ]
+    }
+  ]
+}
+</script>
+```
+
+- Drop the `FAQPage` node when the post has no FAQ. Its questions and answers
+  must match the on-page `## FAQ` word-for-word.
+- If the author is not Dorian, replace the `Person` node with the real author
+  (name, url, sameAs) under a new `@id` — never reuse Dorian's `@id` for someone
+  else, and never invent a name or profile URL.
+- Note for the maintainer: the `@id`/canonical uses `moxywolf.com/frontier-founder/<slug>`
+  (the shipping house convention), while the site's `metadataBase` is
+  `thefrontierfounder.com`. Keep the shipping convention; if Dorian wants the
+  two reconciled, that is a separate site-code change.
+
+## Step 8 — Assemble and save
 
 1. Build the final post: the YAML frontmatter block (see the spec below)
-   followed by the formatted body.
+   followed by the formatted body, which ends with the Step 7 JSON-LD block.
 2. Save it to `content/blog/<slug>.md` in the FrontierFounder repo.
 3. If a file with that slug already exists, stop and ask the user whether to
    overwrite it or choose a different slug.
 
-## Step 7 — Report back
+## Step 9 — Report back
 
 Tell the user, plainly:
 
@@ -142,6 +256,11 @@ Tell the user, plainly:
   (`public/blog-hero/<slug>.png`).
 - The slug — confirm the post file, the hero file, and the `heroImage` value
   all share it.
+- The AEO scaffolding you added (At a Glance, Key Takeaways, FAQ) — and call out
+  any slot you left empty because the draft had no provable number for it.
+- That a single JSON-LD `@graph` block (BlogPosting + author + publisher, plus
+  FAQPage when there's an FAQ) sits at the end of the body and renders as
+  structured data — the site strips it from the visible post.
 - `status: draft` — and that they flip it to `published` when the post is ready.
 - Any media files still to be uploaded to `public/blog-media/`.
 - That once they review it they commit and push from GitHub Desktop; the post
@@ -154,7 +273,7 @@ Tell the user, plainly:
 ---
 title: "The post title"
 slug: the-post-title
-excerpt: "One plain sentence, roughly 20 to 40 words, used on cards and in search."
+excerpt: "150–160 chars. Meta description + OpenGraph + JSON-LD description: declarative, keyword-first."
 date: 2026-05-25
 author: Dorian Cougias
 category: Operating
@@ -170,3 +289,8 @@ media:
 `title` and `date` are required on a published post. The slug ties the post
 file, the hero image file, and the `heroImage` path together — one stem for all
 three.
+
+The body itself ends with the single `<script type="application/ld+json">`
+`@graph` block from Step 7. Leave it in the body, last — the site extracts and
+renders it as structured data and strips it from the visible post. It is not a
+frontmatter field.
