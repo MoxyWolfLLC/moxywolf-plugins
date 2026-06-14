@@ -13,13 +13,14 @@ allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 
 This skill turns a base document plus a chosen angle/question into a publication-ready blog post, plus optional multi-platform social derivatives (LinkedIn article + teaser, Twitter thread, Facebook post) — under the 4D AI Fluency Framework from MoxyWolf's *Beyond the Prompt* whitepaper.
 
-It is composed of eleven commands, all prefixed `blog-` for consistency: four map directly to the four D's (delegate / describe / discern / diligence), four lifecycle commands (init / voice / start / publish), the end-to-end pipeline shortcut, the social derivative, and the status report.
+It is composed of twelve commands, all prefixed `blog-` for consistency: four map directly to the four D's (delegate / describe / discern / diligence), four lifecycle commands (init / voice / start / publish), `blog-pillar` (manage hub-and-spoke pillars + linking maps), the end-to-end pipeline shortcut, the social derivative, and the status report. Every new post chooses a publishing **target** (`targets/*.md`) and a **pillar** before drafting — see STEP 1.5.
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
 | `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + author + hero vibe | `blog-init` |
 | `/4d-blog-engine:blog-voice` | One-time voice capture — 8-question interview, writes `<author-slug>-voice.md` | `blog-voice` |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mount the two directories, surface in-progress/unpublished pieces | `blog-start` |
+| `/4d-blog-engine:blog-pillar` | Create or edit a pillar (hub) + its linking map — the hub of the hub-and-spoke model | inline (this skill) + `references/linking-map-template.md` |
 | `/4d-blog-engine:blog-delegate` | Delegation — triage, angle pick, earned-secret stall | inline (this skill) |
 | `/4d-blog-engine:blog-describe` | Description — voice interview, outline, At-a-Glance | reuses `research-pipeline/content-writer`'s 8-question interview |
 | `/4d-blog-engine:blog-discern` | Discernment — 30-day sweep, draft, slop pass | `discourse-sweep`, `research-pipeline/*`, `council:deliberate`, `bibtex-builder` |
@@ -136,9 +137,57 @@ Create the per-piece directory tree at the start of the run:
 
 The `state.md` template lives at the bottom of this file.
 
+## STEP 1.5 — Choose the publishing target and the pillar
+
+Runs at the start of any new-post flow (`blog-pipeline`, `blog-delegate`), after
+STEP 1 and **before Phase 1**. Skip it for commands operating on an existing
+piece (`blog-publish`, `blog-social`, `blog-status`) — they read `target` and
+`pillar` from the piece's `state.md`.
+
+This is the hub-and-spoke entry point. Every blog post is a **spoke** on exactly
+one **pillar** — the engine makes that non-optional. The model is generalized
+from `Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
+
+**1. Target.** Load the publishing-target registry by globbing
+`${CLAUDE_PLUGIN_ROOT}/targets/*.md` (see `targets/README.md` for the schema).
+Ask which target via `AskUserQuestion`, one option per descriptor (label =
+`project`). Read the chosen `targets/<name>.md`. If its `status: register-only`,
+say now that the post will be drafted, formatted, and added to the linking map,
+but the descriptor's site-side checklist must close before it renders live —
+surface that here, don't surprise the writer at publish.
+
+**2. Folder.** Default to the descriptor's `content_dir`; let the writer override.
+Record the resolved folder.
+
+**3. New pillar or existing pillar — mandatory.** Ask via `AskUserQuestion`:
+**new pillar** or **existing pillar**? There is no "no pillar" path.
+
+- **Existing pillar** → glob the target's `linking_map_dir` for `*.md`, read each
+  frontmatter, present the list (pillar title — hub URL — spoke count). The writer
+  picks one. Record `pillar: <slug>`.
+- **New pillar** → run the `/blog-pillar new "<title>"` logic inline: derive the
+  slug, set `hub_url` from the descriptor's `pillar_route_pattern`, ask the **hub
+  term** (the phrase whose first mention auto-links to the hub), and create the
+  linking map from `references/linking-map-template.md` in the target's
+  `linking_map_dir`. Record `pillar: <slug>`. This post is the pillar's first spoke.
+
+**4. Record to state.** Write `target`, `target_status`, `content_folder`,
+`pillar`, and `hub_url` into the piece's `state.md` frontmatter so every later
+phase and the publish step inherit them.
+
+**Carried into later phases:**
+
+- Phase 2/3 (drafting) ensure the pillar's `hub_term` appears in the body at least
+  once so the spoke→hub link can be wired (by the site's `auto_linker` if it has
+  one, else by `blog-publish`). Vary anchor text per the methodology — never the
+  identical phrase every time.
+- Phase 4 / `blog-publish` registers this spoke in the pillar's linking map, adds
+  the "Part of *<Pillar>*" note + spoke→hub link, and — for `register-only`
+  targets — prints the site-side gaps blocking a clean render.
+
 ## STEP 2 — Route the command
 
-After STEP 0 and STEP 1, route to the requested phase. Each phase has its own skill or inline workflow described below. **Phases enforce ordering via the `_phase` and `_status` fields in their output frontmatter** — Phase N+1 refuses to run if Phase N didn't pass or if more than 24 hours have elapsed since Phase N passed. Don't try to defeat this — it's the engineered gate the whole plugin exists for.
+After STEP 0, STEP 1, and STEP 1.5, route to the requested phase. Each phase has its own skill or inline workflow described below. **Phases enforce ordering via the `_phase` and `_status` fields in their output frontmatter** — Phase N+1 refuses to run if Phase N didn't pass or if more than 24 hours have elapsed since Phase N passed. Don't try to defeat this — it's the engineered gate the whole plugin exists for.
 
 ### Phase 1 — Delegation (inline)
 

@@ -36,7 +36,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   └── marketplace.json                ← catalog (24 plugins) — source of truth for versions
 ├── README.md                            ← this file
 ├── plugins/                             ← 23 MoxyWolf-owned plugins
-│   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate; /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
+│   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps. /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
