@@ -45,7 +45,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── daily-ops/                  Energy-aware standup/triage/review + fitness coach
 │   ├── dev-infrastructure-skills/  React/Next/Supabase/TDD/Playwright best practices
 │   ├── editorial-forge/            AI content → author-owned via voice + DOB framing
-│   ├── frontier-founder/           Draft markdown → publication-ready blog post + hero image
+│   ├── frontier-founder/           Draft markdown → SEO/AEO-structured blog post (JSON-LD, FAQ, canonical) + hero image
 │   ├── frontier-founder-smb/       SMB all-in-one (FFSMB) — cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault

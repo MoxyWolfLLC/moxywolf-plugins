@@ -8,9 +8,11 @@ The Frontier Founder blog is file-based: every post is a markdown file in the Fr
 
 `/blog-post` takes all of that off the writer's plate. Hand it a rough markdown draft — pasted, uploaded, or a file path — and it:
 
-- Derives the post's identity: title, a kebab-case **slug**, excerpt, category, date, author.
+- Derives the post's identity: title, a kebab-case **slug**, a 150–160-char meta-description **excerpt**, category, date, author.
 - Writes the frontmatter block to the blog's spec.
+- Structures the post for **SEO/AEO** — direct-answer opener, At a Glance, Key Takeaways, question-style headings, and an FAQ — following the canonical AEO checklist in `4d-blog-engine`, built only from the draft's own evidence (never fabricated).
 - Formats the body — headings from `##`, typographer's quotes, en-dashes not em-dashes — without rewriting the author's words.
+- Embeds one **JSON-LD** `@graph` block (BlogPosting + Person + Organization + FAQPage) on the `thefrontierfounder.com` canonical; the site extracts and renders it as structured data.
 - Builds the `media` array from inline references and flags any media files still to be uploaded.
 - Generates a **brand-aligned abstract** hero image, 16:9, in the Frontier Founder palette.
 - Saves the post to `content/blog/<slug>.md` and the hero to `public/blog-hero/<slug>.png` — post file, hero file, and the `heroImage` path all share one slug.
@@ -34,4 +36,5 @@ or paste the markdown after the command. Review the result, flip `status` to `pu
 
 ## Version history
 
+- **0.2.0** — SEO/AEO pass. `/blog-post` now structures every post for answer engines (At a Glance, Key Takeaways, question-style H2s, FAQ), embeds a single `@graph` JSON-LD block (BlogPosting + Person + Organization + FAQPage) on the `thefrontierfounder.com` canonical, and treats the excerpt as a 150–160-char meta description. Thresholds defer to the canonical aeo-checklist in `4d-blog-engine`.
 - **0.1.0** — Initial release. `/blog-post` draft-to-post converter with brand-aligned hero generation and slug-tied file naming.

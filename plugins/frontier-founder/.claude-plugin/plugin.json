@@ -1,7 +1,7 @@
 {
   "name": "frontier-founder",
-  "version": "0.1.0",
-  "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready blog post — formats it to the blog's frontmatter spec, applies the MoxyWolf typographic rules, generates a brand-aligned hero image, and saves the post and hero into the FrontierFounder repo with a shared slug-based naming convention.",
+  "version": "0.2.0",
+  "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready, SEO/AEO-structured blog post: frontmatter with a 150-160 char meta-description excerpt, AEO structure (direct-answer opener, At a Glance, Key Takeaways, question-style H2s, FAQ), a single @graph JSON-LD block (BlogPosting + Person + Organization + FAQPage) on the thefrontierfounder.com canonical, MoxyWolf typographic rules, a brand-aligned hero image, and slug-tied file naming, saved into the FrontierFounder repo. Defers all AEO thresholds to the canonical aeo-checklist in 4d-blog-engine.",
   "author": {
     "name": "MoxyWolf LLC"
   },
