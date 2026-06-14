@@ -22,6 +22,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero vibe, optional live URL. Writes `blog-project-instructions.md`. |
 | `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
+| `/4d-blog-engine:blog-pillar [target] [new "<title>" \| edit <slug> \| list]` | Create, edit, or list pillars (hubs) and their linking maps — the hubs of the hub-and-spoke model. Every post is a spoke on one pillar. |
 | `/4d-blog-engine:blog-publish <slug>` | Ship a signed draft to your live site. Reads from `<blog-project-dir>/drafts/<slug>.md` (staged automatically by Phase 4 sign-off), applies the YAML/JSON-LD-preserving typographer's-quote transform via the vendored script, normalizes status to `published`, copies post + hero to the publishing repo's `content/blog/<slug>.md`, commits, and pushes — no git words required from the writer. |
 
 **Pipeline** (run these to actually write a post):
@@ -36,6 +37,14 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-social` | Multi-platform social derivatives — LinkedIn (article + teaser), Twitter/X (5-10 post thread), Facebook (single post). Opt-in; writer picks platforms. |
 | `/4d-blog-engine:blog-status` | Print the current piece's phase, gates passed, next step |
 
+## Publishing targets + hub-and-spoke
+
+Every post is written **for a target** (a blog property) and lives **as a spoke on a pillar**. Both are chosen at the top of every run — orchestrator STEP 1.5, before any drafting.
+
+**Targets.** `targets/*.md` is the registry of blog properties the engine can publish to. Each descriptor drives the canonical URL, JSON-LD entities, frontmatter, hero style, and render contract for that destination, so one draft can land in any registered property. Registered now: `frontier-founder` (fully wired), and `stigviewer` / `moxywolf-website` / `prfaq` (register-only — selectable, with site-side rendering deferred). The descriptor schema is in `targets/README.md`.
+
+**Pillars (hub-and-spoke).** The engine asks **new pillar or existing pillar** on every post — there is no orphan path. A pillar is a real canonical hub *page* (e.g. `stigviewer.com/methodology`) carrying richer schema than a post (`Article`/`TechArticle` + `FAQPage` + `Organization`). Each pillar has a versioned **linking map** — committed in the target's `linking_map_dir`, scaffolded from `references/linking-map-template.md` — that tracks the hub, the spoke inventory, on-site internal links, hub→spoke "Related reading," and anchor-text guidance. A spoke auto-links its first mention of the hub term up to the hub; the hub maintains its down-links; everything updates in one pass at publish. Manage pillars directly with `/blog-pillar`. The methodology is generalized from `Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
+
 ## Working directory layout
 
 The plugin saves into the **active project's** directory under a standardized structure. The active project is auto-detected by walking up from CWD looking for one of two marker files (MoxyWolf-internal marker first):
@@ -49,7 +58,7 @@ The per-piece directory layout is the same regardless of mode:
 
 ```
 <posts-dir>/<YYYY-MM-DD-slug>/
-├── state.md                          # current_phase, gates_passed, target_words, modality
+├── state.md                          # current_phase, gates_passed, target, pillar, hub_url, modality
 ├── 01-delegation.md                  # base doc, angle, earned secret, audience persona
 ├── 02-description.md                 # voice interview answers, outline, At-a-Glance block
 ├── 03-discernment/
