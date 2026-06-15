@@ -23,7 +23,7 @@ pillar_slug: <kebab-slug>
 pillar_title: "<Pillar title>"
 target: <target-key>                  # e.g. frontier-founder
 hub_url: <canonical hub page URL>     # e.g. https://thefrontierfounder.com/ai-fluency-for-founders
-hub_term: "<key term that auto-links to the hub>"   # e.g. "AI fluency"
+hub_term: "<key term that auto-links to the hub>"   # e.g. "AI fluency" — MUST be registered in hub-links/src/map.ts (via /blog-term or /blog-pillar) or it never links
 hub_schema: [Article, FAQPage, Organization]
 hub_status: planned | built | deployed
 hub_owner: <who owns the hub build/deploy>
@@ -77,6 +77,6 @@ search and AI engines.
 ## Current state (<YYYY-MM-DD>)
 
 - Hub page: <built/committed/deployed?>
-- Auto-linker: <wired? which module?>
+- Auto-linker: `@moxywolf/hub-links/<adapter>` wired? + is the `hub_term` registered in `hub-links/src/map.ts`?
 - Spokes live: <count + which>
 - Open actions: <from the inventory>

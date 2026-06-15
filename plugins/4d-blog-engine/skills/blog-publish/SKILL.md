@@ -365,11 +365,12 @@ the target descriptor `${CLAUDE_PLUGIN_ROOT}/targets/<target>.md` for
    frontmatter `updated` to today. Add this linking-map file to the set STEP 10
    stages, so the map update lands in the **same commit** as the post.
 3. **Spoke → hub link.** Confirm the post body mentions the pillar's `hub_term`
-   at least once. If the target has an `auto_linker` (e.g. STIGViewer's
-   `lib/blog-methodology-link.tsx`), the site wires the first-mention link at
-   render — do nothing more. If there's no auto-linker, ensure the first mention
-   links to `hub_url`, **varying the anchor text** across spokes (exact / partial
-   / natural). Link to the URL, never a screenshot.
+   at least once. Every target's `auto_linker` is the shared `@moxywolf/hub-links`
+   adapter, which links the first mention **at build time** — so do **not**
+   hand-insert the first-mention link (that double-links). Just ensure the term
+   appears (registered in `hub-links/src/map.ts` via `/blog-term` or `/blog-pillar`),
+   and add one explicit "Read the full *<Pillar>* →" CTA near the close, **varying
+   the anchor text**. Link to the URL, never a screenshot.
 4. **Hold-until-hub-exists.** If the map's `hub_status` is `planned` (the hub page
    isn't live), register the spoke and add the plain-text "Part of *<Pillar>*"
    note, but do **not** ship a live spoke→hub link to a page that 404s — a link to

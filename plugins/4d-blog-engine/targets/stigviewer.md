@@ -46,10 +46,12 @@ Already shipped:
 - **The hub page** `stigviewer.com/methodology` (`apps/web/app/(public)/methodology/`),
   carrying `TechArticle + FAQPage + Organization` schema. (Built, committed,
   pushed; deploy is Michael's call.)
-- **The auto-linker** `apps/web/lib/blog-methodology-link.tsx` — auto-links the
-  first mention of "multi-lensatic methodology" / "multi-lensatic" in any post
-  body to `/methodology`. This is the reference implementation for
-  `auto_linker`.
+- **The auto-linker** — `apps/web/lib/blog-methodology-link.tsx`, now a thin
+  wrapper over `@moxywolf/hub-links/react` (`{ site: 'stigviewer' }`). It
+  auto-links the first mention of any registered term (e.g. "multi-lensatic
+  methodology" → `/methodology`) at build time, reading the shared
+  `hub-links/src/map.ts`. The hardcoded term is gone — terms are managed with
+  `/blog-term`.
 - **On-site internal links** plan and **OG card** per the linking map.
 
 So STIGViewer's *first* pillar (the multi-lensatic methodology) is real and
