@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 24 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 25 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -33,11 +33,12 @@ Adding this marketplace on any Mac gives that machine all 24 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (24 plugins) — source of truth for versions
+│   └── marketplace.json                ← catalog (25 plugins) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 23 MoxyWolf-owned plugins
+├── plugins/                             ← 24 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps. /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
+│   ├── analytics/                  Read-only reporting, one command per source — /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog
 │   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
 │   ├── composio/                   Composio Tool Router — 1000+ app toolkits for apps with no native MCP
@@ -74,7 +75,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 24 plugins appear in the marketplace list.
+3. Click **Sync**. The 25 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -83,7 +84,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
 claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 
 # install everything in one go
-for p in 4d-blog-engine academic-pipeline board-deck bibtex-builder composio council \
+for p in 4d-blog-engine academic-pipeline analytics board-deck bibtex-builder composio council \
          daily-ops dev-infrastructure-skills editorial-forge frontier-founder \
          document-analysis github-repo-analyzer gstack-execution obsidian-update product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \

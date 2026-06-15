@@ -2,12 +2,31 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.7.0",
+  "version": "1.9.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
   },
   "plugins": [
+    {
+      "name": "analytics",
+      "source": "./plugins/analytics",
+      "description": "MoxyWolf analytics plugin — read-only reporting across data sources, one command per source. Ships the google-analytics command (GA4 Data API via a service account) with generic traffic reports plus Lens-Test campaign reports: acquisition by channel, first-touch signup source, custom-dimension segment (e.g. RPO vs non-RPO), and a one-shot markdown scoreboard with week-over-week for the Friday read. Built to grow — Microsoft Clarity, Ahrefs, PostHog, and others can be added as their own commands. Credentials come from the environment, never hardcoded; GA4 covers the acquisition end while the conversion verdict stays in PostHog. v0.1.0.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "analytics",
+      "keywords": [
+        "analytics",
+        "ga4",
+        "google-analytics",
+        "reporting",
+        "attribution",
+        "lens-test",
+        "moxywolf"
+      ]
+    },
     {
       "name": "frontier-founder-smb",
       "source": "./plugins/frontier-founder-smb",
