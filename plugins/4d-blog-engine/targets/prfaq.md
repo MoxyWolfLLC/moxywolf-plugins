@@ -17,7 +17,8 @@ hero_style: moxywolf-brand
 pillar_route_pattern: TBD
 pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: TBD
-auto_linker: none
+auto_linker: "@moxywolf/hub-links/rehype"         # rehypeHubLinks wired in src/pages/BlogPost.tsx
+hub_links_site_slug: prfaq                        # the { site } arg passed to the adapter
 ---
 
 # Target — PRFAQ

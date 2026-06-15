@@ -17,7 +17,8 @@ hero_style: moxywolf-brand
 pillar_route_pattern: https://moxywolf.com/<pillar-slug>
 pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: TBD
-auto_linker: none
+auto_linker: "@moxywolf/hub-links/html"           # linkifyHtml wired in src/lib/blog.ts (wraps marked() output)
+hub_links_site_slug: moxywolf                     # the { site } arg passed to the adapter
 ---
 
 # Target — MoxyWolf Website

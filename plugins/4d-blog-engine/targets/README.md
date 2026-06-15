@@ -38,7 +38,8 @@ voice_profile: <blog-project>/<author-slug>-voice.md
 pillar_route_pattern: https://thefrontierfounder.com/series/<pillar-slug>   # where hubs live
 pillar_schema: [Article, FAQPage, Organization]   # richer than a post's BlogPosting
 linking_map_dir: content/blog/_clusters           # where linking maps are committed
-auto_linker: none | lib/blog-methodology-link.tsx # site render-pipeline first-mention auto-linker
+auto_linker: "@moxywolf/hub-links/<adapter>"      # rehype | remark | html | react — the wired hub-links adapter
+hub_links_site_slug: frontierfounder              # the { site } arg the adapter is called with
 ---
 ```
 
@@ -62,9 +63,17 @@ auto_linker: none | lib/blog-methodology-link.tsx # site render-pipeline first-m
   `post_url_pattern` (per-target canonical domain).
 - **hub / pillar** — every post is a spoke on exactly one pillar. The pillar is a
   real canonical page at `pillar_route_pattern`, carrying `pillar_schema`. The
-  linking map for each pillar lives in `linking_map_dir`. `auto_linker` names the
-  site module that auto-links a spoke's first mention of the pillar term to the
-  hub, if the site has one.
+  per-pillar linking map (spoke inventory, anchors, on-site links) lives in
+  `linking_map_dir`. `auto_linker` names the wired **`@moxywolf/hub-links`**
+  adapter, and `hub_links_site_slug` is the `{ site }` arg it runs with.
+- **the shared term map is the source of truth** — what actually auto-links, and
+  where it points, lives in **one** cross-property file: `GitHub/hub-links/src/map.ts`
+  (the published `@moxywolf/hub-links` package; see DR-079). Each entry keys a
+  pillar term to its owning property + path. A term owned by one property
+  auto-links on **all** properties — relative on the owner, absolute elsewhere.
+  A pillar's `hub_term` is inert until it's registered there; `/blog-pillar`
+  registers it as part of creating the pillar. Add a term once, release the
+  package, every blog picks it up on its next build.
 
 ## How the engine uses a descriptor
 

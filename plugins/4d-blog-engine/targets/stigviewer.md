@@ -17,7 +17,8 @@ hero_style: stigviewer-brand
 pillar_route_pattern: https://stigviewer.com/<pillar-slug>
 pillar_schema: [TechArticle, FAQPage, Organization]
 linking_map_dir: apps/web/blog-posts/_clusters
-auto_linker: apps/web/lib/blog-methodology-link.tsx
+auto_linker: "@moxywolf/hub-links/react"          # renderHubContent in apps/web/lib/blog-methodology-link.tsx (package-backed)
+hub_links_site_slug: stigviewer                   # the { site } arg passed to the adapter
 ---
 
 # Target — STIGViewer

@@ -17,7 +17,8 @@ hero_style: brand-abstract
 pillar_route_pattern: https://thefrontierfounder.com/series/<pillar-slug>
 pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: content/blog/_clusters
-auto_linker: none
+auto_linker: "@moxywolf/hub-links/rehype"         # rehypeHubLinks wired in src/components/PostBody/index.tsx
+hub_links_site_slug: frontierfounder              # the { site } arg passed to the adapter
 ---
 
 # Target — The Frontier Founder
@@ -62,8 +63,13 @@ The hub is a real page at `thefrontierfounder.com/series/<pillar-slug>` carrying
 route at `src/app/(frontend)/series/[pillar]/page.tsx` driven by
 `src/lib/clusters.ts`, which reads the linking maps in `content/blog/_clusters/`.
 The route renders the pillar title + intro and lists the spokes ("In this
-series") with hub JSON-LD. FrontierFounder has no site-side auto-linker, so
-spoke→hub links are explicit in the post bodies (not auto-wired at render).
+series") with hub JSON-LD. FrontierFounder's spoke→hub auto-linker is now the
+shared **`@moxywolf/hub-links`** package (`rehypeHubLinks` in
+`src/components/PostBody/index.tsx`, `{ site: 'frontierfounder' }`): the first
+mention of any registered pillar term auto-links at build time. So the engine
+must **not** hand-insert the first-mention link in the body — the post only needs
+to *mention* the term, plus an explicit closing CTA. The term must be registered
+in `GitHub/hub-links/src/map.ts` for the link to fire on any property.
 
 Linking maps live at `content/blog/_clusters/<pillar-slug>.md`. The machine-
 readable fields (`pillar_title`, `hub_intro`, `hub_url`, `spokes[]`) are in the

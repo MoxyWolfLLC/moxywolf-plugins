@@ -23,6 +23,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 | `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
 | `/4d-blog-engine:blog-pillar [target] [new "<title>" \| edit <slug> \| list]` | Create, edit, or list pillars (hubs) and their linking maps — the hubs of the hub-and-spoke model. Every post is a spoke on one pillar. |
+| `/4d-blog-engine:blog-term [list \| add "<term>" \| edit "<term>" \| remove "<term>"]` | Manage the shared cross-property auto-link terms in `@moxywolf/hub-links` (`hub-links/src/map.ts`) — the one file that controls what auto-links across every blog. Adds/edits/removes a term, rebuilds `dist`; the writer commits/pushes/tags. |
 | `/4d-blog-engine:blog-publish <slug>` | Ship a signed draft to your live site. Reads from `<blog-project-dir>/drafts/<slug>.md` (staged automatically by Phase 4 sign-off), applies the YAML/JSON-LD-preserving typographer's-quote transform via the vendored script, normalizes status to `published`, copies post + hero to the publishing repo's `content/blog/<slug>.md`, commits, and pushes — no git words required from the writer. |
 
 **Pipeline** (run these to actually write a post):

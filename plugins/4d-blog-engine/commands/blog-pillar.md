@@ -40,9 +40,18 @@ This is the same list STEP 1.5 shows for "existing pillar."
 4. Copy `references/linking-map-template.md` into
    `<repo>/<linking_map_dir>/<pillar_slug>.md` and fill the frontmatter +
    "The hub" section. Set `hub_status: planned`, `hub_owner` (ask).
-5. Report the hub route that still needs building if the target has no pillar
+5. **Register the hub term in the shared map** — this is what actually makes the
+   link fire, across every property. Add a `HubLink` entry to
+   `GitHub/hub-links/src/map.ts`:
+   `{ pattern: /<term>/i, owner: '<target hub_links_site_slug>', path: '<pillar path>' }`
+   — derive a tolerant, case-insensitive `pattern` from the hub term, and `path`
+   is the hub page's path on its owner. Then flag that `@moxywolf/hub-links` must
+   be rebuilt (`npm run build`), committed, pushed, and tagged, after which each
+   site picks the term up on its next build (the plugin-sync bumps the dep). The
+   term is **inert until this entry exists**. Never hand-edit `dist/` — rebuild it.
+6. Report the hub route that still needs building if the target has no pillar
    route yet (e.g. FrontierFounder), and whether the target's `auto_linker` is
-   present.
+   wired.
 
 Do **not** scaffold the hub *page* itself here — that's site-code (PRD Phase C).
 This command owns the linking map; the hub page is built per target.
@@ -62,9 +71,17 @@ parses by heading.
 - **Hold the hub's "Related reading"** until real spokes exist — don't link down
   to generic posts.
 - The pillar is a **real page**, not a tag or footer.
+- **Link at build time, not authoring time.** Every target's `auto_linker` is the
+  `@moxywolf/hub-links` adapter, which links the first mention automatically at
+  build. So a spoke body only needs to *mention* the hub term — do **not**
+  hand-insert the first-mention link (that double-links); add one explicit
+  "Read the full X →" CTA near the close instead. (DR-079.)
 
 ## What this command does NOT do
 
 - Does not draft a post (use `/blog-pipeline` or `/blog-delegate`).
 - Does not build the hub *page* route (site-code, Phase C).
-- Does not commit — the writer commits/pushes (per the repo's commit norm).
+- Does not commit or release — it edits the per-pillar linking map and the shared
+  `hub-links/src/map.ts`, but the writer commits/pushes both (per the repo's
+  commit norm) and rebuilds + tags `@moxywolf/hub-links` so the sites pick up the
+  new term.

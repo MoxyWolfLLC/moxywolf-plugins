@@ -167,9 +167,12 @@ Record the resolved folder.
   picks one. Record `pillar: <slug>`.
 - **New pillar** → run the `/blog-pillar new "<title>"` logic inline: derive the
   slug, set `hub_url` from the descriptor's `pillar_route_pattern`, ask the **hub
-  term** (the phrase whose first mention auto-links to the hub), and create the
+  term** (the phrase whose first mention auto-links to the hub), create the
   linking map from `references/linking-map-template.md` in the target's
-  `linking_map_dir`. Record `pillar: <slug>`. This post is the pillar's first spoke.
+  `linking_map_dir`, and **register the term in `GitHub/hub-links/src/map.ts`**
+  (`{ pattern, owner: <hub_links_site_slug>, path }`) so the link actually fires
+  cross-property — then flag that `@moxywolf/hub-links` needs a rebuild + tag.
+  Record `pillar: <slug>`. This post is the pillar's first spoke.
 
 **4. Record to state.** Write `target`, `target_status`, `content_folder`,
 `pillar`, and `hub_url` into the piece's `state.md` frontmatter so every later
@@ -178,12 +181,14 @@ phase and the publish step inherit them.
 **Carried into later phases:**
 
 - Phase 2/3 (drafting) ensure the pillar's `hub_term` appears in the body at least
-  once so the spoke→hub link can be wired (by the site's `auto_linker` if it has
-  one, else by `blog-publish`). Vary anchor text per the methodology — never the
-  identical phrase every time.
-- Phase 4 / `blog-publish` registers this spoke in the pillar's linking map, adds
-  the "Part of *<Pillar>*" note + spoke→hub link, and — for `register-only`
-  targets — prints the site-side gaps blocking a clean render.
+  once. Every target's `auto_linker` (the `@moxywolf/hub-links` adapter) links the
+  first mention at **build time**, so do **not** hand-insert the first-mention link
+  — just mention the term, and vary anchor text where it recurs. (DR-079: link at
+  render time, not authoring time.)
+- Phase 4 / `blog-publish` registers this spoke in the pillar's linking map and adds
+  the "Part of *<Pillar>*" note + an explicit "Read the full *<Pillar>* →" CTA (not
+  the auto-linked first mention), and — for `register-only` targets — prints the
+  site-side gaps blocking a clean render.
 
 ## STEP 2 — Route the command
 
