@@ -1,7 +1,7 @@
 ---
 name: blog-publish
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+  This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. After the post is live, an opt-in step can post a #general Slack @channel nudge asking the team to reshare it. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__form_input]
 ---
 
@@ -631,6 +631,32 @@ If any step stalls (identity not available, URL not readable, UI doesn't match),
 - **If any composer UI doesn't match** what's described (LinkedIn redesign) and you can't confidently locate the identity selector, the body field, or the publish/Post button: STOP, leave that piece unposted, and tell the writer to finish by hand. Never guess-click toward a publish button.
 
 Record the outcome in `<PIECE_DIR>/state.md`'s process log: `<ISO> — LinkedIn published via Chrome as <linkedin_channel>: <single Post | company-page trio> (article: <url|n/a>; teaser: posted|skipped; first comment: added|skipped).` If the writer skipped the whole step, record nothing.
+
+## STEP 11c — Optional: ask the team to amplify on Slack
+
+Once the post is live — whether this skill published it (STEP 11b) or the writer posted it by hand — offer to drop an amplification nudge in the team's Slack so colleagues reshare it. **Opt-in.** Run only when ALL of these hold:
+
+- A LinkedIn post is live and you have its **public post URL** — the teaser/feed Post URL people can reshare, NOT the Article editor URL. If you don't have it, ask the writer for it; if they'd rather not, skip.
+- A Slack connector is available — discover a send-message tool via `ToolSearch` (e.g. query `slack send`). If none is connected, skip silently and note it in STEP 12.
+- The writer explicitly opts in.
+
+Posting to a shared channel and pinging people is a real, visible action, so **always show the exact message and the target channel and wait for a clear yes before sending** — never auto-send.
+
+**Default message** (short; URL on its own line so Slack unfurls it):
+
+```
+@channel New on LinkedIn — give it a quick boost: open the post and reshare it with one person who'd get value from it. Takes 30 seconds and it helps a lot.
+
+<post-url>
+```
+
+- **Channel:** `#general` by default (the writer can name a different one). Resolve the channel id first if the send tool needs one.
+- **Mention:** `@channel` by default (pings everyone in the channel). Offer `@here` (only currently-active members) as the quieter option and honor whichever the writer picks. In Slack these are the broadcast tokens `<!channel>` / `<!here>` — emit whichever form the connector's send tool expects.
+- Send via the Slack connector's send-message tool. Capture the message permalink if it's returned.
+
+This step never DMs anyone, never posts anywhere but the channel the writer named, and never sends without the explicit confirmation above.
+
+Record in `<PIECE_DIR>/state.md`'s process log: `<ISO> — Slack amplification posted to #<channel> (<@channel|@here>) with the post URL.` If the writer skipped, record nothing.
 
 ## STEP 12 — Report back
 
