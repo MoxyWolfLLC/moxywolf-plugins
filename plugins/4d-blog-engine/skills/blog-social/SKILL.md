@@ -96,18 +96,24 @@ Once the channel is chosen, its `linkedin_channel_type` decides what LinkedIn ar
 
 **Personal profile** → today's default. The **feed Post is the lead surface**, and its first comment links to the canonical **blog URL** plus the 2-3 cited sources. The long-form Article is produced only if the writer ticked "LinkedIn Article" in STEP 2.
 
-**Company or Showcase Page** → the **long-form Article always leads**, and you produce a mandatory **trio**, in this publish order:
+**Company or Showcase Page** → the **long-form Article always leads**, and you produce a mandatory **trio** — but in **two stages**, because the teaser exists to drive traffic to the Article and its first comment links to the Article's URL, and that URL doesn't exist until the Article is live. Don't write the teaser or the comment against a placeholder URL. Wait for the real one.
 
-1. `linkedin-article.md` — the long-form Article (STEP 5d). The destination piece, posted **first** so it has a stable URL.
-2. `linkedin-post.md` — a short **teaser Post** (STEP 5a) about the Article (or its core idea). Its whole job is to drive readers to the Article. Same feed-post spec, but the hook and the soft CTA point at the long-form piece, not the blog.
-3. `linkedin-first-comment.md` — the first comment under the teaser Post, carrying the **published Article URL + the canonical blog URL + the 2-3 cited sources**.
+**Stage 1 (now):** write only `linkedin-article.md` — the long-form Article (STEP 5d), the destination piece. Generate its hero image too. Then **stop** and hand the Article off to be published. Frontmatter: `publish_order: 1`, `trio_stage: 1-article`.
 
-Produce all three even if the writer only ticked "Post" or only ticked "Article" in STEP 2 — on a Company/Showcase Page the lead-with-Article sequence is the house format (this is a deliberate, writer-confirmed default). Tell the writer plainly: *"<channel> is a Company Page, so I'm producing the lead Article, a short teaser Post, and a first comment that links back to the Article."*
+**Stage 2 (only after the Article is published, with its real URL in hand):**
 
-The Article's own URL doesn't exist until it's published, so `linkedin-first-comment.md` carries a literal `<LINKEDIN_ARTICLE_URL>` placeholder on its first content line. `/4d-blog-engine:blog-publish` captures the Article URL after posting the Article and substitutes the placeholder before the comment goes up. Record the shape in each LinkedIn file's frontmatter so the publish step posts them in order:
+- `linkedin-post.md` — a short **teaser Post** (STEP 5a) whose whole job is to drive readers to the Article; the hook and soft CTA point at the long-form piece, not the blog. **It carries an image by default** (reuse the Article hero, or a teaser-specific image — see STEP 5a). Frontmatter: `publish_order: 2`, `trio_stage: 2-teaser`.
+- `linkedin-first-comment.md` — the first comment under the teaser, carrying the **real published Article URL + the canonical blog URL + the 2-3 cited sources** (STEP 5a first-comment template, company-page variant). Frontmatter: `publish_order: 3`, `trio_stage: 2-comment`.
+
+`/4d-blog-engine:blog-publish` triggers Stage 2 automatically right after it posts the Article and captures the URL. If the writer published the Article by hand, they re-run `/blog-social` (or hand you the Article URL) and you write Stage 2 then, dropping the real URL straight into the first comment.
+
+Produce the trio even if the writer only ticked "Post" or only ticked "Article" in STEP 2 — on a Company/Showcase Page the lead-with-Article sequence is the house format (a deliberate, writer-confirmed default). Tell the writer plainly at Stage 1: *"<channel> is a Company Page. I'll write the lead Article now. Once it's published and you have its URL, I'll write the teaser Post (with an image) and the first comment that links back to it."*
+
+Record the shape in each LinkedIn file's frontmatter:
 
 - `publish_sequence: company-page-trio` (omit for the personal shape)
 - `publish_order: 1 | 2 | 3` (Article = 1, teaser Post = 2, first comment = 3)
+- `trio_stage: 1-article | 2-teaser | 2-comment`
 
 ## STEP 3 — Generate per-platform hook candidates
 
@@ -146,7 +152,7 @@ The voice profile's rules (no em-dashes, contractions, two-reader frame, etc.) s
 Both files are produced together — never one without the other. The Post plays one of two roles, set by `linkedin_channel_type` (STEP 2b):
 
 - **Personal profile → lead Post.** The feed Post is the main event. Its earned-secret line and soft CTA carry the argument; the first comment links to the **blog URL** + sources.
-- **Company/Showcase Page → teaser Post.** The Post is the trio's `publish_order: 2` piece. Its job is to pull readers to the lead Article. Keep the same feed-post spec below, but aim the hook and the soft CTA at the long-form piece ("the full breakdown is in the comments / linked below"), and the first comment links to the **published Article URL** + blog URL + sources.
+- **Company/Showcase Page → teaser Post.** The Post is the trio's `publish_order: 2` piece, written in **Stage 2** (only after the Article is live). Its job is to pull readers to the lead Article. Keep the same feed-post spec below, but aim the hook and the soft CTA at the long-form piece ("the full breakdown is in the comments / linked below"), and the first comment links to the **real published Article URL** + blog URL + sources. The teaser **carries an image by default** — a text-only post hides its link in the first comment, so it has no preview card, and an image is what stops the scroll (LinkedIn doesn't throttle images the way it throttles in-body links). Reuse the Article hero for campaign cohesion, or generate a teaser-specific image; record it in the `image:` frontmatter field.
 
 ### Post (feed)
 
@@ -174,7 +180,9 @@ linkedin_channel: <from STEP 2b>
 linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
 publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
 publish_order: <2 — include only in the company-page trio (Article=1, Post=2, comment=3)>
+trio_stage: <2-teaser — include only in the company-page trio>
 links_to_article: <true for the company-page teaser; omit on personal>
+image: <teaser image filename — required on the company-page teaser; reuse the Article hero or a teaser-specific image>
 target_chars: 1800
 posting_notes:
   post_as: "<linkedin_channel> — switch the 'Post as' actor to this before pasting"
@@ -218,7 +226,7 @@ Targets:
   3. <source-3-title> — <source-3-url>
   ```
 
-  Write `<LINKEDIN_ARTICLE_URL>` as that literal placeholder — the Article isn't published yet, so its URL doesn't exist when this file is written. `/4d-blog-engine:blog-publish` substitutes the real Article URL after it posts the Article (STEP 11b). If the writer publishes by hand, they paste the Article URL in place of the placeholder themselves.
+  Because the company-page comment is written in **Stage 2** (after the Article is live), drop the **real published Article URL** straight in — you have it by now. Only if you're somehow writing the comment before the Article URL exists, use the literal `<LINKEDIN_ARTICLE_URL>` placeholder as a fallback, and `/4d-blog-engine:blog-publish` (or the writer) substitutes the real URL before the comment goes up.
 
 - **Which sources to include:** only the 2-3 citations the Post text **quotes inline** (e.g. the Anthropic stat, the 269-row catalog count). Do **not** include the full bibliography from the blog — those live on the blog post itself, not in the comment. If the Post quotes zero external sources, the comment still gets the intro line + the URL(s) (the sources block is just omitted).
 - **No hashtags.** No emoji as bullets. Sequential numbering 1, 2, 3.
@@ -234,6 +242,7 @@ companion_to: linkedin-post.md
 linkedin_channel_type: <personal | company-page | showcase-page>
 publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
 publish_order: <3 — include only in the company-page trio>
+trio_stage: <2-comment — include only in the company-page trio>
 links_to: <blog for personal; article+blog for the company-page trio>
 target_chars: 600
 posting_notes:
@@ -276,6 +285,9 @@ linkedin_channel: <from STEP 2b>
 linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
 publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
 publish_order: <1 — include only in the company-page trio (the Article leads)>
+trio_stage: <1-article — include only in the company-page trio>
+image: <Article cover image — reuse the blog/Article hero>
+share_blurb: "<the 'tell your network what your article is about' text LinkedIn prompts for when you hit Publish on an Article — ~250-300 chars, hook before char 210, in voice; this rides the Article card on the page feed>"
 target_words: 1000
 posting_notes:
   post_as: "<linkedin_channel> — publish the article from this actor's 'Write article' surface"
@@ -444,8 +456,9 @@ Posting reminders:
   - COMPANY-PAGE TRIO (when <linkedin_channel> is a Company/Showcase Page), post in this ORDER:
       1. Article first. Publish linkedin-article.md via "Write article" as <linkedin_channel>.
          Copy its published URL — you need it for step 3.
-      2. Teaser Post second. Switch "Post as" to <linkedin_channel>, paste the POST body.
-         NO link in the body. It points readers to the Article.
+      2. Teaser Post second. Switch "Post as" to <linkedin_channel>, paste the POST body
+         and attach its image (the `image:` file). NO link in the body. It points readers
+         to the Article.
       3. First comment third. Under the teaser Post, as the SAME actor, paste
          linkedin-first-comment.md — but replace <LINKEDIN_ARTICLE_URL> with the
          Article URL you copied in step 1. It carries the Article link + blog URL + sources.

@@ -580,9 +580,9 @@ Then skip to "Record the outcome" below.
 
 ### Company-page trio path (Article → teaser Post → first comment)
 
-This path posts the three trio files **in order**, because the teaser Post's first comment links to the Article, and the Article's URL doesn't exist until it's published. Same browser-driving discipline as the single-Post path: screenshots and label text, never fixed coordinates, re-screenshot between steps, and never click a publish/Post button without an explicit OK on a screenshot first.
+This path posts the trio **in order**, because the teaser Post's first comment links to the Article, and the Article's URL doesn't exist until it's published. Same browser-driving discipline as the single-Post path: screenshots and label text, never fixed coordinates, re-screenshot between steps, and never click a publish/Post button without an explicit OK on a screenshot first.
 
-Identify the three files by their frontmatter: `publish_order: 1` is `linkedin-article.md`, `2` is `linkedin-post.md`, `3` is `linkedin-first-comment.md`.
+**Two-stage reality.** Per `/blog-social`'s company-page flow, only `linkedin-article.md` is written up front (Stage 1). The teaser Post and first comment are written in **Stage 2 — after the Article is live** — so they may not exist in the social directory yet when this path starts. This path publishes the Article first, captures its URL, then generates Stage 2 with that real URL, then posts the teaser (with its image) and the comment. Identify files by frontmatter: `publish_order: 1` / `trio_stage: 1-article` is `linkedin-article.md`; `2` / `2-teaser` is `linkedin-post.md`; `3` / `2-comment` is `linkedin-first-comment.md`.
 
 **Confirm the whole sequence before touching the browser:**
 
@@ -606,17 +606,21 @@ On anything but a clear yes, skip to STEP 12.
 
 1. `navigate` to `https://www.linkedin.com/article/new/`. Wait ~3 seconds. Confirm the session is live (login wall → STOP, tell the writer to sign in, leave the trio for manual pasting).
 2. **Set the publishing identity to the Page.** The article editor has a "Publishing as / Publish as" selector (top of the editor). Set it to `<linkedin_channel>`. If the Page isn't offered as a publishing identity in this session, STOP and tell the writer the Article can't be authored as `<linkedin_channel>` here — do NOT publish it as a different actor, and do NOT silently fall back to the personal profile.
-3. Enter the **title** (the Article's `title`) and the **body** from `linkedin-article.md` (frontmatter stripped). Inline links are allowed in the Article body.
+3. Enter the **title** (the Article's `title`) and the **body** from `linkedin-article.md` (frontmatter stripped); set the cover image from the Article's `image:` if present. Inline links are allowed in the Article body. LinkedIn also prompts for a "tell your network what your article is about" share blurb on publish — use the Article's `share_blurb` field if present, else a one-line summary.
 4. Screenshot, show the writer (right identity, title, body), and ask: *"Ready — Publish this Article as <linkedin_channel>?"* On their yes, click **Publish**.
-5. After it publishes, capture the **Article URL** from the address bar (read the tab URL via `tabs_context_mcp` or a screenshot of the address bar). Store it as `ARTICLE_URL`. If you can't read a stable published URL, STOP before posting the teaser — the comment needs that URL — and hand the rest to the writer to finish by hand.
+5. After it publishes, capture the **Article URL** from the address bar (read the tab URL via `tabs_context_mcp` or a screenshot of the address bar). Store it as `ARTICLE_URL`. If you can't read a stable published URL, STOP before going further — the comment needs that URL — and hand the rest to the writer to finish by hand.
 
-**2 — Publish the teaser Post.**
+**2 — Write Stage 2 (teaser Post + first comment) with the real URL.**
 
-Run the single-Post composer flow (above) for `linkedin-post.md` as `<linkedin_channel>`: Start a post → switch "Post as" to the Page → enter the teaser body (no link in body) → screenshot → OK → **Post**. Confirm it published.
+The teaser and comment are written only now that the Article is live. If `linkedin-post.md` and `linkedin-first-comment.md` aren't already in the social directory, generate them via `/4d-blog-engine:blog-social` Stage 2 (or inline, following its STEP 5a company-page spec), passing `ARTICLE_URL` so the teaser's hook points at the Article and the first comment carries the real `ARTICLE_URL` + blog URL + sources. The teaser must carry an image — reuse the Article hero or generate a teaser-specific one, recorded in its `image:` field. If both files already exist (writer pre-generated them), just substitute `ARTICLE_URL` for any `<LINKEDIN_ARTICLE_URL>` placeholder.
 
-**3 — Add the first comment, with the Article URL substituted.**
+**3 — Publish the teaser Post (with its image).**
 
-In `linkedin-first-comment.md`, replace the literal `<LINKEDIN_ARTICLE_URL>` placeholder with `ARTICLE_URL` from step 1. Then, under the just-published teaser Post, as the same actor (`<linkedin_channel>`), open the comment box, input the substituted comment (bare URLs, no markdown link syntax), screenshot for the writer's OK, and submit.
+Run the single-Post composer flow (above) for `linkedin-post.md` as `<linkedin_channel>`: Start a post → switch "Post as" to the Page → enter the teaser body (no link in body) → **attach its image** (the `image:` file) → screenshot → OK → **Post**. Confirm it published.
+
+**4 — Add the first comment.**
+
+Under the just-published teaser Post, as the same actor (`<linkedin_channel>`), open the comment box, input the contents of `linkedin-first-comment.md` (the real `ARTICLE_URL` already in place; bare URLs, no markdown link syntax), screenshot for the writer's OK, and submit.
 
 If any step stalls (identity not available, URL not readable, UI doesn't match), STOP at that step, report exactly which pieces published and which didn't, and hand the remainder to the writer — never guess-click forward through a publish button.
 
