@@ -1,8 +1,8 @@
 ---
 name: blog-social
 description: |
-  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
-allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion]
+  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). When a LinkedIn surface is selected, it discovers the writer's authorable LinkedIn channels (personal profile + Company/Showcase Pages + newsletters) live from their logged-in browser via Claude in Chrome and asks which channel to publish to. The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
+allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__javascript_tool]
 ---
 
 # Blog Social Deriver — multi-platform social derivatives from a signed blog
@@ -50,6 +50,43 @@ Create the output directory if it doesn't exist:
 ```bash
 mkdir -p <piece>/04-diligence/social/scorecards
 ```
+
+## STEP 2b — Choose the LinkedIn channel (only if a LinkedIn surface was selected)
+
+Run this step only if the writer selected **LinkedIn Post + first comment** and/or **LinkedIn Article** in STEP 2. If they picked only Twitter and/or Facebook, skip to STEP 3.
+
+LinkedIn lets the writer author as their **personal profile** or as any **Company/Showcase Page** they admin — and newsletters hang off either host. Which channel a piece publishes to changes the audience, the "Post as" actor the writer has to switch to before pasting, and the posting reminders this skill emits. So the channel has to be settled *before* you write the LinkedIn artifacts. Discover the real list from the writer's own logged-in LinkedIn — never hardcode it, and never assume "personal."
+
+### Discover the channels (Claude in Chrome)
+
+Claude in Chrome runs in the writer's real, authenticated browser, so it reads the actual set of identities they can post as (LinkedIn's anti-bot gate doesn't trigger). Drive it by screenshots and the accessibility tree, **not** fixed pixel coordinates — LinkedIn moves its DOM around, so identify panels by their heading text and re-screenshot between clicks.
+
+1. `mcp__Claude_in_Chrome__tabs_context_mcp` with `createIfEmpty: true` to get a tab.
+2. `mcp__Claude_in_Chrome__navigate` to `https://www.linkedin.com/feed/`. Wait ~3 seconds for render.
+3. **Confirm the session is live.** If the page shows a login/auth wall instead of the feed (no "Start a post" box), STOP this step and tell the writer: *"Sign into LinkedIn in Chrome, then re-run — I couldn't reach your logged-in session."* Then use the "If Chrome is unavailable" fallback below.
+4. Open the composer: click **Start a post**.
+5. Click the **caret next to your name** (the "Post to Anyone ▾" control) → the **Post settings** panel opens.
+6. Click the **author row at the top of that panel** (the "<Your name> ›" row) → the **Posting as** panel opens. This panel is the authoritative list: the personal profile plus every Page the writer can author for.
+7. Read it: take a `screenshot` and call `read_page` (filter `all`) — enumerate every radio-option label. Those labels are the channels. (If the modal text is hard to parse, `mcp__Claude_in_Chrome__javascript_tool` reading the dialog's radio labels is the fallback.)
+8. **Close the composer WITHOUT posting.** Click **Back**, then the **X**, and discard the draft if prompted. NEVER click **Post** in this step — discovery must never publish anything.
+
+### Discover newsletters (optional)
+
+If the writer asks about newsletters, or the piece is a recurring-series fit, also `navigate` to `https://www.linkedin.com/mynetwork/network-manager/newsletters/` and `get_page_text` to list the newsletters they own or co-author. Each newsletter is tied to a host (personal profile or a Page) — note the host alongside the newsletter name, because publishing a newsletter issue happens under that host's actor.
+
+### Present and record the choice
+
+Present the discovered channels with `AskUserQuestion` (single select), one option per channel — e.g. "Dorian Cougias (personal)", "MoxyWolf LLC (company page)", "STIGViewer® (company page)", plus any newsletters as "<name> (newsletter on <host>)". Recommend the channel whose audience matches the persona in `01-delegation.md`.
+
+Persist the pick — you stamp it into the LinkedIn frontmatter (STEP 5a / 5d) and the posting reminders (STEP 8):
+
+- `linkedin_channel: <display name>`
+- `linkedin_channel_type: personal | company-page | showcase-page | newsletter`
+- `linkedin_channel_url: <profile / company / newsletter URL if known; omit if unknown>`
+
+### If Chrome is unavailable
+
+If the Claude in Chrome extension isn't connected, or the writer declines the browser step, don't block the whole skill. Ask the writer to name the target channel in plain text (or default to their personal profile), record it as `linkedin_channel` with an added `linkedin_channel_source: writer-supplied`, and note in the STEP 8 report that live channel discovery was skipped.
 
 ## STEP 3 — Generate per-platform hook candidates
 
@@ -109,8 +146,11 @@ source_blog: <piece>/04-diligence/blog.md
 companion_file: linkedin-first-comment.md
 hook_formula: <name>
 audience: <persona from 01-delegation.md>
+linkedin_channel: <from STEP 2b>
+linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
 target_chars: 1800
 posting_notes:
+  post_as: "<linkedin_channel> — switch the 'Post as' actor to this before pasting"
   link_placement: first-comment-file
   hashtag_count_max: 3
   best_window: "Tue/Wed/Thu 7:30-8:30 AM PT"
@@ -147,7 +187,7 @@ source_blog: <piece>/04-diligence/blog.md
 companion_to: linkedin-post.md
 target_chars: 600
 posting_notes:
-  paste_as: "the writer's own first comment under the published Post"
+  paste_as: "the first comment under the published Post, as the SAME actor the Post was published as (<linkedin_channel>)"
   inline_sources_only: true
 ---
 ```
@@ -176,8 +216,11 @@ type: linkedin-article
 source_blog: <piece>/04-diligence/blog.md
 hook_formula: <name>
 audience: <persona from 01-delegation.md>
+linkedin_channel: <from STEP 2b>
+linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
 target_words: 1000
 posting_notes:
+  post_as: "<linkedin_channel> — publish the article from this actor's 'Write article' surface"
   link_placement: inline-ok
   hashtag_count_max: 5
   best_window: "Tue/Wed/Thu 7:30-8:30 AM PT"
@@ -325,6 +368,7 @@ Report to the writer:
 ```
 Social derivatives produced.
 
+LinkedIn channel:       <linkedin_channel> (<type>)   [only if a LinkedIn surface was produced]
 LinkedIn Post:          <piece>/04-diligence/social/linkedin-post.md (<chars> chars)
 LinkedIn first comment: <piece>/04-diligence/social/linkedin-first-comment.md (<chars> chars)
 LinkedIn Article:       <piece>/04-diligence/social/linkedin-article.md (<words> words)   [only if Article selected]
@@ -337,12 +381,15 @@ Scorecards: <piece>/04-diligence/social/scorecards/
   (Note: linkedin-first-comment.md is a utilitarian payload — format-check only, no 3-axis scoring.)
 
 Posting reminders:
-  - LinkedIn Post: paste the POST body first. NO link in the body. As soon as the
-    post publishes, paste the contents of linkedin-first-comment.md as the FIRST
-    COMMENT under the post (under your own handle). The first comment is what
-    carries the blog URL and source citations. Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
-  - LinkedIn Article (if produced): published via "Write article" — separate
-    LinkedIn surface, gets its own URL. Inline links allowed in the body.
+  - LinkedIn Post: publishing as <linkedin_channel> — switch the "Post as" actor
+    to that channel before you paste (default is your personal profile). Paste the
+    POST body first. NO link in the body. As soon as the post publishes, paste the
+    contents of linkedin-first-comment.md as the FIRST COMMENT under the post, as
+    the SAME actor (<linkedin_channel>). The first comment is what carries the blog
+    URL and source citations. Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
+  - LinkedIn Article (if produced): published via "Write article" from
+    <linkedin_channel> — separate LinkedIn surface, gets its own URL. Inline links
+    allowed in the body.
   - Twitter: blog URL in FINAL POST. Best window: Tue/Wed/Thu 9:00-11:00 AM PT.
   - Facebook: blog URL in BODY (renders preview card). Best window: weekdays 1:00-3:00 PM PT.
 
@@ -376,3 +423,4 @@ the repo.
 - **Writer picks `[skip hook selection]`:** generate the recommended hook automatically but flag in the platform's frontmatter that the human did not pick.
 - **The signed blog won't compress to a given platform** (too technical for Twitter, too short to make a 7-post thread, etc.): surface the issue per platform ("the source post's argument doesn't compress to a Twitter thread — recommend skipping Twitter for this piece"). Do not force-fit.
 - **Twitter thread comes out under 5 posts after compression attempts:** report and suggest a LinkedIn teaser as the better fit. Don't pad with filler posts to hit the minimum.
+- **Claude in Chrome not connected, or LinkedIn session walled (STEP 2b):** don't block the skill. Fall back to asking the writer to name the channel in plain text (or default to their personal profile), record it with `linkedin_channel_source: writer-supplied`, and note in the report that live channel discovery was skipped. Never publish anything during discovery — STEP 2b only reads the "Posting as" list and closes the composer without posting.
