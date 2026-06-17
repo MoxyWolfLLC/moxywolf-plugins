@@ -1,8 +1,8 @@
 ---
 name: blog-publish
 description: |
-  This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
-allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory]
+  This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Optionally, when a LinkedIn Post derivative is present, it can publish that Post to the LinkedIn channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before the irreversible Post click) — the first comment is offered as a follow-up and the long-form Article stays manual. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__form_input]
 ---
 
 # Publish — ship a signed post to the writer's blog
@@ -185,8 +185,9 @@ After Phase 4 sign-off, the writer may have run `/4d-blog-engine:blog-social` to
 
 ```
 <piece>/04-diligence/social/
-├── linkedin-article.md       (optional — one or more may exist)
-├── linkedin-teaser.md
+├── linkedin-post.md          (the feed Post — carries linkedin_channel in its frontmatter)
+├── linkedin-first-comment.md (companion to the Post)
+├── linkedin-article.md       (optional long-form)
 ├── twitter-thread.md
 ├── facebook-post.md
 └── scorecards/
@@ -515,6 +516,63 @@ Update the state.md frontmatter:
 - `published_commit: <short SHA>`
 - `published_status: <published|draft>`
 
+## STEP 11b — Optional: publish the LinkedIn Post to its channel via Claude in Chrome
+
+By default this skill does **not** post to any platform — pasting by hand stays the default (see the Diligence ethos). This step is an **opt-in** convenience: if the writer wants the LinkedIn **feed Post** published straight to the channel chosen in `/blog-social` STEP 2b, drive their own logged-in LinkedIn through Claude in Chrome. No third-party scheduler — the post is authored in the writer's real browser session, exactly as if they typed it. Run this step only when ALL of these hold:
+
+- A `linkedin-post.md` derivative shipped in this publish (it's in `SOCIAL_FILES`).
+- Claude in Chrome is connected — `mcp__Claude_in_Chrome__tabs_context_mcp` returns a browser. If the extension isn't connected, skip this step silently (no error; manual paste stays the path) and remind the writer in STEP 12.
+- The writer explicitly opts in (ask once — see below). On anything but a clear yes, skip and leave posting manual.
+
+Read `linkedin_channel`, `linkedin_channel_type`, and `linkedin_channel_url` from the shipped `linkedin-post.md` frontmatter (recorded by `/blog-social` STEP 2b). If `linkedin_channel` is absent, skip this step — there's no chosen channel to post as.
+
+### Confirm before touching the browser
+
+Posting to LinkedIn is irreversible once the **Post** button is clicked. Show the writer exactly what will post and where, and get a clear yes BEFORE you open the composer:
+
+```
+Publish the LinkedIn Post now, in your browser, as <linkedin_channel>?
+
+  Channel:  <linkedin_channel> (<linkedin_channel_type>)
+  Body:     <first ~200 chars of the Post>… (<N> chars total)
+  Link:     none in the body (the first comment carries the URL)
+
+I'll open your LinkedIn, switch "Post as" to <linkedin_channel>, type the body,
+and stop for your final OK before I click Post.
+
+Reply "post it" to proceed, or "skip" to leave it for manual pasting.
+```
+
+On anything but a clear yes, skip to STEP 12.
+
+### Drive the composer (Claude in Chrome)
+
+Claude in Chrome runs in the writer's real, authenticated browser. Drive by screenshots and the accessibility tree, **not** fixed pixel coordinates — LinkedIn moves its DOM; identify controls by their heading/label text and re-screenshot between steps.
+
+1. `mcp__Claude_in_Chrome__tabs_context_mcp` with `createIfEmpty: true`.
+2. `mcp__Claude_in_Chrome__navigate` to `https://www.linkedin.com/feed/`. Wait ~3 seconds.
+3. **Confirm the session is live.** If a login/auth wall shows instead of the feed (no "Start a post" box), STOP and tell the writer: *"Sign into LinkedIn in Chrome, then re-run — I couldn't reach your logged-in session."* Leave the Post for manual pasting.
+4. Click **Start a post** to open the composer.
+5. **Switch the actor to the chosen channel.** Click the **caret next to your name** ("Post to Anyone ▾") → **Post settings** panel → click the **author row at the top** ("<Your name> ›") → the **Posting as** panel. Select the radio whose label matches `linkedin_channel`. If no label matches (the channel isn't authorable in this session), STOP and tell the writer the channel wasn't available — do NOT post as a different actor. Return to the composer (Save/Back).
+6. **Enter the body.** Focus the composer text area and input the Post body from `linkedin-post.md` (frontmatter stripped — body text only, NO link). Use `mcp__Claude_in_Chrome__form_input` for the text area; fall back to `computer` typing if needed. Screenshot and verify the actor still reads `<linkedin_channel>` and the body landed intact.
+7. **Final OK, then post.** Show the writer a screenshot of the composer (right actor, right body) and ask once more: *"Ready — click Post as <linkedin_channel>?"* On their yes, click **Post**. This is the irreversible action; never click it without that confirmation. Wait ~3 seconds and screenshot to confirm the post published.
+
+### Offer the first comment as the follow-up
+
+The first comment is what carries the blog URL and sources. Immediately after the Post publishes, offer to add it:
+
+*"Posted. Want me to add the first comment (the blog link + sources) under it, as <linkedin_channel>?"*
+
+On a yes: open the just-published post's comment box, confirm the commenting identity is `<linkedin_channel>` (LinkedIn comments as the same actor the post was published as), input the contents of `linkedin-first-comment.md` (bare URLs, no markdown link syntax), screenshot for the writer's OK, then submit. On a no, remind them the first comment still needs pasting by hand.
+
+### Limits to state plainly (don't paper over them)
+
+- **The Article is not handled here.** This step posts the **feed Post** only. If a `linkedin-article.md` shipped, LinkedIn's long-form "Write article" surface stays manual.
+- **Twitter / Facebook** stay manual in this step — its scope is the LinkedIn Post the writer chose a channel for. Drive them through their own composers only on explicit request.
+- **If the composer UI doesn't match** what's described (LinkedIn redesign) and you can't confidently locate the actor switcher, the body field, or the Post button: STOP, leave the post unposted, and tell the writer to paste it by hand. Never guess-click toward a Post button.
+
+Record the outcome in `<PIECE_DIR>/state.md`'s process log: `<ISO> — LinkedIn Post published via Chrome as <linkedin_channel> (first comment: added | skipped).` If the writer skipped the whole step, record nothing.
+
 ## STEP 12 — Report back
 
 ```
@@ -543,7 +601,7 @@ Predicted live URL: <computed URL or "(check your hosting dashboard for the actu
 
 ## What this skill does NOT do
 
-- It does not post to LinkedIn, Twitter/X, or Facebook on your behalf. The skill ships the *source-of-truth* social derivative files (`<piece>/04-diligence/social/*.md`) into the repo at `<SOCIAL_SUBFOLDER>/<SLUG>/`, so downstream automation (or a teammate) can read them straight from GitHub. The actual paste-and-post on each platform is still manual, by design — see the whitepaper's Diligence ethos.
+- It does not post to Twitter/X or Facebook on your behalf, and does not auto-post anything without an explicit opt-in. The skill ships the *source-of-truth* social derivative files (`<piece>/04-diligence/social/*.md`) into the repo at `<SOCIAL_SUBFOLDER>/<SLUG>/`, so downstream automation (or a teammate) can read them straight from GitHub. Paste-and-post stays the default, by design (see the whitepaper's Diligence ethos). The **one** exception is the opt-in STEP 11b: when the writer explicitly asks, it publishes the LinkedIn **feed Post** to the chosen channel through Claude in Chrome in the writer's own logged-in LinkedIn — stopping for a final OK before the irreversible Post click. The first comment is offered as a follow-up; the long-form Article stays manual.
 - It does not push to the remote. The writer clicks "Push origin" in GitHub Desktop after the plugin reports the commit is prepared. GitHub Desktop handles auth.
 - It does not open a pull request. The commit targets the default branch directly.
 - It does not configure any GitHub token, PAT, or auth setup. The push is GitHub Desktop's job, with whatever auth the writer already has.
