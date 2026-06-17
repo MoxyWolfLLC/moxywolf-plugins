@@ -1,7 +1,7 @@
 ---
 name: blog-social
 description: |
-  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). When a LinkedIn surface is selected, it discovers the writer's authorable LinkedIn channels (personal profile + Company/Showcase Pages + newsletters) live from their logged-in browser via Claude in Chrome and asks which channel to publish to. The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
+  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). When a LinkedIn surface is selected, it discovers the writer's authorable LinkedIn channels (personal profile + Company/Showcase Pages + newsletters) live from their logged-in browser via Claude in Chrome and asks which channel to publish to. On a Company/Showcase Page the output is an Article-led trio — long-form Article (lead) + a short teaser Post + a first comment that links to the published Article + blog + sources, published in that order; on a personal profile it stays the feed Post + first-comment-to-blog pair. The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
 allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__javascript_tool]
 ---
 
@@ -44,6 +44,8 @@ Use `AskUserQuestion` (multiSelect: true) with options:
 The writer can pick any combination. If they pick nothing, halt with: *"No platforms selected; nothing to derive."*
 
 **Note on the LinkedIn pair:** if the writer selects "LinkedIn Post + first comment", you produce TWO files (`linkedin-post.md` AND `linkedin-first-comment.md`) — never one without the other. The first comment is what makes the no-body-link post-format strategy work; producing the Post without the first comment leaves the writer without the source-and-link payload to paste into the comment box after publishing.
+
+**Note on company pages:** what the writer ticks here is provisional for LinkedIn. The channel chosen in STEP 2b decides the final LinkedIn shape — and if that channel is a Company/Showcase Page, the output is always the Article-led trio (Article + teaser Post + first comment), regardless of which LinkedIn boxes were ticked here. See STEP 2b, "The channel type sets the LinkedIn output shape."
 
 Create the output directory if it doesn't exist:
 
@@ -88,6 +90,25 @@ Persist the pick — you stamp it into the LinkedIn frontmatter (STEP 5a / 5d) a
 
 If the Claude in Chrome extension isn't connected, or the writer declines the browser step, don't block the whole skill. Ask the writer to name the target channel in plain text (or default to their personal profile), record it as `linkedin_channel` with an added `linkedin_channel_source: writer-supplied`, and note in the STEP 8 report that live channel discovery was skipped.
 
+### The channel type sets the LinkedIn output shape
+
+Once the channel is chosen, its `linkedin_channel_type` decides what LinkedIn artifacts you produce. There are two shapes.
+
+**Personal profile** → today's default. The **feed Post is the lead surface**, and its first comment links to the canonical **blog URL** plus the 2-3 cited sources. The long-form Article is produced only if the writer ticked "LinkedIn Article" in STEP 2.
+
+**Company or Showcase Page** → the **long-form Article always leads**, and you produce a mandatory **trio**, in this publish order:
+
+1. `linkedin-article.md` — the long-form Article (STEP 5d). The destination piece, posted **first** so it has a stable URL.
+2. `linkedin-post.md` — a short **teaser Post** (STEP 5a) about the Article (or its core idea). Its whole job is to drive readers to the Article. Same feed-post spec, but the hook and the soft CTA point at the long-form piece, not the blog.
+3. `linkedin-first-comment.md` — the first comment under the teaser Post, carrying the **published Article URL + the canonical blog URL + the 2-3 cited sources**.
+
+Produce all three even if the writer only ticked "Post" or only ticked "Article" in STEP 2 — on a Company/Showcase Page the lead-with-Article sequence is the house format (this is a deliberate, writer-confirmed default). Tell the writer plainly: *"<channel> is a Company Page, so I'm producing the lead Article, a short teaser Post, and a first comment that links back to the Article."*
+
+The Article's own URL doesn't exist until it's published, so `linkedin-first-comment.md` carries a literal `<LINKEDIN_ARTICLE_URL>` placeholder on its first content line. `/4d-blog-engine:blog-publish` captures the Article URL after posting the Article and substitutes the placeholder before the comment goes up. Record the shape in each LinkedIn file's frontmatter so the publish step posts them in order:
+
+- `publish_sequence: company-page-trio` (omit for the personal shape)
+- `publish_order: 1 | 2 | 3` (Article = 1, teaser Post = 2, first comment = 3)
+
 ## STEP 3 — Generate per-platform hook candidates
 
 For each platform the writer selected, generate **3 candidate hooks** using formulas from `references/hook-library.md`. The per-platform formula-fit table in that file indicates which formulas land best where:
@@ -122,7 +143,10 @@ The voice profile's rules (no em-dashes, contractions, two-reader frame, etc.) s
 
 ## STEP 5a — Write the LinkedIn Post + first-comment pair (if selected)
 
-This is the default LinkedIn output. Both files are produced together — never one without the other.
+Both files are produced together — never one without the other. The Post plays one of two roles, set by `linkedin_channel_type` (STEP 2b):
+
+- **Personal profile → lead Post.** The feed Post is the main event. Its earned-secret line and soft CTA carry the argument; the first comment links to the **blog URL** + sources.
+- **Company/Showcase Page → teaser Post.** The Post is the trio's `publish_order: 2` piece. Its job is to pull readers to the lead Article. Keep the same feed-post spec below, but aim the hook and the soft CTA at the long-form piece ("the full breakdown is in the comments / linked below"), and the first comment links to the **published Article URL** + blog URL + sources.
 
 ### Post (feed)
 
@@ -148,6 +172,9 @@ hook_formula: <name>
 audience: <persona from 01-delegation.md>
 linkedin_channel: <from STEP 2b>
 linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
+publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
+publish_order: <2 — include only in the company-page trio (Article=1, Post=2, comment=3)>
+links_to_article: <true for the company-page teaser; omit on personal>
 target_chars: 1800
 posting_notes:
   post_as: "<linkedin_channel> — switch the 'Post as' actor to this before pasting"
@@ -163,7 +190,9 @@ Targets:
 
 - **Char count:** 80-1,200 (LinkedIn's comment limit is ~1,250; stay under it with margin).
 - **Voice:** OFF. This is a utilitarian service note, not voice prose.
-- **Structure (fixed template — don't improvise):**
+- **Structure depends on the channel type (don't improvise either template):**
+
+  **Personal profile (links to the blog):**
 
   ```
   If you want to do your own research, here are the cited sources in my article:
@@ -174,7 +203,24 @@ Targets:
   3. <source-3-title> — <source-3-url>
   ```
 
-- **Which sources to include:** only the 2-3 citations the Post text **quotes inline** (e.g. the Anthropic stat, the 269-row catalog count). Do **not** include the full bibliography from the blog — those live on the blog post itself, not in the comment. If the Post quotes zero external sources, the comment still gets the intro line + blog URL (the sources block is just omitted).
+  **Company/Showcase Page (the trio — links to the published Article first, then the blog, then sources):**
+
+  ```
+  Full long-form piece here:
+  <LINKEDIN_ARTICLE_URL>
+
+  More on the blog:
+  <blog-url>
+
+  Sources:
+  1. <source-1-title> — <source-1-url>
+  2. <source-2-title> — <source-2-url>
+  3. <source-3-title> — <source-3-url>
+  ```
+
+  Write `<LINKEDIN_ARTICLE_URL>` as that literal placeholder — the Article isn't published yet, so its URL doesn't exist when this file is written. `/4d-blog-engine:blog-publish` substitutes the real Article URL after it posts the Article (STEP 11b). If the writer publishes by hand, they paste the Article URL in place of the placeholder themselves.
+
+- **Which sources to include:** only the 2-3 citations the Post text **quotes inline** (e.g. the Anthropic stat, the 269-row catalog count). Do **not** include the full bibliography from the blog — those live on the blog post itself, not in the comment. If the Post quotes zero external sources, the comment still gets the intro line + the URL(s) (the sources block is just omitted).
 - **No hashtags.** No emoji as bullets. Sequential numbering 1, 2, 3.
 - **URL handling:** bare URLs only. LinkedIn auto-links them on render. Don't use markdown link syntax `[title](url)` — the comment box renders as plain text.
 
@@ -185,18 +231,28 @@ Save to `<piece>/04-diligence/social/linkedin-first-comment.md` with frontmatter
 type: linkedin-first-comment
 source_blog: <piece>/04-diligence/blog.md
 companion_to: linkedin-post.md
+linkedin_channel_type: <personal | company-page | showcase-page>
+publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
+publish_order: <3 — include only in the company-page trio>
+links_to: <blog for personal; article+blog for the company-page trio>
 target_chars: 600
 posting_notes:
   paste_as: "the first comment under the published Post, as the SAME actor the Post was published as (<linkedin_channel>)"
   inline_sources_only: true
+  article_url_placeholder: "<LINKEDIN_ARTICLE_URL> — blog-publish substitutes the real Article URL after posting the Article (company-page trio only)"
 ---
 ```
 
-The opening line is fixed for now — *"If you want to do your own research, here are the cited sources in my article:"* — keep the phrasing verbatim unless the writer overrides it via a follow-up edit. The verbatim phrasing is what we've calibrated against; rewording it ad-hoc each time defeats the calibration.
+The opening lines are fixed for now — *"If you want to do your own research, here are the cited sources in my article:"* for the personal template, *"Full long-form piece here:"* for the company-page template — keep the phrasing verbatim unless the writer overrides it via a follow-up edit. The verbatim phrasing is what we've calibrated against; rewording it ad-hoc each time defeats the calibration.
 
-## STEP 5d — Write the LinkedIn Article (optional, only if selected)
+## STEP 5d — Write the LinkedIn Article (lead piece on company pages; optional on personal)
 
-Only generate this file if the writer explicitly selected **"LinkedIn Article (long-form)"** in STEP 2. If the writer only selected the Post + first-comment pair, skip this section entirely.
+Generate this file when **either** holds:
+
+- The channel is a **Company/Showcase Page** (STEP 2b) — the Article is the **lead piece** of the trio (`publish_order: 1`) and is always produced, even if the writer didn't tick "Article" in STEP 2.
+- The channel is **personal** AND the writer explicitly selected **"LinkedIn Article (long-form)"** in STEP 2.
+
+If neither holds (personal channel, Article not ticked), skip this section entirely.
 
 Targets:
 
@@ -218,12 +274,15 @@ hook_formula: <name>
 audience: <persona from 01-delegation.md>
 linkedin_channel: <from STEP 2b>
 linkedin_channel_type: <personal | company-page | showcase-page | newsletter>
+publish_sequence: <company-page-trio — include only for a Company/Showcase Page; omit on personal>
+publish_order: <1 — include only in the company-page trio (the Article leads)>
 target_words: 1000
 posting_notes:
   post_as: "<linkedin_channel> — publish the article from this actor's 'Write article' surface"
   link_placement: inline-ok
   hashtag_count_max: 5
   best_window: "Tue/Wed/Thu 7:30-8:30 AM PT"
+  trio_role: "company-page lead — publish FIRST; its URL feeds the teaser Post's first comment"
 ---
 ```
 
@@ -369,9 +428,10 @@ Report to the writer:
 Social derivatives produced.
 
 LinkedIn channel:       <linkedin_channel> (<type>)   [only if a LinkedIn surface was produced]
-LinkedIn Post:          <piece>/04-diligence/social/linkedin-post.md (<chars> chars)
+LinkedIn shape:         <company-page trio (Article → teaser Post → first comment) | personal (Post + first comment)>
+LinkedIn Article:       <piece>/04-diligence/social/linkedin-article.md (<words> words)   [lead piece on a company page; optional on personal]
+LinkedIn Post:          <piece>/04-diligence/social/linkedin-post.md (<chars> chars)   [teaser on a company page]
 LinkedIn first comment: <piece>/04-diligence/social/linkedin-first-comment.md (<chars> chars)
-LinkedIn Article:       <piece>/04-diligence/social/linkedin-article.md (<words> words)   [only if Article selected]
 Twitter Thread:         <piece>/04-diligence/social/twitter-thread.md (<N> posts)
 Facebook Post:          <piece>/04-diligence/social/facebook-post.md (<chars> chars)
 
@@ -381,15 +441,20 @@ Scorecards: <piece>/04-diligence/social/scorecards/
   (Note: linkedin-first-comment.md is a utilitarian payload — format-check only, no 3-axis scoring.)
 
 Posting reminders:
-  - LinkedIn Post: publishing as <linkedin_channel> — switch the "Post as" actor
-    to that channel before you paste (default is your personal profile). Paste the
-    POST body first. NO link in the body. As soon as the post publishes, paste the
-    contents of linkedin-first-comment.md as the FIRST COMMENT under the post, as
-    the SAME actor (<linkedin_channel>). The first comment is what carries the blog
-    URL and source citations. Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
-  - LinkedIn Article (if produced): published via "Write article" from
-    <linkedin_channel> — separate LinkedIn surface, gets its own URL. Inline links
-    allowed in the body.
+  - COMPANY-PAGE TRIO (when <linkedin_channel> is a Company/Showcase Page), post in this ORDER:
+      1. Article first. Publish linkedin-article.md via "Write article" as <linkedin_channel>.
+         Copy its published URL — you need it for step 3.
+      2. Teaser Post second. Switch "Post as" to <linkedin_channel>, paste the POST body.
+         NO link in the body. It points readers to the Article.
+      3. First comment third. Under the teaser Post, as the SAME actor, paste
+         linkedin-first-comment.md — but replace <LINKEDIN_ARTICLE_URL> with the
+         Article URL you copied in step 1. It carries the Article link + blog URL + sources.
+      Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
+  - PERSONAL PROFILE (when <linkedin_channel> is your personal profile):
+      Switch "Post as" to your profile, paste the POST body (NO link in the body).
+      As soon as it publishes, paste linkedin-first-comment.md as the FIRST COMMENT
+      under the post — it carries the blog URL and sources. (Article only if you made one.)
+      Best window: Tue/Wed/Thu 7:30-8:30 AM PT.
   - Twitter: blog URL in FINAL POST. Best window: Tue/Wed/Thu 9:00-11:00 AM PT.
   - Facebook: blog URL in BODY (renders preview card). Best window: weekdays 1:00-3:00 PM PT.
 
