@@ -186,7 +186,7 @@ There are two memory layers and they exist on purpose.
 
 **Layer 1 — per-Mac, per-user (default).** Each Mac has its own memory directory at `~/Library/Application Support/Claude/.../memory/`. It holds `user_*` (facts about you), `feedback_*` (guidance you gave Claude), `project_*` (your slice of project work), and `reference_*` (where you keep things) memories. This layer **does not sync**. Dorian's "no em-dashes" preference is his, not Phil's. Michael's "verify handoff claims against git" was learned by his Claude through an incident his Claude saw. If this layer synced, every Claude would inherit every preference from every teammate and the model would slowly become a worst-common-denominator of everyone's quirks.
 
-**Layer 2 — team-shared behavioral memory (Drive).** Some rules really should apply to everyone — e.g. "format GitHub Desktop commit messages as plain text, not markdown." Those live in:
+**Layer 2 — team-shared behavioral memory (Drive).** Some rules really should apply to everyone — e.g. "author git commit messages as plain text, not markdown." Those live in:
 
 ```
 Taskade/_Shared Files/_shared-memory/
@@ -244,7 +244,7 @@ This repo is the **source of truth**. The flow is:
 
 1. Edit a plugin in your local clone: `~/Documents/GitHub/moxywolf-plugins/plugins/<name>/`.
 2. Bump the `version` in that plugin's `.claude-plugin/plugin.json`. Without a bump Cowork won't notice the change — the `version` field is what gates updates.
-3. Commit and push via GitHub Desktop (or `git push`).
+3. Commit and push the change (`git push`; in a Cowork session Claude commits AND pushes directly via sandbox `git` + a classic PAT).
 4. On every consumer machine, run `claude plugin marketplace update moxywolf-plugins`. Cowork has a **Refresh** button that does the same thing.
 
 **Watch out for**: don't set `version` in both `plugin.json` and `marketplace.json`. The `plugin.json` value silently wins, so a stale manifest version will mask the bump you made in the catalog.

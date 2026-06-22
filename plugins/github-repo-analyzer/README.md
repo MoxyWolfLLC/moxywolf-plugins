@@ -87,7 +87,7 @@ This plugin uses native Cowork tooling — no third-party broker:
 ## Setup
 
 - The GitHub MCP must be authenticated in Cowork → Connectors with read access to the repos you want to analyze.
-- For deeper REST calls, install GitHub Desktop's CLI (`gh`) or set `GITHUB_TOKEN` in your shell. The `gh` path is preferred — it reuses your already-authenticated session and handles pagination cleanly.
+- For deeper REST calls, install the GitHub CLI (`gh`) or set `GITHUB_TOKEN` in your shell. The `gh` path is preferred — it reuses your already-authenticated session and handles pagination cleanly.
 
 ## Governance
 
