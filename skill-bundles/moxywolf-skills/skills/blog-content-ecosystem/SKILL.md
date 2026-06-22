@@ -9,6 +9,8 @@ description: Transform a completed blog post into a complete content marketing e
 
 Transform a single blog post into a complete top-of-funnel (TOF) content marketing system. Generate lead magnets, bibliographies with abstracts, and multi-variant LinkedIn promotional posts—all optimized for audience engagement and lead capture.
 
+**Provenance gate.** Before publishing, route every statistic and factual claim through citation verification (the research-pipeline citation-verifier or an equivalent source-and-date check). No unverified claim ships; flag what can't be verified rather than printing it.
+
 ## Workflow
 
 This skill follows a sequential 5-step process:

@@ -60,6 +60,9 @@ This skill performs externally-visible actions in Phase 6. The following rules a
 
 - **Never send a DocuSign envelope without approval.** Save the envelope as a draft
   and return the URL. The user must review and confirm before Claude clicks Send.
+
+**Release Owner gate (high-stakes).** Before routing the offer letter to DocuSign for e-signature (creating the envelope), present the exact content and the recipient or amount, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+
 - **Never send the Gmail fallback email without approval.** If the DocuSign browser
   flow fails, draft the fallback email and show it to the user before sending.
 - **Never publish the job post.** Produce the .docx file only. Posting to any job

@@ -9,6 +9,8 @@ description: Transform weekly STIG+CMMC research into narrative-driven blog post
 
 Transform Dorian's weekly STIG+CMMC2 research into compelling narrative blogs that apply Aaron Sorkin's Desire-Obstacle-Battle (DOB) storytelling framework with MoxyWolf's brand voice.
 
+**Provenance gate.** Before publishing, route every statistic and factual claim through citation verification (the research-pipeline citation-verifier or an equivalent source-and-date check). No unverified claim ships; flag what can't be verified rather than printing it.
+
 **Sorkin's DOB Framework:**
 - **Desire**: What the character wants (win contracts, prove security, sustain trust)
 - **Obstacle**: What stands in their way (regulatory complexity, scale problems, technical barriers)

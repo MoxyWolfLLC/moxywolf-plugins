@@ -61,7 +61,10 @@ Do not ask again on subsequent runs.
 
    Then show each draft email in full. Wait for owner to say "send these" or approve individually.
 
-6. **Send or queue — only after approval.**
+6. **Send or queue — only after the Release Owner gate clears.**
+
+   **Release Owner gate (high-stakes).** Before sending the invoice reminder, present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+
    - Stripe invoices: send the reminder via Stripe.
    - Non-Stripe invoices: queue as a draft in the owner's configured mail app.
    - Never send without explicit approval.

@@ -7,6 +7,8 @@ description: Scrape a LinkedIn top-content page via Claude in Chrome (running in
 
 Reads a single LinkedIn content page using Claude in Chrome (which runs in Dorian's real, logged-in browser — bypassing LinkedIn's anti-bot gates that block standard fetches), scans all posts on the page, selects the best 2-3, and drafts practitioner-level comments in Dorian's voice following MoxyWolf brand guidelines.
 
+This skill drafts only. A named human reviews and sends; nothing is auto-sent or auto-posted.
+
 ## URL Input
 
 ### Default Target URL

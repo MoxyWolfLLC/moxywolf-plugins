@@ -45,6 +45,8 @@ Run the `/gstack-review` checklist against this branch. If CRITICAL findings exi
 
 ## Step 5: Prepare PR
 
+**Gate:** Never auto-push to a protected branch and never auto-merge. A named human owns the merge; the pipeline prepares the PR and stops.
+
 Build the PR:
 - **Title:** Concise description of what this PR does (under 70 characters)
 - **Body:** Summary of changes, test results, review findings, any known gaps

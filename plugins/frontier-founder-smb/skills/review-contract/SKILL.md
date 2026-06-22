@@ -62,6 +62,8 @@ If DocuSign is not connected and no file path was given, ask the owner to upload
 - **Always caveat:** "This is not legal advice. Review with your attorney before signing."
 - **Never delete or overwrite the original document.**
 
+**Release Owner gate (high-stakes).** Before sending the contract for e-signature (or otherwise signing/sending the DocuSign envelope), present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+
 ## Output
 
 Present the plain-English summary, red-flag list, and redline suggestions. Ask the owner whether to export a marked-up copy and where to save it.

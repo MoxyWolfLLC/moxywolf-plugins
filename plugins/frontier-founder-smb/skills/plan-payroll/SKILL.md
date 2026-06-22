@@ -32,6 +32,8 @@ After Step 1 approval, trigger the `invoice-chase` skill workflow:
 5. Present the ranked list with drafted reminders. Show the projected cash impact if a top-N subset gets paid within the horizon — does that close the payroll gap from Step 1?
 6. Wait for explicit "send these" per reminder (or batch approval) before pushing.
 
+**Release Owner gate (high-stakes).** Before staging the payroll run or sending any invoice reminder, present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+
 ## Approval gates (must hold)
 
 - Never send a reminder without owner approval — drafts only until "send" is given.

@@ -51,6 +51,8 @@ If Gmail and Clarify are both unreachable, ask the owner to paste the complaint 
 - **Never issue refunds or credits automatically.** Present the option; the owner decides.
 - **Never close tickets or resolve disputes without owner confirmation.**
 
+**Release Owner gate (high-stakes).** Before issuing the refund or credit, present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+
 ## Output
 
 Present the customer context summary, the drafted response, and any pattern-based operational suggestion. Ask: "Want to send this response, edit it, or handle it differently?"

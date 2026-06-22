@@ -367,7 +367,7 @@ If `${VAULT}/_System/` doesn't exist (first time using this plugin with the vaul
 
    Rung 3 of 4: **Act Within Bounds**
    - Read all data sources freely
-   - Draft content and queue for approval before sending externally
+   - Draft content and queue for approval before sending externally. External sends require a named human's approval before they leave; record who approved.
    - Execute internal operations (task management, memory updates, file organization)
    - Escalate: financial transactions, public-facing content, security-sensitive operations
    ```

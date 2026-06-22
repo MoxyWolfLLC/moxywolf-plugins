@@ -9,6 +9,8 @@ description: Complete weekly content creation system for STIGViewer blog using S
 
 This skill creates a complete weekly content marketing system for STIGViewer.com, starting from Dorian's pasted research and ending with a full multimedia distribution plan. Uses Aaron Sorkin's Desire-Obstacle-Battle storytelling framework with MoxyWolf brand voice.
 
+**Provenance gate.** Before publishing, route every statistic and factual claim through citation verification (the research-pipeline citation-verifier or an equivalent source-and-date check). No unverified claim ships; flag what can't be verified rather than printing it.
+
 **When to use this skill:**
 - Dorian pastes weekly STIG+CMMC2 research to transform into blog
 - Weekly blog content creation cycle

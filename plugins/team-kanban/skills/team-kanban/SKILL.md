@@ -252,7 +252,11 @@ Search the existing Slack Canvas (if one exists) and the #general channel for te
 
 Format the merged task list into Canvas-flavored Markdown. Read `references/slack-canvas-format.md` for the exact template.
 
-**If no Canvas exists yet:**
+**If no Canvas exists yet (first Canvas publish — public/shared write, treat as high-stakes):**
+
+> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+
+The first Canvas publish lands in a shared, team-visible space. Show Dorian the full Canvas content and the destination (#general) and get his explicit go-ahead before creating it. Then:
 - Create one with `slack_create_canvas` titled "Team Kanban — MoxyWolf"
 - Post the Canvas link to #general with context message
 
@@ -270,7 +274,11 @@ When the personal-os morning standup reads the Canvas (Step 2 of its flow), it s
 
 #### Step 9: Post Daily Digest to #general
 
-After updating the Canvas, post a formatted summary message to #general using `slack_send_message`. Read `references/slack-canvas-format.md` for the message template.
+> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+
+The #general digest is a public broadcast to the whole team. Render the exact digest message and name the destination (#general), then wait for Dorian's explicit approval before calling `slack_send_message`. Never auto-post the digest.
+
+After Dorian approves, post the formatted summary message to #general using `slack_send_message`. Read `references/slack-canvas-format.md` for the message template.
 
 The digest includes:
 - Quick stats: total tasks, items by column, new items since last sync
@@ -311,9 +319,13 @@ Skip Steps 4, 5, and 5b (calendar/email/Slack DM scanning). Only read Obsidian +
 
 One-time setup flow:
 
+> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+
+Setup creates the first shared Canvas and the first #general broadcast — both public, both high-stakes. Before steps 2 and 3, show Dorian the exact Canvas content and the exact intro message plus their destination (#general), and wait for his explicit approval. Never auto-create or auto-post.
+
 1. **Find #general:** Use `slack_search_channels` to find the #general channel and capture its channel ID
-2. **Create the Canvas:** Create the initial Team Kanban Canvas with `slack_create_canvas`
-3. **Post introduction:** Send an introductory message to #general explaining the board, how to add tasks (reply in thread), and linking to the Canvas
+2. **Create the Canvas (after approval):** Create the initial Team Kanban Canvas with `slack_create_canvas`
+3. **Post introduction (after approval):** Send an introductory message to #general explaining the board, how to add tasks (reply in thread), and linking to the Canvas
 4. **Store config:** Write a config note to `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` with:
    - Canvas ID
    - #general channel ID

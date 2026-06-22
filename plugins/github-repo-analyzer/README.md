@@ -80,7 +80,7 @@ The plugin bundles six reference documents:
 
 This plugin uses native Cowork tooling — no third-party broker:
 
-- **Native GitHub MCP** (the Cowork-managed GitHub connector) for `list_repos`, `list_branches`, `list_issues`, `list_pulls`, `get_issue_comments`, `get_pull_comments`, `create_issue`, `create_pr`, and `push_file`.
+- **Native GitHub MCP** (the Cowork-managed GitHub connector) for `list_repos`, `list_branches`, `list_issues`, `list_pulls`, `get_issue_comments`, `get_pull_comments`, `create_issue`, `create_pr`, and `push_file`. **Never open a PR, push a file, or create an issue without explicit human approval of the exact change** — the read/analysis capabilities run freely, but every write goes through a human first (`suggest-fixes` already runs one-at-a-time HITL).
 - **`Bash` + `gh` CLI** (or `curl` with a `GITHUB_TOKEN`) for everything the MCP doesn't expose — repo tree traversal, per-file content reads, per-issue events/timeline, per-commit metadata.
 - **`Bash` + `git clone`** for `/analyze-repo` and `/reverse-prd` when a full local checkout makes the analysis cleaner than walking the tree via API.
 

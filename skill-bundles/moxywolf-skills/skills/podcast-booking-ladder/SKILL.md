@@ -14,6 +14,8 @@ description: >
 
 Build a five-phase podcast outreach strategy that realistically sequences bookings from accessible entry-level shows to aspirational top-tier platforms.
 
+This skill drafts only. A named human reviews and sends; nothing is auto-sent or auto-posted.
+
 ## Required Inputs
 
 1. **Birds-of-a-feather output** (or equivalent research containing):

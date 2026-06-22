@@ -40,5 +40,6 @@ For large responses or bulk operations, Composio's workbench is a persistent Pyt
 ## Notes
 
 - Composio actions run on the user's real connected accounts. Confirm intent before executing any write.
+- Any side-effectful action taken through a Composio toolkit is governed by the same risk tiers and Release-Owner gate as native skills; do not let an external toolkit bypass the gate. Downstream third-party toolkits reached via Composio inherit this fleet's gate rules.
 - Each teammate connects their own app accounts through Composio, so actions are attributed per person.
 - The standalone `composio-agent` project (a runnable Claude Agent SDK program) is a separate artifact, not part of this plugin. This skill is about using Composio from within Cowork.

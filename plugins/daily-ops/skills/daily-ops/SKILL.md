@@ -795,9 +795,15 @@ COOL-DOWN (5 min):
 TOTAL TIME: [realistic estimate including transitions]
 ```
 
-#### Step 6: Add to Google Calendar
+#### Step 5.5: Confirm Before Calendar Create + iMessage Send
 
-After building today's workout, create a calendar event:
+> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+
+Steps 6 and 7 below both reach outside this session — a Google Calendar event gets created and an iMessage gets sent. Before doing either, show Dorian: the full workout (type, "based on" rationale, total time), the calendar slot (date + time + duration) the event will occupy, and the iMessage recipient and exact text. Wait for his explicit approval. Only after he approves do you create the calendar event (Step 6) and send the iMessage (Step 7). Never auto-create the event or auto-send the text.
+
+#### Step 6: Add to Google Calendar (after approval)
+
+After Dorian approves the workout, recipient, and time in Step 5.5, create a calendar event:
 
 - **Calendar:** primary
 - **Summary:** `💪 Workout — [Type]` (e.g., `💪 Workout — Upper Body`)
@@ -810,9 +816,9 @@ After building today's workout, create a calendar event:
 
 Use `mcp__1be1916d-cb9d-4355-9832-c5b1b6332416__create_event`.
 
-#### Step 7: iMessage the Summary
+#### Step 7: iMessage the Summary (after approval)
 
-Send a short text to Dorian's iMessage recipient from `profile.md` using `mcp__Read_and_Send_iMessages__send_imessage`. Keep it under 4 lines. Format:
+Only after Dorian's explicit approval in Step 5.5, send a short text to Dorian's iMessage recipient from `profile.md` using `mcp__Read_and_Send_iMessages__send_imessage`. Keep it under 4 lines. Format:
 
 ```
 🏋️ [DAY] WORKOUT — [Type]
@@ -837,7 +843,7 @@ Every Sunday (or when Dorian asks for a weekly plan):
    - Highlight: [One specific win]
    - Flag: [One thing to watch, or "Nothing — solid week"]
 3. Build next week's plan. Every 4th week = deload. Mon-Sun schedule with workout type, duration, focus.
-4. Add 7 events to Google Calendar at the preferred workout time. Include type, duration, and target area in description.
+4. Show Dorian the full 7-day plan and the calendar slots it will occupy, and wait for his explicit approval (per the Step 5.5 confirm checkpoint). Only after he approves, add 7 events to Google Calendar at the preferred workout time. Include type, duration, and target area in description. Never auto-create the week's events.
 5. Append the week-in-review to `workout-log.md`.
 
 #### Step 9: Monthly Progress Check (Every 4 Weeks)

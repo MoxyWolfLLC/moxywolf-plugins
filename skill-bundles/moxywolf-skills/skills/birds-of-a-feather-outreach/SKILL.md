@@ -14,6 +14,8 @@ description: >
 
 Build a strategic outreach network of complementary authors and thought leaders for any content project.
 
+This skill drafts only. A named human reviews and sends; nothing is auto-sent or auto-posted.
+
 ## Workflow Overview
 
 1. **Analyze the content project** → Extract core themes, frameworks, and audience
