@@ -1,9 +1,15 @@
 {
   "name": "bibtex-builder",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build and enrich BibTeX bibliographies with AI-generated abstracts from URLs or uploaded .bib files",
   "author": {
     "name": "MoxyWolf LLC"
   },
-  "keywords": ["bibtex", "bibliography", "research", "abstracts", "citations"]
+  "keywords": [
+    "bibtex",
+    "bibliography",
+    "research",
+    "abstracts",
+    "citations"
+  ]
 }

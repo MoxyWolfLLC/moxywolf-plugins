@@ -75,3 +75,9 @@ This plugin adapts methodologies from [gstack](https://github.com/garrytan/gstac
 ## Composio fallback
 
 For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.
+
+## Governance
+
+This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
+
+No auto-push to a protected branch — a named human owns the merge.

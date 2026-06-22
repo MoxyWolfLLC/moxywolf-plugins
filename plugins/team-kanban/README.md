@@ -53,3 +53,9 @@ P1 Review RegGenome press release draft #reggenome
 Format: `[P0/P1/Backlog] Task description #project-name`
 
 These tasks are picked up on the next sync and optionally written back to the Obsidian kanban.
+
+## Governance
+
+This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
+
+The #general digest and the shared Canvas write are confirm-before-post, not auto-broadcast.

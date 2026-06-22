@@ -8,7 +8,7 @@ This is the conformance standard every MoxyWolf plugin and skill is held to, and
 
 ## Migration status — pass 1 complete (2026-06-17)
 
-All 24 plugins (23 plugins + the moxywolf-skills bundle) now carry a `GOVERNANCE.md` with a per-skill risk-tier table. Gap fixes applied this pass:
+All 25 entries (24 plugins + the moxywolf-skills bundle) now carry a `GOVERNANCE.md` with a per-skill risk-tier table. (`editorial-forge` was missed in the first pass and added 2026-06-22 — `generate` tier, author-owned content with no publish/send.) Gap fixes applied this pass:
 
 - **frontier-founder-smb** — Release Owner gate (named signer + initials/date + logged decision + override-rate watch) added before the irreversible action in 8 high-stakes skills: `invoice-chase`, `plan-payroll`, `handle-complaint`, `review-contract`, `run-campaign`, `campaign-creator`, `ticket-deflector`, `job-post-builder`.
 - **team-kanban** — confirm-before-post checkpoint on the #general digest and the shared Canvas (and the setup intro post).

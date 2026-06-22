@@ -21,6 +21,7 @@ Adding this marketplace on any Mac gives that machine all 25 plugins in one shot
   - [Beyond the marketplace — what else a new teammate needs](#beyond-the-marketplace--what-else-a-new-teammate-needs)
   - [Memory — per-Mac, per-user, and that's the right design](#memory--per-mac-per-user-and-thats-the-right-design)
   - [Failure modes](#failure-modes)
+- [Governance & conformance](#governance--conformance)
 - [Updating](#updating)
 - [Adding a new plugin](#adding-a-new-plugin)
 - [Adding a new standalone skill](#adding-a-new-standalone-skill)
@@ -226,6 +227,16 @@ Substitute your own `@moxywolf.com` Google account in the path. If you've put yo
 **MCP server disconnected mid-session** — re-authorize in Cowork → Connectors. Don't try shell-call workarounds; the WebFetch / curl / requests fallbacks are deliberately disabled.
 
 **Two people ran `/session-end` close together** — the second overwrote the first. Recover from `00 – Project Hub/Session Handoffs/` if `--archive` was used; otherwise from Drive's version history. Reconcile in Slack so it doesn't repeat.
+
+## Governance & conformance
+
+Every plugin in this marketplace is held to the [MoxyWolf AI Governance Manifesto](PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md), which sets one standard for the whole fleet: generation is cheap, judgment is scarce, so a named human stays above the loop and the gate is sized to the stakes.
+
+Each plugin carries a `GOVERNANCE.md` with a per-skill **risk tier** — `read-only`, `generate`, `side-effectful-gated`, or `high-stakes` — and passes the five tests in the conformance plan: gate sized to stakes, a named human signs, provenance on claim-bearing output, anti-rubber-stamp auditing, and human above the loop.
+
+High-stakes actions (money, e-signature, public broadcast, customer-reaching, deletion) route through a **Release Owner gate**: the skill presents the exact action, a named human signs with initials and date, and the decision is recorded to the shared gate log at `Taskade/_Shared Files/_gate-log/` (`record_decision.py` writes it; `override_report.py` rolls it up into override rate and response time, so a rubber-stamp pattern is detectable). The exemplars other plugins copy from are `4d-blog-engine` (the gate) and `research-pipeline` / `academic-pipeline` (provenance).
+
+When a plugin gains a new side-effectful capability, re-check it against the five tests and update its `GOVERNANCE.md` before shipping.
 
 ## Updating
 

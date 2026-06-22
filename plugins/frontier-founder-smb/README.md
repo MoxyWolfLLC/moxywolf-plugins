@@ -40,3 +40,9 @@ Forked from Anthropic's Small Business plugin (Cowork marketplace). MoxyWolf re-
 - **0.3.0** — design lane rewritten: `canva-creator` renamed to `campaign-creator` and rebuilt for claude.ai/design (in-session generation; dropped the Canva template/asset/autofill/export/rate-limit machinery); Clarify campaign staging via `create-or-update-campaign`; `run-campaign` and `content-strategy` references updated.
 - **0.2.0** — full skill migration: all 31 skills re-homed onto the new stack (PayPal→Stripe, Square dropped, HubSpot→Clarify, Canva→claude.ai/design) via a controlled transform pass; CRM reference model rewritten to Clarify's schema-first tools (`get-schema`, `query-data`, `create-or-update-records`, `merge-records`, `add-comment`). Design lane and `.mcp.json` placement pending.
 - **0.1.0** — fork scaffold: branding, connector manifest (Clarify/Stripe/QuickBooks/DocuSign/Google/Slack), README, rewritten `smb-router` + `smb-onboard`.
+
+## Governance
+
+This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
+
+Money, e-signature, and customer-reaching actions (invoices, payroll, refunds, DocuSign envelopes, campaign sends) stop at a Release Owner gate — a named human signs before anything irreversible ships, and each decision is recorded to the shared gate log (`Taskade/_Shared Files/_gate-log/`) so the override rate is auditable.

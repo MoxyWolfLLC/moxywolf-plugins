@@ -21,3 +21,9 @@ Composio's old gateway, Rube, was retired in May 2026 (`MIGRATION-rube-deprecati
 
 - `composio-connector-setup.md` in the MoxyWolf Vault (`_Shared Knowledge/Agents and Plugins/`) — canonical connector setup reference.
 - `GitHub/composio-agent/` — a standalone Claude Agent SDK + Composio program (a runnable app, not a plugin).
+
+## Governance
+
+This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
+
+Downstream third-party toolkits inherit the fleet's risk tiers and Release-Owner gate.
