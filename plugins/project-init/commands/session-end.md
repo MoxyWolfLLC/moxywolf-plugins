@@ -7,7 +7,7 @@ Run the session-end skill to wrap a Cowork session and persist a handoff for nex
 The skill assumes the project has a saved `cowork-project-instructions.md` in its `00 – Project Hub/` folder (i.e. it was set up via `/init-project`). It then:
 
 1. Resolves which project — uses the argument after `/session-end` if provided, otherwise infers from currently-mounted folders, or lists candidates and asks.
-2. Scans the current Cowork conversation to extract: what shipped this session, what's still open in priority order, the commit/push state of the active repo(s) — Claude commits directly during the session, so this is normally a list of local commits awaiting push rather than draft messages — production-data state changes, procedural reminders.
+2. Scans the current Cowork conversation to extract: what shipped this session, what's still open in priority order, the commit/push state of the active repo(s) — Claude commits and pushes directly during the session via sandbox `git` + a classic PAT, so this is normally a list of commits that landed this session — production-data state changes, procedural reminders.
 3. Composes a handoff document in the canonical structure (frontmatter + `What landed` + `Open work` + `Commit & push state` + `Procedural reminders` + `Suggested opening line`).
 4. Writes it to **`[project]/00 – Project Hub/cowork-session-handoff.md`** — single canonical filename, overwritten each session, Drive versioning preserves history.
 5. (Optional) `--archive` flag also writes a dated archive copy to `00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md`.
