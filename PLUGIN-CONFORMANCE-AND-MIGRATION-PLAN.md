@@ -2,7 +2,7 @@
 
 **Status:** active standing checklist · **Created:** 2026-06-17 · **Owner:** MoxyWolf
 **Governing doc:** The MoxyWolf AI Governance Manifesto (`Taskade/OpenControls/08 – Go-to-Market/Positioning & Messaging/MoxyWolf-AI-Governance-Manifesto-DRAFT-2026-06-17.md`)
-**Enforced by:** `CHARTER.md` (pending) — see "CHARTER clause" below.
+**Enforced by:** [`CHARTER.md`](CHARTER.md) (active, 2026-06-22) — see "CHARTER clause" below.
 
 This is the conformance standard every MoxyWolf plugin and skill is held to, and the migration plan for bringing the current fleet into line. New skills ship against the five tests below. Existing skills are migrated in the priority order at the bottom.
 
