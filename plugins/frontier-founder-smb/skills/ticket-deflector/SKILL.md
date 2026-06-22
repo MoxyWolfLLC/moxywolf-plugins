@@ -59,7 +59,7 @@ User: "answer this customer" [forwards email]
 
 - **Never issue a Stripe refund without explicit owner confirmation** — always show amount, customer name, email, and transaction ID before executing.
 
-**Release Owner gate (high-stakes).** Before issuing the Stripe refund, present the exact content and the recipient or amount, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+**Release Owner gate (high-stakes).** Before issuing the Stripe refund, present the exact content and the recipient or amount, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision to the shared gate log: run `python3 "Taskade/_Shared Files/_gate-log/record_decision.py" --skill frontier-founder-smb:ticket-deflector --tier high-stakes --action "<summary>" --target "<recipient/amount/target>" --decision signed|stopped|overridden|edited --approver "<named human>" --requested-at <ISO-8601>` (one row per decision; never edit past rows). Roll up override rate and response time anytime with `override_report.py`. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
 
 - **Never send the reply without owner review.** Always present the full draft first.
 - **Never create a Clarify contact during the response flow.** Offer it afterward.

@@ -41,7 +41,7 @@ After Step 2 approval, trigger the `lead-triage` skill workflow:
 4. Block calendar time for the call list.
 5. Present both lists. Wait for explicit "send" before pushing the Clarify campaign live.
 
-**Release Owner gate (high-stakes).** Before sending the campaign to the segment, present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+**Release Owner gate (high-stakes).** Before sending the campaign to the segment, present the exact content and the recipient, amount, or target, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision to the shared gate log: run `python3 "Taskade/_Shared Files/_gate-log/record_decision.py" --skill frontier-founder-smb:run-campaign --tier high-stakes --action "<summary>" --target "<recipient/amount/target>" --decision signed|stopped|overridden|edited --approver "<named human>" --requested-at <ISO-8601>` (one row per decision; never edit past rows). Roll up override rate and response time anytime with `override_report.py`. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
 
 ## Approval gates (must hold)
 

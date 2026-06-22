@@ -61,9 +61,11 @@ per-skill frontmatter.
 ## Notes on this migration
 
 - The Release Owner gate (named human signs with initials + date, decision
-  recorded to an auditable log as action/approver/ISO-8601-timestamp/outcome,
-  never auto-approve, never sign on the owner's behalf, watch the override rate)
-  was inserted at the irreversible action point in eight skills:
+  recorded to the shared gate log via
+  `Taskade/_Shared Files/_gate-log/record_decision.py` as
+  action/approver/ISO-8601-timestamp/outcome, never auto-approve, never sign on
+  the owner's behalf, watch the override rate) was inserted at the irreversible
+  action point in eight skills:
   `invoice-chase`, `plan-payroll`, `handle-complaint` (refund path),
   `review-contract` (e-signature path), `run-campaign`, and `campaign-creator`.
 - **`ticket-deflector` and `job-post-builder` now gated.** Both were first

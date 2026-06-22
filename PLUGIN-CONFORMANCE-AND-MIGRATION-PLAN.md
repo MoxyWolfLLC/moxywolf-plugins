@@ -21,7 +21,7 @@ All 24 plugins (23 plugins + the moxywolf-skills bundle) now carry a `GOVERNANCE
 
 Exemplars unchanged (reference patterns): `4d-blog-engine`, `research-pipeline`, `academic-pipeline`. The remaining low-risk plugins received tier declarations only.
 
-Deferred (optional, EV-1): report each high-stakes gate's real signed-vs-stopped counts + override rate once enough operating data exists.
+EV-1 — DONE (2026-06-22): the shared gate decision log is wired. The eight high-stakes frontier-founder-smb gates now record each decision via `Taskade/_Shared Files/_gate-log/record_decision.py` (append-only `gate-decisions.jsonl`, one row per decision; the writer refuses a vague approver). `override_report.py` rolls the log up into override rate + median response time per skill and per tier, flagging `RUBBER-STAMP?` (override rate <10% on >=5 decisions) and `TOO-FAST?` (median response <20s). This is the data behind Test 4 and the manifesto's "watch the override rate" line.
 
 ---
 

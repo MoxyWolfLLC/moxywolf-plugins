@@ -120,7 +120,7 @@ Anything to change before we're done?
 
 ## Approval gates
 
-**Release Owner gate (high-stakes).** Before staging the scheduled campaign in Clarify, present the exact content and the recipient, amount, or target (the channels, the scheduled send times, and the segment each post reaches), then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+**Release Owner gate (high-stakes).** Before staging the scheduled campaign in Clarify, present the exact content and the recipient, amount, or target (the channels, the scheduled send times, and the segment each post reaches), then stop. Do not proceed until one named human approves with their initials and the date. Record the decision to the shared gate log: run `python3 "Taskade/_Shared Files/_gate-log/record_decision.py" --skill frontier-founder-smb:campaign-creator --tier high-stakes --action "<summary>" --target "<recipient/amount/target>" --decision signed|stopped|overridden|edited --approver "<named human>" --requested-at <ISO-8601>` (one row per decision; never edit past rows). Roll up override rate and response time anytime with `override_report.py`. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
 
 - **No designs for email rows.** Re-check the `Path` column before generating.
 - **No publishing/sending.** Every Clarify post is staged, not sent; the owner controls go-live.

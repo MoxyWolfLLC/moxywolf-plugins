@@ -61,7 +61,7 @@ This skill performs externally-visible actions in Phase 6. The following rules a
 - **Never send a DocuSign envelope without approval.** Save the envelope as a draft
   and return the URL. The user must review and confirm before Claude clicks Send.
 
-**Release Owner gate (high-stakes).** Before routing the offer letter to DocuSign for e-signature (creating the envelope), present the exact content and the recipient or amount, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision (action, approver, ISO-8601 timestamp, outcome) to an auditable log. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
+**Release Owner gate (high-stakes).** Before routing the offer letter to DocuSign for e-signature (creating the envelope), present the exact content and the recipient or amount, then stop. Do not proceed until one named human approves with their initials and the date. Record the decision to the shared gate log: run `python3 "Taskade/_Shared Files/_gate-log/record_decision.py" --skill frontier-founder-smb:job-post-builder --tier high-stakes --action "<summary>" --target "<recipient/amount/target>" --decision signed|stopped|overridden|edited --approver "<named human>" --requested-at <ISO-8601>` (one row per decision; never edit past rows). Roll up override rate and response time anytime with `override_report.py`. Never auto-approve, and never sign on the owner's behalf. Watch the override rate over time; a low override rate signals rubber-stamping.
 
 - **Never send the Gmail fallback email without approval.** If the DocuSign browser
   flow fails, draft the fallback email and show it to the user before sending.
