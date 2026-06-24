@@ -59,3 +59,9 @@ These tasks are picked up on the next sync and optionally written back to the Ob
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
 The #general digest and the shared Canvas write are confirm-before-post, not auto-broadcast.
+
+## Changelog
+
+### v0.4.2
+
+Tombstone check before re-adding tasks. The merge step (Step 6) now dedups candidate tasks from Drive, Calendar, Gmail, and Slack against **three** sets — the open board, the `## ✅ Done` column, and the done-archive (`team-kanban-done-archive.md`) — not just the open board. A recency gate suppresses any candidate that matches a completed or archived item unless its source signal is newer than the completion date. This stops finished tasks from being resurrected when their originating Slack/email signal is still present. The reconcile step also now keeps each card's column and its `#priority/pN` tag in agreement. Backed by the team rule `feedback_kanban_check_tombstones_before_readd.md`.

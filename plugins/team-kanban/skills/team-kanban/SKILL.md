@@ -76,6 +76,8 @@ Read `${VAULT}/Tasks/KANBAN_VIEW.md`. Parse the Obsidian Kanban plugin format:
 - Waiting items include context: who is being waited on and how long
 - Tasks without an `#assigned/` tag default to Dorian (as the originator)
 
+Also read the **done-archive** at `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-done-archive.md` into a `completed_index`. This is the tombstone ledger: items that were finished and moved off the board (Done cards older than 3 days are appended here by the `team-kanban-daily` task). Each line is `- YYYY-MM-DD — task text — @who — #project/name`. Capture each entry's leading date as its completion date. The `## ✅ Done` column of `KANBAN_VIEW.md` (with its `#completed/YYYY-MM-DD` tags) is part of the same ledger. Step 6's tombstone check (rule 1a) reads `completed_index` so finished work isn't resurrected.
+
 Parse every task into a structured object:
 ```
 {
@@ -211,12 +213,13 @@ Note: Track the source internally for deduplication, but NEVER render source tag
 
 Combine all sources into a single task list. Resolution rules:
 
+1a. **Tombstone check — dedup against Done and the archive, not just the open board (do this BEFORE rules 2–5).** Before adding ANY task surfaced from Google Drive, Calendar, Gmail, or Slack, match it against three sets: (a) every open `- [ ]` line across all columns, (b) the `## ✅ Done` column, and (c) the `completed_index` loaded from `team-kanban-done-archive.md` in Step 2. Use the same >80% fuzzy title match (tags/source stripped) already used for open-board dedup. **Recency gate:** if the candidate matches a Done or archived item AND the candidate's source-signal date is on or before that item's completion date (`#completed/YYYY-MM-DD` on the card, or the leading `YYYY-MM-DD` in the archive line), **suppress it** — the work is already done and this is the same signal resurfacing. Only add it when the candidate carries a genuinely newer signal than the completion date (a real recurrence); when you do, note "recurs after prior completion on `<date>`" in the task context. When ambiguous, suppress and surface it to Dorian's triage rather than re-adding. This rule exists because the originating Slack/email signal outlives the completion — without it, finished tasks get rewritten onto the board. (Team rule: `Taskade/_Shared Files/_shared-memory/feedback_kanban_check_tombstones_before_readd.md`.)
 1. **Dual-authority completion model: Obsidian AND the Slack Canvas are both authoritative for task completion status.** If an item is checked `[x]` in *either* Obsidian or the Slack Canvas, it is considered complete. During sync, apply the *union* of checked states — whichever source has the item marked off wins, and the other source is updated to match. This means team members can check items off on the Canvas and Dorian can check items off in Obsidian, and neither will be overwritten. For all other task metadata (title, tags, column, priority), Obsidian remains the primary source. New tasks found only in the Canvas (added by team via thread replies) are treated as additions.
 2. **Google Drive tasks** that don't exist in Obsidian get added
 3. **Calendar tasks** only appear if no existing task covers the same commitment
 4. **Gmail tasks** only appear if genuinely new action items, not duplicates of tracked work
 5. **Slack tasks** only appear if they represent commitments/assignments not already tracked in Obsidian or Google Drive. Slack is the richest source of team-distributed action items — many tasks are agreed upon in DMs but never make it to the formal kanban. These are high-value additions.
-6. Enforce column limits: P0 max 3, P1 max 7. If over limit, flag for Dorian's triage
+6. Enforce column limits: P0 max 3, P1 max 7. If over limit, flag for Dorian's triage. Also keep each card's column and its `#priority/pN` tag in agreement — a `#priority/p2` card parked in the P1 column is drift from a regenerate-without-clean-move; fix the column or the tag, don't leave them split.
 7. **Never display source metadata on the board.** Source tracking is internal only — used for deduplication logic. The Canvas and digest messages show only: task title, project (italic), assignee (@-mention), blocking context, and deadlines.
 8. **Checked items → In Review (not Done).** When a task is found with `- [x]` (checked) on the Canvas or in the Obsidian kanban (per the dual-authority rule above), do NOT move it directly to Done. Instead, move it to the **In Review** column. Resolve the reviewer using this priority order:
 

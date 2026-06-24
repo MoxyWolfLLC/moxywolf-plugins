@@ -1,6 +1,10 @@
-# Obsidian Update Plugin v2.3.0
+# Obsidian Update Plugin v2.5.3
 
 Vault-native personal operating system for MoxyWolf with bidirectional Council integration. The Obsidian vault is the brain. The Council plugin is the verification layer. Together they form a loop where organizational knowledge informs deliberations, and deliberation outcomes refine the vault.
+
+## What Changed in v2.5.3
+
+Tombstone check before re-adding kanban tasks. The `personal-os` standup and triage modes (Modes 1 and 2) now dedup any task derived from Slack, Gmail, calendar, or Drive against **both** the `## ✅ Done` column of `KANBAN_VIEW.md` and the done-archive (`team-kanban-done-archive.md`) before adding it. A recency gate suppresses a candidate that matches a completed or archived item unless its source signal is newer than the completion date — so a finished task whose Slack/email signal still exists no longer gets rewritten onto the board. Card column and `#priority/pN` tag are kept in agreement. Backed by the team rule `feedback_kanban_check_tombstones_before_readd.md`.
 
 ## What Changed in v2.3.0
 

@@ -79,6 +79,9 @@ The Kanban column headers contain emoji (🔥, ⭐, 📅, 💭, ⏳, ✅, 📥).
 **Respecting column placement (no auto-moving):**
 When Dorian checks off a card in Obsidian, the markdown changes `- [ ]` to `- [x]` in place — the item stays in its source column. Do NOT scan all columns for `- [x]` items and move them to Done. Respect where items are. A checked item in P1 means "completed but not yet triaged" — Dorian will move it during standup or triage. Only Modes 1 (Standup) and 2 (Triage) should move items between columns, and only with Dorian's confirmation.
 
+**Tombstone check before adding (Modes 1 and 2):**
+Never add a task derived from Slack, Gmail, calendar, or Drive without first matching it (>80% fuzzy title, tags/source stripped) against BOTH the `## ✅ Done` column of `KANBAN_VIEW.md` AND the done-archive at `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-done-archive.md`. If it matches a completed/archived item and the candidate's source signal is no newer than the completion date (`#completed/YYYY-MM-DD`, or the leading `YYYY-MM-DD` in an archive line), do NOT re-add it — it's already done and the source signal is just resurfacing. Only add on a signal dated after completion (a real recurrence), noting the prior completion in the task context. When ambiguous, leave it off and raise it in triage. Without this, a finished task whose Slack/email signal still exists gets rewritten onto the board. Also keep each card's column and its `#priority/pN` tag in agreement. (Team rule: `Taskade/_Shared Files/_shared-memory/feedback_kanban_check_tombstones_before_readd.md`.)
+
 **Obsidian sync conflict:**
 If Obsidian is open and syncing to Drive, it will overwrite external writes within seconds. Before writing, Dorian should close Obsidian, or writes may be lost.
 
