@@ -1,0 +1,22 @@
+{
+  "name": "synergy-engine",
+  "version": "0.1.0",
+  "description": "Topic-Synergy Outreach Engine — find the people writing about your topics and join their conversations without pitching. Builds a topic fingerprint from your own content (an /answers library, a whitepaper, repo posts), then runs two discovery centers: an AUTHOR center (named profiles via Apify harvestapi/linkedin-profile-posts) and a CONTENT center (keyword/hashtag search via Apify harvestapi/linkedin-post-search). Discovered posts are scored against the fingerprint, deduped against an xlsx tracker, and queued. /synergy-run executes the comment-first decision tree in your own logged-in browser via Claude in Chrome: like + a practitioner comment, then the cite-then-tell lever (cite the target's own work, or your anchor paper, in your content) and a connection note — with a hard human-approval gate before every public action and a guard against the LinkedIn 'Post as' identity selector (it can silently switch your comment to a company page). The xlsx tracker is the engine's memory, dedupe, and queue across both topic centers. /synergy-schedule stands up an every-other-day prep task that stages N due targets as review-ready drafts and books a calendar block, never posting. Cadence and guardrails baked in: <=5 fresh targets per run, comment same-day and connect 2-3 days later, no re-comment within ~3 of a person's posts, cite-don't-pitch for competitor-founders, Dorian-voice (no em-dashes, contractions, practitioner register), verified citations only. The plugin never auto-posts. v0.1.0.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "linkedin",
+    "outreach",
+    "social-listening",
+    "engagement",
+    "topic-synergy",
+    "fingerprint",
+    "apify",
+    "discovery",
+    "tracker",
+    "governed-autonomy",
+    "comment-first",
+    "moxywolf"
+  ]
+}
