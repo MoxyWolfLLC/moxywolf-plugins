@@ -142,37 +142,11 @@ The frontmatter is for the saved file only.
 
 **Do NOT paste the full instructions into Cowork's settings.** The full file on disk (Step 3) is the single source of truth; the Cowork → Settings → Project Instructions field gets a thin **loader stub** that points at it. This kills the paste-drift failure mode where the embedded copy and the on-disk file fall out of sync (the on-disk file gets edited, the embedded paste never does). The stub carries only what must be in-context *before the first tool call* and can't wait for a file read: the mounts, the file-write-path override, and the imperative to read the full file + team-shared memory first.
 
-Compose the stub by substituting `[PROJECT_NAME]`, `[TASKADE_SUBFOLDER]`, and the three root paths into this exact format:
+**The stub skeleton lives in the vault, not in this skill.** Read it from the canonical spec:
 
-```markdown
-# [PROJECT_NAME] — Cowork Project Instructions (loader stub)
+`MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md`
 
-This is a thin pointer. The authoritative instructions live on disk and are read at session start. When this stub and the on-disk file disagree, the on-disk file wins.
-
-## Mounted roots (constants)
-
-1. MoxyWolf Vault — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. GitHub — `/Users/doriancougias/Documents/GitHub`
-3. Taskade — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
-
-If any root isn't mounted in this Cowork project, stop and ask to add it via Cowork → Folders before doing any work.
-
-## File write path — MANDATORY OVERRIDE
-
-All file writes (Write, Edit) for this project go under the active Taskade project:
-`Taskade/[TASKADE_SUBFOLDER]/`, into the appropriate numbered folder. The system workspace path Cowork reports may be wrong (it can nest `[TASKADE_SUBFOLDER]/[TASKADE_SUBFOLDER]/`); this override wins. **Never create a `[TASKADE_SUBFOLDER]/[TASKADE_SUBFOLDER]/` subdirectory. Ever.**
-
-## Read these FIRST — authoritative, override anything here
-
-Before any work (especially file writes, git, or cross-project actions), read:
-
-1. `Taskade/[TASKADE_SUBFOLDER]/00 – Project Hub/cowork-project-instructions.md` — the full project instructions (directories, commit & push workflow, routing rules, voice, behavioral rules).
-2. `Taskade/_Shared Files/_shared-memory/INDEX.md` — team-wide behavioral rules; these win over anything project-local.
-
-`/session-start` loads both automatically. If you didn't run `/session-start`, read them now before acting.
-```
-
-(For a vault-only project, swap the Taskade paths for `MoxyWolf Vault/Projects/[PROJECT_NAME]/…` and adjust the override accordingly.)
+Use section 1 (Taskade-based projects) or section 2 (vault-only projects). Substitute `<PROJECT_NAME>` and `<SUBFOLDER>` with this project's values; everything else is constant. Sourcing the skeleton from the vault means a change to the stub format (or a new team-wide rule) is a vault edit + a `/refresh-project-instructions` run per project — never a plugin update. If the spec file is missing, stop and tell the user rather than inventing a skeleton; that file is authoritative.
 
 ### Step 4: Display the loader stub for copy-paste
 

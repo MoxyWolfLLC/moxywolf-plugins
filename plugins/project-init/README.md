@@ -45,6 +45,16 @@ When you're done for the day (or wrapping a focused session), run `/session-end 
 
 The next time you run `/session-start [project-name]`, that handoff is the first thing the briefing surfaces.
 
+### `/refresh-project-instructions` — migrate or re-stamp an existing project
+
+Run this once per existing project to move it to the loader-stub model, or any time the vault stub spec changes. It:
+
+- Reads the canonical spec `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` (the single source of truth — skeleton + on-disk fixes)
+- Applies the spec's surgical on-disk reconciliation directives to this project's `cowork-project-instructions.md` (idempotent; preserves customizations; never regenerates the file)
+- Emits this project's loader stub for pasting into Cowork → Settings → Project Instructions
+
+Because the content lives in the vault spec, changing a project-instruction rule is a vault edit + a per-project run of this command — no plugin update. Safe to re-run, including across machines.
+
 ## How to use
 
 **To set up a new project:** type `/init-project` or say "set up a new project", "init a new Cowork project", "configure project instructions". The skill walks through the rest interactively with Finder pickers for folder selection.
@@ -52,6 +62,8 @@ The next time you run `/session-start [project-name]`, that handoff is the first
 **To resume an existing project:** type `/session-start [project-name]` or say "resume [project]", "start a session for [project]", "load [project] context". The skill mounts the standard roots and surfaces the briefing.
 
 **To end a session:** type `/session-end [project-name]` or say "session-end", "end session", "wrap session", "save handoff". The skill writes the handoff that `/session-start` will read tomorrow.
+
+**To migrate or refresh a project's instructions:** type `/refresh-project-instructions` in that project, or say "refresh the project instructions", "migrate this project to the loader stub". The command reads the vault spec, fixes the on-disk file surgically, and emits the stub to paste.
 
 ## What gets generated
 
@@ -80,6 +92,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.19.0** — The stub skeleton and the on-disk reconciliation directives move **out of the plugin into a vault spec** — `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` — that both `/init-project` and the new **`/refresh-project-instructions`** command read at run time. `/refresh-project-instructions` migrates or re-stamps an existing project from that spec: it applies the spec's surgical on-disk fixes (idempotent; preserves customizations) and emits the project's loader stub for pasting. The point: changing a project-instruction rule is now a **vault edit + a per-project command run**, never a plugin update or reinstall. The plugin holds the process; the vault holds the content.
 - **0.18.0** — `/init-project` switches to the **loader-stub model** (DR-010). The full instructions are saved on disk (`00 – Project Hub/cowork-project-instructions.md`) as the single source of truth; the Cowork → Settings → Project Instructions field gets only a thin **loader stub** — mounts, the file-write-path override, and an imperative to read the on-disk file + `_shared-memory/INDEX.md` first. The embedded copy can no longer drift out of sync with the file (paste once, never re-paste). Fixes the failure mode where the on-disk instructions get updated but the pasted Cowork copy keeps a stale rule (e.g. the clipboard-vs-vault PAT method that lingered in pasted copies after DR-011). The canonical Project Instructions template's commit-and-push section was also corrected to read the PAT from the vault file, not the clipboard.
 - **0.17.0** — Moved the classic PAT off the clipboard into the **vault file** `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/github-pat.env` (DR-011), loaded by the sandbox like `openrouter.env`. Commit+push authenticate with a per-URL auth header and **verify the push landed via `git ls-remote`** (a SHA match vs `git rev-parse HEAD`). The token is never echoed or committed. See `reference_github_pat_vault`.
 - **0.16.0** — Switched the commit/push model to **sandbox `git` + a classic PAT**: Claude now commits AND pushes directly, with no GitHub Desktop in the loop. Reads still go through the official GitHub MCP connector (`https://api.githubcopilot.com/mcp/`), but its OAuth can't write to org repos (`403 Resource not accessible by integration`), so writes use the account-wide classic PAT (token now in the vault file `github-pat.env` per DR-011; originally clipboard-provided). `/session-end` now records the commits that *landed* this session rather than commits awaiting a human push. See `reference_github_pat_vault` and `feedback_repos_writable_commits_via_github_desktop`.
