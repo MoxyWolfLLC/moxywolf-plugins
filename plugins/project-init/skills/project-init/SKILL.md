@@ -1,11 +1,11 @@
 ---
 name: project-init
-description: This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "configure project instructions", "start a new project", "set up project", "/init-project", or any request to scaffold the Project Instructions for a fresh Cowork project. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates.
+description: This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "configure project instructions", "start a new project", "set up project", "/init-project", or any request to scaffold the Project Instructions for a fresh Cowork project. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts).
 ---
 
 # Project Init
 
-Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the same three roots — MoxyWolf Vault, GitHub, and Taskade — and the Project Instructions just declare *which* subfolder of Taskade is the active project and *which* subfolder of GitHub is the active repo. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the filled instructions to the project's Project Hub folder, and display the result for the user to paste into Cowork's settings.
+Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the same three roots — MoxyWolf Vault, GitHub, and Taskade — and the Project Instructions just declare *which* subfolder of Taskade is the active project and *which* subfolder of GitHub is the active repo. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
 
 ## When to use
 
@@ -136,23 +136,59 @@ template_source: _Templates/Cowork Project Instructions Template.md
 ---
 ```
 
-The frontmatter is for the saved file only. The version pasted into Cowork's settings (displayed in chat) should NOT include this frontmatter, since Cowork's Project Instructions field is plain text.
+The frontmatter is for the saved file only.
 
-### Step 4: Display the result for copy-paste
+### Step 3.5: Compose the loader stub (what goes into Cowork settings)
 
-Display the filled-in Project Instructions in the chat as a fenced markdown code block. Above the code block, write:
+**Do NOT paste the full instructions into Cowork's settings.** The full file on disk (Step 3) is the single source of truth; the Cowork → Settings → Project Instructions field gets a thin **loader stub** that points at it. This kills the paste-drift failure mode where the embedded copy and the on-disk file fall out of sync (the on-disk file gets edited, the embedded paste never does). The stub carries only what must be in-context *before the first tool call* and can't wait for a file read: the mounts, the file-write-path override, and the imperative to read the full file + team-shared memory first.
 
-> Copy this into the Project Instructions field of your Cowork **[PROJECT_NAME]** project. Cowork → Settings → Project Instructions.
+Compose the stub by substituting `[PROJECT_NAME]`, `[TASKADE_SUBFOLDER]`, and the three root paths into this exact format:
 
-After the code block, link to the saved file using a `computer://` link so the user can re-open it later.
+```markdown
+# [PROJECT_NAME] — Cowork Project Instructions (loader stub)
+
+This is a thin pointer. The authoritative instructions live on disk and are read at session start. When this stub and the on-disk file disagree, the on-disk file wins.
+
+## Mounted roots (constants)
+
+1. MoxyWolf Vault — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
+2. GitHub — `/Users/doriancougias/Documents/GitHub`
+3. Taskade — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
+
+If any root isn't mounted in this Cowork project, stop and ask to add it via Cowork → Folders before doing any work.
+
+## File write path — MANDATORY OVERRIDE
+
+All file writes (Write, Edit) for this project go under the active Taskade project:
+`Taskade/[TASKADE_SUBFOLDER]/`, into the appropriate numbered folder. The system workspace path Cowork reports may be wrong (it can nest `[TASKADE_SUBFOLDER]/[TASKADE_SUBFOLDER]/`); this override wins. **Never create a `[TASKADE_SUBFOLDER]/[TASKADE_SUBFOLDER]/` subdirectory. Ever.**
+
+## Read these FIRST — authoritative, override anything here
+
+Before any work (especially file writes, git, or cross-project actions), read:
+
+1. `Taskade/[TASKADE_SUBFOLDER]/00 – Project Hub/cowork-project-instructions.md` — the full project instructions (directories, commit & push workflow, routing rules, voice, behavioral rules).
+2. `Taskade/_Shared Files/_shared-memory/INDEX.md` — team-wide behavioral rules; these win over anything project-local.
+
+`/session-start` loads both automatically. If you didn't run `/session-start`, read them now before acting.
+```
+
+(For a vault-only project, swap the Taskade paths for `MoxyWolf Vault/Projects/[PROJECT_NAME]/…` and adjust the override accordingly.)
+
+### Step 4: Display the loader stub for copy-paste
+
+Display the **loader stub** (NOT the full instructions) in the chat as a fenced markdown code block. Above the code block, write:
+
+> Copy this into the Project Instructions field of your Cowork **[PROJECT_NAME]** project (Cowork → Settings → Project Instructions). It's a thin pointer — the full instructions live in the file below and are read at session start, so you paste this once and never have to re-paste when the instructions change.
+
+After the code block, link to the saved full file using a `computer://` link so the user can open and edit the source of truth.
 
 If the user has not yet mounted all three standard roots in this Cowork project, also remind them to add any missing roots via Cowork → Folders before the new instructions take effect.
 
 ## Output
 
-- File saved to the project's `00 – Project Hub/cowork-project-instructions.md`
-- Filled-in Project Instructions displayed in chat as a code block
-- Computer-link to the saved file
+- Full instructions saved to the project's `00 – Project Hub/cowork-project-instructions.md` (the single source of truth)
+- The thin **loader stub** displayed in chat as a code block (this is what gets pasted into Cowork settings)
+- Computer-link to the saved full file
 - A reminder to mount any missing standard roots (MoxyWolf Vault, GitHub, Taskade) in Cowork → Folders
 - Concise note about anything that was deferred or skipped during input gathering
 
