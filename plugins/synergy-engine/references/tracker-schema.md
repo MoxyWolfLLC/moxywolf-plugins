@@ -12,9 +12,9 @@ One xlsx workbook, sheet `Outreach Tracker`, one row per target. Created by `scr
 | Col | Field | Meaning |
 |---|---|---|
 | A | Target | Person/company name |
-| B | Persona | `Content` / `Content/peer` / GRC / Builder / Bridge — topic center + persona |
+| B | Persona | `Content` / `Content/peer` / `Citation` / GRC / Builder / Bridge — topic center + persona |
 | C | Tier | A (1:1) / B (authority + warm) / C (engagement-only) / peer |
-| D | Path | `A` / `B` / `GA` (anchor-paper cite) / `cite-only` |
+| D | Path | `A` / `B` / `GA` (anchor-paper cite) / `cite-only` / `cited` (citation center: we cited them) |
 | E | Synergy | High / Medium / Low / Cold |
 | F | LinkedIn Profile | full `/in/<slug>/` URL |
 | G | Last Touch | date of last action |
@@ -39,3 +39,7 @@ Before discovery, collect the set of `publicIdentifier`s already present (any st
 ## Synergy colors
 
 Green = High, yellow = Medium, orange = Low, grey = Cold/Parked. Queued rows get a pale-yellow Status cell.
+
+## Citation center
+
+The citation center (`/synergy-cite-harvest`) keeps its detail in a separate, richer **citation registry** workbook (`references/citation-registry-schema.md`) because cited-author records carry ORCID, affiliation, enrichment, LinkedIn-confidence, and draft-email fields this 16-column tracker doesn't. Harvest still appends a light queue row here per ready-to-send person (`Persona = Citation`, `Path = cited`, `Cited URL` = the anchor paper) so `/synergy-status` shows all three centers in one view. The registry is the source of truth for the citation center; this tracker is the cross-center queue.

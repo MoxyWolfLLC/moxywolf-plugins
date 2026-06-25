@@ -59,7 +59,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── research-pipeline/          Literature discovery, verification, synthesis
 │   ├── saas-frontend-designer/     Next/React/Tailwind/shadcn SaaS UI pipeline
 │   ├── saas-pricing-engine/        Pricing research, modeling, page copy
-│   ├── synergy-engine/             Topic-synergy LinkedIn outreach — fingerprint + author/content discovery via Apify + comment-first cycle (Path A/B/cite-then-tell) via Claude in Chrome + xlsx tracker + every-other-day prep task; human-gated, never auto-posts
+│   ├── synergy-engine/             Topic-synergy outreach, 3 centers — author/content discovery (comment-first via Apify + Claude in Chrome) + citation center (bibliography -> OpenAlex/Apollo/Apify -> "we cited you" email + LinkedIn connect, with the send discipline); xlsx tracker + citation registry; human-gated, never auto-sends
 │   ├── team-kanban/                Slack Canvas kanban from Obsidian/GDrive/Cal/Gmail
 │   └── vtt-to-text/                WebVTT captions → clean text
 └── skill-bundles/

@@ -23,11 +23,19 @@ The collapsed comment box often needs a deliberate focus click before it accepts
 
 ## Cadence numbers
 
-- **<= 5 fresh targets per run.** More than that in one sitting trips LinkedIn's velocity flags. If a day already had heavy commenting elsewhere, do fewer.
+- **<= 5 fresh targets per run** for the comment-first post centers. More than that in one sitting trips LinkedIn's velocity flags. If a day already had heavy commenting elsewhere, do fewer.
 - **Comment same day; connect/DM 2-3 days later.** Firing a DM seconds after the comment looks automated and burns the warmth.
 - **Don't re-comment on the same person within ~3 of their posts.** Once every few posts reads as genuine; every post reads as hovering.
 - **Re-run the full discovery sweep each publishing cycle** to refresh who's posting on-theme.
 - Spread a batch over a couple of sittings, with a random-ish time inside the window, so it never looks mechanical.
+
+### Connection-request envelope (citation center + any connects)
+
+LinkedIn's 2026 envelope for connection requests: **~100/week, ~20-25/day**, danger if outstanding unanswered invites exceed **~700**, and a ~1-week freeze on breach. The citation center sends connection notes in volume, so it honors the per-day ceiling; cap a citation run accordingly and count any connects already sent that day.
+
+## Connection-note send discipline
+
+The mechanics of typing and sending a LinkedIn connection note (the separate-click-then-type fix for the truncation bug, the mandatory zoom-verify of the note's start and end before Send, the 2nd/3rd/high-follower button geography, the email-verification gate, the withdraw lockout, and the "non-connections can't be free-messaged" rule) live in `references/outreach-channels.md` Part 2. Both `/synergy-cite-run` and `/synergy-run` (for its connect step) load it before sending. These are non-negotiable; they were paid for in real truncated sends.
 
 ## Voice
 

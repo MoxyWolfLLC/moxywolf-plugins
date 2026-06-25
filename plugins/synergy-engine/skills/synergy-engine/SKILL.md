@@ -1,7 +1,7 @@
 ---
 name: synergy-engine
 description: |
-  This skill should be used when the user wants to find people writing about their topics and engage them, or runs any /synergy-engine command. Triggers: "find people posting about X", "who's writing about <topic> on LinkedIn", "engage the discourse on Y", "run the LinkedIn outreach cycle", "build my topic fingerprint", "discover on-theme posts", "comment-first outreach", "synergy scan", "/synergy-engine", "/synergy-discover", "/synergy-run". The engine matches what YOU'VE published against what TARGETS are posting, then joins their conversations with a like + a practitioner comment (never a pitch), optionally citing their own work or your anchor paper in your content. It runs two discovery centers (author + content), scores against a topic fingerprint, keeps an xlsx tracker as memory/dedupe/queue, and executes the comment-first decision tree through the user's own logged-in browser with a human-approval gate on every public action. Do NOT use this skill for: writing blog posts (use 4d-blog-engine), generic LinkedIn analytics (use linkedin-growth), or cold sales sequences (use apollo).
+  This skill should be used when the user wants to find people writing about their topics and engage them, reach out to authors they cited in their own paper, or runs any /synergy-engine command. Triggers: "find people posting about X", "who's writing about <topic> on LinkedIn", "engage the discourse on Y", "run the LinkedIn outreach cycle", "build my topic fingerprint", "discover on-theme posts", "comment-first outreach", "synergy scan", "reach out to the authors we cited", "we cited you outreach", "harvest the bibliography", "thank the people we cited", "/synergy-engine", "/synergy-discover", "/synergy-run", "/synergy-cite-harvest". The engine matches what YOU'VE published against what TARGETS are posting, then joins their conversations with a like + a practitioner comment (never a pitch), optionally citing their own work or your anchor paper in your content. It runs three discovery centers — author + content (comment-first, from who's posting) and citation (connect-first + email, from who you cited) — scores against a topic fingerprint, keeps xlsx trackers as memory/dedupe/queue, and executes through the user's own logged-in browser with a human-approval gate on every public action. Do NOT use this skill for: writing blog posts (use 4d-blog-engine), generic LinkedIn analytics (use linkedin-growth), or cold sales sequences (use apollo).
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
 ---
 
@@ -19,12 +19,13 @@ Stop guessing whether a target cares about your topics. Match **what you've publ
 2. **Their signal** — recent posts from targets, pulled two ways (see "Two topic centers"). Discovered + scored by `/synergy-discover`.
 3. **The overlap** — per-post scoring against the fingerprint, surfaced as a synergy scan and written to the tracker as the engagement queue.
 
-## Two topic centers
+## Three topic centers
 
 - **Author center** — start from *named people* (a curated profile list). Pull their recent posts via Apify `harvestapi/linkedin-profile-posts` (by profile URL). The relationship-building lane.
 - **Content center** — start from *the content*, not the author. Search recent posts by keyword/hashtag via Apify `harvestapi/linkedin-post-search`, score for fit, and the fitting authors get added to the tracker. The reach-expanding lane, anchored on a paper/POV of yours rather than `/answers` pages.
+- **Citation center** — start from *who you cited*. Harvest the cited authors out of your own paper's bibliography, enrich + verify them, and reach out to thank them (email first, then a LinkedIn connect). This is the cite-then-tell lever turned into a front-to-back pipeline; it's the only center that works on people who don't post. See `references/citation-center.md` and `references/outreach-channels.md`.
 
-Both share the fingerprint, the cycle, and the tracker. See `references/topic-synergy-methodology.md`.
+The author/content centers share the fingerprint, the comment-first cycle, and the post tracker (`references/topic-synergy-methodology.md`). The citation center reuses the engine's config, voice, cadence, and human-in-the-loop rules but starts from a bibliography instead of the fingerprint, sends connect-first (plus email) instead of comment-first, and keeps its detail in a richer citation registry.
 
 ## The engagement cycle (decision tree)
 
@@ -46,6 +47,9 @@ Full tree + the competitor rule (cite at the idea level, never the product) in `
 | `/synergy-engine:synergy-run` | Run the comment-first cycle on due/approved targets via Claude in Chrome: like + comment (+ cite + connect), HITL-gated. Log to the tracker. |
 | `/synergy-engine:synergy-schedule` | Stand up the every-other-day prep task (stages drafts + books a calendar block; never posts). |
 | `/synergy-engine:synergy-status` | Show the tracker: engaged / queued / due, by topic center. |
+| `/synergy-engine:synergy-cite-harvest` | **Citation center.** Harvest cited authors from a paper's bibliography -> triage -> OpenAlex/ORCID -> Clarify dedup -> Apollo enrich + verify gate -> LinkedIn resolve + Apify verify -> draft email + connect note -> citation registry. Never sends. |
+| `/synergy-engine:synergy-cite-run` | Send the "we cited you" outreach: email first (Mailtrap, BCC Dorian), then the LinkedIn connect note, with the send discipline. HITL-gated. Logs to the registry. |
+| `/synergy-engine:synergy-cite-accept-check` | Daily follow-through: detect accepted invites, fire any staged accept-reply (gated), advance the registry. Schedulable. |
 
 ## Routing
 
@@ -55,6 +59,9 @@ Full tree + the competitor rule (cite at the idea level, never the product) in `
 - "run the cycle" / "engage these" / "comment on the due ones" → `/synergy-run`
 - "automate it" / "every other day" → `/synergy-schedule`
 - "what's queued" / "tracker state" → `/synergy-status`
+- "reach out to the people we cited" / "we cited you" / "harvest the bibliography" / "who did we cite" → `/synergy-cite-harvest`
+- "send the citation emails / connects" / "thank the authors we cited" → `/synergy-cite-run`
+- "who accepted" / "fire the accept-replies" / "citation follow-through" → `/synergy-cite-accept-check`
 
 If the engine isn't configured yet (no tracker / config marker found), route to `/synergy-init` first.
 
