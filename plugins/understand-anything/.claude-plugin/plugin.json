@@ -1,0 +1,18 @@
+{
+  "name": "understand-anything",
+  "version": "0.1.0",
+  "description": "Pointer to Understand-Anything (Egonex-AI, MIT) — a multi-agent pipeline that turns a codebase into an interactive knowledge graph with guided tours, semantic search, diff-impact analysis, and an onboarding dashboard. Its analysis core is a TypeScript + native tree-sitter build, so it is installed upstream rather than re-homed into this markdown marketplace (same posture as not re-homing claude-mem's runtime). This entry documents what it does, when to reach for it vs. graphify / github-repo-analyzer, and the one-line install. A full native vendor is a follow-up decision (DR-011).",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "codebase-analysis",
+    "knowledge-graph",
+    "onboarding",
+    "architecture",
+    "tree-sitter",
+    "pointer",
+    "understand-anything",
+    "moxywolf"
+  ]
+}
