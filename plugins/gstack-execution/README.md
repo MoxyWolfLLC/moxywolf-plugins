@@ -81,3 +81,7 @@ For apps with no native MCP connector, this plugin can reach them through Compos
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
 No auto-push to a protected branch — a named human owns the merge.
+
+## Merged from ecc
+
+Three commands are merged from [ecc](https://github.com/affaan-m/ECC) (MIT, © Affaan Mustafa): `/ecc-build-fix` (incremental build/type-error fix loop), `/ecc-learn` (extract reusable patterns from a session into candidate skills), and `/ecc-skill-create` (generate SKILL.md from git history; ecc's instinct/continuous-learning coupling removed). ecc's 67 agents and 271 skills were not vendored — only these three genuinely-new, low-coupling commands. See `NOTICE`.

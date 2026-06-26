@@ -1,0 +1,17 @@
+gstack-execution
+================
+
+Primary content adapted from Garry Tan's gstack (MIT).
+
+Additionally includes three commands merged and adapted from:
+
+  ecc (Everything Claude Code) — https://github.com/affaan-m/ECC
+  Copyright (c) Affaan Mustafa, MIT License (licenses/ecc-MIT.txt)
+
+  - commands/ecc-build-fix.md   (verbatim from ecc build-fix)
+  - commands/ecc-learn.md       (verbatim from ecc learn)
+  - commands/ecc-skill-create.md(adapted: ecc's instinct / continuous-learning
+                                 and GitHub-App coupling removed)
+
+ecc's 67 agents / 271 skills were NOT vendored; only these three
+genuinely-new, low-coupling commands were merged (DR-011).

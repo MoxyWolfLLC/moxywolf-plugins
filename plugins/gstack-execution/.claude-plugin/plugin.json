@@ -1,6 +1,6 @@
 {
   "name": "gstack-execution",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review (real Codex or Claude fallback), security audit, debugging, QA testing, and shipping. Pairs with Product Orchestrator for the full decide-then-build loop. Browser testing via Claude in Chrome.",
   "author": {
     "name": "MoxyWolf LLC"
