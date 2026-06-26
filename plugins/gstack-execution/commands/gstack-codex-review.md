@@ -128,3 +128,7 @@ Verdict: {SHIP | RECONSIDER APPROACH | NEEDS FIXES}
 ```
 
 Review-only: present findings and stop. If the user wants fixes, that's a separate `/gstack-investigate` or manual pass followed by a fresh review of the new commit.
+
+## Restraint layer (ponytail)
+
+Trim over-engineering first via `/ponytail-review`, then review the leaner diff adversarially. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

@@ -160,3 +160,7 @@ AI-generated UIs have telltale patterns. Fix these to make output look human-cra
 - **Cookie-cutter sections**: Vary section layouts — full-width, split, offset, asymmetric
 - **Too many CTAs**: One primary per section maximum
 - **Gratuitous animation**: Remove decorative motion. Keep only functional transitions
+
+## Restraint layer (ponytail)
+
+Restraint pairs with taste here: cut over-built markup while raising visual quality. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

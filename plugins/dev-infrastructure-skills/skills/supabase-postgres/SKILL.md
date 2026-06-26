@@ -274,3 +274,7 @@ Deno.serve(async (req) => {
 - [ ] Migrations are single-purpose and reversible
 
 For detailed patterns on each topic, see `references/`.
+
+## Restraint layer (ponytail)
+
+Prefer a DB constraint or built-in over app code; climb the ladder before adding a table, trigger, or dependency. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

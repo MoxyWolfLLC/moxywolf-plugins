@@ -46,3 +46,7 @@ After generating, run a quick self-audit against the frontend-design skill's out
 - [ ] Every icon/symbol in the Legend has an accessible Badge variant
 - [ ] Responsive specs from Section 7 are reflected in breakpoint usage
 - [ ] Cross-screen navigation from Section 3 is reflected in nav structure
+
+## Restraint layer (ponytail)
+
+Generate the minimum UI the brief needs; no decorative or speculative components. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

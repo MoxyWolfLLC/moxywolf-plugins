@@ -39,6 +39,10 @@ Trace code paths introduced by this branch's diff. For each untested path, eithe
 - Generate a test (with user approval)
 - Flag it as a known gap in the PR description
 
+## Step 3.5: Restraint Pre-Pass (ponytail)
+
+Before reviewing, run `/ponytail-review` on the branch diff to strip over-built code, so the review and PR cover only what should exist. Apply the cuts the user approves. Never cut validation, error handling, security, or accessibility. If the diff is already lean, note it and move on.
+
 ## Step 4: Pre-Landing Review
 
 Run the `/gstack-review` checklist against this branch. If CRITICAL findings exist, report them and stop.

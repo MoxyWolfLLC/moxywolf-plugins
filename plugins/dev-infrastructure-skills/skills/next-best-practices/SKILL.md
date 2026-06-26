@@ -221,3 +221,7 @@ export async function getCachedData() {
 ```
 
 For detailed reference on each topic, see `references/`.
+
+## Restraint layer (ponytail)
+
+Before emitting routes or components, climb the ladder, native platform features first, no unrequested abstractions. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

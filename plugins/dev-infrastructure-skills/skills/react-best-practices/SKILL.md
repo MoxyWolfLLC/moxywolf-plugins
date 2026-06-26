@@ -216,3 +216,7 @@ When writing or reviewing React code, verify:
 - [ ] `useMemo`/`useCallback` used only for genuinely expensive operations
 
 For the complete 40+ rule reference with all code examples, see `references/`.
+
+## Restraint layer (ponytail)
+
+Before emitting components, climb the ladder, native and stdlib first, no unrequested abstractions. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

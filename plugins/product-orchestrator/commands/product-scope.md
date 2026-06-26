@@ -21,3 +21,7 @@ Steps:
 The scope question is: $ARGUMENTS
 
 If no arguments provided, ask the user what scope decision needs deliberation.
+
+## Restraint layer (ponytail)
+
+Apply rung 1 (does this need to exist at all) to each scope item before committing it. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

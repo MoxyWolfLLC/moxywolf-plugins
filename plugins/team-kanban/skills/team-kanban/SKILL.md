@@ -370,3 +370,7 @@ The Slack digest message should be direct and scannable:
 - **Canvas creation fails:** Fall back to posting the full board as a Slack message instead.
 - **Slack send fails:** Save the formatted output to `${VAULT}/Tasks/team-kanban-latest.md` as a backup.
 - **Column limits exceeded:** Don't silently drop items. Flag the overflow in the digest: "P0 has 5 items (limit: 3). Triage needed."
+
+## Restraint layer (ponytail)
+
+Ingest the `/ponytail-debt` ledger: each `ponytail:` shortcut lacking an upgrade trigger becomes a tech-debt card on the board. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

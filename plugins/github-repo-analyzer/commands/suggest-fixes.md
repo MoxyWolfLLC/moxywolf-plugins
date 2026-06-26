@@ -95,3 +95,7 @@ Analyze GitHub issues for the repository at $1 and generate code fix suggestions
 | **Request changes** | User provides feedback; Claude revises and re-presents | "change X to Y", "use a different approach", "also check file Z" |
 | **Skip** | Issue marked as skipped with reason; advance to next | "skip", "skip — not relevant", "come back to this later" |
 | **Stop** | Session ends; all completed reports compiled | "stop", "that's enough", "done for now" |
+
+## Restraint layer (ponytail)
+
+Keep every proposed fix to the minimum diff that resolves the issue at its root cause, not the symptom. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

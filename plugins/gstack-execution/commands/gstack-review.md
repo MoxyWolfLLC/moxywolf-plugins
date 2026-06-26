@@ -85,3 +85,7 @@ Ship readiness: {READY | NEEDS FIXES | BLOCKED}
 ```
 
 Present all findings. Offer to auto-fix mechanical issues (missing null checks, unused imports, missing error handling) if the user approves.
+
+## Restraint layer (ponytail)
+
+Before flagging structure, run `/ponytail-review` to strip over-built code so the review covers only what should exist. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.
