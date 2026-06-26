@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -412,8 +412,8 @@
     {
       "name": "saas-frontend-designer",
       "source": "./plugins/saas-frontend-designer",
-      "description": "Full-pipeline front-end design system for SaaS products and marketing sites. Generates, polishes, audits, and optimizes production-ready Next.js + React + Tailwind + shadcn/ui interfaces.",
-      "version": "1.0.2",
+      "description": "Full-pipeline front-end design system for SaaS products and marketing sites. Generates, polishes, audits, and optimizes production-ready Next.js + React + Tailwind + shadcn/ui interfaces. Includes design-fluency material (anti-pattern bans, OKLCH color strategy, typography craft, AI-slop test, craft reference library) consolidated from impeccable (Apache-2.0).",
+      "version": "1.1.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -426,7 +426,11 @@
         "nextjs",
         "tailwind",
         "shadcn",
-        "saas"
+        "saas",
+        "design-fluency",
+        "impeccable",
+        "oklch",
+        "anti-patterns"
       ]
     },
     {

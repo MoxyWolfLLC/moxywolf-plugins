@@ -7,10 +7,12 @@ description: >
   "typography needs work", "colors clash", "improve readability",
   "remove AI slop", "make it look less AI-generated", "tighten up the design",
   or any request to audit and improve the visual quality of an existing interface.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Baseline UI — Visual Polish Pipeline
+
+> Modified by MoxyWolf LLC (2026-06-25): folded in design-fluency material from [impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, (c) 2025 Paul Bakaus). The anti-pattern bans, OKLCH color strategy, typography craft, and two-altitude slop test below are adapted from impeccable; the `reference/` library is redistributed verbatim. See the plugin `NOTICE`.
 
 Systematically raise the visual quality floor of an existing interface. Most UIs don't need redesign — they need consistent application of foundational decisions. Run this as a sequential audit.
 
@@ -160,6 +162,63 @@ AI-generated UIs have telltale patterns. Fix these to make output look human-cra
 - **Cookie-cutter sections**: Vary section layouts — full-width, split, offset, asymmetric
 - **Too many CTAs**: One primary per section maximum
 - **Gratuitous animation**: Remove decorative motion. Keep only functional transitions
+
+## Absolute bans (match-and-refuse)
+
+From impeccable. If you're about to write any of these, rewrite the element with different structure:
+
+- **Side-stripe borders.** A `border-left`/`border-right` greater than 1px used as a colored accent on cards, list items, callouts, or alerts. Rewrite with full borders, background tints, leading numbers/icons, or nothing.
+- **Gradient text.** `background-clip: text` over a gradient. Use a single solid color; emphasis via weight or size.
+- **Glassmorphism as default.** Decorative blur/glass cards. Rare and purposeful, or nothing.
+- **The hero-metric template.** Big number, small label, supporting stats, gradient accent. SaaS cliche.
+- **Identical card grids.** Same-sized icon + heading + text cards repeated endlessly.
+- **An eyebrow above every section.** Tiny uppercase tracked kicker ("ABOUT" / "PROCESS") on every heading. One named kicker as a deliberate system is voice; one on every section is AI grammar.
+- **Numbered section markers as scaffolding (01 / 02 / 03).** Numbers earn their place only when the section IS a real sequence.
+- **Text that overflows its container.** Test heading copy at every breakpoint; reduce the clamp max or rewrite if it overflows. The viewport is part of the design.
+
+## Color strategy (OKLCH)
+
+Pick a strategy before picking colors. Use OKLCH throughout.
+
+- **Restrained** — tinted neutrals + one accent under 10%. Product default.
+- **Committed** — one saturated color carries 30-60% of the surface. Identity-driven pages.
+- **Full palette** — 3-4 named roles, each used deliberately. Campaigns; data viz.
+- **Drenched** — the surface IS the color. Heroes, campaign pages.
+
+**Verify contrast:** body text >= 4.5:1, large text (>= 18px or bold >= 14px) >= 3:1, placeholders the same 4.5:1. The most common AI failure is muted gray body text on a tinted near-white; bump the body color toward the ink end of the ramp.
+
+**The cream / sand / beige body bg is the saturated AI default.** The warm-neutral band (OKLCH L 0.84-0.97, C < 0.06, hue 40-100) reads as cream/paper/parchment no matter what you name it; token names like `--paper`, `--sand`, `--linen`, `--ivory` are tells. Carry "warmth" in accent + type + imagery, not in a warm-tinted near-white body. Tint neutrals only 0.005-0.015 toward the brand's own hue.
+
+## Typography craft
+
+- Cap body line length at 65-75ch.
+- Don't pair fonts that are similar-but-not-identical (two geometric sans). Pair on a contrast axis (serif + sans, geometric + humanist) or use one family in multiple weights.
+- Display heading ceiling: `clamp()` max <= 6rem (~96px). Above that the page is shouting.
+- Display letter-spacing floor: >= -0.04em. Tighter and letters touch.
+- `text-wrap: balance` on h1-h3; `text-wrap: pretty` on long prose.
+
+## The AI-slop test (two altitudes)
+
+The slop-detection list above catches surface patterns. Also run the category-reflex check at two altitudes:
+
+- **First-order:** if someone could guess the theme + palette from the category alone, it's the first training-data reflex. Rework the scene and color strategy until the answer isn't obvious from the domain.
+- **Second-order:** if someone could guess the aesthetic family from category-plus-anti-reference ("AI tool that's not SaaS-cream -> editorial-typographic"; "fintech that's not navy-and-gold -> terminal dark"), it's the trap one tier deeper. Rework until neither answer is obvious.
+
+If someone could look at the interface and say "AI made that" without doubt, it failed.
+
+## Design-craft reference library
+
+Deeper craft references (redistributed from impeccable, Apache-2.0) live in `reference/`. Read the matching one when a pass needs depth beyond the checklists above:
+
+- `reference/craft.md` — build a feature end-to-end with taste
+- `reference/layout.md` — layout, grid, spacing rhythm
+- `reference/typeset.md` — typography systems
+- `reference/colorize.md` — strategic color, OKLCH palettes
+- `reference/interaction-design.md` — interaction and motion
+- `reference/audit.md` — a11y / performance / responsive checks
+- `reference/harden.md` — production: errors, i18n, edge cases
+- `reference/distill.md` — strip to essence
+- `reference/bolder.md` / `reference/quieter.md` — dial a design up or down
 
 ## Restraint layer (ponytail)
 

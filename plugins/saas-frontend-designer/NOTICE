@@ -1,0 +1,21 @@
+saas-frontend-designer
+======================
+
+This plugin includes design-craft material adapted and redistributed from:
+
+  impeccable — https://github.com/pbakaus/impeccable
+  Copyright 2025 Paul Bakaus
+  Licensed under the Apache License, Version 2.0.
+
+The full Apache-2.0 license text is in licenses/impeccable-Apache-2.0.txt.
+
+What was taken: the design-fluency reference library under
+skills/baseline-ui/reference/ (audit, craft, layout, typeset, colorize,
+interaction-design, distill, harden, bolder, quieter) is redistributed
+verbatim from impeccable. The skills/baseline-ui/SKILL.md file was MODIFIED
+by MoxyWolf LLC to fold in impeccable's anti-pattern bans, OKLCH color
+strategy, typography craft, and two-altitude AI-slop test (per Apache-2.0
+section 4(b), modified files are marked as changed).
+
+What was NOT taken: impeccable's live-browser runtime, scripts, hooks,
+standalone plugin shell, site, CLI, and extension.

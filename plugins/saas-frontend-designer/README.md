@@ -52,3 +52,7 @@ A Cowork plugin for designing and building production-ready front ends for SaaS 
 ## Author
 
 MoxyWolf LLC
+
+## Attribution
+
+The `baseline-ui` skill's design-fluency material — the anti-pattern bans, OKLCH color strategy, typography craft, the two-altitude AI-slop test, and the `reference/` craft library — is adapted and redistributed from [impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, Copyright 2025 Paul Bakaus). impeccable's live-browser runtime, scripts, and standalone shell are not included. See `NOTICE` and `licenses/impeccable-Apache-2.0.txt`.
