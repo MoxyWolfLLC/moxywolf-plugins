@@ -53,22 +53,22 @@ Store as `PUBLISHING_REPO_DIR`.
 
 Free-text. Store as `AUTHOR_NAME`.
 
-## STEP 4 — Hero image vibe
+## STEP 4 — Hero scene palette
 
-The Release Owner Gate generates a hero image for each post. The vibe sets the palette and style keywords for the image prompt.
+The Release Owner Gate builds the hero for each post as a **labeled Excalidraw story scene** — title bar + 2-panel + concept icons + arrows + optional micro-chart, drawn from the post's actual content. It never generates abstract AI cover art. The palette below sets the three colors the scene uses; everything else (composition, icons, labels) is derived from the post itself.
 
-Present exactly these four options via `AskUserQuestion`. **Do not add additional options inferred from the writer's folder choice or any other context.**
+Present exactly these four palette options via `AskUserQuestion`. **Do not add additional options inferred from the writer's folder choice or any other context.**
 
-| Vibe | Palette | Style keywords |
-|---|---|---|
-| Neutral / minimalist (Recommended) | `#F4F4F2`, `#1A1A1A` | abstract, geometric, minimalist |
-| Warm / editorial | `#F8F1E5`, `#2C3E50`, `#C9A66B` | organic, soft, textured |
-| Bold / graphic | `#FFFFFF`, `#000000`, `#FF3333` | high-contrast, graphic, modern |
-| Dark / atmospheric | `#0A0A0A`, `#E8E8E8`, `#6B7280` | minimalist, atmospheric, monochrome |
+| Palette | Ground | Accent | Secondary |
+|---|---|---|---|
+| Warm editorial (Recommended) | `#F8F1E5` warm off-white | `#2C3E50` deep navy | `#C9A66B` muted gold |
+| Neutral notebook | `#F4F4F2` bone | `#1A1A1A` near-black | `#6B7280` cool gray |
+| Bold graphic | `#FFFFFF` white | `#000000` black | `#FF3333` signal red |
+| Dark atmospheric | `#0A0A0A` near-black ground | `#E8E8E8` paper | `#6B7280` cool gray |
 
-All share: forbidden = `text, logos, people, faces, hands`; aspect ratio = `16:9`; dimensions = `1600x900`.
+All share: aspect ratio = `16:9`; dimensions = `1600x900`; hand-drawn line weight; no photoreal rendering, no glossy 3D, no abstract gradients. Forbidden = `photoreal rendering, AI-cover gradients, stock-photo people, network-graph clichés` — labeled human silhouettes/hands as illustrated icons are fine when the story calls for them.
 
-Store the picked vibe's `BRAND_VIBE_NAME`, `BRAND_PALETTE`, `BRAND_KEYWORDS`, plus the fixed `BRAND_FORBIDDEN`, `BRAND_ASPECT`, `BRAND_DIMENSIONS`.
+Store the picked palette's `BRAND_VIBE_NAME` (e.g. `warm-editorial`), `BRAND_PALETTE` (the three hex codes), and the fixed `BRAND_KEYWORDS = "labeled excalidraw story scene, hand-drawn, editorial infographic"`, `BRAND_FORBIDDEN`, `BRAND_ASPECT`, `BRAND_DIMENSIONS`.
 
 ## STEP 5 — Live site URL pattern (optional)
 
@@ -108,7 +108,7 @@ This file is the marker the 4d-blog-engine plugin uses to find your blog project
 - **Author:** `<AUTHOR_NAME>`
 - **Author slug:** `<AUTHOR_SLUG>` (used to resolve the voice file path)
 - **Voice files:** any `*-voice.md` in this directory. The pipeline picks based on which one(s) exist. Default author's file would be `<AUTHOR_SLUG>-voice.md`. Create with `/4d-blog-engine:blog-voice`; run more than once for multiple authors (guest contributors, co-writers).
-- **Hero image vibe:** `<BRAND_VIBE_NAME>`
+- **Hero scene palette:** `<BRAND_VIBE_NAME>`
 - **Live site URL pattern:** `<LIVE_URL_PATTERN or "(not set)">`
 
 ## Hero image brand style
@@ -155,7 +155,7 @@ Blog project ready.
   Publishing to:  <PUBLISHING_REPO_DIR>
   Author:         <AUTHOR_NAME>
   Voice file:     <AUTHOR_SLUG>-voice.md (found)
-  Hero vibe:      <BRAND_VIBE_NAME>
+  Hero scene:     <BRAND_VIBE_NAME> palette
 
 Next: run /4d-blog-engine:blog-pipeline <path-to-your-base-document> to write your first post.
 ```
@@ -169,7 +169,7 @@ Blog project ready.
   Publishing to:  <PUBLISHING_REPO_DIR>
   Author:         <AUTHOR_NAME>
   Voice file:     <AUTHOR_SLUG>-voice.md (not created yet)
-  Hero vibe:      <BRAND_VIBE_NAME>
+  Hero scene:     <BRAND_VIBE_NAME> palette
 
 The pipeline needs a voice profile before it can write in your voice.
 That's an 8-question interview — usually 15-40 minutes — that produces

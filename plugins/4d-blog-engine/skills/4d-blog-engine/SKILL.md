@@ -17,7 +17,7 @@ It is composed of twelve commands, all prefixed `blog-` for consistency: four ma
 
 | Command | Purpose | Specialist skill invoked |
 |---|---|---|
-| `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + author + hero vibe | `blog-init` |
+| `/4d-blog-engine:blog-init` | One-time setup — declare the blog project dir + GitHub repo + author + hero scene palette | `blog-init` |
 | `/4d-blog-engine:blog-voice` | One-time voice capture — 8-question interview, writes `<author-slug>-voice.md` | `blog-voice` |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mount the two directories, surface in-progress/unpublished pieces | `blog-start` |
 | `/4d-blog-engine:blog-pillar` | Create or edit a pillar (hub) + its linking map — the hub of the hub-and-spoke model | inline (this skill) + `references/linking-map-template.md` |

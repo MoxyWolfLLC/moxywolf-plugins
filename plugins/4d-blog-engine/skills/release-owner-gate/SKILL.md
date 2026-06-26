@@ -30,38 +30,81 @@ cp <piece>/03-discernment/draft.md <piece>/04-diligence/blog.md
 
 If `<piece>/04-diligence/blog.md` already exists from a previous Phase-4 round, do NOT overwrite — that's the revision-in-progress.
 
-## STEP 2 — Generate or verify the hero image
+## STEP 2 — Build the hero as a labeled Excalidraw story scene
 
-Phase 4's Stage 3 requires `<piece>/04-diligence/og-hero.png` and `<piece>/04-diligence/og-hero-prompt.md` (the AI-transparency artifact).
+Phase 4's Stage 3 requires `<piece>/04-diligence/og-hero.png` and `<piece>/04-diligence/og-hero-prompt.md` (the AI-transparency artifact). **The plugin builds heroes as labeled Excalidraw scenes only — never as abstract AI-generated cover art.** A hero must depict the actual story: title bar at top, panels for the main beats, concept icons with text labels, arrows showing flow, and an optional small chart or number callout. The reference register is a hand-drawn editorial infographic, not a stock illustration and not a generative-AI cover.
 
-The hero-image flow is generic — it does **not** depend on any particular blog's brand. The brand style comes from each project's `blog-project-instructions.md` (the `## Hero image brand style` block, populated by `/4d-blog-engine:blog-init`). If a project has no marker file or no brand block (older MoxyWolf-internal projects, fallback mode), the gate uses a neutral default: abstract / geometric / minimalist, two-tone off-white + dark gray, no text / logos / people, 16:9 at 1600×900.
+This is a deliberate rejection of the previous abstract-image flow. The writer ran the abstract path, got `"a polished surface with hairline fracture revealing rougher material beneath"`-style outputs, and pushed back with *"we need to change the graphic to be something that relates to the story."* The fix is to make every hero a literal, labeled scene composed from the post's own concrete artifacts by a deterministic three-stage pipeline (extract → outline → render). No image model is called at any step.
+
+The pipeline is:
+
+```
+blog.md  ──(STEP 2.1 extract)──▶  scene-outline.json
+                                         │
+                                         ▼
+                            (STEP 2.2 propose drafts)
+                                         │
+                                         ▼
+              writer picks A/B/edit ──▶ approved outline
+                                         │
+                                         ▼
+                       (STEP 2.3 invoke hero-scene-composer)
+                                         │
+                                         ▼
+                <slug>.excalidraw.md  +  og-hero.png  +  og-hero-prompt.md
+```
 
 If the hero doesn't exist yet:
 
-1. **Locate the brand style.** Walk up from `<piece>` to find the project marker (`blog-project-instructions.md` first, then `00 – Project Hub/cowork-project-instructions.md`). Parse the `## Hero image brand style` block if present. Fall back to the neutral default if missing.
+### 2.1 — Locate the brand style and extract the scene outline
 
-2. **Extract the story's concrete artifacts FIRST. Abstract metaphor is the fallback, not the default.** This is the design lesson from an actual run where the assistant proposed *"a polished surface with hairline fracture revealing rougher material beneath"* and the writer correctly pushed back with *"we need to change the graphic to be something that relates to the story."* The fix is to lead with story artifacts every time.
+Walk up from `<piece>` to find the project marker (`blog-project-instructions.md` first, then `00 – Project Hub/cowork-project-instructions.md`). Parse the `## Hero image brand style` block if present. Fall back to the neutral default if missing: warm off-white ground (`#F8F1E5`), deep navy accent (`#2C3E50`), muted gold secondary (`#C9A66B`), `#1A1A1A` ink, `#6B7280` muted.
 
-   Read the staged blog at `<piece>/04-diligence/blog.md`. Extract:
+Read the staged blog at `<piece>/04-diligence/blog.md`. Apply the extraction recipe in `${CLAUDE_PLUGIN_ROOT}/references/story-to-scene-extraction.md` to produce a structured outline. Write the outline to `<piece>/04-diligence/scene-outline.json`. The extraction recipe is the single source of truth for the outline schema, the icon-name vocabulary it draws from, and the "no invented copy" rule.
 
-   - **Concrete nouns the post is about.** Scan the title, the first 200 words, and the H2 subheads for tangible objects (envelopes, books, screens, papers, hands, doors, keys, locks, charts, signatures, machines — physical things). List them in a `concrete_nouns: [...]` array.
-   - **Named numbers or contrasts.** If the post centers on a specific number ("500 emails, zero replies"), a contrast ("polished vs. real"), or a count ("1 of N"), capture those — they often translate to direct visual compositions.
-   - **The action the story turns on.** Is something being sent, opened, signed, broken, repeated, abandoned? One verb in present continuous.
+### 2.2 — Propose two scene drafts to the writer
 
-3. **Propose 3 to 4 hero options, story-grounded FIRST, abstract metaphor LAST.** Present via `AskUserQuestion`. Default ordering:
+Read `scene-outline.json` and present two alternative scene framings via `AskUserQuestion`. The two drafts share the title, the source artifacts, and the icon vocabulary, but differ on (at least one of):
 
-   - **Option A — The primary story object.** The single most-mentioned concrete noun, rendered as the focal subject (e.g., "a single sealed envelope on a desk, hand-pressed wax seal visible, warm directional light from above"). This should always be on offer when the post has any concrete subject.
-   - **Option B — The contrast or count.** If the post centers on a contrast or a count, render that ("a row of identical envelopes receding into shallow focus, one in the foreground bearing the wax seal the others lack"). If neither contrast nor count is central, skip this option.
-   - **Option C — The action mid-motion.** The verb captured as a frozen moment ("a hand pressing a wax seal onto folded paper, mid-action, only fingers visible at the frame edge"). Note: the brand-style `forbidden` list almost always excludes people/faces/hands — if so, skip this option or rephrase to a body-less depiction.
-   - **Option D — Abstract metaphor (fallback).** The composition you would have proposed before this fix — geometric, symbolic, only loosely connected to the post's surface. Always include as the last option, labeled clearly: *"Abstract metaphor — looser tie to the story, more cover-art-feeling. Pick this if none of the above feel right."*
+- **Panel split.** Which H2 anchors the left vs. right panel.
+- **Icon roster.** Which 2–4 concrete nouns each panel features.
+- **Bridge framing.** Which verb of motion bridges the two panels.
+- **Chart presence/kind.** Whether the micro-chart appears, and if so which `kind` (bars3 / count_of / contrast_pair).
 
-   Each option includes the full prompt text (palette, aspect, forbidden list, dimensions baked in) so the writer can pick by reading the proposal, not by squinting at thumbnails.
+Present each draft as a short text outline — no images — so the writer can pick by reading. Include a third option: *"let me edit the outline"* — which surfaces the JSON for direct editing before composition.
 
-4. **The writer picks. The plugin generates only the picked option.** Don't pre-generate; image gen is expensive and slow. After they pick, also offer a final edit pass: *"Want to tweak the prompt before I generate? Otherwise I'll send it as-is."*
+After approval, write the final approved outline back to `<piece>/04-diligence/scene-outline.json` (overwriting the extraction's draft).
 
-5. **On approval, call whatever image-generation MCP the writer has connected** (Krea, HuggingFace Spaces, Gemini, etc.). The plugin doesn't pin to one provider — it surfaces the prompt, the writer approves, and you pick the available tool. If none is available, surface the prompt as a markdown file at `<piece>/04-diligence/og-hero-prompt.md` and tell the writer to generate the image by hand and drop the PNG at `<piece>/04-diligence/og-hero.png`.
+### 2.3 — Compose the scene
 
-6. **Save artifacts.** The PNG goes to `<piece>/04-diligence/og-hero.png`. The prompt artifact at `<piece>/04-diligence/og-hero-prompt.md` records: which option was picked (A/B/C/D), the final prompt text including any writer edits, the brand style block used, and which tool generated the image (or "(generated by hand)"). That's the AI-transparency audit trail.
+Invoke the `hero-scene-composer` skill (`${CLAUDE_PLUGIN_ROOT}/skills/hero-scene-composer/SKILL.md`) with the approved `scene-outline.json` and the resolved brand palette. The composer:
+
+1. Validates the outline against its schema.
+2. Loads the canvas template at `${CLAUDE_PLUGIN_ROOT}/references/excalidraw-canvas-template.json`.
+3. Drops icons from `${CLAUDE_PLUGIN_ROOT}/references/excalidraw-icon-vocab.md` into the panel slots.
+4. Renders the optional chart and callouts.
+5. Writes the wrapped `.excalidraw.md` source to `<BLOG_PROJECT_DIR>/drafts/blog-media/<slug>.excalidraw.md`.
+6. Calls `${CLAUDE_PLUGIN_ROOT}/scripts/excalidraw-to-png.mjs` to export `<piece>/04-diligence/og-hero.png` at 1600×900.
+7. Writes the AI-transparency artifact to `<piece>/04-diligence/og-hero-prompt.md`.
+
+### 2.4 — Handle export failures
+
+If `excalidraw-to-png.mjs` exits non-zero (typically because the writer hasn't installed Playwright yet), the composer writes a fallback file at `<piece>/04-diligence/og-hero-export-instructions.md` and surfaces the failure to this gate. In that case, the gate stops here and tells the writer:
+
+> The Excalidraw scene was composed and saved to `<BLOG_PROJECT_DIR>/drafts/blog-media/<slug>.excalidraw.md`. Open it in Obsidian, switch to Excalidraw view, and export PNG to `<piece>/04-diligence/og-hero.png` at 1600×900. Then re-run `/4d-blog-engine:blog-diligence` to continue.
+>
+> To make this fully automatic next time, install once:
+>
+> ```bash
+> npm install -g playwright
+> npx playwright install chromium
+> ```
+
+The gate **does not** offer an image-generation fallback. That path is permanently retired.
+
+### 2.5 — Existing hero re-check
+
+If `<piece>/04-diligence/og-hero.png` already exists (re-run), do not regenerate. Verify the PNG is non-empty and continue. If the writer wants to regenerate, they delete the PNG (and optionally the `.excalidraw.md` source) and re-run `/blog-diligence`.
 
 ## STEP 3 — Rotate the nonce and dispatch the BLOCKING reviewer
 

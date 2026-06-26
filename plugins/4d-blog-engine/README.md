@@ -19,7 +19,7 @@ Given a base document (uploaded file or referenced URL) and an angle or question
 
 | Command | What it does |
 |---|---|
-| `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero vibe, optional live URL. Writes `blog-project-instructions.md`. |
+| `/4d-blog-engine:blog-init` | One-time setup — two folder picks, author name, hero scene palette, optional live URL. Writes `blog-project-instructions.md`. |
 | `/4d-blog-engine:blog-voice` | Voice capture — 8-question interview that produces `<author-slug>-voice.md`. Run more than once for additional authors (guest contributors, co-writers). The pipeline globs `*-voice.md` and asks which voice to use when multiple exist. |
 | `/4d-blog-engine:blog-start` | Open or resume a session — mounts the blog project dir + GitHub repo, surfaces in-progress and unpublished pieces, proposes the next step. |
 | `/4d-blog-engine:blog-pillar [target] [new "<title>" \| edit <slug> \| list]` | Create, edit, or list pillars (hubs) and their linking maps — the hubs of the hub-and-spoke model. Every post is a spoke on one pillar. |

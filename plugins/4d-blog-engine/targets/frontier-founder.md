@@ -13,7 +13,7 @@ frontmatter_required: [title, date]
 entity_author_id: https://moxywolf.com/people/dorian-cougias#author
 entity_publisher_id: https://moxywolf.com#publisher
 publisher_name: MoxyWolf LLC
-hero_style: brand-abstract
+hero_style: excalidraw-story
 pillar_route_pattern: https://thefrontierfounder.com/series/<pillar-slug>
 pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: content/blog/_clusters
