@@ -1,0 +1,21 @@
+{
+  "name": "ponytail",
+  "version": "0.1.0",
+  "description": "Horizontal restraint layer for coding work. An always-on 'lazy senior dev' ruleset injected every turn that runs a YAGNI ladder before the agent writes code (question whether it needs to exist, stdlib before custom, native before dependency, one line before fifty), never cutting validation, error handling, security, or accessibility. Ships the referenceable `ponytail` skill plus /ponytail (lite|full|ultra|off), /ponytail-review, /ponytail-audit, /ponytail-debt, /ponytail-gain, /ponytail-help. Vendored from DietrichGebert/ponytail (MIT) v4.8.3; pairs with gstack-execution (trim then harden) and dev-infrastructure-skills.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "hooks": "./hooks/claude-codex-hooks.json",
+  "keywords": [
+    "ponytail",
+    "yagni",
+    "restraint",
+    "over-engineering",
+    "anti-slop",
+    "lazy",
+    "code-review",
+    "minimal",
+    "gstack",
+    "moxywolf"
+  ]
+}
