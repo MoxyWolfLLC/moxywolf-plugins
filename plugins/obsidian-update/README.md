@@ -1,6 +1,10 @@
-# Obsidian Update Plugin v2.5.3
+# Obsidian Update Plugin v2.7.0
 
 Vault-native personal operating system for MoxyWolf with bidirectional Council integration. The Obsidian vault is the brain. The Council plugin is the verification layer. Together they form a loop where organizational knowledge informs deliberations, and deliberation outcomes refine the vault.
+
+## What Changed in v2.7.0
+
+**Decision-Record (DR) auto-routing + Operating Norms master index.** When `/obsidian-update` extracts a decision into the vault, it now classifies the DR by the axis it touches (people, governance, kanban, code, content, finance, etc.) and routes it into the matching `_Shared Knowledge/Operating Norms/<axis>/` subfolder — instead of dropping every DR into one flat directory. On first run after upgrade, it also backfills the master index at `_Shared Knowledge/Operating Norms/_INDEX.md` from existing DRs (DR-001, DR-002, the `insight-*` notes, and `hub-and-spoke-pillar-methodology-2026-06-14`), so a session can find the right precedent without grep. Pairs with the new `vault-code-learn` plugin for the code axis.
 
 ## What Changed in v2.5.3
 

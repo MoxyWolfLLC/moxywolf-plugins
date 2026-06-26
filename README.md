@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 26 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 31 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -34,26 +34,28 @@ Adding this marketplace on any Mac gives that machine all 26 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (26 plugins) — source of truth for versions
+│   └── marketplace.json                ← catalog (31 plugins, marketplace v1.15.0) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 25 MoxyWolf-owned plugins
+├── plugins/                             ← 30 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps. /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── analytics/                  Read-only reporting, one command per source — /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog
-│   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts
+│   ├── board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub
 │   ├── composio/                   Composio Tool Router — 1000+ app toolkits for apps with no native MCP
 │   ├── council/                    Multi-model deliberation with vault-aware memory
 │   ├── daily-ops/                  Energy-aware standup/triage/review + fitness coach
 │   ├── dev-infrastructure-skills/  React/Next/Supabase/TDD/Playwright best practices
+│   ├── document-analysis/          Document → Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)
 │   ├── editorial-forge/            AI content → author-owned via voice + DOB framing
 │   ├── frontier-founder/           Draft markdown → SEO/AEO-structured blog post (JSON-LD, FAQ, canonical) + hero image
 │   ├── frontier-founder-smb/       SMB all-in-one (FFSMB) — cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault
 │   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
-│   ├── document-analysis/          Document → Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)
-│   ├── obsidian-update/            Vault-native personal OS + Council integration
+│   ├── obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install
+│   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.7.0 adds DR auto-routing + Operating Norms _INDEX.md master index
+│   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions + project charter governance
 │   ├── project-init/               /init-project /session-start /session-end
 │   ├── research-pipeline/          Literature discovery, verification, synthesis
@@ -61,6 +63,9 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── saas-pricing-engine/        Pricing research, modeling, page copy
 │   ├── synergy-engine/             Topic-synergy outreach, 3 centers — author/content discovery (comment-first via Apify + Claude in Chrome) + citation center (bibliography -> OpenAlex/Apollo/Apify -> "we cited you" email + LinkedIn connect, with the send discipline); xlsx tracker + citation registry; human-gated, never auto-sends
 │   ├── team-kanban/                Slack Canvas kanban from Obsidian/GDrive/Cal/Gmail
+│   ├── understand-anything/        Pointer to Understand-Anything (Egonex-AI, MIT) — multi-agent pipeline that turns a codebase into deep narrative documentation
+│   ├── vault-code-learn/           The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo, captures architecture insights into the MoxyWolf vault's Code Patterns folder, and surfaces them next session
+│   ├── vault-skills/               Six vault-* workflow skills vendored from az9713/claude-code-obsidian (capture, save, journal, synthesize, MOC, health). Companion to obsidian-skills
 │   └── vtt-to-text/                WebVTT captions → clean text
 └── skill-bundles/
     └── moxywolf-skills/            25 standalone skills bundled as one plugin
@@ -77,7 +82,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 26 plugins appear in the marketplace list.
+3. Click **Sync**. The 31 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -86,11 +91,14 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
 claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 
 # install everything in one go
-for p in 4d-blog-engine academic-pipeline analytics board-deck bibtex-builder composio council \
-         daily-ops dev-infrastructure-skills editorial-forge frontier-founder \
-         document-analysis github-repo-analyzer gstack-execution obsidian-update product-orchestrator \
+for p in 4d-blog-engine academic-pipeline analytics bibtex-builder board-deck composio council \
+         daily-ops dev-infrastructure-skills document-analysis editorial-forge frontier-founder \
+         frontier-founder-smb github-repo-analyzer graphify gstack-execution \
+         obsidian-skills obsidian-update ponytail product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \
-         synergy-engine team-kanban vtt-to-text moxywolf-skills; do
+         synergy-engine team-kanban understand-anything \
+         vault-code-learn vault-skills vtt-to-text \
+         moxywolf-skills; do
   claude plugin install "$p@moxywolf-plugins"
 done
 ```
