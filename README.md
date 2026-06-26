@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 31 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 32 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -34,9 +34,9 @@ Adding this marketplace on any Mac gives that machine all 31 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (31 plugins, marketplace v1.15.0) — source of truth for versions
+│   └── marketplace.json                ← catalog (32 plugins, marketplace v1.16.0) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 30 MoxyWolf-owned plugins
+├── plugins/                             ← 31 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps. /blog-social opts in to LinkedIn (article+teaser), Twitter (thread), Facebook (single post)
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── analytics/                  Read-only reporting, one command per source — /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog
@@ -48,6 +48,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── dev-infrastructure-skills/  React/Next/Supabase/TDD/Playwright best practices
 │   ├── document-analysis/          Document → Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)
 │   ├── editorial-forge/            AI content → author-owned via voice + DOB framing
+│   ├── excalidraw-vault/           Generate Excalidraw diagrams directly into the MoxyWolf Vault in zsviczian's native .excalidraw.md format — /excalidraw <description> and /excalidraw-here; diagrams embed in any note via wikilink and version in git. Parallels vault-code-learn and graphify-vault on the diagram axis
 │   ├── frontier-founder/           Draft markdown → SEO/AEO-structured blog post (JSON-LD, FAQ, canonical) + hero image
 │   ├── frontier-founder-smb/       SMB all-in-one (FFSMB) — cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
@@ -82,7 +83,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 31 plugins appear in the marketplace list.
+3. Click **Sync**. The 32 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -92,8 +93,8 @@ claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 
 # install everything in one go
 for p in 4d-blog-engine academic-pipeline analytics bibtex-builder board-deck composio council \
-         daily-ops dev-infrastructure-skills document-analysis editorial-forge frontier-founder \
-         frontier-founder-smb github-repo-analyzer graphify gstack-execution \
+         daily-ops dev-infrastructure-skills document-analysis editorial-forge excalidraw-vault \
+         frontier-founder frontier-founder-smb github-repo-analyzer graphify gstack-execution \
          obsidian-skills obsidian-update ponytail product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \
          synergy-engine team-kanban understand-anything \

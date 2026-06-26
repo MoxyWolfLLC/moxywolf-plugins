@@ -1,0 +1,18 @@
+{
+  "name": "excalidraw-vault",
+  "version": "0.1.0",
+  "description": "Generate Excalidraw diagrams directly into the MoxyWolf Vault in the zsviczian Obsidian-Excalidraw plugin's native .excalidraw.md format. Diagrams open natively in Obsidian alongside the notes that reference them, embed via wikilinks in DRs/specs/decks, and stay versioned in the git-backed vault. Parallels vault-code-learn (code-axis) and graphify-vault (knowledge-axis) on the diagram axis. Carries the excalidraw-vault-core runner protocol (Obsidian-format JSON wrapping, element schema, naming conventions, routing) as the single source of truth. Built for MoxyWolf LLC internal use.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "excalidraw",
+    "diagrams",
+    "obsidian",
+    "vault",
+    "illustrations",
+    "architecture",
+    "wiki",
+    "knowledge"
+  ]
+}

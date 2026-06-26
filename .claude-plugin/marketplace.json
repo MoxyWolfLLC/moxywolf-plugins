@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -229,6 +229,26 @@
         "copyright",
         "DOB",
         "narrative"
+      ]
+    },
+    {
+      "name": "excalidraw-vault",
+      "source": "./plugins/excalidraw-vault",
+      "description": "Generate Excalidraw diagrams directly into the MoxyWolf Vault in the zsviczian Obsidian-Excalidraw plugin's native .excalidraw.md format. /excalidraw <description> writes to _Shared Knowledge/Diagrams/ or Projects/<project>/06-Engineering/diagrams/; /excalidraw-here generates a diagram of the current document and embeds it next to that note. Carries the excalidraw-vault-core runner protocol (Obsidian wrapping format, element schema, depth assessment, routing) as the single source of truth so future plugins can delegate. Parallels vault-code-learn (code axis) and graphify-vault (knowledge axis) on the diagram axis.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "excalidraw",
+        "diagrams",
+        "obsidian",
+        "vault",
+        "illustrations",
+        "architecture",
+        "wiki",
+        "knowledge"
       ]
     },
     {
