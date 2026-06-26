@@ -193,6 +193,8 @@ status: draft | active
 ### 3d. Write the file
 Use the `Write` tool to create the file at the correct vault path. Do not overwrite existing files — if a filename collision occurs, append a sequence number.
 
+**For Decision Records specifically**: before deciding the destination folder, read `references/dr-auto-routing.md` and apply Rules 1–4 in order. The reference supersedes any ad-hoc placement in the rest of this SKILL — it picks the destination by topic class, appends one row to the Company Decision Log master index at `_Shared Knowledge/Operating Norms/_INDEX.md`, updates the project hub's `<P> Decisions.md` when project-scoped, and handles supersedes/superseded-by linking and Council verification flags.
+
 ### 3e. Update MEMORY.md if warranted
 If the session produced significant new context (new contacts, project state changes, decisions), also update `${VAULT}/_System/MEMORY.md` with the relevant facts. This keeps the personal-os memory layer current without waiting for the nightly extraction.
 

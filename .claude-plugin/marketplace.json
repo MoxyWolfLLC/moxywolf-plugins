@@ -2,59 +2,16 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
   },
   "plugins": [
     {
-      "name": "analytics",
-      "source": "./plugins/analytics",
-      "description": "MoxyWolf analytics plugin — read-only reporting across data sources, one command per source. Ships the google-analytics command (GA4 Data API via a service account) with generic traffic reports plus Lens-Test campaign reports: acquisition by channel, first-touch signup source, custom-dimension segment (e.g. RPO vs non-RPO), and a one-shot markdown scoreboard with week-over-week for the Friday read. Built to grow — Microsoft Clarity, Ahrefs, PostHog, and others can be added as their own commands. Credentials come from the environment, never hardcoded; GA4 covers the acquisition end while the conversion verdict stays in PostHog. v0.1.0.",
-      "version": "0.1.1",
-      "author": {
-        "name": "MoxyWolf LLC"
-      },
-      "category": "analytics",
-      "keywords": [
-        "analytics",
-        "ga4",
-        "google-analytics",
-        "reporting",
-        "attribution",
-        "lens-test",
-        "moxywolf"
-      ]
-    },
-    {
-      "name": "frontier-founder-smb",
-      "source": "./plugins/frontier-founder-smb",
-      "description": "Frontier Founder SMB (FFSMB) — pre-built small-business workflows on a modern indie-founder stack: Clarify AI CRM, Stripe payments, QuickBooks accounting, DocuSign, Gmail/Google, and claude.ai/design. Cash flow, month-end close, invoice chasing, weekly briefs, CRM upkeep, customer pulse, contract review, hiring, growth campaigns — with an approval gate on anything touching money or customers. A MoxyWolf public fork of Anthropic's Small Business plugin, re-homed off PayPal/HubSpot/Square/Canva. Companion to the Apollo plugin for B2B prospecting. v0.3.1: installable — all 31 skills migrated, design lane rewritten for claude.ai/design, connector manifest in place. Team-beta; a dogfood pass over the transformed money/CRM skills is recommended before public release.",
-      "version": "0.3.2",
-      "author": {
-        "name": "MoxyWolf LLC"
-      },
-      "category": "operations",
-      "keywords": [
-        "smb",
-        "small-business",
-        "finance",
-        "marketing",
-        "hr",
-        "operations",
-        "stripe",
-        "quickbooks",
-        "clarify",
-        "docusign",
-        "frontier-founder",
-        "moxywolf"
-      ]
-    },
-    {
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
-      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. The single front door for every MoxyWolf blog property: a targets/ registry (FrontierFounder wired; STIGViewer, moxywolf-website, prfaq register-only) drives canonical URL, JSON-LD, frontmatter, and hero per destination, and every post picks a publishing target + a pillar (new or existing) before drafting — the hub-and-spoke methodology, with /blog-pillar to manage pillars and their linking maps. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile; multi-voice supported. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog-pipeline runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric). On sign-off, the pipeline ends — social derivatives are opt-in. /blog-social derives any subset of: LinkedIn Post + first-comment (feed Post 1,300-2,500 chars sweet spot, 2,900 hard cap under LinkedIn's 3,000-char ceiling, zero body links; companion first-comment file with the fixed \"If you want to do your own research…\" opener, the blog URL, and the 2-3 sources the Post quotes inline), LinkedIn Article (optional long-form, separate selection), Twitter/X (5-10 post thread with ≤280-char per-post hard cap, script-enforced), Facebook (single 300-500 char post with body-inline link). One voice profile, per-platform register shifts (Twitter compressed; Facebook warmer; LinkedIn professional; first-comment voice-off and utilitarian). /blog-publish ships a signed post — the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
+      "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. The single front door for every MoxyWolf blog property: a targets/ registry (FrontierFounder wired; STIGViewer, moxywolf-website, prfaq register-only) drives canonical URL, JSON-LD, frontmatter, and hero per destination, and every post picks a publishing target + a pillar (new or existing) before drafting \u2014 the hub-and-spoke methodology, with /blog-pillar to manage pillars and their linking maps. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile; multi-voice supported. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog-pipeline runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric). On sign-off, the pipeline ends \u2014 social derivatives are opt-in. /blog-social derives any subset of: LinkedIn Post + first-comment (feed Post 1,300-2,500 chars sweet spot, 2,900 hard cap under LinkedIn's 3,000-char ceiling, zero body links; companion first-comment file with the fixed \"If you want to do your own research\u2026\" opener, the blog URL, and the 2-3 sources the Post quotes inline), LinkedIn Article (optional long-form, separate selection), Twitter/X (5-10 post thread with \u2264280-char per-post hard cap, script-enforced), Facebook (single 300-500 char post with body-inline link). One voice profile, per-platform register shifts (Twitter compressed; Facebook warmer; LinkedIn professional; first-comment voice-off and utilitarian). /blog-publish ships a signed post \u2014 the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
       "version": "0.14.1",
       "author": {
         "name": "MoxyWolf LLC"
@@ -92,7 +49,7 @@
     {
       "name": "academic-pipeline",
       "source": "./plugins/academic-pipeline",
-      "description": "End-to-end academic content pipeline: BibTeX theme mapping, perspective and voice capture, Academia.edu formatting, structure planning, iterative drafting, bibliography generation, and a 10-phase professor critique. Voice-first — voice and formatting are fixed before drafting, not retrofitted.",
+      "description": "End-to-end academic content pipeline: BibTeX theme mapping, perspective and voice capture, Academia.edu formatting, structure planning, iterative drafting, bibliography generation, and a 10-phase professor critique. Voice-first \u2014 voice and formatting are fixed before drafting, not retrofitted.",
       "version": "0.1.2",
       "author": {
         "name": "MoxyWolf LLC"
@@ -110,18 +67,21 @@
       ]
     },
     {
-      "name": "board-deck",
-      "source": "./plugins/board-deck",
-      "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Taskade, and GitHub data.",
-      "version": "0.3.2",
+      "name": "analytics",
+      "source": "./plugins/analytics",
+      "description": "MoxyWolf analytics plugin \u2014 read-only reporting across data sources, one command per source. Ships the google-analytics command (GA4 Data API via a service account) with generic traffic reports plus Lens-Test campaign reports: acquisition by channel, first-touch signup source, custom-dimension segment (e.g. RPO vs non-RPO), and a one-shot markdown scoreboard with week-over-week for the Friday read. Built to grow \u2014 Microsoft Clarity, Ahrefs, PostHog, and others can be added as their own commands. Credentials come from the environment, never hardcoded; GA4 covers the acquisition end while the conversion verdict stays in PostHog. v0.1.0.",
+      "version": "0.1.1",
       "author": {
         "name": "MoxyWolf LLC"
       },
-      "category": "reporting",
+      "category": "analytics",
       "keywords": [
-        "board-deck",
-        "pptx",
+        "analytics",
+        "ga4",
+        "google-analytics",
         "reporting",
+        "attribution",
+        "lens-test",
         "moxywolf"
       ]
     },
@@ -143,9 +103,25 @@
       ]
     },
     {
+      "name": "board-deck",
+      "source": "./plugins/board-deck",
+      "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Taskade, and GitHub data.",
+      "version": "0.3.2",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "reporting",
+      "keywords": [
+        "board-deck",
+        "pptx",
+        "reporting",
+        "moxywolf"
+      ]
+    },
+    {
       "name": "composio",
       "source": "./plugins/composio",
-      "description": "Composio integration for Cowork. Teaches Claude to use Composio's Tool Router — 1000+ app toolkits through a session-based MCP connector — for apps with no native connector. Native MCPs stay first; Composio is the reach layer.",
+      "description": "Composio integration for Cowork. Teaches Claude to use Composio's Tool Router \u2014 1000+ app toolkits through a session-based MCP connector \u2014 for apps with no native connector. Native MCPs stay first; Composio is the reach layer.",
       "version": "0.1.1",
       "author": {
         "name": "MoxyWolf LLC"
@@ -162,7 +138,7 @@
     {
       "name": "council",
       "source": "./plugins/council",
-      "description": "Multi-model AI deliberation with vault-aware institutional memory — structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
+      "description": "Multi-model AI deliberation with vault-aware institutional memory \u2014 structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
       "version": "0.7.4",
       "author": {
         "name": "MoxyWolf LLC"
@@ -214,9 +190,33 @@
       ]
     },
     {
+      "name": "document-analysis",
+      "source": "./plugins/document-analysis",
+      "description": "Document-to-Markdown ingestion front-end for the document-analysis pipeline. Wraps Microsoft MarkItDown (PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, EPub) with batch folder conversion that mirrors the input tree, YAML provenance frontmatter, a SHA-256 + settings manifest for idempotent re-runs (re-OCRs when --use-llm is added), a per-file timeout, per-file error isolation, and optional LLM image descriptions + embedded-image OCR via the team OpenRouter key. Runs in the Cowork sandbox; outputs default to the document-analysis repo's sources-md/ tree. Includes a documented (not-yet-wired) adoption reference for layout-faithful Azure Document Intelligence.",
+      "version": "0.1.5",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "markitdown",
+        "document-conversion",
+        "markdown",
+        "ingestion",
+        "pdf",
+        "docx",
+        "pptx",
+        "xlsx",
+        "ocr",
+        "glossary",
+        "lexicon",
+        "document-analysis"
+      ]
+    },
+    {
       "name": "editorial-forge",
       "source": "./plugins/editorial-forge",
-      "description": "Transform AI-generated content into author-owned work through structured editorial judgment, voice extraction, and Sorkin DOB narrative framing — with a complete authorship record.",
+      "description": "Transform AI-generated content into author-owned work through structured editorial judgment, voice extraction, and Sorkin DOB narrative framing \u2014 with a complete authorship record.",
       "version": "0.1.1",
       "author": {
         "name": "MoxyWolf LLC"
@@ -234,7 +234,7 @@
     {
       "name": "frontier-founder",
       "source": "./plugins/frontier-founder",
-      "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready, SEO/AEO-structured blog post — frontmatter with a meta-description excerpt, AEO structure (At a Glance, Key Takeaways, FAQ), a single @graph JSON-LD block (BlogPosting + Person + Organization + FAQPage) on the thefrontierfounder.com canonical, MoxyWolf typographic rules, a brand-aligned hero image, and slug-tied file naming, saved into the FrontierFounder repo. AEO thresholds defer to the canonical aeo-checklist in 4d-blog-engine.",
+      "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready, SEO/AEO-structured blog post \u2014 frontmatter with a meta-description excerpt, AEO structure (At a Glance, Key Takeaways, FAQ), a single @graph JSON-LD block (BlogPosting + Person + Organization + FAQPage) on the thefrontierfounder.com canonical, MoxyWolf typographic rules, a brand-aligned hero image, and slug-tied file naming, saved into the FrontierFounder repo. AEO thresholds defer to the canonical aeo-checklist in 4d-blog-engine.",
       "version": "0.2.1",
       "author": {
         "name": "MoxyWolf LLC"
@@ -246,6 +246,74 @@
         "markdown",
         "content",
         "hero-image"
+      ]
+    },
+    {
+      "name": "frontier-founder-smb",
+      "source": "./plugins/frontier-founder-smb",
+      "description": "Frontier Founder SMB (FFSMB) \u2014 pre-built small-business workflows on a modern indie-founder stack: Clarify AI CRM, Stripe payments, QuickBooks accounting, DocuSign, Gmail/Google, and claude.ai/design. Cash flow, month-end close, invoice chasing, weekly briefs, CRM upkeep, customer pulse, contract review, hiring, growth campaigns \u2014 with an approval gate on anything touching money or customers. A MoxyWolf public fork of Anthropic's Small Business plugin, re-homed off PayPal/HubSpot/Square/Canva. Companion to the Apollo plugin for B2B prospecting. v0.3.1: installable \u2014 all 31 skills migrated, design lane rewritten for claude.ai/design, connector manifest in place. Team-beta; a dogfood pass over the transformed money/CRM skills is recommended before public release.",
+      "version": "0.3.2",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "operations",
+      "keywords": [
+        "smb",
+        "small-business",
+        "finance",
+        "marketing",
+        "hr",
+        "operations",
+        "stripe",
+        "quickbooks",
+        "clarify",
+        "docusign",
+        "frontier-founder",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "github-repo-analyzer",
+      "source": "./plugins/github-repo-analyzer",
+      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the mandatory first step of deep analysis \u2014 corpus from the clone, runner protocol delegated to the graphify plugin's graphify-core skill \u2014 with keyless and plain-tree-walk fallbacks. Uses native GitHub MCP + gh CLI / REST.",
+      "version": "0.9.2",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "github",
+        "repo-analysis",
+        "prd",
+        "security-audit",
+        "cwe",
+        "owasp",
+        "issue-review",
+        "fix-verification",
+        "graphify"
+      ]
+    },
+    {
+      "name": "graphify",
+      "source": "./plugins/graphify",
+      "description": "Standalone graphify knowledge-graph runner with Obsidian integration. Graph any corpus \u2014 a code directory via /graphify, a Supabase database via /graphify-supabase (native --postgres introspection preferred, MCP corpus emit fallback), or the Obsidian vault itself via /graphify-vault (docs-first keyed flow). Obsidian-format exports land back in the MoxyWolf Vault (Projects/<project>/06-Engineering/graphs/ per project, _Shared Knowledge/Vault Graph/ vault-wide) so they cross-link with real notes. Hosts the canonical graphify-core runner protocol (team OpenRouter key per DR-010, two-pass AST-then-label sandbox-safe split, keyless fallback); github-repo-analyzer delegates its Step 0 here.",
+      "version": "0.2.2",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "graphify",
+        "knowledge-graph",
+        "code-graph",
+        "supabase",
+        "postgres",
+        "schema-graph",
+        "obsidian",
+        "vault",
+        "communities",
+        "god-nodes",
+        "architecture"
       ]
     },
     {
@@ -273,78 +341,50 @@
       ]
     },
     {
-      "name": "github-repo-analyzer",
-      "source": "./plugins/github-repo-analyzer",
-      "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the mandatory first step of deep analysis — corpus from the clone, runner protocol delegated to the graphify plugin's graphify-core skill — with keyless and plain-tree-walk fallbacks. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.9.2",
+      "name": "moxywolf-skills",
+      "source": "./skill-bundles/moxywolf-skills",
+      "description": "Bundle of 25 standalone skills used across MoxyWolf work \u2014 voice, brand, content ecosystems, plus the Anthropic-shipped reference skills, packaged as one installable plugin. (daily-ops moved out of the bundle in v1.1.0 \u2014 install the standalone plugin instead.)",
+      "version": "1.1.2",
       "author": {
         "name": "MoxyWolf LLC"
       },
-      "category": "engineering",
+      "category": "bundle",
       "keywords": [
-        "github",
-        "repo-analysis",
-        "prd",
-        "security-audit",
-        "cwe",
-        "owasp",
-        "issue-review",
-        "fix-verification",
-        "graphify"
+        "skills",
+        "bundle",
+        "moxywolf",
+        "voice",
+        "brand",
+        "writing",
+        "content"
       ]
     },
     {
-      "name": "graphify",
-      "source": "./plugins/graphify",
-      "description": "Standalone graphify knowledge-graph runner with Obsidian integration. Graph any corpus — a code directory via /graphify, a Supabase database via /graphify-supabase (native --postgres introspection preferred, MCP corpus emit fallback), or the Obsidian vault itself via /graphify-vault (docs-first keyed flow). Obsidian-format exports land back in the MoxyWolf Vault (Projects/<project>/06-Engineering/graphs/ per project, _Shared Knowledge/Vault Graph/ vault-wide) so they cross-link with real notes. Hosts the canonical graphify-core runner protocol (team OpenRouter key per DR-010, two-pass AST-then-label sandbox-safe split, keyless fallback); github-repo-analyzer delegates its Step 0 here.",
-      "version": "0.2.2",
+      "name": "obsidian-skills",
+      "source": "./plugins/obsidian-skills",
+      "description": "Steph Ango / Obsidian's five official agent skills vendored into the MoxyWolf marketplace so every team Mac gets consistent Obsidian fluency. Ships obsidian-markdown (proper wiki-link / callout / embed rendering), obsidian-bases (Obsidian's new Bases query syntax that replaced Dataview for most use cases), json-canvas (the JSON Canvas spec for visual boards), obsidian-cli (script-friendly Obsidian invocation), and defuddle (Defuddle HTML-to-Markdown cleanup for web clips). Upstream: kepano/obsidian-skills, Apache-2.0. v1.0.0.",
+      "version": "1.0.0",
       "author": {
-        "name": "MoxyWolf LLC"
+        "name": "Obsidian (vendored by MoxyWolf LLC)"
       },
-      "category": "engineering",
+      "category": "knowledge",
       "keywords": [
-        "graphify",
-        "knowledge-graph",
-        "code-graph",
-        "supabase",
-        "postgres",
-        "schema-graph",
         "obsidian",
         "vault",
-        "communities",
-        "god-nodes",
-        "architecture"
-      ]
-    },
-    {
-      "name": "document-analysis",
-      "source": "./plugins/document-analysis",
-      "description": "Document-to-Markdown ingestion front-end for the document-analysis pipeline. Wraps Microsoft MarkItDown (PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, EPub) with batch folder conversion that mirrors the input tree, YAML provenance frontmatter, a SHA-256 + settings manifest for idempotent re-runs (re-OCRs when --use-llm is added), a per-file timeout, per-file error isolation, and optional LLM image descriptions + embedded-image OCR via the team OpenRouter key. Runs in the Cowork sandbox; outputs default to the document-analysis repo's sources-md/ tree. Includes a documented (not-yet-wired) adoption reference for layout-faithful Azure Document Intelligence.",
-      "version": "0.1.5",
-      "author": {
-        "name": "MoxyWolf LLC"
-      },
-      "category": "engineering",
-      "keywords": [
-        "markitdown",
-        "document-conversion",
         "markdown",
-        "ingestion",
-        "pdf",
-        "docx",
-        "pptx",
-        "xlsx",
-        "ocr",
-        "glossary",
-        "lexicon",
-        "document-analysis"
+        "bases",
+        "canvas",
+        "cli",
+        "defuddle",
+        "kepano",
+        "moxywolf"
       ]
     },
     {
       "name": "obsidian-update",
       "source": "./plugins/obsidian-update",
-      "description": "Vault-native personal operating system with Council integration. Energy-aware daily ops, three-layer persistent memory, Kanban task management, and session knowledge extraction into the MoxyWolf Obsidian vault.",
-      "version": "2.6.0",
+      "description": "Vault-native personal operating system with Council integration. Energy-aware daily ops, three-layer persistent memory, Kanban task management, and session knowledge extraction into the MoxyWolf Obsidian vault. v2.7.0 adds Decision Record auto-routing: every DR write is classified by topic (engineering / GTM / brand / compliance / operating-norm / product / agents-and-plugins / personnel) and filed to the canonical folder, every DR is appended to the new Company Decision Log master index at _Shared Knowledge/Operating Norms/_INDEX.md, and project-scoped DRs also append to the project hub's <P> Decisions.md.",
+      "version": "2.7.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -357,6 +397,28 @@
         "council-integration",
         "progressive-disclosure",
         "claude-mem"
+      ]
+    },
+    {
+      "name": "ponytail",
+      "source": "./plugins/ponytail",
+      "description": "Horizontal restraint layer for coding work. An always-on 'lazy senior dev' ruleset injected every turn that runs a YAGNI ladder before the agent writes code (question whether it needs to exist, stdlib before custom, native before dependency, one line before fifty), never cutting validation, error handling, security, or accessibility. Ships the referenceable `ponytail` skill plus /ponytail (lite|full|ultra|off), /ponytail-review, /ponytail-audit, /ponytail-debt, /ponytail-gain, /ponytail-help. Vendored from DietrichGebert/ponytail (MIT) v4.8.3; pairs with gstack-execution (trim then harden) and dev-infrastructure-skills.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "ponytail",
+        "yagni",
+        "restraint",
+        "over-engineering",
+        "anti-slop",
+        "lazy",
+        "code-review",
+        "minimal",
+        "gstack",
+        "moxywolf"
       ]
     },
     {
@@ -382,7 +444,7 @@
     {
       "name": "project-init",
       "source": "./plugins/project-init",
-      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project scaffolds tailored Project Instructions. /session-start auto-resolves the project — explicit argument, then launch directory, then the most recently active project, never a picker — mounts the three standard roots, reads the previous session's handoff (cross-checked against current team-shared memory so stale procedural reminders get flagged STALE rather than silently propagated), reads Taskade/_Shared Files/_shared-memory/INDEX.md and surfaces it as a 'Team-shared rules in effect' briefing section, and probes the team-shared OpenRouter key (DR-010). /session-end asks who authored the handoff and whether it's a baton-pass, writes the canonical handoff with `author` / `for` frontmatter, requires every general behavioral reminder in the procedural-reminders section to cite a currently-existing team-shared memory file (or be tagged session-specific), supports --author / --handoff-to / --solo, refreshes each writable repo's README.md, then runs /obsidian-update. /init-project saves the full instructions on disk as the single source of truth and pastes only a thin loader stub (mounts + file-write-path override + read-the-file-first imperative) into Cowork settings, so the embedded copy never drifts out of sync with the on-disk file (DR-010). The stub skeleton and on-disk reconciliation directives live in a vault spec that both /init-project and /refresh-project-instructions read at run time, so changing a project-instruction rule is a vault edit plus a per-project /refresh-project-instructions run, never a plugin update.",
+      "description": "Cowork project lifecycle for MoxyWolf projects. /init-project scaffolds tailored Project Instructions. /session-start auto-resolves the project \u2014 explicit argument, then launch directory, then the most recently active project, never a picker \u2014 mounts the three standard roots, reads the previous session's handoff (cross-checked against current team-shared memory so stale procedural reminders get flagged STALE rather than silently propagated), reads Taskade/_Shared Files/_shared-memory/INDEX.md and surfaces it as a 'Team-shared rules in effect' briefing section, and probes the team-shared OpenRouter key (DR-010). /session-end asks who authored the handoff and whether it's a baton-pass, writes the canonical handoff with `author` / `for` frontmatter, requires every general behavioral reminder in the procedural-reminders section to cite a currently-existing team-shared memory file (or be tagged session-specific), supports --author / --handoff-to / --solo, refreshes each writable repo's README.md, then runs /obsidian-update. /init-project saves the full instructions on disk as the single source of truth and pastes only a thin loader stub (mounts + file-write-path override + read-the-file-first imperative) into Cowork settings, so the embedded copy never drifts out of sync with the on-disk file (DR-010). The stub skeleton and on-disk reconciliation directives live in a vault spec that both /init-project and /refresh-project-instructions read at run time, so changing a project-instruction rule is a vault edit plus a per-project /refresh-project-instructions run, never a plugin update.",
       "version": "0.19.0",
       "author": {
         "name": "MoxyWolf LLC"
@@ -457,61 +519,9 @@
       ]
     },
     {
-      "name": "team-kanban",
-      "source": "./plugins/team-kanban",
-      "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into a team-visible Slack Canvas kanban board with dual-authority completion and automatic sync-back.",
-      "version": "0.4.3",
-      "author": {
-        "name": "MoxyWolf LLC"
-      },
-      "category": "productivity",
-      "keywords": [
-        "kanban",
-        "slack",
-        "team",
-        "tasks",
-        "obsidian"
-      ]
-    },
-    {
-      "name": "vtt-to-text",
-      "source": "./plugins/vtt-to-text",
-      "description": "Converts pasted WebVTT closed-caption content into clean, readable text. Strips timestamps, merges into flowing paragraphs.",
-      "version": "0.1.1",
-      "author": {
-        "name": "Dorian Cougias"
-      },
-      "category": "content",
-      "keywords": [
-        "vtt",
-        "captions",
-        "transcription",
-        "text"
-      ]
-    },
-    {
-      "name": "moxywolf-skills",
-      "source": "./skill-bundles/moxywolf-skills",
-      "description": "Bundle of 25 standalone skills used across MoxyWolf work — voice, brand, content ecosystems, plus the Anthropic-shipped reference skills, packaged as one installable plugin. (daily-ops moved out of the bundle in v1.1.0 — install the standalone plugin instead.)",
-      "version": "1.1.2",
-      "author": {
-        "name": "MoxyWolf LLC"
-      },
-      "category": "bundle",
-      "keywords": [
-        "skills",
-        "bundle",
-        "moxywolf",
-        "voice",
-        "brand",
-        "writing",
-        "content"
-      ]
-    },
-    {
       "name": "synergy-engine",
       "source": "./plugins/synergy-engine",
-      "description": "Topic-Synergy Outreach Engine — find the people writing about your topics (and the people you cited) and reach them without pitching. Builds a topic fingerprint from your own content, then runs THREE discovery centers. AUTHOR center (named profiles via Apify harvestapi/linkedin-profile-posts) and CONTENT center (keyword/hashtag search via Apify harvestapi/linkedin-post-search) are comment-first, starting from who's posting; discovered posts are scored against the fingerprint, deduped against an xlsx tracker, and queued, then /synergy-run executes the comment-first decision tree (like + a practitioner comment, the cite-then-tell lever, and a connection note) with a hard human gate and a guard against the LinkedIn 'Post as' identity selector. The new CITATION center starts from who you cited: /synergy-cite-harvest parses your paper's bibliography, triages by reachability, resolves authors via OpenAlex/ORCID, dedups against Clarify, enriches person + org via Apollo (LinkedIn-first match + a verify gate against wrong-person matches), verifies LinkedIn identity via Apify, and drafts a 'we cited you' email + a hook-free connect note into a citation registry; /synergy-cite-run sends email first (Mailtrap as you, BCC you) then the LinkedIn connect, with the hard-won send discipline (type the note in separate click+type calls to beat the focus-race truncation bug, zoom-verify the note's start and end before Send, 2nd/3rd/high-follower button geography, the email-verification gate, never withdraw to re-send); /synergy-cite-accept-check follows through on accepted invites. /synergy-schedule stands up an every-other-day prep task. Cadence + guardrails baked in: comment same-day/connect later, the ~20-25/day LinkedIn connect ceiling, cite-don't-pitch, voice (no em-dashes, contractions, practitioner register), verified citations only. The plugin never auto-sends. v0.2.0.",
+      "description": "Topic-Synergy Outreach Engine \u2014 find the people writing about your topics (and the people you cited) and reach them without pitching. Builds a topic fingerprint from your own content, then runs THREE discovery centers. AUTHOR center (named profiles via Apify harvestapi/linkedin-profile-posts) and CONTENT center (keyword/hashtag search via Apify harvestapi/linkedin-post-search) are comment-first, starting from who's posting; discovered posts are scored against the fingerprint, deduped against an xlsx tracker, and queued, then /synergy-run executes the comment-first decision tree (like + a practitioner comment, the cite-then-tell lever, and a connection note) with a hard human gate and a guard against the LinkedIn 'Post as' identity selector. The new CITATION center starts from who you cited: /synergy-cite-harvest parses your paper's bibliography, triages by reachability, resolves authors via OpenAlex/ORCID, dedups against Clarify, enriches person + org via Apollo (LinkedIn-first match + a verify gate against wrong-person matches), verifies LinkedIn identity via Apify, and drafts a 'we cited you' email + a hook-free connect note into a citation registry; /synergy-cite-run sends email first (Mailtrap as you, BCC you) then the LinkedIn connect, with the hard-won send discipline (type the note in separate click+type calls to beat the focus-race truncation bug, zoom-verify the note's start and end before Send, 2nd/3rd/high-follower button geography, the email-verification gate, never withdraw to re-send); /synergy-cite-accept-check follows through on accepted invites. /synergy-schedule stands up an every-other-day prep task. Cadence + guardrails baked in: comment same-day/connect later, the ~20-25/day LinkedIn connect ceiling, cite-don't-pitch, voice (no em-dashes, contractions, practitioner register), verified citations only. The plugin never auto-sends. v0.2.0.",
       "version": "0.2.0",
       "author": {
         "name": "MoxyWolf LLC"
@@ -539,31 +549,26 @@
       ]
     },
     {
-      "name": "ponytail",
-      "source": "./plugins/ponytail",
-      "description": "Horizontal restraint layer for coding work. An always-on 'lazy senior dev' ruleset injected every turn that runs a YAGNI ladder before the agent writes code (question whether it needs to exist, stdlib before custom, native before dependency, one line before fifty), never cutting validation, error handling, security, or accessibility. Ships the referenceable `ponytail` skill plus /ponytail (lite|full|ultra|off), /ponytail-review, /ponytail-audit, /ponytail-debt, /ponytail-gain, /ponytail-help. Vendored from DietrichGebert/ponytail (MIT) v4.8.3; pairs with gstack-execution (trim then harden) and dev-infrastructure-skills.",
-      "version": "0.1.0",
+      "name": "team-kanban",
+      "source": "./plugins/team-kanban",
+      "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into a team-visible Slack Canvas kanban board with dual-authority completion and automatic sync-back.",
+      "version": "0.4.3",
       "author": {
         "name": "MoxyWolf LLC"
       },
-      "category": "engineering",
+      "category": "productivity",
       "keywords": [
-        "ponytail",
-        "yagni",
-        "restraint",
-        "over-engineering",
-        "anti-slop",
-        "lazy",
-        "code-review",
-        "minimal",
-        "gstack",
-        "moxywolf"
+        "kanban",
+        "slack",
+        "team",
+        "tasks",
+        "obsidian"
       ]
     },
     {
       "name": "understand-anything",
       "source": "./plugins/understand-anything",
-      "description": "Pointer to Understand-Anything (Egonex-AI, MIT) — a multi-agent pipeline that turns a codebase into an interactive knowledge graph with guided tours, semantic search, diff-impact analysis, and an onboarding dashboard. Its analysis core is a TypeScript + native tree-sitter build, so it is installed upstream rather than re-homed into this markdown marketplace (same posture as not re-homing claude-mem's runtime). This entry documents what it does, when to reach for it vs. graphify / github-repo-analyzer, and the one-line install. A full native vendor is a follow-up decision (DR-011).",
+      "description": "Pointer to Understand-Anything (Egonex-AI, MIT) \u2014 a multi-agent pipeline that turns a codebase into an interactive knowledge graph with guided tours, semantic search, diff-impact analysis, and an onboarding dashboard. Its analysis core is a TypeScript + native tree-sitter build, so it is installed upstream rather than re-homed into this markdown marketplace (same posture as not re-homing claude-mem's runtime). This entry documents what it does, when to reach for it vs. graphify / github-repo-analyzer, and the one-line install. A full native vendor is a follow-up decision (DR-011).",
       "version": "0.1.0",
       "author": {
         "name": "MoxyWolf LLC"
@@ -578,6 +583,61 @@
         "pointer",
         "understand-anything",
         "moxywolf"
+      ]
+    },
+    {
+      "name": "vault-code-learn",
+      "source": "./plugins/vault-code-learn",
+      "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under ~/Documents/GitHub/, extracts a durable pattern digest \u2014 tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, file-layout idioms, frequent imports, and what the repo intentionally does NOT use \u2014 and writes one digest per repo to MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md. Incremental: only files modified since the digest's last-learned timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Auto-invoked by /session-start; manual trigger via /code-learn <repo> | --project <slug> | --all. v0.1.0.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "knowledge",
+      "keywords": [
+        "code",
+        "learning",
+        "patterns",
+        "obsidian",
+        "vault",
+        "session-start",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "vault-skills",
+      "source": "./plugins/vault-skills",
+      "description": "Six vault-* workflow skills vendored from az9713/claude-code-obsidian. Companion to obsidian-skills (kepano's foundational five) \u2014 those handle the file formats, these run the daily vault workflows: vault-capture (quick-drop into _inbox/), vault-save (structured save to the right folder), vault-journal (Daily Journal/YYYY-MM-DD.md authoring), vault-synthesize (multi-note synthesis with citations), vault-moc (Map-of-Content authoring), vault-health (orphan / broken-link / stale-tag audits). v1.0.0.",
+      "version": "1.0.0",
+      "author": {
+        "name": "az9713 (vendored by MoxyWolf LLC)"
+      },
+      "category": "knowledge",
+      "keywords": [
+        "obsidian",
+        "vault",
+        "capture",
+        "journal",
+        "synthesize",
+        "moc",
+        "vault-health",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "vtt-to-text",
+      "source": "./plugins/vtt-to-text",
+      "description": "Converts pasted WebVTT closed-caption content into clean, readable text. Strips timestamps, merges into flowing paragraphs.",
+      "version": "0.1.1",
+      "author": {
+        "name": "Dorian Cougias"
+      },
+      "category": "content",
+      "keywords": [
+        "vtt",
+        "captions",
+        "transcription",
+        "text"
       ]
     }
   ]

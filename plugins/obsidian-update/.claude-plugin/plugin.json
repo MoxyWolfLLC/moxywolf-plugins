@@ -1,7 +1,7 @@
 {
   "name": "obsidian-update",
-  "version": "2.6.0",
-  "description": "Vault-native personal operating system with Council integration. Combines energy-aware daily ops, three-layer persistent memory, Kanban task management, session knowledge extraction, Slack Canvas team completions harvest, and bidirectional Council deliberation verification — all persisted to the MoxyWolf Obsidian vault on Google Drive.",
+  "version": "2.7.0",
+  "description": "Vault-native personal operating system with Council integration. Combines energy-aware daily ops, three-layer persistent memory, Kanban task management, session knowledge extraction, Slack Canvas team completions harvest, and bidirectional Council deliberation verification — all persisted to the MoxyWolf Obsidian vault on Google Drive. v2.7.0 adds Decision Record auto-routing: every DR write is classified by topic (engineering / GTM / brand / compliance / operating-norm / product / agents-and-plugins / personnel) and filed to the canonical folder, every DR is appended to the new Company Decision Log master index at _Shared Knowledge/Operating Norms/_INDEX.md, and project-scoped DRs also append to the project hub's <P> Decisions.md — see references/dr-auto-routing.md.",
   "author": {
     "name": "MoxyWolf LLC"
   },
