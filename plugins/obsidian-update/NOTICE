@@ -1,0 +1,15 @@
+obsidian-update
+===============
+
+The MEMORY SEARCH operation in skills/memory-system/SKILL.md uses a
+3-layer progressive-disclosure retrieval pattern (index -> timeline ->
+fetch) and an as-it-happens capture principle that were concept-ported
+from:
+
+  claude-mem — https://github.com/thedotmack/claude-mem
+  Copyright Alex Newman, Apache License 2.0 (licenses/claude-mem-Apache-2.0.txt)
+
+Only the ideas were adapted to MoxyWolf's vault-native memory. claude-mem's
+runtime (Bun worker, SQLite, Chroma vector DB, MCP server) and its token
+references were NOT vendored — the MoxyWolf vault remains the single source
+of truth for memory (DR-011).

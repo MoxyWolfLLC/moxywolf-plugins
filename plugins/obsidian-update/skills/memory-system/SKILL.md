@@ -213,17 +213,27 @@ Replaces the old "Update Knowledge Graph" operation. Called during nightly extra
 
 Called when Dorian asks "what do you know about X?"
 
-**Process:**
-1. Search `${VAULT}/_System/MEMORY.md` for keyword matches (case-insensitive)
-2. Search `${VAULT}/Daily Journal/` (last 30 days) for keyword matches
-3. Search `${VAULT}/Projects/` and `${VAULT}/_Shared Knowledge/` for keyword matches
-4. Read matching files for full context
-5. Compile results with source attribution:
+Use the **3-layer progressive-disclosure pattern** (concept-ported from claude-mem, Apache-2.0): filter on a cheap index first, fetch full content only for the survivors. On a large vault this is ~10x cheaper than reading every matching file, and it keeps irrelevant note bodies out of context.
+
+**Layer 1 — Index (cheap, always run first).** Grep for keyword matches across the four sources and build a compact index — one line per hit: `path:line — <~12-word snippet>`. Do NOT read full files yet.
+1. `${VAULT}/_System/MEMORY.md` (case-insensitive)
+2. `${VAULT}/Daily Journal/` (last 30 days)
+3. `${VAULT}/Projects/` and `${VAULT}/_Shared Knowledge/`
+4. `${VAULT}/People/`
+
+Show the index and let the strongest 3-8 hits be identified (by Dorian, or by relevance if the answer is obvious).
+
+**Layer 2 — Timeline (context around a hit).** For an interesting Daily-Journal or decision hit, pull the chronological neighbours — the entries just before/after, or the `[[wikilinks]]` the note points at — so the hit is read in context, not in isolation. Still snippets, not full bodies.
+
+**Layer 3 — Fetch (expensive, filtered).** Read the FULL content only for the filtered set from Layers 1-2. Compile with source attribution:
    - "[From MEMORY.md]" — tacit knowledge
    - "[From Daily Journal YYYY-MM-DD]" — specific date context
    - "[From Projects/SAMS/11-Knowledge/note-name]" — project knowledge
    - "[From People/Brian Kelley]" — contact knowledge
-6. Return compiled results to user
+
+Return the compiled results. The rule: never fetch a full note body until the index has filtered it in.
+
+**Capture principle (also from claude-mem).** Durable observations are worth capturing as they happen, not only at session-end — when a non-trivial decision, fix, or fact lands mid-session, write it to the daily note's relevant section right then, so the index above has it to find later. Session-end extraction (the `/obsidian-update` flow) remains the backstop, not the only capture point.
 
 ---
 

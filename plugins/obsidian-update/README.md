@@ -83,3 +83,7 @@ For apps with no native MCP connector, this plugin can reach them through Compos
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
 External sends require a named approver before anything leaves the vault.
+
+## Concept-ported from claude-mem
+
+The memory search uses a 3-layer progressive-disclosure pattern (index → timeline → fetch) and an as-it-happens capture principle concept-ported from [claude-mem](https://github.com/thedotmack/claude-mem) (Apache-2.0, © Alex Newman). Only the ideas were adapted; claude-mem's Bun/SQLite/Chroma runtime and token were not vendored. See `NOTICE`.
