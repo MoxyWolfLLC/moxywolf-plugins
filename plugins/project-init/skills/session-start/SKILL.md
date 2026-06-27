@@ -109,7 +109,12 @@ b. **Project task board (project-scoped, dual-source)** — Surface only tasks t
 
    The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero lines match, write "no kanban items tagged for this project" on one line and move on. A global board can only be made safe by showing a task *only* when it is positively tagged for the resolved project; that fail-closed rule is the entire point of this step.
 
-c. **Recent decision records** — Search the project's folder structure (Taskade subfolder + the project's `MoxyWolf Vault/Projects/[PROJECT_NAME]/` mirror, if it exists) for files matching `DR-*.md` modified in the last 14 days. Extract the title and one-line summary from each file's frontmatter. Cap at 5 items.
+c. **Project map (MOC) + recent decision records** — The durable front door to a project is its vault Map of Content; the recent-DR list is the fresh slice on top of it. Read both.
+
+   First resolve the **vault project folder**, which may not match the Taskade project name (e.g. Taskade `Team Plugins` ↔ vault `Moxywolf Plugins`). If a `project-memory.md` pointer exists in the Taskade `00 – Project Hub/`, read it — it names the vault folder and the MOC path. Otherwise match `MoxyWolf Vault/Projects/<name>/` by best name match. Record the mapping if it isn't 1:1.
+
+   - **MOC index** — read `MoxyWolf Vault/Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md`. Capture what the project is (one line) plus its newest 2-3 Recent Activity entries. If it doesn't exist yet, note "no MOC index yet" and continue.
+   - **Recent decision records** — search the vault project folder (and the Taskade subfolder) for `DR-*.md` modified in the last 14 days; title + one-line summary from each frontmatter, cap at 5 items.
 
 d. **Open GitHub PRs and recent issues** — For each repo in the parsed GitHub repo list, query the GitHub MCP for:
    - All open PRs (title, author, last-updated)
@@ -193,6 +198,12 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - Kanban P1: …
 - Kanban Waiting: …
 [If the Kanban Scope was inferred or undeclared, add the one-line "Kanban Scope not declared…" warning here. If it is `none`, write "this project declares no kanban scope" here instead.]
+
+**Project map** (durable front door)
+- MOC: `Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md` — [one line: what the project is, from the MOC]. Open it for the full map, or ask "what do we know about X here?" for a scoped memory search.
+- Latest: [top 2-3 Recent Activity highlights from the MOC]
+[If a Taskade `project-memory.md` pointer was found, add: "- Memory pointer present in the Taskade hub."]
+[If no MOC index exists yet, replace this whole block with: "**Project map** — _(no MOC index yet in 00-Hub — consider creating one)_".]
 
 **Recent decisions (last 14 days)**
 - [DR title] — [one-line summary]
