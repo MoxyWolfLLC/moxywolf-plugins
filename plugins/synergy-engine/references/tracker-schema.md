@@ -21,7 +21,7 @@ One xlsx workbook, sheet `Outreach Tracker`, one row per target. Created by `scr
 | H | Liked | Yes / No |
 | I | Commented | Yes + date |
 | J | Comment / engagement summary | one-line on the post + our angle |
-| K | Cited URL | the answer page / anchor-paper URL cited (Path A / GA) |
+| K | Cited /answers URL | the answer page / anchor-paper URL cited (Path A / GA) |
 | L | Connect / DM | status + date |
 | M | Status | see below |
 | N | Next Action | the exact next move (for Queued rows, include the post URL to engage) |
@@ -42,4 +42,4 @@ Green = High, yellow = Medium, orange = Low, grey = Cold/Parked. Queued rows get
 
 ## Citation center
 
-The citation center (`/synergy-cite-harvest`) keeps its detail in a separate, richer **citation registry** workbook (`references/citation-registry-schema.md`) because cited-author records carry ORCID, affiliation, enrichment, LinkedIn-confidence, and draft-email fields this 16-column tracker doesn't. Harvest still appends a light queue row here per ready-to-send person (`Persona = Citation`, `Path = cited`, `Cited URL` = the anchor paper) so `/synergy-status` shows all three centers in one view. The registry is the source of truth for the citation center; this tracker is the cross-center queue.
+The citation center (`/synergy-cite-harvest`) keeps its detail in a separate, richer **citation registry** workbook (`references/citation-registry-schema.md`) because cited-author records carry ORCID, affiliation, enrichment, LinkedIn-confidence, and draft-email fields this 16-column tracker doesn't. Harvest still appends a light queue row here per ready-to-send person (`Persona = Citation`, `Path = cited`, `Cited /answers URL` = the anchor paper) so `/synergy-status` shows all three centers in one view. The registry is the source of truth for the citation center; this tracker is the cross-center queue.

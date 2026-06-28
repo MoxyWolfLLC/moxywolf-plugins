@@ -13,3 +13,6 @@ __pycache__/
 
 # graphify derived artifact — regenerate, do not commit (DR-005)
 graphify-out/
+
+# Synergy Engine prep loop runtime state
+plugins/synergy-engine/.loop-state/

@@ -8,7 +8,7 @@ Requires openpyxl (pip install openpyxl --break-system-packages).
 import argparse, os, sys
 
 HEADERS = ["Target","Persona","Tier","Path","Synergy","LinkedIn Profile","Last Touch",
-           "Liked","Commented","Comment / engagement summary","Cited URL",
+           "Liked","Commented","Comment / engagement summary","Cited /answers URL",
            "Connect / DM","Status","Next Action","Next Action Date","Notes"]
 
 LEGEND = [

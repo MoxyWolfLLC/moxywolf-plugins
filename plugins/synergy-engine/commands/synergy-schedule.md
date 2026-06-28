@@ -1,21 +1,47 @@
 ---
-description: Stand up an every-other-day prep task that stages N due targets as review-ready drafts and books a calendar block. Never posts.
+description: "[DEPRECATED] Use /synergy-loop-start instead. Kept for backward compatibility — redirects."
 argument-hint: "[N per run, default 5] [window, e.g. 1-3pm PT]"
-allowed-tools: [Read, Bash, AskUserQuestion, mcp__scheduled-tasks__create_scheduled_task, mcp__1be1916d-cb9d-4355-9832-c5b1b6332416__create_event]
+allowed-tools: [Read, AskUserQuestion]
 ---
 
-# /synergy-engine:synergy-schedule — automate the prep, not the posting
+# /synergy-engine:synergy-schedule — DEPRECATED
 
-Create a scheduled task that does the **unattended** half of the cycle: pick due targets from the tracker, sweep their freshest on-theme post, draft the like/comment (+ connect + citation), log them as `Ready for review`, and book a calendar block. **It never posts** — comments and connects go out under the user's name through their browser, so a human approves and posts at the calendar block.
+> **This command is deprecated.** It set up a cron task that ran the prep half of the synergy cycle but had no durable state, no verifier, no bounds, and no goal-met detection. If a run failed mid-flight, the next cron fire would start over blind. If the scheduled prompt drifted from the tracker schema, nothing caught it.
+>
+> The replacement is **`/synergy-loop-start`**, which initializes a bounded loop with:
+>
+> - **Durable state** (`plugins/synergy-engine/.loop-state/<project>/state.json`) — survives crashes, partial runs, and session restarts.
+> - **A verifier** (`loop_verify.py`) that runs every tick and checks tracker integrity, schema validity, citation health, the human-gate columns, the quota envelope, the calendar block, and a progress signal.
+> - **Hard bounds** — explicit `--budget` (USD cap), daily draft cap, max retries. The loop halts itself when bounds are breached.
+> - **Goal-met exit** — the loop stops cleanly when the batch is `Ready for review` AND the calendar block is booked. No infinite ticking.
+> - **A status view** (`/synergy-loop-status <project>`) that shows the heartbeat without advancing the loop.
 
-## STEP 1 — Parameters
+## What to do instead
 
-From the argument or AskUserQuestion: N per run (default 5), the calendar window (default 1-3pm PT), cadence (default every other day). Confirm the tracker path from `synergy-engine-config.md`.
+```text
+/synergy-engine:synergy-loop-start <project> --budget 5 --window "1-3pm PT" --daily-cap 5
+```
 
-## STEP 2 — Create the task
+That single command:
 
-`mcp__scheduled-tasks__create_scheduled_task` with a cron in the user's local time (e.g. `0 13 */2 * *` = 1pm every other day). The prompt must be fully self-contained (fresh session, no memory): include the tracker path discovery, the due-target rule, the Apify actor for the freshest post, the fingerprint scoring, the drafting rules (Path A/B + cite-then-tell, verified citations, voice), the instruction to write drafts into the tracker as `Ready for review` (NOT to flip Liked/Commented), and to book a Google Calendar event in the window titled "Review <project> outreach batch (N drafts)" with the drafts in the description and a line like "Open Cowork and say 'run the synergy batch' to approve and post." End with: never post/like/comment/connect autonomously; citations verified; tracker is dedupe + source of truth.
+1. Bootstraps `state.json` for the project.
+2. Runs the first plan tick and writes `next_step.json`.
+3. Registers the recurring cron for `/synergy-loop-tick`.
 
-## STEP 3 — Report + pre-approve
+Then monitor with:
 
-Confirm the schedule and next run. Recommend the user click "Run now" once to pre-approve the tools the task uses (Apify, Calendar, file writes) so future unattended runs don't pause on permission prompts. Note: the first run may stage a batch the same day — that's drafts only, safe to ignore.
+```text
+/synergy-engine:synergy-loop-status <project>
+```
+
+## STEP 1 — Redirect
+
+If a user invokes `/synergy-schedule`, do not run the legacy logic. Instead:
+
+1. Print the deprecation notice above.
+2. Ask via AskUserQuestion: "Run `/synergy-loop-start` now with the same parameters?" with options "Yes — start the loop", "No — show me the new docs first".
+3. If yes, route to `/synergy-engine:synergy-loop-start <project> --budget <ask-or-default-5> --window <window> --daily-cap <N>`.
+
+## Why this changed
+
+The original `/synergy-schedule` was a thin wrapper over the scheduled-tasks MCP. It worked for the happy path but had no way to recover from drift or partial failure. Loop engineering (verifier + bounds + state + goal exit) is the durable answer. See `references/loop-contract.md` for the column-ownership contract and the seven verifier checks.
