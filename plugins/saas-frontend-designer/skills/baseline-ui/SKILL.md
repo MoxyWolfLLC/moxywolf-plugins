@@ -220,6 +220,10 @@ Deeper craft references (redistributed from impeccable, Apache-2.0) live in `ref
 - `reference/distill.md` — strip to essence
 - `reference/bolder.md` / `reference/quieter.md` — dial a design up or down
 
+## Anti-slop inference (design-taste)
+
+This pipeline is the polish half. The intent half lives in the `design-taste` skill: the Design Read, the three dials, the anti-default discipline, and the em-dash ban. On a redesign, run `design-taste` to set direction, then this pipeline to raise the quality floor. The em-dash ban applies to every string either skill emits.
+
 ## Restraint layer (ponytail)
 
 Restraint pairs with taste here: cut over-built markup while raising visual quality. See the `ponytail` skill — the YAGNI ladder (does it need to exist; stdlib before custom; native before dependency; one line before fifty), never cutting validation, error handling, security, or accessibility.

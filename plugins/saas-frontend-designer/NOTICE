@@ -19,3 +19,23 @@ section 4(b), modified files are marked as changed).
 
 What was NOT taken: impeccable's live-browser runtime, scripts, hooks,
 standalone plugin shell, site, CLI, and extension.
+
+---
+
+This plugin also includes anti-slop design-inference material adapted from:
+
+  taste-skill — https://github.com/Leonxlnx/taste-skill
+  Copyright (c) 2026 Leonxlnx
+  Licensed under the MIT License.
+
+The full MIT license text is in licenses/taste-skill-MIT.txt.
+
+What was taken: the skills/design-taste/SKILL.md gate adapts taste-skill's
+Design Read brief-inference, the three dials (DESIGN_VARIANCE / MOTION_INTENSITY
+/ VISUAL_DENSITY) with dial inference, the anti-default discipline, and the
+em-dash ban. The file is marked as MoxyWolf-adapted at its top.
+
+What was NOT taken: taste-skill's aesthetic-preset skills (minimalist, soft,
+brutalist), its redesign and full-output skills, its Stitch and Codex image-to-code
+skills, and its image-generation skills (imagegen-web, imagegen-mobile, brandkit).
+Those duplicate existing saas-frontend-designer skills or fall outside its scope.

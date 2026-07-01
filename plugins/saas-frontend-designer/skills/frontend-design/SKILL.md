@@ -27,6 +27,8 @@ Generate production-ready Next.js + React + Tailwind + shadcn/ui interfaces for 
 
 ## Design Direction Process
 
+> **Anti-slop gate**: before these five questions, run the `design-taste` skill to declare the Design Read and set the three dials (`DESIGN_VARIANCE` / `MOTION_INTENSITY` / `VISUAL_DENSITY`). It is the intent gate that keeps this generation step off the LLM defaults; the em-dash ban it carries applies to every string you output here.
+
 Before writing any code, establish design direction by answering these five questions:
 
 1. **What type of page?** SaaS dashboard, marketing landing, settings/admin, onboarding flow, or data-heavy table view
