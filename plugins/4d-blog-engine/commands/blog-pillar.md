@@ -37,9 +37,17 @@ This is the same list STEP 1.5 shows for "existing pillar."
 3. Ask for the **hub term** — the key phrase whose first mention in any spoke
    auto-links to the hub (e.g. "AI fluency", "multi-lensatic methodology"). This
    drives the spoke→hub auto-link rule.
+3.5. Ask for the **why** — the pillar's belief statement, one sentence, "We
+   believe …". This is the Golden Circle anchor (Sinek): the cause every spoke
+   on this pillar argues for. **Reject and re-ask if** it names a product or
+   feature, states a goal ("we believe in helping X do Y"), or nobody could
+   reasonably disagree with it. If the property has a brand belief file
+   (`MoxyWolf Vault/_Shared Knowledge/Brand and Voice/belief-<property>.md`),
+   read it first and propose a derivation the writer can accept or refine.
+   Record it in the linking map's `why:` frontmatter field.
 4. Copy `references/linking-map-template.md` into
    `<repo>/<linking_map_dir>/<pillar_slug>.md` and fill the frontmatter +
-   "The hub" section. Set `hub_status: planned`, `hub_owner` (ask).
+   "The why" + "The hub" sections. Set `hub_status: planned`, `hub_owner` (ask).
 5. **Register the hub term in the shared map** — this is what actually makes the
    link fire, across every property. Add a `HubLink` entry to
    `GitHub/hub-links/src/map.ts`:
@@ -60,7 +68,9 @@ This command owns the linking map; the hub page is built per target.
 
 Open `<linking_map_dir>/<pillar-slug>.md` and apply the requested change: add a
 spoke to the inventory, add an on-site internal link, promote a spoke into the
-hub's "Related reading," update `hub_status`, or revise anchor-text guidance.
+hub's "Related reading," update `hub_status`, revise anchor-text guidance, or
+set/revise the `why:` belief statement (apply the step-3.5 validity rules; older
+maps predating the field get it added on first edit).
 Bump the frontmatter `updated` date. Keep the section order intact — the engine
 parses by heading.
 

@@ -142,13 +142,20 @@ BLOCKING: {{ true | false }} ({{ one-line reason }})
 
 ## What the Release Owner does by hand (after the rubric passes)
 
-The rubric is necessary but not sufficient. After `BLOCKING: false`, the Release Owner — a named human, rotating weekly through the three most senior people who already know the domain — performs the whitepaper's three checks:
+The rubric is necessary but not sufficient. After `BLOCKING: false`, the Release Owner — a named human, rotating weekly through the three most senior people who already know the domain — performs the whitepaper's three checks, plus the Celery Test when the piece's pillar declares a `why:`:
 
 1. **Is every claim grounded?** Take the three highest-leverage claims (from the reviewer's "Three highest-leverage claims" block) and trace each one back to its source or to an explicit policy. If any can't be traced, gate fails.
 2. **Does it sound like us?** Read the first 200 words and the last 200 words aloud. If the voice drifts in the middle 80%, gate fails. The whitepaper specifically calls out "personality only in the bookends" as the most common drift pattern.
 3. **Would I send this with my own name on it?** If no, gate fails. No verbal override.
+4. **The Celery Test** (Sinek) — runs only when the piece's `state.md` carries a
+   `pillar_why`. Read the pillar's belief statement, then ask: does the post open
+   from the WHY (belief or its villain, before any product/artifact mention), and
+   does every claim in the body align with it? A single passage that contradicts
+   the declared belief fails the gate — inconsistency between stated WHY and
+   shipped WHAT is exactly what the test exists to catch. Pieces on pillars
+   predating the `why:` field skip this check (note the skip in the sign-off).
 
-If all three answers hold, the Release Owner writes the sign-off line into `changelog.md`:
+If the applicable answers hold, the Release Owner writes the sign-off line into `changelog.md`:
 
 ```
 Verified — {{ initials }}, {{ YYYY-MM-DD }}

@@ -21,6 +21,7 @@ engine parses by heading.
 ---
 pillar_slug: <kebab-slug>
 pillar_title: "<Pillar title>"
+why: "We believe <one-sentence belief this pillar exists to argue — a cause, not a capability>"
 target: <target-key>                  # e.g. frontier-founder
 hub_url: <canonical hub page URL>     # e.g. https://thefrontierfounder.com/ai-fluency-for-founders
 hub_term: "<key term that auto-links to the hub>"   # e.g. "AI fluency" — MUST be registered in hub-links/src/map.ts (via /blog-term or /blog-pillar) or it never links
@@ -31,6 +32,25 @@ created: <YYYY-MM-DD>
 updated: <YYYY-MM-DD>
 ---
 ```
+
+## The why
+
+`<why>` is the pillar's belief statement — the cause every spoke on this pillar is
+evidence for (Sinek's Golden Circle: WHY → HOW → WHAT, communicated inside-out).
+Rules for a valid `why`:
+
+- **A cause, not a capability.** "We believe compliance evidence should be
+  machine-verifiable" — not "we believe our platform is great."
+- **Arguable.** Someone reasonable could disagree. A belief nobody disputes
+  differentiates nothing.
+- **Survives product deletion.** Delete every product name from the sentence and
+  it still means something.
+
+If the property has a brand belief file
+(`MoxyWolf Vault/_Shared Knowledge/Brand and Voice/belief-<property>.md`), the
+pillar's `why` should derive from it — one brand WHY, many pillar expressions.
+Spokes inherit the `why`: drafts open from the belief (or its villain), and
+Phase 4's Release Owner runs the Celery Test against it.
 
 ## The hub
 

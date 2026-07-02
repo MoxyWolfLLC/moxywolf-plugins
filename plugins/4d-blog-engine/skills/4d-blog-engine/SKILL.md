@@ -175,8 +175,9 @@ Record the resolved folder.
   Record `pillar: <slug>`. This post is the pillar's first spoke.
 
 **4. Record to state.** Write `target`, `target_status`, `content_folder`,
-`pillar`, and `hub_url` into the piece's `state.md` frontmatter so every later
-phase and the publish step inherit them.
+`pillar`, `pillar_why` (the linking map's `why:` belief statement — omit if the
+map predates the field), and `hub_url` into the piece's `state.md` frontmatter
+so every later phase and the publish step inherit them.
 
 **Carried into later phases:**
 
@@ -185,6 +186,13 @@ phase and the publish step inherit them.
   first mention at **build time**, so do **not** hand-insert the first-mention link
   — just mention the term, and vary anchor text where it recurs. (DR-079: link at
   render time, not authoring time.)
+- Phase 2 (outline) and Phase 3 (drafting) treat `pillar_why` as the piece's
+  belief anchor when present: the opener flows inside-out (belief or its villain
+  first, approach second, artifact last — Sinek's Golden Circle ordering), and no
+  claim in the body may contradict the `why`. The post's thesis is a *specific
+  argument for* the pillar's belief, not a restatement of it.
+- Phase 4's Release Owner runs the **Celery Test** against `pillar_why` when
+  present — see `references/release-owner-rubric.md`, hand-check 4.
 - Phase 4 / `blog-publish` registers this spoke in the pillar's linking map and adds
   the "Part of *<Pillar>*" note + an explicit "Read the full *<Pillar>* →" CTA (not
   the auto-linked first mention), and — for `register-only` targets — prints the
