@@ -296,7 +296,7 @@
       "name": "github-repo-analyzer",
       "source": "./plugins/github-repo-analyzer",
       "description": "Analyze GitHub repositories for health, tech-stack conformance, security-classified issue reviews (CWE/OWASP/NIST), HITL code-fix suggestions, closure verification, and reverse-engineered PRDs. Runs a graphify knowledge graph as the mandatory first step of deep analysis \u2014 corpus from the clone, runner protocol delegated to the graphify plugin's graphify-core skill \u2014 with keyless and plain-tree-walk fallbacks. Uses native GitHub MCP + gh CLI / REST.",
-      "version": "0.9.2",
+      "version": "0.10.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
