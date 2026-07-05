@@ -23,7 +23,7 @@ Required headers:
 | Model | ID | Why | Cost |
 |-------|-----|-----|------|
 | Google Gemini 2.5 Flash | `google/gemini-2.5-flash-preview-05-20` | Fast, strong on government/standards docs. Use Flash not Pro — Pro burns tokens on reasoning before output. | $0.15/$0.60 |
-| Anthropic Claude Sonnet | `anthropic/claude-sonnet-4` | Deep reasoning, honest about uncertainty, strong cross-domain connections. Good complement to Perplexity. | $3/$15 |
+| Anthropic Claude Sonnet | `anthropic/claude-sonnet-5` | Deep reasoning, honest about uncertainty, strong cross-domain connections. Good complement to Perplexity. | $2/$10 |
 | DeepSeek Chat | `deepseek/deepseek-chat` | Cheap, fast, good at academic literature. Default DeepSeek pick for everyday use; switch to R1 when deep reasoning is worth the latency. | $0.14/$0.28 |
 
 ### Models to Avoid
@@ -41,6 +41,10 @@ Required headers:
 | Meta Llama 4 Scout | `meta-llama/llama-4-scout` | 10M context. Use for processing very large documents or comparing multiple standards simultaneously. | $0.15/$0.40 |
 
 ## Prompt Variants
+
+### Claude 5-class parameter exception
+
+The request templates below include `temperature`. **For any `anthropic/claude-*-5*` slug (claude-sonnet-5, claude-fable-5), omit `temperature` entirely** – Claude 5-class models return HTTP 400 on non-default sampling parameters (new for Sonnet-class as of Sonnet 5). Also give the Claude slot ~30% more `max_tokens` than the template value: Sonnet 5's adaptive thinking counts against `max_tokens` and its tokenizer runs denser. All other providers use the templates as written.
 
 ### Standard Discovery Prompt
 

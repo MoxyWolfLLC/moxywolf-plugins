@@ -54,7 +54,7 @@ Show the last 10 deliberations from the `deliberations` array (most recent first
 - Record ID
 - Relative time ("2m ago", "1h ago", "yesterday")
 - Query summary
-- Chairman model (short name, e.g., "claude-sonnet-4" not the full path)
+- Chairman model (short name, e.g., "claude-sonnet-5" not the full path)
 - Confidence as stars (★★★★★ = 0.9-1.0, ★★★★ = 0.7-0.89, ★★★ = 0.5-0.69, ★★ = 0.3-0.49, ★ = 0-0.29)
 - Cost
 - User rating indicator: (+) for positive, (-) for negative, (~) for neutral, blank for unrated

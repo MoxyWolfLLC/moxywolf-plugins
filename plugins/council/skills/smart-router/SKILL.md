@@ -115,7 +115,7 @@ Apply hard-coded rules when pattern memory is insufficient. These are intentiona
 - `factual_lookup` → Use the Analyst model (default: `openai/gpt-4o`)
 - `code_implementation` → Use the Analyst model
 - Budget-constrained → Use the cheapest model in the lineup (check `references/model-configs.md` cost table)
-- All other single-model routes → Use the Strategist model (default: `anthropic/claude-sonnet-4`) as the general-purpose best performer
+- All other single-model routes → Use the Strategist model (default: `anthropic/claude-sonnet-5`) as the general-purpose best performer
 
 ## Step 4: Learned Routing
 
@@ -180,7 +180,7 @@ Assemble the final response object:
   "routing_source": "learned",
   "uncertain": false,
   "recommended_models": [
-    "anthropic/claude-sonnet-4",
+    "anthropic/claude-sonnet-5",
     "openai/gpt-4o",
     "x-ai/grok-4.3",
     "google/gemini-2.5-flash"

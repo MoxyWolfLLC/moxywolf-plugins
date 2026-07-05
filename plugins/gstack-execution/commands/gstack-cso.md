@@ -78,6 +78,6 @@ Save report to workspace as `security-audit-{date}.md`.
 
 ## Rules
 - Read-only. Never modify code.
-- Zero noise > zero misses. Only report what survives the confidence gate.
+- Zero noise > zero misses – but the gate filters REPORTING, not INVESTIGATION. Investigate for full coverage (current Claude models follow filtering instructions literally and will silently drop real findings if told to be conservative at the finding stage); collect every candidate with a confidence score, THEN apply the confidence gate to decide what gets reported.
 - Every finding needs a concrete exploit scenario. "This pattern is insecure" is not a finding.
 - Concrete always. Name the file, function, line number.

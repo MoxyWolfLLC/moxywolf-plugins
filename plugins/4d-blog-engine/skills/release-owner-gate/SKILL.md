@@ -136,7 +136,7 @@ YOUR TASK:
 1. Read all four reference files in full.
 2. Read the draft in full.
 3. Read the sources-verification file to know which claims are [V]/[S]/[F].
-4. Score the draft against the 100-point rubric. Be conservative — when uncertain, score lower.
+4. Score the draft against the 100-point rubric. Be conservative — when uncertain, score lower. Conservatism applies to SCORES, not to the findings list: report every issue you find, including low-severity ones you are unsure about, each tagged with severity — the verdict threshold does the filtering, not you.
 5. List the three highest-leverage claims or numbers in the draft, each with its source URL.
 6. Write your scorecard in the EXACT FORMAT in references/release-owner-rubric.md §"Reviewer output contract". Any deviation from the format causes the gate to reject the review.
 7. Echo this nonce verbatim on the NONCE: line: <NONCE_HEX>

@@ -9,11 +9,11 @@ Default model lineup and configuration for the Council deliberation pipeline.
 | Slot | Model ID | Provider | Role | Why This Model |
 |------|----------|----------|------|----------------|
 | Analyst | `openai/gpt-4o` | OpenAI | Precise, structured | Strong at structured reasoning, code, and quantitative analysis |
-| Strategist | `anthropic/claude-sonnet-4` | Anthropic | Nuanced, contextual | Excels at nuanced analysis, long-form reasoning, and considering context |
+| Strategist | `anthropic/claude-sonnet-5` | Anthropic | Nuanced, contextual | Excels at nuanced analysis, long-form reasoning, and considering context |
 | Challenger | `google/gemini-2.5-flash` | Google | Fast, contrarian | Fast inference, good at lateral thinking, cost-effective |
 | Synthesist | `x-ai/grok-4.3` | xAI | Cross-domain lateral | Strong general knowledge, unconventional perspectives |
 
-> **Model IDs go stale.** OpenRouter deprecates/renames models (e.g. `x-ai/grok-3` → `x-ai/grok-4.3`, `google/gemini-2.0-flash` → `google/gemini-2.5-flash`, both retired by 2026-06). If Stage 1 returns an HTTP 404/400 naming a model, update the IDs here, in `skills/smart-router/SKILL.md` (`recommended_models`), and in the README lineup table. Verify current IDs at https://openrouter.ai/models. Last verified: 2026-06-08.
+> **Model IDs go stale.** OpenRouter deprecates/renames models (e.g. `x-ai/grok-3` → `x-ai/grok-4.3`, `google/gemini-2.0-flash` → `google/gemini-2.5-flash`, both retired by 2026-06). If Stage 1 returns an HTTP 404/400 naming a model, update the IDs here, in `skills/smart-router/SKILL.md` (`recommended_models`), and in the README lineup table. Verify current IDs at https://openrouter.ai/models. Last verified: 2026-07-05.
 
 ## Small Lineup (2 models)
 
@@ -22,7 +22,7 @@ For quick deliberations or budget-conscious use. Uses only Analyst + Strategist,
 | Slot | Model ID |
 |------|----------|
 | Analyst | `openai/gpt-4o` |
-| Strategist | `anthropic/claude-sonnet-4` |
+| Strategist | `anthropic/claude-sonnet-5` |
 
 ## Large Lineup (6 models)
 
@@ -31,7 +31,7 @@ For high-stakes deliberations. Adds two more perspectives.
 | Slot | Model ID | Provider | Role |
 |------|----------|----------|------|
 | Analyst | `openai/gpt-4o` | OpenAI | Precise, structured |
-| Strategist | `anthropic/claude-sonnet-4` | Anthropic | Nuanced, contextual |
+| Strategist | `anthropic/claude-sonnet-5` | Anthropic | Nuanced, contextual |
 | Challenger | `google/gemini-2.5-flash` | Google | Fast, contrarian |
 | Synthesist | `x-ai/grok-4.3` | xAI | Cross-domain lateral |
 | Specialist | `meta-llama/llama-3.3-70b-instruct` | Meta | Open-source perspective |
@@ -53,8 +53,10 @@ For high-stakes deliberations. Adds two more perspectives.
 
 ### Parameter Notes
 
-- **temperature 0.7**: Balanced between creativity and consistency. Lower (0.3-0.5) for factual queries, higher (0.8-1.0) for creative tasks. The autoresearch loop (Phase 5) will optimize this per query type.
-- **max_tokens_collect 2000**: Enough for a thorough response without bloat. The review prompt penalizes length-without-substance.
+- **Claude 5-class exception (sonnet-5, fable-5): NEVER send `temperature`, `top_p`, or `top_k`.** Claude Sonnet 5 and Fable 5 return HTTP 400 on any non-default sampling parameter – new for Sonnet-class as of Sonnet 5 (see Anthropic's "Prompting Claude Sonnet 5" guide). When building the per-model request, omit the sampling block entirely for any `anthropic/claude-*-5*` slug; keep it for the other providers. Steer style via the prompt instead.
+- **Claude 5-class max_tokens headroom:** Sonnet 5 runs adaptive thinking by default and its new tokenizer emits ~30% more tokens for the same text; thinking counts against `max_tokens`. For the Claude slot, use at least 3000 on collect (vs the 2000 default) or you'll get mostly-thinking plus a truncated answer.
+- **temperature 0.7** (non-Claude-5 models): Balanced between creativity and consistency. Lower (0.3-0.5) for factual queries, higher (0.8-1.0) for creative tasks. The autoresearch loop (Phase 5) will optimize this per query type.
+- **max_tokens_collect 2000**: Enough for a thorough response without bloat. The review prompt penalizes length-without-substance. (Claude 5-class slot: see headroom note above.)
 - **max_tokens_review 800**: Reviews should be concise — rankings/consensus + brief rationales.
 - **max_tokens_synthesis 3000**: Chairman needs room to integrate 4 perspectives thoroughly.
 - **timeout 30s**: If a model doesn't respond in 30 seconds, proceed without it.
@@ -68,7 +70,7 @@ Approximate cost per call at March 2026 OpenRouter pricing:
 | Model | Input (per 1M tokens) | Output (per 1M tokens) |
 |-------|----------------------|----------------------|
 | openai/gpt-4o | $2.50 | $10.00 |
-| anthropic/claude-sonnet-4 | $3.00 | $15.00 |
+| anthropic/claude-sonnet-5 | $2.00 | $10.00 |
 | google/gemini-2.5-flash | $0.30 | $2.50 |
 | x-ai/grok-4.3 | $3.00 | $15.00 |
 | meta-llama/llama-3.3-70b-instruct | $0.40 | $0.40 |

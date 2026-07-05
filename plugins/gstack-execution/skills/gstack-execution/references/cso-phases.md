@@ -6,6 +6,8 @@ Extended reference for `/gstack-cso`. The command file contains the execution fl
 
 **Daily Mode (default):** 8/10 minimum. Zero noise. Only report what you could write a proof-of-concept for.
 
+> Gate discipline: the confidence gate applies at the REPORT stage, not the FIND stage. Investigate for coverage – enumerate every candidate finding with a confidence score first, then filter. Current Claude models (Sonnet 5 / Opus 4.8 / Fable 5) follow "only report X" instructions literally: if the bar is applied while finding, real bugs below the bar never surface for the gate to judge.
+
 **Comprehensive Mode:** 2/10 minimum. Surface anything that might be real. Mark sub-8 findings as TENTATIVE.
 
 ## Phase 0: Stack Detection Patterns

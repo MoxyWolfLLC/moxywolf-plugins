@@ -215,7 +215,7 @@ combined results.
 |-------|--------------|----------|-------|
 | Perplexity Sonar Pro | `perplexity/sonar-pro` | Web-grounded search, real-time citations with verified URLs | **Primary.** Always use. Best source of real, current URLs. |
 | Google Gemini 2.5 Flash | `google/gemini-2.5-flash-preview-05-20` | Fast, strong on government/standards docs | Use Flash not Pro — Pro's reasoning burns the token budget before generating output. |
-| Anthropic Claude Sonnet | `anthropic/claude-sonnet-4` | Deep reasoning, strong cross-domain connections | Good complement to Perplexity. Honest about what it doesn't know. |
+| Anthropic Claude Sonnet | `anthropic/claude-sonnet-5` | Deep reasoning, strong cross-domain connections | Good complement to Perplexity. Honest about what it doesn't know. |
 
 ### Models to Avoid
 
@@ -305,7 +305,7 @@ Build a swarm jobs file at `${WORKSPACE_OUTPUTS}/lit-discovery-{run_id}/swarm-jo
   },
   {
     "id": "claude",
-    "model": "anthropic/claude-sonnet-4",
+    "model": "anthropic/claude-sonnet-5",
     "messages": [{"role": "user", "content": "{swarm_prompt}"}],
     "temperature": 0.3,
     "max_tokens": 4000

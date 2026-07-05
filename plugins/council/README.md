@@ -134,7 +134,7 @@ The router automatically reduces cost by routing simple queries to single models
 | Slot | Model ID | Provider |
 |------|----------|----------|
 | Analyst | `openai/gpt-4o` | OpenAI |
-| Strategist | `anthropic/claude-sonnet-4` | Anthropic |
+| Strategist | `anthropic/claude-sonnet-5` | Anthropic |
 | Challenger | `google/gemini-2.5-flash` | Google |
 | Synthesist | `x-ai/grok-4.3` | xAI |
 
