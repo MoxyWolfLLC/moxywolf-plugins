@@ -266,16 +266,6 @@ Before generating updates, skill analyzes target file for:
 
 Maintains these patterns in all generated content.
 
-## Success Metrics
-
-Artifact succeeds when:
-- User can paste content directly without editing
-- Voice matches existing Dorian-written sections
-- No citation work remains (all formatted and documented)
-- Placement instructions are unambiguous
-- Content strengthens without redundancy
-- Natural flow maintained
-
 ## Prompt Template for User
 
 ### Minimal Invocation

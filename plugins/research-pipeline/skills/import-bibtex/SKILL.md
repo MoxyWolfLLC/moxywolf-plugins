@@ -135,11 +135,6 @@ Output each entry as JSON with fields: citation_key, abstract, abstract_source
 where abstract_source is "original", "crossref", or "generated"
 ```
 
-### Progress Reporting
-
-After each batch completes, report progress:
-"Enriched batch [N] of [M] — [X] abstracts found via API, [Y] generated, [Z] preserved."
-
 ## Step 5: Insert into Supabase
 
 For each parsed and enriched citation, insert into the `citations` table:
@@ -225,8 +220,7 @@ For large BibTeX files:
 4. Update Supabase as each batch completes
 
 This way the user has their library available immediately and can start synthesis
-while enrichment continues. Report progress periodically:
-"Enrichment progress: [X]/[Y] entries processed..."
+while enrichment continues.
 
 ## Error Handling
 
