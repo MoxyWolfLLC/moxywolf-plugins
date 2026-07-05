@@ -289,7 +289,7 @@ When updating (or initializing) a repo's README, it must carry these 16 sections
 10. **Common Workflows** — common operator tasks step-by-step: re-running a classifier, paging through records, regenerating types, etc. Curl examples for APIs; npm-script invocations for tools.
 11. **Troubleshooting** — table mapping symptom → cause/fix. Always include known operational gotchas: PostgREST 1000-row cap (if Supabase), Cowork sandbox unlink limitation (if applicable), classic-PAT push-flow note (token in the vault file `github-pat.env`, DR-011), env-var missing errors.
 12. **Security** — RLS posture for the database, service-role-key vs anon-key separation, secret hygiene rules, any auth flow. Use a small table for control + status + implementation.
-13. **Technology Stack** — table of category → technology → version. Pin to **TECH-STACK-V4.3** as the canonical reference; only deviate when the repo legitimately uses something newer/older and explain why.
+13. **Technology Stack** — table of category → technology → version. Pin to the vault's current **TECH-STACK** reference (highest-versioned `MoxyWolf Vault/_Shared Knowledge/Tech Stack/TECH-STACK-V*.md`; V4.7 as of 2026-07) — don't hardcode a version here, read the file; only deviate when the repo legitimately uses something newer/older and explain why.
 14. **Project Structure** — `text`-fenced tree of top-level directories with one-line purpose each. Don't enumerate every file — show the shape.
 15. **Deployment** — current deployment state (local-only, Vercel preview, AWS prod, etc.), env-var configuration, rollback path. If not yet deployed, say so honestly and describe the planned target.
 16. **License** — license name and pointer to the LICENSE file. If license is TBD, say so.
