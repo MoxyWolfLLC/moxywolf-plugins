@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.23.0",
+  "version": "1.23.1",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -575,7 +575,7 @@
       "name": "team-kanban",
       "source": "./plugins/team-kanban",
       "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into the team-visible Jira board (project MOXY), with best-practice issue authoring (context/acceptance descriptions, subtasks for sub-items, issue links for dependencies), dual-authority completion between Obsidian and Jira, and a slim #general digest pointing at the board.",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "author": {
         "name": "MoxyWolf LLC"
       },

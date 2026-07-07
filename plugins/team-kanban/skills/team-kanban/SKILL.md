@@ -10,7 +10,9 @@ description: >
   This skill aggregates from Obsidian KANBAN_VIEW.md, Google Drive Active Tasks,
   Google Calendar, Gmail, Slack DMs/group DMs/threads, and project channels
   (#sams, #stig-viewer, #assured-book, #jtbd_analyzer, #team-edify, #cms-migration) —
-  then syncs the board to Jira (project MOXY) and sends a slim daily digest to #general.
+  then syncs the board to Jira (project MOXY) with best-practice issue authoring
+  (Context/Acceptance/Notes descriptions, sub-items as real Subtasks, dependencies as
+  issue links) and sends a slim daily digest to #general.
 ---
 
 # Team Kanban — Multi-Source Task Board on Jira
@@ -90,9 +92,12 @@ Parse every task into a structured object:
   assigned_slack_id: "U-prefixed Slack ID or null",
   waiting_on: "person-name or null",
   waiting_since: "date or null",
-  is_critical: boolean
+  is_critical: boolean,
+  subtasks: [ { title, done: boolean, assigned_to: "short-name or inherit" } ]
 }
 ```
+
+**Sub-items:** indented checkboxes under a card (`  - [ ] step`) are that card's sub-items. Capture every one, in order, with its own checked state and any `#assigned/` tag (default: inherit the parent's assignee). Sub-items become real Jira **Subtasks** in Step 8 — never flatten them into the parent's description.
 
 **IMPORTANT:** The `source` (obsidian, slack, gmail, etc.) is internal metadata for deduplication only. NEVER display source tags on the Jira board or in digest messages. Tasks should show: title, project, assignee, and context — nothing else.
 
@@ -133,6 +138,7 @@ Use `gmail_search_messages` with targeted queries:
 For each actionable email:
 - Create a task entry with `source: gmail`
 - Include sender name and one-line summary
+- A single email that yields several concrete action items with one owner and one deliverable is ONE task with `subtasks`; unrelated action items are separate tasks
 - Classify priority: explicit urgency markers → P0, VIP contacts → P1, meeting summary action items → P1, everything else → Backlog
 - Deduplicate against existing tasks — if a task like "Follow up with Phil" already exists, don't create a duplicate from a Phil email
 
@@ -194,9 +200,12 @@ Use `slack_search_public_and_private` to find action items buried in team conver
   column: "p0|p1|backlog",
   assigned_to: "person who committed or was assigned",
   assigned_slack_id: "their Slack ID from roster",
-  context: "brief quote or summary of the conversation"
+  context: "brief quote or summary of the conversation",
+  subtasks: [ { title, done: false, assigned_to } ]
 }
 ```
+
+When a conversation lays out numbered or listed steps toward one deliverable ("first X, then Y, then Z"), capture them as `subtasks` of one parent — they become Jira Subtasks in Step 8.
 
 Note: Track the source internally for deduplication, but NEVER render source tags (like `slack`, `obsidian`, `gmail`) on the Jira board or in digest messages. The board should only show: task title, project, assignee, and relevant context.
 
@@ -255,7 +264,7 @@ The team-visible board is the Jira board for project **MOXY** (cloudId and board
 
 **Card ↔ issue identity:** each board card carries a `#jira/MOXY-NNN` tag in Obsidian once it has a Jira twin.
 
-- Card **without** a `#jira/` tag → create a MOXY issue (`createJiraIssue`, type Task) **authored per the best-practices section of the reference**: imperative summary; description with Context (originating signal, who/when), Acceptance (observable done-state), and Notes (blockers, reviewer, deadlines) — fill every section the source data allows. If the card has indented sub-checkboxes or decomposes into independently completable steps, create one **Subtask** per step under the parent (never a `[ ]` checklist in the description). Dependencies on other tracked work become issue links (`getIssueLinkTypes` → `createIssueLink`, type "Blocks"), not prose. Then write the `#jira/MOXY-NNN` tag back onto the card in KANBAN_VIEW.md. This write-back is automatic metadata maintenance — no approval needed. **Exception — bulk creation:** when a sync would create more than 5 new issues at once (e.g., the first sync after setup), show Dorian the list first and get explicit approval; a mass write to the shared tracker is team-visible.
+- Card **without** a `#jira/` tag → create a MOXY issue (`createJiraIssue`, type Task) **authored per the best-practices section of the reference**: imperative summary; description with Context (originating signal, who/when), Acceptance (observable done-state), and Notes (blockers, reviewer, deadlines) — fill every section the source data allows. Every entry in the parsed `subtasks` array (from any source — Obsidian sub-checkboxes, multi-step email action items, multi-step Slack commitments) becomes one **Subtask** issue under the parent, with its own summary, assignee, and status (`Done` if its `done` flag is set) — never a `[ ]` checklist in the parent's description. Existing linked issues gain Subtasks the same way when a card grows new sub-items. Dependencies on other tracked work become issue links (`getIssueLinkTypes` → `createIssueLink`, type "Blocks"), not prose. Then write the `#jira/MOXY-NNN` tag back onto the card in KANBAN_VIEW.md. This write-back is automatic metadata maintenance — no approval needed. **Exception — bulk creation:** when a sync would create more than 5 new issues at once (e.g., the first sync after setup), show Dorian the list first and get explicit approval; a mass write to the shared tracker is team-visible.
 - Card **with** a `#jira/` tag → fetch the issue; if the card changed (title, column, assignee, labels, blocked context), apply `editJiraIssue` and, for column moves, `getTransitionsForJiraIssue` → `transitionJiraIssue`. Statuses are discovered, never assumed — if a target status doesn't exist on the board, use the fallback label per the reference.
 - MOXY issue with **no matching card** and not handled as team input (Step 7) → surface in Dorian's triage. Never delete or close Jira issues autonomously.
 

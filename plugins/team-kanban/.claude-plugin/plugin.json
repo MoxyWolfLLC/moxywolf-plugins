@@ -1,7 +1,7 @@
 {
   "name": "team-kanban",
-  "version": "0.5.0",
-  "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into the team-visible Jira board (project MOXY). v0.5.0: Jira replaces the Slack Canvas as the published board \u2014 cards link to issues via #jira/MOXY-NNN tags, dual-authority completion between Obsidian and Jira with automatic sync-back, columns map to discovered Jira statuses with label fallbacks, and the #general digest becomes a slim pointer to the board.",
+  "version": "0.5.1",
+  "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into the team-visible Jira board (project MOXY). v0.5.1: subtask capture is end-to-end \u2014 every source parser (Obsidian sub-checkboxes, multi-step email action items, multi-step Slack commitments) emits a subtasks array that Step 8 creates as real Jira Subtasks. v0.5.0: Jira replaces the Slack Canvas as the published board \u2014 cards link to issues via #jira/MOXY-NNN tags, dual-authority completion between Obsidian and Jira with automatic sync-back, columns map to discovered Jira statuses with label fallbacks, and the #general digest becomes a slim pointer to the board.",
   "author": {
     "name": "MoxyWolf LLC"
   },

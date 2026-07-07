@@ -68,6 +68,10 @@ The #general digest and any bulk Jira creation are confirm-before-post, not auto
 
 ## Changelog
 
+### v0.5.1
+
+Subtask capture is end-to-end. Every source parser — Obsidian indented sub-checkboxes, multi-step email action items, multi-step Slack commitments — emits a `subtasks` array on the task object, and the Jira sync creates each entry as a real Subtask under the parent issue with its own assignee and status. Sub-items are never flattened into description checklists.
+
 ### v0.5.0
 
 Jira replaces the Slack Canvas as the team-visible board (org decision: Jira is the org-wide tracker, TECH-STACK v4.7). Cards link to MOXY issues via `#jira/MOXY-NNN` tags; dual-authority completion now runs Obsidian ↔ Jira; columns map to discovered Jira statuses with label fallbacks; the #general digest becomes a slim pointer (stats + P0s + escalations + board link). The `last_standup_read` marker moves from the Canvas header into the vault config note. Slack remains a read source for chat-buried action items and the digest channel. The Canvas format reference is replaced by `references/jira-board-mapping.md`.
