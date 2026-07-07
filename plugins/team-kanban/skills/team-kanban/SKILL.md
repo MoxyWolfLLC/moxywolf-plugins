@@ -367,6 +367,7 @@ The Slack digest message should be direct and scannable:
 - **Google Drive unreachable:** Post what you have from Obsidian alone. Note the gap in the digest.
 - **Jira unreachable or Atlassian MCP not connected:** Don't fake the sync. Save the merged board to `${VAULT}/Tasks/team-kanban-latest.md`, note the gap, and tell Dorian the Atlassian connector needs attention.
 - **Transition fails (status missing):** Apply the fallback label per `references/jira-board-mapping.md` and note it in the sync report.
+- **Connector rejects an object parameter (description edit, assignee, labels):** expected — use the browser-REST fallback in `references/jira-board-mapping.md` § Connector Mechanics (Jira REST v3 via the writer's logged-in browser through Claude in Chrome).
 - **Slack digest send fails:** The board is already synced to Jira — report the digest failure and offer to retry.
 - **Column limits exceeded:** Don't silently drop items. Flag the overflow in the digest: "P0 has 5 items (limit: 3). Triage needed."
 

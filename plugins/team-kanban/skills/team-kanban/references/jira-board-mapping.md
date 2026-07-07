@@ -59,6 +59,25 @@ Every issue the sync creates is filled out as completely as the source data allo
 - Issue moved to Done or In Review in Jira → dual-authority: completion wins; sync back to Obsidian (Step 10a).
 - Issue in MOXY with no matching card and not from team-input handling → surface in Dorian's triage. Never delete Jira issues autonomously.
 
+## Connector Mechanics & Gotchas (learned 2026-07-07, moxywolf.atlassian.net)
+
+The Atlassian MCP connector handles reads and simple writes; anything needing an object-typed parameter fails and routes through the browser fallback.
+
+**What the connector CAN do:** all reads (`getJiraIssue`, `searchJiraIssuesUsingJql`, `getVisibleJiraProjects`); `createJiraIssue` with flat params — including `parent` as a plain string key (that's how Subtasks attach: `issueTypeName: "Subtask"`, `parent: "MOXY-NNN"`); `createIssueLink` with flat `type` / `inwardIssue` / `outwardIssue` strings; `addCommentToJiraIssue`; `transitionJiraIssue`.
+
+**What the connector CANNOT do:** any tool whose required parameter is an object — `editJiraIssue` (`fields`) and `createJiraIssue`'s `additional_fields` reject with "expected object, received string". Consequences: no description edits, no assignee setting, no label updates through the connector.
+
+**Browser-REST fallback (the standard workaround):** run Jira REST v3 from the writer's logged-in browser via Claude in Chrome's `javascript_tool` on a moxywolf.atlassian.net tab. Same auth, full API:
+- `PUT /rest/api/3/issue/<KEY>` with `{fields:{description:<ADF>}}` — description edits (descriptions are ADF: `doc > paragraph > text`, with `strong`/`code` marks)
+- `PUT /rest/api/3/issue/<KEY>/assignee` with `{accountId}` — assignee
+- `POST /rest/api/3/issue` with full `fields` (project, `parent:{key}`, `issuetype:{id:"10002"}`, summary, assignee, ADF description) — the preferred way to create Subtasks since it sets assignee in the same call
+- `POST /rest/api/3/issueLink` / `DELETE /rest/api/3/issueLink/<id>` — links
+- Avoid returning large JSON blobs from `javascript_tool` (the extension's DLP filter blocks them); return compact status arrays.
+
+**Blocks link orientation (verified empirically — docs are ambiguous):** to make X "is blocked by" Y, pass `inwardIssue: Y` (the blocker) and `outwardIssue: X` (the blocked issue). Both the connector and raw REST follow this. Getting it backwards renders "blocks" on the wrong side; fix by DELETE + re-POST with the keys swapped.
+
+**Retrofitting checklist tickets:** when a MOXY issue arrives with a `[ ]` checklist in its description (hand-written or from an older tool), convert it — one Subtask per checklist line (assignee inherited from the parent), rewrite the description to context + "split into the subtasks below" + bold Acceptance + dependency note, and turn any "depends on X" prose into a Blocks link. Verified pattern: MOXY-34/35/36/37 (2026-07-07).
+
 ---
 
 ## Daily Digest Message Template (Slack mrkdwn — slim)
