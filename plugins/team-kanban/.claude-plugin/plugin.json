@@ -1,16 +1,17 @@
 {
   "name": "team-kanban",
-  "version": "0.4.3",
-  "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into a team-visible Slack Canvas kanban board. v0.4.0: Dual-authority completion model where items checked in either Obsidian or the Slack Canvas are treated as complete with automatic sync-back.",
+  "version": "0.5.0",
+  "description": "Aggregates tasks from Obsidian Kanban, Google Drive, Google Calendar, Gmail, and Slack into the team-visible Jira board (project MOXY). v0.5.0: Jira replaces the Slack Canvas as the published board \u2014 cards link to issues via #jira/MOXY-NNN tags, dual-authority completion between Obsidian and Jira with automatic sync-back, columns map to discovered Jira statuses with label fallbacks, and the #general digest becomes a slim pointer to the board.",
   "author": {
     "name": "MoxyWolf LLC"
   },
   "keywords": [
     "kanban",
-    "slack",
+    "jira",
     "team",
     "tasks",
     "obsidian",
-    "daily-ops"
+    "daily-ops",
+    "slack"
   ]
 }

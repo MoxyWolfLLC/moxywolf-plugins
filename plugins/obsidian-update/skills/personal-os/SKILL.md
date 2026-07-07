@@ -161,20 +161,21 @@ Combines daily-ops standup with memory context.
 
 **Enhanced flow:**
 1. **Memory Bootstrap** (Step 0 above — already done)
-2. **Harvest Team Completions from Slack Canvas** — This is the FIRST operational step. Before assessing energy, calendar, or inbox, read the Slack Canvas (Team Kanban) to see what the team accomplished since the last standup. This grounds the entire standup in forward progress rather than an open task list.
+2. **Harvest Team Completions from Jira** — This is the FIRST operational step. Before assessing energy, calendar, or inbox, read the Jira board (project MOXY) to see what the team accomplished since the last standup. This grounds the entire standup in forward progress rather than an open task list.
 
    **How to execute:**
-   a. Read the Team Kanban Slack Canvas using `slack_read_canvas` with Canvas ID `F0ASH0DJP6U`.
-   b. Parse the Canvas for items in two key columns:
-      - **Done** (:white_check_mark:) — Items confirmed complete since last standup. These are wins to acknowledge.
-      - **In Review** (:mag:) — Items marked complete by the assignee, awaiting reviewer confirmation. These may have moved to Done since the Canvas was last synced, or may need a nudge.
-   c. Also scan ALL other columns for checked items (`- [x]` or items with strikethrough/completion markers) that haven't been moved to In Review or Done yet — these represent work completed by teammates directly on the Canvas that the team-kanban sync hasn't processed.
+   a. Read the team-kanban config note at `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` for the cloudId, project key, and `last_standup_read` timestamp.
+   b. Query Jira with `searchJiraIssuesUsingJql`:
+      - **Done:** `project = MOXY AND status = Done AND statusCategoryChangedDate >= "<last_standup_read>"` — items confirmed complete since last standup. These are wins to acknowledge. Include subtasks; roll subtask completions up under their parent.
+      - **In Review:** `project = MOXY AND status = "In Review"` (or, if the board has no In Review status, `labels = in-review`) — items marked complete by the assignee, awaiting reviewer confirmation. Capture how long each has been waiting.
+   c. Also check for issues resolved by teammates that the team-kanban sync hasn't reconciled into Obsidian yet (issue Done in Jira, card still `- [ ]`) — these surface in the reconciliation flag below.
    d. Build a **Completions Report** with three sections:
-      - **Confirmed Done:** Items in the Done column with assignee names — "Phil completed X", "Michael completed Y"
-      - **Pending Review:** Items in the In Review column — who completed it, who's reviewing, how long it's been waiting
-      - **Newly Checked (not yet triaged):** Checked items found in P0/P1/Backlog/Blocked columns — these need to be moved to In Review with a reviewer assigned per the default pairings (Dorian↔Phil, Michael↔Steven)
+      - **Confirmed Done:** Done issues with assignee names — "Phil completed X", "Michael completed Y"
+      - **Pending Review:** In Review issues — who completed it, who's reviewing (the `Review:` line / `review-<name>` label), how long it's been waiting
+      - **Newly Done (not yet triaged):** Issues moved to Done directly by the assignee without passing In Review — these need a reviewer assigned per the default pairings (Dorian↔Phil, Michael↔Steven)
    e. Present the Completions Report as the **opening section** of the standup brief under a `### What the Team Got Done` header (see updated briefing format in Step 11).
-   f. **Reconciliation flag:** Carry the list of completed/checked items forward to Step 9 (Kanban State) so that when the Obsidian Kanban is read, any discrepancies between the Canvas and Obsidian can be flagged — e.g., an item marked done on the Canvas but still open in Obsidian.
+   f. **Reconciliation flag:** Carry the list of completed issues forward to Step 9 (Kanban State) so that when the Obsidian Kanban is read, any discrepancies between Jira and Obsidian can be flagged — e.g., an issue Done in Jira but its card still open in Obsidian.
+   g. **After the standup completes,** update the `last_standup_read` line in the config note to the current timestamp.
 
    **Team Roster for mention resolution:**
    | Name | Short Name | Slack ID |
@@ -192,7 +193,7 @@ Combines daily-ops standup with memory context.
    | Michael | Steven |
    | Steven | Michael |
 
-   **If the Canvas is unreachable or empty:** Log "Slack Canvas unavailable — skipping team completions harvest" and continue to Step 3. Do not block the standup on a Canvas read failure.
+   **If Jira is unreachable (Atlassian MCP not connected):** Log "Jira unavailable — skipping team completions harvest" and continue to Step 3. Do not block the standup on a Jira read failure.
 
 3. **Stepson Schedule Check** — Determine if this is a stepson week. Check MEMORY.md Life Rhythm section and recent daily notes. Adjust energy expectations accordingly.
 4. **Health Data Pull** — Read sleep/health data from the Health Auto Export JSON drop in Drive (`${VAULT}/../Personal OS/health-export/` or the path stored in MEMORY.md → Health section). The iOS Health Auto Export app writes a fresh JSON file nightly. If the latest file is more than 36 hours old, note "stale" and continue. If no file exists at all, fall back to the iMessage-prompt pattern described in `references/health-fallback.md` (delegated from `daily-ops`).
@@ -219,12 +220,12 @@ Combines daily-ops standup with memory context.
    - GOALS file ID: `1cBpTwIPCFDZ4YTqkqn21dM-5AjX6R9Wp`
    - **In interactive Cowork sessions:** read/write via the mounted vault path — standard `Read`/`Write`/`Edit`.
    - **In scheduled-task VMs:** use `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` for both reads (`download --file-id ...`) and writes (`upload --file-id ... --in ... --mime text/plain`). The helper passes `supportsAllDrives=true` automatically. See `references/scheduled-task-vm-setup.md` for one-time service-account setup.
-9. **Kanban State (READ + CANVAS RECONCILIATION)** — Read `${VAULT}/Tasks/KANBAN_VIEW.md` in full. This is the canonical task board — parse all items by column. Surface any P0 items still open, flag items that are overdue based on their `#due/` tag. **Surface all `## ⏳ Waiting On` items** — flag any waiting > 3 days for a nudge/follow-up recommendation. Carry forward all existing board items into the briefing — the Kanban is the source of truth for what's in-flight.
+9. **Kanban State (READ + JIRA RECONCILIATION)** — Read `${VAULT}/Tasks/KANBAN_VIEW.md` in full. This is the canonical task board — parse all items by column. Surface any P0 items still open, flag items that are overdue based on their `#due/` tag. **Surface all `## ⏳ Waiting On` items** — flag any waiting > 3 days for a nudge/follow-up recommendation. Carry forward all existing board items into the briefing — the Kanban is the source of truth for what's in-flight.
 
-   **Canvas Reconciliation (uses Step 2 data):** Compare the Completions Report from Step 2 against the Obsidian Kanban state. Flag discrepancies:
-   - Items marked Done on the Canvas but still showing as open (`- [ ]`) in Obsidian → "Canvas says done, Obsidian says open — confirm and sync?"
-   - Items in In Review on Canvas but not tagged `#review/` in Obsidian → "Canvas has this in review, Obsidian doesn't — update Obsidian?"
-   - Items checked in Obsidian (`- [x]`) that don't appear in In Review or Done on Canvas → "Completed in Obsidian but Canvas hasn't caught up"
+   **Jira Reconciliation (uses Step 2 data):** Compare the Completions Report from Step 2 against the Obsidian Kanban state. Flag discrepancies:
+   - Issues Done in Jira but their card still open (`- [ ]`) in Obsidian → "Jira says done, Obsidian says open — confirm and sync?"
+   - Issues In Review in Jira but the card not tagged `#review/` in Obsidian → "Jira has this in review, Obsidian doesn't — update Obsidian?"
+   - Items checked in Obsidian (`- [x]`) whose linked issue isn't In Review or Done in Jira → "Completed in Obsidian but Jira hasn't caught up"
    Present all discrepancies in the briefing for Dorian's confirmation before writing anything back.
 
 10. **Life-Rhythm Context** — Apply stepson-week adjustments, energy model overlays:
@@ -242,20 +243,20 @@ Combines daily-ops standup with memory context.
 
     ```
     ### What the Team Got Done
-    [Confirmed completions from Canvas Done column — "Phil completed X", "Steven completed Y"]
+    [Confirmed completions from Jira Done — "Phil completed X", "Steven completed Y"]
     [Items pending review — "Michael's Z is waiting on Steven's review (1 day)"]
     [Any newly checked items that need triage — "Phil checked off A in P1 — move to In Review?"]
     [If no completions: "No new completions on the board since yesterday."]
 
     ### Sync Check
-    [Any Canvas↔Obsidian discrepancies from Step 9 reconciliation]
-    [Or: "Canvas and Obsidian are in sync."]
+    [Any Jira↔Obsidian discrepancies from Step 9 reconciliation]
+    [Or: "Jira and Obsidian are in sync."]
     ```
 
 12. **Priority Enforcement** — Max 3 P0, Max 7 P1. Push back if exceeded.
 13. **Write Daily Note** — Create `${VAULT}/Daily Journal/YYYY-MM-DD.md` with today's date. Include energy level, top priorities, calendar summary, key decisions queue, and an **embedded Kanban section** ("Today's Board") showing P0 and P1 tasks as checkboxes pulled from the updated KANBAN_VIEW.md.
 14. **Update Kanban Board (WRITE BACK)** — This is CRITICAL. After generating the briefing and confirming priorities with Dorian, reconcile and write back to `${VAULT}/Tasks/KANBAN_VIEW.md`:
-    - **Sync Canvas completions first** — apply any confirmed Done/In Review moves from Step 2 that Dorian approved during the briefing. This ensures completed work from the Canvas is reflected in Obsidian before any other changes.
+    - **Sync Jira completions first** — apply any confirmed Done/In Review moves from Step 2 that Dorian approved during the briefing. This ensures completed work from Jira is reflected in Obsidian before any other changes.
     - **Add new tasks** surfaced from calendar, inbox, or open threads that aren't already on the board. Place under the correct priority column with full tags.
     - **Promote/demote** existing tasks if priorities shifted (e.g., a P1 becomes P0 because a deadline hit today).
     - **Surface checked items for confirmation** — if any `- [x]` items exist in non-Done columns, show them to Dorian: "These are checked off — move to Done?" Only move to `## ✅ Done` with confirmation. Set `#status/d` on moved items.

@@ -2,26 +2,26 @@
 name: team-kanban
 description: >
   This skill should be used when the user says "team kanban", "update the team board",
-  "post the kanban to Slack", "what's the team working on", "team task board",
-  "sync the kanban", "team status board", "push tasks to Slack", "update #general board",
+  "sync the kanban to Jira", "what's the team working on", "team task board",
+  "sync the kanban", "team status board", "push tasks to Jira", "update the MOXY board",
   "team kanban update", "kanban sync", or any request to aggregate tasks from multiple
-  sources into a team-visible Slack kanban board. Also trigger when the user asks to
-  "set up the team board", "create the team canvas", or references the #general kanban.
+  sources into the team-visible Jira board. Also trigger when the user asks to
+  "set up the team board" or references the MOXY board or the #general kanban digest.
   This skill aggregates from Obsidian KANBAN_VIEW.md, Google Drive Active Tasks,
   Google Calendar, Gmail, Slack DMs/group DMs/threads, and project channels
   (#sams, #stig-viewer, #assured-book, #jtbd_analyzer, #team-edify, #cms-migration) —
-  then posts to a persistent Slack Canvas and sends a daily digest message to #general.
+  then syncs the board to Jira (project MOXY) and sends a slim daily digest to #general.
 ---
 
-# Team Kanban — Multi-Source Task Board for Slack
+# Team Kanban — Multi-Source Task Board on Jira
 
-Aggregate tasks from the personal operations stack (Obsidian vault, Google Drive Active Tasks, Google Calendar, Gmail) and Slack conversations (DMs, group DMs, threads, and project channels: #sams, #stig-viewer, #assured-book, #jtbd_analyzer, #team-edify, #cms-migration) into a team-visible Slack Canvas kanban board with six columns. Post a daily formatted digest to #general. Support manual team input via Slack threads.
+Aggregate tasks from the personal operations stack (Obsidian vault, Google Drive Active Tasks, Google Calendar, Gmail) and Slack conversations (DMs, group DMs, threads, and project channels: #sams, #stig-viewer, #assured-book, #jtbd_analyzer, #team-edify, #cms-migration) into the team-visible Jira board (project **MOXY** at https://moxywolf.atlassian.net). Post a slim daily digest to #general linking to the board. Team input arrives via Jira directly or digest thread replies.
 
 ---
 
 ## Team Roster
 
-The following people can be assigned tasks. Use their short name in `#assigned/` tags in Obsidian, or their Slack user ID for Canvas/message mentions.
+The following people can be assigned tasks. Use their short name in `#assigned/` tags in Obsidian, their Slack user ID for digest mentions, and their Jira accountId (resolved once at setup via `lookupJiraAccountId`, stored in the config note) for issue assignment.
 
 | Name | Short Name | Slack ID | Email | Role |
 |------|-----------|----------|-------|------|
@@ -94,7 +94,7 @@ Parse every task into a structured object:
 }
 ```
 
-**IMPORTANT:** The `source` (obsidian, slack, gmail, etc.) is internal metadata for deduplication only. NEVER display source tags on the Canvas or in digest messages. Tasks should show: title, project, assignee @-mention, and context — nothing else.
+**IMPORTANT:** The `source` (obsidian, slack, gmail, etc.) is internal metadata for deduplication only. NEVER display source tags on the Jira board or in digest messages. Tasks should show: title, project, assignee, and context — nothing else.
 
 **Assignee resolution:** Look up the `#assigned/` tag value against the Team Roster table. If the short name matches, populate both `assigned_to` and `assigned_slack_id`. If it's an unknown name (contractor), set `assigned_to` to the tag value and `assigned_slack_id` to null.
 
@@ -198,7 +198,7 @@ Use `slack_search_public_and_private` to find action items buried in team conver
 }
 ```
 
-Note: Track the source internally for deduplication, but NEVER render source tags (like `slack`, `obsidian`, `gmail`) on the Canvas or in digest messages. The board should only show: task title, project, assignee, and relevant context.
+Note: Track the source internally for deduplication, but NEVER render source tags (like `slack`, `obsidian`, `gmail`) on the Jira board or in digest messages. The board should only show: task title, project, assignee, and relevant context.
 
 **Priority assignment from Slack:**
 - Explicit urgency ("ASAP", "today", "blocking", "before the meeting") → P0
@@ -214,14 +214,14 @@ Note: Track the source internally for deduplication, but NEVER render source tag
 Combine all sources into a single task list. Resolution rules:
 
 1a. **Tombstone check — dedup against Done and the archive, not just the open board (do this BEFORE rules 2–5).** Before adding ANY task surfaced from Google Drive, Calendar, Gmail, or Slack, match it against three sets: (a) every open `- [ ]` line across all columns, (b) the `## ✅ Done` column, and (c) the `completed_index` loaded from `team-kanban-done-archive.md` in Step 2. Use the same >80% fuzzy title match (tags/source stripped) already used for open-board dedup. **Recency gate:** if the candidate matches a Done or archived item AND the candidate's source-signal date is on or before that item's completion date (`#completed/YYYY-MM-DD` on the card, or the leading `YYYY-MM-DD` in the archive line), **suppress it** — the work is already done and this is the same signal resurfacing. Only add it when the candidate carries a genuinely newer signal than the completion date (a real recurrence); when you do, note "recurs after prior completion on `<date>`" in the task context. When ambiguous, suppress and surface it to Dorian's triage rather than re-adding. This rule exists because the originating Slack/email signal outlives the completion — without it, finished tasks get rewritten onto the board. (Team rule: `Taskade/_Shared Files/_shared-memory/feedback_kanban_check_tombstones_before_readd.md`.)
-1. **Dual-authority completion model: Obsidian AND the Slack Canvas are both authoritative for task completion status.** If an item is checked `[x]` in *either* Obsidian or the Slack Canvas, it is considered complete. During sync, apply the *union* of checked states — whichever source has the item marked off wins, and the other source is updated to match. This means team members can check items off on the Canvas and Dorian can check items off in Obsidian, and neither will be overwritten. For all other task metadata (title, tags, column, priority), Obsidian remains the primary source. New tasks found only in the Canvas (added by team via thread replies) are treated as additions.
+1. **Dual-authority completion model: Obsidian AND the Jira board are both authoritative for task completion status.** If an item is checked `[x]` in Obsidian *or* its linked MOXY issue is in Done (or In Review) in Jira, it is considered complete (or in review). During sync, apply the *union* of completion states — whichever source has the item further along wins, and the other source is updated to match. This means team members can resolve issues in Jira and Dorian can check items off in Obsidian, and neither will be overwritten. For all other task metadata (title, tags, column, priority), Obsidian remains the primary source. MOXY issues with no matching card (created by the team directly in Jira) are treated as additions.
 2. **Google Drive tasks** that don't exist in Obsidian get added
 3. **Calendar tasks** only appear if no existing task covers the same commitment
 4. **Gmail tasks** only appear if genuinely new action items, not duplicates of tracked work
 5. **Slack tasks** only appear if they represent commitments/assignments not already tracked in Obsidian or Google Drive. Slack is the richest source of team-distributed action items — many tasks are agreed upon in DMs but never make it to the formal kanban. These are high-value additions.
 6. Enforce column limits: P0 max 3, P1 max 7. If over limit, flag for Dorian's triage. Also keep each card's column and its `#priority/pN` tag in agreement — a `#priority/p2` card parked in the P1 column is drift from a regenerate-without-clean-move; fix the column or the tag, don't leave them split.
-7. **Never display source metadata on the board.** Source tracking is internal only — used for deduplication logic. The Canvas and digest messages show only: task title, project (italic), assignee (@-mention), blocking context, and deadlines.
-8. **Checked items → In Review (not Done).** When a task is found with `- [x]` (checked) on the Canvas or in the Obsidian kanban (per the dual-authority rule above), do NOT move it directly to Done. Instead, move it to the **In Review** column. Resolve the reviewer using this priority order:
+7. **Never display source metadata on the board.** Source tracking is internal only — used for deduplication logic. Jira issues and digest messages show only: task title, project (label), assignee, blocking context, and deadlines.
+8. **Checked items → In Review (not Done).** When a task is found with `- [x]` (checked) in the Obsidian kanban, or its Jira issue was moved to Done by the assignee (per the dual-authority rule above), do NOT move it directly to Done. Instead, move it to the **In Review** column. Resolve the reviewer using this priority order:
 
    **a) Volunteer override (highest priority):** If someone in Slack messages or threads has explicitly volunteered to review a specific task (e.g., "I'll review that", "I can verify"), assign them as the reviewer regardless of the default pairings below.
 
@@ -239,69 +239,59 @@ Combine all sources into a single task list. Resolution rules:
    - Tag the reviewer on the In Review item so they know to confirm: e.g., "Completed by Michael since 2026-04-10 — Review: Steven"
    - **Always include a "since YYYY-MM-DD" date** when moving an item to In Review. Use today's date (the date of the sync that moved it). This date lets the morning standup calculate how long a review has been waiting.
    - In Obsidian, use `#review/name` tag (e.g., `#review/phil`, `#review/steven`)
-   - A task only moves from In Review → Done when the reviewer explicitly confirms (by checking it off from In Review, or by posting confirmation in a Slack thread).
+   - A task only moves from In Review → Done when the reviewer explicitly confirms (by transitioning the issue in Jira, checking it off in Obsidian, or posting confirmation in a Slack thread).
    This ensures every completed task gets a second pair of eyes before closure.
 
-#### Step 7: Check for Team Input from Slack
+#### Step 7: Check for Team Input (Jira + digest thread)
 
-Search the existing Slack Canvas (if one exists) and the #general channel for team-contributed tasks:
+Team members contribute in two ways; check both:
 
-1. Search Slack for the existing Team Kanban Canvas: `slack_search_public` with query `"Team Kanban" type:canvas in:#general`
-2. If a Canvas exists, read it with `slack_read_canvas` to get its ID and current content
-3. Search for thread replies to the most recent kanban digest message that contain task additions (team members posting new items in the thread)
-4. Parse any thread contributions as potential new tasks with `source: team-input` and the contributor's name
+1. **Directly in Jira:** run `searchJiraIssuesUsingJql` with `project = MOXY AND created >= -3d` and filter out issues created by the sync itself (they carry the `#jira/` write-back; anything with no matching board card is candidate team input). Capture creator, summary, status, and labels.
+2. **Digest thread replies:** search #general thread replies to the most recent kanban digest message that contain task additions (`P1 Task description #project`). Parse contributions as potential new tasks with `source: team-input` and the contributor's name.
 
-#### Step 8: Build the Slack Canvas
+#### Step 8: Sync the Board to Jira (project MOXY)
 
-Format the merged task list into Canvas-flavored Markdown. Read `references/slack-canvas-format.md` for the exact template.
+The team-visible board is the Jira board for project **MOXY** (cloudId and board URL in the config note). Obsidian remains the source of truth; Jira is the published, team-editable mirror. Read `references/jira-board-mapping.md` for the full column/status/label mapping.
 
-**If no Canvas exists yet (first Canvas publish — public/shared write, treat as high-stakes):**
+**Card ↔ issue identity:** each board card carries a `#jira/MOXY-NNN` tag in Obsidian once it has a Jira twin.
 
-> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+- Card **without** a `#jira/` tag → create a MOXY issue (`createJiraIssue`, type Task) **authored per the best-practices section of the reference**: imperative summary; description with Context (originating signal, who/when), Acceptance (observable done-state), and Notes (blockers, reviewer, deadlines) — fill every section the source data allows. If the card has indented sub-checkboxes or decomposes into independently completable steps, create one **Subtask** per step under the parent (never a `[ ]` checklist in the description). Dependencies on other tracked work become issue links (`getIssueLinkTypes` → `createIssueLink`, type "Blocks"), not prose. Then write the `#jira/MOXY-NNN` tag back onto the card in KANBAN_VIEW.md. This write-back is automatic metadata maintenance — no approval needed. **Exception — bulk creation:** when a sync would create more than 5 new issues at once (e.g., the first sync after setup), show Dorian the list first and get explicit approval; a mass write to the shared tracker is team-visible.
+- Card **with** a `#jira/` tag → fetch the issue; if the card changed (title, column, assignee, labels, blocked context), apply `editJiraIssue` and, for column moves, `getTransitionsForJiraIssue` → `transitionJiraIssue`. Statuses are discovered, never assumed — if a target status doesn't exist on the board, use the fallback label per the reference.
+- MOXY issue with **no matching card** and not handled as team input (Step 7) → surface in Dorian's triage. Never delete or close Jira issues autonomously.
 
-The first Canvas publish lands in a shared, team-visible space. Show Dorian the full Canvas content and the destination (#general) and get his explicit go-ahead before creating it. Then:
-- Create one with `slack_create_canvas` titled "Team Kanban — MoxyWolf"
-- Post the Canvas link to #general with context message
+**Subtask completion:** subtasks obey the same dual-authority rule — a subtask Done in Jira checks the matching sub-item on the card, and vice versa. The parent card/issue moves to Done only when all its subtasks are Done.
 
-**If Canvas already exists:**
-- Update it with `slack_update_canvas` using `action: replace` (full board refresh)
-- The Canvas ID should be stored from the previous run — search for it if needed
+**Assignees:** map `#assigned/` short names to Jira accountIds from the config note. Contractors without Jira accounts stay unassigned; their name goes in the issue description.
 
-**Standup sync marker:** The Canvas header includes two timestamps:
-- `*Last updated:*` — set to the current date/time of this team-kanban sync
-- `*Last standup read:*` — **preserve the existing value** from the previous Canvas content. Do NOT overwrite it. This timestamp is written by the morning standup (personal-os plugin) when it reads the Canvas, so the standup can determine which Done/In Review items are new since the last read. If the Canvas is being created for the first time, set this to "never".
+**Update batching:** only touch issues whose card actually changed. Don't rewrite every issue on every sync — the sync should be a no-op on an unchanged board.
 
-When the personal-os morning standup reads the Canvas (Step 2 of its flow), it should:
-1. Read the `Last standup read` timestamp to filter Done items to only those confirmed after that date
-2. After completing the standup, update ONLY the `Last standup read` line on the Canvas to the current timestamp using `slack_update_canvas` with `action: replace` on just the header section — or carry the new timestamp forward to the next team-kanban sync
+**Standup sync marker:** the `last_standup_read` timestamp lives in the config note at `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` (not on the board). The personal-os morning standup reads it to filter Done/In Review items to those changed since the last standup, and updates it after each standup. This sync preserves it untouched.
 
-#### Step 9: Post Daily Digest to #general
+#### Step 9: Post the Slim Daily Digest to #general
 
-> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+> **Confirm before sending.** Show the exact message (or digest content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
 
 The #general digest is a public broadcast to the whole team. Render the exact digest message and name the destination (#general), then wait for Dorian's explicit approval before calling `slack_send_message`. Never auto-post the digest.
 
-After Dorian approves, post the formatted summary message to #general using `slack_send_message`. Read `references/slack-canvas-format.md` for the message template.
-
-The digest includes:
+The digest is a **slim pointer, not the full board** — the board lives in Jira now. Read `references/jira-board-mapping.md` for the message template. Keep it under 150 words:
 - Quick stats: total tasks, items by column, new items since last sync
 - P0 items in full (these are urgent — everyone should see them)
-- Blocked items with escalation status
-- Link to the full Canvas for the complete board
-- A prompt inviting team members to add tasks by replying in the thread
+- Blocked items over 7 days (escalations only)
+- Link to the Jira board for everything else
+- A prompt: add tasks in Jira directly, or reply in the thread
 
 #### Step 10: Sync Back to Obsidian
 
 This step is **mandatory** for completion state changes and **approval-gated** for new tasks.
 
 **10a) Completion sync-back (automatic, no approval needed):**
-If any items were checked on the Slack Canvas but unchecked in Obsidian (detected in Step 6 via the dual-authority rule), update `${VAULT}/Tasks/KANBAN_VIEW.md` to match:
+If any linked issues were moved to Done or In Review in Jira but their cards are unchecked in Obsidian (detected in Step 6 via the dual-authority rule), update `${VAULT}/Tasks/KANBAN_VIEW.md` to match:
 - Change the item from `- [ ]` to `- [x]` in its current column
 - Move the item to the `## 🔍 In Review` section with the appropriate `#review/name` tag
-- This ensures Obsidian and the Canvas stay in sync — no manual reconciliation needed
+- This ensures Obsidian and the Jira board stay in sync — no manual reconciliation needed
 
 **10b) New task sync-back (requires Dorian's approval):**
-If team members added tasks via Slack threads (Step 7), offer to write them back to `${VAULT}/Tasks/KANBAN_VIEW.md`:
+If team members added tasks via Jira or Slack threads (Step 7), offer to write them back to `${VAULT}/Tasks/KANBAN_VIEW.md`:
 - Present new team-contributed items for Dorian's approval
 - If approved, add them to the appropriate column in KANBAN_VIEW.md
 - Use the Edit tool to append to the correct section — never overwrite the entire file
@@ -310,31 +300,30 @@ If team members added tasks via Slack threads (Step 7), offer to write them back
 
 ### Mode 2: Quick Update
 
-**Triggers:** "quick kanban update", "just refresh the board", "push current tasks to Slack"
+**Triggers:** "quick kanban update", "just refresh the board", "push current tasks to Jira"
 
-Skip Steps 4, 5, and 5b (calendar/email/Slack DM scanning). Only read Obsidian + Google Drive, merge, and push to Slack. Faster for mid-day refreshes when the full intelligence scan isn't needed.
+Skip Steps 4, 5, and 5b (calendar/email/Slack DM scanning). Only read Obsidian + Google Drive, merge, and sync to Jira. Skip the digest. Faster for mid-day refreshes when the full intelligence scan isn't needed.
 
 ---
 
 ### Mode 3: Setup
 
-**Triggers:** "set up the team kanban", "create the team board", "initialize the kanban canvas", or the `/team-kanban-setup` command.
+**Triggers:** "set up the team kanban", "create the team board", "initialize the kanban board", or the `/team-kanban-setup` command.
 
 One-time setup flow:
 
-> **Confirm before sending.** Show the exact message (or digest/canvas content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
+> **Confirm before sending.** Show the exact message (or digest content) and the destination, then wait for explicit human approval before posting. The human can stop at any point. Never auto-send. For a public/shared-channel broadcast, treat it as high-stakes: a named person approves before it posts.
 
-Setup creates the first shared Canvas and the first #general broadcast — both public, both high-stakes. Before steps 2 and 3, show Dorian the exact Canvas content and the exact intro message plus their destination (#general), and wait for his explicit approval. Never auto-create or auto-post.
+Setup performs the first bulk write to the shared Jira tracker and the first #general broadcast — both team-visible, both gated. Before steps 4 and 6, show Dorian the exact content (issue list / intro message) plus the destination, and wait for his explicit approval. Never auto-create or auto-post.
 
-1. **Find #general:** Use `slack_search_channels` to find the #general channel and capture its channel ID
-2. **Create the Canvas (after approval):** Create the initial Team Kanban Canvas with `slack_create_canvas`
-3. **Post introduction (after approval):** Send an introductory message to #general explaining the board, how to add tasks (reply in thread), and linking to the Canvas
-4. **Store config:** Write a config note to `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` with:
-   - Canvas ID
-   - #general channel ID
-   - Date of setup
-   - Column configuration
-5. **Offer to set up a scheduled task** using the Cowork scheduled-tasks system for daily automated posting
+1. **Verify Jira access:** `getAccessibleAtlassianResources` → capture the cloudId; `getVisibleJiraProjects` → confirm project **MOXY** is visible and capture its issue types (expect Task)
+2. **Resolve roster accountIds:** `lookupJiraAccountId` for each team member email in the roster; record them for the config note
+3. **Check board statuses:** discover the available statuses (via `getTransitionsForJiraIssue` on any existing issue, or the project metadata). If "Blocked" or "In Review" statuses are missing, tell Dorian he can add those columns in Jira board settings for a 1:1 mapping — the sync degrades gracefully to labels (`blocked`, `in-review`) if he doesn't
+4. **First full sync (after approval):** run Mode 1 Steps 1–8. The first sync bulk-creates a MOXY issue for every open card — show Dorian the full list of issues to be created and get his explicit approval before creating them
+5. **Find #general:** Use `slack_search_channels` to find the #general channel and capture its channel ID
+6. **Post introduction (after approval):** Send an introductory message to #general explaining the Jira board, how to add tasks (in Jira directly, or reply in digest threads), and linking to the board
+7. **Store config:** Write a config note to `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` per the template in `references/jira-board-mapping.md` (cloudId, project key, board URL, discovered statuses, roster accountIds, #general channel ID, column configuration, `last_standup_read`)
+8. **Offer to set up a scheduled task** using the Cowork scheduled-tasks system for daily automated syncs
 
 ---
 
@@ -343,10 +332,10 @@ Setup creates the first shared Canvas and the first #general broadcast — both 
 Before creating anything new, always check for existing config:
 
 1. Read `${VAULT}/_Shared Knowledge/Agents and Plugins/team-kanban-config.md` if it exists
-2. If it contains a Canvas ID, verify the Canvas still exists with `slack_read_canvas`
-3. If it contains a #general channel ID, use it directly instead of searching
+2. If it contains a cloudId + project key, verify access with `getVisibleJiraProjects` (cheap read)
+3. If it contains roster accountIds and a #general channel ID, use them directly instead of re-resolving
 
-If the config file doesn't exist or the Canvas is gone, fall back to search or prompt for setup.
+If the config file doesn't exist or the Jira project is unreachable, fall back to discovery or prompt for setup.
 
 ---
 
@@ -358,8 +347,8 @@ The Slack digest message should be direct and scannable:
 - Use Slack mrkdwn formatting (`*bold*` not `**bold**`, `<url|text>` for links)
 - No hedging. "3 items blocked" not "there appear to be some blocked items"
 - Include specific names for blocked items: "Waiting on Mark Johnston since March 18"
-- The Canvas uses Canvas-flavored Markdown (standard Markdown headers, links, checklists)
-- Keep the digest message under 300 words — the Canvas has the full detail
+- Jira issue summaries stay plain: title only, no tags, no source metadata — semantics go in labels and the description
+- Keep the digest message under 150 words — the Jira board has the full detail
 
 ---
 
@@ -367,8 +356,9 @@ The Slack digest message should be direct and scannable:
 
 - **Vault not mounted:** Ask Dorian to mount it. Don't proceed without the Obsidian kanban.
 - **Google Drive unreachable:** Post what you have from Obsidian alone. Note the gap in the digest.
-- **Canvas creation fails:** Fall back to posting the full board as a Slack message instead.
-- **Slack send fails:** Save the formatted output to `${VAULT}/Tasks/team-kanban-latest.md` as a backup.
+- **Jira unreachable or Atlassian MCP not connected:** Don't fake the sync. Save the merged board to `${VAULT}/Tasks/team-kanban-latest.md`, note the gap, and tell Dorian the Atlassian connector needs attention.
+- **Transition fails (status missing):** Apply the fallback label per `references/jira-board-mapping.md` and note it in the sync report.
+- **Slack digest send fails:** The board is already synced to Jira — report the digest failure and offer to retry.
 - **Column limits exceeded:** Don't silently drop items. Flag the overflow in the digest: "P0 has 5 items (limit: 3). Triage needed."
 
 ## Restraint layer (ponytail)
