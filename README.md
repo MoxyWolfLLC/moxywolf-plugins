@@ -55,7 +55,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault
 │   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
 │   ├── obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install
-│   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.7.0 adds DR auto-routing + Operating Norms _INDEX.md master index
+│   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index
 │   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions + project charter governance
 │   ├── project-init/               /init-project /session-start /session-end
@@ -63,7 +63,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── saas-frontend-designer/     Next/React/Tailwind/shadcn SaaS UI pipeline
 │   ├── saas-pricing-engine/        Pricing research, modeling, page copy
 │   ├── synergy-engine/             Topic-synergy outreach, 3 centers — author/content discovery (comment-first via Apify + Claude in Chrome) + citation center (bibliography -> OpenAlex/Apollo/Apify -> "we cited you" email + LinkedIn connect, with the send discipline); xlsx tracker + citation registry; human-gated, never auto-sends
-│   ├── team-kanban/                Slack Canvas kanban from Obsidian/GDrive/Cal/Gmail
+│   ├── team-kanban/                Jira (MOXY) team board from Obsidian/GDrive/Cal/Gmail/Slack — subtasks, issue links, slim #general digest
 │   ├── understand-anything/        Pointer to Understand-Anything (Egonex-AI, MIT) — multi-agent pipeline that turns a codebase into deep narrative documentation
 │   ├── vault-code-learn/           The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo, captures architecture insights into the MoxyWolf vault's Code Patterns folder, and surfaces them next session
 │   ├── vault-skills/               Six vault-* workflow skills vendored from az9713/claude-code-obsidian (capture, save, journal, synthesize, MOC, health). Companion to obsidian-skills
