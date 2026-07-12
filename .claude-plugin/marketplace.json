@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.23.2",
+  "version": "1.24.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -339,8 +339,8 @@
     {
       "name": "gstack-execution",
       "source": "./plugins/gstack-execution",
-      "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review via /gstack-codex-review (real Codex when the codex CLI is present, Claude fallback otherwise), security audit, debugging, QA testing, and shipping. Pairs with product-orchestrator. Browser ops via Claude in Chrome.",
-      "version": "0.4.1",
+      "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review via /gstack-codex-review (real Codex when the codex CLI is present, Claude fallback otherwise), security audit, debugging, QA testing, and shipping \u2014 /gstack-ship validates in a disposable worktree with a safe-fix/escalate contract (concept-ported from no-mistakes, MIT). Pairs with product-orchestrator. Browser ops via Claude in Chrome.",
+      "version": "0.5.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -357,7 +357,9 @@
         "ecc",
         "build-fix",
         "skill-create",
-        "learn"
+        "learn",
+        "worktree",
+        "pre-push-gate"
       ]
     },
     {
