@@ -99,6 +99,8 @@ The plugin is **mostly composition** over existing MoxyWolf plugins. It calls:
 
 What's genuinely new in this plugin: the 30-day discourse sweep (`scripts/discourse_sweep.py` + `skills/discourse-sweep/`), the engineered Release Owner Gate (`scripts/preflight.py` + `scripts/prose_lint.py` + the BLOCKING reviewer sub-agent), the 3-axis LinkedIn scorecard, the AEO checklist, and the orchestrator that sequences everything under the 4D discipline.
 
+The discourse sweep concept-ports three ideas from [last30days-skill](https://github.com/mvanhorn/last30days-skill) by mvanhorn (MIT): entity resolution (resolve a topic to subreddits/handles/repos before querying), engagement-aware ranking (a real upvote/comment count feeds the score, via zero-config reddit public JSON), and a per-author cap (max 3 primaries per author). Ideas only — re-specified to keep the sweep script network-free and zero-config; no upstream code was copied, so no LICENSE file is carried. The heavier last30days machinery (session-scraped X/TikTok/YouTube engagement, HTML/ELI5 briefs, competitor fan-out) stays upstream; run last30days directly if you want those.
+
 ## Important rules
 
 - **Plugin never auto-publishes to LinkedIn.** It writes the article and teaser to disk; you paste / use Buffer / use the LinkedIn editor.

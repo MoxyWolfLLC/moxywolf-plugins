@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.24.0",
+  "version": "1.25.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -12,7 +12,7 @@
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
       "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. The single front door for every MoxyWolf blog property: a targets/ registry (FrontierFounder wired; STIGViewer, moxywolf-website, prfaq register-only) drives canonical URL, JSON-LD, frontmatter, and hero per destination, and every post picks a publishing target + a pillar (new or existing) before drafting \u2014 the hub-and-spoke methodology, with /blog-pillar to manage pillars and their linking maps. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile; multi-voice supported. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog-pipeline runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric). On sign-off, the pipeline ends \u2014 social derivatives are opt-in. /blog-social derives any subset of: LinkedIn Post + first-comment (feed Post 1,300-2,500 chars sweet spot, 2,900 hard cap under LinkedIn's 3,000-char ceiling, zero body links; companion first-comment file with the fixed \"If you want to do your own research\u2026\" opener, the blog URL, and the 2-3 sources the Post quotes inline), LinkedIn Article (optional long-form, separate selection), Twitter/X (5-10 post thread with \u2264280-char per-post hard cap, script-enforced), Facebook (single 300-500 char post with body-inline link). One voice profile, per-platform register shifts (Twitter compressed; Facebook warmer; LinkedIn professional; first-comment voice-off and utilitarian). /blog-publish ships a signed post \u2014 the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
-      "version": "0.16.1",
+      "version": "0.17.0",
       "author": {
         "name": "MoxyWolf LLC"
       },

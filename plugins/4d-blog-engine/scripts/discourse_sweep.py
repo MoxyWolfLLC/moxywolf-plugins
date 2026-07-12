@@ -11,13 +11,17 @@ two modes:
               defines what gets executed.
 
   --rank      Rank a harvested findings file (JSON, written by the skill from
-              the search results) using relevance×0.6 + recency×0.4 with
-              banded recency, dedupe via 70% title-overlap, +0.1 source-
-              diversity bonus, and cross-source clustering. Outputs a ranked
-              discourse.md and a discourse.json sidecar.
+              the search results) using a relevance/recency/engagement blend
+              with banded recency, dedupe via 70% title-overlap, +0.1 source-
+              diversity bonus, a per-author cap, and cross-source clustering.
+              Outputs a ranked discourse.md and a discourse.json sidecar.
 
 Boundary: the orchestrator agent does the search; the script does the math.
-Per agricidaniel/claude-blog discipline.
+Per agricidaniel/claude-blog discipline. The engagement input, entity-scoped
+reddit-json queries, and per-author cap are concept-ported from
+mvanhorn/last30days-skill (MIT) — the ideas, re-specified to keep this
+script network-free and zero-config. The agent still does all retrieval;
+the script only does math on an engagement count the agent already captured.
 
 Usage:
   python3 discourse_sweep.py --plan \\
@@ -61,10 +65,35 @@ PLATFORMS: list[tuple[str, str]] = [
 EXTERNAL_PLATFORMS: list[str] = ["podcasts_apify", "academic_research_pipeline"]
 
 
-def make_plan(topic: str, outline_path: Path | None, days: int) -> dict[str, Any]:
+def _load_entities(entities_path: Path | None) -> dict[str, Any]:
+    """
+    Load the optional entity-resolution file the agent produced in the
+    pre-query step. Shape (all keys optional):
+        {"subreddits": ["ClaudeAI", "LocalLLaMA"],
+         "handles": {"x": ["steipete"], "github": ["steipete"]}}
+    Concept-ported from last30days' entity-resolution brain, but resolution
+    itself is the agent's job (LLM judgment); the script only consumes the
+    result to emit targeted queries. Returns {} if absent or unparseable.
+    """
+    if not entities_path or not entities_path.exists():
+        return {}
+    try:
+        data = json.loads(entities_path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (ValueError, OSError):
+        return {}
+
+
+def make_plan(
+    topic: str,
+    outline_path: Path | None,
+    days: int,
+    entities: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Generate the per-platform query plan for the skill to execute."""
     since = (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
     queries: list[dict[str, str]] = []
+    entities = entities or {}
 
     # Primary topic queries across all web platforms.
     for platform_id, site_op in PLATFORMS:
@@ -75,6 +104,52 @@ def make_plan(topic: str, outline_path: Path | None, days: int) -> dict[str, Any
                 "executor": "WebSearch",
             }
         )
+
+    # Entity-scoped reddit queries via the public JSON endpoint (zero-config,
+    # no key). Each resolved subreddit gets a reddit_json query the agent
+    # fetches with Bash+curl and a custom User-Agent, capturing `engagement`
+    # (score + num_comments) per hit. Degrades to the WebSearch reddit query
+    # above if the JSON fetch fails; the agent logs the degradation.
+    for subreddit in entities.get("subreddits", []) or []:
+        sub = str(subreddit).lstrip("r/").strip()
+        if not sub:
+            continue
+        queries.append(
+            {
+                "platform": "reddit",
+                "subreddit": sub,
+                "query": (
+                    f"https://www.reddit.com/r/{sub}/search.json"
+                    f"?q={topic}&restrict_sr=1&sort=top&t=month&limit=25"
+                ),
+                "executor": "reddit_json",
+            }
+        )
+
+    # Handle-scoped queries for resolved X / GitHub identities.
+    handles = entities.get("handles", {}) or {}
+    for x_handle in handles.get("x", []) or []:
+        h = str(x_handle).lstrip("@").strip()
+        if h:
+            queries.append(
+                {
+                    "platform": "x",
+                    "handle": h,
+                    "query": f"from:{h} {topic} after:{since}",
+                    "executor": "WebSearch",
+                }
+            )
+    for gh_user in handles.get("github", []) or []:
+        u = str(gh_user).strip()
+        if u:
+            queries.append(
+                {
+                    "platform": "github",
+                    "handle": u,
+                    "query": f"{topic} site:github.com/{u} after:{since}",
+                    "executor": "WebSearch",
+                }
+            )
 
     # Per-outline-section evidence queries, if an outline was supplied.
     section_terms: list[str] = []
@@ -101,13 +176,43 @@ def make_plan(topic: str, outline_path: Path | None, days: int) -> dict[str, Any
         "since": since,
         "queries": queries,
         "external_platforms": EXTERNAL_PLATFORMS,
+        "entities": entities,
+        "reddit_json_query_count": sum(
+            1 for q in queries if q.get("executor") == "reddit_json"
+        ),
         "platform_count": len(PLATFORMS) + len(EXTERNAL_PLATFORMS),
         "query_count": len(queries),
         "_meta": {
-            "schema": "4d-blog-engine.discourse_sweep.plan.v1",
+            "schema": "4d-blog-engine.discourse_sweep.plan.v2",
             "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         },
     }
+
+
+# Engagement normalization: log-scaled so a raw count maps to [0, 1].
+# log10(1 + count) / NORM_K, capped at 1.0. NORM_K=4.0 → ~1.0 at 10k,
+# ~0.75 at 1k, ~0.5 at 100. Platform-agnostic; the agent passes whatever
+# single engagement count best represents the hit (reddit score+comments,
+# etc.). Concept-ported from last30days' engagement ranking.
+NORM_K = 4.0
+
+# No single author may own more than this many primaries in the brief.
+MAX_PER_AUTHOR = 3
+
+
+def _engagement_score(count: Any) -> float | None:
+    """Normalize a raw engagement count to [0, 1]; None if not provided."""
+    if count is None:
+        return None
+    try:
+        c = float(count)
+    except (TypeError, ValueError):
+        return None
+    if c <= 0:
+        return 0.0
+    import math
+
+    return round(min(1.0, math.log10(1.0 + c) / NORM_K), 3)
 
 
 def _band_recency(days_old: int | None) -> float:
@@ -161,7 +266,19 @@ def rank_findings(findings: list[dict[str, Any]], topic: str) -> dict[str, Any]:
         if relevance is None:
             relevance = round(_overlap(_title_tokens(title), topic_tokens), 3)
         recency = _band_recency(days_old)
-        combined = round(relevance * 0.6 + recency * 0.4, 3)
+
+        # Engagement blend (concept-ported from last30days): when the agent
+        # captured a real engagement count (e.g. reddit score+comments), it
+        # earns 0.2 of the weight and relevance/recency keep their 0.6:0.4
+        # ratio in the remaining 0.8. When absent, the score is identical to
+        # the original relevance×0.6 + recency×0.4 — fully backward-compatible.
+        engagement = _engagement_score(f.get("engagement"))
+        if engagement is None:
+            combined = round(relevance * 0.6 + recency * 0.4, 3)
+        else:
+            combined = round(
+                relevance * 0.48 + recency * 0.32 + engagement * 0.2, 3
+            )
 
         enriched.append(
             {
@@ -170,6 +287,7 @@ def rank_findings(findings: list[dict[str, Any]], topic: str) -> dict[str, Any]:
                 "days_old": days_old,
                 "relevance_score": relevance,
                 "recency_score": recency,
+                "engagement_score": engagement,
                 "combined_score": combined,
             }
         )
@@ -205,13 +323,31 @@ def rank_findings(findings: list[dict[str, Any]], topic: str) -> dict[str, Any]:
         primaries.append(head)
     primaries.sort(key=lambda r: r["combined_score"], reverse=True)
 
+    # Per-author cap (concept-ported from last30days): no single author may
+    # own more than MAX_PER_AUTHOR primaries, so one loud voice can't dominate
+    # the brief. Findings with no `author` are never capped. Capped items are
+    # kept for the record under `capped_by_author`, not silently dropped.
+    kept: list[dict[str, Any]] = []
+    capped: list[dict[str, Any]] = []
+    author_counts: dict[str, int] = {}
+    for p in primaries:
+        author = (p.get("author") or "").strip().lower()
+        if author:
+            if author_counts.get(author, 0) >= MAX_PER_AUTHOR:
+                p["capped_reason"] = f"author cap ({MAX_PER_AUTHOR}/author)"
+                capped.append(p)
+                continue
+            author_counts[author] = author_counts.get(author, 0) + 1
+        kept.append(p)
+
     return {
         "topic": topic,
         "total_findings_input": len(findings),
         "clusters_after_dedupe": len(clusters),
-        "primaries": primaries,
+        "primaries": kept,
+        "capped_by_author": capped,
         "_meta": {
-            "schema": "4d-blog-engine.discourse_sweep.ranked.v1",
+            "schema": "4d-blog-engine.discourse_sweep.ranked.v2",
             "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         },
     }
@@ -238,11 +374,16 @@ def render_discourse_md(ranked: dict[str, Any]) -> str:
         days = p.get("days_old")
         bonus = " (+diversity bonus)" if p.get("source_diversity_bonus") else ""
         days_str = f"{days}d ago" if days is not None else "undated"
+        eng = p.get("engagement_score")
+        eng_str = f" · **Engagement:** {eng}" if eng is not None else ""
+        author = (p.get("author") or "").strip()
+        author_str = f" · **Author:** {author}" if author else ""
         lines.append(f"### {i}. [{title}]({url})")
         lines.append("")
         lines.append(
             f"**Platform:** {platform} · **Recency:** {days_str} · "
-            f"**Score:** {score}{bonus} · **Cluster size:** {p.get('cluster_size', 1)}"
+            f"**Score:** {score}{bonus}{eng_str}{author_str} · "
+            f"**Cluster size:** {p.get('cluster_size', 1)}"
         )
         lines.append("")
         if summary:
@@ -266,6 +407,13 @@ def main() -> int:
     p_plan.add_argument("--topic", required=True)
     p_plan.add_argument("--outline", type=Path, default=None)
     p_plan.add_argument("--days", type=int, default=30)
+    p_plan.add_argument(
+        "--entities",
+        type=Path,
+        default=None,
+        help="Optional entity-resolution JSON (subreddits/handles) the agent "
+        "produced in the pre-query step; enables reddit_json + handle-scoped queries.",
+    )
     p_plan.add_argument("--out", type=Path, required=True)
 
     p_rank = sub.add_parser("rank", help="Rank harvested findings into discourse.md.")
@@ -276,11 +424,13 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.mode == "plan":
-        plan = make_plan(args.topic, args.outline, args.days)
+        entities = _load_entities(args.entities)
+        plan = make_plan(args.topic, args.outline, args.days, entities)
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(plan, indent=2), encoding="utf-8")
         print(
             f"STATUS=plan_written QUERIES={plan['query_count']} "
+            f"REDDIT_JSON={plan['reddit_json_query_count']} "
             f"PLATFORMS={plan['platform_count']} OUT={args.out}"
         )
         return 0

@@ -1,7 +1,7 @@
 ---
 name: discourse-sweep
 description: |
-  This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery), then ranks the findings via combined_score = relevance×0.6 + recency×0.4, dedupes by 70% title-overlap, applies cross-source clustering, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
+  This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It optionally resolves the topic to concrete entities (subreddits, handles, repos) first, then fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery) — including zero-config reddit public-JSON queries that capture real engagement (upvotes + comments) — then ranks the findings via a relevance/recency/engagement blend, dedupes by 70% title-overlap, applies cross-source clustering, caps any single author at 3 primaries, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
 allowed-tools: [Read, Write, Bash, WebSearch, Glob]
 user-invocable: false
 ---
@@ -24,6 +24,22 @@ The orchestrator gives you:
 
 ## Workflow
 
+### Step 0.5 — Resolve entities (optional, recommended)
+
+Concept-ported from mvanhorn/last30days-skill (MIT): before firing blind term queries, resolve the topic to the concrete places the conversation actually happens. This is an **LLM judgment step you do** — the script does no resolution. From the angle and outline, name:
+
+- **Subreddits** where this topic lives (e.g. `ClaudeAI`, `LocalLLaMA`) — communities, not guesses; only include ones you're confident exist.
+- **X / GitHub handles** of the people or projects central to the topic (person → handle, product → founder/repo).
+
+Write them to `<piece>/03-discernment/entities.json`:
+
+```json
+{"subreddits": ["ClaudeAI", "LocalLLaMA"],
+ "handles": {"x": ["steipete"], "github": ["steipete"]}}
+```
+
+If the topic has no obvious entities (abstract/broad themes), skip this step — the sweep still runs on term queries alone. Never fabricate a subreddit or handle; a wrong entity poisons the sweep. When unsure, leave it out.
+
 ### Step 1 — Generate the sweep plan
 
 ```bash
@@ -31,10 +47,11 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/discourse_sweep.py plan \
   --topic "<angle from 01-delegation.md>" \
   --outline "<piece>/02-description.md" \
   --days 30 \
+  --entities "<piece>/03-discernment/entities.json" \
   --out "<piece>/03-discernment/sweep-plan.json"
 ```
 
-The plan file lists ~9 web-platform queries for the primary topic + ~9 queries per outline section. Each query has the form `<terms> site:<platform> after:<YYYY-MM-DD>` and an `executor` field naming the tool to use.
+(`--entities` is optional; omit it if you skipped Step 0.5.) The plan file lists ~9 web-platform queries for the primary topic + ~9 queries per outline section, plus one `reddit_json` query per resolved subreddit and one handle-scoped query per resolved X/GitHub identity. Each query has an `executor` field naming the tool to use: `WebSearch` (term/handle queries, form `<terms> site:<platform> after:<YYYY-MM-DD>`) or `reddit_json` (a ready-to-fetch reddit URL).
 
 ### Step 2 — Execute the queries
 
@@ -43,6 +60,11 @@ For each query in `sweep-plan.json["queries"]`:
 - **`executor: WebSearch`** (the default for all web platforms): call `WebSearch` with the query string. Capture the top 5-10 results.
 - **`executor: Apify`** (for podcasts): call `mcp__Apify__call-actor` with an Apple Podcasts search actor and the topic terms. If Apify isn't connected, fall back to `WebSearch` with `site:apple.co/podcasts` and `site:open.spotify.com/episode` queries, and log the degradation.
 - **`executor: research-pipeline`** (for academic): invoke the `research-pipeline/literature-discovery` skill with the topic. It returns OpenAlex + Semantic Scholar + arXiv hits.
+- **`executor: reddit_json`** (entity-scoped reddit): the query is a full reddit public-JSON URL. Fetch it with Bash + curl, sending a descriptive User-Agent (Reddit rate-limits blank UAs). Zero-config — no key. Parse the JSON `data.children`; for each post capture `title`, `permalink` (prefix `https://www.reddit.com`), the created date, and set `engagement` to `score + num_comments`. If the fetch fails, is rate-limited, or returns non-JSON, **do not invent results** — log the degradation and rely on the WebSearch reddit query for that subreddit. Example:
+
+  ```bash
+  curl -sS -A "moxywolf-discourse-sweep/1.0 (research)" "<query-url>"
+  ```
 
 For each result, capture into a findings array:
 
@@ -54,9 +76,13 @@ For each result, capture into a findings array:
   "summary": "<2-4 sentence summary in your own words>",
   "published_at": "<ISO date if extractable, else null>",
   "source_type": "<discussion|blog|primary|whitepaper|podcast|paper|other>",
+  "author": "<handle/username if known (enables the per-author cap); else omit>",
+  "engagement": "<integer engagement count if the source exposed one (reddit score+comments, etc.); else omit>",
   "relevance": <optional 0-1 if you can judge precisely; otherwise omit>
 }
 ```
+
+`author` and `engagement` are optional and additive: findings without them rank exactly as before. Only set `engagement` from a real count you retrieved — never estimate it.
 
 Write the collected findings array to `<piece>/03-discernment/sweep-findings.json` as JSON (a single top-level array, or `{"findings": [...]}` — the ranker accepts both).
 
@@ -73,9 +99,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/discourse_sweep.py rank \
 
 The ranker:
 
-- Scores each finding `combined_score = relevance×0.6 + recency×0.4` (recency banded).
+- Scores each finding on a blend of relevance, banded recency, and (when present) engagement. Without an engagement count: `combined_score = relevance×0.6 + recency×0.4` (unchanged). With one: `relevance×0.48 + recency×0.32 + engagement×0.2`, where `engagement` is the raw count log-normalized to [0,1] — so an upvoted-and-discussed thread outranks a same-relevance post nobody engaged with, but engagement never overwhelms substance.
 - Dedupes via 70% title-token overlap, keeps the highest-scoring as the primary of each cluster.
 - Adds a +0.1 source-diversity bonus to clusters surfacing from ≥2 platforms.
+- Caps any single `author` at 3 primaries so one loud voice can't dominate the brief; capped items are retained under `capped_by_author`, never silently dropped.
 - Writes `discourse.md` (human-readable) and `discourse.json` (sidecar for downstream steps).
 
 ### Step 4 — Council synthesis pass (optional but recommended)
@@ -126,6 +153,8 @@ It does one thing: turn the outline + angle into a ranked, themed brief of the l
 
 ## Degradation behaviors
 
+- **Reddit JSON fetch fails / rate-limited / non-JSON:** drop the `reddit_json` result for that subreddit and rely on the WebSearch reddit query instead. Log it. Never invent reddit hits or engagement counts.
+- **No entities resolved (Step 0.5 skipped):** the sweep runs on term queries alone, exactly as before entity resolution existed. This is a valid, non-degraded path for abstract topics.
 - **Apify not connected:** fall back to WebSearch with `site:apple.co/podcasts` queries. Log it.
 - **research-pipeline/literature-discovery not installed:** skip academic; emit a warning in `sources-verification.md`.
 - **Council not configured:** skip Step 4; use unfiltered `discourse.md`. Log it.
