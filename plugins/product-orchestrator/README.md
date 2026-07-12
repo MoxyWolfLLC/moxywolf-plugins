@@ -20,10 +20,12 @@ This is not a project management tool. It's a decision quality tool.
 |---------|-------------|
 | `/project-charter` | Create or update a project's `CHARTER.md` — durable principles and boundaries the Council consults before scope and PRD decisions |
 | `/product-prd` | Generate a Product Requirements Document through guided interview |
+| `/product-clarify` | Scan a PRD for ambiguity/coverage gaps and resolve them with ≤5 targeted questions encoded back into the PRD (before architecture) |
 | `/product-scope` | Deliberate on scope decisions (what to build, defer, or cut) |
 | `/product-arch` | Deliberate on architecture choices (tech stack, infrastructure, patterns) |
 | `/product-gtm` | Deliberate on go-to-market positioning (messaging, pricing, distribution) |
-| `/product-sprint` | Full sprint orchestration: PRD → deliberation → execute → review |
+| `/product-analyze` | Read-only cross-artifact consistency check (PRD ↔ architecture ↔ task plan ↔ CHARTER) before execution — DR-004's `/product-analyze` |
+| `/product-sprint` | Full sprint orchestration: PRD → clarify → deliberation → task plan → analyze → execute → review |
 
 ### Skill
 
@@ -38,6 +40,8 @@ This is not a project management tool. It's a decision quality tool.
 | `scope-templates.md` | Four role prompts for scope deliberation (User Advocate, Business Strategist, Ship-It Pragmatist, Long-Game Architect) |
 | `architecture-templates.md` | Four role prompts for architecture deliberation (Scalability Realist, Security & Compliance Advocate, DX Champion, Migration Strategist) |
 | `gtm-templates.md` | Four role prompts for GTM deliberation (Customer Voice, Market Analyst, Revenue Architect, Contrarian Advisor) |
+| `clarify-protocol.md` | Ambiguity taxonomy, question-selection heuristic (Impact × Uncertainty, ≤5), and encode-back rules for `/product-clarify` |
+| `analyze-protocol.md` | Detection passes, severity rubric, and report format for `/product-analyze`; PRD↔architecture↔task-plan↔charter artifact mapping |
 | `sprint-protocol.md` | Full sprint sequence, deliberation gating rules, execution routing tables |
 
 ## Dependencies
@@ -126,6 +130,7 @@ Every deliberation produces a decision record:
 
 ## Version History
 
+- **0.5.0** — Add `/product-clarify` and `/product-analyze`, concept-ported from [spec-kit](https://github.com/github/spec-kit) (MIT) — the same origin as the charter/constitution primitive. `/product-clarify` scans a PRD against an ambiguity taxonomy and resolves gaps with ≤5 Impact×Uncertainty-ranked questions encoded back into the PRD, before architecture. `/product-analyze` is DR-004's anticipated read-only cross-artifact consistency check (PRD ↔ architecture ↔ task plan ↔ CHARTER): duplication, ambiguity, underspecification, charter-alignment (auto-CRITICAL), coverage gaps, and inconsistency, as a severity-ranked report + coverage map — it reports, never edits or gates. Both wired into the sprint protocol (clarify after PRD, analyze before execute). Ideas only; no spec-kit code vendored. The paired implementation-time check (`/gstack-verify`, built code vs spec) remains a gstack-execution follow-on.
 - **0.2.0** — Enhanced PRD template. Added User Personas (required, conditional), Non-Functional Requirements, Dependencies & Integrations, Risks & Mitigations, and Verification Approach sections (all optional). New deliberation routing rules for NFR/dependency-driven architecture questions and unmitigated risk-driven scope reconsideration. Section inclusion rules keep lean PRDs lean.
 - **0.1.0** — Initial release. Scope, architecture, and GTM deliberation templates. PRD generation. Sprint orchestration. Vault persistence via memory-system.
 

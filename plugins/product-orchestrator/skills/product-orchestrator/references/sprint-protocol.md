@@ -23,6 +23,20 @@ The Product Orchestrator adds structured deliberation to Phase 1 and review gate
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
+│ PHASE 0.5: CLARIFY (optional, recommended for new PRDs)  │
+│ Scan the PRD for ambiguity/coverage gaps; ask ≤5         │
+│ targeted questions; encode answers back into the PRD.    │
+│ Run /product-clarify — see references/clarify-protocol.md│
+│                                                          │
+│ Skip if: the PRD is already crisp or the change is tiny  │
+│ and reversible.                                          │
+│                                                          │
+│ Output: a disambiguated PRD, ambiguities resolved before │
+│ architecture is committed                                │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
 │ PHASE 1A: SCOPE DELIBERATION                             │
 │ What ships this sprint?                                  │
 │ Load references/scope-templates.md                       │
@@ -74,6 +88,25 @@ The Product Orchestrator adds structured deliberation to Phase 1 and review gate
 │   4. Flag items that need user input or decisions        │
 │                                                          │
 │ Output: Ordered task list with skill routing             │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│ PHASE 2.5: ANALYZE (read-only consistency gate)          │
+│ Cross-check PRD ↔ architecture ↔ task plan ↔ CHARTER.    │
+│ Flags duplication, ambiguity, underspecification,        │
+│ charter conflicts (auto-CRITICAL), coverage gaps         │
+│ (requirements with no task, tasks with no requirement),  │
+│ and inconsistency. Severity-ranked report + coverage map.│
+│ Run /product-analyze — see references/analyze-protocol.md│
+│                                                          │
+│ Read-only: it reports, it never edits or blocks. If      │
+│ CRITICAL issues surface, resolve before Phase 3 (via     │
+│ /product-clarify, /product-scope, /product-arch, or a    │
+│ task-plan edit) — the user decides.                      │
+│                                                          │
+│ Output: a findings report; a clean or knowingly-accepted │
+│ plan before execution                                    │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼

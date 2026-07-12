@@ -12,7 +12,10 @@ description: >
   product-specific role prompts and routes outputs to downstream execution skills.
   Also triggers on /project-charter to create or update a project's durable
   governing principles, which the Council consults before scope and PRD decisions.
-version: 0.3.0
+  Also triggers on /product-clarify (resolve PRD ambiguity before architecture)
+  and /product-analyze (read-only cross-artifact + charter consistency check
+  before execution).
+version: 0.5.0
 ---
 
 # Product Orchestrator
@@ -278,9 +281,18 @@ status: active
 
 Number PD records sequentially. Check existing records in the vault folder to find the next number.
 
+## Consistency passes: clarify and analyze
+
+Two read-heavy passes bracket the deliberation flow. Both are concept-ported from spec-kit (MIT; the same origin as the charter primitive) and re-specified for this plugin. They are optional, and they sharpen the artifacts rather than deliberating — no Council call.
+
+- **`/product-clarify`** runs on a PRD *before* architecture deliberation. It scans the PRD against an ambiguity taxonomy, asks up to 5 targeted questions (one at a time, ranked by Impact × Uncertainty), and encodes each answer back into the right PRD section with an audit bullet. The point is to keep the architecture from being built on unstated assumptions. Protocol: `references/clarify-protocol.md`.
+- **`/product-analyze`** runs *after* the task plan exists and *before* execution. It is **strictly read-only**: it maps the PRD, the architecture decisions, the task plan, and `CHARTER.md` against each other and reports duplication, ambiguity, underspecification, charter-alignment conflicts (auto-CRITICAL), coverage gaps (requirements with no task, tasks with no requirement), and inconsistency — as a severity-ranked findings table plus a coverage map. It never edits and never gates; it recommends, the user decides. This is DR-004's anticipated `/product-analyze`. Protocol: `references/analyze-protocol.md`.
+
+The paired implementation-time check (built code vs spec, after build) is DR-004's `/gstack-verify` on the gstack-execution side — not part of this plugin.
+
 ## Sprint Protocol
 
-For full sprint orchestration (`/product-sprint`), see `references/sprint-protocol.md`. This coordinates multiple deliberation rounds across a complete build cycle: scope → architecture → implementation plan → review gates.
+For full sprint orchestration (`/product-sprint`), see `references/sprint-protocol.md`. This coordinates multiple deliberation rounds across a complete build cycle: PRD → clarify → scope → architecture → task plan → analyze → execute → review gates. Clarify sits between the PRD and deliberation; analyze sits between the task plan and execution.
 
 ## What This Plugin Is NOT
 
