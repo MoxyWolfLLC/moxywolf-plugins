@@ -57,6 +57,8 @@ Start by understanding the user's intent. The current conversation might already
 
 Proactively ask questions about edge cases, input/output formats, example files, success criteria, and dependencies. Wait to write test prompts until you've got this part ironed out.
 
+**Single agent or a team?** While capturing intent, decide whether the skill's work fits one agent or needs to be split across several. Most skills are single-agent — that's the default, and multi-agent designs cost tokens and coordination, so earn them. Reach for multiple agents only when the work is genuinely parallel, needs independent uncontaminated perspectives (e.g. a reviewer that didn't write the thing), or is larger than one context window. If it does, pick a decomposition pattern (Pipeline, Fan-out/Fan-in, Expert Pool, Producer–Reviewer, Supervisor, Hierarchical Delegation) and the lightest execution substrate that supports it, then record the choice in the skill so its shape is legible later. See `references/agent-team-patterns.md`.
+
 Check available MCPs - if useful for research (searching docs, finding similar skills, looking up best practices), research in parallel via subagents if available, otherwise inline. Come prepared with context to reduce burden on the user.
 
 ### Write the SKILL.md
@@ -466,6 +468,7 @@ The agents/ directory contains instructions for specialized subagents. Read them
 
 The references/ directory has additional documentation:
 - `references/schemas.md` — JSON structures for evals.json, grading.json, etc.
+- `references/agent-team-patterns.md` — six agent-team design patterns (Pipeline, Fan-out/Fan-in, Expert Pool, Producer–Reviewer, Supervisor, Hierarchical Delegation), composite patterns, and how to map them onto Cowork's execution substrates (the Agent tool, the Workflow tool). Read it when a skill's work needs more than one agent. Concept-ported from revfactory/harness (Apache-2.0).
 
 ---
 
