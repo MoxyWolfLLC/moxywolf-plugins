@@ -409,6 +409,8 @@ Take `best_description` from the JSON output and update the skill's SKILL.md fro
 
 ### Package and Present (only if `present_files` tool is available)
 
+Before packaging, run the safety pass in `references/skill-safety-checklist.md`: Tier 1 deterministic greps over the skill folder (secrets, shell execution, undeclared network calls, path escapes, instruction-injection text) — every hit resolved or documented before the skill packages — then the Tier 2 judgment read. The same checklist, in the same order, applies when reviewing an external skill before installing it (read-only; never execute a skill under review).
+
 Check whether you have access to the `present_files` tool. If you don't, skip this step. If you do, package the skill and present the .skill file to the user:
 
 ```bash
@@ -468,7 +470,8 @@ The agents/ directory contains instructions for specialized subagents. Read them
 
 The references/ directory has additional documentation:
 - `references/schemas.md` — JSON structures for evals.json, grading.json, etc.
-- `references/agent-team-patterns.md` — six agent-team design patterns (Pipeline, Fan-out/Fan-in, Expert Pool, Producer–Reviewer, Supervisor, Hierarchical Delegation), composite patterns, and how to map them onto Cowork's execution substrates (the Agent tool, the Workflow tool). Read it when a skill's work needs more than one agent. Concept-ported from revfactory/harness (Apache-2.0).
+- `references/agent-team-patterns.md` — six agent-team design patterns (Pipeline, Fan-out/Fan-in, Expert Pool, Producer–Reviewer, Supervisor, Hierarchical Delegation), composite patterns, and how to map them onto Cowork's execution substrates (the Agent tool, the Workflow tool). Read it when a skill's work needs more than one agent. Concept-ported from revfactory/harness (Apache-2.0). Its run-discipline section (token attribution to the dispatching stage, termination conditions, failure propagation, long-runner re-anchoring) is concept-ported from bytedance/deer-flow (MIT).
+- `references/skill-safety-checklist.md` — the two-tier packaging safety pass: deterministic checks first (secrets, shell exec, undeclared egress, path escapes, injection text), judgment second. SkillScan-inspired, concept-ported from bytedance/deer-flow (MIT). Run it before packaging any skill and before installing an external one.
 
 ---
 

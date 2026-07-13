@@ -116,6 +116,15 @@ Real designs usually combine patterns:
 | **Pipeline + Fan-out** | a sequential stage that parallelizes internally | analyze (seq) → implement (parallel) → integration test (seq) |
 | **Supervisor + Expert Pool** | supervisor dynamically calls specialists | support triage — classify the ticket, assign the right expert |
 
+## Run discipline: observability and failure propagation
+
+Choosing a pattern is half the design; the other half is being able to tell, afterwards, what the team actually did and what it cost. These disciplines are concept-ported from ByteDance's [deer-flow](https://github.com/bytedance/deer-flow) (MIT) — a production agent harness that learned them at scale. No code copied; the ideas are re-expressed for Cowork's primitives.
+
+- **Attribute cost to the dispatching stage, not the run.** When a skill fans out, record each sub-agent's token spend against the stage that dispatched it (the `Workflow` tool's `budget.spent()` gives the pool; the stage labels give the attribution). "The run cost 400k" teaches nothing; "the verify stage cost 3× the find stage" tells the next revision where to cut. Skills that spawn agents should say in their design which stages are expected to be expensive.
+- **Define termination conditions when the sub-agent is spawned, not discovered later.** Every spawned agent gets, in its prompt: what done looks like, what to return, and when to stop trying. An agent without a termination condition ends when its context runs out, which is a budget decision made by accident.
+- **A failed sub-agent must report failure, never a plausible result.** Model/provider errors, empty tool results, and blown assumptions surface to the orchestrator as *failed tasks* — the orchestrator retries, reroutes, or reports honestly. The failure mode to design against is a sub-agent degrading into confident emptiness that the merge stage then launders into the final answer. In `Workflow` scripts this is the `.filter(Boolean)` discipline plus checking counts: if 2 of 5 finders returned null, the synthesis must say so.
+- **Long-running sub-agents that compact must re-anchor.** When an agent summarizes its own older context to keep going, the summary is injected as durable grounding it continues *from* — not silently dropped. If the substrate doesn't do this (plain sub-agents don't), prefer shorter-lived agents that return and are re-spawned with a digest, over one long agent quietly forgetting its first half.
+
 ## Agents vs skills (so the port lands in the right place)
 
 | | Skill | Agent |
