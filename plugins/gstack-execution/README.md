@@ -3,7 +3,7 @@
 **Version:** 0.5.0
 **Author:** MoxyWolf LLC
 **Based on:** [gstack](https://github.com/garrytan/gstack) by Garry Tan (MIT License), with adversarial-review framing from OpenAI's [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) (Apache-2.0)
-**Requires:** Claude in Chrome extension (for browser commands), Git (for code review/ship). Optional: `codex` CLI for real cross-model review in `/gstack-codex-review`.
+**Requires:** Claude in Chrome extension (for browser commands), Git (for code review/ship). Optional: `codex` CLI for real cross-model review in `/gstack-codex-review` and `/gstack-plan-review`.
 
 ## Overview
 
@@ -16,7 +16,9 @@ Adapted from Garry Tan's gstack — an open-source software factory that turns A
 | Command | Description | Tools Used |
 |---------|-------------|-----------|
 | `/gstack-review` | Structural code review with two-pass checklist | Git + Grep |
+| `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md (real Codex or fresh-context Claude critic) | Git + Grep + `codex` CLI (optional) |
 | `/gstack-codex-review` | Adversarial review of just-committed code (real Codex or Claude fallback) | Git + Grep + `codex` CLI (optional) |
+| `/gstack-verify` | Post-build check of the implementation against its plan/spec (claim table + drift report) | Git + Grep + Read |
 | `/gstack-investigate` | Root cause debugging with hypothesis testing | Git + Grep + Read |
 | `/gstack-cso` | Security audit: OWASP + STRIDE + supply chain + secrets | Grep + Bash |
 | `/gstack-ship` | Test → review → PR pipeline, worktree-isolated with a safe-fix/escalate contract | Git + Bash |
@@ -58,6 +60,7 @@ Product Orchestrator handles decisions (scope, architecture, GTM). This plugin h
 |------|---------|
 | `review-checklist.md` | Two-pass checklist: critical (blocking) + informational |
 | `codex-review-methodology.md` | Adversarial review protocol (four lenses + defect floor) shared by both `/gstack-codex-review` engines |
+| `plan-review-protocol.md` | Bounded plan-hardening loop (iteration with memory, deadlock handling, both engines' mechanics) behind `/gstack-plan-review` |
 | `cso-phases.md` | Detailed grep patterns, severity classifications, false positive rules |
 
 ## Attribution
@@ -68,8 +71,11 @@ This plugin adapts methodologies from [gstack](https://github.com/garrytan/gstac
 
 `/gstack-codex-review` additionally adapts the adversarial-review framing and scope/sizing logic from OpenAI's [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) (Apache-2.0). Where that plugin always shells out to the local `codex` binary, the gstack version uses a hybrid engine: it delegates to real Codex (`codex exec`) when the CLI is present and logged in, and falls back to a Claude-run pass against the same methodology when it isn't — so the command works in the Cowork sandbox as well as from Claude Code CLI on a Mac.
 
+`/gstack-plan-review` concept-ports the Act 2 plan-hardening loop from Chase AI's [grill-me-codex](https://github.com/chaseai-yt/grill-me-codex) (MIT), which builds on Matt Pocock's [grill-me](https://github.com/mattpocock/skills) (MIT). The bounded-rounds/deadlock discipline is theirs; the hybrid engine and arbitration rules are gstack's. No code copied.
+
 ## Version History
 
+- **0.6.0** — Close the DR-004 gate pair. `/gstack-plan-review`: an iterative, bounded (default 5 rounds) adversarial review of an implementation plan before any code — same critic session/log across rounds, deadlock surfaced as a first-class outcome, PLAN-REVIEW-LOG.md as the argument transcript; hybrid engine (real Codex read-only, or a fresh-context Claude critic subagent in Cowork). Loop discipline concept-ported from chaseai-yt/grill-me-codex (MIT; lineage: Matt Pocock's grill-me, MIT) — no code copied. `/gstack-verify`: post-build verification of the implementation against its plan/spec — extracts every verifiable claim, tags each BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE, runs the spec's proof command; read-only, informs but never gates (per DR-004's posture).
 - **0.5.0** — `/gstack-ship` hardening, concept-ported from no-mistakes (MIT, ideas only): Step 1.5 runs validation in a disposable git worktree (teardown always, in-place fallback escalates everything), and a Fix Contract classifies every Step 2–4 finding as safe-mechanical (auto-applied, logged) or judgment-call (stop and ask; validation/error-handling/security/accessibility always escalate). Ship Report now itemizes fixes.
 - **0.4.x** — ecc merge (`/ecc-build-fix`, `/ecc-learn`, `/ecc-skill-create`) and ponytail restraint wiring (Step 3.5 in `/gstack-ship`, references in both reviews).
 - **0.3.0** — Add `/gstack-codex-review`: an adversarial review of just-committed code (post-commit, pre-push). Hybrid engine — real Codex via `codex exec` when the CLI is present, Claude fallback against the shared `codex-review-methodology.md` (four lenses + defect floor) when it isn't. Adapts the adversarial framing from OpenAI's codex-plugin-cc.

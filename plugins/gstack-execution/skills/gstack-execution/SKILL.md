@@ -26,7 +26,9 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
+| `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md — bounded rounds, deadlock surfaced; real Codex when present, fresh-context Claude critic fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
 | `/gstack-codex-review` | Adversarial review of just-committed code; real Codex when present, Claude fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
+| `/gstack-verify` | Post-build verification of the implementation against its plan/spec — claim table, drift report; read-only, never gates | Full — git + grep + read |
 | `/gstack-investigate` | Root cause debugging with hypothesis testing | Full — git + grep + read |
 | `/gstack-cso` | Security audit (OWASP + STRIDE + supply chain) | Full — grep + code analysis |
 | `/gstack-ship` | Test + review + PR creation pipeline | Partial — needs `gh` CLI for PR |
@@ -40,8 +42,10 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 
 | Product Orchestrator Decision | gstack Command |
 |------------------------------|----------------|
-| "Build this feature" | Manual coding → `/gstack-review` → `/gstack-ship` |
+| "Build this feature" | `/gstack-plan-review` (harden the plan) → coding → `/gstack-review` → `/gstack-ship` |
+| "Challenge this plan before we build" | `/gstack-plan-review` (pre-code, iterative, bounded) |
 | "Challenge what I just committed" | `/gstack-codex-review` (adversarial, post-commit, pre-push) |
+| "Did we build what we planned?" | `/gstack-verify` (implementation vs spec, after build) |
 | "Fix this bug" | `/gstack-investigate` → fix → `/gstack-review` |
 | "Security audit before launch" | `/gstack-cso` |
 | "Design the UI" | `/gstack-design` → build → `/gstack-review` |
