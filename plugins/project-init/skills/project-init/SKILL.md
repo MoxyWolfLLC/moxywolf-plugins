@@ -28,11 +28,18 @@ Every MoxyWolf Cowork project assumes these three roots are mounted in Cowork �
 2. **GitHub** — `/Users/doriancougias/Documents/GitHub`
 3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
 
-If the user mentions that one of these isn't mounted yet, remind them to add it via Cowork → Folders before the new Project Instructions can take effect, but proceed with generating the instructions anyway.
+If the user mentions that one of these isn't mounted yet, remind them to add it (on-computer: Cowork → Folders; in the cloud: the **Add folder** button in the Claude desktop app) before the new Project Instructions can take effect, but proceed with generating the instructions anyway.
+
+## Folder access — cloud vs on-computer
+
+Cowork runs in one of two environments and folder picking differs between them. Detect the environment by which tools are available, then use the matching path. This convention governs every folder-pick step below (it replaces the old assumption that `mcp__cowork__request_cowork_directory` is always present — that tool exists only on-computer).
+
+- **On-computer** (`mcp__cowork__request_cowork_directory` is available): open the native Finder picker by calling it with **no `path` argument**; take the basename of the resolved path.
+- **In the cloud** (that tool is absent): there is no Finder picker. The standard roots are already mounted, so enumerate the immediate subfolders of the relevant root with `mcp__remote-devices__device_list_dir` (or `ls` on the mounted path) and present them via `AskUserQuestion` chips — the user clicks a folder rather than typing. Keep a free-text "Other" option as the fallback. To detect what's mounted, call `mcp__remote-devices__get_device_info` → `connectedFolders`.
 
 ## Inputs to collect
 
-**Folder selection rule — never ask the user to type a folder name.** Use the native Finder picker (`mcp__cowork__request_cowork_directory` called with **no `path` argument**) every time the skill needs to identify a subfolder under one of the standard mounted roots. The user clicks through Finder, picks the folder, and Cowork returns the resolved path — much faster and zero typos.
+**Folder selection rule — never ask the user to type a folder name.** Identify each subfolder with the environment-appropriate method from the **Folder access** convention above: the Finder picker on-computer, or a `device_list_dir` + `AskUserQuestion` chip menu in the cloud. Either way the user clicks rather than types — much faster and zero typos.
 
 Gather inputs in this order, one decision at a time:
 
@@ -50,9 +57,9 @@ a. First, ask via AskUserQuestion whether this project uses Taskade. Options:
    - **`Yes — pick the Taskade subfolder now`** (default)
    - **`No — vault-only project`** (the project will then write into `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead)
 
-b. If "Yes": call `mcp__cowork__request_cowork_directory` with **no `path` argument** so the native macOS Finder picker opens. Tell the user in chat — just before the call — to navigate into the `MoxyWolf Shared Files/Taskade/` directory and pick the project's subfolder. When the tool returns, take the basename of the resolved path as `[TASKADE_SUBFOLDER]`. Confirm back: "Got it — using `Taskade/<basename>`."
+b. If "Yes": identify the subfolder using the **Folder access** convention. *On-computer*: call `mcp__cowork__request_cowork_directory` with **no `path` argument** so the native macOS Finder picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *In the cloud*: call `mcp__remote-devices__device_list_dir` on the mounted `Taskade/` root and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
 
-c. If the picker is dismissed or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output.
+c. If the picker is dismissed / the chip menu is declined or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output.
 
 The full path is always `Taskade/[TASKADE_SUBFOLDER]`.
 
@@ -64,9 +71,9 @@ Ask via AskUserQuestion: how many local GitHub repos under `GitHub/` does this p
 
 If repo count >= 1, do **not** ask the user to type repo names. For each repo:
 
-a. Call `mcp__cowork__request_cowork_directory` with **no `path` argument** to open the native Finder picker. Before the call, prompt the user in chat: "Pick repo 1 of N — navigate into `~/Documents/GitHub/` and select the repo folder."
+a. Identify the repo folder using the **Folder access** convention. *On-computer*: call `mcp__cowork__request_cowork_directory` with **no `path` argument** to open the native Finder picker; prompt the user first: "Pick repo 1 of N — navigate into `~/Documents/GitHub/` and select the repo folder." *In the cloud*: call `mcp__remote-devices__device_list_dir` on the mounted `GitHub/` root and present its repo subfolders via `AskUserQuestion` chips for the user to pick (one repo per question).
 
-b. When the picker returns, take the basename of the resolved path as that repo's `[REPO_SUBFOLDER]`. Confirm back: "Got it — `GitHub/<basename>`."
+b. When the pick returns, take the basename of the resolved path as that repo's `[REPO_SUBFOLDER]`. Confirm back: "Got it — `GitHub/<basename>`."
 
 c. After each repo is picked, ask via AskUserQuestion (separately) for a short one-line description (e.g., "Main service code", "Frontend app", "Marketing site") with a "Skip — use repo name only" option.
 
@@ -156,14 +163,14 @@ Display the **loader stub** (NOT the full instructions) in the chat as a fenced 
 
 After the code block, link to the saved full file using a `computer://` link so the user can open and edit the source of truth.
 
-If the user has not yet mounted all three standard roots in this Cowork project, also remind them to add any missing roots via Cowork → Folders before the new instructions take effect.
+If the user has not yet mounted all three standard roots in this Cowork project, also remind them to add any missing roots before the new instructions take effect (on-computer: Cowork → Folders; in the cloud: the **Add folder** button in the Claude desktop app).
 
 ## Output
 
 - Full instructions saved to the project's `00 – Project Hub/cowork-project-instructions.md` (the single source of truth)
 - The thin **loader stub** displayed in chat as a code block (this is what gets pasted into Cowork settings)
 - Computer-link to the saved full file
-- A reminder to mount any missing standard roots (MoxyWolf Vault, GitHub, Taskade) in Cowork → Folders
+- A reminder to mount any missing standard roots (MoxyWolf Vault, GitHub, Taskade) — on-computer via Cowork → Folders, in the cloud via the desktop app's **Add folder** button
 - Concise note about anything that was deferred or skipped during input gathering
 
 ## Routing of shared knowledge
@@ -176,7 +183,7 @@ If the user explicitly asks to override this routing for a specific project, sav
 
 - **Active Taskade subfolder doesn't exist yet.** Normally impossible because the user picks an existing folder via the native Finder picker. Only happens in the free-text fallback path; in that case ask the user whether to create the folder (with the standard numbered subfolder structure) or whether they'll create it manually. Don't proceed with saving until the folder exists.
 - **GitHub repo subfolder doesn't exist locally.** Normally impossible via the picker. Only happens via the "Type a custom name" fallback — accept the name and flag it in the output. The user may be planning to clone the repo. Don't block on it.
-- **User dismisses the Finder picker.** Treat as "skip" — fall back to the AskUserQuestion free-text path for that one input and continue.
+- **User dismisses the Finder picker (on-computer) or declines the chip menu (cloud).** Treat as "skip" — fall back to the AskUserQuestion free-text path for that one input and continue.
 - **One of the three standard roots isn't mounted.** Generate the instructions anyway, and surface the missing mount as an action item at the end of the chat reply.
 - **Template missing or out of date.** If the template is missing or the user wants a fresh template, point them at the most recent working instantiation (e.g., Nexus's `00 – Project Hub/cowork-project-instructions.md`) as a reference; do not invent a new template structure on the fly.
 - **Repo count says 0 but the user mentions code work.** Politely surface the discrepancy: "You said no GitHub repos but mentioned engineering work. Want to add a repo subfolder now?" Don't insist; the user may keep code elsewhere.

@@ -24,7 +24,7 @@ When you open a new Cowork session on an already-configured project, run `/sessi
 
 - Resolves which project (uses the argument or lists candidates)
 - Reads the saved `cowork-project-instructions.md` to learn the active Taskade subfolder and GitHub repo(s)
-- Mounts the three standard roots for this session via `mcp__cowork__request_cowork_directory`
+- Ensures the three standard roots are mounted for this session — on-computer via `mcp__cowork__request_cowork_directory`, in the cloud by detecting mounts with `mcp__remote-devices__get_device_info` and prompting the user to **Add folder** for any missing root
 - **Reads `cowork-session-handoff.md`** (written by the previous session's `/session-end`) and surfaces its "What landed", "Open work", and "Suggested opening line" at the top of the briefing
 - Surfaces a focused briefing: handoff state, kanban P0/P1 tasks, recent decisions, open GitHub PRs and issues
 - Asks what you want to focus on first, with options pulled from the handoff first (then kanban)
