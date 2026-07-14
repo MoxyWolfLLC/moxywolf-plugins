@@ -1,7 +1,7 @@
 {
   "name": "obsidian-update",
-  "version": "2.8.0",
-  "description": "v2.8.0: the standup team-completions harvest reads the Jira board (project MOXY) instead of the Slack Canvas, per the org move to Jira as the tracker; last_standup_read lives in the team-kanban config note. Vault-native personal operating system with Council integration. Combines energy-aware daily ops, three-layer persistent memory, Kanban task management, session knowledge extraction, Jira (MOXY) team completions harvest, and bidirectional Council deliberation verification \u2014 all persisted to the MoxyWolf Obsidian vault on Google Drive. v2.7.0 adds Decision Record auto-routing: every DR write is classified by topic (engineering / GTM / brand / compliance / operating-norm / product / agents-and-plugins / personnel) and filed to the canonical folder, every DR is appended to the new Company Decision Log master index at _Shared Knowledge/Operating Norms/_INDEX.md, and project-scoped DRs also append to the project hub's <P> Decisions.md \u2014 see references/dr-auto-routing.md.",
+  "version": "2.9.0",
+  "description": "v2.9.0 adds federated knowledge promotion (DR-014): plugins emit provenance-rich candidates backed by Taskade and Git sources; obsidian-update verifies, deduplicates, routes, and presents them for human approval before writing company memory. Working artifacts remain in Taskade and code remains in Git. Retains Jira standup harvest, DR auto-routing, Council verification, and progressive-disclosure memory search.",
   "author": {
     "name": "MoxyWolf LLC"
   },

@@ -1,6 +1,12 @@
-# Obsidian Update Plugin v2.7.0
+# Obsidian Update Plugin v2.9.0
 
-Vault-native personal operating system for MoxyWolf with bidirectional Council integration. The Obsidian vault is the brain. The Council plugin is the verification layer. Together they form a loop where organizational knowledge informs deliberations, and deliberation outcomes refine the vault.
+Vault-native personal operating system for MoxyWolf with bidirectional Council integration. The Obsidian vault is the company's long-term memory; active project work remains in Taskade and executable truth remains in declared Git repositories. The Council plugin is the verification layer.
+
+## What Changed in v2.9.0
+
+**Federated knowledge promotion.** MoxyWolf plugins can emit structured knowledge candidates containing the producing plugin, project, rationale, sensitivity, proposed route, and supporting Taskade/Git sources. `obsidian-update` verifies and deduplicates those candidates, distinguishes project memory from cross-company knowledge, merges them into the extraction plan, and still waits for human approval before writing. Working artifacts do not move out of Taskade, and code does not move out of Git.
+
+The machine-readable queue is the active project's `00 – Project Hub/knowledge-candidates.json`. `obsidian-update` validates it against project-init's packaged candidate schema, skips malformed entries, and marks only approved, successfully promoted records as promoted.
 
 ## What Changed in v2.7.0
 

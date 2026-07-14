@@ -14,16 +14,19 @@ When you start a new Cowork project, run `/init-project` to scaffold the Project
 2. **GitHub**
 3. **Taskade**
 
-It asks for your project name, then opens the **native Finder picker** so you can select the active Taskade subfolder and each active GitHub repo (no typing folder names). Then it generates tailored Project Instructions following the canonical MoxyWolf template.
+It asks for your project name, then opens the **native Finder picker** so you can select the active Taskade subfolder and each active GitHub repo (no typing folder names). Then it generates tailored Project Instructions and a `project-surfaces.json` manifest following the canonical MoxyWolf contracts.
 
-The filled-in instructions are saved to the project's `00 – Project Hub/cowork-project-instructions.md` for future reference and displayed in chat for you to paste into Cowork → Settings → Project Instructions.
+The filled-in instructions and surface manifest are saved to the project's `00 – Project Hub/`. The manifest records the Taskade workspace, Vault company-memory folder, zero or more repositories, aliases, related workspaces, and task scope. The thin loader stub is displayed for Cowork → Settings → Project Instructions.
 
 ### `/session-start` — every-session resume
 
 When you open a new Cowork session on an already-configured project, run `/session-start [project-name]`. It:
 
 - Resolves which project (uses the argument or lists candidates)
-- Reads the saved `cowork-project-instructions.md` to learn the active Taskade subfolder and GitHub repo(s)
+- Reads `cowork-project-instructions.md` and resolves `project-surfaces.json`
+- Loads a provenance-aware context packet without collapsing **Project workspace (Taskade)**, **Code workspace (Git)**, or **Company memory (Vault)**
+- Registers an automatic SessionStart preflight, so direct MoxyWolf plugin calls still resolve that plugin's declaration even when `/session-start` was not invoked
+- Defines the common preflight contract also bundled as a small model-invoked skill in every independently installable MoxyWolf plugin
 - Mounts the three standard roots for this session via `mcp__cowork__request_cowork_directory`
 - **Reads `cowork-session-handoff.md`** (written by the previous session's `/session-end`) and surfaces its "What landed", "Open work", and "Suggested opening line" at the top of the briefing
 - Surfaces a focused briefing: handoff state, kanban P0/P1 tasks, recent decisions, open GitHub PRs and issues
@@ -42,6 +45,8 @@ When you're done for the day (or wrapping a focused session), run `/session-end 
 - Writes it to **`[project]/00 – Project Hub/cowork-session-handoff.md`** — fixed filename, overwritten each session, Drive versioning preserves history
 - Optionally (`--archive` flag) also writes a dated copy to `00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md`
 - **Automatically runs `/obsidian-update`** at the end to capture durable knowledge — decisions, research findings, meeting discussions, cross-project insights, action items, new contacts — into the MoxyWolf vault. You no longer need to remember to run `/obsidian-update` separately.
+- Collects structured knowledge candidates with their producing plugin and supporting Taskade/Git sources. Candidates enter the normal `obsidian-update` approval plan; they never authorize a Vault write themselves.
+- Persists schema-valid proposals in `00 – Project Hub/knowledge-candidates.json` as machine-readable Taskade transport for `obsidian-update`
 
 The next time you run `/session-start [project-name]`, that handoff is the first thing the briefing surfaces.
 
@@ -51,6 +56,7 @@ Run this once per existing project to move it to the loader-stub model, or any t
 
 - Reads the canonical spec `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` (the single source of truth — skeleton + on-disk fixes)
 - Applies the spec's surgical on-disk reconciliation directives to this project's `cowork-project-instructions.md` (idempotent; preserves customizations; never regenerates the file)
+- Creates or validates `project-surfaces.json` after the user confirms the project mapping
 - Emits this project's loader stub for pasting into Cowork → Settings → Project Instructions
 
 Because the content lives in the vault spec, changing a project-instruction rule is a vault edit + a per-project run of this command — no plugin update. Safe to re-run, including across machines.
@@ -67,11 +73,11 @@ Because the content lives in the vault spec, changing a project-instruction rule
 
 ## What gets generated
 
-A filled-in Project Instructions document covering:
+A filled-in Project Instructions document and project surface manifest covering:
 
 - **Mounted roots** — the three constants (MoxyWolf Vault, GitHub, Taskade) every project mounts
 - **Project Setup** — declares the active Taskade subfolder and active GitHub repo subfolder(s) for *this* project
-- **Three-directory model** — Taskade subfolder (read/write), MoxyWolf Vault (read for shared knowledge), GitHub repo(s) (read-only)
+- **Three-plane model** — Taskade active work, Vault company memory, and zero or more Git repositories with explicit access
 - **File-write override** — prevents the project-name/project-name nesting bug Cowork sometimes produces
 - **Numbered-folder routing** — PRDs go to `02 – Product Strategy`, sprint specs to `04 – Backlog & Sprints`, papers to `11 – Project Knowledge/Papers/`, and so on
 - **Publication artifacts override** — content-creation skills (editorial-forge, blog-content-ecosystem, etc.) that scaffold elsewhere must move publishable artifacts to Taskade before completion
@@ -92,6 +98,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.21.0** — Adds the federated three-plane project contract (DR-014). `/init-project` creates `project-surfaces.json`; `/session-start` uses packaged deterministic resolvers to preserve Taskade current work, Git executable truth, and Vault company memory as separate authority domains; `/session-end` collects structured knowledge candidates for approval-gated `obsidian-update`. Supports aliases, Vault-only exceptions, multiple repositories, related Taskade workspaces, missing-surface warnings, path confinement, and secret exclusions.
 - **0.19.0** — The stub skeleton and the on-disk reconciliation directives move **out of the plugin into a vault spec** — `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` — that both `/init-project` and the new **`/refresh-project-instructions`** command read at run time. `/refresh-project-instructions` migrates or re-stamps an existing project from that spec: it applies the spec's surgical on-disk fixes (idempotent; preserves customizations) and emits the project's loader stub for pasting. The point: changing a project-instruction rule is now a **vault edit + a per-project command run**, never a plugin update or reinstall. The plugin holds the process; the vault holds the content.
 - **0.18.0** — `/init-project` switches to the **loader-stub model** (DR-010). The full instructions are saved on disk (`00 – Project Hub/cowork-project-instructions.md`) as the single source of truth; the Cowork → Settings → Project Instructions field gets only a thin **loader stub** — mounts, the file-write-path override, and an imperative to read the on-disk file + `_shared-memory/INDEX.md` first. The embedded copy can no longer drift out of sync with the file (paste once, never re-paste). Fixes the failure mode where the on-disk instructions get updated but the pasted Cowork copy keeps a stale rule (e.g. the clipboard-vs-vault PAT method that lingered in pasted copies after DR-011). The canonical Project Instructions template's commit-and-push section was also corrected to read the PAT from the vault file, not the clipboard.
 - **0.17.0** — Moved the classic PAT off the clipboard into the **vault file** `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/github-pat.env` (DR-011), loaded by the sandbox like `openrouter.env`. Commit+push authenticate with a per-URL auth header and **verify the push landed via `git ls-remote`** (a SHA match vs `git rev-parse HEAD`). The token is never echoed or committed. See `reference_github_pat_vault`.

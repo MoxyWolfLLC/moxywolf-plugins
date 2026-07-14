@@ -25,15 +25,23 @@ Open `Taskade/<SUBFOLDER>/00 – Project Hub/cowork-project-instructions.md` (or
 
 Never rewrite untouched sections. Never regenerate the file from the template. If a directive's stale shape is ambiguous in this file, surface it to the user instead of editing blindly.
 
-## STEP 4 — Stamp + emit the loader stub
+## STEP 4 — Create or validate `project-surfaces.json`
+
+Resolve the project's primary Taskade workspace (or explicit vault-only exception), Vault company-memory folder and MOC, aliases, task tags, related Taskade workspaces, and zero or more Git repositories with roles and access. Read the schema at `${CLAUDE_PLUGIN_ROOT}/schemas/project-surfaces.schema.json`.
+
+- If `project-surfaces.json` is missing, present the proposed complete mapping and **confirm** it with the user before creating the file in the project hub.
+- If it exists, run `${CLAUDE_PLUGIN_ROOT}/scripts/project_surfaces.py resolve` and report missing, ambiguous, or invalid surfaces. Do not silently rewrite a valid mapping.
+- If the existing instructions and manifest disagree, present both sources and ask which is current before editing either one.
+
+## STEP 5 — Stamp + emit the loader stub
 
 Take the skeleton from the vault spec (section 1 for Taskade projects, section 2 for vault-only), substitute `<PROJECT_NAME>` and `<SUBFOLDER>`, and output the result **verbatim in a fenced code block**. Above it, tell the user:
 
 > Copy this into Cowork → Settings → Project Instructions for **<PROJECT_NAME>**, replacing the full text currently there. The full instructions stay on disk; this stub just points at them, so you paste it once and never re-paste when rules change.
 
-## STEP 5 — Report
+## STEP 6 — Report
 
-State, concisely: which directives applied vs were already current (cite each by ID, e.g. D1), the `spec_version` this project is now aligned to, and a reminder that the stub still needs pasting into Cowork settings (the one manual, possibly per-machine step; the on-disk edits are on Drive and apply everywhere at once).
+State, concisely: which directives applied vs were already current (cite each by ID, e.g. D1), whether `project-surfaces.json` was created or validated, the `spec_version` this project is now aligned to, and a reminder that the stub still needs pasting into Cowork settings (the one manual, possibly per-machine step; the on-disk edits are on Drive and apply everywhere at once).
 
 ## Notes
 
