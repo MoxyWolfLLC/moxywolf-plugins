@@ -68,6 +68,30 @@ Parse to extract:
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
 
+### Step 2.5: Resolve the federated project surfaces
+
+Read `project-surfaces.json` from the project's `00 – Project Hub/` and run the deterministic resolver before gathering context:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/project_surfaces.py" resolve \
+  --project "[PROJECT_NAME]" \
+  --taskade-root "[TASKADE_ROOT]" \
+  --vault-root "[VAULT_ROOT]" \
+  --github-root "[GITHUB_ROOT]"
+```
+
+For the session-start briefing, read project-init's `vault-context.json` and run `federated_context.py` with the intent that matches the work: `current-work`, `code-behavior`, `historical-rationale`, or `company-knowledge`. Respect the returned **authority domain**; there is no universal source hierarchy.
+
+**Before each later plugin action**, read that plugin's `vault-context.json` and rerun `federated_context.py` using the action's intent. Reuse the existing packet only when the plugin declaration, project, and intent are unchanged. This makes each plugin's declared planes, memory scopes, exclusions, and output routing effective at invocation time.
+
+Keep the returned planes visibly separate throughout the briefing:
+
+- **Project workspace (Taskade)** — current plans, handoffs, deliverables, and operational decisions
+- **Code workspace (Git)** — live implementation truth from the repositories declared for this project
+- **Company memory (Vault)** — durable rationale, research, insights, relationships, and cross-project knowledge
+
+Never describe the Vault as the project's working folder. If two planes disagree, surface both paths, dates, and authority domains instead of silently merging them.
+
 ### Step 3: Mount the three standard roots
 
 For each of the three standard roots, call `mcp__cowork__request_cowork_directory` with the explicit `path` argument. The user sees the path and approves; the folder is then mounted for this session. Make these calls in a single message (parallel) so all three approval prompts surface together.
@@ -111,7 +135,7 @@ b. **Project task board (project-scoped, dual-source)** — Surface only tasks t
 
 c. **Project map (MOC) + recent decision records** — The durable front door to a project is its vault Map of Content; the recent-DR list is the fresh slice on top of it. Read both.
 
-   First resolve the **vault project folder**, which may not match the Taskade project name (e.g. Taskade `Team Plugins` ↔ vault `Moxywolf Plugins`). If a `project-memory.md` pointer exists in the Taskade `00 – Project Hub/`, read it — it names the vault folder and the MOC path. Otherwise match `MoxyWolf Vault/Projects/<name>/` by best name match. Record the mapping if it isn't 1:1.
+   Use the company-memory folder and MOC returned by Step 2.5; the **resolved manifest's memory path is authoritative**, including when it does not match the Taskade project name (for example, Taskade `Team Plugins` ↔ Vault `Moxywolf Plugins`). If a human-readable `project-memory.md` pointer exists in the Taskade hub, read it as a cross-check. Surface any disagreement with the manifest instead of guessing a folder or silently choosing one. Record non-1:1 mappings in the briefing.
 
    - **MOC index** — read `MoxyWolf Vault/Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md`. Capture what the project is (one line) plus its newest 2-3 Recent Activity entries. If it doesn't exist yet, note "no MOC index yet" and continue.
    - **Recent decision records** — search the vault project folder (and the Taskade subfolder) for `DR-*.md` modified in the last 14 days; title + one-line summary from each frontmatter, cap at 5 items.
@@ -169,6 +193,13 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - Taskade/[active-taskade-subfolder]
 - GitHub/[repo-1] — [description]
 - GitHub/[repo-2] — [description]   (if applicable)
+
+**Federated context**
+- Project workspace (Taskade): [path + freshness]
+- Code workspace (Git): [declared repositories + availability, or none]
+- Company memory (Vault): [project memory path + MOC]
+- Authority domain: [current-project-work | executable-technical-truth | institutional-rationale | institutional-memory]
+- Conflicts / stale sources: [tight warnings, or none]
 
 **Last session ended:** YYYY-MM-DD HH:MM PT  [— stale (>14 days)]   (if handoff found)
 **Authored by:** [author, title-cased]   [— **explicit baton-pass to [for, title-cased]**]   (skip the "explicit baton-pass…" suffix if no `for`; skip the whole line if no `author`)

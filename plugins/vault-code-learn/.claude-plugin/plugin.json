@@ -1,7 +1,7 @@
 {
   "name": "vault-code-learn",
-  "version": "0.1.0",
-  "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under ~/Documents/GitHub/, extracts a durable pattern digest — tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, and file-layout idioms — and writes one digest per repo to `MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md`. Subsequent runs are incremental: only files modified since the digest's `last-learned:` frontmatter timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Pairs with /session-start (auto-trigger on the project's active repos) and /obsidian-update (cross-links new pattern findings into recent Decision Records). Companion to obsidian-skills and vault-skills.",
+  "version": "0.1.1",
+  "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under ~/Documents/GitHub/, extracts a durable pattern digest \u2014 tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, and file-layout idioms \u2014 and writes one digest per repo to `MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md`. Subsequent runs are incremental: only files modified since the digest's `last-learned:` frontmatter timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Pairs with /session-start (auto-trigger on the project's active repos) and /obsidian-update (cross-links new pattern findings into recent Decision Records). Companion to obsidian-skills and vault-skills.",
   "author": {
     "name": "MoxyWolf LLC"
   },

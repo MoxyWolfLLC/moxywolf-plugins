@@ -138,6 +138,19 @@ template_source: _Templates/Cowork Project Instructions Template.md
 
 The frontmatter is for the saved file only.
 
+### Step 3.25: Save the project surface manifest
+
+After the user confirms the project mapping, write a machine-readable `project-surfaces.json` beside the saved instructions at `Taskade/<Project>/00 – Project Hub/project-surfaces.json`. Active project working folders always use Taskade. The only exception is an explicitly designated `vault-only` project, whose manifest lives at `MoxyWolf Vault/Projects/<Project>/00-Hub/project-surfaces.json`.
+
+The manifest records one project identity across three distinct planes:
+
+- `workspace` — the active Taskade project folder (or explicit `vault-only` exception)
+- `memory` — the project-specific long-term-memory folder and MOC inside the company Vault
+- `repositories` — zero, one, or many declared local Git repositories, each with its role and `read-only` or `read-write` access
+- `aliases` and `task_tags` — exact name mappings and task scope
+
+Use `${CLAUDE_PLUGIN_ROOT}/schemas/project-surfaces.schema.json` as the contract. Do not infer a repository that the user did not select, and do not use the Vault memory folder as the working-artifact destination. Show the complete mapping and obtain confirmation before writing it.
+
 ### Step 3.5: Compose the loader stub (what goes into Cowork settings)
 
 **Do NOT paste the full instructions into Cowork's settings.** The full file on disk (Step 3) is the single source of truth; the Cowork → Settings → Project Instructions field gets a thin **loader stub** that points at it. This kills the paste-drift failure mode where the embedded copy and the on-disk file fall out of sync (the on-disk file gets edited, the embedded paste never does). The stub carries only what must be in-context *before the first tool call* and can't wait for a file read: the mounts, the file-write-path override, and the imperative to read the full file + team-shared memory first.

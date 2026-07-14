@@ -1,7 +1,7 @@
 {
   "name": "analytics",
-  "version": "0.1.1",
-  "description": "MoxyWolf analytics plugin — read-only reporting across data sources, one command per source. Currently ships the google-analytics command (GA4 Data API via a service account) with generic traffic reports plus Lens-Test campaign reports (acquisition by channel, first-touch signup source, custom-dimension segment, and a markdown scoreboard with week-over-week). Built to grow: future commands can add Microsoft Clarity, Ahrefs, PostHog, and others. Credentials always come from the environment, never hardcoded.",
+  "version": "0.1.2",
+  "description": "MoxyWolf analytics plugin \u2014 read-only reporting across data sources, one command per source. Currently ships the google-analytics command (GA4 Data API via a service account) with generic traffic reports plus Lens-Test campaign reports (acquisition by channel, first-touch signup source, custom-dimension segment, and a markdown scoreboard with week-over-week). Built to grow: future commands can add Microsoft Clarity, Ahrefs, PostHog, and others. Credentials always come from the environment, never hardcoded.",
   "author": {
     "name": "MoxyWolf LLC"
   },

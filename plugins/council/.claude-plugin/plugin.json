@@ -1,7 +1,7 @@
 {
   "name": "council",
-  "version": "0.7.5",
-  "description": "Multi-model AI deliberation with vault-aware institutional memory — structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
+  "version": "0.7.6",
+  "description": "Multi-model AI deliberation with vault-aware institutional memory \u2014 structured consensus from multiple LLMs with self-learning routing, self-improving prompts, and bidirectional Obsidian vault integration.",
   "author": {
     "name": "MoxyWolf LLC"
   },
