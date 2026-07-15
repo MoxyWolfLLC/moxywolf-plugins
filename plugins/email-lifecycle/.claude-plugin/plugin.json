@@ -1,0 +1,19 @@
+{
+  "name": "email-lifecycle",
+  "version": "0.1.0",
+  "description": "v0.1.0: stage-sharded /email-* commands for the product email lifecycle. /email-activation, /email-nurture, /email-convert, /email-retain, and /email-lifecycle (the whole arc). Each command runs a shared engine skill scoped to its stage and produces five things: (1) best practices for the stage (from installed authoring skills + live external research), (2) tooling — which installed skills to use plus catalog adoption candidates queried from the Workforce Automation Supabase catalog (~580K Claude tools, de-duped vs our installed set), (3) a benchmark of a named product's current setup graded honestly against best practice, (4) prioritized recommendations aligned to the MoxyWolf reference runtime (PostHog Workflows orchestration + Resend transport + first-party event capture; NO n8n; single body store per class), and (5) an auto-drafted email sequence for the stage (triggers, delays, exit conditions, subjects, copy in MoxyWolf voice). The email-specific, stage-sharded sibling of marcom-audit; reuses its three-tier method (installed -> catalog -> external).",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "email",
+    "lifecycle",
+    "onboarding",
+    "activation",
+    "nurture",
+    "conversion",
+    "retention",
+    "best-practices",
+    "moxywolf"
+  ]
+}

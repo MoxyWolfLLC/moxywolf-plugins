@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.31.0",
+  "version": "1.32.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -478,6 +478,26 @@
         "session-handoff",
         "team-handoff",
         "team-shared-memory",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "email-lifecycle",
+      "source": "./plugins/email-lifecycle",
+      "description": "Stage-sharded /email-* commands for the product email lifecycle: /email-activation, /email-nurture, /email-convert, /email-retain, and /email-lifecycle (the whole arc). Each runs a shared engine skill scoped to its stage and returns five things: best practices (installed authoring skills + live external research), tooling (installed skills to use + catalog adoption candidates queried from the Workforce Automation Supabase catalog, de-duped vs our installed set), a benchmark of a named product's current setup graded against best practice, prioritized recommendations aligned to the MoxyWolf reference runtime (PostHog Workflows + Resend + first-party event capture, no n8n, single body store per class), and an auto-drafted email sequence for the stage (triggers, delays, exit conditions, subjects, copy in MoxyWolf voice). Email-specific, stage-sharded sibling of marcom-audit.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "productivity",
+      "keywords": [
+        "email",
+        "lifecycle",
+        "onboarding",
+        "activation",
+        "nurture",
+        "conversion",
+        "retention",
         "moxywolf"
       ]
     },
