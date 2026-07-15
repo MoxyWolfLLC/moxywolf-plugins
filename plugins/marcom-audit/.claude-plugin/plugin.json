@@ -1,0 +1,17 @@
+{
+  "name": "marcom-audit",
+  "version": "0.1.0",
+  "description": "v0.1.0: /marcom-best-practices [target] finds and applies best practices for any MARCOM project, idea, channel, or campaign — on the premise that we're probably doing it wrong and should consult the full toolbox before changing direction. It classifies the target into 13 MARCOM domains (lifecycle email/outreach expanded into onboarding -> nurturing -> upgrade -> retention, not one bucket), then sweeps three tiers: (1) our installed plugins/skills via a curated domain->skill capability map, (2) the Workforce Automation Supabase catalog (~580K catalogued Claude skills/plugins/MCPs, with an 'installed' source for a real have/don't-have diff) to recommend adoption candidates we don't have yet, and (3) heavy external web research (Perplexity/Firecrawl/Ahrefs/research-pipeline). It benchmarks MoxyWolf's current practice against all three using live analytics (GA4/PostHog/Ahrefs/CRM), writes a prioritized best-practices brief to the target's MARCOM folder, lists adoption candidates, and auto-runs the top applicable installed skills to produce starter deliverables. Cross-marketplace: references skills by plugin:skill invocation name wherever installed.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "marcom",
+    "marketing",
+    "best-practices",
+    "audit",
+    "capability-map",
+    "workforce-automation",
+    "moxywolf"
+  ]
+}
