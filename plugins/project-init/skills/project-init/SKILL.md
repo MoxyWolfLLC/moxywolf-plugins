@@ -84,15 +84,15 @@ d. Repeat until all N repos are picked. If the user wants to add a repo that isn
 
 ### 5. Kanban project tag(s)
 
-The global kanban at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` is a single board shared by every MoxyWolf project. Each task line is tagged with a `#project/<slug>` tag. `/session-start` uses that tag to brief the user on this project's tasks only, so every project must declare which `#project/…` slug(s) its tasks carry.
+The team task board is Jira, project **MOXY** — a single board shared by every MoxyWolf project (the vault `KANBAN_VIEW.md` was retired 2026-07-16 when Jira became the single board). Each issue is scoped by a Jira **label** of the form `project-<slug>`. `/session-start` uses that label to brief the user on this project's tasks only, so every project must declare which `#project/…` scope(s) its issues carry. The `#project/<slug>` value is stored in the instructions for readability and maps to the Jira label `project-<slug>` (Jira labels can't contain `/`).
 
-Ask via AskUserQuestion (multi-select): *"Which `#project/…` tag(s) do this project's tasks carry in the global kanban?"* Build the options from:
+Ask via AskUserQuestion (multi-select): *"Which `#project/…` scope(s) do this project's tasks carry on the MOXY board?"* Build the options from:
 
 - The kebab-cased project name (e.g. project "Team Plugins" → `#project/team-plugins`)
 - Each GitHub repo subfolder name picked in section 4 (e.g. `#project/moxywolf-plugins`)
-- `none — this project has no kanban presence`
+- `none — this project has no board presence`
 
-The user can pick one option, several (multi-select), or type a custom slug via "Other". Most projects carry exactly one slug, and it usually matches either the kebab-cased project name or a repo name — but not always (the "Team Plugins" project's kanban slug is `moxywolf-plugins`, the repo name, not the project name). Don't assume; let the user confirm. Confirm back: "Got it — kanban scope `#project/<slug>`."
+The user can pick one option, several (multi-select), or type a custom slug via "Other". Most projects carry exactly one slug, and it usually matches either the kebab-cased project name or a repo name — but not always (the "Team Plugins" project's scope is `moxywolf-plugins`, the repo name, not the project name). Don't assume; let the user confirm. Confirm back: "Got it — board scope `#project/<slug>` (Jira label `project-<slug>`)."
 
 Store the result as `[KANBAN_SLUG]`: a single slug, a comma-separated list of slugs, or `none`.
 

@@ -87,7 +87,7 @@ Parse to extract:
 
 - The active Taskade subfolder name (or `none` for vault-only projects)
 - The list of active GitHub repos (subfolder names + descriptions) — there may be 0, 1, or many
-- The **Kanban project tag(s)** — the `Kanban project tag(s):` bullet in the *Project Setup* block. This is the `#project/<slug>` tag (or a comma-separated list of tags) this project's tasks carry in the global kanban. It may be `none` (the project has no kanban presence) or absent entirely (instructions written before this field existed). Record whichever you find — Step 4b uses it to scope the kanban.
+- The **Kanban project tag(s)** — the `Kanban project tag(s):` bullet in the *Project Setup* block. This declares the project's scope on the team Jira board (MOXY); a `#project/<slug>` value maps to the Jira label `project-<slug>`. It may be `none` (the project has no board presence) or absent entirely (instructions written before this field existed). Record whichever you find — Step 4b uses it to scope the board query.
 - Any `## Project-Specific Overrides` block at the bottom
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
@@ -122,17 +122,17 @@ b. **Project task board (project-scoped, dual-source)** — Surface only tasks t
 
    **Source 1 — the project's own backlog folder (primary).** Scan the project's `04 – Backlog & Sprints/` folder (its `Backlog/`, `Sprint Logs/`, and `Retrospectives/` subfolders) for `.md` files. These are inherently project-scoped — they live inside the project's own directory. For each file, read its frontmatter `title` and `status`; skip anything marked `done` or `archived`. Surface the open ones as the project's backlog. If the folder is empty or missing, note "no project backlog files" and move on — many projects keep granular tasks only in the kanban.
 
-   **Source 2 — the global kanban, strictly filtered (backup).** Read `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`. This is a single board shared by *every* MoxyWolf project. Each task line carries inline tags, including a project tag of the form `#project/<slug>` — for example `#project/sams`, `#project/stigviewer`, `#project/moxywolf-plugins`. Apply the strict project filter below, then pull — from the in-scope lines only — the top 3 P0 (`#priority/p0`), top 3 P1 (`#priority/p1`), and all `Waiting On` items.
+   **Source 2 — the team Jira board (MOXY), strictly filtered (backup).** The single canonical task board is Jira, project **MOXY** (https://moxywolf.atlassian.net) — shared by *every* MoxyWolf project. Query it via the Atlassian MCP (`searchJiraIssuesUsingJql`), scoped to this project's Jira **label**, and pull — from the in-scope issues only — the top 3 P0, top 3 P1, and all Blocked/Waiting items. (There is no vault `KANBAN_VIEW.md` anymore — it was retired 2026-07-16 when Jira became the single board.)
 
-   **Strict project filter (fail-closed).** First decide the in-scope `#project/` slug set:
+   **Strict project filter (fail-closed).** First decide the in-scope Jira **label** set. Jira labels can't contain `/`, so a `#project/<slug>` scope maps to the label `project-<slug>`:
 
-   1. **Field declared** — Step 2 found a `Kanban project tag(s)` value that is not `none`: that value is authoritative. Parse each `#project/<slug>` token; the slug set is exactly those slugs.
-   2. **Field is `none`** — the project has no kanban presence. Surface zero kanban items, note "this project declares no kanban scope", and skip the kanban entirely. Do not filter, do not fall back.
-   3. **Field absent** — older instructions: derive an *inferred* slug set from the kebab-cased project name plus each active GitHub repo subfolder name. Filter on that inferred set, and add this one-line warning to the briefing: *"Kanban Scope not declared — filtered the kanban on inferred tags [list]. Add a `Kanban project tag(s):` line to `00 – Project Hub/cowork-project-instructions.md` (or rerun `/init-project`) to make this exact."*
+   1. **Field declared** — Step 2 found a `Kanban project tag(s)` value that is not `none`: that value is authoritative. Map each `#project/<slug>` token to the label `project-<slug>`; the label set is exactly those.
+   2. **Field is `none`** — the project has no board presence. Surface zero items, note "this project declares no kanban scope", and skip the board query entirely. Do not filter, do not fall back.
+   3. **Field absent** — older instructions: derive an *inferred* label set from the kebab-cased project name plus each active GitHub repo subfolder name (each as `project-<slug>`). Filter on that inferred set, and add this one-line warning to the briefing: *"Kanban Scope not declared — filtered MOXY on inferred labels [list]. Add a `Kanban project tag(s):` line to `00 – Project Hub/cowork-project-instructions.md` (or rerun `/init-project`) to make this exact."*
 
-   Then apply the filter: a kanban line is **in scope only if** it contains a `#project/<slug>` tag whose `<slug>` exactly matches (case-insensitive) a slug in the set. Every other line is **out of scope and must be excluded** — this includes lines with no `#project/` tag at all (cross-cutting, personal, or company-wide tasks) and lines whose `#project/` slug is not in the set. When in doubt, exclude.
+   Then run the query, fail-closed on the label: `project = MOXY AND labels IN (<label-set>) AND statusCategory != Done ORDER BY priority DESC, updated DESC`. An issue is **in scope only if** it carries a project label in the set. Every other issue is out of scope — including issues with no `project-*` label at all (cross-cutting, personal, or company-wide) and issues whose project label isn't in the set. When in doubt, exclude.
 
-   The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero lines match, write "no kanban items tagged for this project" on one line and move on. A global board can only be made safe by showing a task *only* when it is positively tagged for the resolved project; that fail-closed rule is the entire point of this step.
+   The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero issues match, write "no MOXY issues labeled for this project" on one line and move on. A shared board can only be made safe by showing an issue *only* when it is positively labeled for the resolved project; that fail-closed rule is the entire point of this step. If the Atlassian MCP isn't connected, note that and rely on the project's backlog folder (Source 1).
 
 c. **Project map (MOC) + recent decision records** — The durable front door to a project is its vault Map of Content; the recent-DR list is the fresh slice on top of it. Read both.
 
@@ -219,9 +219,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 
 **Project tasks** (scoped to [PROJECT_NAME])
 - Backlog files: [open files in 04 – Backlog & Sprints/, or "none"]
-- Kanban P0: …   (kanban filtered to #project/[slug])
-- Kanban P1: …
-- Kanban Waiting: …
+- MOXY P0: …   (Jira board filtered to label project-[slug])
+- MOXY P1: …
+- MOXY Blocked/Waiting: …
 [If the Kanban Scope was inferred or undeclared, add the one-line "Kanban Scope not declared…" warning here. If it is `none`, write "this project declares no kanban scope" here instead.]
 
 **Project map** (durable front door)
@@ -295,7 +295,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
 - **One of the three standard roots isn't mounted** (on-computer: the user declined the approval; cloud: the user hasn't clicked Add folder for it yet). Note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
-- **Kanban view file missing.** Skip the kanban portion of the project-tasks section, note that the file wasn't found at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md`, and continue with the project's backlog folder.
+- **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
 - **Kanban Scope not declared in the Project Instructions.** Don't widen to the whole board. Derive inferred slugs from the kebab-cased project name and the GitHub repo names, filter strictly on those (Step 4b case 3), and add the "add a `Kanban project tag(s):` line" warning to the briefing. If the inferred set matches nothing, show "no kanban items tagged for this project" — still never show the unfiltered board.
 - **Kanban Scope declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
 - **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
@@ -310,7 +310,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - This skill complements `/init-project` and `/session-end`. `/init-project` configures a project once; `/session-end` writes the per-session handoff at the end of each session; `/session-start` reads that handoff to brief next-session Claude in one step.
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
-- The kanban at `MoxyWolf Vault/Tasks/KANBAN_VIEW.md` is a single global board shared by every project. session-start only ever surfaces lines positively tagged `#project/<slug>` for the resolved project — an untagged line, or one tagged for a different project, is never shown. See Step 4b.
+- The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled `project-<slug>` for the resolved project — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
 - The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.

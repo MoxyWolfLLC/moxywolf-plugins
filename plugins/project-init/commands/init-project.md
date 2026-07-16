@@ -15,7 +15,7 @@ It then:
 1. Asks for the project name
 2. Opens the **native Finder picker** so the user can select the active Taskade subfolder (no typing) — or marks the project as vault-only
 3. Asks how many GitHub repos this project uses, then opens the **native Finder picker** once per repo so the user can select each repo subfolder under `GitHub/` (no typing). Asks for a one-line description per repo.
-4. Asks which `#project/…` tag(s) the project's tasks carry in the global kanban (or `none`)
+4. Asks which `#project/…` scope(s) the project's tasks carry on the team Jira board (MOXY) — stored as the Jira label `project-<slug>` (or `none`)
 5. Reads the canonical template from `MoxyWolf Vault/_Templates/Cowork Project Instructions Template.md`
 6. Substitutes placeholders (`[PROJECT_NAME]`, `[TASKADE_SUBFOLDER]`, `[REPO_SUBFOLDER]`, `[KANBAN_SLUG]`) with the user's answers
 7. Saves the filled-in Project Instructions to the project's `00 – Project Hub/` folder
