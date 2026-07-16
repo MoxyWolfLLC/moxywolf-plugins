@@ -30,13 +30,29 @@ Every MoxyWolf Cowork project assumes these three roots:
 
 The skill mounts these three constants every time. The Project Instructions assume them.
 
-## Folder access — cloud vs on-computer
+## Folder access — works online (cloud) or offline (on-computer)
 
-Cowork runs in one of two environments and folder mounting differs between them. Detect the environment by which tools are available, then use the matching path. This convention governs every mount/pick step below (it replaces the old assumption that `mcp__cowork__request_cowork_directory` is always present — that tool exists only on-computer).
+Cowork runs either **online** (in the cloud — the `mcp__remote-devices__*` bridge is present) or **offline** (on the user's computer via the desktop app — folders are on the local filesystem). Folder access differs, and you may not know the mode up front. **Do not hard-depend on any one mount tool.** Detect each capability by whether its tool is present, and always keep a filesystem-probe fallback that works in both modes. These three steps govern every mount/pick below.
 
-- **Detect what's already mounted.** If `mcp__remote-devices__get_device_info` is available (the cloud bridge), call it — its `connectedFolders` array is the authoritative list of mounted absolute paths. Classify each declared root by exact-path / prefix match against that list. On-computer installs that lack this tool expose the mounted folders directly on the workspace filesystem; list them there.
-- **Mount a known root that's missing.** *On-computer* (`mcp__cowork__request_cowork_directory` is available): call it with the explicit `path` argument; the user approves and the folder mounts (already-mounted is a no-op). *In the cloud* (that tool is absent): you cannot mount a folder yourself — adding one is a user-only trust action. Tell the user in one line to click **Add folder** in the Claude desktop app and select the exact path, then pause. When they connect it, a system-reminder announces the newly connected folders; re-call `get_device_info` to confirm before continuing. If they don't add it, note it and continue with whatever is mounted.
-- **Pick a subfolder under an already-mounted root.** *On-computer*: call `mcp__cowork__request_cowork_directory` with **no `path`** to open the native Finder picker; take the basename of the resolved path. *In the cloud*: the root is already mounted — enumerate its immediate subfolders (`mcp__remote-devices__device_list_dir` on the root, or `ls` on the mounted path) and present them via `AskUserQuestion` chips (the user clicks, never types), keeping a free-text "Other" option as the fallback.
+**Step A — detect which roots are available (mode-agnostic).** For each standard root, decide available vs missing using the first method that works:
+
+1. If `mcp__remote-devices__get_device_info` is present (online), call it — `connectedFolders` is the authoritative mounted-path list; match each root by exact-path / prefix.
+2. Otherwise (offline), **probe the path directly** — list the root with whatever filesystem tool is available (`ls`/Read on-computer, `mcp__remote-devices__device_list_dir` online). A successful listing = available; an error/empty = missing.
+
+The probe in (2) is the universal fallback: it never depends on a mount tool existing, so it works in either mode even if tool names change.
+
+**Step B — get a missing root mounted (best-effort, tool-optional).**
+
+- If `mcp__cowork__request_cowork_directory` is present, call it with the explicit `path` to mount/grant the root (no-op if already mounted). This is the offline picker/mount path when the tool exists.
+- Otherwise you cannot mount it yourself — mounting is a user action. Tell the user, in one line, to add the exact path: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
+- If the user doesn't add it, mark it "not mounted", continue with whatever is available, and skip briefing sections that read from the missing root with a one-line note.
+
+**Step C — pick a subfolder under an available root (used by project-init).**
+
+- If `mcp__cowork__request_cowork_directory` is present, call it with **no `path`** for the native picker; take the basename of the resolved path.
+- Otherwise, enumerate the root's immediate subfolders (`device_list_dir` online, `ls` offline) and present them via `AskUserQuestion` chips (the user clicks, never types), with a free-text "Other" fallback.
+
+Net: nothing here requires `request_cowork_directory`; it's used when present and cleanly replaced by detect-probe-and-prompt when absent — so the same skill runs online or offline.
 
 ## Steps
 
@@ -76,14 +92,14 @@ Parse to extract:
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
 
-### Step 3: Ensure the three standard roots are mounted
+### Step 3: Ensure the three standard roots are available
 
-Follow the **Folder access — cloud vs on-computer** convention above. First detect which of the three roots are already mounted (cloud: `mcp__remote-devices__get_device_info` → `connectedFolders`; on-computer: the workspace filesystem).
+Follow the **Folder access — works online (cloud) or offline (on-computer)** convention above; it's mode-agnostic, so the same procedure runs either way.
 
-- **On-computer**, mount any missing root with `mcp__cowork__request_cowork_directory` using the explicit `path` argument. Make these calls in a single message (parallel) so all approval prompts surface together. Already-mounted is a no-op.
-- **In the cloud**, you cannot mount them yourself. List any missing roots and ask the user, in one line, to click **Add folder** in the Claude desktop app for each exact path, then wait for the system-reminder confirming they're connected and re-check `get_device_info`.
+1. **Detect (Step A).** For each of the three roots, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
+2. **Get missing roots mounted (Step B).** If `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). If it isn't present, you can't mount them yourself — list the missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
-Record each root in the briefing as "already mounted", "newly mounted", or — if it's still missing after the prompt — "not mounted (user hasn't added it)". If a root stays unmounted, note it and continue with whichever roots are available; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
+Record each root in the briefing as "already available", "newly added", or — if still missing after the prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
 
 ### Step 4: Gather context (parallel)
 

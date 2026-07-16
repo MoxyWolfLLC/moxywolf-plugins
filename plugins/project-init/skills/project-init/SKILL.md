@@ -30,16 +30,19 @@ Every MoxyWolf Cowork project assumes these three roots are mounted in Cowork �
 
 If the user mentions that one of these isn't mounted yet, remind them to add it (on-computer: Cowork → Folders; in the cloud: the **Add folder** button in the Claude desktop app) before the new Project Instructions can take effect, but proceed with generating the instructions anyway.
 
-## Folder access — cloud vs on-computer
+## Folder access — works online (cloud) or offline (on-computer)
 
-Cowork runs in one of two environments and folder picking differs between them. Detect the environment by which tools are available, then use the matching path. This convention governs every folder-pick step below (it replaces the old assumption that `mcp__cowork__request_cowork_directory` is always present — that tool exists only on-computer).
+Cowork runs either **online** (cloud) or **offline** (on the user's computer), and folder picking differs. **Don't hard-depend on any one mount/pick tool** — detect each capability by whether its tool is present, with a filesystem fallback that works in both modes. This convention governs every folder-pick step below.
 
-- **On-computer** (`mcp__cowork__request_cowork_directory` is available): open the native Finder picker by calling it with **no `path` argument**; take the basename of the resolved path.
-- **In the cloud** (that tool is absent): there is no Finder picker. The standard roots are already mounted, so enumerate the immediate subfolders of the relevant root with `mcp__remote-devices__device_list_dir` (or `ls` on the mounted path) and present them via `AskUserQuestion` chips — the user clicks a folder rather than typing. Keep a free-text "Other" option as the fallback. To detect what's mounted, call `mcp__remote-devices__get_device_info` → `connectedFolders`.
+- **Pick a subfolder.** If `mcp__cowork__request_cowork_directory` is present, open the native picker by calling it with **no `path` argument**; take the basename of the resolved path. If it isn't present, enumerate the relevant root's immediate subfolders (`mcp__remote-devices__device_list_dir` online, or `ls` on the path offline) and present them via `AskUserQuestion` chips — the user clicks a folder, never types — with a free-text "Other" fallback.
+- **Detect what's available** (mode-agnostic): `mcp__remote-devices__get_device_info` → `connectedFolders` when present (online), else probe the path directly by listing it (offline). A successful listing = available; an error = missing.
+- **Get a missing root mounted:** if `request_cowork_directory` is present, call it with the explicit `path`; otherwise ask the user to add the exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then re-detect.
+
+Nothing here requires `request_cowork_directory` — it's used when present and cleanly replaced by list + `AskUserQuestion` when absent, so the skill runs online or offline.
 
 ## Inputs to collect
 
-**Folder selection rule — never ask the user to type a folder name.** Identify each subfolder with the environment-appropriate method from the **Folder access** convention above: the Finder picker on-computer, or a `device_list_dir` + `AskUserQuestion` chip menu in the cloud. Either way the user clicks rather than types — much faster and zero typos.
+**Folder selection rule — never ask the user to type a folder name.** Identify each subfolder with the method from the **Folder access** convention above: the native picker when `request_cowork_directory` is present, otherwise a `device_list_dir` + `AskUserQuestion` chip menu. Either way the user clicks rather than types — much faster and zero typos.
 
 Gather inputs in this order, one decision at a time:
 
@@ -57,7 +60,7 @@ a. First, ask via AskUserQuestion whether this project uses Taskade. Options:
    - **`Yes — pick the Taskade subfolder now`** (default)
    - **`No — vault-only project`** (the project will then write into `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead)
 
-b. If "Yes": identify the subfolder using the **Folder access** convention. *On-computer*: call `mcp__cowork__request_cowork_directory` with **no `path` argument** so the native macOS Finder picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *In the cloud*: call `mcp__remote-devices__device_list_dir` on the mounted `Taskade/` root and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
+b. If "Yes": identify the subfolder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** so the native picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `Taskade/` root (or `ls` it offline) and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
 
 c. If the picker is dismissed / the chip menu is declined or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output.
 
@@ -71,7 +74,7 @@ Ask via AskUserQuestion: how many local GitHub repos under `GitHub/` does this p
 
 If repo count >= 1, do **not** ask the user to type repo names. For each repo:
 
-a. Identify the repo folder using the **Folder access** convention. *On-computer*: call `mcp__cowork__request_cowork_directory` with **no `path` argument** to open the native Finder picker; prompt the user first: "Pick repo 1 of N — navigate into `~/Documents/GitHub/` and select the repo folder." *In the cloud*: call `mcp__remote-devices__device_list_dir` on the mounted `GitHub/` root and present its repo subfolders via `AskUserQuestion` chips for the user to pick (one repo per question).
+a. Identify the repo folder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** to open the native picker; prompt the user first: "Pick repo 1 of N — navigate into `~/Documents/GitHub/` and select the repo folder." *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `GitHub/` root (or `ls` it offline) and present its repo subfolders via `AskUserQuestion` chips for the user to pick (one repo per question).
 
 b. When the pick returns, take the basename of the resolved path as that repo's `[REPO_SUBFOLDER]`. Confirm back: "Got it — `GitHub/<basename>`."
 
