@@ -220,9 +220,9 @@ Combines daily-ops standup with memory context.
    - GOALS file ID: `1cBpTwIPCFDZ4YTqkqn21dM-5AjX6R9Wp`
    - **In interactive Cowork sessions:** read/write via the mounted vault path — standard `Read`/`Write`/`Edit`.
    - **In scheduled-task VMs:** use `${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py` for both reads (`download --file-id ...`) and writes (`upload --file-id ... --in ... --mime text/plain`). The helper passes `supportsAllDrives=true` automatically. See `references/scheduled-task-vm-setup.md` for one-time service-account setup.
-9. **Kanban State (READ + JIRA RECONCILIATION)** — Read `${VAULT}/Tasks/KANBAN_VIEW.md` in full. This is the canonical task board — parse all items by column. Surface any P0 items still open, flag items that are overdue based on their `#due/` tag. **Surface all `## ⏳ Waiting On` items** — flag any waiting > 3 days for a nudge/follow-up recommendation. Carry forward all existing board items into the briefing — the Kanban is the source of truth for what's in-flight.
+9. **Kanban State (READ + JIRA RECONCILIATION)** — Read `${VAULT}/Tasks/KANBAN_VIEW.md` in full and parse all items by column. This is **Dorian's private working board** — a local view of the Google-Drive-canonical task store — not the team board. (The team board is Jira project MOXY; the private layer syncs *up* to Jira via the Google Drive Active Tasks sweep in `team-kanban`, so Dorian keeps a fast local board while the team sees Jira.) Surface any P0 items still open, flag items overdue by their `#due/` tag. **Surface all `## ⏳ Waiting On` items** — flag any waiting > 3 days for a nudge/follow-up. Carry all existing board items into the briefing.
 
-   **Jira Reconciliation (uses Step 2 data):** Compare the Completions Report from Step 2 against the Obsidian Kanban state. Flag discrepancies:
+   **Jira Reconciliation (uses Step 2 data):** Compare the Completions Report from Step 2 against Dorian's Obsidian board. Since `team-kanban` no longer writes back to Obsidian (Jira-only as of v0.6.0), this reconciliation is the sole place the private board and Jira are squared up. Flag discrepancies:
    - Issues Done in Jira but their card still open (`- [ ]`) in Obsidian → "Jira says done, Obsidian says open — confirm and sync?"
    - Issues In Review in Jira but the card not tagged `#review/` in Obsidian → "Jira has this in review, Obsidian doesn't — update Obsidian?"
    - Items checked in Obsidian (`- [x]`) whose linked issue isn't In Review or Done in Jira → "Completed in Obsidian but Jira hasn't caught up"
@@ -254,7 +254,17 @@ Combines daily-ops standup with memory context.
     ```
 
 12. **Priority Enforcement** — Max 3 P0, Max 7 P1. Push back if exceeded.
-13. **Write Daily Note** — Create `${VAULT}/Daily Journal/YYYY-MM-DD.md` with today's date. Include energy level, top priorities, calendar summary, key decisions queue, and an **embedded Kanban section** ("Today's Board") showing P0 and P1 tasks as checkboxes pulled from the updated KANBAN_VIEW.md.
+13. **Write Daily Note** — Create `${VAULT}/Daily Journal/YYYY-MM-DD.md` with today's date. Include energy level, top priorities, calendar summary, key decisions queue, and a **"Today's Board"** section that is an **embedded Jira query** — a live view of the team board (MOXY), not a snapshot of KANBAN_VIEW.md. Write it as a fenced Jira query block for the Obsidian Jira plugin to render live:
+
+    ````
+    ## Today's Board
+    ```jira-search
+    project = MOXY AND assignee = currentUser() AND statusCategory != Done ORDER BY priority DESC, updated DESC
+    ```
+    [🔗 Full board](https://moxywolf.atlassian.net/jira/software/projects/MOXY/boards/1)
+    ````
+
+    The query renders live each time the note is opened, so the daily note always shows current Jira state without a re-sync. **Fallback:** if no Jira-rendering Obsidian plugin is installed, fetch those issues via the Atlassian MCP at standup time and write them in as a rendered list plus the board link, noting it's a point-in-time snapshot.
 14. **Update Kanban Board (WRITE BACK)** — This is CRITICAL. After generating the briefing and confirming priorities with Dorian, reconcile and write back to `${VAULT}/Tasks/KANBAN_VIEW.md`:
     - **Sync Jira completions first** — apply any confirmed Done/In Review moves from Step 2 that Dorian approved during the briefing. This ensures completed work from Jira is reflected in Obsidian before any other changes.
     - **Add new tasks** surfaced from calendar, inbox, or open threads that aren't already on the board. Place under the correct priority column with full tags.
@@ -454,17 +464,12 @@ status: active
 - Stepson week: [yes/no]
 
 ## Today's Board
+```jira-search
+project = MOXY AND assignee = currentUser() AND statusCategory != Done ORDER BY priority DESC, updated DESC
+```
+[🔗 Full board](https://moxywolf.atlassian.net/jira/software/projects/MOXY/boards/1)
+<!-- Live embedded Jira query (team board). Dorian's private checkbox board is Tasks/KANBAN_VIEW.md. If no Jira-render plugin is installed, replace this block with a rendered snapshot fetched via the Atlassian MCP at standup. -->
 
-### 🔥 P0 — Do Today (Max 3)
-- [ ] Task one #priority/p0 #cat/technical #status/n
-- [ ] Task two #priority/p0 #cat/outreach #status/n
-
-### ⭐ P1 — This Week
-- [ ] Task three #priority/p1 #cat/writing #status/s
-- [ ] Task four #priority/p1 #cat/admin #status/n
-
-### ⏳ Waiting On
-- [ ] Task five — waiting on [person] since YYYY-MM-DD #priority/p1 #status/w
 
 ## Calendar
 - [HH:MM] Meeting/event description
@@ -487,7 +492,7 @@ status: active
 - Extracted: no
 ```
 
-**Note:** The "Today's Board" section is a snapshot pulled from KANBAN_VIEW.md during standup — it shows P0 and P1 tasks as checkboxes compatible with the Obsidian Tasks plugin. As Dorian checks them off during the day, the completion flows back to KANBAN_VIEW.md during the next triage or review.
+**Note:** The "Today's Board" section is an **embedded Jira query** (a live `jira-search` block against MOXY — see Step 13), so it always reflects current team-board state, not a snapshot. Dorian's own checkbox board is separate: `KANBAN_VIEW.md` is his private working layer, and triage/review keep writing his tasks there as Obsidian checkboxes (the Google-Drive-canonical store syncs those up to Jira via team-kanban's Drive sweep). So the daily note *shows* the team board live and *works* the private board via checkboxes — two distinct surfaces.
 
 ---
 
@@ -529,7 +534,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/drive_rest.py" upload \
 
 ## OBSIDIAN TASK INTEGRATION
 
-Dual-persistence model: Google Drive is the canonical task store, the Obsidian vault provides a local Kanban board + individual task files for daily visibility.
+Dual-persistence model (Dorian's **private** layer): Google Drive is the canonical task store, the Obsidian vault provides a local Kanban board + individual task files for daily visibility. This private layer syncs *up* to the team board on Jira (project MOXY) via team-kanban's Google Drive Active Tasks sweep — personal-os itself only ever writes Obsidian checkboxes + the Drive store, never Jira issues. The team board (Jira) surfaces in the daily note as a live embedded query, not as a copy.
 
 ### Vault Task Structure
 
