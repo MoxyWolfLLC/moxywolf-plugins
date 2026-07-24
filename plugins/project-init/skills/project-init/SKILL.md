@@ -1,6 +1,6 @@
 ---
 name: project-init
-description: This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "configure project instructions", "start a new project", "set up project", "/init-project", or any request to scaffold the Project Instructions for a fresh Cowork project. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts).
+description: This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
 ---
 
 # Project Init
@@ -9,16 +9,30 @@ Generate tailored Project Instructions for a new Cowork project. The MoxyWolf co
 
 ## When to use
 
-Trigger when the user is starting a new Cowork project and needs Project Instructions configured. Common triggers:
+Trigger when the user is starting a **new** Cowork project and needs Project Instructions configured for the first time. Common triggers:
 
 - "set up a new project"
 - "init a new project"
 - "new Cowork project"
-- "configure project instructions"
 - "start a new project"
 - "/init-project"
 
-Also trigger if the user asks how to scaffold Project Instructions for an existing project they're re-organizing.
+**Do not trigger on "configure project instructions", "update project instructions", "fix the project instructions", or similar phrasing about a project that's already running in this Cowork session** — that almost always means the project already has a saved `cowork-project-instructions.md` and the user wants `/refresh-project-instructions` (surgical, non-destructive), not a from-scratch re-scaffold. If genuinely unsure which the user means, run this skill's **Step 0 guard** below rather than guessing from phrasing alone — it settles the question by checking whether saved instructions already exist.
+
+The one case this skill legitimately handles for an existing project is the user explicitly asking to **regenerate Project Instructions from scratch** (full re-scaffold, not a rules update) — Step 0 still runs first and requires explicit confirmation before overwriting anything.
+
+## Step 0 — Guard: is this project already initialized?
+
+**Run this before asking anything, including the project name.** The failure mode this prevents: running `/init-project` again on an already-initialized project silently overwrites its on-disk `cowork-project-instructions.md` — including any hand-written `## Project-Specific Overrides` — with a freshly-generated file, and along the way asks "which project are we initializing" even when the answer (e.g. "Team Plugins") is already sitting in the current session's mounted context. Never let Step 3's write execute without this guard having run first.
+
+1. **Resolve the current project from context — the same way `/session-start` does — before asking the user anything.** Check, in order: (a) an explicit project name if the user already stated one this turn, (b) the launch directory / currently mounted Taskade subfolder for this Cowork session (a mounted path matching `.../Taskade/<NAME>/...` or `.../MoxyWolf Vault/Projects/<NAME>/...` resolves to project `<NAME>`), (c) otherwise, no project resolves yet — that's fine, skip to step 4.
+2. **If a project resolved in step 1, check whether it already has saved instructions:** does `Taskade/<NAME>/00 – Project Hub/cowork-project-instructions.md` (or `MoxyWolf Vault/Projects/<NAME>/00 – Project Hub/cowork-project-instructions.md` for vault-only) exist?
+3. **If it exists: stop.** Do not proceed to "Inputs to collect" or ask "which project are we initializing" — the project name is already known (`<NAME>`), and re-running this skill would overwrite the very file that answers that question. Tell the user, in one line, that `<NAME>` already has saved Project Instructions. Then ask via AskUserQuestion:
+   - **`Run /refresh-project-instructions instead`** (default/recommended) — the surgical, non-destructive path that applies pending team-wide fixes without touching anything else. If chosen, hand off to that command's procedure directly.
+   - **`Show me the current file`** — read and display it; don't modify anything.
+   - **`Regenerate it from scratch anyway`** — explicitly destructive. Only take this path if the user picks it. Warn first that any `## Project-Specific Overrides` section will be lost unless saved elsewhere, get an explicit second confirmation, and only then proceed to "Inputs to collect" for a full re-scaffold.
+4. **If no project resolves from context, or the resolved project has no saved instructions yet:** proceed normally to "Inputs to collect" — this is a genuinely new project, and Section 1 (Project name) is the right place to ask.
+5. **If the user's answer to Section 1 (Project name) turns out to name a project that already has saved instructions** (only discoverable after asking, e.g. context didn't resolve it in step 1 but the user typed an existing name): apply the same stop-and-redirect as step 3 before touching Step 3's write.
 
 ## Standard mounted roots
 
@@ -48,7 +62,7 @@ Gather inputs in this order, one decision at a time:
 
 ### 1. Project name
 
-Ask via AskUserQuestion for the project name in kebab-case or original casing as the user prefers (e.g., "Nexus", "SAMS", "Frontier Founder", "STIGViewer"). Free-text via the "Other" option is fine here. This is the canonical project identifier and appears throughout the instructions.
+Only reached if **Step 0** found no already-initialized project in context. Ask via AskUserQuestion for the project name in kebab-case or original casing as the user prefers (e.g., "Nexus", "SAMS", "Frontier Founder", "STIGViewer"). Free-text via the "Other" option is fine here. This is the canonical project identifier and appears throughout the instructions. If the answer names a project that turns out to already have saved instructions, apply Step 0's stop-and-redirect logic (its point 5) before continuing.
 
 (Tip: if the user has already picked the Taskade folder before answering this, default the suggested project name to the picked folder's basename — they can still override.)
 
@@ -128,6 +142,8 @@ Replace placeholders with the user's answers:
 If the project's Active Taskade subfolder is `none` (vault-only project), replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
 
 ### Step 3: Save the filled instructions
+
+**This step only runs if Step 0 confirmed it's safe** — either no existing instructions were found, or the user explicitly chose "Regenerate it from scratch anyway" after the overwrite warning. Never reach this step by falling through from "Inputs to collect" without Step 0 having cleared it.
 
 Write the result to the project's Project Hub:
 
