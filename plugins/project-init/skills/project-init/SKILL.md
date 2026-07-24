@@ -28,7 +28,7 @@ Every MoxyWolf Cowork project assumes these three roots are mounted in Cowork �
 2. **GitHub** — `/Users/doriancougias/Documents/GitHub`
 3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
 
-If the user mentions that one of these isn't mounted yet, remind them to add it (on-computer: Cowork → Folders; in the cloud: the **Add folder** button in the Claude desktop app) before the new Project Instructions can take effect, but proceed with generating the instructions anyway.
+If the user mentions that one of these isn't mounted yet, auto-mount it before proceeding — see **Folder access** below; don't just remind them to add it manually.
 
 ## Folder access — works online (cloud) or offline (on-computer)
 
@@ -36,9 +36,9 @@ Cowork runs either **online** (cloud) or **offline** (on the user's computer), a
 
 - **Pick a subfolder.** If `mcp__cowork__request_cowork_directory` is present, open the native picker by calling it with **no `path` argument**; take the basename of the resolved path. If it isn't present, enumerate the relevant root's immediate subfolders (`mcp__remote-devices__device_list_dir` online, or `ls` on the path offline) and present them via `AskUserQuestion` chips — the user clicks a folder, never types — with a free-text "Other" fallback.
 - **Detect what's available** (mode-agnostic): `mcp__remote-devices__get_device_info` → `connectedFolders` when present (online), else probe the path directly by listing it (offline). A successful listing = available; an error = missing.
-- **Get a missing root mounted:** if `request_cowork_directory` is present, call it with the explicit `path`; otherwise ask the user to add the exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then re-detect.
+- **Get a missing root mounted — auto-mount first, ask only as fallback.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root's exact absolute path in **one call** (single approval dialog covering all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `request_cowork_directory` is present, call it with the explicit `path`. **Fallback only** — if neither tool is present, or the user declines the request/approval: ask the user to add the exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then re-detect.
 
-Nothing here requires `request_cowork_directory` — it's used when present and cleanly replaced by list + `AskUserQuestion` when absent, so the skill runs online or offline.
+Nothing here requires `request_cowork_directory` or `device_request_folder_access` specifically — each is used when present, with the manual-ask path as the last resort, so the skill runs online or offline.
 
 ## Inputs to collect
 

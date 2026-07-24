@@ -41,11 +41,12 @@ Cowork runs either **online** (in the cloud — the `mcp__remote-devices__*` bri
 
 The probe in (2) is the universal fallback: it never depends on a mount tool existing, so it works in either mode even if tool names change.
 
-**Step B — get a missing root mounted (best-effort, tool-optional).**
+**Step B — get a missing root mounted (auto-mount first, ask only as fallback).**
 
-- If `mcp__cowork__request_cowork_directory` is present, call it with the explicit `path` to mount/grant the root (no-op if already mounted). This is the offline picker/mount path when the tool exists.
-- Otherwise you cannot mount it yourself — mounting is a user action. Tell the user, in one line, to add the exact path: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
-- If the user doesn't add it, mark it "not mounted", continue with whatever is available, and skip briefing sections that read from the missing root with a one-line note.
+- **Online (cloud): auto-mount is the default action, not a fallback.** If `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root in **one call** — pass each missing root's exact absolute path together, so the user gets a single approval dialog covering all of them rather than one prompt per root. The folder-access request *is* the mount; there is no separate "wait for the user to add it themselves" step to try first. After the call returns, re-run Step A to confirm what got granted.
+- **On-computer: unchanged.** If `mcp__cowork__request_cowork_directory` is present, call it with the explicit `path` to mount/grant the root (no-op if already mounted). This remains the on-computer picker/mount path.
+- **Fallback only.** Fall back to asking the user manually — in one line, the exact path — **only** when: the remote-devices bridge is unavailable (no connected device, or the tool isn't present) on cloud, or `request_cowork_directory` isn't present on-computer, or the user declined the request/approval. The manual ask is: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
+- If the user doesn't add it even after the fallback prompt, mark it "not mounted", continue with whatever is available, and skip briefing sections that read from the missing root with a one-line note.
 
 **Step C — pick a subfolder under an available root (used by project-init).**
 
@@ -97,9 +98,9 @@ If the file doesn't exist, abort with: *"No saved Project Instructions found for
 Follow the **Folder access — works online (cloud) or offline (on-computer)** convention above; it's mode-agnostic, so the same procedure runs either way.
 
 1. **Detect (Step A).** For each of the three roots, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
-2. **Get missing roots mounted (Step B).** If `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). If it isn't present, you can't mount them yourself — list the missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
+2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's exact absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
-Record each root in the briefing as "already available", "newly added", or — if still missing after the prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
+Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
 
 ### Step 4: Gather context (parallel)
 
@@ -186,9 +187,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 ## Project: [PROJECT_NAME]
 
 **Mounted folders**
-- MoxyWolf Vault — [newly mounted | already mounted]
-- GitHub — [newly mounted | already mounted]
-- Taskade — [newly mounted | already mounted]
+- MoxyWolf Vault — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
+- GitHub — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
+- Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 
 **Active subfolders**
 - Taskade/[active-taskade-subfolder]
@@ -293,7 +294,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **No `cowork-session-handoff.md` file.** Treat as "no previous handoff" and skip the handoff sections of the briefing. The task-board / DRs / GitHub MCP sections still surface project state. This is normal for projects predating `/session-end` or for a project's first session.
 - **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to task-board / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
-- **One of the three standard roots isn't mounted** (on-computer: the user declined the approval; cloud: the user hasn't clicked Add folder for it yet). Note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
+- **One of the three standard roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
 - **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
 - **Kanban Scope not declared in the Project Instructions.** Don't widen to the whole board. Derive inferred slugs from the kebab-cased project name and the GitHub repo names, filter strictly on those (Step 4b case 3), and add the "add a `Kanban project tag(s):` line" warning to the briefing. If the inferred set matches nothing, show "no kanban items tagged for this project" — still never show the unfiltered board.
