@@ -34,6 +34,7 @@ with Sorkin's Desire-Obstacle-Battle narrative structure and a full bibliography
 | `research-synthesizer` | Thematic analysis + perspective building |
 | `content-writer` | Sorkin DOB narrative + MoxyWolf voice + voice injection + bibliography |
 | `import-bibtex` | BibTeX parsing + abstract enrichment (alternative entry point) |
+| `research-evaluator` | Claim-level grounding check — does the article follow from its sources? |
 
 ### Commands
 
@@ -45,6 +46,15 @@ with Sorkin's Desire-Obstacle-Battle narrative structure and a full bibliography
 | `/write-article` | Write a research-backed article with DOB narrative + voice injection |
 | `/import-bibtex` | Import a BibTeX file (alternative to discovery) |
 | `/research-status` | Show library stats and health |
+| `/research-eval` | Grade a finished article's claims against its cited sources |
+
+### Two levels of rigor
+
+`/verify-citations` asks whether the sources exist — DOI resolves, arXiv ID is real, the abstract is topically relevant. `/research-eval` asks the harder question: whether each sentence citing a source actually follows from it. A citation can pass every check in the first and still be doing no work in the second, and quiet overstatement — a hedge dropped, a "suggests" upgraded to a "shows" — is the failure that survives everything else and gets caught in public. Run the eval before anything goes out.
+
+### Deep research
+
+`/discover-literature` runs one flat round by default. Ask it to go deep and it runs the bounded recursive loop instead: each level distills what it found into a learnings digest, and the digest generates the next level's queries, so the search follows the corpus instead of the opening guess. Defaults are breadth 4, depth 2 — it declares the estimated spend before running and records the actuals into the library. Protocol in `skills/literature-discovery/references/deep-research-loop.md`.
 
 ## Setup
 

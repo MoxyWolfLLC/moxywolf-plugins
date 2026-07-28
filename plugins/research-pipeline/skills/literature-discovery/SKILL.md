@@ -382,6 +382,16 @@ After merging with API results, flag swarm-only discoveries in the presentation:
 This makes it clear which sources came from the swarm vs. structured APIs,
 so the user can weigh confidence accordingly.
 
+## Step 3c: Deep Research (optional recursive expansion)
+
+Steps 3 and 3b are one flat round — they search what the user asked for. Deep research is the bounded recursive version: each level distills what it found into a learnings digest, and that digest generates the next level's queries. The search follows the corpus instead of the opening guess, which is how it surfaces the literature the field files under a different name.
+
+Run it when the user says "go deep," "be exhaustive," or "I don't know what I don't know," and when a flat round comes back thin on a topic that clearly has more to it. Skip it for a quick look or a tightly-bounded expansion — recursion costs real money and a flat round is usually enough.
+
+Defaults: breadth 4, depth 2, concurrency 4. Declare the shape and the estimated spend before running anything, and get an explicit go. Record the actuals — rounds run, dry branches, sources added, wall time, spend — into the library metadata when it finishes, so `/research-status` can report what the corpus cost to build.
+
+The full protocol lives in `references/deep-research-loop.md`: the three-bucket digest schema, child-query generation, dry-branch handling, upward propagation between siblings, termination conditions, and which substrate to run it on. Read it before running a deep pass. Do not improvise the recursion — an unbounded or undeduped version of this loop burns budget and inflates the source count without growing the corpus.
+
 ## Step 4: Deduplicate
 
 If expanding an existing library:
@@ -537,4 +547,5 @@ Weekly automated scan (configure via `/schedule`):
 
 - **`references/api-response-formats.md`** — Parsing guides for OpenAlex, Semantic Scholar, arXiv, CrossRef, DataCite
 - **`references/openrouter-swarm.md`** — Multi-model swarm configuration: model roster, prompt templates, merge algorithm, cost breakdown
+- **`references/deep-research-loop.md`** — The recursive deep-research protocol behind Step 3c: breadth/depth/concurrency, the learnings digest, dry-branch termination, upward propagation, and the declared-budget gate
 - For the Supabase schema, read the migration SQL in the research-pipeline skill.

@@ -1,0 +1,25 @@
+research-pipeline
+=================
+
+Concept-ports from gpt-researcher — https://github.com/assafelovic/gpt-researcher
+Copyright (c) Assaf Elovic, Apache License 2.0
+
+No code was copied. gpt-researcher is a Python/FastAPI/LangGraph runtime with a
+NextJS frontend; it is not vendored, and it is not a dependency. Two of its
+design ideas were re-expressed for Cowork's primitives in our own words:
+
+  - skills/literature-discovery/references/deep-research-loop.md
+      The recursive deep-research shape: breadth/depth/concurrency
+      parameterization, and propagating each level's learnings into the next
+      level's queries rather than re-searching the root topic. The three-bucket
+      digest schema, dry-branch termination, and the declared-budget gate are
+      ours.
+
+  - skills/research-evaluator/SKILL.md
+      Scoring a generated report against the sources it actually retrieved, and
+      recording cost and latency alongside quality (their evals/ suites). The
+      claim-level grading rubric, the model-diverse judging, and the
+      read-only-reporter posture are ours.
+
+Per DR-011's folding heuristic: a native runtime with heavy overlap against a
+shipped plugin is concept-ported, never vendored and never allowed to coexist.
