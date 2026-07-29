@@ -299,6 +299,10 @@ Triggered by `/4d-blog-engine:blog-discern` or as Phase 3 of `:blog`. Refuses to
 
 The orchestrator's responsibility in Phase 3: **chain the sub-skills in order**, persist each step's artifact in `<piece>/03-discernment/`, and surface the slop letter grade to the user at the end. If grade ≤ C, force a re-rewrite. If grade = D or F, abort the phase and require a structural rethink.
 
+**Signature devices.** Before running `prose_lint.py`, read the writer's voice profile and collect the devices it names as signature constructions. Pass them through: `--signature-devices contrast-framing,three-beat-reveal`. On a piece over ~900 words those counts become advisories and rhetorical *density* is scored instead — see `references/ai-anti-patterns.md` §"Long-form allowance for signature devices". Omitting the flag re-applies the raw-count rule that made a writer's own published work ungradeable, which is the failure this allowance was built to fix.
+
+**When a rewrite scores worse than the draft it replaced, stop.** A rising second-pass score means the findings are being satisfied literally — punctuation laundered, devices traded between columns — not structurally. Restart from outline instead of patching a third time.
+
 ### Phase 4 — Diligence
 
 Triggered by `/4d-blog-engine:blog-diligence` or as Phase 4 of `:blog`. Refuses to run on stale Phase 3.
