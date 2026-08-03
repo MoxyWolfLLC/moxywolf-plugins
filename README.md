@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 32 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 35 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -34,9 +34,9 @@ Adding this marketplace on any Mac gives that machine all 32 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (32 plugins, marketplace v1.16.0) — source of truth for versions
+│   └── marketplace.json                ← catalog (35 plugins) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 31 MoxyWolf-owned plugins
+├── plugins/                             ← 34 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps; each pillar carries a why: belief statement (Sinek Golden Circle) that drafts open from and the Release Owner Celery-Tests. /blog-social is channel-aware (discovers your authorable LinkedIn channels via Chrome): on a Company/Showcase Page it produces an Article-led trio (Article → teaser Post w/ image → first comment linking back), personal stays Post + first-comment; plus Twitter (thread), Facebook (single post). /blog-publish can publish to the chosen channel via Chrome and nudge #general on Slack to reshare
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── analytics/                  Read-only reporting, one command per source — /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog
@@ -83,7 +83,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 32 plugins appear in the marketplace list.
+3. Click **Sync**. The 35 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
