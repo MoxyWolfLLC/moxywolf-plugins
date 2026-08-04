@@ -63,7 +63,7 @@ def test_manifest_covers_every_citation():
           and meta["hashes"].get("2") != meta["hashes"].get("3"),
           f"hashes for 2/3: {meta['hashes'].get('2')}/{meta['hashes'].get('3')}")
     check("collision is warned about",
-          any("appears on rows" in w for w in warnings))
+          any("distinct citations" in w for w in warnings))
 
 
 def test_parity_catches_a_change_in_a_duplicated_reference():
@@ -90,6 +90,53 @@ def test_parity_catches_a_change_in_a_duplicated_reference():
           f"mismatch={mismatch}")
 
 
+def test_identical_rows_merge_even_after_a_genuine_collision():
+    """Three rows share a reference: a heading, then two bodies identical to each other.
+
+    The two bodies must merge with each other. Through 0.2.0 every row was tested only
+    against the FIRST survivor for its reference, so once the heading recorded a collision
+    the two identical bodies were never compared and both were kept -- inflating the count
+    past stats.citations and stranding one outside the tree. AD 4501 (ISO/IEC 27002:2022,
+    reference '§ 5.17 Control') is the document that surfaced it.
+    """
+    d = doc([
+        cite("1", "ROOT", "root", "001"),
+        cite("2", "X", "heading text", "001 001", parent="1", genealogy="0000001"),
+        cite("3", "X", "identical body", "001 001 001", parent="2", genealogy="0000001 0000002"),
+        cite("4", "X", "identical body", "001 001 002", parent="2", genealogy="0000001 0000002"),
+    ], stats=3)
+    payload, warnings, meta = ea.transform(d, "9999")
+    ids = [c["hierarchy"]["elementId"] for c in payload["citations"]]
+    check("identical rows merge across a prior collision", ids == ["1", "2", "3"], f"got {ids}")
+    check("count reconciles against stats.citations",
+          not any("does not match stats.citations" in w for w in warnings))
+    check("nothing is stranded outside the tree",
+          not any("unreachable from any root" in w for w in warnings))
+    check("the genuine heading-vs-body collision is still reported",
+          any("distinct citations" in w for w in warnings))
+
+    child_ids = {k["elementId"] for c in payload["citations"] for k in c["hierarchy"]["children"]}
+    dropped = [c["hierarchy"]["elementId"] for c in payload["citations"]
+               if c["hierarchy"]["parents"] and c["hierarchy"]["elementId"] not in child_ids]
+    check("every non-root citation is some parent's child", dropped == [], f"dropped {dropped}")
+
+
+def test_genuinely_distinct_same_reference_rows_are_all_kept():
+    """Three rows share a reference and all differ. All three survive; none is merged away."""
+    d = doc([
+        cite("1", "ROOT", "root", "001"),
+        cite("2", "X", "variant one", "001 001", parent="1", genealogy="0000001"),
+        cite("3", "X", "variant two", "001 002", parent="1", genealogy="0000001"),
+        cite("4", "X", "variant three", "001 003", parent="1", genealogy="0000001"),
+    ], stats=4)
+    payload, warnings, meta = ea.transform(d, "9999")
+    check("all three distinct variants survive", len(payload["citations"]) == 4,
+          f"got {len(payload['citations'])}")
+    check("each variant gets its own manifest entry", len(meta["hashes"]) == 4,
+          f"manifest {len(meta['hashes'])}")
+    check("all four hashes are distinct", len(set(meta["hashes"].values())) == 4)
+
+
 def test_clean_document_is_stable_and_flat_hashes():
     d = doc([
         cite("1", "SECTION 1", "heading", "001"),
@@ -100,7 +147,7 @@ def test_clean_document_is_stable_and_flat_hashes():
     p2, w2, m2 = ea.transform(d, "9999")
     check("transform is deterministic", m1["hashes"] == m2["hashes"])
     check("no collision warning on a clean document",
-          not any("appears on rows" in w for w in w1))
+          not any("distinct citations" in w for w in w1))
     check("count reconciles against stats.citations",
           not any("does not match stats.citations" in w for w in w1))
     check("root count is right", m1["roots"] == 1, f"got {m1['roots']}")
@@ -133,6 +180,8 @@ def test_orphan_parent_becomes_a_root_with_a_warning():
 def main():
     for fn in (test_manifest_covers_every_citation,
                test_parity_catches_a_change_in_a_duplicated_reference,
+               test_identical_rows_merge_even_after_a_genuine_collision,
+               test_genuinely_distinct_same_reference_rows_are_all_kept,
                test_clean_document_is_stable_and_flat_hashes,
                test_guidance_cleaning,
                test_orphan_parent_becomes_a_root_with_a_warning):

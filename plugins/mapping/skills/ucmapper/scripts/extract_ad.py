@@ -232,6 +232,13 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
     ordered = sorted(raw, key=lambda c: (str(c.get("sort_id") or ""), norm_id(c.get("id")).zfill(24)))
 
     # Rule 3 -- dedupe by reference, but only when the rows are genuinely identical.
+    # by_reference holds EVERY surviving variant of a reference, not just the first one seen.
+    # A row has to be tested against all of them: once one genuine collision has been recorded,
+    # comparing later rows only against the first survivor means true duplicates arriving after
+    # that collision are never merged. ISO/IEC 27002:2022 (AD 4501) is the live case -- the
+    # reference '§ 5.17 Control' carries a section-heading row plus two body rows identical to
+    # each other, and testing both bodies only against the heading kept both, inflating the
+    # count past stats.citations and stranding one of them outside the tree as unreachable.
     survivors: list = []
     by_reference: dict = {}
     remap: dict = {}
@@ -243,27 +250,28 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
             parent_id_of(c),
             str(c.get("genealogy") or ""),
         )
-        prior = by_reference.get(ref)
-        if prior is None:
-            entry = {"id": cid, "raw": c, "identity": identity, "merged": []}
-            by_reference[ref] = entry
-            survivors.append(entry)
-            remap[cid] = cid
-        elif prior["identity"] == identity:
-            prior["merged"].append(cid)
-            remap[cid] = prior["id"]          # keep parent links valid
-        else:
-            # A real collision. Keep both -- never force-merge to hit stats.citations.
+        variants = by_reference.setdefault(ref, [])
+        twin = next((v for v in variants if v["identity"] == identity), None)
+        if twin is not None:
+            twin["merged"].append(cid)
+            remap[cid] = twin["id"]           # keep parent links valid
+            continue
+        if variants:
+            # Differs from every variant seen so far. Keep it -- never force-merge to hit
+            # stats.citations. Field names are reported against the first variant.
             differs = [
-                name for name, a, b in zip(("guidance", "parent", "genealogy"), prior["identity"], identity) if a != b
+                name for name, a, b in zip(("guidance", "parent", "genealogy"), variants[0]["identity"], identity)
+                if a != b
             ]
             warnings.append(
-                f"reference {ref!r} appears on rows {prior['id']} and {cid} that differ in "
-                f"{', '.join(differs)}; both kept as distinct citations rather than merged"
+                f"reference {ref!r} now carries {len(variants) + 1} distinct citations "
+                f"(rows {', '.join(v['id'] for v in variants)} and {cid}); row {cid} differs from every "
+                f"prior variant (against the first: {', '.join(differs)}); all kept rather than merged"
             )
-            entry = {"id": cid, "raw": c, "identity": identity, "merged": []}
-            survivors.append(entry)
-            remap[cid] = cid
+        entry = {"id": cid, "raw": c, "identity": identity, "merged": []}
+        variants.append(entry)
+        survivors.append(entry)
+        remap[cid] = cid
 
     survivor_ids = {e["id"] for e in survivors}
     by_id = {e["id"]: e for e in survivors}
