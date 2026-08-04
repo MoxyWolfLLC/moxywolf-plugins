@@ -34,11 +34,16 @@ Three properties worth naming, because they are the point:
 ### Usage
 
 ```
-/mapping-ucmapper 4524
-/mapping-ucmapper https://mapper.unifiedcompliance.com/public-comment/index/4524
+/mapping-ucmapper 4528
+/mapping-ucmapper https://mapper.unifiedcompliance.com/public-comment/index/4528
+/mapping-ucmapper 4528 ~/Documents/ucf-extracts/4528
 ```
 
-The output folder is asked for every run — there is no default, because these artifacts feed a CI-validated catalog and writing them somewhere unintended is worse than one extra question.
+The AD id is parsed from the argument on every invocation — bare id, full mapper URL, or an id embedded in prose all work, and the resolved id is echoed back before any fetch so a misparse costs one line instead of a 5 MB download. An id is never carried over from earlier in the conversation.
+
+The output folder is asked for every run unless you pass one, because these artifacts feed a CI-validated catalog and writing them somewhere unintended is worse than one extra question.
+
+Two entry points exist: `/mapping-ucmapper` (the command — parses the id, resolves the folder, then runs the skill) and `/ucmapper` (the skill directly, skipping that wrapper). Use the command.
 
 ### The BibTeX entry
 
