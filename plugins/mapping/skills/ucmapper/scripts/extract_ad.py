@@ -210,7 +210,10 @@ def fnv1a(text: str) -> str:
 
 
 def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
-    """Returns (payload_without_bibtex, warnings, hashes_by_reference)."""
+    """Returns (payload_without_bibtex, warnings, meta).
+
+    meta["hashes"] is keyed by elementId, never by reference -- see the guard below.
+    """
     warnings: list = []
     report, recon_warnings = recon(doc)
     warnings.extend(recon_warnings)
@@ -312,7 +315,7 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
         seen_child_ref[p].add(ref)
         children[p].append(e["id"])
 
-    citations, hashes = [], {}
+    citations, hashes, labels = [], {}, {}
     for e in survivors:
         cid = e["id"]
         raw_c = e["raw"]
@@ -344,11 +347,28 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
             },
         })
         # Hash covers hierarchy shape, not just text. Must match the JS side exactly.
-        hashes[ref] = fnv1a(
+        # Keyed by elementId, NOT by reference. Rule 3 deliberately keeps two citations
+        # that share a reference when they differ in guidance, parent or genealogy, so a
+        # reference-keyed manifest overwrites one of them and drops it from the parity
+        # diff entirely -- a silent hole, since the surviving key still compares clean.
+        # AD 4509 (Australian Government ISM) is the live case: 'Personnel awareness'
+        # appears under both Telephone systems and Mobile device usage, and the manifest
+        # carried 1911 keys for 1912 citations.
+        hashes[cid] = fnv1a(
             ref + guidance + ",".join(ancestors) + sort_value + ",".join(genealogy) + str(len(kids))
         )
+        labels[cid] = ref
 
     # Validation.
+    # The manifest must cover every citation exactly once, or the parity check in --parity
+    # is testing a subset while reporting a clean bill. This is an invariant of the keying
+    # above, not a document property, so a violation is a bug in this script -- halt.
+    if len(hashes) != len(citations):
+        halt(
+            f"hash manifest covers {len(hashes)} of {len(citations)} citations; the parity "
+            "check would silently skip the remainder. This is a keying bug, not a data problem."
+        )
+
     stats = (doc.get("stats") or {}).get("citations")
     if stats is not None and len(citations) != stats:
         conflicting = [e["id"] for e in survivors if e["merged"]][:20]
@@ -377,6 +397,7 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
     }
     meta = {
         "hashes": hashes,
+        "labels": labels,
         "roots": len(roots),
         "stats": stats,
         "count": len(citations),
@@ -510,14 +531,30 @@ def main() -> None:
     if args.parity:
         other_payload, _, other_meta = transform(load_raw(args.parity), args.ad)
         a, b = meta["hashes"], other_meta["hashes"]
+        names = {**other_meta["labels"], **meta["labels"]}
+
+        def show(ids: list) -> list:
+            """elementIds alone are unreadable in a diff; carry the reference alongside."""
+            return [f"{i} ({names.get(i, '?')})" for i in ids[:5]]
+
         missing = sorted(set(a) - set(b))
         extra = sorted(set(b) - set(a))
-        mismatch = sorted(r for r in set(a) & set(b) if a[r] != b[r])
+        mismatch = sorted(k for k in set(a) & set(b) if a[k] != b[k])
+        # Asserted independently of the hashes: equal citation counts on both sides, and
+        # full manifest coverage on both. Hash agreement over a short manifest is not parity.
+        counts_differ = meta["count"] != other_meta["count"]
+        coverage = (len(a) == meta["count"] and len(b) == other_meta["count"])
+
         print(f"counts      : build={meta['count']} parity={other_meta['count']} stats={meta['stats']}")
-        print(f"missing     : {len(missing)} {missing[:5]}")
-        print(f"extra       : {len(extra)} {extra[:5]}")
-        print(f"content diff: {len(mismatch)} {mismatch[:5]}")
-        if missing or extra or mismatch:
+        print(f"coverage    : {len(a)}/{meta['count']} build, {len(b)}/{other_meta['count']} parity")
+        print(f"missing     : {len(missing)} {show(missing)}")
+        print(f"extra       : {len(extra)} {show(extra)}")
+        print(f"content diff: {len(mismatch)} {show(mismatch)}")
+        if counts_differ:
+            print(f"COUNT MISMATCH: {meta['count']} vs {other_meta['count']}", file=sys.stderr)
+        if not coverage:
+            print("MANIFEST DOES NOT COVER EVERY CITATION", file=sys.stderr)
+        if missing or extra or mismatch or counts_differ or not coverage:
             print("PARITY FAIL", file=sys.stderr)
             sys.exit(2)
         print("PARITY OK (0/0/0)")
@@ -549,7 +586,7 @@ def main() -> None:
     print(f"raw JSON cached at: {scratch}")
     if bib is None:
         print("\nNOTE: bibTexCitation is null -- rerun with --bibtex once the entry is built.")
-    print(f"\nhash manifest ({len(meta['hashes'])} refs) for the parity pass:")
+    print(f"\nhash manifest ({len(meta['hashes'])} citations, keyed by elementId) for the parity pass:")
     print(json.dumps(meta["hashes"], indent=0, sort_keys=True))
 
 

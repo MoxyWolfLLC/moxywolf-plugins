@@ -140,11 +140,21 @@ Independently re-fetch the API **through a different tool or path than the one t
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/ucmapper/scripts/extract_ad.py --ad {AD_ID} --raw /tmp/ad{AD_ID}.json --parity /tmp/ad{AD_ID}-second.json
 ```
 
-The hash input per citation is `reference + guidance + parentChain + sortValue + genealogy.join(",") + childCount`, where `parentChain` is the ancestor elementIds root-first joined by `,`. Hierarchy shape is covered, not just text. The script also asserts, independently of the hashes, that citation counts are equal on both sides and that both reconcile against `stats.citations` modulo documented `warnings[]` collisions.
+The hash input per citation is `reference + guidance + parentChain + sortValue + genealogy.join(",") + childCount`, where `parentChain` is the ancestor elementIds root-first joined by `,`. Hierarchy shape is covered, not just text. The manifest is **keyed by `elementId`, not by `reference`** — rule 3 deliberately keeps two citations that share a reference when they differ in guidance, parent or genealogy, so a reference-keyed manifest overwrites one of them and drops it from the diff while still reporting 0/0/0. That was a live bug through 0.1.1: AD 4509 (Australian Government ISM) carries `Personnel awareness` under both Telephone systems and Mobile device usage, its manifest held 1911 keys for 1912 citations, and an edit confined to the uncovered row passed clean. Fixed in 0.2.0 and pinned by `scripts/test_extract_ad.py`.
 
-Result must be **0 missing / 0 extra / 0 content mismatch**, or every exception traceable to a `warnings[]` entry. Exit code 2 means parity failed.
+The script also asserts, independently of the hashes, that citation counts are equal on both sides, that each side's manifest covers every one of its own citations (`coverage` in the printed output), and that both reconcile against `stats.citations` modulo documented `warnings[]` collisions. Hash agreement over a short manifest is not parity, so a coverage shortfall fails the run on its own.
+
+Result must be **0 missing / 0 extra / 0 content mismatch** with `coverage` full on both sides, or every exception traceable to a `warnings[]` entry. Exit code 2 means parity failed.
 
 **Two gotchas worth the ink.** In JavaScript, FNV-1a must use `Math.imul(h, 0x01000193) >>> 0` — plain multiplication overflows Number precision and produces false mismatches against Python's `(h * 0x01000193) & 0xFFFFFFFF`. And a passing parity check proves the two fetches agree; it does **not** prove the transform rules fit this document. That is what step 0 and `warnings[]` are for, and no amount of green hashes substitutes for having read the recon output.
+
+Before changing anything in `extract_ad.py`, run its tests — they need no network and take under a second:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/ucmapper/scripts/test_extract_ad.py
+```
+
+Capture the exit code directly rather than through a pipe (`python3 test_extract_ad.py > out 2>&1; RC=$?`); `cmd | tail` reports tail's status and will show a green 0 over a failing suite.
 
 ## Reporting back
 

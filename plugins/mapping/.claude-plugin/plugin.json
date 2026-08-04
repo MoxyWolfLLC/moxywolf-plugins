@@ -1,6 +1,6 @@
 {
   "name": "mapping",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Compliance-mapping extraction and crosswalk tooling. Turns mapping-source documents into structured, verifiable artifacts: /mapping-ucmapper extracts a Unified Compliance Framework Authority Document from the public UCF mapper API into a citations JSON (full parent/child hierarchy, recomputed genealogy, cki-conformant BibTexCitation with a deliberated LicenseStamp) plus a self-contained collapsible HTML tree viewer. Deterministic transform in Python, mandatory schema reconnaissance before any transform, honest warnings[] instead of forced merges, and an independent second-fetch FNV-1a parity check before the run is allowed to declare done.",
   "author": {
     "name": "Dorian"

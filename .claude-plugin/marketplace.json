@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.42.1",
+  "version": "1.43.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -366,7 +366,7 @@
       "name": "mapping",
       "source": "./plugins/mapping",
       "description": "Compliance-mapping extraction and crosswalk tooling. Turns mapping-source documents into structured, verifiable artifacts: /mapping-ucmapper extracts a Unified Compliance Framework Authority Document from the public UCF mapper API into a citations JSON (full parent/child hierarchy, recomputed genealogy, cki-conformant BibTexCitation with a deliberated LicenseStamp) plus a self-contained collapsible HTML tree viewer. Deterministic transform in Python, mandatory schema reconnaissance before any transform, honest warnings[] instead of forced merges, and an independent second-fetch FNV-1a parity check before the run is allowed to declare done.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "author": {
         "name": "MoxyWolf LLC"
       },

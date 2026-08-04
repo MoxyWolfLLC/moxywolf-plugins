@@ -27,9 +27,13 @@ Three properties worth naming, because they are the point:
 
 - **Schema reconnaissance runs before any transform.** `--recon` prints the document header and sample citations across depths, and anything that diverges from the expected shape becomes a warning that a human has to resolve rather than a silent adaptation.
 - **It never force-merges to hit a count.** Rows sharing a reference merge only when guidance, parent, and genealogy are all identical. A real collision keeps both rows and says so. An explained discrepancy against `stats.citations` beats a tidy number that misrepresents the document.
-- **A parity check gates "done".** The API is re-fetched through a different path and the two transforms are diffed on per-citation hashes covering hierarchy shape, not just text. Must be 0/0/0.
+- **A parity check gates "done".** The API is re-fetched through a different path and the two transforms are diffed on per-citation hashes covering hierarchy shape, not just text. Must be 0/0/0, with the manifest proven to cover every citation on both sides.
 
 `warnings[]` is load-bearing. An empty array is a claim; a populated one is the run telling you where to look.
+
+### Tests
+
+`skills/ucmapper/scripts/test_extract_ad.py` — synthetic documents, no network, sub-second. Run it before and after any change to the transform. It pins the duplicate-reference case that 0.2.0 fixed, the determinism of two runs over the same document, the guidance-cleaning rules including the deliberate survival of a lone newline, and the orphan-parent guard.
 
 ### Usage
 
@@ -51,4 +55,6 @@ Built per the conventions in `GitHub/cki` (schema, deterministic `uuid5` id, exi
 
 ### Verified against
 
-AD 4524 (California Consumer Privacy Act, as of 2026-07-17): 232 raw rows → 150 citations matching `stats.citations` exactly, 17 roots, parity 0/0/0, no unexpected warnings.
+- **AD 4524** (California Consumer Privacy Act, as of 2026-07-17): 232 raw rows → 150 citations matching `stats.citations` exactly, 17 roots, parity 0/0/0, no unexpected warnings.
+- **AD 4528** (DoD Instruction 5010.40, issued 2024-12-11): 456 raw rows → 369 citations matching `stats.citations` exactly, 5 roots, sort_id depths 1–7, parity 0/0/0, only the standing genealogy-convention warning. Licensed `US-PD` — the instruction names the GAO Green Book and OMB Circulars A-123/A-11 but reproduces no third-party text, so nothing non-governmental rides along.
+- **AD 4509** (Australian Government Information Security Manual, June 2026): 2,136 raw rows → 1,912 citations against `stats.citations` 1,911, 23 roots. The +1 is the duplicate-reference case: `Personnel awareness` is a real subsection under both Telephone systems and Mobile device usage, kept as two citations rather than force-merged. This is the document that exposed the reference-keyed manifest bug fixed in 0.2.0. Licensed `MoxyWolf-Licensed-Corpus-Unconfirmed`, not public domain — the originator is a Commonwealth of Australia body so 17 U.S.C. 105 does not apply, and cyber.gov.au refused automated retrieval, so the licence could not be read and was stamped restrictively pending a human check.
