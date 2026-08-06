@@ -12,7 +12,7 @@ Compliance-mapping extraction and crosswalk tooling. Turns mapping-source docume
 
 Give it an Authority Document id (or a `mapper.unifiedcompliance.com/public-comment/index/{id}` URL) and an output folder. It produces:
 
-- `ad-{AD_ID}-citations.json` — `published_name` as title, a cki-conformant `BibTexCitation` with a deliberated `LicenseStamp`, a `warnings[]` array, and every citation with cleaned guidance plus its full parent chain, children, sort value, and recomputed genealogy
+- `ad-{AD_ID}-citations.json` — `published_name` as title, a cki-conformant `BibTexCitation` with a deliberated `LicenseStamp`, a classified `warnings[]` array, a `snapshots[]` chain, and every citation with cleaned guidance plus its full parent chain, children, sort value, and recomputed genealogy
 - `ad-{AD_ID}-hierarchy.html` — a collapsible tree with the JSON embedded inline, works from disk with no network
 
 Both written atomically.
@@ -29,11 +29,17 @@ Three properties worth naming, because they are the point:
 - **It never force-merges to hit a count.** Rows sharing a reference merge only when guidance, parent, and genealogy are all identical. A real collision keeps both rows and says so. An explained discrepancy against `stats.citations` beats a tidy number that misrepresents the document. Equally, it never leaves true duplicates unmerged: a reference can carry three or more variants, and every incoming row is tested against all of them.
 - **A parity check gates "done".** The API is re-fetched through a different path and the two transforms are diffed on per-citation hashes covering hierarchy shape, not just text. Must be 0/0/0, with the manifest proven to cover every citation on both sides.
 
-`warnings[]` is load-bearing. An empty array is a claim; a populated one is the run telling you where to look.
+- **The same AD id is tracked across runs.** Every run appends to `snapshots[]` with a sha256 over the parity manifest, chained to the previous run's hash. Because the mapper mints a new AD id for each new edition, a hash that moves under a stable AD id can only mean the publisher edited a published edition in place — reported as a `high` severity `edition-drift` warning rather than silently overwritten.
+
+`warnings[]` is load-bearing. An empty array is a claim; a populated one is the run telling you where to look. Under `schemaVersion` 2 each entry carries a `class` and a `severity` (`info` | `low` | `medium` | `high`) alongside the message, so a report can lead with what should stop a publish. The class table is in the skill.
+
+### Identity: one key per edition
+
+`citationKey` identifies an **edition**, not a work. ISO/IEC 27002:2013 and ISO/IEC 27002:2022 are two documents, two keys, two `uuid5` ids — and the mapper agrees, minting a new AD id per edition. The trailing year in the key pattern is the edition year; first publication and enactment go in `note`, where they do not participate in identity. Work-level facts (this edition supersedes that one, this one was in force between these dates) live in GraphCounsel, not in cki. See `DR-002` in the vault.
 
 ### Tests
 
-`skills/ucmapper/scripts/test_extract_ad.py` — synthetic documents, no network, sub-second. Run it before and after any change to the transform. It pins the duplicate-reference case that 0.2.0 fixed, the determinism of two runs over the same document, the guidance-cleaning rules including the deliberate survival of a lone newline, and the orphan-parent guard.
+`skills/ucmapper/scripts/test_extract_ad.py` — synthetic documents, no network, sub-second. Run it before and after any change to the transform. It pins the duplicate-reference case that 0.2.0 fixed, the determinism of two runs over the same document, the guidance-cleaning rules including the deliberate survival of a lone newline, the orphan-parent guard, the well-formedness of every warning across documents that fire most of the classes, and the snapshot chain end to end through the write path. A case that raises is reported and counted rather than aborting the suite, so running this file against an older `extract_ad.py` gives a clean failure count instead of one traceback.
 
 ### Usage
 

@@ -16,11 +16,19 @@ Modes
                  per-citation hashes against the run built from --raw.
 
 Exit codes: 0 ok, 1 halt (fetch/schema/validation failure), 2 parity mismatch.
+
+Output schema
+  The citations document carries schemaVersion 2. Against version 1: warnings[] entries
+  are objects ({@type, class, severity, message}) rather than bare strings, and a
+  snapshots[] chain records each run's document hash against the previous one. The
+  citations[] array and the per-citation FNV-1a hashes are unchanged -- those are what
+  parity tests, and they did not move.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -33,9 +41,60 @@ from datetime import date
 API = "https://mapper.unifiedcompliance.com/api/authority-document/{ad}/report"
 PAGE = "https://mapper.unifiedcompliance.com/public-comment/index/{ad}"
 
+DOC_SCHEMA_VERSION = 2
+
 BRACE = re.compile(r"\{[^{}]*\}")
 WS_RUN = re.compile(r"\s{2,}")
 SPACE_BEFORE_PUNCT = re.compile(r"\s+([,.;:!?\)])")
+
+
+# -------------------------------------------------------------------- warnings
+
+# A warning class names WHAT KIND of thing went wrong; severity says how much it should
+# stop a reader. Both are for sorting and filtering downstream -- the message text is
+# still the thing a human reads, and every message here is byte-identical to the string
+# the same condition emitted under schemaVersion 1.
+#
+# Severity scale, applied consistently:
+#   info    the transform did something worth knowing about; nothing is wrong
+#   low     a quirk of the source document, handled, no action needed
+#   medium  the output is usable but a human should look at this before publishing
+#   high    the output may misrepresent the document; do not publish without resolving
+SEVERITIES = ("info", "low", "medium", "high")
+
+W_SCHEMA_DEVIATION = "schema-deviation"
+W_EMPTY_DOCUMENT = "empty-document"
+W_SORT_UNSAFE = "sort-unsafe"
+W_MALFORMED_MARKUP = "malformed-markup"
+W_NESTED_BRACE = "nested-brace-markup"
+W_OUTPUT_CONVENTION = "output-convention"
+W_REFERENCE_COLLISION = "reference-collision"
+W_ORPHAN_PARENT = "orphan-parent"
+W_SELF_PARENT = "self-parent"
+W_PARENT_CYCLE = "parent-cycle"
+W_COUNT_RECONCILIATION = "count-reconciliation"
+W_UNREACHABLE = "unreachable-citation"
+W_NO_ROOTS = "no-roots"
+W_EDITION_DRIFT = "edition-drift"
+
+
+def warn(sink: list, cls: str, severity: str, message: str) -> None:
+    """Append one structured warning. Message text is the human-facing part."""
+    assert severity in SEVERITIES, f"unknown severity {severity!r}"
+    sink.append({
+        "@type": "Warning",
+        "class": cls,
+        "severity": severity,
+        "message": message,
+    })
+
+
+def has_class(sink: list, cls: str) -> bool:
+    return any(w.get("class") == cls for w in sink)
+
+
+def warning_messages(sink: list) -> list:
+    return [w["message"] for w in sink]
 
 
 # --------------------------------------------------------------------------- io
@@ -107,18 +166,22 @@ def recon(doc: dict) -> tuple[list, list]:
 
     for field in ("published_name", "id"):
         if not doc.get(field):
-            warnings.append(f"document header is missing {field!r} -- schema deviates from the expected shape")
+            warn(warnings, W_SCHEMA_DEVIATION, "high",
+                 f"document header is missing {field!r} -- schema deviates from the expected shape")
     if stats is None:
-        warnings.append("stats.citations is absent -- the count reconciliation in validation cannot run")
+        warn(warnings, W_SCHEMA_DEVIATION, "medium",
+             "stats.citations is absent -- the count reconciliation in validation cannot run")
 
     if not cites:
-        warnings.append("citations[] is empty -- emitting a valid document with no citations rather than inventing content")
+        warn(warnings, W_EMPTY_DOCUMENT, "high",
+             "citations[] is empty -- emitting a valid document with no citations rather than inventing content")
         return report, warnings
 
     required = ("id", "reference", "guidance", "sort_id", "sort_value", "genealogy", "parent")
     missing = sorted({f for c in cites for f in required if f not in c})
     if missing:
-        warnings.append(f"citations are missing expected field(s): {', '.join(missing)} -- adapt deliberately before trusting the transform")
+        warn(warnings, W_SCHEMA_DEVIATION, "high",
+             f"citations are missing expected field(s): {', '.join(missing)} -- adapt deliberately before trusting the transform")
 
     widths, ragged = set(), []
     for c in cites:
@@ -128,12 +191,12 @@ def recon(doc: dict) -> tuple[list, list]:
             if seg and not seg.isdigit():
                 ragged.append(sid)
     if len(widths) > 1:
-        warnings.append(
-            f"sort_id segments are NOT fixed-width (widths seen: {sorted(widths)}) -- "
-            "lexicographic sort is unsafe on this document; the ordering below is suspect"
-        )
+        warn(warnings, W_SORT_UNSAFE, "high",
+             f"sort_id segments are NOT fixed-width (widths seen: {sorted(widths)}) -- "
+             "lexicographic sort is unsafe on this document; the ordering below is suspect")
     if ragged:
-        warnings.append(f"sort_id contains non-numeric segments (e.g. {ragged[0]!r}) -- zero-pad assumption does not hold")
+        warn(warnings, W_SORT_UNSAFE, "high",
+             f"sort_id contains non-numeric segments (e.g. {ragged[0]!r}) -- zero-pad assumption does not hold")
 
     depths = sorted({len(str(c.get('sort_id') or '').split()) for c in cites})
     report.append(f"sort_id depths : {depths}")
@@ -168,13 +231,16 @@ def clean_guidance(text, warnings: list) -> str:
             break
         out, passes = stripped, passes + 1
         if passes > 20:
-            warnings.append("guidance brace-stripping exceeded 20 passes -- possible malformed markup, stopped early")
+            warn(warnings, W_MALFORMED_MARKUP, "medium",
+                 "guidance brace-stripping exceeded 20 passes -- possible malformed markup, stopped early")
             break
-    if passes > 1 and "nested-brace" not in " ".join(warnings):
-        warnings.append(
-            "nested-brace guidance markup found; brace removal ran more than one pass "
-            "(the literal single-pass reading of the rule would have left residue)"
-        )
+    # Emitted once per document, not once per citation. Through 0.2.1 the guard was a
+    # substring scan over the joined warning text, which happened to work only because the
+    # message contains the word it was scanning for. The class check says what was meant.
+    if passes > 1 and not has_class(warnings, W_NESTED_BRACE):
+        warn(warnings, W_NESTED_BRACE, "low",
+             "nested-brace guidance markup found; brace removal ran more than one pass "
+             "(the literal single-pass reading of the rule would have left residue)")
     out = WS_RUN.sub(" ", out)
     out = SPACE_BEFORE_PUNCT.sub(r"\1", out)
     return out.strip()
@@ -221,11 +287,10 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
     raw = doc_citations(doc)
     width = pad_width(raw)
     if raw:
-        warnings.append(
-            "output genealogy is the full survivor chain root-first INCLUDING this citation, which "
-            "deliberately differs from the API's own genealogy field (ancestors only, except roots which "
-            "list themselves); the two fields are not interchangeable"
-        )
+        warn(warnings, W_OUTPUT_CONVENTION, "info",
+             "output genealogy is the full survivor chain root-first INCLUDING this citation, which "
+             "deliberately differs from the API's own genealogy field (ancestors only, except roots which "
+             "list themselves); the two fields are not interchangeable")
 
     # Rule 2 -- sort by (sort_id, id). Lexicographic; only sound if recon confirmed
     # fixed-width segments, which is why a violation is warned about above.
@@ -263,11 +328,10 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
                 name for name, a, b in zip(("guidance", "parent", "genealogy"), variants[0]["identity"], identity)
                 if a != b
             ]
-            warnings.append(
-                f"reference {ref!r} now carries {len(variants) + 1} distinct citations "
-                f"(rows {', '.join(v['id'] for v in variants)} and {cid}); row {cid} differs from every "
-                f"prior variant (against the first: {', '.join(differs)}); all kept rather than merged"
-            )
+            warn(warnings, W_REFERENCE_COLLISION, "medium",
+                 f"reference {ref!r} now carries {len(variants) + 1} distinct citations "
+                 f"(rows {', '.join(v['id'] for v in variants)} and {cid}); row {cid} differs from every "
+                 f"prior variant (against the first: {', '.join(differs)}); all kept rather than merged")
         entry = {"id": cid, "raw": c, "identity": identity, "merged": []}
         variants.append(entry)
         survivors.append(entry)
@@ -285,13 +349,13 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
             continue
         target = remap.get(praw)
         if target is None or target not in survivor_ids:
-            warnings.append(
-                f"citation {e['id']} ({e['identity'][0][:40]!r}...) has parent id {praw!r} that resolves to no "
-                "surviving citation; the link was excluded and this citation is treated as a root"
-            )
+            warn(warnings, W_ORPHAN_PARENT, "high",
+                 f"citation {e['id']} ({e['identity'][0][:40]!r}...) has parent id {praw!r} that resolves to no "
+                 "surviving citation; the link was excluded and this citation is treated as a root")
             resolved_parent[e["id"]] = None
         elif target == e["id"]:
-            warnings.append(f"citation {e['id']} is its own parent after remapping; self-link excluded")
+            warn(warnings, W_SELF_PARENT, "high",
+                 f"citation {e['id']} is its own parent after remapping; self-link excluded")
             resolved_parent[e["id"]] = None
         else:
             resolved_parent[e["id"]] = target
@@ -301,9 +365,8 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
         out, seen, cur = [], {cid}, resolved_parent.get(cid)
         while cur:
             if cur in seen:
-                warnings.append(
-                    f"parent chain from citation {cid} revisits id {cur}; the walk was stopped and the cycle excluded"
-                )
+                warn(warnings, W_PARENT_CYCLE, "high",
+                     f"parent chain from citation {cid} revisits id {cur}; the walk was stopped and the cycle excluded")
                 break
             seen.add(cur)
             out.append(cur)
@@ -380,10 +443,9 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
     stats = (doc.get("stats") or {}).get("citations")
     if stats is not None and len(citations) != stats:
         conflicting = [e["id"] for e in survivors if e["merged"]][:20]
-        warnings.append(
-            f"unique-citation count {len(citations)} does not match stats.citations {stats}; "
-            f"merged-row survivors sampled: {conflicting}"
-        )
+        warn(warnings, W_COUNT_RECONCILIATION, "high",
+             f"unique-citation count {len(citations)} does not match stats.citations {stats}; "
+             f"merged-row survivors sampled: {conflicting}")
     roots = [e["id"] for e in survivors if resolved_parent[e["id"]] is None]
     reachable, stack = set(), list(roots)
     while stack:
@@ -394,9 +456,11 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
         stack.extend(children[cur])
     unreachable = sorted(survivor_ids - reachable)
     if unreachable:
-        warnings.append(f"{len(unreachable)} citation(s) unreachable from any root, e.g. {unreachable[:10]}")
+        warn(warnings, W_UNREACHABLE, "high",
+             f"{len(unreachable)} citation(s) unreachable from any root, e.g. {unreachable[:10]}")
     if survivors and not roots:
-        warnings.append("no root citations found -- every citation claims a parent, which should be impossible")
+        warn(warnings, W_NO_ROOTS, "high",
+             "no root citations found -- every citation claims a parent, which should be impossible")
 
     payload = {
         "title": doc.get("published_name") or "",
@@ -411,8 +475,71 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
         "count": len(citations),
         "report": report,
         "originator": doc.get("originator"),
+        "documentHash": document_hash(payload["title"], hashes),
     }
     return payload, warnings, meta
+
+
+# ------------------------------------------------------------------- snapshots
+
+def document_hash(title: str, hashes: dict) -> str:
+    """One hash standing for the whole document, derived from the parity manifest.
+
+    Deliberately built from `hashes` rather than from the emitted JSON: that manifest is
+    exactly what --parity compares, so a document hash that agrees between two runs is the
+    same claim the parity check makes, carried forward past the end of the run. Hashing the
+    serialized file instead would also move when a warning message or a schema field
+    changed, which would make the chain report drift that is ours, not the publisher's.
+
+    sha256 rather than the FNV-1a used per citation: those must match a JavaScript
+    implementation byte for byte, this one only has to be hard to collide.
+    """
+    canon = "\n".join(f"{cid}:{hashes[cid]}" for cid in sorted(hashes))
+    return hashlib.sha256(f"{title}\n{len(hashes)}\n{canon}".encode("utf-8")).hexdigest()
+
+
+def prior_snapshots(json_path: str) -> list:
+    """Read the snapshot chain off an existing artifact. Absent or unreadable -> empty.
+
+    A malformed prior file must not take down a fresh extraction, so this never halts; the
+    worst case is a chain that restarts, which the drift check reports as a first snapshot
+    rather than as silence.
+    """
+    if not os.path.exists(json_path):
+        return []
+    try:
+        with open(json_path, encoding="utf-8") as fh:
+            prior = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return []
+    snaps = prior.get("snapshots")
+    return snaps if isinstance(snaps, list) else []
+
+
+def extend_chain(snapshots: list, doc_hash: str, count: int, warnings: list, today: str) -> list:
+    """Append this run to the chain, warning if the text moved under a stable AD id.
+
+    The file is per AD id and the mapper mints a new AD id per edition, so both ends of a
+    link in this chain are the same edition by construction. A hash that moves therefore
+    means the publisher edited a published edition in place -- which is the whole reason
+    the chain is worth keeping. See DR-002.
+    """
+    previous = snapshots[-1].get("documentHash") if snapshots else None
+    drifted = previous is not None and previous != doc_hash
+    if drifted:
+        warn(warnings, W_EDITION_DRIFT, "high",
+             f"document hash changed from {previous[:12]}... to {doc_hash[:12]}... since the previous "
+             f"snapshot ({snapshots[-1].get('runDate')}); the AD id is unchanged, so the publisher edited "
+             "a published edition in place rather than issuing a new one -- diff before republishing")
+    return snapshots + [{
+        "@type": "Snapshot",
+        "schemaVersion": 1,
+        "runDate": today,
+        "documentHash": doc_hash,
+        "previousHash": previous,
+        "drifted": drifted,
+        "citationCount": count,
+    }]
 
 
 # ------------------------------------------------------------------------- html
@@ -442,6 +569,12 @@ HTML = """<!DOCTYPE html>
  .warn{border:1px solid #d29922;border-radius:.5rem;padding:.6rem .9rem;margin-bottom:1.25rem;font-size:.87rem}
  .warn b{display:block;margin-bottom:.3rem}
  .warn li{margin:.15rem 0}
+ .wtag{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding:.05rem .35rem;
+       border:1px solid currentColor;border-radius:.25rem;opacity:.8;white-space:nowrap}
+ .wsev-high{color:#d1242f}
+ .wsev-medium{color:#bf8700}
+ .wsev-low,.wsev-info,.wsev-none{opacity:.55}
+ @media (prefers-color-scheme:dark){.wsev-high{color:#ff8182}.wsev-medium{color:#d4a72c}}
 </style></head><body>
 <h1 id="t"></h1>
 <div class="sub" id="s"></div>
@@ -477,10 +610,30 @@ HTML = """<!DOCTYPE html>
   document.getElementById('t').textContent = DATA.title||'(untitled)';
   document.getElementById('s').textContent = DATA.citations.length+' citations · '+roots.length+' root'+(roots.length===1?'':'s');
   if(DATA.warnings && DATA.warnings.length){
+    // schemaVersion 1 emitted bare strings here, 2 emits {class, severity, message}.
+    // Both render: an artifact produced before the taxonomy still opens correctly.
+    var RANK={high:0,medium:1,low:2,info:3};
+    var ws=DATA.warnings.map(function(x){
+      return (typeof x==='string') ? {severity:'', cls:'', message:x}
+                                   : {severity:x.severity||'', cls:x['class']||'', message:x.message||''};
+    }).sort(function(a,b){
+      var ra=(a.severity in RANK)?RANK[a.severity]:9, rb=(b.severity in RANK)?RANK[b.severity]:9;
+      return ra-rb;
+    });
     var w=document.getElementById('w'), box=document.createElement('div'); box.className='warn';
-    var b=document.createElement('b'); b.textContent='Warnings ('+DATA.warnings.length+')'; box.appendChild(b);
+    var b=document.createElement('b'); b.textContent='Warnings ('+ws.length+')'; box.appendChild(b);
     var ul=document.createElement('ul');
-    DATA.warnings.forEach(function(x){ var li=document.createElement('li'); li.textContent=x; ul.appendChild(li); });
+    ws.forEach(function(x){
+      var li=document.createElement('li');
+      if(x.severity||x.cls){
+        var tag=document.createElement('span');
+        tag.className='wtag wsev-'+(x.severity||'none');
+        tag.textContent=x.severity+(x.cls?(' / '+x.cls):'');
+        li.appendChild(tag); li.appendChild(document.createTextNode(' '));
+      }
+      li.appendChild(document.createTextNode(x.message));
+      ul.appendChild(li);
+    });
     box.appendChild(ul); w.appendChild(box);
   }
   var tree=document.getElementById('tree');
@@ -502,6 +655,13 @@ def render_html(payload: dict, ad_id: str) -> str:
 
 # ------------------------------------------------------------------------- main
 
+def print_warnings(warnings: list) -> None:
+    """Highest severity first, so the thing that should stop a publish reads first."""
+    rank = {s: i for i, s in enumerate(reversed(SEVERITIES))}
+    for w in sorted(warnings, key=lambda x: rank.get(x.get("severity"), len(SEVERITIES))):
+        print(f"  - [{w['severity']}/{w['class']}] {w['message']}")
+
+
 def load_raw(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -520,6 +680,7 @@ def main() -> None:
     ap.add_argument("--bibtex", help="JSON file holding the BibTexCitation object to embed")
     ap.add_argument("--recon", action="store_true", help="schema reconnaissance only, no files written")
     ap.add_argument("--parity", help="second independently fetched raw JSON to diff against --raw")
+    ap.add_argument("--today", help="override the snapshot run date (ISO 8601); for tests and backfills")
     args = ap.parse_args()
 
     scratch = args.raw or os.path.join(tempfile.gettempdir(), f"ad{args.ad}.json")
@@ -529,8 +690,7 @@ def main() -> None:
         report, warnings = recon(doc)
         print("\n".join(report))
         print("\nWarnings:" if warnings else "\nWarnings: none")
-        for w in warnings:
-            print(f"  - {w}")
+        print_warnings(warnings)
         print(f"\nraw JSON cached at: {scratch}")
         return
 
@@ -574,11 +734,23 @@ def main() -> None:
     bib = None
     if args.bibtex:
         bib = load_raw(args.bibtex)
-    ordered = {"title": payload["title"], "bibTexCitation": bib,
-               "warnings": payload["warnings"], "citations": payload["citations"]}
 
     json_path = os.path.join(args.out, f"ad-{args.ad}-citations.json")
     html_path = os.path.join(args.out, f"ad-{args.ad}-hierarchy.html")
+
+    # Read the prior artifact BEFORE writing over it. This is the one place the run is not
+    # a pure function of its input: the chain needs the previous link, and the previous
+    # link lives in the file we are about to replace.
+    snapshots = extend_chain(
+        prior_snapshots(json_path), meta["documentHash"], meta["count"],
+        warnings, args.today or date.today().isoformat(),
+    )
+
+    ordered = {"schemaVersion": DOC_SCHEMA_VERSION,
+               "title": payload["title"], "bibTexCitation": bib,
+               "warnings": payload["warnings"], "snapshots": snapshots,
+               "citations": payload["citations"]}
+
     atomic_write(json_path, json.dumps(ordered, indent=2, ensure_ascii=False) + "\n")
     atomic_write(html_path, render_html(ordered, args.ad))
 
@@ -586,9 +758,16 @@ def main() -> None:
     print(f"\ncitations   : {meta['count']} (stats.citations={meta['stats']})")
     print(f"roots       : {meta['roots']}")
     print(f"originator  : {meta['originator']!r}")
+    print(f"doc hash    : {meta['documentHash']}")
+    prev = snapshots[-1]["previousHash"]
+    if prev is None:
+        print(f"snapshots   : {len(snapshots)} (first snapshot of this AD id)")
+    elif snapshots[-1]["drifted"]:
+        print(f"snapshots   : {len(snapshots)} -- DRIFTED from {prev[:12]}...")
+    else:
+        print(f"snapshots   : {len(snapshots)} (unchanged since {snapshots[-2]['runDate']})")
     print(f"warnings    : {len(warnings)}")
-    for w in warnings:
-        print(f"  - {w}")
+    print_warnings(warnings)
     print(f"\nwrote {json_path}")
     print(f"wrote {html_path}")
     print(f"raw JSON cached at: {scratch}")

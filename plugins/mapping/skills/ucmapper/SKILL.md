@@ -68,13 +68,22 @@ The rules it implements, so you can check its work:
 6. **Cycle and orphan guard.** A chain revisiting a seen id, or a `parent.id` resolving to nothing, stops that walk, excludes the bad link, and records it in `warnings[]`. Never loop; never silently drop.
 7. **Genealogy is recomputed, not copied.** Output `genealogy` is the survivor-chain ids, zero-padded, root first, and — this is the plugin's own convention — **including the citation itself**. The API's `genealogy` field uses a different convention (ancestors only, except roots, which list themselves) and may reference merged-away ids. The script emits a standing warning saying so; the two fields are not interchangeable.
 
-Output shape:
+Output shape (`schemaVersion` 2 — see *Warnings and the snapshot chain* below):
 
 ```json
 {
+  "schemaVersion": 2,
   "title": "<published_name>",
   "bibTexCitation": { },
-  "warnings": ["<anything assumed, deviated, or flagged during this run — empty array if clean>"],
+  "warnings": [
+    {"@type": "Warning", "class": "reference-collision", "severity": "medium",
+     "message": "<anything assumed, deviated, or flagged during this run — empty array if clean>"}
+  ],
+  "snapshots": [
+    {"@type": "Snapshot", "schemaVersion": 1, "runDate": "2026-08-06",
+     "documentHash": "<sha256 over the parity manifest>", "previousHash": null,
+     "drifted": false, "citationCount": 369}
+  ],
   "citations": [
     {
       "reference": "§ 1798.100",
@@ -98,6 +107,32 @@ Output shape:
 
 Both files are written atomically — temp name in the destination folder, then rename.
 
+### Warnings and the snapshot chain
+
+`schemaVersion` 2 changed two things and left the rest alone. **`citations[]` and the per-citation FNV-1a hashes did not move** — those are what the parity check tests, and an artifact re-extracted under 2 carries the identical citation array it carried under 1. Verified field by field against AD 4528.
+
+**Warnings are objects, not strings.** Each carries `class` (what kind of thing happened) and `severity` (`info` | `low` | `medium` | `high`), with the `message` text byte-identical to the string the same condition emitted under schemaVersion 1. Sort by severity when reporting; a `high` means the output may misrepresent the document and should not be published without resolving it.
+
+| class | severity | fires when |
+|---|---|---|
+| `schema-deviation` | high / medium | a document header field or an expected citation field is missing |
+| `empty-document` | high | `citations[]` is empty |
+| `sort-unsafe` | high | `sort_id` segments are ragged or non-numeric, so the lexicographic sort is not sound |
+| `malformed-markup` | medium | brace-stripping ran past 20 passes |
+| `nested-brace-markup` | low | nested brace spans found; emitted once per document, not once per citation |
+| `output-convention` | info | the standing note that output `genealogy` deliberately differs from the API's |
+| `reference-collision` | medium | rows share a reference but differ in guidance, parent or genealogy; all kept |
+| `orphan-parent` / `self-parent` / `parent-cycle` | high | a parent link resolves to nothing, to itself, or revisits an id |
+| `count-reconciliation` | high | unique-citation count disagrees with `stats.citations` |
+| `unreachable-citation` / `no-roots` | high | the tree does not hang together |
+| `edition-drift` | high | this AD id's text moved since the last snapshot — see below |
+
+**The snapshot chain records this AD id over time.** Each full run appends to `snapshots[]`: the run date, a sha256 `documentHash`, and the `previousHash` it chains to. The hash is derived from the parity manifest rather than from the serialized file, so it moves when the document moves and holds still when only a warning message or a schema field changes — the chain reports the publisher's edits, not ours.
+
+**A `drifted: true` link means the publisher edited a published edition in place.** The UCF mapper mints a new AD id for each new edition, so both ends of a link are the same edition by construction; a hash that moves under a stable AD id cannot be an edition change. That is a `high` severity `edition-drift` warning and it is worth stopping for — diff the two extractions before republishing anything that cites this document. See `DR-002` in the vault (`Projects/Team Plugins/00-Hub/`) for the reasoning and for what is being built on top of this.
+
+Two consequences worth knowing. **Writing is no longer a pure function of the input** — the chain reads the artifact it is about to replace, which is the only way to get the previous link. And **re-running a document on a different day changes the file**, because the new snapshot carries that day's date; the citations array still does not change, so parity and the per-citation hashes are unaffected. Pass `--today YYYY-MM-DD` to pin the date for a test or a backfill. An artifact written under schemaVersion 1 has no chain, so the first run over it records a first snapshot with `previousHash: null` and raises no false drift.
+
 ## Step 3 — HTML hierarchy viewer
 
 The script emits it: JSON embedded inline (no external fetch, works from disk), roots at top level, `<details>/<summary>` per branch, leaves as plain rows, reference in bold colour then guidance, child count on branches, Expand-all / Collapse-all, warnings surfaced in a banner.
@@ -115,10 +150,10 @@ The cki repo (`GitHub/cki`) builds BibTexCitation entries *from* a URL. Here you
 2. **Verify the chosen URL live.** Load it and confirm the document title *and* at least one known citation reference from the extraction appear in the page text. A URL that returns 200 is not a verified URL.
 3. **If nothing verifies**, use the UCF mapper page itself as `url` and `verifyUrl`, add a `warnings[]` entry, and state the limitation in `note`. Never substitute an unverified mirror to fill the field.
 4. **Build the entry** per cki conventions (`GitHub/cki/schema/bibtex-citation.schema.json`, examples throughout `catalog/`).
-5. `entryType`: `"misc"`. `citationKey`: a deterministic kebab-case slug derived from document identity, not invented fresh per run — pattern `{jurisdiction-or-originator}-{code/standard}-{title-number}-{short-name}-{enactment-year}`. AD 4524 → `ca-civ-div3-part4-title-1-81-5-ccpa-2018`. The same document must always yield the same key, because:
-6. `id` is `uuid5` of the citationKey under namespace `uuid5(NAMESPACE_URL, "https://cki.opencontrols.ai")`. `GitHub/cki/scripts/catalog.py` validates this and fails the build if it doesn't match.
-7. `institution`: the `originator` from the API. `year` / `month`: from the as-of date in the title. `urldate` and `checkedOn`: today.
-8. `note`: enactment provenance, the verification statement (what you loaded and what you found on it), and a cross-reference to the citations JSON.
+5. `entryType`: `"misc"`. **`citationKey` identifies one EDITION, not a work.** A deterministic kebab-case slug derived from document identity, never invented fresh per run — pattern `{jurisdiction-or-originator}-{code/standard}-{title-number}-{short-name}-{edition-year}`. AD 4524 → `ca-civ-div3-part4-title-1-81-5-ccpa-2018`. Two editions of the same standard are two documents and get two keys: ISO/IEC 27002:2013 and ISO/IEC 27002:2022 are `…-2013` and `…-2022`, never both `…-2013`. The mapper agrees with this — it mints a **new AD id for each new edition**, so one AD id is exactly one edition and re-extracting the same AD id must always land on the same key. Read the edition year off the document, not off its first publication; a work first issued in 2013 and reissued in 2022 has edition year 2022 for the 2022 text. Enactment or first-publication provenance goes in `note`, where it does not participate in identity. The same document must always yield the same key, because:
+6. `id` is `uuid5` of the citationKey under namespace `uuid5(NAMESPACE_URL, "https://cki.opencontrols.ai")`. `GitHub/cki/scripts/catalog.py` validates this and fails the build if it doesn't match. It also fails on duplicate keys — which is the one guard standing behind rule 5. Slug two editions down to the same key and the build stops; the failure that has no guard is a *fresh* key for a document that already has one, so derive, never invent.
+7. `institution`: the `originator` from the API. `year` / `month`: from the as-of date in the title — that is the currency of this snapshot, and it is not the edition year in rule 5. `urldate` and `checkedOn`: today.
+8. `note`: enactment or first-publication provenance, the verification statement (what you loaded and what you found on it), and a cross-reference to the citations JSON.
 9. **LicenseStamp is a decision procedure, not a default.** Branch on originator type:
    - Government body publishing its own law or regulation → an edicts-of-government analysis may support `US-PD` (or the jurisdiction equivalent); cite the doctrine in `summary`
    - Private or international standards body (ISO, PCI SSC, ANSI, EC-Council, SCF…) → **not** public domain; check the cki catalog for an existing license class for that originator and reuse it

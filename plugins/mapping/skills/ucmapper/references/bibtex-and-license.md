@@ -21,6 +21,10 @@ assert entry["id"] == str(uuid.uuid5(NS, entry["citationKey"]))
 
 So `id` is a pure function of `citationKey`. This is why the key must be derived from stable document identity rather than invented per run — a fresh key on a re-extraction creates a second catalog entry for the same document, and `catalog.py` fails on duplicate keys only when the keys collide, not when they diverge.
 
+**The unit of identity is an edition, not a work.** The UCF mapper mints a new AD id for every new edition, so one AD id is exactly one edition, and each edition legitimately gets its own catalog entry: ISO/IEC 27002:2013 and ISO/IEC 27002:2022 are two documents with two keys and two `id`s. That resolves the divergence half of the warning above — re-extracting an edition means re-extracting the same AD id, which should always derive the same key — and leaves collision as the live risk. Collision is the *detectable* one: slug both editions to `iso-iec-27002-2013` because you read the year off the work rather than the edition, and the build fails on the duplicate key. Trailing year in the pattern means **edition year**. First publication and enactment belong in `note`.
+
+Work-level relationships between those entries — this edition supersedes that one, this one was in force between these dates — deliberately do **not** live here. cki answers *what is this document and what may we do with it*; supersession and validity are reasoning-layer facts and belong in GraphCounsel, with cki carrying at most an identity-only pointer. See `DR-002` in the vault (`Projects/Team Plugins/00-Hub/`).
+
 One-liner to compute it:
 
 ```bash
@@ -81,6 +85,6 @@ Note what `summary` does there: it names the doctrine (17 U.S.C. 105) rather tha
 
 ## For an Authority Document from the UCF mapper
 
-`entryType` is `"misc"`. `institution` is the API's `originator`. `year` and `month` come from the as-of date embedded in `published_name` (e.g. "…as of July 17, 2026" → year 2026, month `jul`) — that is the currency of *this* snapshot, and the enactment year belongs in `citationKey` and `note`.
+`entryType` is `"misc"`. `institution` is the API's `originator`. `year` and `month` come from the as-of date embedded in `published_name` (e.g. "…as of July 17, 2026" → year 2026, month `jul`) — that is the currency of *this* snapshot, and it is **not** the edition year that goes in `citationKey`. Three dates are in play and they are easy to blur: the **edition year** (identity, in the key), the **as-of date** (currency of this snapshot, in `year`/`month`), and the **enactment or first-publication date** (provenance, in `note`). A statute enacted in 2018, last amended into an edition the mapper published in 2024, and fetched by us in 2026 carries all three, and only the middle one moves when we re-fetch.
 
-The `note` should carry three things: enactment provenance, what you actually loaded to verify and what you found on it, and a pointer to the `ad-{AD_ID}-citations.json` this entry ships inside.
+The `note` should carry three things: enactment or first-publication provenance, what you actually loaded to verify and what you found on it, and a pointer to the `ad-{AD_ID}-citations.json` this entry ships inside.
