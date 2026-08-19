@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.44.0",
+  "version": "1.45.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -150,6 +150,28 @@
         "consensus",
         "openrouter",
         "obsidian"
+      ]
+    },
+    {
+      "name": "daily-briefings",
+      "source": "./plugins/daily-briefings",
+      "description": "Scheduled personal briefings rendered as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar plus a dated-commitment sweep of the inbox, flagging real clashes, duplicate invites, location clashes and deadlines with no prep blocked. /morning-brief renders today's version across calendar, email and chat. /briefings-setup writes the owner config and registers the recurring scheduled tasks. A source that could not be read is reported as not checked, never as empty.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "productivity",
+      "keywords": [
+        "briefing",
+        "calendar",
+        "commitments",
+        "deadlines",
+        "scheduled-tasks",
+        "google-calendar",
+        "gmail",
+        "morning-brief",
+        "double-booking",
+        "unattended"
       ]
     },
     {

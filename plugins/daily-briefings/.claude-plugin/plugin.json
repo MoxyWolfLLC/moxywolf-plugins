@@ -1,0 +1,22 @@
+{
+  "name": "daily-briefings",
+  "version": "0.1.0",
+  "description": "Scheduled personal briefings that render as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar plus a dated-commitment sweep of the inbox, with double-booking, duplicate-invite, location-clash and unprepped-deadline flags. /morning-brief renders today's version of the same picture across calendar, email and chat. /briefings-setup writes the owner config and registers the recurring scheduled tasks. Both renders are three-state honest: a source that could not be read is reported as not checked, never as empty.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "briefing",
+    "calendar",
+    "commitments",
+    "deadlines",
+    "scheduled-tasks",
+    "google-calendar",
+    "gmail",
+    "slack",
+    "morning-brief",
+    "double-booking",
+    "html-report",
+    "unattended"
+  ]
+}
