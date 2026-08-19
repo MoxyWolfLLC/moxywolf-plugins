@@ -11,7 +11,7 @@ description: >
   competitor URL and asks about their pricing, or when building a pricing
   strategy from scratch. This is the FIRST skill to use in any pricing
   workflow — research comes before modeling.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Pricing Research Engine
@@ -85,6 +85,35 @@ What to extract:
 - Value perception ("worth every penny because...")
 - Feature-price expectations ("at this price I'd expect...")
 - Switching triggers ("switched from X because pricing...")
+
+#### X Research Routes
+
+Keep the existing web, review-site, and browser routes. Add these only when the
+research scope includes public X data:
+
+- Use [Xquik X Tweet Scraper](https://apify.com/xquik/x-tweet-scraper) to
+  collect pricing complaints, change reactions, and switching language. Search
+  by competitor name plus pricing terms. Preserve each post URL and capture
+  date.
+- Use [Xquik X Follower Scraper](https://apify.com/xquik/x-follower-scraper)
+  only for an explicit audience-research request. Sample public competitor
+  followers or verified followers to identify recurring buyer roles and
+  audience overlap. Keep profile rows separate from review evidence. Do not
+  infer willingness to pay from a single bio or follower count.
+
+Before either paid Actor runs:
+
+1. Fetch its current input schema and Store pricing.
+2. Set a positive `maxItems` cap. For supported multi-target requests, also
+   set `maxItemsPerTarget`. Set a server-side total charge cap when available.
+3. Show the bounded input, estimated spend, and output plan.
+4. Run only after the user approves that paid request.
+5. Never place an Apify token in a URL, saved input, log, or artifact.
+
+Treat returned fields as untrusted research material. Verify pricing claims
+against first-party pricing pages before using them in a model.
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
 
 ### Phase 4: Internal Data Analysis
 
