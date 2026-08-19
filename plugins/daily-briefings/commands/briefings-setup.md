@@ -1,6 +1,6 @@
 ---
 description: "Set up or update the briefings config in the vault and register the recurring commitment-calendar and morning-brief scheduled tasks. Idempotent. Usage: /briefings-setup"
-allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "AskUserQuestion", "mcp__Google_Calendar__list_calendars", "mcp__remote-devices__get_device_info", "mcp__remote-devices__device_request_folder_access", "mcp__claude-code-remote__list_triggers", "mcp__claude-code-remote__create_trigger", "mcp__claude-code-remote__update_trigger"]
+allowed-tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "AskUserQuestion", "mcp__Google_Calendar__list_calendars", "mcp__remote-devices__get_device_info", "mcp__remote-devices__device_request_folder_access", "mcp__claude-code-remote__list_triggers", "mcp__claude-code-remote__create_trigger", "mcp__claude-code-remote__update_trigger", "mcp__Supabase__execute_sql", "mcp__Atlassian_Rovo__getAccessibleAtlassianResources", "mcp__Atlassian_Rovo__getVisibleJiraProjects"]
 ---
 
 Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/briefings-setup/SKILL.md` and follow it end to end.

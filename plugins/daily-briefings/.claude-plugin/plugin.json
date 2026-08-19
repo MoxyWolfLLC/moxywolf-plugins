@@ -1,7 +1,7 @@
 {
   "name": "daily-briefings",
-  "version": "0.1.0",
-  "description": "Scheduled personal briefings that render as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar plus a dated-commitment sweep of the inbox, with double-booking, duplicate-invite, location-clash and unprepped-deadline flags. /morning-brief renders today's version of the same picture across calendar, email and chat. /briefings-setup writes the owner config and registers the recurring scheduled tasks. Both renders are three-state honest: a source that could not be read is reported as not checked, never as empty.",
+  "version": "0.2.0",
+  "description": "Scheduled personal briefings that render as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar, the inbox, and every configured work surface — Jira, GitHub, deployments and domain renewals, scheduled social posts, content in flight, outreach queues, search and competitor watch, product experiments, invoices, payroll, contracts, pipeline commitments, decision records awaiting sign-off, and the scheduled tasks themselves — with double-booking, duplicate-invite, location-clash and unprepped-deadline flags. /morning-brief renders today's version. /crm-sync-health is a read-only pipeline check that costs one line on a healthy day. /briefings-setup writes the owner config and registers the recurring tasks. Read-only across every surface, and three-state honest: a source that could not be read is reported as not checked, never as empty.",
   "author": {
     "name": "MoxyWolf LLC"
   },
@@ -17,6 +17,12 @@
     "morning-brief",
     "double-booking",
     "html-report",
-    "unattended"
+    "unattended",
+    "jira",
+    "github",
+    "quickbooks",
+    "docusign",
+    "crm-health",
+    "supabase"
   ]
 }

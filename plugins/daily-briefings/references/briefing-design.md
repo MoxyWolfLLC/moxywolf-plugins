@@ -44,7 +44,9 @@ Above the grid:
 Below the grid:
 
 - **Deadlines & the prep that is missing** — one card per unprepped deadline: what is due, when, and which three-day window is empty.
-- **Open loops with no date on them yet** — undated asks sitting in the inbox: unanswered requests, pending replies, anything real that could not be plotted because it has no date. Each carries its sender and thread subject.
+- **Open loops with no date on them yet** — everything real that could not be plotted because nothing authoritative gives it a date. Group by surface, in the order the surfaces appear in `work-surfaces.md`, with a count per group: unanswered email and pending replies, pull requests waiting on a review, tickets in a review state, drafts stalled at a gate, decisions parked at *proposed*, deals past their close date, envelopes unsigned, invoices overdue, a scheduled task that has stopped firing.
+
+  Give this section room. On most days it will be longer than the grid, and that is not a defect — it is the accurate shape of the work. Cap any group that can run long, state the cap on the group, and order groups so the ones with a person waiting on the other end come first.
 
 A section with nothing in it renders as a single line saying so. Do not drop it — its absence would read as "not checked," which is the exact confusion `source-discipline.md` exists to prevent.
 

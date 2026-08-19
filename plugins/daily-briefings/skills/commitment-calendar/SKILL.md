@@ -9,12 +9,15 @@ description: >
 
 One file, one window: today through today plus `window.days - 1`, rendered as a week grid with everything the owner has committed to, from wherever it lives.
 
-The value is not the grid. Every calendar app has a grid. The value is the three things a calendar app will not tell you: which of these overlaps are real clashes rather than the same invite twice, which deadlines have nothing blocked in front of them, and which commitments are sitting in email where the calendar cannot see them.
+The value is not the grid. Every calendar app has a grid. The value is what a calendar app cannot tell you: which overlaps are real clashes rather than the same invite twice, which deadlines have nothing blocked in front of them, and — the biggest of the three — how much of what you actually owe never reaches a calendar at all.
+
+That last one is why this skill sweeps far past the calendar. A Jira ticket due Thursday, a pull request that has been open eleven days, a post scheduled to publish on its own, an invoice going overdue, a contract renewing, an envelope waiting on a signature, a decision record parked at *proposed* — none of these are on anyone's calendar, and all of them are commitments. Putting them on one grid is the point.
 
 Read these before you start, and follow them rather than the summaries here:
 
 - `${CLAUDE_PLUGIN_ROOT}/references/briefing-config.md` — every person-specific value, and what to do when the config is missing
-- `${CLAUDE_PLUGIN_ROOT}/references/source-discipline.md` — the three source states, and the bar for plotting an email
+- `${CLAUDE_PLUGIN_ROOT}/references/source-discipline.md` — the three source states, and the bar for plotting anything
+- `${CLAUDE_PLUGIN_ROOT}/references/work-surfaces.md` — every surface swept beyond the calendar, with its pull, its dated rule, and its undated rule
 - `${CLAUDE_PLUGIN_ROOT}/references/flag-detection.md` — the five flags, defined mechanically
 - `${CLAUDE_PLUGIN_ROOT}/references/briefing-design.md` — what the file looks like
 
@@ -65,6 +68,24 @@ For every surviving candidate, `mcp__Gmail__get_thread` with `messageFormat: PLA
 
 Record Gmail's state in the source map.
 
+## Step 3b — Sweep the work surfaces
+
+This is the step that makes the difference between a calendar and a commitment calendar. Work through `work-surfaces.md` and run every surface whose tier is due today, per the tiering rules in `briefing-config.md`.
+
+Run the surfaces **concurrently where they are independent**, which is nearly all of them — the sweep is wide and shallow, and doing it serially is what would make this briefing too slow to keep.
+
+For each surface, three outcomes and all three get recorded:
+
+- **dated items** join the grid as chips, in that surface's category, carrying the surface as their source
+- **undated items** join *Open loops*, grouped by surface so the section stays navigable
+- **the surface's state** joins the source map: `ok`, `unavailable`, or `not checked` with its reason
+
+Three rules that are easy to get wrong and expensive to get wrong:
+
+1. **An empty result and an unread surface are different findings.** A surface with no configured parameters is `not checked: not configured`, not an empty list. A connector that is not connected is `unavailable`. Only a surface that answered and returned nothing renders as genuinely quiet. Confirm the connector actually answered before recording a zero — an unfiltered probe that returns something is the cheap way to tell the two apart.
+2. **Do not re-derive what another skill owns.** Where a plugin in this fleet is the authority on a surface, read its output rather than reimplementing its rules. Two implementations of one rule drift, and this is the one that drifts silently.
+3. **Cap the noisy sections.** Surfaces that can return long tails — search-visibility movement, competitor changes, advisories — are capped at the top few, and the cap is stated. A capped list that says it was capped is useful; one that does not is misleading.
+
 ## Step 4 — Categorise
 
 Assign each commitment a category from `config.categories`, in that order, so colours stay stable run to run. Derive a new category if the data genuinely calls for one, use it, and name it in the footer. Never force a commitment into a category that misdescribes it, and never drop one because nothing fits.
@@ -94,9 +115,17 @@ Do not recap the calendar. The file is the recap.
 
 ---
 
+## What earns a place on the grid
+
+The bar is the same for every surface, and it is worth restating because a wide sweep makes it tempting to lower: **a chip requires a date that something authoritative asserts.** A Jira due date, a milestone `due_on`, a publish time, an invoice due date, a renewal date, a confirmed date in the body of an email. Not an inferred one, not a likely one, not "probably this week."
+
+Everything real but undated goes to *Open loops*, and that section is not a consolation prize — for most of the surfaces in `work-surfaces.md` it is the more valuable half. An eleven-day-old pull request, a decision record parked at *proposed*, a deal past its close date, a scheduled task that quietly stopped firing: none of these have dates, all of them are obligations, and nothing else in the owner's day is going to raise them.
+
+---
+
 ## Boundaries
 
 - Writes exactly one path: `{output.directory}/{output.calendarFilename}`. Nothing else on the owner's machine, ever.
-- Reads only. It never accepts an invitation, replies to a thread, creates an event, or moves anything.
+- **Reads only, across every surface.** It never accepts an invitation, replies to a thread, creates an event, transitions a ticket, merges or comments on a pull request, publishes or reschedules a post, sends outreach, pays or issues an invoice, signs or sends an envelope, or edits a record anywhere. The sweep is wide precisely because it is inert — a briefing that could also act would need a gate on every surface it touches, and would stop being something you can safely run before breakfast.
 - Never invents a commitment, a date, a duration, or a person's name. An item with no confirmed date is an open loop, not a chip.
 - Never renders an unread source as an empty one.

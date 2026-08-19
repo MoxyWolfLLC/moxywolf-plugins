@@ -38,10 +38,14 @@ Resolve the vault root the way every MoxyWolf skill does: the mounted `MoxyWolf 
   },
   "categories": [
     "Client & Partner",
-    "Personal & Health",
-    "Travel & Reservations",
     "Deadline",
+    "Development",
+    "Marketing",
+    "Governance",
+    "Operations",
     "Community & Events",
+    "Travel & Reservations",
+    "Personal & Health",
     "Holiday"
   ],
   "inbox": {
@@ -65,7 +69,42 @@ Resolve the vault root the way every MoxyWolf skill does: the mounted `MoxyWolf 
   "schedule": {
     "calendarCron": "0 14 * * 1-5",
     "morningCron": "0 15 * * 1-5",
+    "crmHealthCron": "0 15 * * *",
     "notifications": { "push": true, "email": false }
+  },
+
+  "surfaces": {
+    "jira": { "tier": "always", "cloudId": "", "project": "", "labels": [] },
+    "github": { "tier": "always", "repos": [], "stalePrDays": 7 },
+    "deployments": { "tier": "daily", "projects": [] },
+    "database": { "tier": "weekly", "projects": [] },
+    "social": { "tier": "always" },
+    "contentPipeline": { "tier": "daily", "paths": [] },
+    "outreach": { "tier": "daily", "trackerPath": "", "followUpDays": 7 },
+    "events": { "tier": "always" },
+    "searchVisibility": { "tier": "weekly", "minRankDelta": 5 },
+    "competitors": { "tier": "weekly", "watch": [] },
+    "productAnalytics": { "tier": "daily" },
+    "invoicesAndBills": { "tier": "daily" },
+    "payrollAndTax": { "tier": "daily" },
+    "contracts": { "tier": "daily", "unsignedAfterDays": 5 },
+    "pipelineCommitments": { "tier": "daily" },
+    "businessPlan": { "tier": "weekly" },
+    "scheduledTasks": { "tier": "always" },
+    "decisions": { "tier": "daily", "paths": [] },
+    "projectHygiene": { "tier": "daily", "paths": [], "staleHandoffDays": 14 },
+    "personal": { "tier": "off" },
+    "weeklyOn": "monday"
+  },
+
+  "crmHealth": {
+    "projectId": "",
+    "schema": "crm",
+    "pipelineSources": [],
+    "stuckMinutes": 20,
+    "staleHours": 10,
+    "knownIssues": [],
+    "baseline": { "asOf": "", "check1": "0", "check2": "none", "check3": "none" }
   }
 }
 ```
@@ -96,7 +135,58 @@ Resolve the vault root the way every MoxyWolf skill does: the mounted `MoxyWolf 
 | `output.openAfterWrite` | `true` | Whether to open the file after writing it. |
 | `schedule.calendarCron` | `0 14 * * 1-5` | UTC cron for the commitment-calendar scheduled task. |
 | `schedule.morningCron` | `0 15 * * 1-5` | UTC cron for the morning-brief scheduled task. |
-| `schedule.notifications` | `{ "push": true, "email": false }` | Completion-notification channels for both scheduled tasks. |
+| `schedule.crmHealthCron` | `0 15 * * *` | UTC cron for the CRM sync health check. Daily rather than weekday-only, because a pipeline does not take weekends off. |
+| `schedule.notifications` | `{ "push": true, "email": false }` | Completion-notification channels for the scheduled tasks. |
+
+## The `surfaces` block
+
+Everything the commitment calendar sweeps beyond the calendar and the inbox. Each surface is defined in [`work-surfaces.md`](work-surfaces.md) — what it pulls, what earns a chip, what becomes an open loop, and which category it takes. This block only decides whether and how often.
+
+Every surface takes a `tier`:
+
+| Tier | Behaviour |
+|---|---|
+| `always` | Run every build. Cheap and high-yield. |
+| `daily` | Run on the scheduled daily build; skipped on an ad-hoc `/commitment-calendar` unless the user asks for it. |
+| `weekly` | Run only when today matches `surfaces.weeklyOn`; otherwise reported as `not checked` with the next run day. |
+| `off` | Not run. Reported as `not checked` with the reason `disabled in config`. |
+
+**A skipped surface is always named in the footer, whatever the reason.** Tiering is a cost decision and never a quiet one.
+
+A surface whose required parameters are empty is treated as `off` and says so — an empty `github.repos` renders as `not checked: no repositories configured`, never as a clean repo list. That distinction is the whole point of the three-state rule and it applies hardest here, because a surface can be misconfigured for weeks without anything looking wrong.
+
+| Key | Default | Notes |
+|---|---|---|
+| `surfaces.weeklyOn` | `monday` | Which day the `weekly` tier runs on. |
+| `surfaces.jira` | tier `always` | `cloudId`, `project`, and `labels` scope the board to this project's work. Without `labels` the sweep would pull the whole org's board. |
+| `surfaces.github.repos` | `[]` | `owner/repo` strings. |
+| `surfaces.github.stalePrDays` | `7` | A PR older than this gets called out rather than merely listed. |
+| `surfaces.deployments.projects` | `[]` | Hosting projects to check, including their domains for renewal dates. |
+| `surfaces.database.projects` | `[]` | Projects to pull advisories for. Pipeline health is a separate briefing. |
+| `surfaces.contentPipeline.paths` | `[]` | Where in-flight pieces live. |
+| `surfaces.outreach.trackerPath` | `""` | The engagement tracker. |
+| `surfaces.outreach.followUpDays` | `7` | Sent-and-unanswered past this becomes an open loop. |
+| `surfaces.searchVisibility.minRankDelta` | `5` | Report rank movement only past this, and say what the threshold was. |
+| `surfaces.competitors.watch` | `[]` | Competitor domains to check for pricing and positioning changes. |
+| `surfaces.contracts.unsignedAfterDays` | `5` | Sent-and-unsigned past this becomes an open loop. |
+| `surfaces.decisions.paths` | `[]` | Where decision records live. Records at `proposed` or `pending sign-off` become open loops. |
+| `surfaces.projectHygiene.paths` | `[]` | Project folders to check for dated backlog items and a stale handoff. |
+| `surfaces.projectHygiene.staleHandoffDays` | `14` | Handoff older than this becomes an open loop. |
+| `surfaces.personal` | tier `off` | Personal finance is opt-in and stays that way. A shared-drive config should not quietly start rendering someone's bank into a file that opens on their screen. |
+
+## The `crmHealth` block
+
+Used only by `/crm-sync-health`. If it is absent, that briefing says so and stops rather than guessing a project id.
+
+| Key | Default | Notes |
+|---|---|---|
+| `crmHealth.projectId` | *required* | Supabase project id. The check never runs against a project the config does not name. |
+| `crmHealth.schema` | `crm` | Schema holding `sync_log`. |
+| `crmHealth.pipelineSources` | `[]` | The source names belonging to the ticking pipeline. Only these count toward the staleness check. |
+| `crmHealth.stuckMinutes` | `20` | How long a `running` row may sit before it counts as stuck. |
+| `crmHealth.staleHours` | `10` | How long without an `ok` before a source counts as stale. Set above the tick interval plus the worst cron drift, or every run reports noise. |
+| `crmHealth.knownIssues` | `[]` | Named open issues. A source listed here reports as still-open rather than as news, and reports clearly when it recovers. |
+| `crmHealth.baseline` | empty | The last verified result of the three checks, with its date. Keeping it current is what lets a run say *this changed* instead of *here are three numbers*. |
 
 ## Categories are derived, not dictated
 
