@@ -100,5 +100,17 @@ Fixes: {N} auto-applied (listed below), {N} escalated ({N} approved, {N} decline
 Coverage: {new paths tested}/{total new paths}
 Worktree: removed
 PR: {URL or "ready to create manually"}
+Verified: {what was exercised, and through which path}
+Unverified: {what was not, and why — "none" only if that is true}
 Status: SHIPPED | BLOCKED (reason)
 ```
+
+`Verified` and `Unverified` are not optional and "Unverified: none" has to be
+earned. Name the path each claim was exercised through, not the artifact:
+"loaded the deployed URL and the control renders" rather than "added the
+button"; "called the endpoint and got 401 from the auth gate" rather than
+"wrote the route". Anything typechecked but never run, run only in a different
+role or environment than production uses, or reasoned about rather than
+executed, belongs on the `Unverified` line. See **Verification Discipline** in
+the gstack-execution skill — a report that hides the gap is worse than one that
+names it, because the user stops checking.

@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.3.0
+version: 0.4.0
 ---
 
 # gstack Execution Engine
@@ -101,6 +101,51 @@ node /path/to/regression-suite.js
 ```
 
 This is the legacy code path. Prefer Claude in Chrome whenever a real session is available.
+
+## Verification Discipline — what "it works" is allowed to mean
+
+Every one of these came from shipping something that was correct in isolation and
+broken on the path the user takes. They are checks, not values: each either ran
+or it didn't, and the report says which.
+
+**1. Verify through the user's path, under the user's conditions.** Not the
+artifact — the path. A database function tested in the SQL editor runs as a
+different role than the one the API uses (Supabase enables `pg_safeupdate` for
+PostgREST, so a bare `DELETE`/`UPDATE` that passes in the editor is refused
+through the button). A page section tested by reading the source is not tested;
+load the deployed URL. A rule fixed in a database table is inert if the code
+reads a hardcoded constant. Exercise the real path or say plainly which part is
+unverified.
+
+**2. Never say "press" without a URL, and not before the control renders.**
+Naming a button is not directions. Give the address, and confirm the control
+actually appears in that state first — a control built into an unreachable
+branch looks finished in the diff and does not exist to the user.
+
+**3. Read the exit code you actually mean.** `$?` after a pipeline is the LAST
+stage's status. A command piped through `sed` (for example to redact a token)
+reports `sed`'s success, so a crashed process reads as `rc=0`. Use
+`${PIPESTATUS[0]}`, or run the command unpiped and post-process separately.
+
+**4. Count before you characterize.** Never describe data as noisy, clean,
+duplicated or safe without the query behind it — especially when the
+characterization is the argument for overriding the user's judgment. "Mostly
+junk" that turns out to be two rows out of sixty-eight is not a summary, it is a
+guess wearing a summary's clothes.
+
+**5. Before changing a rule, find its second home.** Config tables that mirror
+code constants, glossaries that define the same term twice, `CREATE OR REPLACE
+FUNCTION` with a changed signature (which OVERLOADS rather than replaces, leaving
+the old one to win the call). Grep for the value, not just the file you're in.
+
+**6. Say what you verified and what you didn't.** As a format, every time — the
+sentence is visible when it's missing, which is what makes it work where a
+resolution doesn't. "Typechecked but not exercised through the API" is a complete
+and useful report. "Done" is not.
+
+An error caught here costs tokens. An error the user catches costs their
+attention and their trust in everything next to it. Run the checks before
+speaking, not after being corrected.
 
 ## Execution Voice
 

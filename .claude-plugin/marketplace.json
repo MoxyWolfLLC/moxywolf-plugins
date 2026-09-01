@@ -366,8 +366,8 @@
     {
       "name": "gstack-execution",
       "source": "./plugins/gstack-execution",
-      "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review via /gstack-codex-review (real Codex when the codex CLI is present, Claude fallback otherwise), security audit, debugging, QA testing, and shipping \u2014 /gstack-ship validates in a disposable worktree with a safe-fix/escalate contract (concept-ported from no-mistakes, MIT). Pairs with product-orchestrator. Browser ops via Claude in Chrome.",
-      "version": "0.6.0",
+      "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review via /gstack-codex-review (real Codex when the codex CLI is present, Claude fallback otherwise), security audit, debugging, QA testing, and shipping \u2014 /gstack-ship validates in a disposable worktree with a safe-fix/escalate contract (concept-ported from no-mistakes, MIT). Pairs with product-orchestrator. Browser ops via Claude in Chrome. Verification-discipline contract: claims are verified through the user's own path, or the report names what was not.",
+      "version": "0.7.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
