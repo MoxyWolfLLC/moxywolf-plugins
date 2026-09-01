@@ -53,7 +53,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── frontier-founder-smb/       SMB all-in-one (FFSMB) — cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault
-│   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship
+│   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship; v0.7.0 adds a verification-discipline contract — claims are checked through the user's own path, and /gstack-ship reports Verified/Unverified lines
 │   ├── obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install
 │   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index
 │   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn

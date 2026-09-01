@@ -21,7 +21,7 @@ Adapted from Garry Tan's gstack — an open-source software factory that turns A
 | `/gstack-verify` | Post-build check of the implementation against its plan/spec (claim table + drift report) | Git + Grep + Read |
 | `/gstack-investigate` | Root cause debugging with hypothesis testing | Git + Grep + Read |
 | `/gstack-cso` | Security audit: OWASP + STRIDE + supply chain + secrets | Grep + Bash |
-| `/gstack-ship` | Test → review → PR pipeline, worktree-isolated with a safe-fix/escalate contract | Git + Bash |
+| `/gstack-ship` | Test → review → PR pipeline, worktree-isolated with a safe-fix/escalate contract; the Ship Report carries required Verified / Unverified lines | Git + Bash |
 | `/gstack-design` | Design system audit and component generation | Read + Write |
 | `/gstack-qa` | Browser QA testing with bug fixing | Claude in Chrome |
 | `/gstack-browse` | Quick page verification and health check | Claude in Chrome |
