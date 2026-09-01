@@ -15,8 +15,9 @@ It then:
 5. Reads the project's own `04 – Backlog & Sprints/` folder and the team Jira board (project MOXY), strictly filtering the board to the project's Jira label (`project-<slug>`, from the `Kanban project tag(s)` declared in the project's instructions) — so only this project's tasks surface, never another project's. (Jira is the single board; the vault `KANBAN_VIEW.md` was retired 2026-07-16.)
 6. Surfaces recent (≤14 days) decision records (`DR-*.md`) from the project folder.
 7. Lists open PRs and recent open issues from each of the project's GitHub repo(s) via the GitHub MCP.
-8. Displays a structured briefing in chat with mounted folders, active subfolders, last-session handoff (open work + suggested opening line), top kanban tasks, recent decisions, and open PRs/issues.
-9. Asks the user what to focus on first, with options pulled from the handoff's open work first (if found and not stale), falling back to the project-scoped backlog folder and the project-filtered kanban — never an unscoped task.
+8. Checks that the session-start hooks actually fired — gstack-execution's verification discipline and ponytail's restraint layer inject their rulesets at session start, and a hook that silently fails to fire looks exactly like one that fired with nothing to say. Reports active / NOT LOADED in the briefing's Shared services line, with the remedy when absent. Never gates the session.
+9. Displays a structured briefing in chat with mounted folders, active subfolders, last-session handoff (open work + suggested opening line), top kanban tasks, recent decisions, and open PRs/issues.
+10. Asks the user what to focus on first, with options pulled from the handoff's open work first (if found and not stale), falling back to the project-scoped backlog folder and the project-filtered kanban — never an unscoped task.
 
 If the user passed a project name as an argument, use it directly; otherwise the skill auto-resolves the project (launch directory, then most recently active) without asking. If no saved Project Instructions exist for the resolved project, the skill stops and routes the user to `/init-project` first. If no handoff file exists, the briefing simply omits the handoff sections — the rest of the briefing is still useful.
 

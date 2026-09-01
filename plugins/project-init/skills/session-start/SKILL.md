@@ -177,6 +177,22 @@ f. **Team-shared behavioral memory (authoritative rules)** — Read `Taskade/_Sh
 
    If the INDEX file is missing entirely at the expected path, capture that as a critical anomaly in the briefing's Shared services line and treat the project's procedural-reminder situation as undefined — but still proceed with the rest of the briefing.
 
+g. **Behavioural hook liveness** — Some plugins inject a ruleset at session start rather than waiting to be invoked: gstack-execution's verification discipline, and ponytail's restraint layer. They are the rules most likely to fail *silently*, because a hook that does not fire looks exactly like one that fired and had nothing to say.
+
+   This probe costs nothing — it reads what is already in this session's context, not the disk:
+
+   - **active** — a `VERIFICATION DISCIPLINE ACTIVE — gstack-execution` block was injected into this session's context at start. Status line: `Verification discipline: ✓ active`.
+   - **not loaded** — no such block is present. Status line: `Verification discipline: ⚠ NOT LOADED — the checks are not in context`, followed by the remedy below.
+
+   Report what is actually in context. Do not infer the hook fired because the plugin is installed, because a previous session had it, or because it ought to — that inference is the exact failure this line exists to catch, and a false ✓ is worse than no line at all, because it retires the question.
+
+   On **not loaded**, call `ListPlugins` and report gstack-execution's installed version in the same line, then give the remedy in order:
+   1. Version below 0.8.0 — the hook does not exist in that build. Refresh the marketplace (Cowork's **Refresh**, or `claude plugin marketplace update moxywolf-plugins`).
+   2. Version 0.8.0 or above and still nothing — the `hooks` key was added to a plugin that was already installed without one, which may need a reinstall to register: `claude plugin uninstall gstack-execution` then `claude plugin install gstack-execution@moxywolf-plugins`.
+   3. Still nothing after a reinstall and a fresh session — the wiring is wrong, not the install. Say so plainly rather than repeating the remedy.
+
+   Apply the same two states to ponytail if its activation block is present or absent; report it on the same line. Never gate the session on either — this is a heads-up, exactly like the OpenRouter probe.
+
 If any of these sources is unavailable (file missing, MCP not connected), capture the failure in the briefing instead of aborting. The remaining context is still useful.
 
 ### Step 5: Display the briefing
@@ -256,6 +272,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 
 **Shared services**
 - OpenRouter key: [✓ resolved from vault | ⚠ placeholder — ask Dorian for the real key | ⚠ file present but key value looks wrong — check format | ⚠ not found — see DR-010 for the canonical location]
+- Verification discipline: [✓ active | ⚠ NOT LOADED — gstack-execution [version] — [remedy]]   ·   Ponytail: [✓ active | ⚠ not loaded]
 ```
 
 Keep each line tight. This is a briefing, not a report.
@@ -303,6 +320,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
 - **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path. Skip Taskade-subfolder references in the briefing.
 - **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
+- **Verification discipline reports `NOT LOADED`.** Surface it and carry on — it is a heads-up, not a gate. But do not quietly drop the line on later sessions if it stays absent: a warning that decays into silence is how the original problem returns. The checks themselves live in `gstack-execution`'s `references/verification-checks.md`; if the hook cannot be made to fire, read that file directly rather than working without them.
 - **OpenRouter key probe returns `placeholder` or `missing`.** Surface the warning in the Shared services line but do not block the session — most projects don't use OpenRouter on every task. If the user invokes anything that touches Council, research-pipeline, or product-orchestrator later, those skills do their own preflight check (`python3 plugins/council/scripts/openrouter_key.py --where`) and will halt with an actionable error then. The session-start briefing is a heads-up, not a gate.
 - **OpenRouter key probe returns `resolved` but a council/research-pipeline/product-orchestrator skill still errors out later in the session.** The probe only verifies the file exists at the canonical path with a valid-looking value. It doesn't verify the key is actually accepted by OpenRouter (no network call — that would slow down session-start and cost tokens). If the resolved key gets rejected by OpenRouter (rotated, revoked), the user should ask Dorian to update `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` per DR-010.
 
