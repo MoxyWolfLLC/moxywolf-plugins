@@ -53,12 +53,12 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── frontier-founder-smb/       SMB all-in-one (FFSMB) — cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault
-│   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship; v0.8.0 ships the verification-discipline contract as a SessionStart hook — claims are checked through the user's own path, /gstack-ship reports Verified/Unverified lines, and the checks load without the skill being invoked
+│   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship; carries the verification-discipline contract as a hook — claims are checked through the user's own path, /gstack-ship reports Verified/Unverified lines, and the checks load without the skill being invoked. v0.9.0: cloud sessions fire SessionStart before synced plugins register (DR-089), so the checks now also arrive on the first user prompt, once per session
 │   ├── obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install
 │   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index
-│   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn
+│   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn; v0.2.0 delivers it on the first prompt in cloud sessions, where SessionStart fires before the plugin registers (DR-089)
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions + project charter governance
-│   ├── project-init/               /init-project /session-start /session-end
+│   ├── project-init/               /init-project /session-start /session-end; the session-start briefing's Shared services line reports whether the gstack-execution / ponytail hooks actually delivered (v0.28.0 knows the cloud first-prompt case)
 │   ├── research-pipeline/          Literature discovery, verification, synthesis
 │   ├── saas-frontend-designer/     Next/React/Tailwind/shadcn SaaS UI pipeline
 │   ├── saas-pricing-engine/        Pricing research, modeling, page copy
@@ -258,6 +258,8 @@ This repo is the **source of truth**. The flow is:
 4. On every consumer machine, run `claude plugin marketplace update moxywolf-plugins`. Cowork has a **Refresh** button that does the same thing.
 
 **Watch out for**: don't set `version` in both `plugin.json` and `marketplace.json`. The `plugin.json` value silently wins, so a stale manifest version will mask the bump you made in the catalog.
+
+**Watch out for (hooks)**: don't declare `"hooks": "./hooks/hooks.json"` in `plugin.json` — the loader auto-loads that file and logs the manifest entry as a `hook-load-failed` duplicate on every start; the key is only for *additional* hook files under other names. And a plugin `SessionStart` hook never runs in a cloud (Cowork) session: the runtime fires SessionStart before the synced plugins have registered their hooks (measured 7.8 s apart, 2026-09-02). Anything that must be in every session's context needs a `UserPromptSubmit` path that delivers on the first prompt, once per `session_id` — gstack-execution 0.9.0 and ponytail 0.2.0 are the reference. Check `/tmp/claude-preload.out` (`Registered N hooks from M plugins`) before reinstalling anything. See DR-089 in the vault.
 
 ## Adding a new plugin
 
