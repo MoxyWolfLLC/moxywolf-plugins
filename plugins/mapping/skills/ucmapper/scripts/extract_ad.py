@@ -193,7 +193,9 @@ def recon(doc: dict) -> tuple[list, list]:
     if len(widths) > 1:
         warn(warnings, W_SORT_UNSAFE, "high",
              f"sort_id segments are NOT fixed-width (widths seen: {sorted(widths)}) -- "
-             "lexicographic sort is unsafe on this document; the ordering below is suspect")
+             "a lexicographic sort would be unsafe here, so this document was ordered by a "
+             "segment-wise NUMERIC sort instead; the ordering is sound, but the document's "
+             "own sort_id convention is irregular and worth knowing about")
     if ragged:
         warn(warnings, W_SORT_UNSAFE, "high",
              f"sort_id contains non-numeric segments (e.g. {ragged[0]!r}) -- zero-pad assumption does not hold")
@@ -292,9 +294,24 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
              "deliberately differs from the API's own genealogy field (ancestors only, except roots which "
              "list themselves); the two fields are not interchangeable")
 
-    # Rule 2 -- sort by (sort_id, id). Lexicographic; only sound if recon confirmed
-    # fixed-width segments, which is why a violation is warned about above.
-    ordered = sorted(raw, key=lambda c: (str(c.get("sort_id") or ""), norm_id(c.get("id")).zfill(24)))
+    # Rule 2 -- sort by (sort_id, id), SEGMENT-WISE NUMERIC.
+    #
+    # This is identical to the lexicographic sort it replaces whenever segments
+    # are fixed-width zero-padded ("001" < "002" and (1,) < (2,) agree, and so
+    # do "001 002" < "001 010" and (1,2) < (1,10)), so every document that
+    # passes the recon check sorts exactly as before. It differs only where the
+    # lexicographic sort was already unsound: AD 4518 (Apptega Common Controls)
+    # runs its single segment past 999 into four digits, where "1000" < "999"
+    # lexicographically and control 1000 lists before control 999. The skill's
+    # rule is that a document whose sort_id isn't fixed-width needs a different
+    # sort rather than a warning and a shrug; this is that sort. A non-numeric
+    # segment falls back to its string, which still groups sensibly and is
+    # still reported by the sort-unsafe warning.
+    def _sort_key(c):
+        segs = str(c.get("sort_id") or "").split()
+        return ([(0, int(sg), "") if sg.isdigit() else (1, 0, sg) for sg in segs],
+                norm_id(c.get("id")).zfill(24))
+    ordered = sorted(raw, key=_sort_key)
 
     # Rule 3 -- dedupe by reference, but only when the rows are genuinely identical.
     # by_reference holds EVERY surviving variant of a reference, not just the first one seen.
@@ -310,10 +327,20 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
     for c in ordered:
         cid = norm_id(c.get("id"))
         ref = str(c.get("reference") or "")
+        _pid = parent_id_of(c)
+        # The API's genealogy field lists ancestors only, EXCEPT for roots, which list
+        # themselves. So for a root the field is a restatement of its own id, and two
+        # distinct rows always carry distinct ids: including it here makes the identity
+        # test unconditionally false for every root pair, and rule 3 can never merge the
+        # API's repeated mandate rows in a flat document. AD 4565 (NERC CIP-003-9) is the
+        # live case -- 95 rows, all parent=None, 15 references repeated, every repeat
+        # byte-identical in cleaned guidance, and the count came out 95 against
+        # stats.citations 75 with 15 false collision warnings. Dropping a tautologically
+        # unequal term is not loosening the test; guidance and parent still have to match.
         identity = (
             clean_guidance(c.get("guidance"), warnings),
-            parent_id_of(c),
-            str(c.get("genealogy") or ""),
+            _pid,
+            str(c.get("genealogy") or "") if _pid else "",
         )
         variants = by_reference.setdefault(ref, [])
         twin = next((v for v in variants if v["identity"] == identity), None)
@@ -374,16 +401,21 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
         out.reverse()                      # root first
         return out
 
+    # Every survivor with a resolved parent is a child of that parent. Through 0.2.1 this
+    # loop also deduped children by reference, which contradicted rule 3: rule 3 keeps two
+    # rows sharing a reference precisely BECAUSE they are genuinely distinct, and then this
+    # filter dropped the second one from its parent's child list, stranding it outside the
+    # tree and raising the unreachable-citation warning on a document that was in fact fine.
+    # AD 4559 (OMB Circular A-123) is the live case -- 'II. B. ¶ 2 3.' carries both
+    # 'Risk Oversight and Assessment' and 'Control Activities' under parent 908424, the
+    # count reconciled at 197 against stats.citations 197, and one of the two was reachable
+    # from no root. Survivors are already unique by (reference, identity); deduping them
+    # again here can only lose data.
     children: dict = {e["id"]: [] for e in survivors}
-    seen_child_ref: dict = {e["id"]: set() for e in survivors}
     for e in survivors:
         p = resolved_parent[e["id"]]
         if p is None:
             continue
-        ref = str(e["raw"].get("reference") or "")
-        if ref in seen_child_ref[p]:
-            continue                        # children unique by reference
-        seen_child_ref[p].add(ref)
         children[p].append(e["id"])
 
     citations, hashes, labels = [], {}, {}
@@ -464,6 +496,14 @@ def transform(doc: dict, ad_id: str) -> tuple[dict, list, dict]:
 
     payload = {
         "title": doc.get("published_name") or "",
+        # The mapper's own Document URL. This is the field the public Comment Report page
+        # renders as "Document URL" -- its controller loads the same
+        # /api/authority-document/{id}/report endpoint we do and binds {{ad.url}} -- so it
+        # is carried here verbatim rather than scraped off an Angular page. It is the
+        # PUBLISHER'S url as the mapper holds it, which is not the same claim as
+        # bibTexCitation.url: that one is the official URL an agent found and live-verified
+        # under step 4, and the two can legitimately differ or disagree. Keep both.
+        "documentUrl": doc.get("url") or "",
         "warnings": warnings,
         "citations": citations,
     }
@@ -747,7 +787,8 @@ def main() -> None:
     )
 
     ordered = {"schemaVersion": DOC_SCHEMA_VERSION,
-               "title": payload["title"], "bibTexCitation": bib,
+               "title": payload["title"], "documentUrl": payload["documentUrl"],
+               "bibTexCitation": bib,
                "warnings": payload["warnings"], "snapshots": snapshots,
                "citations": payload["citations"]}
 
