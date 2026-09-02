@@ -1,7 +1,7 @@
 {
   "name": "ponytail",
-  "version": "0.1.0",
-  "description": "Horizontal restraint layer for coding work. An always-on 'lazy senior dev' ruleset injected every turn that runs a YAGNI ladder before the agent writes code (question whether it needs to exist, stdlib before custom, native before dependency, one line before fifty), never cutting validation, error handling, security, or accessibility. Ships the referenceable `ponytail` skill plus /ponytail (lite|full|ultra|off), /ponytail-review, /ponytail-audit, /ponytail-debt, /ponytail-gain, /ponytail-help. Vendored from DietrichGebert/ponytail (MIT) v4.8.3; pairs with gstack-execution (trim then harden) and dev-infrastructure-skills.",
+  "version": "0.2.0",
+  "description": "v0.2.0: the ruleset now reaches cloud (Cowork) sessions. Synced plugins register their hooks after SessionStart has already fired there, so the activate hook never ran; the UserPromptSubmit tracker now delivers the ruleset on the first prompt of any session that did not get it at start, once per session (marker keyed on session_id). Horizontal restraint layer for coding work. An always-on 'lazy senior dev' ruleset injected every turn that runs a YAGNI ladder before the agent writes code (question whether it needs to exist, stdlib before custom, native before dependency, one line before fifty), never cutting validation, error handling, security, or accessibility. Ships the referenceable `ponytail` skill plus /ponytail (lite|full|ultra|off), /ponytail-review, /ponytail-audit, /ponytail-debt, /ponytail-gain, /ponytail-help. Vendored from DietrichGebert/ponytail (MIT) v4.8.3; pairs with gstack-execution (trim then harden) and dev-infrastructure-skills.",
   "author": {
     "name": "MoxyWolf LLC"
   },

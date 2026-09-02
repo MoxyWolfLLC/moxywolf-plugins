@@ -14,6 +14,8 @@ const {
   clearMode,
   isCodex,
   isCopilot,
+  markInjected,
+  readStdinJson,
   setMode,
   writeHookOutput,
 } = require('./ponytail-runtime');
@@ -84,8 +86,13 @@ if (!isCodex && !isCopilot) try {
   // Silent fail — don't block session start over statusline detection
 }
 
-try {
-  writeHookOutput('SessionStart', mode, output);
-} catch (e) {
-  // Silent fail — stdout closed/EPIPE at hook exit must not surface as a hook failure
-}
+readStdinJson((data) => {
+  try {
+    writeHookOutput('SessionStart', mode, output);
+  } catch (e) {
+    // Silent fail — stdout closed/EPIPE at hook exit must not surface as a hook failure
+  }
+  // Remember that this session has the ruleset, so the first-prompt fallback
+  // in ponytail-mode-tracker.js does not deliver it a second time.
+  markInjected(data.session_id);
+});

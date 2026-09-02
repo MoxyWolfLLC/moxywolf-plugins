@@ -52,3 +52,8 @@ The session hooks run two tiny Node lifecycle scripts, so `node` should be on PA
 ## Attribution
 
 Vendored from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) v4.8.3, MIT License, Copyright (c) 2026 DietrichGebert. The full upstream license is in `LICENSE`. MoxyWolf adaptation: trimmed to the Claude Code surface (skills, hooks, commands), multi-harness adapters and site/benchmark assets dropped, and the six commands rendered as Claude Code markdown from the upstream `.toml`. Skill and hook logic are unchanged from upstream.
+
+## Version history
+
+- **0.2.0** — Reaches cloud (Cowork) sessions. Observed 2026-09-02 in a session's debug log: SessionStart fired at +0.0s, the synced plugins' hooks registered at +7.8s, so `ponytail-activate.js` never ran there and no `.ponytail-active` flag was written. `ponytail-mode-tracker.js` (already a UserPromptSubmit hook) now delivers the ruleset on the first prompt of a session that did not get it at start; a marker keyed on `session_id` (in `$CLAUDE_PLUGIN_DATA`, else the config dir, swept after a day) keeps delivery to once per session in both directions, and the `/ponytail …` commands count as delivery. Without a `session_id` the fallback stays silent rather than repeat per turn.
+- **0.1.0** — Vendored from DietrichGebert/ponytail v4.8.3 (MIT).

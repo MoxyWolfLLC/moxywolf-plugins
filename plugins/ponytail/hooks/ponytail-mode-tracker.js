@@ -3,7 +3,14 @@
 // Inspects user input for /ponytail commands and writes mode to flag file
 
 const { getDefaultMode, isDeactivationCommand } = require('./ponytail-config');
-const { clearMode, setMode, writeHookOutput } = require('./ponytail-runtime');
+const { getPonytailInstructions } = require('./ponytail-instructions');
+const {
+  clearMode,
+  hasInjected,
+  markInjected,
+  setMode,
+  writeHookOutput,
+} = require('./ponytail-runtime');
 
 let input = '';
 process.stdin.on('data', chunk => { input += chunk; });
@@ -12,6 +19,8 @@ process.stdin.on('end', () => {
     // Strip UTF-8 BOM some shells prepend when piping (breaks JSON.parse)
     const data = JSON.parse(input.replace(/^\uFEFF/, ''));
     const prompt = (data.prompt || '').trim().toLowerCase();
+    const sessionId = typeof data.session_id === 'string' ? data.session_id : '';
+    let handled = false;
 
     // Match /ponytail commands
     if (/^[/@$]ponytail/.test(prompt)) {
@@ -32,22 +41,44 @@ process.stdin.on('end', () => {
       }
 
       if (mode && mode !== 'off') {
+        handled = true;
         setMode(mode);
+        markInjected(sessionId);
         writeHookOutput(
           'UserPromptSubmit',
           mode,
           'PONYTAIL MODE CHANGED — level: ' + mode,
         );
       } else if (mode === 'off') {
+        handled = true;
         clearMode();
+        markInjected(sessionId);
         writeHookOutput('UserPromptSubmit', 'off', 'PONYTAIL MODE OFF');
       }
     }
 
     // Detect deactivation
-    if (isDeactivationCommand(prompt)) {
+    if (!handled && isDeactivationCommand(prompt)) {
+      handled = true;
       clearMode();
+      markInjected(sessionId);
       writeHookOutput('UserPromptSubmit', 'off', 'PONYTAIL MODE OFF');
+    }
+
+    // First-prompt fallback: in cloud (Cowork) sessions the SessionStart hook
+    // never runs (plugins register after it fires), so a session can reach its
+    // first prompt without the ruleset. Deliver it here, once. Without a
+    // session_id there is no way to say "once", so stay silent rather than
+    // repeat the block on every turn.
+    if (!handled && sessionId && !hasInjected(sessionId)) {
+      const mode = getDefaultMode();
+      if (mode !== 'off') {
+        setMode(mode);
+        markInjected(sessionId);
+        writeHookOutput('UserPromptSubmit', mode, getPonytailInstructions(mode));
+      } else {
+        markInjected(sessionId);
+      }
     }
   } catch (e) {
     // Silent fail
