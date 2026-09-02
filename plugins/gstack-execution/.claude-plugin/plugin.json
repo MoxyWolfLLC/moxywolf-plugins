@@ -1,8 +1,7 @@
 {
   "name": "gstack-execution",
-  "version": "0.8.0",
-  "description": "Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review (real Codex or Claude fallback), security audit, debugging, QA testing, and shipping \u2014 the ship pipeline validates in a disposable worktree with a safe-fix/escalate contract (concept-ported from no-mistakes, MIT). Pairs with Product Orchestrator for the full decide-then-build loop. Browser testing via Claude in Chrome. Carries a verification-discipline contract: claims are verified through the user's own path, or the report says which part was not, and a SessionStart hook injects those checks so they arrive without the skill being invoked.",
-  "hooks": "./hooks/hooks.json",
+  "version": "0.9.0",
+  "description": "v0.9.0: the verification checks now reach cloud (Cowork) sessions too. There, synced plugins register their hooks several seconds after SessionStart has already fired, so the 0.8.0 hook never ran; a UserPromptSubmit hook now delivers the same block on the first prompt of any session that did not get it at start, once per session (marker keyed on session_id), and SessionStart keeps working on-computer. Also removed the manifest hooks key that re-declared hooks/hooks.json — the loader auto-loads that file and flagged the duplicate as a hook-load-failed error on every start. Software development execution engine adapted from Garry Tan's gstack (MIT). Code review, adversarial just-committed review (real Codex or Claude fallback), security audit, debugging, QA testing, and shipping — the ship pipeline validates in a disposable worktree with a safe-fix/escalate contract (concept-ported from no-mistakes, MIT). Pairs with Product Orchestrator for the full decide-then-build loop. Browser testing via Claude in Chrome. Carries a verification-discipline contract: claims are verified through the user's own path, or the report says which part was not, and a SessionStart hook injects those checks so they arrive without the skill being invoked.",
   "author": {
     "name": "MoxyWolf LLC"
   },
