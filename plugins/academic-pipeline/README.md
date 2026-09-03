@@ -50,6 +50,7 @@ BibTeX input
 | `/academic-themes [.bib]` | Stage 1 only — theme map + suggested title |
 | `/academic-critique [paper]` | Stage 8 only — professor critique of an existing paper |
 | `/enrich-bibtex [.bib]` | Stage 0 only — add AI abstracts to a bibliography |
+| `/academic-renumber [paper] [--check]` | Renumber Vancouver citations by first appearance and reorder the list after an edit; refuses on dangling numbers |
 
 ## Run folder
 

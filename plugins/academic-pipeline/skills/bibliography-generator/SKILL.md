@@ -1,6 +1,6 @@
 ---
 name: bibliography-generator
-description: Generate a properly formatted reference list (Vancouver, APA, Chicago, or MLA) from the citations used in a document and integrate it into the final paper. Stage 7 of the academic-pipeline. Use to turn a drafted paper with a bibliography placeholder into a publication-ready document.
+description: Generate a properly formatted reference list (Vancouver, APA, Chicago, or MLA) from the citations used in a document and integrate it into the final paper. Stage 7 of the academic-pipeline. Use to turn a drafted paper with a bibliography placeholder into a publication-ready document, or, in renumber mode, to recompute Vancouver numbering by first appearance after a finished paper has been edited ("renumber the citations", "fix the reference order", "I added a citation mid-paper").
 license: Proprietary - MoxyWolf LLC
 ---
 
@@ -83,6 +83,20 @@ Replace the `## Bibliography` placeholder in `draft_document.md` with the format
   "warnings": ["Missing DOI for org2025key — used URL instead"]
 }
 ```
+
+## Renumber mode (after Stage 7, any time a finished paper is edited)
+
+Vancouver numbers by first appearance, so a citation inserted mid-paper by hand shifts every number after it and silently breaks venue compliance. Do not renumber by hand. Run the bundled pass:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md          # report
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md --write  # apply
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md --check  # exit 1 if out of order
+```
+
+What it does: reads every `[n]`, `[n,m]`, `[n–m]` marker before `## References`, computes first-appearance order, rewrites the markers, and reorders the `N. ` entries to match; ranges are re-compressed only where the new numbers are contiguous. It verifies the result is `1..N` on both sides before writing, and refuses (exit 2, nothing written) if a cited number has no entry or an entry is never cited, so it never invents or drops a reference.
+
+How to use it when editing: add the new entry to the list with any unused number (or append it as `N+1`), cite it in the body with that number, then run the pass with `--write`. Run `--check` as the last step of any edit to a Vancouver paper and before Stage 8. Author-date styles need no renumbering; the pass is a no-op for them.
 
 ## BibTeX field mapping
 

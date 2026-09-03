@@ -375,6 +375,7 @@ It encodes the durable rules: no em dashes, contraction habits, paragraph archit
 | "Standing voice profile not found" | Running outside the MoxyWolf vault | Point the skill at a profile, or let it run the mini-interview |
 | The draft cites a source you did not expect | Stage 5 mapped it to a section | Modify the structure at the Stage 5 checkpoint before approving |
 | Citations are in the wrong style | Default is Vancouver (Academia.edu) | Tell `research-analyst` your style at Stage 5; APA, Chicago, and MLA are supported |
+| I added a citation after Stage 7 and the numbers are out of order | Vancouver numbers by first appearance; a mid-paper insertion shifts everything after it | Give the new entry any unused number, then run `/academic-renumber <paper>`; `--check` gates Stage 8 |
 | The paper has em dashes or AI-tell phrases | Should not happen; Stage 4 forbids them | Flag it; run `/academic-critique`, whose Phase 1 catches exactly this |
 | Professor grade is low | Honest review of a real weakness | Work the `improvement_plan.md`, then re-run `/academic-critique` |
 | You want no interruptions | Stage-by-stage is the default | Choose **front-loaded** at the start of `/academic-pipeline` |
