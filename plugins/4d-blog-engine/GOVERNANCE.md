@@ -27,3 +27,17 @@ This plugin conforms to the MoxyWolf AI Governance Manifesto; see [../../PLUGIN-
 | `blog-status` | read-only | Reports phase + gates passed |
 | `blog-term` | side-effectful-gated | Edits shared hub-links map; writer commits/pushes/tags |
 | `blog-voice` | generate | Voice profile interview |
+| `prose-lint` | generate | Deterministic linter on any file. Report by default; `--fix` applies only em-dash and quote repairs, outside code fences. For a file with no git history, the change is stated before it is made. |
+| `blog-rewrite` | generate | Survival measurement + rewrite brief. Never asserts watermark removal. Requires `draft.raw.md`; refuses to substitute the base document, which was never Claude-sampled. |
+| `scripts/perturbation.py`, `scripts/rewrite_text.py` | read-only | Pure measurement, stdlib only. No network, no model call, no file mutation. |
+| `hooks/writing-lint.js` | read-only | PostToolUse register check. Report-only to stderr, never mutates. Skips code paths and files under 400 bytes. `BLOG_LINT_HOOK=off` silences it. Report-only because an email has no git history to undo a silent rewrite from. |
+
+## Text watermarking — measurement, not removal (v0.19.0)
+
+Claude's output carries a SynthID-Text-class watermark, in the choice among equally valid words, across every Anthropic surface with no opt-out. Anthropic's support page names the conditions under which it stops being reliably detectable: text "heavily edited, paraphrased, translated, or mixed into other writing", or too short to carry a signal.
+
+**This plugin does not claim to remove it, and no skill here may tell a writer a piece is "clean" or "de-watermarked".** Detection requires a cryptographic key we do not hold and is in private preview, so removal is unverifiable by construction. What the plugin does instead is measure token-sequence survival — the input the mark rides on — and report it as the proxy it is.
+
+**The rewrite direction is the governed decision.** Rewriting toward entropy perturbs the distribution and degrades the prose, which the upstream watermarks-remover project concedes in its own README. Rewriting toward the writer's voice profile perturbs the same distribution and improves the piece. Only the second is permitted here, and a rewrite that lowers survival while dropping the prose grade is a failed rewrite that must be reverted.
+
+**The 50% gate threshold is uncalibrated** and labelled as such at its definition. It must not be wired into the Release Owner Gate as a blocking check; it is reported alongside the prose grade for the named signer to weigh.
