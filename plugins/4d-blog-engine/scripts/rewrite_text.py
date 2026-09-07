@@ -29,7 +29,7 @@ standalone stripper.
 
 Pairs with prose_lint.py: run this for the sequence, that for the register.
 """
-import argparse, difflib, re, sys, pathlib
+import argparse, difflib, hashlib, os, re, sys, pathlib
 
 WORD = re.compile(r"\w+(?:'\w+)?")
 
@@ -39,6 +39,23 @@ WORD = re.compile(r"\w+(?:'\w+)?")
 # raise it if rewrites are costing more voice than they are worth.
 DEFAULT_THRESHOLD = 50.0
 SHORT_PIECE_WORDS = 300   # support page: "very short" passages carry little signal
+
+
+def baseline_for(live: pathlib.Path) -> pathlib.Path | None:
+    """Find the pre-edit copy of `live`: a sibling *.raw.* first, else the shadow store.
+
+    The store is written by hooks/writing-lint.js on a file's first Write, which is
+    what makes this work for papers and emails and not only pipeline artifacts.
+    Kept in sync with that hook by the key derivation below — change one, change both.
+    """
+    sib = live.with_name(re.sub(r"\.(\w+)$", r".raw.\1", live.name))
+    if sib.exists():
+        return sib
+    store = pathlib.Path(os.environ.get("PROSE_BASELINE_DIR",
+                                        pathlib.Path.home() / ".claude" / "prose-baselines"))
+    key = hashlib.sha256(str(live.resolve()).encode()).hexdigest()[:16]
+    cand = store / f"{key}.md"
+    return cand if cand.exists() else None
 
 
 def survival(draft: str, published: str) -> dict:
@@ -79,15 +96,26 @@ def per_paragraph(raw: str, live: str) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Measure and gate token-sequence survival.")
-    ap.add_argument("raw", type=pathlib.Path, help="Pre-edit draft (draft.raw.md).")
-    ap.add_argument("live", type=pathlib.Path, help="Current text.")
+    ap.add_argument("first", type=pathlib.Path,
+                    help="Current text (baseline auto-resolved), or the baseline if two paths given.")
+    ap.add_argument("second", type=pathlib.Path, nargs="?", help="Current text.")
     ap.add_argument("--brief", action="store_true", help="Emit a per-paragraph rewrite brief.")
     ap.add_argument("--gate", action="store_true", help="Exit 1 if survival exceeds threshold.")
     ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     ap.add_argument("--top", type=int, default=8, help="Paragraphs to list in the brief.")
     a = ap.parse_args()
 
-    raw, live = a.raw.read_text(encoding="utf-8"), a.live.read_text(encoding="utf-8")
+    if a.second is None:
+        live_p = a.first
+        raw_p = baseline_for(live_p)
+        if raw_p is None:
+            print(f"NO BASELINE for {live_p}. Nothing was captured before this file was edited, "
+                  f"so survival is unmeasurable. Baselines are taken on a file's first Write.")
+            return 2
+        print(f"baseline: {raw_p}")
+    else:
+        raw_p, live_p = a.first, a.second
+    raw, live = raw_p.read_text(encoding="utf-8"), live_p.read_text(encoding="utf-8")
     whole = survival(raw, live)
 
     if whole["published_words"] < SHORT_PIECE_WORDS:
