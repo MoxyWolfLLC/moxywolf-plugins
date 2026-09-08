@@ -35,7 +35,7 @@ After each person, write to the registry: `Email Sent`, `Connect Sent`, `Status`
 
 ## STEP 5 — Stage the accept-reply (for any hook-carrying notes only)
 
-The hook-free notes owe nothing on accept. Only notes that historically carried the "I'll send the doc" hook need an accept-reply staged; for those, draft the correcting DM (DOI + where their work fits) so `/synergy-cite-accept-check` can fire it on accept.
+Only notes that historically carried the "I'll send the doc" hook need a *correcting* reply staged; for those, draft the DM (DOI + where their work fits) so `/synergy-cite-accept-check` has it ready. Hook-free notes need nothing staged, but they are not exempt from a DM — `/synergy-cite-accept-check` drafts one fresh from the registry for every accept.
 
 ## STEP 6 — Report
 

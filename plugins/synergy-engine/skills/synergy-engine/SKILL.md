@@ -49,7 +49,7 @@ Full tree + the competitor rule (cite at the idea level, never the product) in `
 | `/synergy-engine:synergy-status` | Show the tracker: engaged / queued / due, by topic center. |
 | `/synergy-engine:synergy-cite-harvest` | **Citation center.** Harvest cited authors from a paper's bibliography -> triage -> OpenAlex/ORCID -> Clarify dedup -> Apollo enrich + verify gate -> LinkedIn resolve + Apify verify -> draft email + connect note -> citation registry. Never sends. |
 | `/synergy-engine:synergy-cite-run` | Send the "we cited you" outreach: email first (Mailtrap, BCC Dorian), then the LinkedIn connect note, with the send discipline. HITL-gated. Logs to the registry. |
-| `/synergy-engine:synergy-cite-accept-check` | Daily follow-through: detect accepted invites, fire any staged accept-reply (gated), advance the registry. Schedulable. |
+| `/synergy-engine:synergy-cite-accept-check` | Daily follow-through: detect accepted invites, DM every new accept (gated), advance the registry. Schedulable. |
 
 ## Routing
 

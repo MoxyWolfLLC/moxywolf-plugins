@@ -19,7 +19,7 @@ The third center inverts the cite-then-tell lever into a front-to-back pipeline.
 
 1. **Harvest** — parse the paper's bibliography, triage by reachability (only named people proceed), resolve authors via OpenAlex/ORCID, dedupe against Clarify, enrich person + org via Apollo (LinkedIn-first match + a verify gate that catches wrong-person matches), verify LinkedIn identity via Apify, and draft a "we cited you" email + a hook-free connect note into a **citation registry** xlsx. (`/synergy-cite-harvest`)
 2. **Run** — send email first (Mailtrap, as you, BCC you; lead with their reference, then how you used it, then your paper once), then the LinkedIn connect note. Human-gated, with the send discipline that beats the focus-race truncation bug (separate click+type, zoom-verify the note's start and end before Send) and the button-by-degree + email-gate handling. (`/synergy-cite-run`)
-3. **Follow through** — detect accepted invites and fire any staged accept-reply, gated. Schedulable daily. (`/synergy-cite-accept-check`)
+3. **Follow through** — detect accepted invites and DM every one of them, gated. Schedulable daily. (`/synergy-cite-accept-check`)
 
 See `references/citation-center.md`, `references/outreach-channels.md`, and `references/citation-registry-schema.md`. Validated end to end on the Governed Autonomy paper (243 cited authors -> 68 enriched -> 157 LinkedIn-verified; 42 emails + 22 connects sent).
 
