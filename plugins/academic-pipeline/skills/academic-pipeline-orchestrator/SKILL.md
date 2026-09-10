@@ -94,7 +94,7 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 
 ### Stage 1.5 — SCAMPER defixation (optional)
 
-**Command:** `/scamper` (`scripts/scamper.py`, stdlib). Distill the Stage 1 themes into a literature baseline, run the seven SCAMPER operators, score each candidate thesis by TF-IDF distance from the baseline, and outline the top one. Use when the bibliography's consensus reading is the fixation to break. The confirmed thesis feeds Stage 2's `writing_perspective`. Outputs: `pipeline/scamper_baseline.json`, `pipeline/scamper_results.json`, `pipeline/scamper_outline.md`.
+**Command:** `/scamper` (`scripts/scamper.py`, stdlib). Distill the Stage 1 themes into a literature baseline, run the seven SCAMPER operators, score each candidate thesis by TF-IDF distance from the baseline, and outline the top one. Runs only when prescribed: `/academic-pipeline --scamper`, or a yes to the SCAMPER option in the Step C checkpoint question. Use when the bibliography's consensus reading is the fixation to break. The confirmed thesis feeds Stage 2's `writing_perspective`. Outputs: `pipeline/scamper_baseline.json`, `pipeline/scamper_results.json`, `pipeline/scamper_outline.md`.
 
 ### Stage 2 — Perspective  * HITL (3 questions)
 

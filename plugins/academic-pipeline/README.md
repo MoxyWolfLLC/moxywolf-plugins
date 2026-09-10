@@ -46,7 +46,7 @@ BibTeX input
 
 | Command | Does |
 |---------|------|
-| `/academic-pipeline [.bib]` | Runs the full eight-stage pipeline |
+| `/academic-pipeline [.bib] [--scamper]` | Runs the full eight-stage pipeline; `--scamper` prescribes the optional Stage 1.5 defixation pass |
 | `/academic-themes [.bib]` | Stage 1 only — theme map + suggested title |
 | `/scamper [--topic ...] [--generate-outline]` | Optional Stage 1.5 — SCAMPER defixation: seven operators, novelty-scored candidate theses, paper outline for the top one |
 | `/academic-critique [paper]` | Stage 8 only — professor critique of an existing paper |
