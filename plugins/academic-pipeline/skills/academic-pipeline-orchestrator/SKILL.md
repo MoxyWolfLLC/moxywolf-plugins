@@ -17,6 +17,8 @@ BibTeX input
     |
 [1] bibtex-theme-analyzer                    -> theme_analysis.json, mermaid_diagram.md, TARGET_TITLE
     |
+[1.5] /scamper                    (optional)  -> scamper_results.json, scamper_outline.md (novelty-ranked thesis)
+    |
 [2] academic-perspective-builder   * HITL    -> perspective.json            (3 questions)
     |
 [3] academic-voice                 * HITL    -> voice_context.json          (8 questions)
@@ -89,6 +91,10 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 ### Stage 1 — Theme analysis
 
 **Skill:** `bibtex-theme-analyzer`. Reads the `.bib`, builds a Mermaid theme tree, proposes and confirms `TARGET_TITLE`. Outputs: `pipeline/theme_analysis.json`, `mermaid_diagram.md`. Title confirmation is a light touch, not one of the three formal HITL stages.
+
+### Stage 1.5 — SCAMPER defixation (optional)
+
+**Command:** `/scamper` (`scripts/scamper.py`, stdlib). Distill the Stage 1 themes into a literature baseline, run the seven SCAMPER operators, score each candidate thesis by TF-IDF distance from the baseline, and outline the top one. Use when the bibliography's consensus reading is the fixation to break. The confirmed thesis feeds Stage 2's `writing_perspective`. Outputs: `pipeline/scamper_baseline.json`, `pipeline/scamper_results.json`, `pipeline/scamper_outline.md`.
 
 ### Stage 2 — Perspective  * HITL (3 questions)
 

@@ -48,6 +48,7 @@ BibTeX input
 |---------|------|
 | `/academic-pipeline [.bib]` | Runs the full eight-stage pipeline |
 | `/academic-themes [.bib]` | Stage 1 only — theme map + suggested title |
+| `/scamper [--topic ...] [--generate-outline]` | Optional Stage 1.5 — SCAMPER defixation: seven operators, novelty-scored candidate theses, paper outline for the top one |
 | `/academic-critique [paper]` | Stage 8 only — professor critique of an existing paper |
 | `/enrich-bibtex [.bib]` | Stage 0 only — add AI abstracts to a bibliography |
 | `/academic-renumber [paper] [--check]` | Renumber Vancouver citations by first appearance and reorder the list after an edit; refuses on dangling numbers |
