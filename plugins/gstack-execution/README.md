@@ -16,7 +16,7 @@ Adapted from Garry Tan's gstack — an open-source software factory that turns A
 | Command | Description | Tools Used |
 |---------|-------------|-----------|
 | `/gstack-design-doc` | Create or refresh `DESIGN.md` as an editable artifact; approval writes it to the repo and Taskade, commits, pushes, pulls back | Artifact + Git |
-| `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → merge, mark done | Git + `codex`/`claude` CLI |
+| `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → human release handoff → record merge before done | Git + `codex`/`claude` CLI |
 | `/gstack-review` | Structural code review with two-pass checklist | Git + Grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md (real Codex or fresh-context Claude critic) | Git + Grep + `codex` CLI (optional) |
 | `/gstack-peer-review` | Bounded cross-tool review loop at an implementation checkpoint (Codex ↔ Claude Code), fixed contract, explicit outcomes | Git + the other tool's CLI (`codex` or `claude`) |
@@ -109,7 +109,7 @@ For apps with no native MCP connector, this plugin can reach them through Compos
 
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
-No auto-push to a protected branch — a named human owns the merge.
+Routine feature-branch commits and pushes are authorized. No auto-push to a protected branch or agent merge: a named human owns the merge. `peer_review.py release` prepares a revision-bound handoff and stops; `record-release` reads GitHub’s exact-head human merge record. See the [release contract](skills/gstack-execution/references/peer-review-contract.md#release-boundary).
 
 ## Merged from ecc
 

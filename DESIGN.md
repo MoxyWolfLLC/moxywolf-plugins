@@ -20,7 +20,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-001 — Reconcile authority and enforce evidence completeness
 
-**Status:** planned.
+**Status:** review. Implementation prepared; independent review and human merge pending.
 
 1. Build, ship, peer-review, and governance documentation express one consistent release policy. Routine branch work remains authorized; consequential release requires recorded human authorization.
 2. Review success requires coverage of every expected acceptance criterion. Missing, duplicate, unknown, malformed, or unmet criteria cannot produce a passing outcome.

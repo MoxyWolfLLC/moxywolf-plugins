@@ -1,5 +1,5 @@
 ---
-description: The MoxyWolf coding loop — design doc first, build one item against it (or amend the doc with approval), push to a feature branch and pull back, cross-tool review until clean, merge, mark the item done
+description: The MoxyWolf coding loop — design doc first, build one item against it (or amend the doc with approval), push to a feature branch and pull back, cross-tool review until clean, hand off to the named human for merge, record the merge before marking done
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Agent
 argument-hint: [--builder claude|codex] [--repo <path>] [item-id | what to build ...]
 ---
@@ -16,7 +16,9 @@ commit → push → verify ls-remote → pull back into the local clone
    ↓
 /gstack-peer-review (the other tool) → fix → push → pull back → re-verify   (bounded)
    ↓ clean
-merge to main → push → pull back → mark the item done in DESIGN.md (with the review ID) → mirror to Taskade
+prepare revision-bound handoff → named human merges in GitHub → record-release verifies merge
+   ↓
+mark done through a separate authorized branch/PR → mirror to Taskade
    ↓
 next item, only when asked
 ```
@@ -60,13 +62,29 @@ On the first push of the branch, open the pull request (`gh pr create --base mai
 
 ## Step 5: Review loop until clean
 
-Run `/gstack-peer-review --builder <tool>` with the packet built from the design doc: `outcome` = the item, `acceptance_criteria` = the item's criteria verbatim, `exclusions` = the doc's Constraints and settled decisions, `tests` = Step 3's commands and results, one `{path, base=main, head=branch HEAD}` pair per repo. Follow that command's loop: substantiate, fix in scope, commit, **push and pull back (Step 4) after every fix commit**, disposition, next round.
+Run `/gstack-peer-review --builder <tool>` with the packet built from the design doc: `outcome` = the item, `acceptance_criteria` = the item's criteria verbatim, `exclusions` = the doc's Constraints and settled decisions, `tests` = Step 3's commands and results, `release_owner` = the accountable human's GitHub login, one `{path, base=main, head=branch HEAD}` pair per repo. Follow that command's loop: substantiate, fix in scope, commit, **push and pull back (Step 4) after every fix commit**, disposition, next round.
 
 Exit only on `no_blocking_findings` or `fixes_verified`, and, for a Vercel-deployed repo, a green Endform check on the PR at the final head (`gh pr checks` shows it passing, with the run link). `rounds_exhausted` → present the escalation and stop; the item stays `review`. `review_unavailable`, `model_below_floor`, and the other non-pass outcomes → report them as such and stop; do not merge on an unreviewed item.
 
-## Step 6: Merge, mark done, mirror
+## Step 6: Human release handoff, then record completion
 
-Merge to `main` through the pull request (`gh pr ready` then `gh pr merge --squash` or the repo's convention); push; pull back. Set the item to `done` with the review ID and merge SHA in `DESIGN.md`, add the Amendments-log line if the build changed anything in the doc, commit (`design: <item-id> done`), push, pull back, mirror to Taskade. Delete the feature branch on both ends.
+Routine feature-branch commits, pushes, and PR preparation remain authorized. Never auto-merge or push to a protected branch. After Step 5 passes, run:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" release <review-id>
+```
+
+This revalidates the review and requires clean local HEADs matching the reviewed commits. It writes `release.json` and intentionally exits nonzero as `awaiting_human_release`; it never merges or accepts approval flags. Report `ready_for_human_release` with the PR URL, review ID, exact heads, and named Release Owner. The item stays `review`.
+
+The named human merges the exact reviewed head in GitHub under their own login. Do not use their merge credential on their behalf. After they merge, record each repository's GitHub merge:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" record-release <review-id> --repo <path> --pr <number>
+```
+
+The recorder requires the exact reviewed head and the named human's GitHub `User` identity. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review and human merge, never a direct main push. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
+
+These are governance controls, not an OS security sandbox: local review files are agent-writable. Human merge credentials must remain outside agent authority and protected-branch enforcement is configured externally. See [GOVERNANCE.md](../GOVERNANCE.md).
 
 ## Step 7: Report, then stop
 
@@ -75,7 +93,8 @@ BUILD LOOP
 ══════════
 Repo:      {path}   Item: {id} {title}
 Design:    {covered | amended (approved) | created}
-Branch:    build/{id}-{slug} → main @ {merge-sha}
+Branch:    build/{id}-{slug} → {PR URL}
+Release:   {ready_for_human_release | human_merge_recorded}   Owner: {GitHub login}
 Pushed:    remote {sha} == local {sha}   (pulled back: yes)
 Review:    {review-id}  {builder} → {reviewer}  {rounds}/{max}  {outcome}   Model: {model}
 Tests:     {commands, results, through which path}
