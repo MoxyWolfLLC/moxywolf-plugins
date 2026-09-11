@@ -28,6 +28,16 @@ CONTRACT = HERE.parent / "skills" / "gstack-execution" / "references" / "peer-re
 REVIEW_DIR = Path(os.environ.get("GSTACK_PEER_REVIEW_DIR", Path.home() / ".gstack" / "peer-review"))
 RECURSION_ENV = "GSTACK_PEER_REVIEW_SESSION"
 OTHER_TOOL = {"claude": "codex", "codex": "claude"}
+# Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or higher.
+# Override the model with GSTACK_CODEX_MODEL / GSTACK_CLAUDE_MODEL; the floor still applies to what actually ran.
+MODEL = {"codex": os.environ.get("GSTACK_CODEX_MODEL", "gpt-6-astra"),
+         "claude": os.environ.get("GSTACK_CLAUDE_MODEL", "claude-opus-5")}
+MODEL_FLOOR = {"codex": r"^gpt-([6-9]|\d{2,})\b",
+               "claude": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)"}
+
+
+def model_ok(tool, model):
+    return bool(re.match(MODEL_FLOOR[tool], model or ""))
 PACKET_FIELDS = ["outcome", "acceptance_criteria", "repos", "changed_behavior", "exclusions", "tests"]
 SEVERITIES = {"blocking", "follow_up", "separate"}
 VERDICTS = {"no_blocking_findings", "blocking_findings"}
@@ -180,34 +190,44 @@ def build_prompt(packet, snaps, round_no, prior_round, dispositions):
 
 
 def run_reviewer(tool, prompt, root, timeout):
+    """Returns (reviewer_output_text, model_that_ran)."""
     env = {**os.environ, RECURSION_ENV: "1"}
     fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD")  # selftest hook: any command that prints the JSON
     if fake:
-        cmd, parse = ["sh", "-c", fake], lambda s: s
+        cmd, parse = ["sh", "-c", fake], lambda r: (r.stdout, "fake")
     elif tool == "codex":
         if not shutil.which("codex"):
             raise ReviewError("review_unavailable", "codex CLI not installed on PATH")
+        if not model_ok("codex", MODEL["codex"]):
+            raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={MODEL['codex']}; floor is Astra (gpt-6) or higher")
         schema = root / "schema.json"; last = root / "last.txt"
         schema.write_text(json.dumps(STRICT_SCHEMA))
-        cmd = ["codex", "exec", "-C", str(root), "--sandbox", "read-only", "--skip-git-repo-check",
+        cmd = ["codex", "exec", "-C", str(root), "-m", MODEL["codex"], "-c", "model_reasoning_effort=high",
+               "--sandbox", "read-only", "--skip-git-repo-check",
                "--output-schema", str(schema), "--output-last-message", str(last), prompt]
-        parse = lambda s: last.read_text() if last.exists() else s
+        def parse(r):
+            m = re.search(r"^model:\s*(\S+)", r.stderr + r.stdout, re.M)  # codex echoes the resolved model in its header
+            return (last.read_text() if last.exists() else r.stdout), (m.group(1) if m else None)
     elif tool == "claude":
         if not shutil.which("claude"):
             raise ReviewError("review_unavailable", "claude CLI not installed on PATH")
-        cmd = ["claude", "-p", prompt, "--output-format", "json", "--json-schema", json.dumps(STRICT_SCHEMA),
+        if not model_ok("claude", MODEL["claude"]):
+            raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={MODEL['claude']}; floor is Opus 5 or higher")
+        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(STRICT_SCHEMA),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
                "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
-        def parse(s):
+        def parse(r):
             try:
-                env_ = json.loads(s)
+                env_ = json.loads(r.stdout)
             except json.JSONDecodeError:
-                return s
-            if isinstance(env_, dict):
-                if "structured_output" in env_:
-                    return json.dumps(env_["structured_output"])
-                return env_.get("result", s)
-            return s
+                return r.stdout, None
+            if not isinstance(env_, dict):
+                return r.stdout, None
+            usage = env_.get("modelUsage") or {}
+            # the review model is the one that did the work; the harness also bills a small helper model
+            model = max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None
+            text = json.dumps(env_["structured_output"]) if "structured_output" in env_ else env_.get("result", r.stdout)
+            return text, model
     else:
         raise ReviewError("review_unavailable", f"unknown tool {tool}")
     try:
@@ -219,7 +239,10 @@ def run_reviewer(tool, prompt, root, timeout):
         raise ReviewError("review_unavailable", str(e))
     if r.returncode != 0:
         raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
-    return parse(r.stdout)
+    text, model = parse(r)
+    if not fake and not model_ok(tool, model):
+        raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({MODEL_FLOOR[tool]})")
+    return text, model
 
 
 def validate(raw):
@@ -304,7 +327,7 @@ def cmd_round(a):
         snaps = snapshot(packet["repos"], root)
         prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
-        raw = run_reviewer(state["reviewer"], prompt, root, state["timeout"])
+        raw, record["model"] = run_reviewer(state["reviewer"], prompt, root, state["timeout"])
         record["raw"] = raw
         out = validate(raw)
         record.update(out)
@@ -364,6 +387,11 @@ def selftest():
           "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}}
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
+
+    # model floors
+    assert model_ok("claude", "claude-opus-5") and model_ok("claude", "claude-fable-5-1") and model_ok("claude", "claude-opus-12")
+    assert not model_ok("claude", "claude-opus-4-8") and not model_ok("claude", "claude-sonnet-5") and not model_ok("claude", None)
+    assert model_ok("codex", "gpt-6-astra") and model_ok("codex", "gpt-7") and not model_ok("codex", "gpt-5") and not model_ok("codex", "gpt-5-codex")
 
     # missing commit refused
     bad = dict(pk, repos=[dict(pk["repos"][0], head="deadbeef")]); (tmp / "bad.json").write_text(json.dumps(bad))

@@ -19,6 +19,10 @@ The builder identity is supplied explicitly (`--builder`), never inferred from g
 
 The reviewer runs in a fresh, non-interactive session against a detached read-only snapshot of the exact head commit. It cannot edit the implementation, deploy, reach production credentials, or launch another reviewer (`GSTACK_PEER_REVIEW_SESSION` is set in its environment and the dispatcher refuses to open or run a review when it is present). Tests that need writes run in the builder's disposable validation worktree, not in the reviewer's snapshot.
 
+## Model floors
+
+Anything this plugin runs through Codex uses **Astra (`gpt-6-astra`) or higher**; anything it runs through Claude Code uses **Opus 5 (`claude-opus-5`) or higher** (Fable and Mythos qualify). Stated by Dorian 2026-09-11. The dispatcher passes `-m`/`--model` explicitly, reads back the model each CLI reports it actually ran, and ends the round as `model_below_floor` if either side is under the line. `GSTACK_CODEX_MODEL` / `GSTACK_CLAUDE_MODEL` change the model, never the floor.
+
 ## The review packet
 
 The builder supplies one packet per completed implementation checkpoint (not per file edit). `peer_review.py open` validates it and refuses to proceed on a missing field or a commit that does not resolve.
@@ -129,8 +133,9 @@ Every run ends in exactly one:
 | `missing_commits` | A base or head in the packet does not resolve |
 | `timeout` | Reviewer exceeded the time limit |
 | `malformed_output` | Reviewer returned something the schema rejects |
+| `model_below_floor` | The reviewer ran (or was configured to run) below the model floor |
 
-None of the last five is a pass. Each is reported as itself.
+None of the last six is a pass. Each is reported as itself.
 
 ## Storage
 

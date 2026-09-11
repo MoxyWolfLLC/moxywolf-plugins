@@ -43,7 +43,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" open --builder <claude|co
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" round <review-id>
 ```
 
-The reviewer runs non-interactively in a fresh session against a detached read-only snapshot of the head commit. Report the outcome exactly as the dispatcher names it. `review_unavailable`, `missing_commits`, `timeout`, and `malformed_output` are results, not passes; say what they mean (for `review_unavailable`: which tool is missing and that no same-tool substitute was made).
+The reviewer runs non-interactively in a fresh session against a detached read-only snapshot of the head commit. Report the outcome exactly as the dispatcher names it. `review_unavailable`, `missing_commits`, `timeout`, `malformed_output`, and `model_below_floor` are results, not passes; say what they mean (for `review_unavailable`: which tool is missing and that no same-tool substitute was made).
 
 ## Step 3: Substantiate, fix, disposition
 
@@ -71,7 +71,8 @@ PEER REVIEW
 Review ID: {id}         Builder: {tool} → Reviewer: {tool}
 Repos:     {path} {base-short}..{head-short}  (one line per repo, final round)
 Rounds:    {used}/{max}
-Outcome:   {no_blocking_findings | fixes_verified | blocking_findings | rounds_exhausted | review_unavailable | missing_commits | timeout | malformed_output}
+Outcome:   {no_blocking_findings | fixes_verified | blocking_findings | rounds_exhausted | review_unavailable | missing_commits | timeout | malformed_output | model_below_floor}
+Model:     {model the reviewer reported it ran, from round-N.json}
 Acceptance: {N met}/{N}
 Findings:  {N blocking → fixed/disproved/deferred/unresolved}, {N follow_up}, {N separate}
 Escalation: {exact disagreement per unresolved finding, or "none"}

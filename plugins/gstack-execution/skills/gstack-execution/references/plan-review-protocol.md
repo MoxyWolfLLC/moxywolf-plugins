@@ -26,10 +26,11 @@ The severity split matters: the critic reports everything and tags it; filtering
 
 Verified mechanics — each one exists because its absence produced a real failure:
 
-- **Round 1** creates the session: `codex exec -s read-only --json -o /tmp/codex-verdict.txt "<prompt>" < /dev/null` — parse `thread_id` from the `{"type":"thread.started",...}` stream line. The critique lands in the `-o` file; read that, never parse the JSONL for content.
+- **Round 1** creates the session: `codex exec -m gpt-6-astra -c model_reasoning_effort=high -s read-only --json -o /tmp/codex-verdict.txt "<prompt>" < /dev/null` — parse `thread_id` from the `{"type":"thread.started",...}` stream line. The critique lands in the `-o` file; read that, never parse the JSONL for content.
 - **Rounds 2..N** resume the SAME session: `codex exec resume "$THREAD_ID" -c sandbox_mode="read-only" --json -o /tmp/codex-verdict.txt "<re-review prompt>" < /dev/null`.
   - `resume` rejects `-s` — read-only MUST be forced via `-c sandbox_mode="read-only"`, or the critic inherits the user's config default (possibly `danger-full-access`) and can write files mid-loop. This is the single most important safety detail in the protocol.
   - Resume by **explicit thread id**, never `--last` — a wrong or missing id can silently land in a different session and look like a successful run.
+- `-m gpt-6-astra` on every call: the model floor for anything this plugin runs through Codex is Astra or higher (Claude Code side: Opus 5 or higher, `--model opus`). See `peer-review-contract.md`, *Model floors*.
 - `< /dev/null` on every call — `codex exec` reads stdin in addition to the prompt arg and hangs forever waiting for EOF under a non-TTY driver.
 - **Timeout ceiling** on every call — 10 minutes (Bash tool `timeout: 600000`); a tripped ceiling is a failed run to surface, not a retry.
 - Don't pin a model (`-m`) — ChatGPT-account auth rejects pinned `-codex` variants. Echo the active model from `~/.codex/config.toml` before Round 1 so the user can object before a round is spent.

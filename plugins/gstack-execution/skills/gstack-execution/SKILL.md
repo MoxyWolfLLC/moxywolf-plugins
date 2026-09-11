@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.10.1
+version: 0.11.0
 ---
 
 # gstack Execution Engine
@@ -53,6 +53,10 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 | "Ship what we built" | `/gstack-review` → `/gstack-ship` |
 | "Test this in a browser" | `/gstack-qa` or `/gstack-browse` |
 | "Verify the deploy" | `/gstack-browse` (navigate + snapshot + verify) |
+
+## Model floors
+
+When a command in this plugin shells out to a CLI: Codex runs **Astra (`gpt-6-astra`) or higher** (`-m gpt-6-astra`), Claude Code runs **Opus 5 or higher** (`--model opus`, which resolves to `claude-opus-5`; Fable qualifies). `scripts/peer_review.py` enforces this and reports `model_below_floor`; the plan-review protocol carries the flags in its commands. Set by Dorian 2026-09-11.
 
 ## Environment Requirements
 
