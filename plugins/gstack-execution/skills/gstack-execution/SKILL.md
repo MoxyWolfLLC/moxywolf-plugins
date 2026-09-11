@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.4.0
+version: 0.10.0
 ---
 
 # gstack Execution Engine
@@ -27,7 +27,8 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 |---------|-------------|---------------------|
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md — bounded rounds, deadlock surfaced; real Codex when present, fresh-context Claude critic fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
-| `/gstack-codex-review` | Adversarial review of just-committed code; real Codex when present, Claude fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
+| `/gstack-peer-review` | Bounded cross-tool review at an implementation checkpoint: the other tool (Codex ↔ Claude Code) reviews pinned commits against a fixed contract; one review + two fix-verification passes; explicit outcomes, never a same-tool substitute | Needs the *other* tool's CLI on PATH (`codex` or `claude`), else `review_unavailable` |
+| `/gstack-codex-review` | Compatibility alias for `/gstack-peer-review --builder claude` | Same |
 | `/gstack-verify` | Post-build verification of the implementation against its plan/spec — claim table, drift report; read-only, never gates | Full — git + grep + read |
 | `/gstack-investigate` | Root cause debugging with hypothesis testing | Full — git + grep + read |
 | `/gstack-cso` | Security audit (OWASP + STRIDE + supply chain) | Full — grep + code analysis |
@@ -42,9 +43,9 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 
 | Product Orchestrator Decision | gstack Command |
 |------------------------------|----------------|
-| "Build this feature" | `/gstack-plan-review` (harden the plan) → coding → `/gstack-review` → `/gstack-ship` |
+| "Build this feature" | `/gstack-plan-review` (harden the plan) → coding → `/gstack-review` → `/gstack-ship` (which runs `/gstack-peer-review` at the checkpoint) |
 | "Challenge this plan before we build" | `/gstack-plan-review` (pre-code, iterative, bounded) |
-| "Challenge what I just committed" | `/gstack-codex-review` (adversarial, post-commit, pre-push) |
+| "Have the other tool review this checkpoint" | `/gstack-peer-review --builder <tool>` (bounded, cross-tool, fixes blockers in scope) |
 | "Did we build what we planned?" | `/gstack-verify` (implementation vs spec, after build) |
 | "Fix this bug" | `/gstack-investigate` → fix → `/gstack-review` |
 | "Security audit before launch" | `/gstack-cso` |

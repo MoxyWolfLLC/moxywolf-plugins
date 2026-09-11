@@ -69,6 +69,10 @@ Before reviewing, run `/ponytail-review` on the branch diff to strip over-built 
 
 Run the `/gstack-review` checklist against this branch. Route findings through the Fix Contract: safe mechanical ones are fixed in the worktree, judgment calls are escalated. If CRITICAL findings remain unresolved, report them and stop.
 
+## Step 4.5: Peer Review Checkpoint (cross-tool)
+
+The branch is now a completed implementation checkpoint. Run `/gstack-peer-review --builder <claude|codex>` with the builder named explicitly (this pipeline running in Claude Code or Cowork means `claude`); the packet's `tests` field carries Step 2's actual commands and results, `exclusions` carries the settled decisions from the plan. Blocking findings route through the Fix Contract above, in the worktree, and the dispatcher's fix-verification rounds check them; `follow_up` and `separate` findings go into the PR body as known gaps. `review_unavailable` (the other tool is not installed) is recorded on the Ship Report as such; it is not a pass and does not block the PR. `rounds_exhausted` blocks: present the escalation and stop.
+
 ## Step 5: Prepare PR
 
 **Gate:** Never auto-push to a protected branch and never auto-merge. A named human owns the merge; the pipeline prepares the PR and stops.
@@ -96,6 +100,7 @@ SHIP REPORT
 Branch: {branch} → {base}
 Tests: {passed}/{total} ({N} pre-existing failures excluded)
 Review: {N} critical, {N} info findings
+Peer review: {outcome} (review {id}, {builder} → {reviewer}, {rounds}/{max} rounds) — {N} blocking fixed/disproved, {N} follow-up, {N} separate
 Fixes: {N} auto-applied (listed below), {N} escalated ({N} approved, {N} declined)
 Coverage: {new paths tested}/{total new paths}
 Worktree: removed

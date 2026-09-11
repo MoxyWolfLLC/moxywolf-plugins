@@ -6,6 +6,8 @@ argument-hint: [rounds=N] [plan=<path>] [task description ...]
 
 Run an **iterative adversarial review of an implementation plan** before a single line of code is written. Where `/gstack-codex-review` challenges the commit you just made, this command challenges the plan you're *about* to build — the cheapest point in the whole pipeline to catch a wrong approach.
 
+This is where the approach gets argued. After code exists, `/gstack-peer-review` treats the approach as settled and reviews the implementation against the agreed outcome; it will not reopen what this loop decided.
+
 It is the front half of the DR-004 gate pair: `/gstack-plan-review` hardens the plan before build; `/gstack-verify` checks the implementation against the plan after. Both are read-only reporters against the artifact under review — they inform, they never gate.
 
 Read the gstack-execution skill for context, then `references/plan-review-protocol.md` for the full loop protocol — both engines use it as the single source of truth.
