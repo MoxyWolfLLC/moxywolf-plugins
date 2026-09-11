@@ -32,6 +32,8 @@ BibTeX input
 [7] bibliography-generator                   -> <target-slug>.md
     |
 [8] professor                                -> critique_report.md, improvement_plan.md
+    |
+[9] release_gate.py                          -> five named checks, blocking
 ```
 
 `* HITL` = a human checkpoint. Three of them, twelve questions total.
@@ -134,6 +136,22 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 
 The three checkpoints use the **AskUserQuestion tool** directly — ask, get the answer, continue. There is no HITL request file, no blocking handoff, no GSD executor. If checkpoint mode is *front-loaded*, collect the twelve answers at Step C and pass them into Stages 2, 3, and 5 so those skills skip their prompts.
 
+## Stage 9 — The release gate
+
+Before presenting anything as finished, run the gate. It is not a checklist to remember; it is a command that exits nonzero.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/release_gate.py" \
+  --paper "<run folder>/<target-slug>.md" \
+  --requirements "<run folder>/pipeline/formatting_requirements.json"
+```
+
+Five checks, each named with its result: `em_dashes` (zero), `forbidden_phrases` (zero, from the Stage 4 list), `sections_present` (every `section_order` entry appears as a heading), `duplicate_sources` (no two references share a normalized DOI or URL), and `citation_order` (the renumber pass reports zero renumbered, for Vancouver).
+
+**A failing gate blocks the completion report.** Do not narrate around it, do not present the deliverable with a note about what did not pass, and do not ask the user to accept it. Fix what failed, rerun, and only then continue. Report the gate's five lines verbatim as part of the completion summary, passing or failing, so the reader can see which checks ran rather than trusting that they did.
+
+The gate is mechanical and therefore narrow. It cannot tell whether an argument holds, whether a citation supports the claim resting on it, or whether the paper is any good. Stage 8's critique does that, and the gate does not replace it.
+
 ## On completion
 
 When all stages finish:
@@ -157,6 +175,7 @@ When all stages finish:
 | 6 | `draft_document.md` | `pipeline/` |
 | 7 | `<target-slug>.md` | run folder — **main deliverable** |
 | 8 | `critique_report.md`, `improvement_plan.md` | run folder |
+| 9 | gate result (five named checks) | reported in chat, blocking |
 
 ## Notes
 
