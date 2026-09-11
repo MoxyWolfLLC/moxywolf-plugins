@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.11.0
+version: 0.12.0
 ---
 
 # gstack Execution Engine
@@ -19,12 +19,15 @@ Software development execution adapted from [gstack](https://github.com/garrytan
 
 ## Core Principle
 
+**All coding goes through `/gstack-build`** (Dorian, 2026-09-11; canonical rule in `Taskade/_Shared Files/_shared-memory/feedback_all_coding_via_gstack_build.md`). A request to write or change code starts by reading the repo's `DESIGN.md`; if the ask is not covered, the doc is amended with approval before any code; every push is verified on the remote and pulled back into the local clone; nothing is done until the other tool has reviewed it clean.
+
 Product Orchestrator is the board of directors. This plugin is the factory floor. It doesn't debate what to build. It builds, reviews, tests, and ships what the board decided.
 
 ## Available Commands
 
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
+| `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to Taskade), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, merge, mark done | Full — git + the other tool's CLI for the review |
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md — bounded rounds, deadlock surfaced; real Codex when present, fresh-context Claude critic fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
 | `/gstack-peer-review` | Bounded cross-tool review at an implementation checkpoint: the other tool (Codex ↔ Claude Code) reviews pinned commits against a fixed contract; one review + two fix-verification passes; explicit outcomes, never a same-tool substitute | Needs the *other* tool's CLI on PATH (`codex` or `claude`), else `review_unavailable` |
@@ -43,7 +46,7 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 
 | Product Orchestrator Decision | gstack Command |
 |------------------------------|----------------|
-| "Build this feature" | `/gstack-plan-review` (harden the plan) → coding → `/gstack-review` → `/gstack-ship` (which runs `/gstack-peer-review` at the checkpoint) |
+| "Build this feature" / any coding request | `/gstack-build` (design doc gate → build → push + pull back → `/gstack-peer-review` loop → merge). `/gstack-plan-review` hardens a larger design first; `/gstack-ship` remains the PR pipeline for repos that land through PRs |
 | "Challenge this plan before we build" | `/gstack-plan-review` (pre-code, iterative, bounded) |
 | "Have the other tool review this checkpoint" | `/gstack-peer-review --builder <tool>` (bounded, cross-tool, fixes blockers in scope) |
 | "Did we build what we planned?" | `/gstack-verify` (implementation vs spec, after build) |
