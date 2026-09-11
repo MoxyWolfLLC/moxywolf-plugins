@@ -99,29 +99,29 @@ Create an artifact containing:
 
 **Input entry:**
 ```bibtex
-@incollection{golpayegani_airo_2022,
-  title = {AIRO: An Ontology for Representing AI Risks},
-  author = {Golpayegani, Delaram and Pandit, Harshvardhan J.},
-  year = 2022,
-  doi = {10.3233/SSW220008}
+@incollection{lastname_shorttitle_2024,
+  title = {Short Title: A Subtitle Naming the Contribution},
+  author = {Lastname, Firstname and Otherlastname, Otherfirstname},
+  year = 2024,
+  doi = {10.0000/PLACEHOLDER}
 }
 ```
 
 **Processing:**
 1. No `abstract` field found → process
-2. No `url` field → construct from DOI: `https://doi.org/10.3233/SSW220008`
+2. No `url` field → construct from DOI: `https://doi.org/10.0000/PLACEHOLDER`
 3. Fetch content from DOI URL
 4. Generate abstract following structure
 5. Add `abstract` field to entry
 
 **Output entry:**
 ```bibtex
-@incollection{golpayegani_airo_2022,
-  title = {AIRO: An Ontology for Representing AI Risks},
-  author = {Golpayegani, Delaram and Pandit, Harshvardhan J.},
-  year = 2022,
-  doi = {10.3233/SSW220008},
-  abstract = {This paper presents the AI Risk Ontology (AIRO) for expressing information associated with high-risk AI systems based on requirements of the proposed EU AI Act and ISO 31000 risk management standards. The ontology assists stakeholders in determining high-risk AI systems, maintaining risk documentation, performing impact assessments, and achieving regulatory conformity. The authors demonstrate AIRO's usefulness by modeling real-world use cases from the AIAAIC repository, determining their risk levels, and producing documentation aligned with the EU's proposed AI Act requirements.}
+@incollection{lastname_shorttitle_2024,
+  title = {Short Title: A Subtitle Naming the Contribution},
+  author = {Lastname, Firstname and Otherlastname, Otherfirstname},
+  year = 2024,
+  doi = {10.0000/PLACEHOLDER},
+  abstract = {This paper presents the contribution named in the title, states the problem it addresses, and describes the method used. It reports what the method produced and what the results establish, then states the implications for practitioners in the field. Roughly 120 to 200 words, written in the source's own terms rather than the summarizer's.}
 }
 ```
 

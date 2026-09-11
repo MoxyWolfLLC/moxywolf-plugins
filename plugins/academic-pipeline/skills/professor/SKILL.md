@@ -428,11 +428,11 @@ Completeness = (Complete References / Total References) × 100%
 
 ✗ [NO IDENTIFIER] [1]. Alteryx. (n.d.). AI governance glossary.
      ⚠ Web source missing URL
-✓ [URL] [3]. BharathxD. (2024). GitHub repository. https://github.com/...
-✗ [NO IDENTIFIER] [5]. Constant et al. (2017). Computational Linguistics, 43(4), 837-892.
+✓ [URL] [3]. Repo-Owner. (2024). GitHub repository. https://github.com/...
+✗ [NO IDENTIFIER] [5]. Lastname et al. (2017). Computational Linguistics, 43(4), 837-892.
      ⚠ Journal article missing DOI
-✓ [arXiv] [7]. Constant & Nivre (2015). arXiv preprint.
-✓ [Patent] [8]. Cougias et al. (2021). U.S. Patent No. 11,120,227.
+✓ [arXiv] [7]. Lastname & Otherlastname (2015). arXiv preprint.
+✓ [Patent] [8]. Lastname et al. (2021). U.S. Patent No. 00,000,000.
 
 **Summary**:
 - Total references: 47
