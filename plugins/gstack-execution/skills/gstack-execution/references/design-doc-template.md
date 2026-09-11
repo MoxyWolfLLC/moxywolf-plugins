@@ -14,7 +14,7 @@ Bulleted. Architecture choices already made, boundaries not to cross, dependenci
 
 ## Items
 
-One row per unit of work. An item is buildable when its acceptance criteria are checkable statements, not intentions. Status is one of `planned`, `building`, `review`, `done`, `dropped`.
+One row per unit of work. An item is buildable when its acceptance criteria are checkable statements, not intentions. For a web item, a criterion names the Playwright spec that proves it (`e2e/<area>.spec.ts: <test title>`); Endform runs it against the preview deployment on every push (`.github/workflows/endform-e2e.yml`, added by `/gstack-build` if missing). Status is one of `planned`, `building`, `review`, `done`, `dropped`.
 
 | ID | Item | Acceptance criteria | Status | Review ID / merge |
 |---|---|---|---|---|

@@ -43,7 +43,9 @@ Never silently widen an item to fit the ask, and never code the uncovered part "
 
 ## Step 3: Build the item
 
-Branch `build/<item-id>-<slug>` from up-to-date `main`. Set the item's status to `building` in `DESIGN.md` (this commit rides with the code). Build only what the item's acceptance criteria require; ponytail applies. Run the tests that demonstrate the criteria and keep the exact commands and results; they go into the review packet. Exercise the user's workflow, not just the helpers, and note which.
+**E2E gate first (Vercel-deployed repos).** Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/endform_workflow.py" check --repo <path>`. If it prints `missing` and the repo deploys on Vercel (look the project up with the Vercel connector's `list_projects`, matching the repo; ask the user only when nothing matches), write it: `endform_workflow.py ensure --repo <path> --project <vercel-project-name>` (template `references/endform-e2e.yml`; the install step follows the repo's lockfile), then commit it alone as `ci: add Endform e2e workflow`, push, verify, pull back (Step 4) before any feature code. A repo with no Vercel project gets no workflow; record that under the design doc's constraints so the check is not repeated. If the repo has no `playwright.config.*`, the workflow runs zero tests: the item's acceptance criteria must then include the first spec, or say why E2E does not apply.
+
+Branch `build/<item-id>-<slug>` from up-to-date `main`. Set the item's status to `building` in `DESIGN.md` (this commit rides with the code). Build only what the item's acceptance criteria require; ponytail applies. Run the tests that demonstrate the criteria and keep the exact commands and results; they go into the review packet. Exercise the user's workflow, not just the helpers, and note which. For a Vercel-deployed repo the user's workflow is the Playwright suite run by Endform against the branch's preview deployment: a web acceptance criterion names the spec that proves it (`e2e/<area>.spec.ts: <test title>`), Step 4 opens the pull request on the first push (`gh pr create --base main`, draft is fine) and updates it on every push after; Endform runs the suite against the preview deployment and reports the result as a **Vercel check on the PR** with a link to the full run. Read it with `gh pr checks <number>`; the check's state and the run link are the `tests.results` evidence. Local `npx playwright test` is fine while iterating; it is not the evidence.
 
 ## Step 4: Commit, push, pull back
 
@@ -54,17 +56,17 @@ git push origin build/<item-id>-<slug>          # PAT over a per-URL header, nev
 git ls-remote origin refs/heads/build/<item-id>-<slug>   # must equal git rev-parse HEAD
 ```
 
-Then pull back into the user's local clone (`~/Documents/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
+On the first push of the branch, open the pull request (`gh pr create --base main --title … --body …`, draft until the review loop is clean) so the Endform check has somewhere to report. Then pull back into the user's local clone (`~/Documents/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
 
 ## Step 5: Review loop until clean
 
 Run `/gstack-peer-review --builder <tool>` with the packet built from the design doc: `outcome` = the item, `acceptance_criteria` = the item's criteria verbatim, `exclusions` = the doc's Constraints and settled decisions, `tests` = Step 3's commands and results, one `{path, base=main, head=branch HEAD}` pair per repo. Follow that command's loop: substantiate, fix in scope, commit, **push and pull back (Step 4) after every fix commit**, disposition, next round.
 
-Exit only on `no_blocking_findings` or `fixes_verified`. `rounds_exhausted` → present the escalation and stop; the item stays `review`. `review_unavailable`, `model_below_floor`, and the other non-pass outcomes → report them as such and stop; do not merge on an unreviewed item.
+Exit only on `no_blocking_findings` or `fixes_verified`, and, for a Vercel-deployed repo, a green Endform check on the PR at the final head (`gh pr checks` shows it passing, with the run link). `rounds_exhausted` → present the escalation and stop; the item stays `review`. `review_unavailable`, `model_below_floor`, and the other non-pass outcomes → report them as such and stop; do not merge on an unreviewed item.
 
 ## Step 6: Merge, mark done, mirror
 
-Merge to `main` the way the repo does it (fast-forward or `gh pr create` + merge when main is protected); push; pull back. Set the item to `done` with the review ID and merge SHA in `DESIGN.md`, add the Amendments-log line if the build changed anything in the doc, commit (`design: <item-id> done`), push, pull back, mirror to Taskade. Delete the feature branch on both ends.
+Merge to `main` through the pull request (`gh pr ready` then `gh pr merge --squash` or the repo's convention); push; pull back. Set the item to `done` with the review ID and merge SHA in `DESIGN.md`, add the Amendments-log line if the build changed anything in the doc, commit (`design: <item-id> done`), push, pull back, mirror to Taskade. Delete the feature branch on both ends.
 
 ## Step 7: Report, then stop
 
@@ -77,6 +79,7 @@ Branch:    build/{id}-{slug} → main @ {merge-sha}
 Pushed:    remote {sha} == local {sha}   (pulled back: yes)
 Review:    {review-id}  {builder} → {reviewer}  {rounds}/{max}  {outcome}   Model: {model}
 Tests:     {commands, results, through which path}
+E2E:       {Endform run URL + pass/fail on final head | not a Vercel repo | workflow added this loop}
 Verified:  {what was exercised, and how}
 Unverified:{what was not, and why}
 Next item: {next planned item id, or "none in DESIGN.md"}
