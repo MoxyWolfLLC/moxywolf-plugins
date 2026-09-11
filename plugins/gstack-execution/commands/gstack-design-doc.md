@@ -37,16 +37,19 @@ Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `
 
 Tell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.
 
-## Step 5: On approval, write both copies and land them
+## Step 5: On approval, write both copies on a feature branch
 
 When the user says it is approved (or a republish notice arrives, or they ask you to check): `Artifact read` the page, parse the `design-state` JSON, and require `approved: true`; if it is false, say the page is saved but not approved and stop.
 
 Then, in this order:
 
-1. Write `markdown` to `<repo>/DESIGN.md` and to `<taskade>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
-2. Commit the repo copy alone: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.
-3. Push with the vault PAT over a per-URL header; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
-4. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.
+1. Before any write or commit, reuse the authorized feature branch supplied by `/gstack-build`. For standalone design work, create or reuse a design feature branch from up-to-date main. Never write or commit the design on main or another protected branch.
+2. Write `markdown` to `<repo>/DESIGN.md` and to `<taskade>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
+3. Commit the repo copy alone on that feature branch: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.
+4. Push that feature branch with a vault PAT constrained to branch/PR work, without protected-target merge or push authority, over a per-URL header; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
+5. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.
+
+Content approval authorizes saving the design, not its release. When called by `/gstack-build`, retain these commits on the same feature branch through implementation, peer review, and human merge; do not merge the design separately or restart the branch from main. For standalone design work, prepare a PR, complete the applicable peer review and revision-bound release handoff, and stop for the named human to merge in GitHub. Record that merge via `peer_review.py record-release` before claiming it landed. Human Release Owner credentials remain outside agent access.
 
 ## Step 6: Report
 
@@ -54,6 +57,8 @@ Then, in this order:
 DESIGN DOC
 ══════════
 Repo:     {path}  →  DESIGN.md @ {sha}  (remote == local: yes)
+Branch:   {feature branch}  PR: {URL or pending creation}
+Release:  {pending review | ready_for_human_release | human_merge_recorded}
 Taskade:  {path}/06 – Engineering/DESIGN-{repo}.md
 Artifact: {title}  version {n}  approved {savedAt}
 Items:    {N planned, N building, N review, N done}

@@ -141,6 +141,13 @@ class GovernedReview(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertNotEqual(self.call("disposition", self.rid, value).returncode, 0)
 
+    def test_blocking_review_cannot_prepare_release(self):
+        self.blocking_round()
+        r = self.call("release", self.rid)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("release_blocked", r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+
     def test_release_entry_never_merges_without_human(self):
         self.open(); self.response(); self.round()
         before = self.git("rev-parse", "HEAD")
@@ -202,6 +209,13 @@ class GovernedReview(unittest.TestCase):
         self.assertEqual(result["approver"], "dorianatmoxywolf")
         self.assertEqual(result["head"], self.head)
         self.assertEqual(result["action"], "merge")
+
+    def test_github_login_case_does_not_change_identity(self):
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)
+        self.install_github_response(merged_by={"login": "DorianAtMoxyWolf", "type": "User"})
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_wrong_actor_or_revision_cannot_authorize_release(self):
         self.open(); self.response(); self.round()

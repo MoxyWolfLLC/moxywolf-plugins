@@ -510,7 +510,7 @@ def cmd_record_release(a):
             pr.get("head", {}).get("sha") != repo["head"] or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
-            pr.get("merged_by", {}).get("login") != state["release_owner"] or
+            str(pr.get("merged_by", {}).get("login", "")).casefold() != state["release_owner"].casefold() or
             pr.get("merged_by", {}).get("type") != "User" or not pr.get("merged_at") or not pr.get("merge_commit_sha")):
         raise ReviewError("release_blocked", "GitHub does not record a merge by the named human of the exact reviewed head")
     try:
