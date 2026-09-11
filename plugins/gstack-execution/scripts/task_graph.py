@@ -126,12 +126,18 @@ def compile_graph(workflow,packet):
 def validate_graph(graph):
     nodes=graph['nodes'];ids=[n['id'] for n in nodes]
     if not nodes or len(set(ids))!=len(ids):raise ValueError('missing or duplicate nodes')
-    outputs=set()
+    outputs={'peer-reviews'}
+    for n in nodes:
+        if n['kind']=='peer':outputs.update({n['id']+'-packet.json',n['id']+'-review.json'})
     for n in nodes:
         if not all(c.isalnum() or c in '-_' for c in n['id']):raise ValueError('unsafe node ID')
         if n['kind'] not in {'worker','checker','report','peer','proof'}:raise ValueError('unknown handler')
         if n['kind']=='proof' and set(n['effects'])!={'local_proof'}:raise ValueError('proof requires local_proof effect')
+        if n['kind']=='report' and set(n['effects'])!={'local_report'}:raise ValueError('report requires local_report effect')
+        if n['kind'] in {'worker','checker','peer'} and not n.get('command') and set(n['effects'])!={'external_review'}:raise ValueError('model handler requires external_review effect')
         if n['on_failure']!='block' or not set(n['effects'])<=EFFECTS:raise ValueError('unsupported effect or failure policy')
+        if n['kind']=='report' and n['outputs']!=['report.json']:raise ValueError('report owner must write report.json')
+        if n['kind']!='report' and 'report.json' in n['outputs']:raise ValueError('report.json has one report owner')
         if not n['outputs'] or any(Path(o).name!=o for o in n['outputs']):raise ValueError('outputs must be local file names')
         if set(n['outputs']) & {'state.json','packet.json','graph.json','exports.json','events.jsonl','run.lock'}:raise ValueError('reserved output path')
         if outputs.intersection(n['outputs']):raise ValueError('conflicting writers')
@@ -200,19 +206,23 @@ def worker(node,packet,dependencies,root):
         pp=root/(node['id']+'-packet.json');write(pp,pk)
         env=dict(os.environ,GSTACK_PEER_REVIEW_DIR=str(root/'peer-reviews'))
         def cli(*args):
-            r=subprocess.run([sys.executable,str(HERE/'peer_review.py'),*args],capture_output=True,text=True,env=env,timeout=packet.get('timeout',900)+30)
+            r=subprocess.run([sys.executable,str(HERE/'peer_review.py'),*args],capture_output=True,text=True,env=env,timeout=packet.get('timeout',900)+60)
             if r.returncode:raise ValueError('peer review did not pass: '+(r.stdout+r.stderr)[-2000:])
             return json.loads(r.stdout)
         marker=root/(node['id']+'-review.json')
-        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder']])
+        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder'],packet.get('timeout',900)])
         if marker.exists():
             opened=read(marker)
             if opened['contract']!=contract:raise ValueError('review contract changed; use a new run for new intent')
         else:
-            opened=cli('open','--builder',packet['builder'],'--packet',str(pp))
+            opened=cli('open','--builder',packet['builder'],'--packet',str(pp),'--timeout',str(packet.get('timeout',900)))
             opened['contract']=contract;write(marker,opened)
         review_dir=root/'peer-reviews'/opened['review_id']
         status=cli('status',opened['review_id'])['state']
+        expected=[(r['path'],r['head']) for r in repos]
+        retained=read(review_dir/'packet.json')
+        if status['rounds_used']==0 and [(r['path'],r['head']) for r in retained['repos']]!=expected:
+            raise ValueError('interrupted initial review belongs to an older revision; use a new run')
         if status['outcome'] in {'no_blocking_findings','fixes_verified'}:
             _,reviewed=peer.passing_review(review_dir)
             if [(r['path'],r['head']) for r in reviewed['repos']]!=[(r['path'],r['head']) for r in repos]:
@@ -221,6 +231,8 @@ def worker(node,packet,dependencies,root):
         else:
             heads=[] if status['rounds_used']==0 else [x for r in repos for x in ('--head',r['path']+'='+r['head'])]
             result=cli('round',opened['review_id'],*heads)
+        if [(r['path'],r['head']) for r in result['repos']]!=expected:
+            raise ValueError('peer result does not match the requested revision')
         return {'complete':True,'coverage':node['checks'],'evidence':[str(root/'peer-reviews'/opened['review_id'])],
                 'findings':[{'id':f['id'],'status':f['severity'],'detail':f['what'],'evidence':[f['evidence']]} for f in result['findings']],
                 'summary':result['outcome']}

@@ -1,6 +1,8 @@
 """Exercise the graph CLI with real subprocess workers and temporary repositories."""
 import json
 import os
+import signal
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -43,7 +45,7 @@ print(json.dumps(r))
         return subprocess.check_output(['git','-C',str(self.repo),*args],text=True).strip()
     def node(self,id,deps=None,kind='worker',**extra):
         deps=deps or []
-        return dict(id=id,depends_on=deps,inputs=deps+['packet'],outputs=[id+'.json'],effects=['external_review'],on_failure='block',kind=kind,checks=[id],command=self.command,**extra)
+        return dict(id=id,depends_on=deps,inputs=deps+['packet'],outputs=[id+'.json'],effects=['local_report'] if kind=='report' else ['external_review'],on_failure='block',kind=kind,checks=[id],command=self.command,**extra)
     def call(self,*args):
         return subprocess.run([sys.executable,str(SCRIPT),*args],text=True,capture_output=True)
     def execute(self,cap=2):
@@ -174,6 +176,8 @@ print(json.dumps(r))
     def install_model_tools(self):
         binary=self.root/'bin';binary.mkdir()
         code="""import json,sys,pathlib,os
+if os.environ.get('GRAPH_WAIT'):
+ pathlib.Path(os.environ['GRAPH_WAIT']).write_text('ready');__import__('time').sleep(30)
 args=sys.argv[1:]; tool=pathlib.Path(sys.argv[0]).name
 prompt=args[-1] if tool=='codex' else args[args.index('-p')+1]
 if '=== PACKET ===' in prompt:
@@ -247,6 +251,40 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         self.assertEqual(self.execute().returncode,0)
         report=json.loads((self.run/'report.json').read_text())
         self.assertEqual(report['sources']['a'],self.state()['nodes']['a']['result'])
+
+    def test_interrupted_first_peer_round_cannot_review_an_old_head_on_resume(self):
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD');self.write_packet()
+        marker=self.root/'waiting'
+        env=dict(os.environ,GRAPH_WAIT=str(marker))
+        proc=subprocess.Popen([sys.executable,str(SCRIPT),'run','--workflow','review','--packet',str(self.pfile),
+                               '--run-dir',str(self.run)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        try:
+            deadline=time.monotonic()+10
+            while not marker.exists() and time.monotonic()<deadline:time.sleep(.02)
+            self.assertTrue(marker.exists(),'model did not start')
+        finally:os.killpg(proc.pid,signal.SIGTERM);proc.wait()
+        (self.repo/'value').write_text('three');self.git('commit','-qam','three')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        r=self.builtin_run('review');self.assertNotEqual(r.returncode,0,'old head accepted as current evidence')
+    def test_implicit_outputs_and_model_effects_are_validated(self):
+        self.graph['nodes'][0]['effects']=['read_only'];self.graph['nodes'][0].pop('command')
+        self.write_packet();self.wfile.write_text(json.dumps(self.graph))
+        self.assertNotEqual(self.call('plan','--workflow',str(self.wfile),'--packet',str(self.pfile)).returncode,0)
+        self.graph['nodes'][0]['effects']=['external_review'];self.graph['nodes'][0]['command']=self.command
+        self.graph['nodes'][1]['outputs']=['report.json']
+        self.graph['nodes'][-1]['outputs']=['final.json']
+        self.assertNotEqual(self.execute().returncode,0)
+
+    def test_peer_timeout_is_propagated_to_the_bounded_reviewer(self):
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD');self.packet['timeout']=5
+        r=self.builtin_run('review');self.assertEqual(r.returncode,0,r.stderr)
+        marker=json.loads((self.run/'review-0-review.json').read_text())
+        state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
+        self.assertEqual(state['timeout'],5)
 
     def test_builtin_graphs_materialize_frozen_nodes(self):
         for workflow in ['cso','verify','review']:
