@@ -199,7 +199,7 @@ If user specifies different style:
 
 From existing content, maintain:
 - **Opening author's notes**: "Author's note: I like making up terms..."
-- **Co-author references**: "P and I", "Steven P"
+- **Co-author references**: "P and I", "Coauthor P"
 - **Personal stories**: UC/Amazon experiences, MoxyWolf founding
 - **Emphasis patterns**: "Read that again. Seriously."
 - **Casual-scholarly blend**: Mix of rigorous citations with conversational asides

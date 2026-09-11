@@ -500,7 +500,7 @@ Evaluate each step:
 
 Check for common fallacies:
 
-**Appeal to Authority**: "Karpathy's implementation validates this" (without empirical comparison)
+**Appeal to Authority**: "A well-known practitioner's implementation validates this" (without empirical comparison)
 **Bandwagon**: "A growing body of research" (without quantification)
 **Missing Middle**: "X works in research → Our system is needed" (gap)
 **Circular Reasoning**: Using conclusion as premise
@@ -576,7 +576,7 @@ Identify logical gaps:
 ✗ **Generalization unsupported**: "General principle" tested only in three related domains
 
 **Fallacies Detected**:
-- **Appeal to Authority**: Heavy reliance on Karpathy GitHub implementation without evaluation
+- **Appeal to Authority**: Heavy reliance on a well-known practitioner's GitHub implementation without evaluation
 - **Bandwagon**: "Growing body of research" without quantifying size or consensus
 - **Missing Middle**: "Councils work in research → Our implementation is needed" (gap)
 
