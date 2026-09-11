@@ -1310,7 +1310,7 @@ Identify risks and mitigation:
   → Add DOI to reference entry
   → Verify URL resolves
   
-- [ ] [16] Ferraro et al. (2013) medical NLP
+- [ ] [16] Fifthlastname et al. (2013) medical NLP
   → Search: PubMed or journal website
   → Get PMID or DOI
   → Add to reference
@@ -1318,8 +1318,8 @@ Identify risks and mitigation:
 [Continue for ALL incomplete references with specific steps]
 
 **Action Items - Conference Papers (add ACL Anthology URLs)**:
-- [ ] [4] Caseli 2009 MWE Workshop
-  → Search: aclanthology.org "Caseli multiword 2009"
+- [ ] [4] Sixthlastname 2009 MWE Workshop
+  → Search: aclanthology.org "Sixthlastname multiword 2009"
   → Get ACL Anthology URL (https://aclanthology.org/...)
   → Add to reference
 
