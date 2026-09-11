@@ -14,7 +14,8 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 - Keep `/gstack-verify` advisory; incomplete verification must remain visible.
 - Reuse existing governance and audit machinery where it meets the requirements.
 - A nonce establishes freshness and linkage, not proof of substantive review.
-- Limit this work to gstack and the shared declarations necessary to govern it.
+- Limit the GA items to gstack and the shared declarations necessary to govern it.
+- Other plugins in this repository carry their own objective sections and items.
 
 ## Items and acceptance criteria
 
@@ -59,6 +60,37 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 4. Report oversight timing and override rates as investigation signals, never automatic judgments.
 5. Prevent resumed runs from replaying consequential actions already completed.
 
+## Second objective: academic-pipeline integrity
+
+Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and required sections come from run data or from the user, never from a template constant, and a mechanical gate reports what was checked before anything is presented as finished.
+
+### AP-001 — Derive deliverable names and attribution from run data
+
+**Status:** building.
+
+1. Stage 7 writes its deliverable to a name derived from the Stage 1 target slug. The orchestrator's artifact table and Stage 8's input reference that same name.
+2. Stage 1's diagram deliverable is derived from the target slug likewise.
+3. No skill contains a person's name as a worked example. The author block is populated from the vault voice profile or by asking. Inventing a name is forbidden in text.
+4. Tests: grepping the plugin tree for the literal strings `complete_document.md`, `mermaid_diagram.md`, and the fabricated surname each return zero hits.
+
+### AP-002 — Every declared requirement has a producer
+
+**Status:** planned.
+
+1. End-matter sections declared in Stage 4 appear in Stage 5's `structure_plan` whenever the venue requires them.
+2. Stage 6 writes those sections as ordinary sections.
+3. Stage 6 carries an explicit rule to number Vancouver citations by first appearance while drafting, rather than leaving order to a later repair.
+4. Tests: a fixture run produces every section named in the formatting requirements' `section_order`.
+
+### AP-003 — Mechanical release gate before completion
+
+**Status:** planned.
+
+1. The orchestrator runs a gate before presenting deliverables: zero em dashes, zero forbidden phrases, renumber `--check` exit 0, every `section_order` entry present, and no two references sharing a normalized DOI or URL.
+2. Stage 7 dedupes on normalized DOI/URL, not only on BibTeX key, and warns when two keys resolve to one work.
+3. The gate names each check and its result. A failing gate blocks the completion report rather than being narrated around it.
+4. Tests: the gate run against a fixture carrying a planted em dash, a duplicate URL, and a missing section fails on exactly those three.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -70,3 +102,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-09-11: Approved by Dorian in the Codex Team Plugins conversation. Establishes the Governed Autonomy objective and acceptance criteria above. Initial implementation is GA-001; subsequent items begin only when requested.
 
 - 2026-09-11: Dorian requested the remaining task graph implementation ("Then build it"). GA-002 through GA-004 retain the approved criteria.
+
+- 2026-09-11: Dorian approved a second objective for this repository after a naming defect surfaced during an academic-pipeline run: the deliverable was written to a hardcoded `complete_document.md` and the formatting skill carried a fabricated author surname. AP-001 through AP-003 add derived naming, producers for declared requirements, and a mechanical release gate.
