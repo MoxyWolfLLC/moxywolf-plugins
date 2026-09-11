@@ -15,7 +15,7 @@ BibTeX input
     |
 [0] bibtex-abstract-generator   (optional)   -> enriched .bib
     |
-[1] bibtex-theme-analyzer                    -> theme_analysis.json, mermaid_diagram.md, TARGET_TITLE
+[1] bibtex-theme-analyzer                    -> theme_analysis.json, <target-slug>-themes.md, TARGET_TITLE
     |
 [1.5] /scamper                    (optional)  -> scamper_results.json, scamper_outline.md (novelty-ranked thesis)
     |
@@ -29,7 +29,7 @@ BibTeX input
     |
 [6] research-writer                          -> draft_document.md
     |
-[7] bibliography-generator                   -> complete_document.md
+[7] bibliography-generator                   -> <target-slug>.md
     |
 [8] professor                                -> critique_report.md, improvement_plan.md
 ```
@@ -53,8 +53,8 @@ Layout:
 
 ```
 <run folder>/
-├── mermaid_diagram.md          <- deliverable
-├── complete_document.md        <- MAIN deliverable
+├── <target-slug>-themes.md          <- deliverable
+├── <target-slug>.md        <- MAIN deliverable
 ├── critique_report.md          <- deliverable
 ├── improvement_plan.md         <- deliverable
 └── pipeline/                   <- intermediate artifacts
@@ -66,6 +66,12 @@ Layout:
     ├── handoff_for_writer.json
     └── draft_document.md
 ```
+
+### Deliverable naming
+
+Reader-facing deliverables are named from the run, never from a constant. `<target-slug>` is the kebab-cased `TARGET_TITLE` confirmed in Stage 1, the same slug the run folder uses. The paper is `<target-slug>.md` and the theme tree is `<target-slug>-themes.md`.
+
+This matters because the run folder usually sits in an Obsidian vault, where the filename is the note title. A deliverable called `complete_document` is an unusable note title and collides in search with every other run's. Intermediate artifacts under `pipeline/` keep fixed names; they are machine inputs, not notes.
 
 ### Step B — Track the stages
 
@@ -90,7 +96,7 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 
 ### Stage 1 — Theme analysis
 
-**Skill:** `bibtex-theme-analyzer`. Reads the `.bib`, builds a Mermaid theme tree, proposes and confirms `TARGET_TITLE`. Outputs: `pipeline/theme_analysis.json`, `mermaid_diagram.md`. Title confirmation is a light touch, not one of the three formal HITL stages.
+**Skill:** `bibtex-theme-analyzer`. Reads the `.bib`, builds a Mermaid theme tree, proposes and confirms `TARGET_TITLE`. Outputs: `pipeline/theme_analysis.json`, `<target-slug>-themes.md`. Title confirmation is a light touch, not one of the three formal HITL stages.
 
 ### Stage 1.5 — SCAMPER defixation (optional)
 
@@ -118,11 +124,11 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 
 ### Stage 7 — Bibliography
 
-**Skill:** `bibliography-generator`. Formats every cited source in the handoff's citation style and replaces the placeholder. Output: **`complete_document.md`** — the main deliverable.
+**Skill:** `bibliography-generator`. Formats every cited source in the handoff's citation style and replaces the placeholder. Output: **`<target-slug>.md`** — the main deliverable.
 
 ### Stage 8 — Professor critique
 
-**Skill:** `professor`. Runs the 10-phase review (AI-detection first, then integrity, citations, logic, methodology, literature, evidence, writing, contribution) on `complete_document.md`. Outputs: `critique_report.md`, `improvement_plan.md`.
+**Skill:** `professor`. Runs the 10-phase review (AI-detection first, then integrity, citations, logic, methodology, literature, evidence, writing, contribution) on `<target-slug>.md`. Outputs: `critique_report.md`, `improvement_plan.md`.
 
 ## HITL behavior
 
@@ -132,10 +138,10 @@ The three checkpoints use the **AskUserQuestion tool** directly — ask, get the
 
 When all stages finish:
 
-1. Present `complete_document.md` as the main deliverable, with a `computer://` link.
+1. Present `<target-slug>.md` as the main deliverable, with a `computer://` link.
 2. Present `critique_report.md` and `improvement_plan.md`, and surface the professor's headline verdict and grade in chat.
 3. List the run folder and the nine (or ten, with Stage 0) artifacts.
-4. Offer next steps: review the critique, apply the improvement plan and re-run Stage 8, or render `complete_document.md` as a formatted `.docx`/PDF via the `academia-formatting` skill plus the `docx`/`pdf` skills.
+4. Offer next steps: review the critique, apply the improvement plan and re-run Stage 8, or render `<target-slug>.md` as a formatted `.docx`/PDF via the `academia-formatting` skill plus the `docx`/`pdf` skills.
 
 ## Artifact summary
 
@@ -143,13 +149,13 @@ When all stages finish:
 |-------|----------|----------|
 | 0 | `enriched.bib` | `pipeline/` |
 | 1 | `theme_analysis.json` | `pipeline/` |
-| 1 | `mermaid_diagram.md` | run folder |
+| 1 | `<target-slug>-themes.md` | run folder |
 | 2 | `perspective.json` | `pipeline/` |
 | 3 | `voice_context.json` | `pipeline/` |
 | 4 | `formatting_requirements.json` | `pipeline/` |
 | 5 | `handoff_for_writer.json` | `pipeline/` |
 | 6 | `draft_document.md` | `pipeline/` |
-| 7 | `complete_document.md` | run folder — **main deliverable** |
+| 7 | `<target-slug>.md` | run folder — **main deliverable** |
 | 8 | `critique_report.md`, `improvement_plan.md` | run folder |
 
 ## Notes

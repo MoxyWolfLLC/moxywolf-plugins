@@ -60,7 +60,7 @@ From the `.bib`, fetch the entries mapped to this section. Verify author names (
 
 - **Voice** — weave in the author's perspective at the points `voice_integration` designates. Use the real evidence and contrarian take from `voice_context.json`. Apply MoxyWolf frameworks where flagged. This is authentic-voice-first drafting, not generic prose that gets a voice pass later.
 - **Formatting** — obey `formatting_requirements.json`: Academia.edu scholarly register, ~50% contraction rate, **zero em dashes**, none of the forbidden phrases ("It's worth noting that", "Furthermore", "Additionally", "Moreover", "In today's rapidly changing", "At its core", "in order to"). Active voice. Specific numbers over abstract claims.
-- **Citations** — introduce a source before leaning on it ("Chen et al. (2024) demonstrate…") or cite at the end of a claim. Paraphrase; quote only when truly necessary.
+- **Citations** — introduce a source before leaning on it ("Lastname et al. (2024) demonstrate…") or cite at the end of a claim. Paraphrase; quote only when truly necessary.
 - **Perspective** — match the lens: innovation-focused emphasizes novelty; critical surfaces tensions; practical includes implementation detail; theoretical develops frameworks.
 
 ### Step 5 — Verify and accumulate

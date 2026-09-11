@@ -207,7 +207,7 @@ Answer in your own words. The pipeline captures your actual phrasing rather than
 
 When Stage 8 finishes you have a run folder with everything in it. The headline files:
 
-- **`complete_document.md`:** the finished, fully cited paper. This is the main deliverable.
+- **`<target-slug>.md`:** the finished, fully cited paper. This is the main deliverable.
 - **`critique_report.md`:** the professor's 10-phase review, with a letter grade and predicted reviewer comments.
 - **`improvement_plan.md`:** a specific, prioritized path from the current draft to publication-ready.
 
@@ -284,8 +284,8 @@ Every run writes to one folder so nothing scatters across your workspace:
 
 ```
 <run folder>/
-├── mermaid_diagram.md          theme tree (Stage 1)
-├── complete_document.md        >>> the finished paper (Stage 7)
+├── <target-slug>-themes.md          theme tree (Stage 1)
+├── <target-slug>.md        >>> the finished paper (Stage 7)
 ├── critique_report.md          the professor review (Stage 8)
 ├── improvement_plan.md         the path forward (Stage 8)
 └── pipeline/                   intermediate artifacts
@@ -304,7 +304,7 @@ In a MoxyWolf project session the run folder is created under `<project>/11 – 
 
 ### Rendering the final paper
 
-`complete_document.md` is Markdown. To produce a submission-ready `.docx` or PDF, hand it to the `academia-formatting` skill together with the `docx` or `pdf` skills. That is the same path as [Scenario C2](#c2-format-a-paper-for-academiaedu).
+`<target-slug>.md` is Markdown. To produce a submission-ready `.docx` or PDF, hand it to the `academia-formatting` skill together with the `docx` or `pdf` skills. That is the same path as [Scenario C2](#c2-format-a-paper-for-academiaedu).
 
 ---
 
@@ -399,7 +399,7 @@ START FROM A WRITTEN PAPER  ->  critique it     ->  /academic-critique paper.md
                                                     then /academic-pipeline
 
 THREE CHECKPOINTS  ->  Stage 2 perspective (3 Q) | Stage 3 voice (8 Q) | Stage 5 structure (approve)
-MAIN DELIVERABLE   ->  <run folder>/complete_document.md
+MAIN DELIVERABLE   ->  <run folder>/<target-slug>.md
 THE REVIEW         ->  <run folder>/critique_report.md  +  improvement_plan.md
 ```
 

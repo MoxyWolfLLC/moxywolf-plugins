@@ -428,11 +428,11 @@ Completeness = (Complete References / Total References) × 100%
 
 ✗ [NO IDENTIFIER] [1]. Alteryx. (n.d.). AI governance glossary.
      ⚠ Web source missing URL
-✓ [URL] [3]. BharathxD. (2024). GitHub repository. https://github.com/...
-✗ [NO IDENTIFIER] [5]. Constant et al. (2017). Computational Linguistics, 43(4), 837-892.
+✓ [URL] [3]. Repo-Owner. (2024). GitHub repository. https://github.com/...
+✗ [NO IDENTIFIER] [5]. Lastname et al. (2017). Computational Linguistics, 43(4), 837-892.
      ⚠ Journal article missing DOI
-✓ [arXiv] [7]. Constant & Nivre (2015). arXiv preprint.
-✓ [Patent] [8]. Cougias et al. (2021). U.S. Patent No. 11,120,227.
+✓ [arXiv] [7]. Lastname & Otherlastname (2015). arXiv preprint.
+✓ [Patent] [8]. Lastname et al. (2021). U.S. Patent No. 00,000,000.
 
 **Summary**:
 - Total references: 47
@@ -451,9 +451,9 @@ Completeness = (Complete References / Total References) × 100%
 **Other (8)**: [15], [21], [23], [27], [32], [38], [41], [46], [47]
 
 **Most Egregious**:
-- [5] Constant et al. (2017) - **Computational Linguistics 43(4)** - Top-tier journal missing DOI
-- [38] Shwartz & Dagan (2019) - **TACL** - Top-tier journal missing DOI
-- [37] Schneider & Smith (2015) - **NAACL-HLT** - Major conference should be in ACL Anthology
+- [5] Lastname et al. (2017) - **Computational Linguistics 43(4)** - Top-tier journal missing DOI
+- [38] Lastname & Otherlastname (2019) - **TACL** - Top-tier journal missing DOI
+- [37] Thirdlastname & Fourthlastname (2015) - **NAACL-HLT** - Major conference should be in ACL Anthology
 ```
 
 ### Critical Rules
@@ -500,7 +500,7 @@ Evaluate each step:
 
 Check for common fallacies:
 
-**Appeal to Authority**: "Karpathy's implementation validates this" (without empirical comparison)
+**Appeal to Authority**: "A well-known practitioner's implementation validates this" (without empirical comparison)
 **Bandwagon**: "A growing body of research" (without quantification)
 **Missing Middle**: "X works in research → Our system is needed" (gap)
 **Circular Reasoning**: Using conclusion as premise
@@ -576,7 +576,7 @@ Identify logical gaps:
 ✗ **Generalization unsupported**: "General principle" tested only in three related domains
 
 **Fallacies Detected**:
-- **Appeal to Authority**: Heavy reliance on Karpathy GitHub implementation without evaluation
+- **Appeal to Authority**: Heavy reliance on a well-known practitioner's GitHub implementation without evaluation
 - **Bandwagon**: "Growing body of research" without quantifying size or consensus
 - **Missing Middle**: "Councils work in research → Our implementation is needed" (gap)
 
@@ -1305,12 +1305,12 @@ Identify risks and mitigation:
 **Target**: Achieve >95% reference completeness (45/47 references)
 
 **Action Items - Journals (add DOIs)**:
-- [ ] [5] Constant et al. (2017) Computational Linguistics
+- [ ] [5] Lastname et al. (2017) Computational Linguistics
   → Search: doi.org/10.1162/COLI or ACL Anthology
   → Add DOI to reference entry
   → Verify URL resolves
   
-- [ ] [16] Ferraro et al. (2013) medical NLP
+- [ ] [16] Fifthlastname et al. (2013) medical NLP
   → Search: PubMed or journal website
   → Get PMID or DOI
   → Add to reference
@@ -1318,8 +1318,8 @@ Identify risks and mitigation:
 [Continue for ALL incomplete references with specific steps]
 
 **Action Items - Conference Papers (add ACL Anthology URLs)**:
-- [ ] [4] Caseli 2009 MWE Workshop
-  → Search: aclanthology.org "Caseli multiword 2009"
+- [ ] [4] Sixthlastname 2009 MWE Workshop
+  → Search: aclanthology.org "Sixthlastname multiword 2009"
   → Get ACL Anthology URL (https://aclanthology.org/...)
   → Add to reference
 

@@ -19,7 +19,7 @@ All read from the run folder's `pipeline/` subfolder unless noted:
 - `perspective.json` (Stage 2) — lens, audience, sub-themes
 - `voice_context.json` (Stage 3) — the author's angle, evidence, contrarian take
 - `formatting_requirements.json` (Stage 4) — Academia.edu structure + MoxyWolf anti-AI rules
-- `theme_analysis.json` + `mermaid_diagram.md` (Stage 1) — themes for reference
+- `theme_analysis.json` + `<target-slug>-themes.md` (Stage 1) — themes for reference
 - The **BibTeX file** — path recorded in `theme_analysis.json` (`bibtex_source_path`). Read it directly.
 
 Optional: content type (article / literature review / white paper — default article), target length (default 3000–5000 words), citation style (default Vancouver to match Academia.edu; APA/Chicago/MLA also supported).

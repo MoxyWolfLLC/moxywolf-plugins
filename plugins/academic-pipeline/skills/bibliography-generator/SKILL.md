@@ -10,7 +10,7 @@ Take every citation the writer actually used, format the reference list correctl
 
 ## Role in the pipeline
 
-Seventh stage of the `academic-pipeline`. Consumes Stage 6's `draft_document.md` and `all_citations_used`; produces `complete_document.md` — the main deliverable, which Stage 8 (`professor`) then critiques.
+Seventh stage of the `academic-pipeline`. Consumes Stage 6's `draft_document.md` and `all_citations_used`; produces `<target-slug>.md` — the main deliverable, which Stage 8 (`professor`) then critiques.
 
 ## Inputs
 
@@ -34,7 +34,7 @@ For each key, pull the complete BibTeX entry: author/organization, year, title, 
 **Vancouver (default — Academia.edu):** numbered in order of first appearance in the text.
 
 ```
-1. Smith AB, Jones CD, Williams EF, et al. Title of article. Journal Name. 2024;15(3):45-52. https://doi.org/xxx
+1. Lastname AB, Otherlastname CD, Thirdlastname EF, et al. Title of article. Journal Name. 2024;15(3):45-52. https://doi.org/xxx
 ```
 
 **APA (7th):**
@@ -70,7 +70,7 @@ Author, First Last, et al. "Title of Article." Journal Name, vol. X, no. Y, Year
 
 ### Step 6 — Integrate
 
-Replace the `## Bibliography` placeholder in `draft_document.md` with the formatted reference list (one blank line between entries). Write the result to **`<run folder>/complete_document.md`** — this is the pipeline's primary deliverable, placed at the run-folder root, not in `pipeline/`.
+Replace the `## Bibliography` placeholder in `draft_document.md` with the formatted reference list (one blank line between entries). Write the result to **`<run folder>/<target-slug>.md`** — this is the pipeline's primary deliverable, placed at the run-folder root, not in `pipeline/`.
 
 ## Return to the orchestrator
 
@@ -79,7 +79,7 @@ Replace the `## Bibliography` placeholder in `draft_document.md` with the format
   "status": "complete",
   "citations_formatted": 12,
   "citation_style": "Vancouver",
-  "output_file": "<run folder>/complete_document.md",
+  "output_file": "<run folder>/<target-slug>.md",
   "warnings": ["Missing DOI for org2025key — used URL instead"]
 }
 ```
@@ -89,9 +89,9 @@ Replace the `## Bibliography` placeholder in `draft_document.md` with the format
 Vancouver numbers by first appearance, so a citation inserted mid-paper by hand shifts every number after it and silently breaks venue compliance. Do not renumber by hand. Run the bundled pass:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md          # report
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md --write  # apply
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" complete_document.md --check  # exit 1 if out of order
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" <target-slug>.md          # report
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" <target-slug>.md --write  # apply
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/bibliography-generator/scripts/renumber_citations.py" <target-slug>.md --check  # exit 1 if out of order
 ```
 
 What it does: reads every `[n]`, `[n,m]`, `[n–m]` marker before `## References`, computes first-appearance order, rewrites the markers, and reorders the `N. ` entries to match; ranges are re-compressed only where the new numbers are contiguous. It verifies the result is `1..N` on both sides before writing, and refuses (exit 2, nothing written) if a cited number has no entry or an entry is never cited, so it never invents or drops a reference.

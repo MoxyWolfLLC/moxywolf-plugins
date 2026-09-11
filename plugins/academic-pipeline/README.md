@@ -20,7 +20,7 @@ BibTeX input
 [4] academia-formatting                      ->  formatting_requirements.json
 [5] research-analyst               * HITL    ->  handoff_for_writer.json (structure approval)
 [6] research-writer                          ->  draft (section by section)
-[7] bibliography-generator                   ->  complete_document.md
+[7] bibliography-generator                   ->  <target-slug>.md
 [8] professor                                ->  critique_report.md + improvement_plan.md
 ```
 
@@ -59,8 +59,8 @@ Every artifact from one run lives in a single run folder. In a MoxyWolf project 
 
 ```
 <run folder>/
-├── mermaid_diagram.md          deliverable
-├── complete_document.md        MAIN deliverable
+├── <target-slug>-themes.md          deliverable
+├── <target-slug>.md        MAIN deliverable
 ├── critique_report.md          deliverable
 ├── improvement_plan.md         deliverable
 └── pipeline/                   intermediate JSON + draft

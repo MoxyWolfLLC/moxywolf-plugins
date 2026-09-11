@@ -16,4 +16,4 @@ Then run all eight stages in order (plus optional Stage 0 if the `.bib` is missi
 
 The three human checkpoints (Stage 2 perspective, Stage 3 voice, Stage 5 structure approval) use the AskUserQuestion tool inline — never a blocking handoff file.
 
-On completion, present `complete_document.md` as the main deliverable with a `computer://` link, surface the professor's verdict and grade, and offer to render the document as a formatted `.docx`/PDF.
+On completion, present `<target-slug>.md` as the main deliverable with a `computer://` link, surface the professor's verdict and grade, and offer to render the document as a formatted `.docx`/PDF.

@@ -15,7 +15,7 @@ Second stage of the `academic-pipeline`. Consumes Stage 1's `TARGET_TITLE` and M
 ## Inputs
 
 - **Required:** the topic — Stage 1's `target_title`, or a user-provided title.
-- **Optional:** Stage 1's `mermaid_diagram.md` and theme synthesis (lets you suggest sub-themes from real branches).
+- **Optional:** Stage 1's `<target-slug>-themes.md` and theme synthesis (lets you suggest sub-themes from real branches).
 - **Optional run folder** — from the orchestrator. If absent, write `perspective.json` beside the Stage 1 outputs (`<run folder>/pipeline/`).
 
 ## Human-in-the-loop

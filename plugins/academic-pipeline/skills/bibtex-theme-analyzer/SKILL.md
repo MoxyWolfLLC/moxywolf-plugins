@@ -22,14 +22,14 @@ First stage of the `academic-pipeline`. Its output feeds Stage 2 (`academic-pers
 All academic-pipeline artifacts for one run live in a single **run folder**:
 
 - Intermediate JSON (this skill writes `theme_analysis.json`) → `<run folder>/pipeline/`
-- Reader-facing deliverables (this skill writes `mermaid_diagram.md`) → `<run folder>/`
+- Reader-facing deliverables (this skill writes `<target-slug>-themes.md`) → `<run folder>/`
 
 The orchestrator sets the run folder. When this skill runs standalone:
 
 - In a MoxyWolf project session, use `<active project>/11 – Project Knowledge/Papers/<target-slug>/` and create it.
 - Otherwise, ask the user where to save, or fall back to the Cowork outputs folder.
 
-`<target-slug>` is the kebab-cased `TARGET_TITLE`.
+`<target-slug>` is the kebab-cased `TARGET_TITLE`. The theme tree is written as `<target-slug>-themes.md`, never as a fixed filename.
 
 ## Process
 
@@ -89,7 +89,7 @@ Use clear descriptive labels, valid Mermaid syntax, and logical parent-child rel
 }
 ```
 
-**`<run folder>/mermaid_diagram.md`**
+**`<run folder>/<target-slug>-themes.md`**
 
 ```markdown
 # Thematic Analysis: <TARGET_TITLE>
@@ -114,7 +114,7 @@ Use clear descriptive labels, valid Mermaid syntax, and logical parent-child rel
   "mermaid_markdown": "<complete mermaid code>",
   "theme_synthesis": "<analysis text>",
   "bibtex_source_path": "<absolute path>",
-  "output_files": ["<run folder>/pipeline/theme_analysis.json", "<run folder>/mermaid_diagram.md"]
+  "output_files": ["<run folder>/pipeline/theme_analysis.json", "<run folder>/<target-slug>-themes.md"]
 }
 ```
 
