@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.14.0
+version: 0.15.0
 ---
 
 # gstack Execution Engine
@@ -60,7 +60,7 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 
 ## E2E gate (Endform)
 
-Every Vercel-deployed repo carries `.github/workflows/endform-e2e.yml` (template in `references/endform-e2e.yml`): on each pull request and push to `main` it waits for the Vercel preview, exports its URL as `BASE_URL`, and runs the Playwright suite with `npx endform@latest test` on Endform's cloud runners. `/gstack-build` checks for the file before building and writes it (with the repo's Vercel project name and package manager) when missing; `scripts/endform_workflow.py check|ensure`. The Endform run on the final head is part of the loop's exit condition for web items. Set by Dorian 2026-09-11.
+Every Vercel-deployed repo carries `.github/workflows/endform-e2e.yml` (template in `references/endform-e2e.yml`): on each pull request and push to `main` it waits for the Vercel preview, exports its URL as `BASE_URL`, and runs the Playwright suite with `npx endform@latest test` on Endform's cloud runners. `/gstack-build` checks for the file before building and writes it (with the repo's Vercel project name and package manager) when missing; `scripts/endform_workflow.py check|ensure|scaffold` (scaffold adds the minimum Playwright suite and installs under `NODE_ENV=development`). Results are read from the PR's `e2e` check-run and job log; there is no Endform connector. The Endform run on the final head is part of the loop's exit condition for web items. Set by Dorian 2026-09-11.
 
 ## Model floors
 

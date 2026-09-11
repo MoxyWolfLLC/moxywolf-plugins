@@ -2,16 +2,25 @@
 """
 Ensure a repo carries .github/workflows/endform-e2e.yml (the Endform E2E gate). Stdlib only.
 
-  endform_workflow.py check  --repo <path>
-  endform_workflow.py ensure --repo <path> --project <vercel-project-name>
+  endform_workflow.py check    --repo <path>
+  endform_workflow.py ensure   --repo <path> --project <vercel-project-name>
+  endform_workflow.py scaffold --repo <path> [--title-regex "<expected <title>>"]
 
 check  exits 0 and prints "present" when the file exists, 1 and "missing" when it does not,
        and reports whether the repo looks like a Playwright project and which package manager it uses.
 ensure writes the file from references/endform-e2e.yml with the Vercel project name filled in and the
        install step matched to the repo's lockfile (pnpm / npm / bun). Never overwrites an existing file
        unless --force. Committing, pushing and pulling back are the caller's job (/gstack-build Step 4).
+scaffold gives a repo with no Playwright suite the minimum one: package.json (devDependency @playwright/test only,
+       created only if absent), playwright.config.ts reading BASE_URL, e2e/smoke.spec.ts, then runs
+       npm install with NODE_ENV=development so the lockfile keeps devDependencies (a shell that exports
+       NODE_ENV=production writes a lockfile npm ci then rejects in CI). Existing files are never overwritten.
+
+Results never come from an "Endform connector"; there is none. The workflow's `e2e` check-run on the pull
+request and its job log (which prints the Endform suite-run URL) are where a session reads the outcome.
 """
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -44,7 +53,75 @@ def check(repo):
     present = (repo / WORKFLOW).exists()
     pm, pw = package_manager(repo), playwright_config(repo)
     print(f"{'present' if present else 'missing'} workflow={WORKFLOW} package_manager={pm} playwright_config={pw.name if pw else None}")
+    if os.environ.get("NODE_ENV") == "production":
+        print("warning: NODE_ENV=production is exported; npm install will omit devDependencies. Use NODE_ENV=development for installs and lockfiles.")
+    if pw is None and (repo / "package.json").exists() is False:
+        print("note: no package.json and no playwright config; run `scaffold` to add the minimum suite")
     return 0 if present else 1
+
+
+PACKAGE_JSON = """{
+  "name": "%s",
+  "private": true,
+  "description": "package.json exists for the Playwright e2e suite; see playwright.config.ts.",
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:endform": "endform test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}
+"""
+PLAYWRIGHT_CONFIG = """import { defineConfig } from "@playwright/test";
+
+// BASE_URL is exported by .github/workflows/endform-e2e.yml (the Vercel preview deployment).
+// Locally: BASE_URL=http://127.0.0.1:8899 ./node_modules/.bin/playwright test
+// (use the repo's binary; a global `playwright` on PATH is not @playwright/test).
+export default defineConfig({
+  testDir: "e2e",
+  timeout: 30_000,
+  retries: 0,
+  reporter: "list",
+  use: {
+    baseURL: process.env.BASE_URL ?? "http://127.0.0.1:3000",
+    trace: "retain-on-failure",
+  },
+});
+"""
+SMOKE_SPEC = """import { test, expect } from "@playwright/test";
+
+// First spec behind the Endform gate: the deployed site serves its entry page without page errors.
+test("home page loads with the expected title", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const res = await page.goto("/");
+  expect(res?.status()).toBe(200);
+  await expect(page).toHaveTitle(%s);
+  expect(errors, "page errors").toEqual([]);
+});
+"""
+
+
+def scaffold(repo, title_regex):
+    import subprocess
+    wrote = []
+    for rel, content in (("package.json", PACKAGE_JSON % repo.name), ("playwright.config.ts", PLAYWRIGHT_CONFIG),
+                         ("e2e/smoke.spec.ts", SMOKE_SPEC % (title_regex or "/./"))):
+        t = repo / rel
+        if t.exists():
+            print(f"kept {rel}")
+            continue
+        t.parent.mkdir(parents=True, exist_ok=True); t.write_text(content); wrote.append(rel)
+    env = {**os.environ, "NODE_ENV": "development"}
+    r = subprocess.run(["npm", "install"], cwd=str(repo), env=env, capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"npm install failed: {r.stderr.strip()[-400:]}")
+    lock = repo / "package-lock.json"
+    if lock.exists() and "@playwright/test" not in lock.read_text():
+        sys.exit("package-lock.json has no @playwright/test; the install ran with devDependencies omitted")
+    print(f"scaffolded {wrote or 'nothing new'}; npm install ok (NODE_ENV=development); run: BASE_URL=<url> ./node_modules/.bin/playwright test")
+    return 0
 
 
 def ensure(repo, project, force):
@@ -77,6 +154,13 @@ def selftest():
     assert "project-name: demo-project" in out and "npm ci" in out and "pnpm/action-setup" not in out and "endform@latest test" in out
     assert check(tmp) == 0 and ensure(tmp, "other", False) == 0 and "demo-project" in (tmp / WORKFLOW).read_text()
     (tmp / "pnpm-lock.yaml").write_text(""); ensure(tmp, "p2", True); assert "pnpm/action-setup@v6" in (tmp / WORKFLOW).read_text()
+    # scaffold: files only (npm is stubbed out by a fake on PATH)
+    import stat
+    fake = tmp / "bin"; fake.mkdir(); (fake / "npm").write_text("#!/bin/sh\necho '{\"packages\":{\"node_modules/@playwright/test\":{}}}' > package-lock.json\n"); (fake / "npm").chmod(0o755)
+    os.environ["PATH"] = str(fake) + os.pathsep + os.environ["PATH"]
+    t2 = Path(tempfile.mkdtemp()); scaffold(t2, "/Demo/")
+    assert (t2 / "package.json").exists() and (t2 / "playwright.config.ts").exists() and "/Demo/" in (t2 / "e2e/smoke.spec.ts").read_text()
+    (t2 / "package.json").write_text("custom"); scaffold(t2, None); assert (t2 / "package.json").read_text() == "custom"
     print("selftest ok")
 
 
@@ -94,6 +178,8 @@ def main():
         sys.exit(check(repo))
     if a.cmd == "ensure":
         sys.exit(ensure(repo, a.project, a.force))
+    if a.cmd == "scaffold":
+        sys.exit(scaffold(repo, a.title_regex))
     ap.print_help()
 
 
