@@ -51,6 +51,22 @@ OUTPUT_SCHEMA = {
 }
 
 
+def strict(schema):
+    """OpenAI structured output requires additionalProperties:false and every property required, on every object."""
+    if isinstance(schema, dict):
+        out = {k: strict(v) for k, v in schema.items()}
+        if out.get("type") == "object" and "properties" in out:
+            out["additionalProperties"] = False
+            out["required"] = list(out["properties"])
+        return out
+    if isinstance(schema, list):
+        return [strict(x) for x in schema]
+    return schema
+
+
+STRICT_SCHEMA = strict(OUTPUT_SCHEMA)
+
+
 class ReviewError(Exception):
     """Carries an explicit outcome name."""
     def __init__(self, outcome, detail):
@@ -172,15 +188,14 @@ def run_reviewer(tool, prompt, root, timeout):
         if not shutil.which("codex"):
             raise ReviewError("review_unavailable", "codex CLI not installed on PATH")
         schema = root / "schema.json"; last = root / "last.txt"
-        schema.write_text(json.dumps(OUTPUT_SCHEMA))
-        # ponytail: flags per Codex CLI docs, unverified on a live binary until codex is installed here
+        schema.write_text(json.dumps(STRICT_SCHEMA))
         cmd = ["codex", "exec", "-C", str(root), "--sandbox", "read-only", "--skip-git-repo-check",
                "--output-schema", str(schema), "--output-last-message", str(last), prompt]
         parse = lambda s: last.read_text() if last.exists() else s
     elif tool == "claude":
         if not shutil.which("claude"):
             raise ReviewError("review_unavailable", "claude CLI not installed on PATH")
-        cmd = ["claude", "-p", prompt, "--output-format", "json", "--json-schema", json.dumps(OUTPUT_SCHEMA),
+        cmd = ["claude", "-p", prompt, "--output-format", "json", "--json-schema", json.dumps(STRICT_SCHEMA),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
                "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
         def parse(s):
@@ -196,13 +211,14 @@ def run_reviewer(tool, prompt, root, timeout):
     else:
         raise ReviewError("review_unavailable", f"unknown tool {tool}")
     try:
-        r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout)
+        # stdin closed: codex exec otherwise blocks on "Reading additional input from stdin..."
+        r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
     except FileNotFoundError as e:
         raise ReviewError("review_unavailable", str(e))
     if r.returncode != 0:
-        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {r.stderr.strip()[:500]}")
+        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
     return parse(r.stdout)
 
 
@@ -269,11 +285,15 @@ def cmd_round(a):
         if undisposed:
             sys.exit(f"disposition required for blocking findings before round {round_no}: {undisposed}")
         # fix round: base becomes previous head, head advances per --head
-        updates = dict(h.rsplit("=", 1) for h in a.head)
+        updates = {}
+        for h in a.head:
+            k, v = h.rsplit("=", 1)
+            updates[str(Path(k).resolve()) if "/" in k else k] = v  # repo path (resolved, like the packet) or bare dir name
         for r in packet["repos"]:
             r["base"] = r["head"]
-            if r["path"] in updates or Path(r["path"]).name in updates:
-                r["head"] = resolve_commit(r["path"], updates.get(r["path"], updates.get(Path(r["path"]).name)))
+            sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
+            if sha:
+                r["head"] = resolve_commit(r["path"], sha)
         if all(r["base"] == r["head"] for r in packet["repos"]) and any(v == "fixed" for v in dispositions.values()):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
