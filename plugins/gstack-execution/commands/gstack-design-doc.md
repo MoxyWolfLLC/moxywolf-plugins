@@ -1,0 +1,61 @@
+---
+description: Create or refresh a repo's DESIGN.md as an editable artifact; on approval it is written to the repo (canonical) and the Taskade project folder (mirror), committed, pushed, verified, and pulled back
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Artifact
+argument-hint: [--repo <path>] [--taskade <project folder>] [--from <prd/spec paths ...>] [notes about the goal ...]
+---
+
+Produce the design document that `/gstack-build` gates on. Format and structure: `references/design-doc-template.md` (Goal, Constraints and settled decisions, Items with checkable acceptance criteria, Amendments log). The user edits it as an artifact and approves it there; nothing is written to disk until they do.
+
+Raw slash-command arguments: `$ARGUMENTS`
+
+## Step 1: Resolve both locations, mount what is missing
+
+Two directories are required:
+
+- **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `~/Documents/GitHub/<repo>`.
+- **Taskade project folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--taskade`, else the project's declared Taskade folder.
+
+Check both against `get_device_info().connectedFolders` (or, on-computer, by probing the paths). For any that is not mounted, request it with `device_request_folder_access` in one call. If the request is unavailable or declined, ask the user for the directories with AskUserQuestion (free text is fine) and re-check. Do not proceed with only one of the two; the mirror is part of the contract.
+
+## Step 2: Gather
+
+Read, in this order, whatever exists: the current `DESIGN.md`; the repo README, manifests, and top-level tree; `--from` documents; the project's `02 – Product Strategy/` PRDs and `06 – Engineering/` specs; the team-shared INDEX rules that constrain this repo (commit workflow, version bumps, model floors, coding loop); recent decision records. The notes in `$ARGUMENTS` state the goal in the user's words and win over everything inferred.
+
+## Step 3: Draft
+
+Write the document to the template. Rules that make it usable by `/gstack-build`:
+
+- Goal is one paragraph and says what "working" means to the user of the repo.
+- Every constraint is a decision already made, stated so a reviewer cannot reopen it; cite the DR or date where one exists.
+- Every item has numbered acceptance criteria that are checkable statements (a command and its expected result, a URL and what renders, a value and its expected value), not intentions. Items already in flight or done carry their status and review ID.
+- The Amendments log gets a first line: created, by whom, pending approval.
+- Refreshing an existing doc: keep every existing line unless the repo contradicts it; put what changed in the Amendments log.
+
+## Step 4: Publish the editor
+
+Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath","markdown","approved":false,"savedAt":null}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
+
+Tell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.
+
+## Step 5: On approval, write both copies and land them
+
+When the user says it is approved (or a republish notice arrives, or they ask you to check): `Artifact read` the page, parse the `design-state` JSON, and require `approved: true`; if it is false, say the page is saved but not approved and stop.
+
+Then, in this order:
+
+1. Write `markdown` to `<repo>/DESIGN.md` and to `<taskade>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
+2. Commit the repo copy alone: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.
+3. Push with the vault PAT over a per-URL header; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
+4. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.
+
+## Step 6: Report
+
+```
+DESIGN DOC
+══════════
+Repo:     {path}  →  DESIGN.md @ {sha}  (remote == local: yes)
+Taskade:  {path}/06 – Engineering/DESIGN-{repo}.md
+Artifact: {title}  version {n}  approved {savedAt}
+Items:    {N planned, N building, N review, N done}
+Next:     /gstack-build {first planned item id}
+```

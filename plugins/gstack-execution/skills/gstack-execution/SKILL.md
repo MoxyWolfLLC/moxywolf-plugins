@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.12.0
+version: 0.13.0
 ---
 
 # gstack Execution Engine
@@ -27,6 +27,7 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
+| `/gstack-design-doc` | Create or refresh a repo's `DESIGN.md` as an editable artifact; on approval, written to the repo (canonical) and Taskade `06 – Engineering` (mirror), committed, pushed, verified, pulled back; asks for either directory if it is not mounted | Full — Artifact tool + git |
 | `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to Taskade), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, merge, mark done | Full — git + the other tool's CLI for the review |
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md — bounded rounds, deadlock surfaced; real Codex when present, fresh-context Claude critic fallback | Full — git + grep (real Codex needs `codex` CLI on host) |

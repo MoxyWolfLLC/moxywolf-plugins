@@ -31,13 +31,13 @@ If `GSTACK_PEER_REVIEW_SESSION` is set, this is a reviewer session: stop. Resolv
 
 `DESIGN.md` at the repo root is canonical; `Taskade/<project>/06 – Engineering/DESIGN-<repo>.md` is a mirror, rewritten on every doc commit. Template: `references/design-doc-template.md`.
 
-- **Missing:** do not write code. Draft `DESIGN.md` from the ask and the codebase (goal, constraints and settled decisions, the first item with acceptance criteria). For anything larger than one item, run `/gstack-plan-review` on the draft. Present it, get approval via AskUserQuestion, commit it (`design: initial DESIGN.md`), push, pull back, mirror. Then continue.
+- **Missing:** do not write code. Run `/gstack-design-doc` (drafts the document, publishes it as an editable artifact, and on **Mark approved** writes it to the repo and Taskade, commits, pushes, pulls back). For anything larger than one item, run `/gstack-plan-review` on the draft first. Then continue.
 - **Present:** read it in full. Match `$ARGUMENTS` to an item by ID or by meaning.
 
 ## Step 2: The gate: covered, or amend first
 
 - **Covered** (an item exists, its acceptance criteria describe the ask, no constraint forbids it): proceed to Step 3 with that item.
-- **Not covered, or in conflict** (no item; the ask contradicts a settled decision; the criteria are too vague to test): draft the amendment as a diff to `DESIGN.md`: a new item with acceptance criteria, or a changed constraint with the reason, plus a line in the Amendments log. Ask via AskUserQuestion: approve / edit / decline. On approve (or after edits), commit the doc alone (`design: <item-id> <title>`), push, pull back, mirror, then proceed. On decline, stop and say what was declined; no code.
+- **Not covered, or in conflict** (no item; the ask contradicts a settled decision; the criteria are too vague to test): draft the amendment as a diff to `DESIGN.md`: a new item with acceptance criteria, or a changed constraint with the reason, plus a line in the Amendments log. Ask via AskUserQuestion: approve / edit / decline (for a larger edit, reopen the `/gstack-design-doc` editor instead). On approve (or after edits), commit the doc alone (`design: <item-id> <title>`), push, pull back, mirror, then proceed. On decline, stop and say what was declined; no code.
 
 Never silently widen an item to fit the ask, and never code the uncovered part "while we're here". The doc moves first.
 

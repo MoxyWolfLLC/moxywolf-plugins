@@ -1,0 +1,107 @@
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+  :root {
+    --ink: #1b2432; --ink-2: #4a5568; --ink-3: #8a94a6;
+    --ground: #f6f7f9; --panel: #ffffff; --line: #d9dee7;
+    --accent: #1f4e8c; --accent-ink: #ffffff; --ok: #1e7f4f; --ok-soft: #e3f3ea; --warn-soft: #fff4dc; --warn: #8a5a00;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --ink: #e6eaf0; --ink-2: #b3bcc9; --ink-3: #7c8797; --ground: #12161d; --panel: #1a1f28; --line: #2c3442;
+    --accent: #7fb0f0; --accent-ink: #0d1520; --ok: #6cc796; --ok-soft: #173224; --warn-soft: #3a2d10; --warn: #e8c070; } }
+  :root[data-theme="dark"] {
+    --ink: #e6eaf0; --ink-2: #b3bcc9; --ink-3: #7c8797; --ground: #12161d; --panel: #1a1f28; --line: #2c3442;
+    --accent: #7fb0f0; --accent-ink: #0d1520; --ok: #6cc796; --ok-soft: #173224; --warn-soft: #3a2d10; --warn: #e8c070; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; text-wrap: balance; }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+  .spacer { flex: 1; }
+  .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  button { font: inherit; font-weight: 500; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 20px 32px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; min-height: 70vh; }
+  section h2 { margin: 0; padding: 10px 14px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); border-bottom: 1px solid var(--line); }
+  textarea { flex: 1; width: 100%; border: 0; resize: vertical; padding: 14px; background: transparent; color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1.55; min-height: 60vh; }
+  textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+  #preview { padding: 6px 18px 18px; overflow-x: auto; }
+  #preview h1 { font-size: 22px; } #preview h2 { font-size: 16px; margin-top: 1.6em; padding-top: .5em; border-top: 1px solid var(--line); }
+  #preview table { border-collapse: collapse; font-size: 13px; min-width: 100%; } #preview th, #preview td { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; }
+  #preview th { background: var(--ground); font-weight: 600; } #preview code { font-family: var(--mono); font-size: 12px; }
+  #preview em { color: var(--ink-2); }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 8px 14px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity .2s; }
+  .toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+  .help { padding: 0 20px 8px; color: var(--ink-2); font-size: 13px; max-width: 72ch; }
+</style>
+
+<header>
+  <h1>DESIGN.md · <span id="repo-name"></span></h1>
+  <span class="meta" id="saved-at"></span>
+  <span class="spacer"></span>
+  <span class="pill" id="status-pill">Draft</span>
+  <button id="save-btn" class="primary">Save version</button>
+  <button id="approve-btn">Mark approved</button>
+</header>
+<p class="help">Edit the Markdown on the left; the preview updates as you type. <strong>Save version</strong> stores your edits on this page. <strong>Mark approved</strong> saves and tells Claude to write this text to the repo and the Taskade folder, commit it, push, and pull back.</p>
+<main>
+  <section><h2>Markdown (canonical)</h2><textarea id="md" spellcheck="false" aria-label="DESIGN.md source"></textarea></section>
+  <section><h2>Preview</h2><div id="preview"></div></section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="application/json" id="design-state">{{STATE_JSON}}</script>
+<script>
+(function () {
+  const stateEl = document.getElementById("design-state");
+  const state = JSON.parse(stateEl.textContent);
+  const md = document.getElementById("md"), preview = document.getElementById("preview");
+  const pill = document.getElementById("status-pill"), savedAt = document.getElementById("saved-at"), toast = document.getElementById("toast");
+  const saveBtn = document.getElementById("save-btn"), approveBtn = document.getElementById("approve-btn");
+  document.getElementById("repo-name").textContent = state.repo;
+  md.value = state.markdown;
+  let artifact = null;
+
+  function render() { preview.innerHTML = window.marked ? marked.parse(md.value) : "<pre>" + md.value.replace(/</g, "&lt;") + "</pre>"; }
+  function paint() {
+    pill.textContent = state.approved ? "Approved" : "Draft"; pill.className = "pill" + (state.approved ? " ok" : "");
+    savedAt.textContent = state.savedAt ? "saved " + new Date(state.savedAt).toLocaleString() : "unsaved draft";
+  }
+  function say(msg) { toast.textContent = msg; toast.classList.add("show"); setTimeout(() => toast.classList.remove("show"), 2200); }
+  function serialize(next) {
+    // The page is the record: embed the new state, then hand the shell the whole document.
+    preview.innerHTML = ""; md.value = "";  // keep transient render out of the stored version
+    stateEl.textContent = JSON.stringify(next).replace(/</g, "\\u003c");
+    const html = "<!doctype html>\n" + document.documentElement.outerHTML;
+    md.value = next.markdown; render();
+    return html;
+  }
+  async function publish(approved) {
+    if (!artifact) { say("Saving is not available in this view"); return; }
+    const next = { ...state, markdown: md.value, approved, savedAt: new Date().toISOString() };
+    saveBtn.disabled = approveBtn.disabled = true;
+    try { await artifact.publish(serialize(next)); Object.assign(state, next); paint(); say(approved ? "Approved and saved" : "Saved"); }
+    catch (e) {
+      if (e && e.code === "conflict") say("A newer version was saved elsewhere; reloading");
+      else if (e && (e.code === "not_writer" || e.code === "not_granted")) { say("This view is read-only"); saveBtn.hidden = approveBtn.hidden = true; }
+      else say("Could not save: " + (e && e.code || "unknown"));
+    } finally { saveBtn.disabled = approveBtn.disabled = false; }
+  }
+  md.addEventListener("input", render);
+  saveBtn.addEventListener("click", () => publish(state.approved));
+  approveBtn.addEventListener("click", () => publish(true));
+  render(); paint();
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("artifact").then(ns => { artifact = ns; if (!ns) { saveBtn.hidden = approveBtn.hidden = true; } });
+  } else { saveBtn.hidden = approveBtn.hidden = true; }
+})();
+</script>
