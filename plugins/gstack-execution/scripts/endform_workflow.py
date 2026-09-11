@@ -21,6 +21,7 @@ request and its job log (which prints the Endform suite-run URL) are where a ses
 """
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -49,10 +50,32 @@ def playwright_config(repo):
     return next((p for p in repo.glob("playwright.config.*")), None)
 
 
+def base_url_env(repo):
+    """The env var the repo's playwright config reads for baseURL (BASE_URL when none is found)."""
+    pw = playwright_config(repo)
+    if pw:
+        m = re.search(r"baseURL\s*:\s*process\.env\.([A-Z0-9_]+)", pw.read_text())
+        if m:
+            return m.group(1)
+    return "BASE_URL"
+
+
+def pnpm_version(repo):
+    """pnpm/action-setup needs a version: from package.json packageManager, else None."""
+    pj = repo / "package.json"
+    if pj.exists():
+        m = re.search(r'"packageManager"\s*:\s*"pnpm@([^"]+)"', pj.read_text())
+        if m:
+            return m.group(1)
+    return None
+
+
 def check(repo):
     present = (repo / WORKFLOW).exists()
     pm, pw = package_manager(repo), playwright_config(repo)
-    print(f"{'present' if present else 'missing'} workflow={WORKFLOW} package_manager={pm} playwright_config={pw.name if pw else None}")
+    print(f"{'present' if present else 'missing'} workflow={WORKFLOW} package_manager={pm} playwright_config={pw.name if pw else None} url_env={base_url_env(repo)}")
+    if pm == "pnpm" and pnpm_version(repo) is None:
+        print('warning: pnpm repo without "packageManager" in package.json; pnpm/action-setup will fail with "No pnpm version is specified"')
     if os.environ.get("NODE_ENV") == "production":
         print("warning: NODE_ENV=production is exported; npm install will omit devDependencies. Use NODE_ENV=development for installs and lockfiles.")
     if pw is None and (repo / "package.json").exists() is False:
@@ -133,13 +156,19 @@ def ensure(repo, project, force):
     if pm is None:
         sys.exit("no lockfile found (pnpm-lock.yaml, package-lock.json, bun.lock*); is this a Node project deployed on Vercel?")
     text = TEMPLATE.read_text().replace("{{VERCEL_PROJECT}}", project)
-    if pm != "pnpm":
+    env_var = base_url_env(repo)
+    text = text.replace("set-url-env-var: BASE_URL", f"set-url-env-var: {env_var}")
+    if pm == "pnpm":
+        if pnpm_version(repo) is None:
+            sys.exit('pnpm repo without a "packageManager" field: add "packageManager": "pnpm@<version>" to package.json '
+                     '(pnpm/action-setup refuses to run without a version), then rerun ensure')
+    else:
         assert text.count(PNPM_STEP) == 1
         text = text.replace(PNPM_STEP, INSTALL[pm])
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text)
     pw = playwright_config(repo)
-    print(f"wrote {target} (project={project}, install={pm})")
+    print(f"wrote {target} (project={project}, install={pm}, url env={env_var})")
     if pw is None:
         print("note: no playwright.config.* in this repo; the workflow will run zero tests until specs exist")
     return 0
@@ -153,7 +182,15 @@ def selftest():
     out = (tmp / WORKFLOW).read_text()
     assert "project-name: demo-project" in out and "npm ci" in out and "pnpm/action-setup" not in out and "endform@latest test" in out
     assert check(tmp) == 0 and ensure(tmp, "other", False) == 0 and "demo-project" in (tmp / WORKFLOW).read_text()
-    (tmp / "pnpm-lock.yaml").write_text(""); ensure(tmp, "p2", True); assert "pnpm/action-setup@v6" in (tmp / WORKFLOW).read_text()
+    (tmp / "pnpm-lock.yaml").write_text("")
+    try:
+        ensure(tmp, "p2", True); assert False, "pnpm without packageManager must refuse"
+    except SystemExit as e:
+        assert "packageManager" in str(e)
+    (tmp / "package.json").write_text('{"packageManager": "pnpm@12.4.1"}')
+    (tmp / "playwright.config.ts").write_text("export default { use: { baseURL: process.env.OC_E2E_BASE_URL ?? 'x' } }")
+    ensure(tmp, "p2", True); out = (tmp / WORKFLOW).read_text()
+    assert "pnpm/action-setup@v6" in out and "set-url-env-var: OC_E2E_BASE_URL" in out and "set-url-env-var: BASE_URL" not in out
     # scaffold: files only (npm is stubbed out by a fake on PATH)
     import stat
     fake = tmp / "bin"; fake.mkdir(); (fake / "npm").write_text("#!/bin/sh\necho '{\"packages\":{\"node_modules/@playwright/test\":{}}}' > package-lock.json\n"); (fake / "npm").chmod(0o755)
