@@ -40,7 +40,7 @@ print(json.dumps(r))
         self.packet={'owner':'dorianatmoxywolf','builder':'codex','repos':[{'path':str(self.repo),'base':self.sha,'head':self.sha}],
                      'claims':[{'id':'C1','text':'value exists'}], 'spec':'value exists','scope':'all','data_use':self.policy}
         self.pfile=self.root/'packet.json';self.wfile=self.root/'workflow.json';self.run=self.root/'run'
-        self.graph={'name':'fixture','nodes':[self.node('prepare'),self.node('a',['prepare'],finding=True,delay=.3),self.node('b',['prepare'],finding=True,delay=.3),self.node('check',['a','b'],kind='checker'),self.node('report',['check'],kind='report')]}
+        self.graph={'name':'fixture','nodes':[self.node('prepare'),self.node('a',['prepare'],finding=True,delay=.3),self.node('b',['prepare'],finding=True,delay=.3),self.node('check',['a','b'],kind='checker'),self.node('report',['prepare','a','b','check'],kind='report',findings_from=['check'])]}
     def git(self,*args):
         return subprocess.check_output(['git','-C',str(self.repo),*args],text=True).strip()
     def node(self,id,deps=None,kind='worker',**extra):
@@ -59,6 +59,26 @@ print(json.dumps(r))
         report=json.loads((self.run/'report.json').read_text())
         self.assertEqual({f['id'] for f in report['findings']},{'a:F1','b:F1'})
         self.assertEqual(report['sources']['a']['findings'][0]['status'],'TENTATIVE')
+    def test_report_requires_explicit_sources_before_dispatch(self):
+        self.graph['nodes'][-1]['depends_on']=['check']
+        self.graph['nodes'][-1]['inputs']=['packet','check']
+        r=self.execute()
+        self.assertNotEqual(r.returncode,0)
+        self.assertFalse((self.run/'state.json').exists())
+
+    def test_report_finding_selection_must_be_declared(self):
+        self.graph['nodes'][-1]['findings_from']=['absent']
+        r=self.execute()
+        self.assertNotEqual(r.returncode,0)
+        self.assertFalse((self.run/'state.json').exists())
+
+    def test_report_consumes_only_passed_inputs_without_state(self):
+        import task_graph
+        deps={'check':{'findings':[], 'evidence':['declared']}}
+        node=self.node('report',['check'],kind='report')
+        result=task_graph.worker(node,self.packet,deps,self.root/'no-state')
+        self.assertEqual(result['sources'],deps)
+
     def test_serial_cap_and_shared_proofs(self):
         for n in self.graph['nodes'][1:3]: n['effects']=['local_proof']
         r=self.execute(4);self.assertEqual(r.returncode,0,r.stderr)
@@ -156,6 +176,7 @@ print(json.dumps(r))
         self.graph['nodes'][1].pop('command')
         self.graph['nodes'][1]['effects']=['local_proof']
         self.graph['nodes'][-2]['depends_on'].append('proof');self.graph['nodes'][-2]['inputs'].append('proof')
+        self.graph['nodes'][-1]['depends_on'].append('proof');self.graph['nodes'][-1]['inputs'].append('proof')
         self.assertEqual(self.execute().returncode,0)
         self.assertIn('proof ran',json.dumps(self.state()['nodes']['proof']['result']))
         self.assertIn('FAILED',json.dumps(self.state()['nodes']['proof']['result']))
@@ -242,6 +263,7 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         self.packet['data_use']['allowed_commands'].append(proof['argv'])
         self.graph['nodes'].insert(1,proof)
         self.graph['nodes'][-2]['depends_on'].append('proof');self.graph['nodes'][-2]['inputs'].append('proof')
+        self.graph['nodes'][-1]['depends_on'].append('proof');self.graph['nodes'][-1]['inputs'].append('proof')
         self.assertNotEqual(self.execute().returncode,0)
 
     def test_report_refreshes_sources_when_checker_text_is_unchanged(self):

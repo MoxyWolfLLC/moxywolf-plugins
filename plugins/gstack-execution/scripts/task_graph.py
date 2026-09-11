@@ -112,7 +112,8 @@ def compile_graph(workflow,packet):
                 nodes.append(n)
         else:nodes.append(dict(template))
     for n in nodes:
-        for field in ('depends_on','inputs'):
+        for field in ('depends_on','inputs','findings_from'):
+            if field not in n:continue
             expanded=[]
             for dep in n[field]:
                 expanded.extend([x['id'] for x in nodes if x['id'].startswith(dep[:-1])] if dep.endswith('*') else [dep])
@@ -146,6 +147,9 @@ def validate_graph(graph):
         if set(n['inputs'])!=set(n['depends_on'])|{'packet'}:raise ValueError('inputs must consume exactly the declared dependencies and packet')
     reports=[n for n in nodes if n['kind']=='report']
     if len(reports)!=1:raise ValueError('exactly one report owner required')
+    report=reports[0]
+    if set(report['depends_on'])!=set(ids)-{report['id']}:raise ValueError('report must explicitly depend on every source node')
+    if not set(report.get('findings_from',report['depends_on']))<=set(report['depends_on']):raise ValueError('report findings must come from declared inputs')
     ancestors=set();pending=[reports[0]['id']];by_id={n['id']:n for n in nodes}
     while pending:
         id=pending.pop()
@@ -191,11 +195,11 @@ def validate_result(result,node,expected_candidates):
 def worker(node,packet,dependencies,root):
     if node['kind']=='report':
         fs=[]
-        for result in dependencies.values():fs.extend(result['findings'])
+        for source in node.get('findings_from',node['depends_on']):fs.extend(dependencies[source]['findings'])
         return {'complete':True,'coverage':node['checks'],'evidence':list(dependencies),'findings':fs,
                 'summary':'Advisory report. Findings and all node evidence are preserved; no release authorization.',
                 'revision':packet['repos'],'owner':packet['owner'],
-                'sources':{id:e['result'] for id,e in read(root/'state.json')['nodes'].items() if e['status']=='succeeded'}}
+                'sources':dict(dependencies)}
     tool=peer.OTHER_TOOL[packet['builder']] if node['kind'] in {'checker','peer'} else packet['builder']
     permission(packet,tool=tool if not node.get('command') and node['kind']!='proof' else None,command=node.get('command',node.get('argv')))
     repos=[packet['repos'][i] for i in node.get('repo_indexes',range(len(packet['repos'])))]
@@ -283,7 +287,7 @@ def execute(graph,packet,root,jobs):
                         failed.add(id);del pending[id];state['nodes'][id]={'status':'blocked','attempts':state['nodes'].get(id,{}).get('attempts',0)};progress=True;continue
                     if not set(n['depends_on'])<=done.keys():continue
                     deps={d:done[d] for d in n['depends_on']}
-                    signature=digest([n,packet,done if n['kind']=='report' else deps])
+                    signature=digest([n,packet,deps])
                     old=state['nodes'].get(id,{})
                     valid=old.get('status')=='succeeded' and old.get('signature')==signature
                     if valid:

@@ -283,10 +283,32 @@
     {
       "id": "report",
       "depends_on": [
+        "architecture",
+        "surface",
+        "secrets",
+        "supply-chain",
+        "cicd",
+        "infrastructure",
+        "integrations",
+        "llm",
+        "owasp",
+        "stride",
+        "proof-*",
         "checker"
       ],
       "inputs": [
         "packet",
+        "architecture",
+        "surface",
+        "secrets",
+        "supply-chain",
+        "cicd",
+        "infrastructure",
+        "integrations",
+        "llm",
+        "owasp",
+        "stride",
+        "proof-*",
         "checker"
       ],
       "outputs": [
@@ -300,7 +322,10 @@
       "checks": [
         "report"
       ],
-      "instruction": ""
+      "instruction": "",
+      "findings_from": [
+        "checker"
+      ]
     }
   ]
 }

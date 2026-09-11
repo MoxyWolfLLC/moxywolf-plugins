@@ -116,10 +116,18 @@
     {
       "id": "report",
       "depends_on": [
+        "claims",
+        "claim-*",
+        "extras",
+        "proof-*",
         "checker"
       ],
       "inputs": [
         "packet",
+        "claims",
+        "claim-*",
+        "extras",
+        "proof-*",
         "checker"
       ],
       "outputs": [
@@ -133,7 +141,10 @@
       "checks": [
         "report"
       ],
-      "instruction": ""
+      "instruction": "",
+      "findings_from": [
+        "checker"
+      ]
     }
   ]
 }
