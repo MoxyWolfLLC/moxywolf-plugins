@@ -16,6 +16,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 - A nonce establishes freshness and linkage, not proof of substantive review.
 - Limit the GA items to gstack and the shared declarations necessary to govern it.
 - Other plugins in this repository carry their own objective sections and items.
+- This repository has no Vercel project, no package.json and no Playwright suite, so the Endform E2E gate does not apply to it.
 
 ## Items and acceptance criteria
 

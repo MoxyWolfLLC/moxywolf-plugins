@@ -160,15 +160,7 @@ Author Firstname Lastname¹, Firstname Lastname², and Firstname Lastname²,*
 * Correspondence: corresponding@email.com
 ```
 
-For my papers, I use:
-
-```
-Dorian Quisenberry¹,*
-
-¹MoxyWolf LLC, Las Vegas, Nevada, United States; dorian@moxywolf.com
-
-* Correspondence: dorian@moxywolf.com
-```
+**Never invent an author name, affiliation, or email.** Take them from the author's voice profile in the vault (`_Shared Knowledge/Brand and Voice/`), from the run's voice context, or by asking. This skill deliberately carries no worked example with a real person in it, because a filled-in example gets copied verbatim into a submission and puts the wrong name on a published paper. Fill the placeholders above from run data instead.
 
 #### Abstract (≤250 words)
 
