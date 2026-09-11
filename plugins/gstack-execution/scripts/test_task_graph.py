@@ -29,6 +29,7 @@ if n.get('missing'): r['coverage']=[]
 if n.get('kind')=='checker': r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]
 if n.get('malformed'): r['findings']=[dict(f,status='BOGUS',evidence=[None]) for f in p['candidates']]
 r['interval']=[start,time.time()]
+if n.get('stable'): r.pop('interval')
 print(json.dumps(r))
 ''')
         self.command=[sys.executable,str(self.worker)]
@@ -230,6 +231,22 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         r=self.builtin_run('review');self.assertEqual(r.returncode,0,r.stderr)
         self.assertEqual(self.state()['nodes']['review-0']['status'],'succeeded')
         self.assertEqual(self.state()['nodes']['review-1']['status'],'succeeded')
+
+    def test_proof_cannot_disguise_its_effect_to_bypass_serialization(self):
+        proof=self.node('proof',['prepare'],kind='proof',argv=[sys.executable,'-c','print("ok")'])
+        proof.pop('command');proof['effects']=['external_review']
+        self.packet['data_use']['allowed_commands'].append(proof['argv'])
+        self.graph['nodes'].insert(1,proof)
+        self.graph['nodes'][-2]['depends_on'].append('proof');self.graph['nodes'][-2]['inputs'].append('proof')
+        self.assertNotEqual(self.execute().returncode,0)
+
+    def test_report_refreshes_sources_when_checker_text_is_unchanged(self):
+        self.graph['nodes'][-2]['stable']=True
+        self.assertEqual(self.execute().returncode,0)
+        self.graph['nodes'][1]['delay']=.1
+        self.assertEqual(self.execute().returncode,0)
+        report=json.loads((self.run/'report.json').read_text())
+        self.assertEqual(report['sources']['a'],self.state()['nodes']['a']['result'])
 
     def test_builtin_graphs_materialize_frozen_nodes(self):
         for workflow in ['cso','verify','review']:

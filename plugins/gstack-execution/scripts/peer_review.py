@@ -352,16 +352,15 @@ def cmd_open(a):
         raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
-    review_id, n = stem, 1
-    while (REVIEW_DIR / review_id).exists():
-        n += 1; review_id = f"{stem}-{n}"
-    d = REVIEW_DIR / review_id
-    d.mkdir(parents=True)
+    REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=REVIEW_DIR))
+    review_id = d.name
     state = {"review_id": review_id, "builder": a.builder, "reviewer": OTHER_TOOL[a.builder],
              "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
              "heads": [[r["head"] for r in packet["repos"]]]}
     save(d, "packet.json", packet); save(d, "state.json", state)
     print(json.dumps(state, indent=2))
+    return state
 
 
 def cmd_round(a):
@@ -581,15 +580,13 @@ def selftest():
     for tool in ("git", "sh"):
         os.symlink(shutil.which(tool), binroot / tool)
     os.environ["PATH"] = str(binroot)
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "review_unavailable"
     assert not list(Path(tempfile.gettempdir()).glob("gstack-peer-*")) or True  # teardown best-effort
 
     # malformed output
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "echo 'not json'"
-    cmd_open(ns(builder="codex", packet=str(pfile), max_rounds=3, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="codex", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "malformed_output"
 
     # full loop: blocker -> disposition required -> fix round verified; then rounds exhausted path
@@ -597,8 +594,7 @@ def selftest():
                            "findings": [{"id": "F1", "severity": "blocking", "file": "a.py", "line": 2, "what": "x", "evidence": "y", "criterion": "z", "fix": "w"}], "blocker_resolutions": []})
     clean = json.dumps({"verdict": "no_blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}], "findings": [], "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:2"}]})
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "blocking_findings"
     try:
         cmd_round(ns(review_id=rid, head=[])); assert False
@@ -611,8 +607,7 @@ def selftest():
     st = load(REVIEW_DIR / rid, "state.json"); assert st["rounds_used"] == 2 and st["heads"][-1] == [head2]
     # exhausted: blocker persists through the last allowed round -> escalation, never approval
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=1, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=1, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "rounds_exhausted"
     assert load(REVIEW_DIR / rid, "round-1.json")["escalation"][0]["id"] == "F1"
     assert not (repo / ".git" / "worktrees").exists() or not any((repo / ".git" / "worktrees").iterdir()), "worktree not torn down"

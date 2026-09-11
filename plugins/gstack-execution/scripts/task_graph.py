@@ -130,6 +130,7 @@ def validate_graph(graph):
     for n in nodes:
         if not all(c.isalnum() or c in '-_' for c in n['id']):raise ValueError('unsafe node ID')
         if n['kind'] not in {'worker','checker','report','peer','proof'}:raise ValueError('unknown handler')
+        if n['kind']=='proof' and set(n['effects'])!={'local_proof'}:raise ValueError('proof requires local_proof effect')
         if n['on_failure']!='block' or not set(n['effects'])<=EFFECTS:raise ValueError('unsupported effect or failure policy')
         if not n['outputs'] or any(Path(o).name!=o for o in n['outputs']):raise ValueError('outputs must be local file names')
         if set(n['outputs']) & {'state.json','packet.json','graph.json','exports.json','events.jsonl','run.lock'}:raise ValueError('reserved output path')
@@ -270,7 +271,7 @@ def execute(graph,packet,root,jobs):
                         failed.add(id);del pending[id];state['nodes'][id]={'status':'blocked','attempts':state['nodes'].get(id,{}).get('attempts',0)};progress=True;continue
                     if not set(n['depends_on'])<=done.keys():continue
                     deps={d:done[d] for d in n['depends_on']}
-                    signature=digest([n,packet,deps])
+                    signature=digest([n,packet,done if n['kind']=='report' else deps])
                     old=state['nodes'].get(id,{})
                     valid=old.get('status')=='succeeded' and old.get('signature')==signature
                     if valid:
@@ -279,7 +280,7 @@ def execute(graph,packet,root,jobs):
                     if valid:
                         done[id]=old['result'];del pending[id];progress=True;continue
                     if len(active)>=jobs:continue
-                    if 'local_proof' in n['effects'] and any('local_proof' in v[0]['effects'] for v in active.values()):continue
+                    if (n['kind']=='proof' or 'local_proof' in n['effects']) and any(v[0]['kind']=='proof' or 'local_proof' in v[0]['effects'] for v in active.values()):continue
                     state['nodes'][id]={'status':'running','attempts':old.get('attempts',0)+1,'signature':signature,'started':time.time()}
                     write(root/'state.json',state);event(root,packet,'machine','node-start',node=id)
                     active[pool.submit(worker,n,packet,deps,root)]=(n,signature)
