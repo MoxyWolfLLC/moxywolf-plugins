@@ -41,7 +41,10 @@
       "checks": [
         "report"
       ],
-      "instruction": ""
+      "instruction": "",
+      "findings_from": [
+        "review-*"
+      ]
     }
   ]
 }

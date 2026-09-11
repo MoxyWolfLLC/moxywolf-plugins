@@ -34,15 +34,18 @@ For independent multi-repository review, provide `independent_reviews` groups wi
 
 ## Declaration and execution
 
-Nodes declare `id`, `kind`, `depends_on`, `inputs`, `outputs`, `effects`, `on_failure`, `checks` and `instruction`. Inputs consume the packet and exactly the declared dependencies. The compiler expands frozen claims, proofs and review groups; validation refuses cycles, missing dependencies, output collisions, reserved state and implicit peer metadata paths, unsupported effects, and results outside the report's dependency ancestry. Proof handlers require `local_proof`, report handlers require `local_report`, and model handlers require `external_review`. Only the report node owns `report.json`.
+Nodes declare `id`, `kind`, `depends_on`, `inputs`, `outputs`, `effects`, `on_failure`, `checks` and `instruction`. Inputs consume the packet and exactly the declared dependencies. The compiler expands frozen claims, proofs and review groups; validation refuses cycles, missing dependencies, output collisions, reserved state and implicit peer metadata paths, unsupported effects, and reports that omit any other node from their direct dependencies. Proof handlers require `local_proof`, report handlers require `local_report`, and model handlers require `external_review`. Only the report node owns `report.json`.
 
 ```text
-CSO:     architecture -> audits/proofs ----------> checker -> report
-Verify:  claim-table check -> claims/extras/proofs -> checker -> report
-Review:  integrated review or disjoint peer reviews --------> report
+CSO:     architecture -> audits/proofs ----------> checker
+Verify:  claim-table check -> claims/extras/proofs -> checker
+         all source nodes, including checker -------------> report
+Review:  integrated review or disjoint peer reviews -------> report
 ```
 
-The builder tool runs analysis nodes; checker and peer nodes use the other tool. Every worker must report complete coverage with evidence. The checker receives namespaced candidates from every dependency and must preserve each with an explicit disposition. Reports assemble dependency results without an additional model synthesis step. Their `sources` map retains every successful node result, including original claim/proof statuses alongside checker assessments.
+The builder tool runs analysis nodes; checker and peer nodes use the other tool. Every worker must report complete coverage with evidence. The checker receives namespaced candidates from every dependency and must preserve each with an explicit disposition. Reports assemble declared dependency results without an additional model synthesis step or a read of `state.json`. Their `sources` map copies every declared dependency result, including original claim/proof statuses alongside checker assessments. The optional report `findings_from` list selects which dependencies contribute top-level findings and must be a subset of `depends_on`; omitted, it defaults to all dependencies. Built-in CSO and verify reports select only the checker for top-level findings, while review selects the peer results. The compiler expands node-prefix wildcards in `findings_from` just as it does in `depends_on` and `inputs`.
+
+Custom workflows must list every non-report node directly in the report's `depends_on` and `inputs` (with `packet` additionally in `inputs`), even when a checker already depends on those nodes. To retain checker-only top-level findings, set `"findings_from": ["checker"]`. This selection does not remove any source evidence or dependency gate.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" plan --workflow verify --packet packet.json

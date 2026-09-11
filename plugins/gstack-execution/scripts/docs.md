@@ -19,8 +19,10 @@ Path: @/plugins/gstack-execution/scripts
 command -> frozen packet + workflow -> executor -> worker evidence
                                          |              |
                                          +-> checker <--+
-                                               |
-                                            report
+                                               |        |
+                                               v        v
+                                             report <---+
+                                      (all sources declared)
 ```
 
 ### Core Implementation
@@ -31,7 +33,7 @@ command -> frozen packet + workflow -> executor -> worker evidence
 - `cmd_release()` in [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) revalidates evidence and clean local heads, writes or reuses the same revision/action handoff without resetting its request timestamp, and stops with `awaiting_human_release`. `cmd_record_release()` reads GitHub's merge record and writes the exact head, actor, merge commit, and source into a local decision.
 
 - `compile_graph()` and `validate_graph()` in [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) materialize packet-defined claims, proofs and review groups before dispatch, require consumed dependencies and distinct output ownership, and reject cycles or unconsumed results. `execute()` locks the run directory, schedules ready work within the concurrency cap, serializes proof effects and blocks descendants of failed nodes.
-- [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) persists packet, graph, node outputs and execution state. Resume hashes the node, packet and dependency results and verifies output hashes before reusing success. Deterministic reports retain all successful node results in `sources`, keeping original claim/proof statuses alongside checker assessments. Report export requires complete state and an allowed output root; repeated identical exports reuse the recorded identity.
+- [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) persists packet, graph, node outputs and execution state. Resume hashes the node, packet and dependency results and verifies output hashes before reusing success. The report declares every other node as a direct dependency and copies only its supplied dependency results into `sources`, keeping original claim/proof statuses alongside checker assessments without reading execution state. Its optional `findings_from` selects declared dependencies for top-level findings; CSO and verify select the checker, while review selects peer results. Report export requires complete state and an allowed output root; repeated identical exports reuse the recorded identity.
 - [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) checks policy owner, classification, repository/history permission, tool destinations and exact command argv before dispatch. Proofs run in a disposable repository snapshot and preserve exit status and output as advisory evidence. The [task graph contract](/plugins/gstack-execution/skills/gstack-execution/references/task-graph-contract.md) defines packet fields and command usage.
 - Peer nodes in [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) retain dispatcher IDs in per-node markers. Retrying uses the same bounded review and requires normal blocker dispositions; changed intent or a new revision after completion requires a new run. Shared snapshot creation in [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) rejects escaping symlinks.
 - [governance.py](/plugins/gstack-execution/scripts/governance.py) supplies shared `data_permission()` checks to graph execution and direct peer review. Its `gate_record()` deduplicates observation identity under a lock and calls a colocated shared `record_decision.py` when available, otherwise appending the compatible schema itself.
