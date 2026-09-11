@@ -1,0 +1,47 @@
+{
+  "name": "review",
+  "nodes": [
+    {
+      "id": "review",
+      "depends_on": [],
+      "inputs": [
+        "packet"
+      ],
+      "outputs": [
+        "review.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "peer",
+      "checks": [
+        "review"
+      ],
+      "instruction": "",
+      "foreach": "reviews"
+    },
+    {
+      "id": "report",
+      "depends_on": [
+        "review-*"
+      ],
+      "inputs": [
+        "packet",
+        "review-*"
+      ],
+      "outputs": [
+        "report.json"
+      ],
+      "effects": [
+        "local_report"
+      ],
+      "on_failure": "block",
+      "kind": "report",
+      "checks": [
+        "report"
+      ],
+      "instruction": ""
+    }
+  ]
+}

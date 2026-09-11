@@ -33,6 +33,7 @@ class GovernedReview(unittest.TestCase):
                        "changed_behavior": "new value", "exclusions": [],
                        "tests": {"commands": ["read value.txt"], "results": "after", "environment": "fixture"},
                        "release_owner": "dorianatmoxywolf"}
+        self.packet["data_use"] = {"owner":"dorianatmoxywolf", "classification":"test", "allow_repository":True, "allow_history":True, "allowed_tools":["claude","codex"]}
         self.packet_file = self.root / "input.json"
         self.env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), PYTHONDONTWRITEBYTECODE="1")
         self.env.pop("GSTACK_PEER_REVIEW_SESSION", None)
@@ -71,6 +72,22 @@ class GovernedReview(unittest.TestCase):
         (self.root / "reviews" / self.rid / "state.json").write_text("{}")
         r = self.call("release", self.rid)
         self.assertNotEqual(r.returncode, 0)
+
+    def test_peer_dispatch_requires_data_permission(self):
+        self.open(); self.response()
+        packet = self.root / "reviews" / self.rid / "packet.json"
+        value=json.loads(packet.read_text());value.pop("data_use",None);packet.write_text(json.dumps(value))
+        r, out=self.round()
+        self.assertNotEqual(r.returncode,0)
+        self.assertIn("data_use",r.stdout+r.stderr)
+
+    def test_repeated_release_preserves_original_handoff(self):
+        self.open();self.response();self.round()
+        self.call("release",self.rid)
+        path=self.root / "reviews" / self.rid / "release.json"
+        first=path.stat().st_mtime_ns
+        self.call("release",self.rid)
+        self.assertEqual(first,path.stat().st_mtime_ns)
 
     def test_complete_evidence_passes(self):
         self.open(); self.response()

@@ -1,0 +1,306 @@
+{
+  "name": "cso",
+  "nodes": [
+    {
+      "id": "architecture",
+      "depends_on": [],
+      "inputs": [
+        "packet"
+      ],
+      "outputs": [
+        "architecture.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "architecture"
+      ],
+      "instruction": "Prepare architecture, stack, scope, trust boundaries and data flow. Honor packet.scope; every audit consumes this output."
+    },
+    {
+      "id": "surface",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "surface.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "surface"
+      ],
+      "instruction": "Attack surface census: count endpoints, auth/admin routes, uploads, integrations, jobs and webhooks."
+    },
+    {
+      "id": "secrets",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "secrets.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "secrets"
+      ],
+      "instruction": "Secrets archaeology: inspect history and tracked files; never reproduce secret values."
+    },
+    {
+      "id": "supply-chain",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "supply-chain.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "supply-chain"
+      ],
+      "instruction": "Dependency supply chain: lockfiles, install scripts, vulnerabilities. If no authorized audit proof ran, mark runtime audit UNVERIFIABLE."
+    },
+    {
+      "id": "cicd",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "cicd.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "cicd"
+      ],
+      "instruction": "CI/CD: action pinning, pull_request_target, script injection and secret handling."
+    },
+    {
+      "id": "infrastructure",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "infrastructure.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "infrastructure"
+      ],
+      "instruction": "Infrastructure: Docker, IaC, IAM and production configuration."
+    },
+    {
+      "id": "integrations",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "integrations.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "integrations"
+      ],
+      "instruction": "Webhooks and integrations: signatures, TLS verification, OAuth scopes."
+    },
+    {
+      "id": "llm",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "llm.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "llm"
+      ],
+      "instruction": "LLM security: prompt injection, output handling and tool calls."
+    },
+    {
+      "id": "owasp",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "owasp.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "owasp"
+      ],
+      "instruction": "All OWASP Top 10 categories, with evidence of exploitability."
+    },
+    {
+      "id": "stride",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "stride.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "stride"
+      ],
+      "instruction": "STRIDE across each component from architecture."
+    },
+    {
+      "id": "proof",
+      "depends_on": [
+        "architecture"
+      ],
+      "inputs": [
+        "packet",
+        "architecture"
+      ],
+      "outputs": [
+        "proof.json"
+      ],
+      "effects": [
+        "local_proof"
+      ],
+      "on_failure": "block",
+      "kind": "proof",
+      "checks": [
+        "proof"
+      ],
+      "foreach": "proofs"
+    },
+    {
+      "id": "checker",
+      "depends_on": [
+        "surface",
+        "secrets",
+        "supply-chain",
+        "cicd",
+        "infrastructure",
+        "integrations",
+        "llm",
+        "owasp",
+        "stride",
+        "proof-*"
+      ],
+      "inputs": [
+        "packet",
+        "surface",
+        "secrets",
+        "supply-chain",
+        "cicd",
+        "infrastructure",
+        "integrations",
+        "llm",
+        "owasp",
+        "stride",
+        "proof-*"
+      ],
+      "outputs": [
+        "checker.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "checker",
+      "checks": [
+        "checker"
+      ],
+      "instruction": "Independently verify every audit and candidate against source; preserve all candidates with explicit disposition."
+    },
+    {
+      "id": "report",
+      "depends_on": [
+        "checker"
+      ],
+      "inputs": [
+        "packet",
+        "checker"
+      ],
+      "outputs": [
+        "report.json"
+      ],
+      "effects": [
+        "local_report"
+      ],
+      "on_failure": "block",
+      "kind": "report",
+      "checks": [
+        "report"
+      ],
+      "instruction": ""
+    }
+  ]
+}

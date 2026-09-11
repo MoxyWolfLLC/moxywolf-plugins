@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.16.0
+version: 0.17.0
 ---
 
 # gstack Execution Engine
@@ -168,3 +168,7 @@ Borrowed from gstack: AI makes completeness near-free. Always do the complete th
 If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
 
 Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.
+
+## Executable task graphs
+
+CSO, verify and independent multi-repository review use `scripts/task_graph.py` and the static declarations in `workflows/`. Follow [the task-graph contract](references/task-graph-contract.md) for permission packets, frozen inputs, bounded concurrency, resume and oversight. The commands execute the graph; prose-only parallel review is not a substitute.

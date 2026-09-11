@@ -13,6 +13,7 @@ round limits, dispositions, explicit outcomes. The contract file carries the wor
   peer_review.py --selftest
 """
 import argparse
+from governance import data_permission
 from datetime import datetime, timezone
 import json
 import os
@@ -112,7 +113,9 @@ def snapshot(repos, root):
         dest = root / name
         git(r["path"], "worktree", "add", "--detach", str(dest), r["head"])
         for p in dest.rglob("*"):
-            if p.is_file() and ".git" not in p.parts:
+            if p.is_symlink() and not p.resolve().is_relative_to(dest.resolve()):
+                raise ReviewError("data_use_denied", "snapshot symlink escapes repository scope")
+            if p.is_file() and not p.is_symlink() and ".git" not in p.parts:
                 p.chmod(p.stat().st_mode & 0o555)
         out.append((name, dest))
     return out
@@ -207,8 +210,9 @@ def build_prompt(packet, snaps, round_no, prior_round, dispositions):
     return "\n\n".join(p)
 
 
-def run_reviewer(tool, prompt, root, timeout):
+def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
+    output_schema = schema or STRICT_SCHEMA
     env = {**os.environ, RECURSION_ENV: "1"}
     fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD") if _SELFTEST else None  # selftest hook: any command that prints the JSON
     if fake:
@@ -219,7 +223,7 @@ def run_reviewer(tool, prompt, root, timeout):
         if not model_ok("codex", MODEL["codex"]):
             raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={MODEL['codex']}; floor is Astra (gpt-6) or higher")
         schema = root / "schema.json"; last = root / "last.txt"
-        schema.write_text(json.dumps(STRICT_SCHEMA))
+        schema.write_text(json.dumps(output_schema))
         cmd = ["codex", "exec", "-C", str(root), "-m", MODEL["codex"], "-c", "model_reasoning_effort=high",
                "--sandbox", "read-only", "--skip-git-repo-check",
                "--output-schema", str(schema), "--output-last-message", str(last), prompt]
@@ -231,7 +235,7 @@ def run_reviewer(tool, prompt, root, timeout):
             raise ReviewError("review_unavailable", "claude CLI not installed on PATH")
         if not model_ok("claude", MODEL["claude"]):
             raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={MODEL['claude']}; floor is Opus 5 or higher")
-        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(STRICT_SCHEMA),
+        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
                "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
         def parse(r):
@@ -394,6 +398,10 @@ def cmd_round(a):
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"]}
     try:
+        try:
+            data_permission(packet, tool=state["reviewer"])
+        except ValueError as e:
+            raise ReviewError("data_use_denied", str(e))
         snaps = snapshot(packet["repos"], root)
         prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
@@ -478,7 +486,11 @@ def cmd_release(a):
     record = {"review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
               "instruction": "The named human merges the exact reviewed head in GitHub. This command never merges or accepts an approval flag."}
-    save(d, "release.json", record)
+    previous = load(d, "release.json")
+    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target")):
+        record = previous
+    else:
+        save(d, "release.json", record)
     print(json.dumps(record, indent=2))
     raise ReviewError("awaiting_human_release", "human merge required; no release executed")
 
@@ -540,6 +552,7 @@ def selftest():
     (repo / "a.py").write_text("def f(x):\n    return x + 1\n"); sh("commit", "-qam", "head"); head = sh("rev-parse", "HEAD")
     pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"], "repos": [{"path": str(repo), "base": base, "head": head}],
           "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}, "release_owner": "fixture-human"}
+    pk["data_use"] = {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True, "allowed_tools": ["codex", "claude"]}
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
 

@@ -114,3 +114,7 @@ Routine feature-branch commits and pushes are authorized. No auto-push to a prot
 ## Merged from ecc
 
 Three commands are merged from [ecc](https://github.com/affaan-m/ECC) (MIT, © Affaan Mustafa): `/ecc-build-fix` (incremental build/type-error fix loop), `/ecc-learn` (extract reusable patterns from a session into candidate skills), and `/ecc-skill-create` (generate SKILL.md from git history; ecc's instinct/continuous-learning coupling removed). ecc's 67 agents and 271 skills were not vendored — only these three genuinely-new, low-coupling commands. See `NOTICE`.
+
+## Task graphs (0.17.0)
+
+CSO and verify now execute static workflow declarations through `scripts/task_graph.py`. The runner schedules independent nodes with a concurrency cap, retains evidence and review IDs on resume, and converges through the other model before one report. Explicitly independent repository reviews can fan out; coupled work keeps integration review. See [task-graph contract](skills/gstack-execution/references/task-graph-contract.md). Data-use declarations gate dispatch and output destinations; human observations and machine outcomes remain separate. No graph handler merges or deploys.

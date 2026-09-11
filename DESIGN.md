@@ -31,7 +31,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-002 — Declare and execute static topology
 
-**Status:** planned; depends on GA-001.
+**Status:** review; implemented on the GA-001 feature branch foundation; human merge pending.
 
 1. Introduce machine-readable workflows for CSO and verify first.
 2. The executor consumes the declarations; they are not parallel documentation.
@@ -41,7 +41,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-003 — Optimize independent branches
 
-**Status:** planned; depends on GA-002.
+**Status:** review; depends on GA-002; human merge pending.
 
 1. CSO prepares scope and architecture before parallel audit branches; independent verification precedes one owned report.
 2. Verify freezes claims and code before parallel checks; convergence verifies coverage and detects extra implementation.
@@ -51,7 +51,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-004 — Complete governance records and data boundaries
 
-**Status:** planned; builds on GA-001 and GA-002.
+**Status:** review; builds on GA-001 and GA-002; human merge pending.
 
 1. Record approvals, stops, overrides, edits, and execution outcomes with owner, action, revision, and evidence references.
 2. Reuse the shared gate-log where possible; report machine-review outcomes separately from human oversight.
@@ -68,3 +68,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-09-11: Approved by Dorian in the Codex Team Plugins conversation. Establishes the Governed Autonomy objective and acceptance criteria above. Initial implementation is GA-001; subsequent items begin only when requested.
+
+- 2026-09-11: Dorian requested the remaining task graph implementation ("Then build it"). GA-002 through GA-004 retain the approved criteria.

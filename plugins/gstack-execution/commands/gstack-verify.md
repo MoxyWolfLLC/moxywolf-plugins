@@ -1,61 +1,42 @@
 ---
-description: Post-build verification of the implementation against its plan/spec — the back half of the DR-004 gate pair; read-only, reports drift, never gates
-allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
+description: Advisory implementation/spec verification through a frozen claim graph and other-tool checker
+allowed-tools: Read, Grep, Glob, Bash, Write, AskUserQuestion
 argument-hint: [plan=<path>] [--base <ref>] [focus ...]
 ---
 
-Check what was **built** against what was **planned**. `/gstack-plan-review` (or `/product-analyze` on the product side) hardens the artifacts before build; this command closes the loop after: it reads the plan or spec, reads the implementation, and reports every place they disagree.
+Read the gstack-execution skill and [task graph contract](../skills/gstack-execution/references/task-graph-contract.md). This is the post-build counterpart to `/gstack-plan-review`: report whether implementation matches the spec. It never authorizes or blocks shipping on its own authority.
 
-Anticipated by DR-004 as the paired follow-on to `/product-analyze` — analyze checks the artifacts against each other before build; verify checks the implementation against the spec after. Like its pair, this is a **read-only reporter**: it informs the decision to ship, fix, or amend the spec. It never blocks on its own authority.
+## Freeze the spec and claims
 
-Read the gstack-execution skill for context. Raw slash-command arguments: `$ARGUMENTS`
+Resolve `plan=<path>` from `$ARGUMENTS`, else root `PLAN.md`, else the latest identified session spec. If none exists, ask "verify against what?" Resolve `--base` or the smallest commit range containing the implementation. Preserve focus text in `scope`.
 
-## Step 0: Resolve the spec and the scope
+Before dispatch, copy the full reference text into packet `spec` and extract every verifiable step, decision, exclusion and acceptance criterion into `claims` entries with stable unique `id` and `text`. Record named `owner`, `builder`, repository base/head pairs and authorized `data_use` destinations. This caller preparation freezes the graph's workload; workers cannot grow it. If permissions are unclear, stop before sending source to either tool.
 
-**The spec.** Parse `plan=<path>` from `$ARGUMENTS`. Default search order: `PLAN.md` at the repo root, then the most recent spec the session produced or was pointed at (a `/product-sprint` task plan, a PRD section, an engineering spec). If nothing resolves, ask one question: "verify against what?" — this command is meaningless without a reference artifact.
-
-**The scope.** Default is the work since the plan: `--base <ref>` → `<ref>..HEAD`; otherwise infer the smallest range that contains the implementation (the branch, or the commits since `PLAN_FILE` was last modified). Any non-flag text is focus text — pass it through verbatim to sharpen the pass.
+## Execute the graph
 
 ```bash
-git log --oneline <RANGE>
-git diff --stat <RANGE>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" plan --workflow verify --packet packet.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" run --workflow verify --packet packet.json --run-dir /abs/authorized/verify-run --jobs 3
 ```
 
-## Step 1: Build the claim table
+[`workflows/verify.json`](../workflows/verify.json) first checks the complete claim table against the frozen spec. An omitted or distorted claim makes the node incomplete; correct the packet and rerun rather than spawning new nodes mid-run. After that check, per-claim workers and an extras scan run independently. Explicit authorized proofs run through the executor's proof path. The other-tool checker consumes the branches before deterministic report assembly.
 
-Extract from the spec every **verifiable claim** about the implementation: each numbered step in the Approach, each named decision, each stated bound in Out of scope, each acceptance criterion. Number them (`C1..Cn`). Every claim gets checked — the table is the coverage guarantee; nothing is skipped as too small.
-
-## Step 2: Verify each claim against the code
-
-For each claim, read the implementation (diff first, then the files it touches) and assign one status:
-
-| Status | Meaning |
+| Claim status | Meaning |
 |---|---|
-| **BUILT** | Implemented as specified. Cite file:line. |
-| **DRIFTED** | Implemented differently than specified. State the delta and, where discernible from the code, what the change bought — the human judges whether the drift was an improvement or an erosion. |
-| **MISSING** | Specified but not implemented. |
-| **EXTRA** | Implemented but nowhere in the spec (scope creep — or an undocumented necessity). |
-| **UNVERIFIABLE** | Can't be established by reading code (needs a runtime check, external system, or human knowledge). Say what would verify it. |
+| BUILT | Source implements the claim, with location evidence. |
+| DRIFTED | Source differs; state the actual delta. |
+| MISSING | Specified behavior is absent. |
+| EXTRA | Implementation is outside the frozen claims. |
+| UNVERIFIABLE | Evidence requires a runtime, external system, or human knowledge not available in this run. |
 
-Also run the spec's own proof, if it names one (a test command, an acceptance check): run it and record the verbatim result. A spec without a proof command gets that noted as a finding in its own right.
+A spec's proof command is not permission to run it. Put approved argv arrays in `proofs` and the exact arrays in `data_use.allowed_commands`, as described in the contract. Record the actual result; a missing proof remains unverified. Proof tasks serialize their execution.
 
-## Step 3: Report
+## Report
 
-```
-GSTACK VERIFY
-═════════════
-Spec:    {path} ({claims} claims)
-Range:   {RANGE}   Files: {N}   Lines: +{a} -{r}
-Focus:   {focus text, or "none"}
+Read `report.json`, including its `sources` map of every successful node, and the node artifacts. Original claim and proof statuses remain alongside checker assessments. Present every claim, status and evidence, extra implementation, actual proof outcomes, and anything not verified. Preserve checker dispositions and the underlying evidence. An incomplete graph exits nonzero and cannot export a successful report; this concerns report completeness, not shipping authority.
 
-BUILT: {n}   DRIFTED: {n}   MISSING: {n}   EXTRA: {n}   UNVERIFIABLE: {n}
-Proof:  {command → pass/fail, or "spec names no proof"}
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" export --run-dir /abs/authorized/verify-run --output /abs/authorized/verification.json
 ```
 
-Then the claim table — every claim, its status, its evidence — followed by a findings section for each non-BUILT claim: what, where, why it matters, and the two honest remedies (change the code, or amend the spec in a logged decision). Severity-tag every finding; report all of them and let the reader filter — a drift that looks minor to the verifier may be the one the human cares about.
-
-## Boundaries
-
-- **Read-only.** No fixes, no spec edits. Route fixes to `/gstack-investigate` or a manual pass; route spec amendments to the owning artifact (PRD, sprint plan, or a PD/DR).
-- **Drift is a report, not a verdict.** Implementations legitimately improve on plans. The command's job is to make every departure *visible and deliberate* instead of silent.
-- **Not a code review.** Quality, security, and style live in `/gstack-review`, `/gstack-codex-review`, and `/gstack-cso`. This command answers exactly one question: is what we built what we said we'd build?
+No source fixes or spec amendments occur here. Route changes to the owning build/spec workflow. Reusing the run directory resumes valid work; changed packet, node or dependency evidence invalidates affected cached results. Human observations can be recorded separately under the task graph contract and do not change these gates.

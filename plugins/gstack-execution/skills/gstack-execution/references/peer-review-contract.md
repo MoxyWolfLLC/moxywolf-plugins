@@ -36,7 +36,26 @@ The builder supplies one packet per completed implementation checkpoint (not per
 | `changed_behavior` | What now behaves differently, and the entry points where execution reaches it |
 | `exclusions` | Settled decisions and out-of-scope areas the review must not reopen |
 | `tests` | `{commands, results, environment}`. What was run, what it showed, where |
+| `data_use` | Policy owner matching `release_owner`, classification, explicit repository/history permissions, and allowed reviewer tools; checked before reviewer dispatch |
 | `prior_findings` | Finding IDs and dispositions from earlier rounds (filled in by the dispatcher after round 1) |
+
+A review round requires `data_use`; absent or denied permission yields `data_use_denied` before source is sent to the reviewer. The policy is a declaration, not authenticated approval. For a Codex-built checkpoint whose source is authorized for both tools:
+
+```json
+{
+  "data_use": {
+    "owner": "<same-release-owner-github-login>",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": ["codex", "claude"],
+    "allowed_commands": [],
+    "output_roots": ["/abs/authorized/review-root"]
+  }
+}
+```
+
+This object is part of the full packet above. Only declare permissions already granted; unclear permission stops dispatch. Graph execution additionally checks output roots and proof command allowlists under the [task graph contract](task-graph-contract.md). Shared snapshot creation refuses symlinks escaping the repository snapshot.
 
 The builder's summary is a claim to check, not evidence. The reviewer opens the code at the pinned commits.
 
@@ -141,17 +160,18 @@ Every run ends in exactly one:
 | `missing_commits` | A base or head in the packet does not resolve |
 | `timeout` | Reviewer exceeded the time limit |
 | `malformed_output` | Reviewer returned something the schema rejects |
+| `data_use_denied` | Repository/history or reviewer destination permission is absent or denied, or a snapshot symlink escapes scope |
 | `model_below_floor` | The reviewer ran (or was configured to run) below the model floor |
 
 Only `no_blocking_findings` and `fixes_verified` are passing round outcomes; all other round outcomes exit nonzero. Only `opened` and `blocking_findings` accept another round. A terminal result closes the review; retry requires a new review ID.
 
 ## Release boundary
 
-`peer_review.py release <review-id> --target <branch>` (target defaults to `main`) revalidates the stored raw review against the packet and prior blockers, checks the review identity, and requires clean local HEADs matching every reviewed head. It writes a revision-bound `release.json` with the target branch and request timestamp, then deliberately exits nonzero with `awaiting_human_release`. It never merges and has no approval flag. Build and ship report `ready_for_human_release`; review success alone does not authorize release.
+`peer_review.py release <review-id> --target <branch>` (target defaults to `main`) revalidates the stored raw review against the packet and prior blockers, checks the review identity, and requires clean local HEADs matching every reviewed head. It writes a revision-bound `release.json` with the target branch and request timestamp (reusing the existing timestamp for an identical handoff), then deliberately exits nonzero with `awaiting_human_release`. It never merges and has no approval flag. Build and ship report `ready_for_human_release`; review success alone does not authorize release.
 
 The named human merges in GitHub under their own login. `peer_review.py record-release <review-id> --repo <path> --pr <number>` reads GitHub's PR record through `gh api`: the PR must be merged into the origin repository and requested target branch after the handoff timestamp, its head must equal the reviewed head, and `merged_by` must be the packet's Release Owner with GitHub type `User`. It writes a local merge decision with the review ID, action, head, merge commit, actor, timestamps, and source URL. It performs no remote write. Record each repository separately before reporting completion.
 
-This is a governance boundary, not a security sandbox or signature system. Local state files are writable by the agent and are not tamperproof. GitHub identity identifies the merge account, not proof of substantive human review; the human's merge credential must not be delegated to the agent, and branch protection is externally enforced. Shared oversight logging and data-use gates belong to the later GA-004 scope.
+This is a governance boundary, not a security sandbox or signature system. Local state files are writable by the agent and are not tamperproof. GitHub identity identifies the merge account, not proof of substantive human review; the human's merge credential must not be delegated to the agent, and branch protection is externally enforced. Shared data-use checks and evidence-linked oversight observations are described in the [task graph contract](task-graph-contract.md); an observation does not grant release authority.
 
 ## Storage
 

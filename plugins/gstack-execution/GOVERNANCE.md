@@ -37,4 +37,20 @@ PR and stops.**
 
 Routine feature-branch work remains authorized. The packet's `release_owner` is the named human's GitHub login. The [peer-review contract](skills/gstack-execution/references/peer-review-contract.md#release-boundary) defines the evidence checks and release handoff. A passing machine review cannot authorize a protected push or merge. Blocking deferral requires an approved design amendment and a new review.
 
-Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. The human merge credential must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's named `User` merge actor for the exact reviewed head, not a claim of substantive human review. Shared gate-log integration and data-use gates are deferred to GA-004.
+Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. The human merge credential must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's named `User` merge actor for the exact reviewed head, not a claim of substantive human review. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
+
+## Governed task graphs
+
+[`scripts/task_graph.py`](scripts/task_graph.py) consumes the static declarations in [`workflows`](workflows). Nodes declare dependencies, consumed inputs, output ownership and effects. The executor admits ready nodes within the concurrency cap and refuses unsupported effects, conflicting writers and incomplete dependencies. CSO and verify converge through an other-tool checker; review partitions delegate to the existing cross-tool dispatcher. There is no merge or deploy handler.
+
+Data-use checks precede dispatch and report export: named policy owner, classification, repository/history permission, tool destinations, exact proof command argv and output roots. Missing authorization denies the action. Local policy and logs are writable records, not authenticated grants; runtime and OS permissions remain separate.
+
+| Action | Authority and record |
+|---|---|
+| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. Failed dependencies block convergence. |
+| Proof execution | Exact allowed argv, serialized local proof path; captures actual output and exit status. |
+| Report export | Complete report and authorized destination required; repeated identical export is idempotent. |
+| Human observation | Evidence-linked local observation, optionally shared gate-log entry; does not authorize execution or release. |
+| Oversight summary | Separates observations from machine events; override/timing measures are investigation signals, not proof of substantive review. |
+
+A signed observation label is not a digital signature. Human observations do not convert machine success into human approval. Release remains the named human's GitHub action under the peer-review contract.
