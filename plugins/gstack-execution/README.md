@@ -16,7 +16,7 @@ Adapted from Garry Tan's gstack — an open-source software factory that turns A
 | Command | Description | Tools Used |
 |---------|-------------|-----------|
 | `/gstack-design-doc` | Create or refresh `DESIGN.md` as an editable artifact; approval writes it to the repo and Taskade, commits, pushes, pulls back | Artifact + Git |
-| `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → merge, mark done | Git + `codex`/`claude` CLI |
+| `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → human release handoff → record merge before done | Git + `codex`/`claude` CLI |
 | `/gstack-review` | Structural code review with two-pass checklist | Git + Grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md (real Codex or fresh-context Claude critic) | Git + Grep + `codex` CLI (optional) |
 | `/gstack-peer-review` | Bounded cross-tool review loop at an implementation checkpoint (Codex ↔ Claude Code), fixed contract, explicit outcomes | Git + the other tool's CLI (`codex` or `claude`) |
@@ -109,8 +109,12 @@ For apps with no native MCP connector, this plugin can reach them through Compos
 
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
-No auto-push to a protected branch — a named human owns the merge.
+Routine feature-branch commits and pushes are authorized. No auto-push to a protected branch or agent merge: a named human owns the merge. `peer_review.py release` prepares a revision-bound handoff and stops; `record-release` reads GitHub’s exact-head human merge record. See the [release contract](skills/gstack-execution/references/peer-review-contract.md#release-boundary).
 
 ## Merged from ecc
 
 Three commands are merged from [ecc](https://github.com/affaan-m/ECC) (MIT, © Affaan Mustafa): `/ecc-build-fix` (incremental build/type-error fix loop), `/ecc-learn` (extract reusable patterns from a session into candidate skills), and `/ecc-skill-create` (generate SKILL.md from git history; ecc's instinct/continuous-learning coupling removed). ecc's 67 agents and 271 skills were not vendored — only these three genuinely-new, low-coupling commands. See `NOTICE`.
+
+## Task graphs (0.17.0)
+
+CSO and verify now execute static workflow declarations through `scripts/task_graph.py`. The runner schedules independent nodes with a concurrency cap, retains evidence and review IDs on resume, and converges through the other model before one report. Explicitly independent repository reviews can fan out; coupled work keeps integration review. See [task-graph contract](skills/gstack-execution/references/task-graph-contract.md). Data-use declarations gate dispatch and output destinations; human observations and machine outcomes remain separate. No graph handler merges or deploys.

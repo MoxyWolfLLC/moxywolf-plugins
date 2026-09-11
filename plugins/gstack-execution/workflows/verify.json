@@ -1,0 +1,139 @@
+{
+  "name": "verify",
+  "nodes": [
+    {
+      "id": "claims",
+      "depends_on": [],
+      "inputs": [
+        "packet"
+      ],
+      "outputs": [
+        "claims.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "claims"
+      ],
+      "instruction": "Compare the frozen packet.claims to packet.spec. If any verifiable claim is omitted or distorted return complete=false; no topology expansion."
+    },
+    {
+      "id": "claim",
+      "depends_on": [
+        "claims"
+      ],
+      "inputs": [
+        "packet",
+        "claims"
+      ],
+      "outputs": [
+        "claim.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "claim"
+      ],
+      "instruction": "",
+      "foreach": "claims"
+    },
+    {
+      "id": "extras",
+      "depends_on": [
+        "claims"
+      ],
+      "inputs": [
+        "packet",
+        "claims"
+      ],
+      "outputs": [
+        "extras.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "worker",
+      "checks": [
+        "extras"
+      ],
+      "instruction": "Inspect the whole diff for implementation not covered by the frozen claims; report EXTRA or UNVERIFIABLE."
+    },
+    {
+      "id": "proof",
+      "depends_on": [
+        "claims"
+      ],
+      "inputs": [
+        "packet",
+        "claims"
+      ],
+      "outputs": [
+        "proof.json"
+      ],
+      "effects": [
+        "local_proof"
+      ],
+      "on_failure": "block",
+      "kind": "proof",
+      "checks": [
+        "proof"
+      ],
+      "foreach": "proofs"
+    },
+    {
+      "id": "checker",
+      "depends_on": [
+        "claim-*",
+        "extras",
+        "proof-*"
+      ],
+      "inputs": [
+        "packet",
+        "claim-*",
+        "extras",
+        "proof-*"
+      ],
+      "outputs": [
+        "checker.json"
+      ],
+      "effects": [
+        "external_review"
+      ],
+      "on_failure": "block",
+      "kind": "checker",
+      "checks": [
+        "checker"
+      ],
+      "instruction": "Verify exact claim coverage and extra implementation. Retain BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE evidence; advisory only."
+    },
+    {
+      "id": "report",
+      "depends_on": [
+        "checker"
+      ],
+      "inputs": [
+        "packet",
+        "checker"
+      ],
+      "outputs": [
+        "report.json"
+      ],
+      "effects": [
+        "local_report"
+      ],
+      "on_failure": "block",
+      "kind": "report",
+      "checks": [
+        "report"
+      ],
+      "instruction": ""
+    }
+  ]
+}

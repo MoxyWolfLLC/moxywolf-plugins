@@ -71,11 +71,13 @@ Run the `/gstack-review` checklist against this branch. Route findings through t
 
 ## Step 4.5: Peer Review Checkpoint (cross-tool)
 
-The branch is now a completed implementation checkpoint. Run `/gstack-peer-review --builder <claude|codex>` with the builder named explicitly (this pipeline running in Claude Code or Cowork means `claude`); the packet's `tests` field carries Step 2's actual commands and results, `exclusions` carries the settled decisions from the plan. Blocking findings route through the Fix Contract above, in the worktree, and the dispatcher's fix-verification rounds check them; `follow_up` and `separate` findings go into the PR body as known gaps. `review_unavailable` (the other tool is not installed) is recorded on the Ship Report as such; it is not a pass and does not block the PR. `rounds_exhausted` blocks: present the escalation and stop.
+The branch is now a completed implementation checkpoint. Run `/gstack-peer-review --builder <claude|codex>` with the builder named explicitly (this pipeline running in Claude Code or Cowork means `claude`); the packet names the accountable human's GitHub login as `release_owner`; its `tests` field carries Step 2's actual commands and results, `exclusions` carries the settled decisions from the plan. Blocking findings route through the Fix Contract above, in the worktree, and the dispatcher's fix-verification rounds check them; `follow_up` and `separate` findings go into the PR body as known gaps. `review_unavailable` (the other tool is not installed) is recorded on the Ship Report as such; it is not a pass. A draft PR may be prepared, but release readiness remains blocked. `rounds_exhausted` blocks: present the escalation and stop.
 
 ## Step 5: Prepare PR
 
 **Gate:** Never auto-push to a protected branch and never auto-merge. A named human owns the merge; the pipeline prepares the PR and stops.
+
+Routine feature-branch commits and pushes remain authorized. After a passing peer review, use `peer_review.py release <review-id>` for the revision-bound handoff. Its `awaiting_human_release` nonzero exit is intentional: no merge occurred. The named human merges in GitHub; `record-release <review-id> --repo <path> --pr <number>` subsequently checks and records that merge. Follow the [release boundary](../skills/gstack-execution/references/peer-review-contract.md#release-boundary), including external branch protection and withholding human merge credentials from agents.
 
 Build the PR:
 - **Title:** Concise description of what this PR does (under 70 characters)
@@ -107,7 +109,8 @@ Worktree: removed
 PR: {URL or "ready to create manually"}
 Verified: {what was exercised, and through which path}
 Unverified: {what was not, and why — "none" only if that is true}
-Status: SHIPPED | BLOCKED (reason)
+Status: ready_for_human_release | BLOCKED (reason)
+Release Owner: {named human GitHub login}
 ```
 
 `Verified` and `Unverified` are not optional and "Unverified: none" has to be

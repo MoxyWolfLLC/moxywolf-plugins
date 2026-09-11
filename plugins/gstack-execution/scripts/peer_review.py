@@ -13,6 +13,8 @@ round limits, dispositions, explicit outcomes. The contract file carries the wor
   peer_review.py --selftest
 """
 import argparse
+from governance import data_permission
+from datetime import datetime, timezone
 import json
 import os
 import re
@@ -27,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 CONTRACT = HERE.parent / "skills" / "gstack-execution" / "references" / "peer-review-contract.md"
 REVIEW_DIR = Path(os.environ.get("GSTACK_PEER_REVIEW_DIR", Path.home() / ".gstack" / "peer-review"))
 RECURSION_ENV = "GSTACK_PEER_REVIEW_SESSION"
+_SELFTEST = False
 OTHER_TOOL = {"claude": "codex", "codex": "claude"}
 # Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or higher.
 # Override the model with GSTACK_CODEX_MODEL / GSTACK_CLAUDE_MODEL; the floor still applies to what actually ran.
@@ -38,14 +41,14 @@ MODEL_FLOOR = {"codex": r"^gpt-([6-9]|\d{2,})\b",
 
 def model_ok(tool, model):
     return bool(re.match(MODEL_FLOOR[tool], model or ""))
-PACKET_FIELDS = ["outcome", "acceptance_criteria", "repos", "changed_behavior", "exclusions", "tests"]
+PACKET_FIELDS = ["outcome", "acceptance_criteria", "repos", "changed_behavior", "exclusions", "tests", "release_owner"]
 SEVERITIES = {"blocking", "follow_up", "separate"}
 VERDICTS = {"no_blocking_findings", "blocking_findings"}
 DISPOSITIONS = {"fixed", "disproved", "deferred", "unresolved"}
 
 OUTPUT_SCHEMA = {
     "type": "object",
-    "required": ["verdict", "acceptance", "findings"],
+    "required": ["verdict", "acceptance", "findings", "blocker_resolutions"],
     "properties": {
         "verdict": {"type": "string", "enum": sorted(VERDICTS)},
         "acceptance": {"type": "array", "items": {"type": "object", "required": ["criterion", "met", "evidence"],
@@ -55,6 +58,8 @@ OUTPUT_SCHEMA = {
                      "properties": {"id": {"type": "string"}, "severity": {"type": "string", "enum": sorted(SEVERITIES)},
                                     "file": {"type": "string"}, "line": {"type": "integer"}, "what": {"type": "string"},
                                     "evidence": {"type": "string"}, "criterion": {"type": "string"}, "fix": {"type": "string"}}}},
+        "blocker_resolutions": {"type": "array", "items": {"type": "object", "required": ["id", "resolved", "evidence"],
+                                "properties": {"id": {"type": "string"}, "resolved": {"type": "boolean"}, "evidence": {"type": "string"}}}},
         "regressions_from_fixes": {"type": "array", "items": {"type": "string"}},
         "notes": {"type": "string"},
     },
@@ -108,7 +113,9 @@ def snapshot(repos, root):
         dest = root / name
         git(r["path"], "worktree", "add", "--detach", str(dest), r["head"])
         for p in dest.rglob("*"):
-            if p.is_file() and ".git" not in p.parts:
+            if p.is_symlink() and not p.resolve().is_relative_to(dest.resolve()):
+                raise ReviewError("data_use_denied", "snapshot symlink escapes repository scope")
+            if p.is_file() and not p.is_symlink() and ".git" not in p.parts:
                 p.chmod(p.stat().st_mode & 0o555)
         out.append((name, dest))
     return out
@@ -125,20 +132,34 @@ def teardown(repos, root):
 
 # ---------- packet / state ----------
 
-def load_packet(path):
-    packet = json.loads(Path(path).read_text())
+def load_packet(path, allow_unchanged=False):
+    try:
+        packet = json.loads(Path(path).read_text())
+    except (ValueError, OSError) as e:
+        raise ReviewError("malformed_packet", str(e))
+    if not isinstance(packet, dict):
+        raise ReviewError("malformed_packet", "packet must be an object")
     missing = [f for f in PACKET_FIELDS if f not in packet]
     if missing:
         raise ReviewError("malformed_packet", f"packet missing {missing}")
-    if not packet["repos"]:
+    criteria = packet["acceptance_criteria"]
+    if (not isinstance(criteria, list) or not criteria or
+            any(not isinstance(c, str) or not c.strip() for c in criteria) or len(set(criteria)) != len(criteria)):
+        raise ReviewError("malformed_packet", "acceptance_criteria must be nonempty, unique statements")
+    owner = packet["release_owner"]
+    if not isinstance(owner, str) or not owner.strip() or owner.lower().strip() in {"team", "user", "the team", "the user", "claude", "codex", "agent"}:
+        raise ReviewError("malformed_packet", "release_owner must identify the accountable human")
+    if not isinstance(packet["repos"], list) or not packet["repos"]:
         raise ReviewError("malformed_packet", "repos is empty")
     for r in packet["repos"]:
+        if not isinstance(r, dict):
+            raise ReviewError("malformed_packet", "repo must be an object")
         for k in ("path", "base", "head"):
             if k not in r:
                 raise ReviewError("malformed_packet", f"repo entry missing {k}: {r}")
         r["path"] = str(Path(r["path"]).resolve())
         r["base"], r["head"] = resolve_commit(r["path"], r["base"]), resolve_commit(r["path"], r["head"])
-        if r["base"] == r["head"]:
+        if r["base"] == r["head"] and not allow_unchanged:
             raise ReviewError("missing_commits", f"base == head in {r['path']}; nothing to review")
     packet.setdefault("prior_findings", [])
     return packet
@@ -189,10 +210,11 @@ def build_prompt(packet, snaps, round_no, prior_round, dispositions):
     return "\n\n".join(p)
 
 
-def run_reviewer(tool, prompt, root, timeout):
+def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
+    output_schema = schema or STRICT_SCHEMA
     env = {**os.environ, RECURSION_ENV: "1"}
-    fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD")  # selftest hook: any command that prints the JSON
+    fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD") if _SELFTEST else None  # selftest hook: any command that prints the JSON
     if fake:
         cmd, parse = ["sh", "-c", fake], lambda r: (r.stdout, "fake")
     elif tool == "codex":
@@ -201,7 +223,7 @@ def run_reviewer(tool, prompt, root, timeout):
         if not model_ok("codex", MODEL["codex"]):
             raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={MODEL['codex']}; floor is Astra (gpt-6) or higher")
         schema = root / "schema.json"; last = root / "last.txt"
-        schema.write_text(json.dumps(STRICT_SCHEMA))
+        schema.write_text(json.dumps(output_schema))
         cmd = ["codex", "exec", "-C", str(root), "-m", MODEL["codex"], "-c", "model_reasoning_effort=high",
                "--sandbox", "read-only", "--skip-git-repo-check",
                "--output-schema", str(schema), "--output-last-message", str(last), prompt]
@@ -213,7 +235,7 @@ def run_reviewer(tool, prompt, root, timeout):
             raise ReviewError("review_unavailable", "claude CLI not installed on PATH")
         if not model_ok("claude", MODEL["claude"]):
             raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={MODEL['claude']}; floor is Opus 5 or higher")
-        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(STRICT_SCHEMA),
+        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
                "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
         def parse(r):
@@ -245,7 +267,11 @@ def run_reviewer(tool, prompt, root, timeout):
     return text, model
 
 
-def validate(raw):
+def disposition_value(value):
+    return value.get("disposition") if isinstance(value, dict) else value
+
+
+def validate(raw, packet, prior=None, dispositions=None):
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
         raise ReviewError("malformed_output", "no JSON object in reviewer output")
@@ -253,14 +279,32 @@ def validate(raw):
         out = json.loads(m.group(0))
     except json.JSONDecodeError as e:
         raise ReviewError("malformed_output", f"invalid JSON: {e}")
+    if not isinstance(out, dict):
+        raise ReviewError("malformed_output", "review must be an object")
     if out.get("verdict") not in VERDICTS:
         raise ReviewError("malformed_output", f"verdict {out.get('verdict')!r}")
     if not isinstance(out.get("findings"), list) or not isinstance(out.get("acceptance"), list):
         raise ReviewError("malformed_output", "findings/acceptance must be lists")
+    expected = packet["acceptance_criteria"]
+    seen = set()
+    for row in out["acceptance"]:
+        if (not isinstance(row, dict) or not isinstance(row.get("criterion"), str) or
+                type(row.get("met")) is not bool or not isinstance(row.get("evidence"), str) or not row["evidence"].strip()):
+            raise ReviewError("malformed_output", "acceptance requires criterion, boolean met, and evidence")
+        criterion = row["criterion"]
+        if criterion not in expected or criterion in seen:
+            raise ReviewError("malformed_output", "unknown or duplicate acceptance criterion")
+        seen.add(criterion)
+    if seen != set(expected):
+        raise ReviewError("malformed_output", "acceptance coverage is incomplete")
+    if out["verdict"] == "no_blocking_findings" and any(not row["met"] for row in out["acceptance"]):
+        raise ReviewError("malformed_output", "clean verdict contradicts unmet acceptance")
     ids = set()
     for f in out["findings"]:
+        if not isinstance(f, dict):
+            raise ReviewError("malformed_output", "finding must be an object")
         need = OUTPUT_SCHEMA["properties"]["findings"]["items"]["required"]
-        if any(k not in f for k in need) or f["severity"] not in SEVERITIES or not isinstance(f["line"], int):
+        if any(k not in f for k in need) or f["severity"] not in SEVERITIES or type(f["line"]) is not int or any(not isinstance(f.get(k), str) or not f[k].strip() for k in need if k != "line"):
             raise ReviewError("malformed_output", f"bad finding {f.get('id')}")
         if f["id"] in ids:
             raise ReviewError("malformed_output", f"duplicate finding id {f['id']}")
@@ -268,7 +312,33 @@ def validate(raw):
     has_block = any(f["severity"] == "blocking" for f in out["findings"])
     if has_block != (out["verdict"] == "blocking_findings"):
         raise ReviewError("malformed_output", "verdict disagrees with finding severities")
+    prior_ids = {f["id"] for f in (prior or {}).get("findings", []) if f["severity"] == "blocking"}
+    resolutions = out.get("blocker_resolutions")
+    if not isinstance(resolutions, list):
+        raise ReviewError("malformed_output", "blocker_resolutions must be a list")
+    resolved_ids = set()
+    for row in resolutions:
+        if (not isinstance(row, dict) or not isinstance(row.get("id"), str) or type(row.get("resolved")) is not bool or
+                not isinstance(row.get("evidence"), str) or not row["evidence"].strip()):
+            raise ReviewError("malformed_output", "blocker resolution needs id, boolean resolved, and evidence")
+        fid = row["id"]
+        if fid not in prior_ids or fid in resolved_ids:
+            raise ReviewError("malformed_output", "unknown or duplicate blocker resolution")
+        resolved_ids.add(fid)
+        still_blocking = any(f["id"] == fid and f["severity"] == "blocking" for f in out["findings"])
+        if row["resolved"]:
+            if still_blocking or disposition_value((dispositions or {}).get(fid)) not in {"fixed", "disproved"}:
+                raise ReviewError("malformed_output", "resolved blocker contradicts finding or disposition")
+        elif not still_blocking:
+            raise ReviewError("malformed_output", "unresolved blocker must remain blocking")
+    if resolved_ids != prior_ids:
+        raise ReviewError("malformed_output", "prior blocker coverage is incomplete")
     out.setdefault("regressions_from_fixes", [])
+    if not isinstance(out["regressions_from_fixes"], list) or any(not isinstance(v, str) or not v.strip() for v in out["regressions_from_fixes"]):
+        raise ReviewError("malformed_output", "regressions_from_fixes must contain nonempty strings")
+    blocking_ids = {f["id"] for f in out["findings"] if f["severity"] == "blocking"}
+    if any(fid not in blocking_ids for fid in out["regressions_from_fixes"]):
+        raise ReviewError("malformed_output", "every regression must name a blocking finding ID with evidence")
     out.setdefault("notes", "")
     return out
 
@@ -278,18 +348,19 @@ def validate(raw):
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
+    if not 1 <= a.max_rounds <= 3 or a.timeout <= 0:
+        raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
-    review_id, n = stem, 1
-    while (REVIEW_DIR / review_id).exists():
-        n += 1; review_id = f"{stem}-{n}"
-    d = REVIEW_DIR / review_id
-    d.mkdir(parents=True)
+    REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=REVIEW_DIR))
+    review_id = d.name
     state = {"review_id": review_id, "builder": a.builder, "reviewer": OTHER_TOOL[a.builder],
-             "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
+             "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
              "heads": [[r["head"] for r in packet["repos"]]]}
     save(d, "packet.json", packet); save(d, "state.json", state)
     print(json.dumps(state, indent=2))
+    return state
 
 
 def cmd_round(a):
@@ -297,6 +368,8 @@ def cmd_round(a):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
+    if state["outcome"] not in {"opened", "blocking_findings"}:
+        raise ReviewError("review_closed", "open a new review after a terminal outcome")
     if state["rounds_used"] >= state["max_rounds"]:
         sys.exit(f"rounds exhausted ({state['max_rounds']}); outcome stays {state['outcome']}")
     round_no = state["rounds_used"] + 1
@@ -317,19 +390,23 @@ def cmd_round(a):
             sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
             if sha:
                 r["head"] = resolve_commit(r["path"], sha)
-        if all(r["base"] == r["head"] for r in packet["repos"]) and any(v == "fixed" for v in dispositions.values()):
+        if all(r["base"] == r["head"] for r in packet["repos"]) and any(disposition_value(v) == "fixed" for v in dispositions.values()):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"]}
     try:
+        try:
+            data_permission(packet, tool=state["reviewer"])
+        except ValueError as e:
+            raise ReviewError("data_use_denied", str(e))
         snaps = snapshot(packet["repos"], root)
         prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
         raw, record["model"] = run_reviewer(state["reviewer"], prompt, root, state["timeout"])
         record["raw"] = raw
-        out = validate(raw)
+        out = validate(raw, packet, prior, dispositions)
         record.update(out)
         blockers = [f for f in out["findings"] if f["severity"] == "blocking"]
         if not blockers and not out["regressions_from_fixes"]:
@@ -356,11 +433,20 @@ def cmd_round(a):
 def cmd_disposition(a):
     d = rdir(a.review_id)
     disp = load(d, "dispositions.json") or {}
+    state = load(d, "state.json")
+    prior = load(d, f"round-{state['rounds_used']}.json") or {}
+    known = {f["id"]: f for f in prior.get("findings", [])}
     for item in a.items:
         fid, _, rest = item.partition("=")
         value, _, evidence = rest.partition(":")
         if value not in DISPOSITIONS:
             sys.exit(f"{fid}: disposition must be one of {sorted(DISPOSITIONS)}")
+        if fid not in known:
+            raise ReviewError("invalid_disposition", f"unknown finding {fid}")
+        if value == "disproved" and not evidence.strip():
+            raise ReviewError("invalid_disposition", "disproof requires evidence")
+        if value == "deferred" and known[fid]["severity"] == "blocking":
+            raise ReviewError("authorization_required", "blocking deferral requires an approved design amendment and a new review; this CLI cannot grant it")
         disp[fid] = {"disposition": value, "evidence": evidence} if evidence else value
     save(d, "dispositions.json", disp)
     print(json.dumps(disp, indent=2))
@@ -372,10 +458,90 @@ def cmd_status(a):
                       "rounds": [load(d, f"round-{i}.json").get("outcome") for i in range(1, load(d, 'state.json')['rounds_used'] + 1)]}, indent=2))
 
 
+def passing_review(d):
+    state, packet = load(d, "state.json"), load_packet(d / "packet.json", allow_unchanged=True)
+    if state["outcome"] not in {"no_blocking_findings", "fixes_verified"}:
+        raise ReviewError("release_blocked", "review has not passed")
+    n = state["rounds_used"]
+    record = load(d, f"round-{n}.json")
+    prior = load(d, f"round-{n-1}.json") if n > 1 else None
+    if not record or record.get("repos") != packet["repos"] or state.get("release_owner") != packet["release_owner"]:
+        raise ReviewError("release_blocked", "review identity does not match packet")
+    out = validate(record.get("raw", ""), packet, prior, load(d, "dispositions.json"))
+    if out["verdict"] != "no_blocking_findings" or out["regressions_from_fixes"]:
+        raise ReviewError("release_blocked", "review evidence does not pass")
+    return state, packet
+
+
+def cmd_release(a):
+    """Prepare a revision-bound handoff; deliberately has no merge operation."""
+    d = rdir(a.review_id)
+    state, packet = passing_review(d)
+    for repo in packet["repos"]:
+        if resolve_commit(repo["path"], "HEAD") != repo["head"] or git(repo["path"], "status", "--porcelain"):
+            raise ReviewError("stale_release", "working revision changed; review the new revision before release")
+    if subprocess.run(["git", "check-ref-format", "--branch", a.target], capture_output=True).returncode:
+        raise ReviewError("release_blocked", "invalid target branch")
+    record = {"review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
+              "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
+              "instruction": "The named human merges the exact reviewed head in GitHub. This command never merges or accepts an approval flag."}
+    previous = load(d, "release.json")
+    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target")):
+        record = previous
+    else:
+        save(d, "release.json", record)
+    print(json.dumps(record, indent=2))
+    raise ReviewError("awaiting_human_release", "human merge required; no release executed")
+
+
+def cmd_record_release(a):
+    """Read GitHub's merge record, never create an approval or perform a merge."""
+    d = rdir(a.review_id)
+    state, packet = passing_review(d)
+    prepared = load(d, "release.json")
+    if not prepared or prepared.get("repos") != packet["repos"] or prepared.get("release_owner") != state["release_owner"]:
+        raise ReviewError("release_blocked", "prepare a release handoff for this revision first")
+    path = str(Path(a.repo).resolve())
+    repo = next((r for r in packet["repos"] if r["path"] == path), None)
+    if repo is None or a.pr < 1:
+        raise ReviewError("release_blocked", "unknown repository or invalid PR")
+    remote = git(path, "remote", "get-url", "origin")
+    match = re.fullmatch(r"(?:https://github\.com/|git@github\.com:)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?", remote)
+    if not match:
+        raise ReviewError("release_blocked", "origin must identify a github.com repository")
+    name = match.group(1)
+    try:
+        result = subprocess.run(["gh", "api", f"repos/{name}/pulls/{a.pr}"], capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            raise ReviewError("release_unavailable", "GitHub merge record could not be read")
+        pr = json.loads(result.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
+        raise ReviewError("release_unavailable", str(e))
+    if (not isinstance(pr, dict) or pr.get("merged") is not True or
+            pr.get("head", {}).get("sha") != repo["head"] or
+            pr.get("base", {}).get("repo", {}).get("full_name") != name or
+            pr.get("base", {}).get("ref") != prepared["target"] or
+            str(pr.get("merged_by", {}).get("login", "")).casefold() != state["release_owner"].casefold() or
+            pr.get("merged_by", {}).get("type") != "User" or not pr.get("merged_at") or not pr.get("merge_commit_sha")):
+        raise ReviewError("release_blocked", "GitHub does not record a merge by the named human of the exact reviewed head")
+    try:
+        if datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00")) < datetime.fromisoformat(prepared["requested_at"].replace("Z", "+00:00")):
+            raise ReviewError("release_blocked", "merge predates the release handoff")
+    except (ValueError, TypeError, KeyError):
+        raise ReviewError("release_blocked", "invalid release timestamps")
+    decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": repo["head"],
+                "target": prepared["target"], "merge_commit": pr["merge_commit_sha"], "approver": state["release_owner"],
+                "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "merged_at": pr["merged_at"], "source": pr["html_url"], "outcome": "human_merge_recorded"}
+    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision)
+    print(json.dumps(decision, indent=2))
+
+
 # ---------- selftest ----------
 
 def selftest():
-    global REVIEW_DIR
+    global REVIEW_DIR, _SELFTEST
+    _SELFTEST = True
     tmp = Path(tempfile.mkdtemp(prefix="gstack-selftest-"))
     REVIEW_DIR = tmp / "reviews"
     repo = tmp / "repo"; repo.mkdir()
@@ -384,7 +550,8 @@ def selftest():
     (repo / "a.py").write_text("def f(x):\n    return x\n"); sh("add", "."); sh("commit", "-qm", "base"); base = sh("rev-parse", "HEAD")
     (repo / "a.py").write_text("def f(x):\n    return x + 1\n"); sh("commit", "-qam", "head"); head = sh("rev-parse", "HEAD")
     pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"], "repos": [{"path": str(repo), "base": base, "head": head}],
-          "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}}
+          "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}, "release_owner": "fixture-human"}
+    pk["data_use"] = {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True, "allowed_tools": ["codex", "claude"]}
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
 
@@ -413,24 +580,21 @@ def selftest():
     for tool in ("git", "sh"):
         os.symlink(shutil.which(tool), binroot / tool)
     os.environ["PATH"] = str(binroot)
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "review_unavailable"
     assert not list(Path(tempfile.gettempdir()).glob("gstack-peer-*")) or True  # teardown best-effort
 
     # malformed output
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "echo 'not json'"
-    cmd_open(ns(builder="codex", packet=str(pfile), max_rounds=3, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="codex", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "malformed_output"
 
     # full loop: blocker -> disposition required -> fix round verified; then rounds exhausted path
     blocking = json.dumps({"verdict": "blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}],
-                           "findings": [{"id": "F1", "severity": "blocking", "file": "a.py", "line": 2, "what": "x", "evidence": "y", "criterion": "z", "fix": "w"}]})
-    clean = json.dumps({"verdict": "no_blocking_findings", "acceptance": [], "findings": []})
+                           "findings": [{"id": "F1", "severity": "blocking", "file": "a.py", "line": 2, "what": "x", "evidence": "y", "criterion": "z", "fix": "w"}], "blocker_resolutions": []})
+    clean = json.dumps({"verdict": "no_blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}], "findings": [], "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:2"}]})
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "blocking_findings"
     try:
         cmd_round(ns(review_id=rid, head=[])); assert False
@@ -443,8 +607,7 @@ def selftest():
     st = load(REVIEW_DIR / rid, "state.json"); assert st["rounds_used"] == 2 and st["heads"][-1] == [head2]
     # exhausted: blocker persists through the last allowed round -> escalation, never approval
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
-    cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=1, timeout=30))
-    rid = sorted(p.name for p in REVIEW_DIR.iterdir())[-1]
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=1, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "rounds_exhausted"
     assert load(REVIEW_DIR / rid, "round-1.json")["escalation"][0]["id"] == "F1"
     assert not (repo / ".git" / "worktrees").exists() or not any((repo / ".git" / "worktrees").iterdir()), "worktree not torn down"
@@ -461,15 +624,24 @@ def main():
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     s = sub.add_parser("status"); s.add_argument("review_id")
+    release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
+    record = sub.add_parser("record-release"); record.add_argument("review_id"); record.add_argument("--repo", required=True); record.add_argument("--pr", required=True, type=int)
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    if a.cmd is None:
+        ap.print_help()
+        return
     try:
-        {"open": cmd_open, "round": cmd_round, "disposition": cmd_disposition, "status": cmd_status}[a.cmd](a)
+        if os.environ.get(RECURSION_ENV) and a.cmd != "status":
+            raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
+        result = {"open": cmd_open, "round": cmd_round, "disposition": cmd_disposition, "status": cmd_status, "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
+        if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
+            sys.exit(1)
     except ReviewError as e:
         sys.exit(f"{e.outcome}: {e.detail}")
-    except KeyError:
-        ap.print_help()
+    except KeyError as e:
+        sys.exit(f"invalid_state: missing required field {e}")
 
 
 if __name__ == "__main__":

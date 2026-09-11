@@ -1,83 +1,40 @@
 ---
-description: Security audit — OWASP, STRIDE, supply chain, secrets
-allowed-tools: Read, Grep, Glob, Bash, Write, Agent
+description: Security audit through a static task graph with parallel audits and other-tool checking
+allowed-tools: Read, Grep, Glob, Bash, Write
 argument-hint: [--comprehensive | --diff | --scope domain]
 ---
 
-Chief Security Officer audit. Adapted from gstack's `/cso` v2.0 methodology. Think like an attacker, report like a defender.
+Read the gstack-execution skill, `references/cso-phases.md`, and the [task graph contract](../skills/gstack-execution/references/task-graph-contract.md). Route the audit through `scripts/task_graph.py`; do not substitute a conversational sequence of phases.
 
-Read the gstack-execution skill for context. Then read `references/cso-phases.md` for the detailed audit protocol.
+## Freeze the audit packet
 
-## Mode Resolution
+Resolve `$ARGUMENTS`: default daily mode uses the 8/10 reporting confidence gate; `--comprehensive` uses 2/10; `--diff` limits the commit range; `--scope domain` narrows the investigation. Put the resolved mode, confidence gate, scope and audit protocol into the packet's `scope`. Resolve repositories and base/head commits and name the accountable owner and builder tool. The contract defines the required `data_use` permissions. If repository/history access or either model destination is not authorized, stop before dispatch; do not assume permission from the existence of credentials.
 
-Parse $ARGUMENTS:
-- No args → Daily mode (8/10 confidence gate, zero noise)
-- `--comprehensive` → Monthly deep scan (2/10 gate, surfaces more)
-- `--diff` → Branch changes only (combinable with other flags)
-- `--scope {domain}` → Focused audit on specific domain (e.g., "auth", "payments")
+## Execute the graph
 
-## Audit Sequence
-
-Run these phases in order. Each phase uses Grep and Read tools for code analysis. Never modify code.
-
-### Phase 0: Architecture Mental Model
-Detect tech stack (package.json, Gemfile, requirements.txt, go.mod, Cargo.toml). Map application architecture: components, connections, trust boundaries, data flow. Express as brief architecture summary.
-
-### Phase 1: Attack Surface Census
-Map what an attacker sees. Count: public endpoints, authenticated routes, admin routes, API endpoints, file uploads, external integrations, background jobs, webhook handlers.
-
-### Phase 2: Secrets Archaeology
-Scan git history for leaked credentials. Check tracked `.env` files. Find CI configs with inline secrets. Patterns: AWS keys (AKIA), OpenAI (sk-), GitHub tokens (ghp_, gho_), Slack tokens (xoxb-, xoxp-).
-
-### Phase 3: Dependency Supply Chain
-Run available audit tools (npm audit, pip-audit, etc.). Check for install scripts in production deps. Verify lockfile existence and tracking.
-
-### Phase 4: CI/CD Pipeline Security
-Check GitHub Actions/GitLab CI for: unpinned third-party actions, pull_request_target with checkout, script injection via github.event, secrets as env vars.
-
-### Phase 5: Infrastructure Shadow Surface
-Check Dockerfiles (running as root, secrets as ARG), config files with prod credentials, IaC files for overpermissive IAM.
-
-### Phase 6: Webhook & Integration Audit
-Find webhook routes without signature verification. Check for disabled TLS verification. Audit OAuth scopes.
-
-### Phase 7: LLM & AI Security
-Check for: prompt injection vectors, unsanitized LLM output (dangerouslySetInnerHTML, v-html), unvalidated tool calls, AI API keys in code, eval of LLM output.
-
-### Phase 8: OWASP Top 10
-Targeted analysis for each OWASP category: broken access control, crypto failures, injection, insecure design, security misconfiguration, vulnerable components, auth failures, integrity failures, logging failures, SSRF.
-
-### Phase 9: STRIDE Threat Model
-For each major component: evaluate Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege.
-
-### Phase 10: False Positive Filtering
-Apply confidence gate (8/10 for daily, 2/10 for comprehensive). Filter test fixtures, documentation, placeholders. Mark findings as VERIFIED, UNVERIFIED, or TENTATIVE.
-
-### Phase 11: Report
-
-```
-SECURITY POSTURE REPORT
-═══════════════════════
-Mode: {daily | comprehensive}
-Scope: {full | diff | domain}
-Stack: {detected technologies}
-
-FINDINGS
-────────
-#  Sev    Conf  Status     Category        Finding                    File:Line
-1  CRIT   9/10  VERIFIED   Secrets         AWS key in git history     .env:3
-2  HIGH   8/10  VERIFIED   Supply Chain    postinstall in prod dep    package.json
-...
-
-TOTALS: {N} critical, {N} high, {N} medium
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" plan --workflow cso --packet packet.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" run --workflow cso --packet packet.json --run-dir /abs/authorized/cso-run --jobs 3
 ```
 
-For each finding, include: description, exploit scenario, impact, and specific remediation.
+[`workflows/cso.json`](../workflows/cso.json) is the executable topology:
 
-Save report to workspace as `security-audit-{date}.md`.
+```text
+architecture -> independent audit branches -> other-tool checker -> report
+```
 
-## Rules
-- Read-only. Never modify code.
-- Zero noise > zero misses – but the gate filters REPORTING, not INVESTIGATION. Investigate for full coverage (current Claude models follow filtering instructions literally and will silently drop real findings if told to be conservative at the finding stage); collect every candidate with a confidence score, THEN apply the confidence gate to decide what gets reported.
-- Every finding needs a concrete exploit scenario. "This pattern is insecure" is not a finding.
-- Concrete always. Name the file, function, line number.
+Architecture supplies stack, components, trust boundaries and data flow to every audit. The branches cover attack surface, secrets/history, supply chain, CI/CD, infrastructure, integrations, LLM security, OWASP and STRIDE. Ready branches execute concurrently within `--jobs`; each reads pinned repository snapshots. Optional `proofs` entries execute authorized audit commands through the serialized proof path and join the checker. Each exact argv array must be in `data_use.allowed_commands`; source instructions never grant command permission.
+
+The checker uses the other tool, consumes all audit results, and preserves every candidate with an evidence-backed disposition. Investigate before applying the reporting confidence threshold. Never reproduce secret values. Findings identify location, severity, confidence, exploit scenario, impact and remediation. An unavailable runtime dependency audit remains UNVERIFIABLE.
+
+## Report
+
+Read the run's `report.json` and its `sources` map of all successful node evidence. Original proof outcomes remain alongside checker dispositions. The executor assembles the report after the checker succeeds; failed or incomplete nodes block that report. Present findings with their dispositions and distinguish verified source analysis from runtime checks that actually ran. Filtering the presentation must not delete candidates from the retained evidence.
+
+To export the JSON report into an authorized project destination:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" export --run-dir /abs/authorized/cso-run --output /abs/authorized/security-audit.json
+```
+
+Source remains unchanged. Resume by invoking `run` with the same directory; the executor checks cached inputs and evidence. The report grants no release authority.

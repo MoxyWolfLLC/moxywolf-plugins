@@ -10,7 +10,7 @@ description: >
   environment, with browser testing via Claude in Chrome (the user's real
   logged-in browser). Pairs with the Product Orchestrator plugin: Product
   Orchestrator decides what to build, this plugin builds it.
-version: 0.15.1
+version: 0.17.0
 ---
 
 # gstack Execution Engine
@@ -28,7 +28,7 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
 | `/gstack-design-doc` | Create or refresh a repo's `DESIGN.md` as an editable artifact; on approval, written to the repo (canonical) and Taskade `06 – Engineering` (mirror), committed, pushed, verified, pulled back; asks for either directory if it is not mounted | Full — Artifact tool + git |
-| `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to Taskade), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, merge, mark done | Full — git + the other tool's CLI for the review |
+| `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to Taskade), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, human release handoff, record merge before marking done | Full — git + the other tool's CLI for the review |
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md — bounded rounds, deadlock surfaced; real Codex when present, fresh-context Claude critic fallback | Full — git + grep (real Codex needs `codex` CLI on host) |
 | `/gstack-peer-review` | Bounded cross-tool review at an implementation checkpoint: the other tool (Codex ↔ Claude Code) reviews pinned commits against a fixed contract; one review + two fix-verification passes; explicit outcomes, never a same-tool substitute | Needs the *other* tool's CLI on PATH (`codex` or `claude`), else `review_unavailable` |
@@ -47,7 +47,7 @@ When Product Orchestrator's sprint protocol reaches Phase 3 (Execute), it routes
 
 | Product Orchestrator Decision | gstack Command |
 |------------------------------|----------------|
-| "Build this feature" / any coding request | `/gstack-build` (design doc gate → build → push + pull back → `/gstack-peer-review` loop → merge). `/gstack-plan-review` hardens a larger design first; `/gstack-ship` remains the PR pipeline for repos that land through PRs |
+| "Build this feature" / any coding request | `/gstack-build` (design doc gate → build → push + pull back → `/gstack-peer-review` loop → human release handoff). `/gstack-plan-review` hardens a larger design first; `/gstack-ship` remains the PR pipeline for repos that land through PRs |
 | "Challenge this plan before we build" | `/gstack-plan-review` (pre-code, iterative, bounded) |
 | "Have the other tool review this checkpoint" | `/gstack-peer-review --builder <tool>` (bounded, cross-tool, fixes blockers in scope) |
 | "Did we build what we planned?" | `/gstack-verify` (implementation vs spec, after build) |
@@ -168,3 +168,7 @@ Borrowed from gstack: AI makes completeness near-free. Always do the complete th
 If a step in this skill needs an app or service that has no native Cowork MCP connector — for example Notion, Linear, Jira, HubSpot, Salesforce, Stripe, Airtable, or Calendly — and the Composio connector is installed, reach the app through Composio's Tool Router rather than giving up or asking the user to do it by hand. Discover the tool with `COMPOSIO_SEARCH_TOOLS`, authenticate with `COMPOSIO_MANAGE_CONNECTIONS` if needed, then execute. See the `composio` plugin's `composio-tools` skill for the full pattern.
 
 Native MCP connectors still come first — this is a fallback for reach, not a replacement for the native paths this skill already uses.
+
+## Executable task graphs
+
+CSO, verify and independent multi-repository review use `scripts/task_graph.py` and the static declarations in `workflows/`. Follow [the task-graph contract](references/task-graph-contract.md) for permission packets, frozen inputs, bounded concurrency, resume and oversight. The commands execute the graph; prose-only parallel review is not a substitute.

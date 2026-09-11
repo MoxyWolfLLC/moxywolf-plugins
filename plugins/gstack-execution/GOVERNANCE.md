@@ -12,12 +12,19 @@ for the full standard. Every skill/command passes each of the five tests that ap
 
 Risk tiers: `read-only` | `generate` | `side-effectful-gated` | `high-stakes`.
 
-The code-write path (`gstack-ship`) carries the no-auto-merge rule: **never auto-push to a
+The code-write paths (`gstack-build` and `gstack-ship`) carry the no-auto-merge rule: **never auto-push to a
 protected branch and never auto-merge — a named human owns the merge; the pipeline prepares the
 PR and stops.**
 
 | Skill / command | risk_tier | gate / note |
 |---|---|---|
+| `gstack-build` | side-effectful-gated | Authorized feature-branch edits/commits/pushes and PR preparation; passing review prepares a handoff, human GitHub merge is recorded before done. No protected push or agent merge. |
+| `gstack-design-doc` | generate | Human approval precedes writing design changes; authorized feature-branch commits/pushes only. |
+| `gstack-plan-review` | read-only | Bounded plan review; decisions remain with the human. |
+| `gstack-peer-review` | side-effectful-gated | Read-only other-tool reviewer; builder fixes in scope and records dispositions. Named Release Owner, exact acceptance and blocker coverage required. |
+| `gstack-verify` | read-only | Advisory claim verification; never a shipping gate. |
+| `peer_review.py release` | side-effectful-gated | Writes local revision-bound handoff; always stops awaiting human release. Never merges. |
+| `peer_review.py record-release` | side-effectful-gated | Reads GitHub merge identity/head and writes local decision; no remote mutation. |
 | `gstack-ship` | side-effectful-gated | Prepares PR only. No auto-push to protected branch, no auto-merge; a named human owns the merge (Tests 1, 5). Stops on blocking test/CRITICAL review findings. |
 | `gstack-review` | read-only | Pre-landing structural review; reports findings, no writes. |
 | `gstack-codex-review` | read-only | Adversarial review of just-committed code; reports only. |
@@ -27,3 +34,23 @@ PR and stops.**
 | `gstack-browse` | read-only | Browser-based page verification / dogfooding; observation only. |
 | `gstack-design` | generate | Design-system consultation + local UI generation; no deploy. |
 | `gstack-execution` (skill) | side-effectful-gated | Shared methodology; governs the commit/push/PR boundary above — no autonomous irreversible action. |
+
+Routine feature-branch work remains authorized. The packet's `release_owner` is the named human's GitHub login. The [peer-review contract](skills/gstack-execution/references/peer-review-contract.md#release-boundary) defines the evidence checks and release handoff. A passing machine review cannot authorize a protected push or merge. Blocking deferral requires an approved design amendment and a new review.
+
+Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. The human merge credential must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's named `User` merge actor for the exact reviewed head, not a claim of substantive human review. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
+
+## Governed task graphs
+
+[`scripts/task_graph.py`](scripts/task_graph.py) consumes the static declarations in [`workflows`](workflows). Nodes declare dependencies, consumed inputs, output ownership and effects. The executor admits ready nodes within the concurrency cap and refuses unsupported effects, conflicting writers and incomplete dependencies. CSO and verify converge through an other-tool checker; review partitions delegate to the existing cross-tool dispatcher. There is no merge or deploy handler.
+
+Data-use checks precede dispatch and report export: named policy owner, classification, repository/history permission, tool destinations, exact proof command argv and output roots. Missing authorization denies the action. Local policy and logs are writable records, not authenticated grants; runtime and OS permissions remain separate.
+
+| Action | Authority and record |
+|---|---|
+| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. Failed dependencies block convergence. |
+| Proof execution | Exact allowed argv, serialized local proof path; captures actual output and exit status. |
+| Report export | Complete report and authorized destination required; repeated identical export is idempotent. |
+| Human observation | Evidence-linked local observation, optionally shared gate-log entry; does not authorize execution or release. |
+| Oversight summary | Separates observations from machine events; override/timing measures are investigation signals, not proof of substantive review. |
+
+A signed observation label is not a digital signature. Human observations do not convert machine success into human approval. Release remains the named human's GitHub action under the peer-review contract.

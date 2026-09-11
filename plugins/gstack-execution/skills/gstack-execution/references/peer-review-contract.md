@@ -17,7 +17,7 @@ This is a bounded cross-tool review loop, not a general audit. The plugin contro
 
 The builder identity is supplied explicitly (`--builder`), never inferred from git authorship. If the other tool is not installed or not runnable, the outcome is `review_unavailable`. The dispatcher never substitutes the same tool and presents it as an independent review.
 
-The reviewer runs in a fresh, non-interactive session against a detached read-only snapshot of the exact head commit. It cannot edit the implementation, deploy, reach production credentials, or launch another reviewer (`GSTACK_PEER_REVIEW_SESSION` is set in its environment and the dispatcher refuses to open or run a review when it is present). Tests that need writes run in the builder's disposable validation worktree, not in the reviewer's snapshot.
+The reviewer runs in a fresh, non-interactive session against a detached read-only snapshot of the exact head commit. It is instructed not to edit the implementation or deploy; tool restrictions and snapshot permissions constrain writes. Production and human merge credentials must not be delegated to this process. It must not launch another reviewer (`GSTACK_PEER_REVIEW_SESSION` is set in its environment and the dispatcher refuses to open or run a review when it is present). Tests that need writes run in the builder's disposable validation worktree, not in the reviewer's snapshot.
 
 ## Model floors
 
@@ -30,12 +30,32 @@ The builder supplies one packet per completed implementation checkpoint (not per
 | Field | Purpose |
 |---|---|
 | `outcome` | The user outcome in one or two sentences |
-| `acceptance_criteria` | List. What "done" means, in checkable terms |
+| `acceptance_criteria` | Nonempty list of unique, nonblank statements defining "done" |
+| `release_owner` | Named accountable human's GitHub login; matched to the merge actor when recording release |
 | `repos` | List of `{path, base, head}`. Exact commits, one pair per repository. Approval of one pair never carries to another |
 | `changed_behavior` | What now behaves differently, and the entry points where execution reaches it |
 | `exclusions` | Settled decisions and out-of-scope areas the review must not reopen |
 | `tests` | `{commands, results, environment}`. What was run, what it showed, where |
+| `data_use` | Policy owner matching `release_owner`, classification, explicit repository/history permissions, and allowed reviewer tools; checked before reviewer dispatch |
 | `prior_findings` | Finding IDs and dispositions from earlier rounds (filled in by the dispatcher after round 1) |
+
+A review round requires `data_use`; absent or denied permission yields `data_use_denied` before source is sent to the reviewer. The policy is a declaration, not authenticated approval. For a Codex-built checkpoint whose source is authorized for both tools:
+
+```json
+{
+  "data_use": {
+    "owner": "<same-release-owner-github-login>",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": ["codex", "claude"],
+    "allowed_commands": [],
+    "output_roots": ["/abs/authorized/review-root"]
+  }
+}
+```
+
+This object is part of the full packet above. Only declare permissions already granted; unclear permission stops dispatch. Graph execution additionally checks output roots and proof command allowlists under the [task graph contract](task-graph-contract.md). Shared snapshot creation refuses symlinks escaping the repository snapshot.
 
 The builder's summary is a claim to check, not evidence. The reviewer opens the code at the pinned commits.
 
@@ -81,10 +101,17 @@ Return JSON only, matching this schema (the dispatcher rejects anything else as 
       "fix": "concrete remediation, described not applied"
     }
   ],
-  "regressions_from_fixes": ["F-ids whose fix introduced a new problem, with evidence"],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
   "notes": "one paragraph at most"
 }
 ```
+
+Acceptance must contain exactly one entry for every packet criterion, using the exact criterion text, a boolean `met`, and nonblank evidence. Unknown, duplicate, or missing criteria are rejected. A clean verdict requires all criteria met and no blocking findings.
+
+`blocker_resolutions` is empty in the initial round. In fix rounds it covers every previous blocking finding exactly once with a boolean `resolved` and nonblank evidence. A resolved entry requires a `fixed` or `disproved` builder disposition and cannot also remain blocking. An unresolved entry must retain its blocking finding.
+
+`regressions_from_fixes` contains only IDs of blocking findings in the same response; the matching finding carries the evidence. Orphan regression strings are rejected, so each regression participates in the next round’s blocker-resolution coverage.
 
 Finding IDs are stable across rounds. In a fix-verification round, reuse the IDs from `prior_findings`; a genuinely new blocker gets the next unused ID and must meet the same evidence and scope rules.
 
@@ -117,7 +144,7 @@ The builder records one disposition per finding before the next round runs:
 | `deferred` | Real, out of scope for this checkpoint; tracked as follow-up |
 | `unresolved` | Builder and reviewer disagree after evidence; escalates |
 
-A `blocking` finding cannot be `deferred` unless the user says so; the command asks.
+Unknown finding IDs are rejected, and `disproved` requires nonblank evidence. The CLI refuses blocking deferral: the human must approve a design amendment and the builder must open a new review against that contract. A disposition alone cannot waive a blocker.
 
 ## Outcomes
 
@@ -133,9 +160,18 @@ Every run ends in exactly one:
 | `missing_commits` | A base or head in the packet does not resolve |
 | `timeout` | Reviewer exceeded the time limit |
 | `malformed_output` | Reviewer returned something the schema rejects |
+| `data_use_denied` | Repository/history or reviewer destination permission is absent or denied, or a snapshot symlink escapes scope |
 | `model_below_floor` | The reviewer ran (or was configured to run) below the model floor |
 
-None of the last six is a pass. Each is reported as itself.
+Only `no_blocking_findings` and `fixes_verified` are passing round outcomes; all other round outcomes exit nonzero. Only `opened` and `blocking_findings` accept another round. A terminal result closes the review; retry requires a new review ID.
+
+## Release boundary
+
+`peer_review.py release <review-id> --target <branch>` (target defaults to `main`) revalidates the stored raw review against the packet and prior blockers, checks the review identity, and requires clean local HEADs matching every reviewed head. It writes a revision-bound `release.json` with the target branch and request timestamp (reusing the existing timestamp for an identical handoff), then deliberately exits nonzero with `awaiting_human_release`. It never merges and has no approval flag. Build and ship report `ready_for_human_release`; review success alone does not authorize release.
+
+The named human merges in GitHub under their own login. `peer_review.py record-release <review-id> --repo <path> --pr <number>` reads GitHub's PR record through `gh api`: the PR must be merged into the origin repository and requested target branch after the handoff timestamp, its head must equal the reviewed head, and `merged_by` must be the packet's Release Owner with GitHub type `User`. It writes a local merge decision with the review ID, action, head, merge commit, actor, timestamps, and source URL. It performs no remote write. Record each repository separately before reporting completion.
+
+This is a governance boundary, not a security sandbox or signature system. Local state files are writable by the agent and are not tamperproof. GitHub identity identifies the merge account, not proof of substantive human review; the human's merge credential must not be delegated to the agent, and branch protection is externally enforced. Shared data-use checks and evidence-linked oversight observations are described in the [task graph contract](task-graph-contract.md); an observation does not grant release authority.
 
 ## Storage
 
