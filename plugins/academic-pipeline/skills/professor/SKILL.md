@@ -451,9 +451,9 @@ Completeness = (Complete References / Total References) × 100%
 **Other (8)**: [15], [21], [23], [27], [32], [38], [41], [46], [47]
 
 **Most Egregious**:
-- [5] Constant et al. (2017) - **Computational Linguistics 43(4)** - Top-tier journal missing DOI
-- [38] Shwartz & Dagan (2019) - **TACL** - Top-tier journal missing DOI
-- [37] Schneider & Smith (2015) - **NAACL-HLT** - Major conference should be in ACL Anthology
+- [5] Lastname et al. (2017) - **Computational Linguistics 43(4)** - Top-tier journal missing DOI
+- [38] Lastname & Otherlastname (2019) - **TACL** - Top-tier journal missing DOI
+- [37] Thirdlastname & Fourthlastname (2015) - **NAACL-HLT** - Major conference should be in ACL Anthology
 ```
 
 ### Critical Rules
@@ -1305,7 +1305,7 @@ Identify risks and mitigation:
 **Target**: Achieve >95% reference completeness (45/47 references)
 
 **Action Items - Journals (add DOIs)**:
-- [ ] [5] Constant et al. (2017) Computational Linguistics
+- [ ] [5] Lastname et al. (2017) Computational Linguistics
   → Search: doi.org/10.1162/COLI or ACL Anthology
   → Add DOI to reference entry
   → Verify URL resolves

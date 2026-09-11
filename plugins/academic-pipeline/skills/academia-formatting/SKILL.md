@@ -379,7 +379,7 @@ Cite all supplementary items numerically in main text: Supplementary Figure 1, S
 - More than 5 authors: First author et al.
 
 **Example**:
-> 1. Smith AB, Jones CD, Williams EF, et al. Title of article. Journal Name. 2024;15(3):45–52.
+> 1. Lastname AB, Otherlastname CD, Thirdlastname EF, et al. Title of article. Journal Name. 2024;15(3):45–52.
 
 #### Copyright Statement
 

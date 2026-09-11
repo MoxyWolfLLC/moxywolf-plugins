@@ -34,7 +34,7 @@ For each key, pull the complete BibTeX entry: author/organization, year, title, 
 **Vancouver (default — Academia.edu):** numbered in order of first appearance in the text.
 
 ```
-1. Smith AB, Jones CD, Williams EF, et al. Title of article. Journal Name. 2024;15(3):45-52. https://doi.org/xxx
+1. Lastname AB, Otherlastname CD, Thirdlastname EF, et al. Title of article. Journal Name. 2024;15(3):45-52. https://doi.org/xxx
 ```
 
 **APA (7th):**
