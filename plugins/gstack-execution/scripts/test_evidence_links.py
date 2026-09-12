@@ -261,6 +261,24 @@ class ReviewRegressions(unittest.TestCase):
         self.assertEqual(report["outcome"], "incomplete_record")
         self.assertTrue(any("record is complete" in c["link"] and not c["ok"] for c in report["checks"]))
 
+    def test_f2_a_round_field_of_the_wrong_shape_does_not_verify(self):
+        """Third pass. The fields were checked for presence, not for shape, so a record
+        could carry the right keys holding the wrong things and still verify."""
+        for field, value in (("findings", "not a list"), ("acceptance", 5), ("repos", {}), ("subjects", [])):
+            with self.subTest(field=field):
+                _, d = self.reviewed()
+                rec = pr.load(d, "round-1.json"); rec[field] = value; pr.save(d, "round-1.json", rec)
+                report = pr.verify_links(d)
+                self.assertNotEqual(report["outcome"], "links_verified")
+                self.assertTrue(any("record is complete" in c["link"] and not c["ok"] for c in report["checks"]),
+                                f"{field} of the wrong shape must fail the completeness check")
+
+    def test_f2_a_finding_that_is_not_an_object_does_not_verify(self):
+        _, d = self.reviewed()
+        rec = pr.load(d, "round-1.json"); rec["findings"] = ["just a string"]; pr.save(d, "round-1.json", rec)
+        report = pr.verify_links(d)
+        self.assertTrue(any("findings are well formed" in c["link"] and not c["ok"] for c in report["checks"]))
+
     def test_f2_a_round_whose_acceptance_drops_a_criterion_does_not_verify(self):
         _, d = self.reviewed()
         rec = pr.load(d, "round-1.json"); rec["acceptance"] = []; pr.save(d, "round-1.json", rec)

@@ -122,7 +122,7 @@ coverage it never had).
 
 ### EV-002 — Findings bind to content, and every link re-resolves on demand
 
-**Status:** review. Built; peer review and human merge pending.
+**Status:** review. Built and reviewed (20260912-122421-80159e3-_lrr97ak, codex/gpt-6-astra, rounds_exhausted). Six blockers raised, five verified fixed by the reviewer. F2 was raised three times: a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape. The third repair and the one-walk change that followed it carry regressions but no reviewer sign-off, because the round limit was reached first. Exhausting the limit is not approval; the Release Owner decides whether to merge on the evidence as it stands or open a fresh review on the final head.
 
 **Links introduced:** a per-finding subject (blob id plus a span hash at the reviewed
 head) retained in `round-N.json`; the `verify` report's re-resolution of that subject at

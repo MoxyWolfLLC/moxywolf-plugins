@@ -449,6 +449,7 @@ def verify_links(d):
                    "" if _is_commit(r["path"], r[end]) else "commit is gone from the repository")
 
     unbound = 0
+    blocking_ids, known = {}, set()          # collected here, where the record is validated
     for n in range(1, state.get("rounds_used", 0) + 1):
         rec = load(d, f"round-{n}.json")
         # F2: a round the state claims cannot be absent. Loading it as {} produced no
@@ -466,9 +467,17 @@ def verify_links(d):
         # F2, second pass: absence was caught, emptiness was not. A record carrying an
         # outcome and nothing else still contributed no checks, so the round verified by
         # having nothing in it to verify. Require the fields a completed round must have.
+        # Presence is not validity: a field of the wrong shape reaches the per-finding
+        # loop and either crashes it or slips past it, so check the shape here.
+        shape = {"repos": list, "findings": list, "acceptance": list, "subjects": dict}
+        bad = [k for k, t in shape.items() if k in rec and not isinstance(rec[k], t)]
         missing = [k for k in ("repos", "findings", "acceptance") if k not in rec]
-        if missing:
-            record(f"round {n} record is complete", False, f"completed round is missing {missing}", kind="record")
+        if missing or bad:
+            record(f"round {n} record is complete", False,
+                   f"completed round is missing {missing} and malformed in {bad}", kind="record")
+            continue
+        if any(not isinstance(f, dict) or "id" not in f or "severity" not in f for f in rec["findings"]):
+            record(f"round {n} findings are well formed", False, "a finding is not an object carrying id and severity", kind="record")
             continue
         covered = {row.get("criterion") for row in rec["acceptance"] if isinstance(row, dict)}
         expected = set(packet["acceptance_criteria"])
@@ -476,6 +485,10 @@ def verify_links(d):
                "" if covered == expected else f"not covered: {sorted(expected - covered)}", kind="record")
         subjects = rec.get("subjects")
         findings = rec["findings"]
+        for f in findings:
+            known.add(f["id"])
+            if f["severity"] == "blocking":
+                blocking_ids.setdefault(f["id"], n)
         if subjects is None and findings:
             unbound += 1
             record(f"round {n} finding subjects", False,
@@ -524,15 +537,12 @@ def verify_links(d):
 
     # F4: every round's blockers, not only the last. A blocker raised in round one and
     # resolved in round two is absent from the final findings, and checking only the
-    # final round excused exactly the dispositions that were acted on.
-    blocking_ids = {}
-    for n in range(1, state.get("rounds_used", 0) + 1):
-        for f in (load(d, f"round-{n}.json") or {}).get("findings", []):
-            if f["severity"] == "blocking":
-                blocking_ids.setdefault(f["id"], n)
+    # final round excused exactly the dispositions that were acted on. Both of these
+    # read the collectors filled in above rather than walking the rounds again: a second
+    # walk is a second home for the shape rule, and it crashed on a malformed record
+    # that the first walk had already rejected.
     for fid, n in sorted(blocking_ids.items()):
         record(f"disposition for blocking {fid} (round {n})", fid in dispositions, "no disposition recorded", kind="record")
-    known = {f["id"] for n in range(1, state.get("rounds_used", 0) + 1) for f in (load(d, f"round-{n}.json") or {}).get("findings", [])}
     for fid in dispositions:
         record(f"disposition {fid} names a real finding", fid in known, "no finding carries this id", kind="record")
 
