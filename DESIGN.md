@@ -76,7 +76,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-002 — Every declared requirement has a producer
 
-**Status:** building.
+**Status:** done. Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
 
 1. End-matter sections declared in Stage 4 appear in Stage 5's `structure_plan` whenever the venue requires them.
 2. Stage 6 writes those sections as ordinary sections.
@@ -85,7 +85,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-003 — Mechanical release gate before completion
 
-**Status:** building.
+**Status:** done. Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
 
 1. The orchestrator runs a gate before presenting deliverables: zero em dashes, zero forbidden phrases, renumber `--check` exit 0, every `section_order` entry present, and no two references sharing a normalized DOI or URL.
 2. Stage 7 dedupes on normalized DOI/URL, not only on BibTeX key, and warns when two keys resolve to one work.
@@ -105,3 +105,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-09-11: Dorian requested the remaining task graph implementation ("Then build it"). GA-002 through GA-004 retain the approved criteria.
 
 - 2026-09-11: Dorian approved a second objective for this repository after a naming defect surfaced during an academic-pipeline run: the deliverable was written to a hardcoded `complete_document.md` and the formatting skill carried a fabricated author surname. AP-001 through AP-003 add derived naming, producers for declared requirements, and a mechanical release gate.
+
+- 2026-09-12: AP-001 through AP-003 complete. Two reviews, four blocking findings, all false passes in either the acceptance test or the gate itself. Both merges were executed by Claude with the vault PAT at Dorian's explicit instruction rather than by a human clicking Merge; the merge commits record that, and record-release cannot distinguish the two because the PAT carries the owner's identity. Closing that gap needs an agent credential without merge rights, which the release-boundary contract already assumes exists.
