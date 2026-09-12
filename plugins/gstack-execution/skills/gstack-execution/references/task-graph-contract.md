@@ -55,6 +55,22 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/task_graph.py" export --run-dir /abs/auth
 
 `plan` materializes and validates topology without dispatch. `run` bounds concurrent ready work and locks the run directory against a second executor. Local proofs serialize. Failed nodes block dependents; an incomplete run exits nonzero and cannot export a successful report. `verify` remains advisory: report completeness does not confer shipping authority.
 
+## The undeclared-write sweep
+
+Validation compares declarations against each other, so an undeclared write has nothing
+to compare and is outside governance by construction rather than by oversight. It stays
+inert until something runs beside it. `run --audit-writes` closes the other direction:
+the run root is hashed before each node and again after its handler returns but before
+the executor writes the node's declared outputs, and any path the handler created or
+changed that no output declaration mentions fails that node by name.
+
+The sweep is serial and says so: `--audit-writes` forces concurrency to 1, because
+attributing a write to one node while several are writing would itself be a declaration
+that can be false, which is the defect the sweep exists to find rather than reproduce.
+Files the executor owns are excluded where the snapshot is taken and only there, so the
+rule has one home. Reads are not yet instrumented; a declared dependency that no node
+actually reads is still undetected, and that gap is stated rather than papered over.
+
 ## State, resume and export
 
 The run directory stores frozen `packet.json`, materialized `graph.json`, node outputs, `state.json`, `events.jsonl` and the completed `report.json`. Resume with the same `run` invocation. Cached success requires matching node, packet and dependency hashes and matching saved output evidence. Changed inputs invalidate affected work; a changed packet invalidates packet-dependent nodes. An incomplete new attempt removes the previous report.

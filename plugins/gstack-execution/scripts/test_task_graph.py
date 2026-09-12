@@ -32,6 +32,7 @@ if n.get('kind')=='checker': r['findings']=[dict(f,status='VERIFIED') for f in p
 if n.get('malformed'): r['findings']=[dict(f,status='BOGUS',evidence=[None]) for f in p['candidates']]
 r['interval']=[start,time.time()]
 if n.get('stable'): r.pop('interval')
+if n.get('stray'): pathlib.Path(n['stray']).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(n['stray']).write_text('{}')
 print(json.dumps(r))
 ''')
         self.command=[sys.executable,str(self.worker)]
@@ -48,9 +49,65 @@ print(json.dumps(r))
         return dict(id=id,depends_on=deps,inputs=deps+['packet'],outputs=[id+'.json'],effects=['local_report'] if kind=='report' else ['external_review'],on_failure='block',kind=kind,checks=[id],command=self.command,**extra)
     def call(self,*args):
         return subprocess.run([sys.executable,str(SCRIPT),*args],text=True,capture_output=True)
-    def execute(self,cap=2):
+    def execute(self,cap=2,audit=False):
         self.pfile.write_text(json.dumps(self.packet));self.wfile.write_text(json.dumps(self.graph))
-        return self.call('run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs',str(cap))
+        args=['run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs',str(cap)]
+        if audit:args.append('--audit-writes')
+        return self.call(*args)
+
+    def test_audit_fails_a_node_writing_outside_its_declared_outputs(self):
+        """EV-003. A real edge that was never declared: the validator compares
+        declarations against each other, so it has nothing to compare and the write is
+        invisible until something runs beside it."""
+        self.graph['nodes'][1]['stray']=str(self.run/'reviews'/'sneaky.json')
+        r=self.execute(audit=True)
+        self.assertEqual(r.returncode,1,r.stdout)
+        self.assertIn('a',json.loads(r.stdout)['failed'])
+        self.assertIn('undeclared write by a',self.state()['nodes']['a']['error'])
+        self.assertIn('reviews/sneaky.json',self.state()['nodes']['a']['error'])
+
+    def test_audit_passes_a_graph_whose_handlers_write_only_what_they_declare(self):
+        """The sweep has to be quiet on a clean graph or nobody will run it."""
+        r=self.execute(audit=True)
+        self.assertEqual(r.returncode,0,r.stderr)
+        self.assertEqual(self.state()['outcome'],'complete')
+
+    def test_audit_forces_serial_execution(self):
+        """Attributing a write to a node while another node is writing would be a
+        declaration that can be false, which is the defect this is meant to find."""
+        r=self.execute(cap=4,audit=True)
+        self.assertEqual(r.returncode,0,r.stderr)
+        a=self.state()['nodes']['a']['result']['interval'];b=self.state()['nodes']['b']['result']['interval']
+        self.assertFalse(max(a[0],b[0])<min(a[1],b[1]),'audit mode must not overlap nodes')
+
+    def _tg(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('tg',SCRIPT);tg=importlib.util.module_from_spec(spec);spec.loader.exec_module(tg);return tg
+
+    def test_the_executor_owned_files_are_excluded_where_the_snapshot_is_taken(self):
+        """The exclusion lives in tree_digest and only there. Repeating it inside
+        undeclared_writes would give one rule two homes, which is how a rule gets
+        changed in one place and silently kept in the other."""
+        tg=self._tg();d=self.root/'snap';(d/'reviews').mkdir(parents=True)
+        for name in ('state.json','packet.json','graph.json','run.lock','a.json'):(d/name).write_text('{}')
+        (d/'reviews'/'r.json').write_text('{}')
+        self.assertEqual(sorted(tg.tree_digest(d)),['a.json','reviews/r.json'])
+
+    def test_f5_hidden_paths_and_lock_files_are_not_exempt_from_the_sweep(self):
+        """Exempting every hidden path and every .lock handed a handler two places to
+        write unobserved. Blocker F5 of review 20260912-122421-80159e3-_lrr97ak."""
+        tg=self._tg();d=self.root/'snap2';(d/'.hidden').mkdir(parents=True)
+        for name in ('state.json','run.lock','.hidden/evil.json','handler.lock','ok.json'):(d/name).write_text('{}')
+        seen=sorted(tg.tree_digest(d))
+        self.assertEqual(seen,['.hidden/evil.json','handler.lock','ok.json'])
+        self.assertNotIn('state.json',seen);self.assertNotIn('run.lock',seen)
+
+    def test_undeclared_writes_reports_creations_and_modifications_only(self):
+        tg=self._tg();node={'id':'n','outputs':['n.json']}
+        self.assertEqual(tg.undeclared_writes({},{'n.json':'aa'},node),[],'a declared output is not undeclared')
+        self.assertEqual(tg.undeclared_writes({},{'extra.json':'cc'},node),['extra.json'])
+        self.assertEqual(tg.undeclared_writes({'extra.json':'cc'},{'extra.json':'cc'},node),[],'unchanged files are not writes')
+        self.assertEqual(tg.undeclared_writes({'extra.json':'cc'},{'extra.json':'dd'},node),['extra.json'],'a modification is a write')
     def state(self): return json.loads((self.run/'state.json').read_text())
     def test_diamond_overlaps_and_preserves_all_findings(self):
         r=self.execute();self.assertEqual(r.returncode,0,r.stderr)

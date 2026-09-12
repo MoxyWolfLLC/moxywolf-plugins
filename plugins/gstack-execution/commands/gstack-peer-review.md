@@ -47,6 +47,7 @@ Assemble `packet.json` (path from `--packet`, else write it to the review dir th
 - `release_owner` identifies the accountable human by GitHub login, not an agent or generic team.
 - `tests` is evidence, not a claim: paste the actual command and its actual result. The final check exercises the user's workflow, not only internal helpers; say which.
 - `exclusions` is where settled architecture goes so the reviewer cannot reopen it.
+- `links` carries the item's **Links this item introduces** row verbatim. The reviewer rules on each one in both directions: is every declared edge real, and is every real read and write declared. The second sweep is the harder one and the one that finds what a validator cannot, because a validator can only compare declarations against each other.
 
 ## Graph entry point
 

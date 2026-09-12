@@ -14,11 +14,20 @@ Bulleted. Architecture choices already made, boundaries not to cross, dependenci
 
 ## Items
 
+Every item declares the evidential links it introduces. A link is a place where the
+system will hold a NAME and a reader will assume a RELATIONSHIP: an identifier, a cache
+key, a retained handle, a resume point, a declaration of what a handler reads or writes.
+Names are cheap to keep and expensive to verify, so they persist after the thing at the
+other end has changed, and the report stays complete while being wrong about its subject.
+Copying someone else's list is the smaller half of the lesson: derive this one from what
+THIS change actually introduces, before anything built on it starts producing reports
+that look complete. An item that introduces state and declares no links is not ready.
+
 One row per unit of work. An item is buildable when its acceptance criteria are checkable statements, not intentions. For a web item, a criterion names the Playwright spec that proves it (`e2e/<area>.spec.ts: <test title>`); Endform runs it against the preview deployment on every push (`.github/workflows/endform-e2e.yml`, added by `/gstack-build` if missing). Status is one of `planned`, `building`, `review`, `done`, `dropped`.
 
-| ID | Item | Acceptance criteria | Status | Review ID / merge |
-|---|---|---|---|---|
-| I-001 | | 1. … 2. … | planned | |
+| ID | Item | Acceptance criteria | Links this item introduces | Status | Review ID / merge |
+|---|---|---|---|---|---|
+| I-001 | | 1. … 2. … | e.g. "cache key over declared deps only"; "review id retained across resume"; "none" | planned | |
 
 ## Amendments log
 

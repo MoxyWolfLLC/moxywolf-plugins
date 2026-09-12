@@ -92,6 +92,134 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 3. The gate names each check and its result. A failing gate blocks the completion report rather than being narrated around it.
 4. Tests: the gate run against a fixture carrying a planted em dash, a duplicate URL, and a missing section fails on exactly those three.
 
+## Third objective: evidence integrity
+
+Goal: a report is treated as evidence only when the links between it and the work it
+describes still hold. Completeness checks items; nothing checked links. Every defect in
+this objective is a link that still resolved after the thing at its other end had
+changed, which produces a complete report, no error, and a person about to sign it.
+
+Derived from "When Structure Pays" (Cougias, 2026), which reports three such defects in
+this repository's own executor plus three false passes in its own completeness gate.
+
+### EV-001 — No check reports a pass over input it did not examine
+
+**Status:** review. Built; peer review and human merge pending.
+
+**Links introduced:** none; this item removes a false one (a verdict that implied
+coverage it never had).
+
+1. Every check returns what it examined and in what unit, and a PASS with zero coverage
+   becomes a FAIL naming the shortfall. The rule is applied where results are assembled,
+   so no later check can opt out of it by forgetting to.
+2. A check that does not apply returns SKIP, is printed as SKIP, and is counted in the
+   summary line. It is never folded into a green line.
+3. Each check carries a seeded defect it must catch, because a repair verified only
+   against the case that was reported reproduces the defect it is repairing.
+4. Tests: a paper with no reference list fails `duplicate_sources` for examining nothing;
+   an empty forbidden-phrase list and an empty `section_order` fail rather than report a
+   clean paper; a non-Vancouver paper skips rather than passes citation order.
+
+### EV-002 — Findings bind to content, and every link re-resolves on demand
+
+**Status:** review. Built and reviewed (20260912-122421-80159e3-_lrr97ak, codex/gpt-6-astra, rounds_exhausted). Six blockers raised, five verified fixed by the reviewer. F2 was raised three times: a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape. The third repair and the one-walk change that followed it carry regressions but no reviewer sign-off, because the round limit was reached first. Exhausting the limit is not approval; the Release Owner decides whether to merge on the evidence as it stands or open a fresh review on the final head.
+
+**Links introduced:** a per-finding subject (blob id plus a span hash at the reviewed
+head) retained in `round-N.json`; the `verify` report's re-resolution of that subject at
+the repository's current head.
+
+1. The dispatcher, not the reviewer, binds each finding to the content at the reviewed
+   head when the round is recorded.
+2. `verify` re-resolves the packet's commits, every finding subject, every disposition,
+   and every recorded observation, and names each link it examined.
+3. Drift expected from a repair is not reported as staleness; drift under any other
+   disposition is.
+4. A missing entry and a link that resolved to the wrong thing do not share an outcome
+   name, and a record that cannot be re-resolved is a third answer.
+5. `release` refuses on `stale_link` and `incomplete_record`.
+6. Tests: content changing under an undisposed finding is stale; the same change under a
+   `fixed` finding is not; a hand-edited span is detected; a snapshot-prefixed path and a
+   repo-relative path bind to one subject.
+
+### EV-003 — The undeclared-write sweep, in the direction nobody had
+
+**Status:** review. Built; peer review and human merge pending.
+
+**Links introduced:** the declaration-to-behaviour link for every handler, checked at
+runtime rather than against other declarations.
+
+1. `run --audit-writes` hashes the run root before each node and after its handler
+   returns, before declared outputs are written, and fails a node that wrote a path no
+   declaration mentions.
+2. The sweep forces serial execution, because attributing a write while several nodes are
+   writing would be a declaration that can be false.
+3. The exclusion of executor-owned files has one home.
+4. Reads are not instrumented; a declared dependency that nothing reads is still
+   undetected and is stated as a limit rather than implied to be covered.
+5. Tests: a handler writing an undeclared path fails by name; a clean graph passes; audit
+   mode does not overlap nodes.
+
+### EV-004 — The approver's reconstruction gets a field
+
+**Status:** review. Built; peer review and human merge pending.
+
+**Links introduced:** each observation's claim-to-command-to-output link, re-runnable by
+`verify`.
+
+1. `release` records, per repository, that the release head is the reviewed head, with
+   the command and a digest of its output, plus any observation the approver adds.
+2. The record states plainly that it captures what was run, not that a person read it.
+3. `verify` re-runs recorded observations and reports one that no longer holds.
+4. Tests: the automatic observation is recorded and re-verified; a stale digest is caught.
+
+### EV-005 — Each item declares the links it introduces
+
+**Status:** review. Built; peer review and human merge pending.
+
+**Links introduced:** none.
+
+1. The design-doc template carries a `Links this item introduces` column and says to
+   derive it from the change rather than copy another item's.
+2. `/gstack-build` treats an item that introduces state with no declared links as not yet
+   covered, and amends the doc before any code.
+3. The review packet carries that row, and the reviewer rules on each link in both
+   directions.
+
+### EV-006 — Instrument reads
+
+**Status:** planned.
+
+**Links introduced:** the read side of every handler's declaration.
+
+1. A node's declared inputs are compared against what its handler actually read.
+2. A declared dependency that nothing reads is reported, completing the fake-edge test in
+   both directions.
+
+### EV-007 — Reference identity and archive at citation time
+
+**Status:** planned.
+
+**Links introduced:** the reference-to-work link (identifier to canonical work) and the
+citation-to-snapshot link.
+
+1. References resolve to a canonical work identity before comparison, so one study cited
+   as a preprint and as its announcement is detected as one work rather than two strings.
+2. Every cited URL is archived at citation time and the reference stores the snapshot and
+   its hash.
+3. Every commit, test name and review identifier a manuscript cites resolves in the named
+   repository at the cited commit.
+
+### EV-008 — Record what a review examined, not only what it found
+
+**Status:** planned.
+
+**Links introduced:** the review-to-search-space link.
+
+1. A round records the paths the reviewer opened and the commands it ran.
+2. A round that examined nothing outside the diff is visible as such.
+3. Ad-hoc consultations with other tools are conducted through an address that leaves a
+   record, so the denominator of a search stops being unknown.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -99,6 +227,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-12: Dorian approved a third objective after reading "When Structure Pays", which reports three defects in this executor and three false passes in this repository's own completeness gate. EV-001 through EV-005 are built in this change; EV-006 through EV-008 are declared and not started. The paper's central claim is the reason the objective exists: completeness is a property of an artifact, evidential force is a property of the relationship between the artifact and the work, and that relationship is not in the artifact.
 
 - 2026-09-11: Approved by Dorian in the Codex Team Plugins conversation. Establishes the Governed Autonomy objective and acceptance criteria above. Initial implementation is GA-001; subsequent items begin only when requested.
 
