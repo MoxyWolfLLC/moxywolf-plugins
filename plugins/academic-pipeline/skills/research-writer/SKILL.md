@@ -48,6 +48,8 @@ From the `.bib`, fetch the entries mapped to this section. Verify author names (
 
 **Middle sections:** just the `## <section title>` heading and the prose.
 
+**End-matter sections** (Funding, Author Contributions, Conflict of Interest, Data Availability, ethics statements) are ordinary sections and get written like any other. Take their text from `formatting_requirements.json` under `end_matter_text` where it is supplied, and write them in place rather than leaving them for a later formatting pass. They are short. They are also the sections a venue desk-rejects for, and the ones most often declared upstream and produced by nobody.
+
 **Final section:** the prose, then:
 
 ```markdown
@@ -60,6 +62,7 @@ From the `.bib`, fetch the entries mapped to this section. Verify author names (
 
 - **Voice** — weave in the author's perspective at the points `voice_integration` designates. Use the real evidence and contrarian take from `voice_context.json`. Apply MoxyWolf frameworks where flagged. This is authentic-voice-first drafting, not generic prose that gets a voice pass later.
 - **Formatting** — obey `formatting_requirements.json`: Academia.edu scholarly register, ~50% contraction rate, **zero em dashes**, none of the forbidden phrases ("It's worth noting that", "Furthermore", "Additionally", "Moreover", "In today's rapidly changing", "At its core", "in order to"). Active voice. Specific numbers over abstract claims.
+- **Vancouver numbering** — number citations by first appearance in the text **as you draft**, not afterward. The first source cited anywhere in the paper is `[1]`, the next new one `[2]`, and a source already cited keeps its number wherever it reappears. Retrofitting the order after the fact means renumbering every marker after any insertion, which is how numbering drifts out of venue compliance. Run the bibliography-generator's renumber pass in `--check` mode as the last step regardless; it should report zero renumbered.
 - **Citations** — introduce a source before leaning on it ("Lastname et al. (2024) demonstrate…") or cite at the end of a claim. Paraphrase; quote only when truly necessary.
 - **Perspective** — match the lens: innovation-focused emphasizes novelty; critical surfaces tensions; practical includes implementation detail; theoretical develops frameworks.
 

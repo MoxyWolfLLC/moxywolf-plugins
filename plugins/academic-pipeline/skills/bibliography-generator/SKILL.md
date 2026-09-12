@@ -25,6 +25,8 @@ Seventh stage of the `academic-pipeline`. Consumes Stage 6's `draft_document.md`
 
 Deduplicate `all_citations_used`. If the list was not passed in, extract citation markers directly from `draft_document.md`.
 
+**Deduplicate on the work, not only on the key.** Two BibTeX keys can point at one publication: a preprint record and an aggregator's page for the same paper, or the same arXiv identifier entered twice. Key-level dedupe passes them through and the reference list then carries one work under two numbers. Normalize each entry's DOI, or its URL when there is no DOI (lowercase, drop the scheme, `www.`, a `doi.org/` prefix and any trailing slash), and warn when two keys resolve to the same value. Keep the canonical record, drop the mirror, and say in `warnings` which key was dropped and why. A mirror worth mentioning in the text is mentioned in prose, not given its own reference number.
+
 ### Step 2 — Retrieve full entries
 
 For each key, pull the complete BibTeX entry: author/organization, year, title, journal/booktitle/howpublished, volume, number, pages, DOI, URL. Flag any missing fields. **Never invent citation data** — use only what the `.bib` contains.

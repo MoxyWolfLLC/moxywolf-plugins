@@ -67,7 +67,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-001 — Derive deliverable names and attribution from run data
 
-**Status:** building.
+**Status:** done. Review 20260911-163931-423bd0a-bo_glftu, fixes_verified; merged as 6603aae.
 
 1. Stage 7 writes its deliverable to a name derived from the Stage 1 target slug. The orchestrator's artifact table and Stage 8's input reference that same name.
 2. Stage 1's diagram deliverable is derived from the target slug likewise.
@@ -76,7 +76,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-002 — Every declared requirement has a producer
 
-**Status:** planned.
+**Status:** building.
 
 1. End-matter sections declared in Stage 4 appear in Stage 5's `structure_plan` whenever the venue requires them.
 2. Stage 6 writes those sections as ordinary sections.
@@ -85,7 +85,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-003 — Mechanical release gate before completion
 
-**Status:** planned.
+**Status:** building.
 
 1. The orchestrator runs a gate before presenting deliverables: zero em dashes, zero forbidden phrases, renumber `--check` exit 0, every `section_order` entry present, and no two references sharing a normalized DOI or URL.
 2. Stage 7 dedupes on normalized DOI/URL, not only on BibTeX key, and warns when two keys resolve to one work.

@@ -78,7 +78,9 @@ This briefing is not optional scaffolding — it is shown to the user alongside 
 
 Build a section-by-section outline aligned with the **perspective** (e.g. innovation-focused → recent developments lead), the **audience** (e.g. industry → practical implications), the **sub-themes** (each gets coverage), the **voice context** (mark where the author's experience and opinions belong), the **formatting requirements** (Academia.edu section structure and register), and the **Step 5 decision briefing** — confident findings get stated plainly; contested points get hedged framing or their own tensions subsection, never silently upgraded to fact.
 
-Baseline article shape: Introduction → one section per sub-theme → integration/synthesis → Conclusion. Adjust by content type — literature review: thematic sections + critical synthesis; white paper: Problem → Solution → Implementation.
+Baseline article shape: Introduction → one section per sub-theme → integration/synthesis → Conclusion.
+
+**Every declared requirement needs a producer in this plan.** Read `section_order` from `formatting_requirements.json` and put every entry the venue requires into `structure_plan`, including the end matter: Funding, Author Contributions, Conflict of Interest, Data Availability, and the ethics statements when applicable. A section that Stage 4 declares and Stage 5 omits is a requirement nobody writes, because Stage 6 only drafts what this plan lists. Give each end-matter section a word target, even a small one; the writer treats them as ordinary sections. This is the gap AP-002 exists to close. Adjust by content type — literature review: thematic sections + critical synthesis; white paper: Problem → Solution → Implementation.
 
 Mark **voice integration points**: which sections carry the author's lived experience, where strong opinions belong, where MoxyWolf frameworks apply.
 
