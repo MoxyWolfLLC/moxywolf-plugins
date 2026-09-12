@@ -93,6 +93,15 @@ print(json.dumps(r))
         (d/'reviews'/'r.json').write_text('{}')
         self.assertEqual(sorted(tg.tree_digest(d)),['a.json','reviews/r.json'])
 
+    def test_f5_hidden_paths_and_lock_files_are_not_exempt_from_the_sweep(self):
+        """Exempting every hidden path and every .lock handed a handler two places to
+        write unobserved. Blocker F5 of review 20260912-122421-80159e3-_lrr97ak."""
+        tg=self._tg();d=self.root/'snap2';(d/'.hidden').mkdir(parents=True)
+        for name in ('state.json','run.lock','.hidden/evil.json','handler.lock','ok.json'):(d/name).write_text('{}')
+        seen=sorted(tg.tree_digest(d))
+        self.assertEqual(seen,['.hidden/evil.json','handler.lock','ok.json'])
+        self.assertNotIn('state.json',seen);self.assertNotIn('run.lock',seen)
+
     def test_undeclared_writes_reports_creations_and_modifications_only(self):
         tg=self._tg();node={'id':'n','outputs':['n.json']}
         self.assertEqual(tg.undeclared_writes({},{'n.json':'aa'},node),[],'a declared output is not undeclared')

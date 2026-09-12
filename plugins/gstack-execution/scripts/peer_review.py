@@ -370,7 +370,10 @@ def _subject_path(path, repos):
     Codex returns) or a repo-relative one ("calc.py", which is what Claude returns).
     Both have to land on the same subject or the binding is worthless.
     """
-    p = path.replace("\\", "/").lstrip("./")
+    p = path.replace("\\", "/")
+    while p.startswith("./"):          # F1: lstrip("./") also ate the dot of .claude-plugin
+        p = p[2:]
+    p = p.lstrip("/")
     for i, r in enumerate(repos):
         prefix = f"{i}-{Path(r['path']).name}/"
         if p.startswith(prefix):
@@ -447,7 +450,19 @@ def verify_links(d):
 
     unbound = 0
     for n in range(1, state.get("rounds_used", 0) + 1):
-        rec = load(d, f"round-{n}.json") or {}
+        rec = load(d, f"round-{n}.json")
+        # F2: a round the state claims cannot be absent. Loading it as {} produced no
+        # checks at all, and a verifier that examines nothing and reports success is the
+        # precise failure this command exists to catch.
+        if rec is None:
+            record(f"round {n} record exists", False, "state claims this round ran and no record of it is on disk", kind="record")
+            continue
+        if "outcome" not in rec:
+            record(f"round {n} record is complete", False, "record carries no outcome", kind="record")
+            continue
+        if rec.get("error"):
+            record(f"round {n} record is complete", True, f"round did not produce findings: {rec['outcome']}")
+            continue
         subjects = rec.get("subjects")
         findings = rec.get("findings", [])
         if subjects is None and findings:
@@ -462,6 +477,14 @@ def verify_links(d):
             if not s or not s.get("bound"):
                 unbound += 1
                 record(tag, False, (s or {}).get("why", "finding was never bound to content"), kind="unverifiable")
+                continue
+            # F3: re-resolve the FINDING's own location and require it to be the subject
+            # that was recorded for it. Hashing the subject's stored path against itself
+            # verifies nothing about the finding that cites it.
+            ri, rel = _subject_path(f["file"], rec.get("repos") or packet["repos"])
+            if (ri is None or rel != s.get("path") or rec["repos"][ri]["path"] != s.get("repo")
+                    or f["line"] != s.get("line") or rec["repos"][ri]["head"] != s.get("head")):
+                record(tag, False, "the finding no longer names the subject recorded for it")
                 continue
             if not s.get("line_exists", True):
                 record(tag, False, f"line {s['line']} did not exist at the reviewed head ({s['file_lines']} lines)")
@@ -488,10 +511,16 @@ def verify_links(d):
                 record(tag, False, f"content changed at {current[:7]} and the disposition is {disposition or 'none'}; "
                                    "the finding's evidence no longer describes the code")
 
-    final = load(d, f"round-{state.get('rounds_used', 0)}.json") or {}
-    for f in final.get("findings", []):
-        if f["severity"] == "blocking":
-            record(f"disposition for blocking {f['id']}", f["id"] in dispositions, "no disposition recorded", kind="record")
+    # F4: every round's blockers, not only the last. A blocker raised in round one and
+    # resolved in round two is absent from the final findings, and checking only the
+    # final round excused exactly the dispositions that were acted on.
+    blocking_ids = {}
+    for n in range(1, state.get("rounds_used", 0) + 1):
+        for f in (load(d, f"round-{n}.json") or {}).get("findings", []):
+            if f["severity"] == "blocking":
+                blocking_ids.setdefault(f["id"], n)
+    for fid, n in sorted(blocking_ids.items()):
+        record(f"disposition for blocking {fid} (round {n})", fid in dispositions, "no disposition recorded", kind="record")
     known = {f["id"] for n in range(1, state.get("rounds_used", 0) + 1) for f in (load(d, f"round-{n}.json") or {}).get("findings", [])}
     for fid in dispositions:
         record(f"disposition {fid} names a real finding", fid in known, "no finding carries this id", kind="record")
@@ -502,8 +531,12 @@ def verify_links(d):
             out = subprocess.run(shlex.split(obs["command"]), capture_output=True, text=True, timeout=60,
                                  cwd=obs.get("cwd") or None)
             same = hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16] == obs.get("output_digest")
-            record(f"observation '{obs['claim']}' still holds", same,
-                   "" if same else "the recorded command no longer produces the output it recorded")
+            if obs.get("supported") is False:
+                record(f"observation '{obs['claim']}' was supported when recorded", False,
+                       f"the command exited {obs.get('exit')} and never supported the claim")
+            else:
+                record(f"observation '{obs['claim']}' still holds", same,
+                       "" if same else "the recorded command no longer produces the output it recorded")
         except Exception as e:
             record(f"observation '{obs['claim']}' re-runs", False, f"{type(e).__name__}: {e}")
 
@@ -551,17 +584,25 @@ def human_observations(packet, extra):
     """
     observations = []
     for repo in packet["repos"]:
-        cmd = f"git -C {repo['path']} rev-parse HEAD"
-        out = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=60)
+        # F6: build the argv, then serialize it for replay. Formatting a command string
+        # and splitting it apart again tore every path containing a space into pieces,
+        # and these repositories live under "MoxyWolf Shared Files".
+        argv = ["git", "-C", repo["path"], "rev-parse", "HEAD"]
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        supported = out.returncode == 0 and out.stdout.strip() == repo["head"]
+        if not supported:
+            raise ReviewError("release_blocked", f"{Path(repo['path']).name}: HEAD is not the reviewed head; the claim this observation would record is false")
         observations.append({"claim": f"release head of {Path(repo['path']).name} is the reviewed head {repo['head'][:7]}",
-                             "command": cmd, "output_digest": hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16],
+                             "command": shlex.join(argv), "supported": True,
+                             "output_digest": hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16],
                              "output_head": (out.stdout or out.stderr).strip()[:200], "automatic": True})
     for item in extra or []:
         claim, sep, cmd = item.partition("::")
         if not sep or not claim.strip() or not cmd.strip():
             raise ReviewError("release_blocked", "observation must be written as 'claim :: command'")
         out = subprocess.run(shlex.split(cmd.strip()), capture_output=True, text=True, timeout=60)
-        observations.append({"claim": claim.strip(), "command": cmd.strip(),
+        observations.append({"claim": claim.strip(), "command": shlex.join(shlex.split(cmd.strip())),
+                             "supported": out.returncode == 0,
                              "output_digest": hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16],
                              "output_head": (out.stdout or out.stderr).strip()[:200], "automatic": False,
                              "exit": out.returncode})

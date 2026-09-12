@@ -222,5 +222,86 @@ class LinkTests(unittest.TestCase):
         self.assertIn(caught.exception.outcome, {"stale_link", "release_blocked"})
 
 
+class ReviewRegressions(unittest.TestCase):
+    """Blockers from review 20260912-122421-80159e3-_lrr97ak (codex/gpt-6-astra)."""
+
+    setUp = LinkTests.setUp
+    sh, write, ns = LinkTests.sh, LinkTests.write, LinkTests.ns
+    open_review, fake_round, reviewed = LinkTests.open_review, LinkTests.fake_round, LinkTests.reviewed
+
+    def test_f1_a_dot_prefixed_path_still_binds(self):
+        """lstrip('./') removed the leading dot, so findings in .claude-plugin and
+        .github bound as unresolvable and every check on them was skipped."""
+        (self.repo / ".claude-plugin").mkdir()
+        (self.repo / ".claude-plugin" / "marketplace.json").write_text('{"a": 1}\n')
+        self.sh("add", "."); self.sh("commit", "-qm", "hidden dir")
+        repos = [dict(self.packet["repos"][0], head=self.sh("rev-parse", "HEAD"))]
+        for reported in (".claude-plugin/marketplace.json", f"0-{self.repo.name}/.claude-plugin/marketplace.json", "./.claude-plugin/marketplace.json"):
+            with self.subTest(path=reported):
+                s = pr.bind_subjects([dict(BLOCKING["findings"][0], file=reported, line=1)], repos)["F1"]
+                self.assertTrue(s["bound"], f"{reported} must bind")
+                self.assertEqual(s["path"], ".claude-plugin/marketplace.json")
+
+    def test_f2_a_missing_round_record_is_not_a_verified_review(self):
+        """The state claimed a round ran; its record was gone; the verifier examined no
+        findings and reported success. That is the failure this command is for."""
+        _, d = self.reviewed()
+        (d / "round-1.json").unlink()
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "incomplete_record")
+        self.assertTrue(any("round 1 record exists" in c["link"] and not c["ok"] for c in report["checks"]))
+
+    def test_f3_a_finding_repointed_away_from_its_subject_is_caught(self):
+        """Verification re-hashed the subject's own stored path, which says nothing
+        about the finding that cites it."""
+        _, d = self.reviewed()
+        rec = pr.load(d, "round-1.json")
+        rec["findings"][0]["file"] = "nonexistent.py"; rec["findings"][0]["line"] = 999999
+        pr.save(d, "round-1.json", rec)
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "stale_link")
+        self.assertTrue(any("no longer names the subject" in c["detail"] for c in report["checks"] if not c["ok"]))
+
+    def test_f4_a_blocker_resolved_in_a_later_round_still_needs_its_disposition(self):
+        """Checking only the final round excused exactly the blockers that were acted on."""
+        rid, d = self.reviewed()
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        self.write("def f(x):\n    return x + 1\n"); self.sh("commit", "-qam", "fix")
+        clean = {"verdict": "no_blocking_findings",
+                 "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}],
+                 "findings": [], "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:2"}]}
+        os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "cat " + str(self.tmp / "reply.json")
+        (self.tmp / "reply.json").write_text(json.dumps(clean))
+        try:
+            pr.cmd_round(self.ns(review_id=rid, head=[f"{self.repo}={self.sh('rev-parse', 'HEAD')}"]))
+        finally:
+            os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_verified")
+        pr.save(d, "dispositions.json", {})
+        report = pr.verify_links(d)
+        self.assertTrue(any("disposition for blocking F1 (round 1)" in c["link"] and not c["ok"] for c in report["checks"]),
+                        "the round-one blocker's disposition must still be required after a later round resolves it")
+        self.assertNotEqual(report["outcome"], "links_verified")
+
+    def test_f6_a_repository_path_with_spaces_produces_a_usable_observation(self):
+        """Formatting a command string and splitting it apart again tore every path
+        containing a space into pieces, and these repositories live under
+        "MoxyWolf Shared Files"."""
+        spaced = self.tmp / "repo with spaces"
+        shutil.copytree(self.repo, spaced)
+        head = subprocess.run(["git", "-C", str(spaced), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        obs = pr.human_observations({"repos": [{"path": str(spaced), "head": head}]}, [])
+        self.assertTrue(obs[0]["supported"])
+        self.assertIn("repo with spaces", obs[0]["command"])
+        self.assertEqual(obs[0]["output_head"], head)
+
+    def test_f6_an_observation_whose_command_failed_is_never_recorded_as_support(self):
+        head = self.sh("rev-parse", "HEAD")
+        with self.assertRaises(pr.ReviewError):
+            pr.human_observations({"repos": [{"path": str(self.tmp / "not-a-repo"), "head": head}]}, [])
+        obs = pr.human_observations({"repos": []}, ["the suite ran :: false"])
+        self.assertFalse(obs[0]["supported"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

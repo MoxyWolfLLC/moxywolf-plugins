@@ -277,7 +277,9 @@ def tree_digest(root):
     for p in sorted(Path(root).rglob('*')):
         if not p.is_file() or p.is_symlink():continue
         rel=str(p.relative_to(root))
-        if rel in AUDIT_MANAGED or rel.endswith('.lock') or rel.startswith('.'):continue
+        # F5: exempt the named executor-owned files and nothing else. Exempting every
+        # hidden path and every .lock handed a handler two places to write unobserved.
+        if rel in AUDIT_MANAGED:continue
         try:out[rel]=hashlib.sha256(p.read_bytes()).hexdigest()[:16]
         except OSError:out[rel]='unreadable'
     return out
