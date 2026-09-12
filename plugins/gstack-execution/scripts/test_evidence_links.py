@@ -251,6 +251,30 @@ class ReviewRegressions(unittest.TestCase):
         self.assertEqual(report["outcome"], "incomplete_record")
         self.assertTrue(any("round 1 record exists" in c["link"] and not c["ok"] for c in report["checks"]))
 
+    def test_f2_a_round_carrying_only_an_outcome_does_not_verify(self):
+        """The first repair caught a wholly missing round. A record with an outcome and
+        nothing else still contributed no checks and verified by being empty, which is
+        the same defect one layer in."""
+        _, d = self.reviewed()
+        pr.save(d, "round-1.json", {"round": 1, "outcome": "no_blocking_findings"})
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "incomplete_record")
+        self.assertTrue(any("record is complete" in c["link"] and not c["ok"] for c in report["checks"]))
+
+    def test_f2_a_round_whose_acceptance_drops_a_criterion_does_not_verify(self):
+        _, d = self.reviewed()
+        rec = pr.load(d, "round-1.json"); rec["acceptance"] = []; pr.save(d, "round-1.json", rec)
+        report = pr.verify_links(d)
+        self.assertTrue(any("acceptance covers every criterion" in c["link"] and not c["ok"] for c in report["checks"]))
+
+    def test_f2_a_round_that_failed_honestly_is_a_complete_record(self):
+        """review_unavailable is a legitimate round with no findings. Demanding fields
+        it cannot have would make the check cry wolf on every honest failure."""
+        _, d = self.reviewed()
+        pr.save(d, "round-1.json", {"round": 1, "outcome": "review_unavailable", "error": "codex CLI not installed on PATH"})
+        report = pr.verify_links(d)
+        self.assertTrue(any("record is complete" in c["link"] and c["ok"] for c in report["checks"]))
+
     def test_f3_a_finding_repointed_away_from_its_subject_is_caught(self):
         """Verification re-hashed the subject's own stored path, which says nothing
         about the finding that cites it."""

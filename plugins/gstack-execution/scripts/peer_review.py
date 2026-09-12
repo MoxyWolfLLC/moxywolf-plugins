@@ -463,8 +463,19 @@ def verify_links(d):
         if rec.get("error"):
             record(f"round {n} record is complete", True, f"round did not produce findings: {rec['outcome']}")
             continue
+        # F2, second pass: absence was caught, emptiness was not. A record carrying an
+        # outcome and nothing else still contributed no checks, so the round verified by
+        # having nothing in it to verify. Require the fields a completed round must have.
+        missing = [k for k in ("repos", "findings", "acceptance") if k not in rec]
+        if missing:
+            record(f"round {n} record is complete", False, f"completed round is missing {missing}", kind="record")
+            continue
+        covered = {row.get("criterion") for row in rec["acceptance"] if isinstance(row, dict)}
+        expected = set(packet["acceptance_criteria"])
+        record(f"round {n} acceptance covers every criterion", covered == expected,
+               "" if covered == expected else f"not covered: {sorted(expected - covered)}", kind="record")
         subjects = rec.get("subjects")
-        findings = rec.get("findings", [])
+        findings = rec["findings"]
         if subjects is None and findings:
             unbound += 1
             record(f"round {n} finding subjects", False,
