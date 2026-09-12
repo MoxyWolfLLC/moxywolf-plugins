@@ -122,5 +122,31 @@ Otherlastname, B. (2025). Second work, worded entirely differently. https://dx.d
         self.assertIn("10.1234/abc", detail)
 
 
+    def test_adjacent_numbered_entries_without_blank_lines_are_still_separate(self):
+        """F3: the F1 fix split only on blank lines, merging adjacent numbered entries
+        so only the first identifier was read."""
+        packed = CLEAN.split("## References")[0] + """## References
+
+1. Lastname A. First work. Journal. 2024. https://example.org/same
+2. Otherlastname B. Second work. Journal. 2025. https://example.org/same
+3. Thirdlastname C. Third work. Journal. 2026. https://example.org/other
+"""
+        ok, detail = gate(packed)["duplicate_sources"]
+        self.assertFalse(ok, "adjacent numbered entries sharing a URL must be caught")
+        self.assertIn("example.org/same", detail)
+
+    def test_mixed_spacing_counts_every_entry(self):
+        mixed = CLEAN.split("## References")[0] + """## References
+
+1. Lastname A. First work. 2024. https://example.org/a
+2. Otherlastname B. Second work. 2025. https://example.org/b
+
+3. Thirdlastname C. Third work. 2026. https://example.org/c
+"""
+        ok, detail = gate(mixed)["duplicate_sources"]
+        self.assertTrue(ok, detail)
+        self.assertIn("3 unique sources", detail)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

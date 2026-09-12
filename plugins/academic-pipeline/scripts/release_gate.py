@@ -70,6 +70,25 @@ def _normalize_identifier(text):
     return re.sub(r"^(dx\.)?doi\.org/", "", key)
 
 
+def _split_reference_entries(body):
+    """Segment a reference list into entries on BOTH boundaries that occur in practice.
+
+    Unnumbered styles (APA, Chicago, MLA) separate entries with a blank line. Vancouver
+    numbers them, and numbered entries are often adjacent with no blank line between.
+    Splitting on blank lines alone merged adjacent numbered entries into one block, so
+    only the first identifier was read and the rest went unexamined.
+    """
+    entries = []
+    for block in re.split(r"\n\s*\n", body):
+        if not block.strip():
+            continue
+        for part in re.split(r"(?m)^(?=\s*\d+\.\s)", block):
+            entry = " ".join(part.split())
+            if entry:
+                entries.append(entry)
+    return entries
+
+
 def check_duplicate_sources(paper, _req):
     """Two reference entries pointing at one work, in ANY citation style.
 
@@ -80,10 +99,7 @@ def check_duplicate_sources(paper, _req):
     refs = re.split(r"^#{1,3}\s*(?:References|Bibliography|Works Cited)\s*$", paper, flags=re.M | re.I)
     body = refs[-1] if len(refs) > 1 else ""
     seen, dupes = {}, []
-    for block in re.split(r"\n\s*\n", body):
-        entry = " ".join(block.split())
-        if not entry:
-            continue
+    for entry in _split_reference_entries(body):
         key = _normalize_identifier(entry)
         if not key:
             continue
