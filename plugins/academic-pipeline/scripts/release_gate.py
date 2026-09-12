@@ -37,34 +37,62 @@ def check_forbidden_phrases(paper, req):
 
 
 def check_sections_present(paper, req):
-    order = req.get("academic_requirements", {}).get("section_order", [])
-    exempt = {_norm(x) for x in req.get("academic_requirements", {}).get("gate_exempt_sections", [])} | DEFAULT_EXEMPT
+    """A required section is present only when a heading matches its name exactly after
+    normalization, or matches an alias the requirements declare. Prefix matching is NOT
+    used: it let 'Funding mechanisms in prior research' satisfy a required 'Funding'
+    declaration, which is a false pass on the check that matters most."""
+    acc = req.get("academic_requirements", {})
+    order = acc.get("section_order", [])
+    exempt = {_norm(x) for x in acc.get("gate_exempt_sections", [])} | DEFAULT_EXEMPT
+    aliases = {_norm(k): {_norm(v) for v in vs} for k, vs in acc.get("section_aliases", {}).items()}
     present = set()
     for line in paper.splitlines():
         m = re.match(r"\s*#{1,4}\s+(.*)", line) or re.match(r"\s*\*\*(.+?)\*\*\s*:?\s*$", line)
         if m:
             present.add(_norm(m.group(1)))
-    missing = [s for s in order if _norm(s) not in exempt and not any(
-        _norm(s) == p or p.startswith(_norm(s)) or _norm(s).startswith(p) for p in present if p)]
+    missing = []
+    for s in order:
+        n = _norm(s)
+        if n in exempt:
+            continue
+        if n in present or (aliases.get(n, set()) & present):
+            continue
+        missing.append(s)
     return (not missing), (f"{len(missing)} missing: {missing}" if missing else f"all {len(order)} present")
 
 
+def _normalize_identifier(text):
+    link = re.search(r"https?://\S+", text)
+    if not link:
+        return None
+    key = link.group(0).rstrip(".,);]")
+    key = re.sub(r"^https?://(www\.)?", "", key).rstrip("/").lower()
+    return re.sub(r"^(dx\.)?doi\.org/", "", key)
+
+
 def check_duplicate_sources(paper, _req):
-    """Two reference entries pointing at one work. Dedupe on normalized DOI/URL, not on key."""
-    refs = re.split(r"^#{1,3}\s*References\s*$", paper, flags=re.M | re.I)
+    """Two reference entries pointing at one work, in ANY citation style.
+
+    Vancouver numbers its entries; APA, Chicago and MLA do not. Keying on a leading
+    number silently skipped every unnumbered style, so the check passed papers it had
+    never actually examined. Entries are separated by blank lines instead.
+    """
+    refs = re.split(r"^#{1,3}\s*(?:References|Bibliography|Works Cited)\s*$", paper, flags=re.M | re.I)
     body = refs[-1] if len(refs) > 1 else ""
     seen, dupes = {}, []
-    for m in re.finditer(r"^(\d+)\.\s+(.*)$", body, flags=re.M):
-        num, text = m.group(1), m.group(2)
-        link = re.search(r"https?://\S+", text)
-        if not link:
+    for block in re.split(r"\n\s*\n", body):
+        entry = " ".join(block.split())
+        if not entry:
             continue
-        key = re.sub(r"^https?://(www\.)?", "", link.group(0).rstrip(".,);")).rstrip("/").lower()
-        key = re.sub(r"^doi\.org/", "", key)
+        key = _normalize_identifier(entry)
+        if not key:
+            continue
+        num = re.match(r"^(\d+)\.", entry)
+        label = num.group(1) if num else entry[:38] + ("..." if len(entry) > 38 else "")
         if key in seen:
-            dupes.append(f"[{seen[key]}] and [{num}] share {key}")
+            dupes.append(f"'{seen[key]}' and '{label}' share {key}")
         else:
-            seen[key] = num
+            seen[key] = label
     return (not dupes), (f"{len(dupes)} duplicate source(s): {dupes}" if dupes else f"{len(seen)} unique sources")
 
 

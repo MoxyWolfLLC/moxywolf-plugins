@@ -85,5 +85,42 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gate(same_url)["duplicate_sources"][0], "normalized URL match should fire")
 
 
+
+class RegressionTests(unittest.TestCase):
+    """One regression per blocker found in peer review 20260911-165938-d11564a-g289mqlt."""
+
+    def test_unrelated_heading_beginning_with_a_required_name_does_not_satisfy_it(self):
+        """F2: prefix matching let 'Funding mechanisms in prior research' pass as 'Funding'."""
+        decoy = CLEAN.replace("## Funding\nThere are no sources of funding to declare.",
+                              "### Funding mechanisms in prior research\nEarlier studies were grant supported.")
+        ok, detail = gate(decoy)["sections_present"]
+        self.assertFalse(ok, "an unrelated heading must not satisfy a required declaration")
+        self.assertIn("Funding", detail)
+
+    def test_declared_alias_does_satisfy_a_required_section(self):
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "paper.md"); r = os.path.join(d, "req.json")
+        req = json.loads(json.dumps(REQUIREMENTS))
+        req["academic_requirements"]["section_aliases"] = {"Funding": ["Funding Statement"]}
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(CLEAN.replace("## Funding", "## Funding Statement"))
+        with open(r, "w", encoding="utf-8") as fh:
+            json.dump(req, fh)
+        res = {n: (ok, d_) for n, ok, d_ in run_gate(p, r)}
+        self.assertTrue(res["sections_present"][0], res["sections_present"][1])
+
+    def test_duplicate_detection_covers_unnumbered_styles(self):
+        """F1: only numbered entries were parsed, so APA, Chicago and MLA were never examined."""
+        apa = CLEAN.split("## References")[0] + """## References
+
+Lastname, A. (2024). First work. Journal. https://doi.org/10.1234/ABC
+
+Otherlastname, B. (2025). Second work, worded entirely differently. https://dx.doi.org/10.1234/abc
+"""
+        ok, detail = gate(apa)["duplicate_sources"]
+        self.assertFalse(ok, "unnumbered entries sharing a normalized DOI must be caught")
+        self.assertIn("10.1234/abc", detail)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
