@@ -146,6 +146,44 @@ The builder records one disposition per finding before the next round runs:
 
 Unknown finding IDs are rejected, and `disproved` requires nonblank evidence. The CLI refuses blocking deferral: the human must approve a design amendment and the builder must open a new review against that contract. A disposition alone cannot waive a blocker.
 
+## Evidential links
+
+A finding carries a file and a line. The name is assumed to resolve to the code the
+reviewer read, and only that assumption makes the finding evidence. Nothing used to
+re-check it: the dispatcher now binds every finding to the CONTENT at the reviewed head
+when the round is recorded (`subjects` in `round-N.json`: blob id, a hash of the lines
+around the finding, and whether that line existed at all), and the binding is computed by
+the dispatcher rather than taken from the reviewer, because the dispatcher is the party
+that knows the pinned commit.
+
+`peer_review.py verify <review-id>` re-resolves every link: the packet's commits still
+resolve; each round still describes the content it was bound to; each finding's subject
+at the repository's current head still matches what was reviewed; every blocking finding
+carries a disposition and every disposition names a real finding; and any recorded human
+observation still produces the output it recorded. Expected drift is not stale: a finding
+disposed `fixed` should read differently now, and treating that as drift would make the
+check cry wolf on every successful repair. `release` runs the same verification and
+refuses on `stale_link` or `incomplete_record`.
+
+A missing entry and a link that resolved to the wrong thing are different failures and do
+not share an outcome name. The first is `incomplete_record`; the second is `stale_link`;
+a record that cannot be re-resolved either way is `links_unverifiable`, which is a third
+answer rather than a quiet vote for one of the other two.
+
+## The approver's reconstruction
+
+The record has always had a field for the decision and none for what the person worked
+out before entering it, which makes that input unrepresentable rather than merely
+unmonitored. `release` now records `observations`: for each repository an automatic claim
+that the release head is the reviewed head, with the command that supports it and a digest
+of its output, plus any `--observation "claim :: command"` the approver adds. `verify`
+re-runs them.
+
+This records which commands were run and what they returned. It is not evidence that a
+person read the result, and nothing in it should be read as proof of attention. What it
+changes is narrower and still worth having: the dependency is now declarable, so it can
+be argued about, priced and staffed instead of being invisible until the person is absent.
+
 ## Outcomes
 
 Every run ends in exactly one:
@@ -160,6 +198,10 @@ Every run ends in exactly one:
 | `missing_commits` | A base or head in the packet does not resolve |
 | `timeout` | Reviewer exceeded the time limit |
 | `malformed_output` | Reviewer returned something the schema rejects |
+| `stale_link` | A link re-resolved to something other than what was reviewed |
+| `incomplete_record` | A required entry (a disposition, a named finding) is absent |
+| `links_unverifiable` | The record predates content binding and cannot be re-resolved |
+| `examined_nothing` | The verifier had no links to examine, which is not a pass |
 | `data_use_denied` | Repository/history or reviewer destination permission is absent or denied, or a snapshot symlink escapes scope |
 | `model_below_floor` | The reviewer ran (or was configured to run) below the model floor |
 

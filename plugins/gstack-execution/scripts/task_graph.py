@@ -265,7 +265,36 @@ def worker(node,packet,dependencies,root):
         finally:peer.teardown(repos,work)
 
 
-def execute(graph,packet,root,jobs):
+
+# EV-003: the undeclared-write sweep. Serial by construction; see the module docstring
+# in _patch_ev3 and references/task-graph-contract.md.
+AUDIT_MANAGED={'state.json','packet.json','graph.json','report.json','exports.json','events.jsonl','run.lock'}
+
+
+def tree_digest(root):
+    """Every file under the run root that the executor does not manage itself."""
+    out={}
+    for p in sorted(Path(root).rglob('*')):
+        if not p.is_file() or p.is_symlink():continue
+        rel=str(p.relative_to(root))
+        if rel in AUDIT_MANAGED or rel.endswith('.lock') or rel.startswith('.'):continue
+        try:out[rel]=hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+        except OSError:out[rel]='unreadable'
+    return out
+
+
+def undeclared_writes(before,after,node):
+    """Paths this handler created or changed that no output declaration mentions.
+
+    Compared before the executor writes the node's declared outputs, so what is left is
+    exactly what the handler did on its own.
+    """
+    declared=set(node['outputs'])
+    return sorted(rel for rel,h in after.items() if before.get(rel)!=h and rel not in declared)
+
+
+def execute(graph,packet,root,jobs,audit=False):
+    if audit:jobs=1  # a write cannot be attributed to a node while another node is writing
     if not 1<=jobs<=16:raise ValueError('concurrency cap must be 1..16')
     permission(packet,output=root)
     # Validate every destination before the first worker can receive repository data.
@@ -278,7 +307,7 @@ def execute(graph,packet,root,jobs):
         state['nodes']={id:e for id,e in state['nodes'].items() if id in {n['id'] for n in graph['nodes']}}
         state.update(outcome='running',packet_hash=digest(packet))
         write(root/'state.json',state)
-        pending={n['id']:n for n in graph['nodes']};done={};active={};failed=set()
+        pending={n['id']:n for n in graph['nodes']};done={};active={};failed=set();pre={}
         with ThreadPoolExecutor(max_workers=jobs) as pool:
             while pending or active:
                 progress=False
@@ -299,6 +328,7 @@ def execute(graph,packet,root,jobs):
                     if (n['kind']=='proof' or 'local_proof' in n['effects']) and any(v[0]['kind']=='proof' or 'local_proof' in v[0]['effects'] for v in active.values()):continue
                     state['nodes'][id]={'status':'running','attempts':old.get('attempts',0)+1,'signature':signature,'started':time.time()}
                     write(root/'state.json',state);event(root,packet,'machine','node-start',node=id)
+                    if audit:pre[id]=tree_digest(root)
                     active[pool.submit(worker,n,packet,deps,root)]=(n,signature)
                     del pending[id];progress=True
                 if active:
@@ -307,6 +337,9 @@ def execute(graph,packet,root,jobs):
                         n,signature=active.pop(future);id=n['id'];entry=state['nodes'][id]
                         try:
                             result=future.result()
+                            if audit:
+                                stray=undeclared_writes(pre.pop(id,{}),tree_digest(root),n)
+                                if stray:raise ValueError('undeclared write by '+id+': '+', '.join(stray)+'; declare these paths in the node outputs or stop writing them')
                             for output in n['outputs']:write(root/output,result)
                             entry.update(status='succeeded',result=result,result_hash=digest(result),finished=time.time())
                             done[id]=result;event(root,packet,'machine','node-succeeded',node=id,evidence=n['outputs'])
@@ -377,7 +410,9 @@ def main():
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='cmd',required=True)
     for name in ('plan','run'):
         a=sub.add_parser(name);a.add_argument('--workflow',required=True);a.add_argument('--packet',required=True)
-        if name=='run':a.add_argument('--run-dir',required=True);a.add_argument('--jobs',type=int,default=3)
+        if name=='run':
+            a.add_argument('--run-dir',required=True);a.add_argument('--jobs',type=int,default=3)
+            a.add_argument('--audit-writes',action='store_true',help='serial run that fails a node writing outside its declared outputs')
     a=sub.add_parser('export');a.add_argument('--run-dir',required=True);a.add_argument('--output',required=True)
     a=sub.add_parser('observe');a.add_argument('--run-dir',required=True);a.add_argument('--decision',required=True,choices=['signed','stopped','overridden','edited']);a.add_argument('--evidence',required=True);a.add_argument('--action',required=True);a.add_argument('--requested-at',default='');a.add_argument('--gate-log')
     a=sub.add_parser('oversight');a.add_argument('--run-dir',required=True)
@@ -387,7 +422,7 @@ def main():
         if a.cmd in {'plan','run'}:
             packet=packet_from(a.packet);graph=compile_graph(a.workflow,packet)
             if a.cmd=='plan':print(json.dumps(graph,indent=2));return 0
-            return execute(graph,packet,Path(a.run_dir).resolve(),a.jobs)
+            return execute(graph,packet,Path(a.run_dir).resolve(),a.jobs,getattr(a,'audit_writes',False))
         root=Path(a.run_dir).resolve()
         if a.cmd=='export':export(root,a.output)
         elif a.cmd=='observe':observe(root,a.decision,a.evidence,a.action,a.requested_at,a.gate_log)

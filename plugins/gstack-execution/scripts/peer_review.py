@@ -10,10 +10,13 @@ round limits, dispositions, explicit outcomes. The contract file carries the wor
   peer_review.py round  <review-id> [--head <repo-path>=<sha> ...]
   peer_review.py disposition <review-id> F1=fixed F2=disproved:"evidence" F3=deferred
   peer_review.py status <review-id>
+  peer_review.py verify <review-id>          re-resolve every evidential link in a finished review
   peer_review.py --selftest
 """
 import argparse
 from governance import data_permission
+import hashlib
+import shlex
 from datetime import datetime, timezone
 import json
 import os
@@ -343,6 +346,228 @@ def validate(raw, packet, prior=None, dispositions=None):
     return out
 
 
+
+# ---------- EV-002: evidential links ----------
+#
+# A finding stores a name (file, line). The name is assumed to resolve to the code the
+# reviewer read. Only that assumption makes the finding evidence, and nothing re-checks
+# it: names are cheap to keep and expensive to verify, so they persist after the thing
+# at the other end has changed. The functions below bind each finding to the CONTENT at
+# the reviewed head when the round is recorded, and re-resolve every link on demand.
+
+def _has_path(repo, head, rel):
+    return subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{head}:{rel}"], capture_output=True).returncode == 0
+
+
+def _is_commit(repo, ref):
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"], capture_output=True).returncode == 0
+
+
+def _subject_path(path, repos):
+    """Map a reported path onto (repo index, repo-relative path).
+
+    Reviewers report either a snapshot-prefixed path ("0-cki/calc.py", which is what
+    Codex returns) or a repo-relative one ("calc.py", which is what Claude returns).
+    Both have to land on the same subject or the binding is worthless.
+    """
+    p = path.replace("\\", "/").lstrip("./")
+    for i, r in enumerate(repos):
+        prefix = f"{i}-{Path(r['path']).name}/"
+        if p.startswith(prefix):
+            return i, p[len(prefix):]
+    for i, r in enumerate(repos):
+        if _has_path(r["path"], r["head"], p):
+            return i, p
+    return None, p
+
+
+def _span(repo, head, rel, line, ctx=2):
+    """Blob id plus a hash of the lines around the finding, at a pinned commit."""
+    if not _has_path(repo, head, rel):
+        return None
+    blob = git(repo, "rev-parse", f"{head}:{rel}")
+    text = subprocess.run(["git", "-C", str(repo), "show", f"{head}:{rel}"], capture_output=True, text=True).stdout
+    lines = text.splitlines()
+    lo, hi = max(0, line - 1 - ctx), min(len(lines), line + ctx)
+    return {"blob": blob, "span": hashlib.sha256("\n".join(lines[lo:hi]).encode()).hexdigest()[:16],
+            "span_lines": [lo + 1, hi], "file_lines": len(lines), "line_exists": 0 < line <= len(lines)}
+
+
+def bind_subjects(findings, repos):
+    """One content-bound subject per finding, computed by the dispatcher.
+
+    The reviewer claims a location; the dispatcher is the party that knows the pinned
+    commit, so the binding is computed here rather than trusted from the reviewer.
+    """
+    subjects = {}
+    for f in findings:
+        i, rel = _subject_path(f["file"], repos)
+        if i is None:
+            subjects[f["id"]] = {"path": rel, "bound": False, "why": "no packet repository holds this path at its reviewed head"}
+            continue
+        r = repos[i]
+        span = _span(r["path"], r["head"], rel, f["line"])
+        if span is None:
+            subjects[f["id"]] = {"repo": r["path"], "path": rel, "head": r["head"], "bound": False, "why": "path absent at the reviewed head"}
+        else:
+            subjects[f["id"]] = {"repo": r["path"], "path": rel, "head": r["head"], "line": f["line"], "bound": True, **span}
+    return subjects
+
+
+def verify_links(d):
+    """Re-resolve every link in a finished review. Completeness is not evidence.
+
+    Checks, in order: the packet's commits still resolve; each round record still
+    describes the content it was bound to (record integrity); each finding's subject at
+    the repository's CURRENT head still matches what was reviewed (drift); every
+    blocking finding carries a disposition and every disposition names a real finding;
+    and any recorded human observation still produces the output it recorded.
+
+    Expected drift is not stale: a finding disposed `fixed` SHOULD read differently now.
+    Drift on any other disposition means the finding's evidence no longer describes the
+    code, which is the failure this whole command exists to surface.
+    """
+    state, packet = load(d, "state.json"), load(d, "packet.json")
+    dispositions = load(d, "dispositions.json") or {}
+    checks, examined = [], 0
+
+    def record(link, ok, detail="", kind="link"):
+        """kind separates two failures that a single outcome name would blur:
+        a `link` resolved to something other than what was reviewed; a `record` entry
+        the review is required to carry is absent. Only the first is a stale link."""
+        nonlocal examined
+        examined += 1
+        checks.append({"link": link, "ok": bool(ok), "detail": detail, "kind": kind})
+
+    for r in packet["repos"]:
+        name = Path(r["path"]).name
+        for end in ("base", "head"):
+            record(f"packet {end} {r[end][:7]} resolves in {name}", _is_commit(r["path"], r[end]),
+                   "" if _is_commit(r["path"], r[end]) else "commit is gone from the repository")
+
+    unbound = 0
+    for n in range(1, state.get("rounds_used", 0) + 1):
+        rec = load(d, f"round-{n}.json") or {}
+        subjects = rec.get("subjects")
+        findings = rec.get("findings", [])
+        if subjects is None and findings:
+            unbound += 1
+            record(f"round {n} finding subjects", False,
+                   "no subjects recorded; this review predates content binding and its findings cannot be re-resolved",
+                   kind="unverifiable")
+            continue
+        for f in findings:
+            s = (subjects or {}).get(f["id"])
+            tag = f"round {n} {f['id']} -> {f['file']}:{f['line']}"
+            if not s or not s.get("bound"):
+                unbound += 1
+                record(tag, False, (s or {}).get("why", "finding was never bound to content"), kind="unverifiable")
+                continue
+            if not s.get("line_exists", True):
+                record(tag, False, f"line {s['line']} did not exist at the reviewed head ({s['file_lines']} lines)")
+                continue
+            at_reviewed = _span(s["repo"], s["head"], s["path"], s["line"])
+            if not at_reviewed or at_reviewed["span"] != s["span"]:
+                record(tag, False, "record altered: the reviewed head no longer yields the recorded content")
+                continue
+            current = resolve_commit(s["repo"], "HEAD") if _is_commit(s["repo"], "HEAD") else None
+            if current is None:
+                record(tag, False, "repository HEAD does not resolve")
+                continue
+            if current == s["head"]:
+                record(tag, True, "head unchanged since review")
+                continue
+            now = _span(s["repo"], current, s["path"], s["line"])
+            disposition = disposition_value(dispositions.get(f["id"]))
+            drifted = (now is None) or now["span"] != s["span"]
+            if not drifted:
+                record(tag, True, f"content unchanged at {current[:7]}")
+            elif disposition == "fixed":
+                record(tag, True, f"content changed at {current[:7]}, expected for a fixed finding")
+            else:
+                record(tag, False, f"content changed at {current[:7]} and the disposition is {disposition or 'none'}; "
+                                   "the finding's evidence no longer describes the code")
+
+    final = load(d, f"round-{state.get('rounds_used', 0)}.json") or {}
+    for f in final.get("findings", []):
+        if f["severity"] == "blocking":
+            record(f"disposition for blocking {f['id']}", f["id"] in dispositions, "no disposition recorded", kind="record")
+    known = {f["id"] for n in range(1, state.get("rounds_used", 0) + 1) for f in (load(d, f"round-{n}.json") or {}).get("findings", [])}
+    for fid in dispositions:
+        record(f"disposition {fid} names a real finding", fid in known, "no finding carries this id", kind="record")
+
+    release = load(d, "release.json") or {}
+    for obs in release.get("observations", []):
+        try:
+            out = subprocess.run(shlex.split(obs["command"]), capture_output=True, text=True, timeout=60,
+                                 cwd=obs.get("cwd") or None)
+            same = hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16] == obs.get("output_digest")
+            record(f"observation '{obs['claim']}' still holds", same,
+                   "" if same else "the recorded command no longer produces the output it recorded")
+        except Exception as e:
+            record(f"observation '{obs['claim']}' re-runs", False, f"{type(e).__name__}: {e}")
+
+    broken = [c for c in checks if not c["ok"]]
+    failed_kinds = {c["kind"] for c in broken}
+    if examined == 0:
+        outcome = "examined_nothing"          # EV-001 applied to the verifier itself
+    elif "link" in failed_kinds:
+        outcome = "stale_link"                # something resolved to other than what was reviewed
+    elif "unverifiable" in failed_kinds:
+        outcome = "links_unverifiable"        # cannot be re-resolved either way
+    elif "record" in failed_kinds:
+        outcome = "incomplete_record"         # a required entry is missing, which is not drift
+    else:
+        outcome = "links_verified"
+    return {"review_id": d.name, "outcome": outcome, "examined": examined,
+            "broken": len(broken), "unbound": unbound, "checks": checks}
+
+
+def cmd_verify(a):
+    d = rdir(a.review_id)
+    report = verify_links(d)
+    if a.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"LINK VERIFICATION  {report['review_id']}")
+        for c in report["checks"]:
+            print(f"  {'ok  ' if c['ok'] else 'FAIL'}  {c['link']}" + (f"  — {c['detail']}" if c["detail"] else ""))
+        print(f"outcome: {report['outcome']}  ({report['examined']} links examined, {report['broken']} broken)")
+    if report["outcome"] != "links_verified":
+        raise ReviewError(report["outcome"], f"{report['broken']} of {report['examined']} links did not re-resolve")
+    return report
+
+
+def human_observations(packet, extra):
+    """EV-004: give the approver's reconstruction a field it can be written in.
+
+    The record has always had room for the decision and none for what the person worked
+    out before entering it, which makes that input unrepresentable rather than merely
+    unmonitored. Each observation stores the claim, the command that supports it, and a
+    digest of that command's output, so `verify` can re-run it.
+
+    This records what was run. It is not evidence that a person read the result, and
+    nothing here should be read as proof of attention.
+    """
+    observations = []
+    for repo in packet["repos"]:
+        cmd = f"git -C {repo['path']} rev-parse HEAD"
+        out = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=60)
+        observations.append({"claim": f"release head of {Path(repo['path']).name} is the reviewed head {repo['head'][:7]}",
+                             "command": cmd, "output_digest": hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16],
+                             "output_head": (out.stdout or out.stderr).strip()[:200], "automatic": True})
+    for item in extra or []:
+        claim, sep, cmd = item.partition("::")
+        if not sep or not claim.strip() or not cmd.strip():
+            raise ReviewError("release_blocked", "observation must be written as 'claim :: command'")
+        out = subprocess.run(shlex.split(cmd.strip()), capture_output=True, text=True, timeout=60)
+        observations.append({"claim": claim.strip(), "command": cmd.strip(),
+                             "output_digest": hashlib.sha256((out.stdout + out.stderr).encode()).hexdigest()[:16],
+                             "output_head": (out.stdout or out.stderr).strip()[:200], "automatic": False,
+                             "exit": out.returncode})
+    return observations
+
+
 # ---------- commands ----------
 
 def cmd_open(a):
@@ -408,6 +633,8 @@ def cmd_round(a):
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)
+        # Bind each finding to the content at the reviewed head, not merely to a name.
+        record["subjects"] = bind_subjects(out["findings"], packet["repos"])
         blockers = [f for f in out["findings"] if f["severity"] == "blocking"]
         if not blockers and not out["regressions_from_fixes"]:
             outcome = "no_blocking_findings" if round_no == 1 else "fixes_verified"
@@ -482,11 +709,19 @@ def cmd_release(a):
             raise ReviewError("stale_release", "working revision changed; review the new revision before release")
     if subprocess.run(["git", "check-ref-format", "--branch", a.target], capture_output=True).returncode:
         raise ReviewError("release_blocked", "invalid target branch")
+    links = verify_links(d)
+    if links["outcome"] in {"stale_link", "incomplete_record"}:
+        broken = [c["link"] for c in links["checks"] if not c["ok"]][:5]
+        raise ReviewError(links["outcome"], f"{links['broken']} of {links['examined']} link(s) did not re-resolve: {broken}")
     record = {"review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
+              "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"]},
+              "observations": human_observations(packet, getattr(a, "observation", None)),
+              "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
               "instruction": "The named human merges the exact reviewed head in GitHub. This command never merges or accepts an approval flag."}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target")):
+        record["observations"] = previous.get("observations", record["observations"])
         record = previous
     else:
         save(d, "release.json", record)
@@ -624,7 +859,10 @@ def main():
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     s = sub.add_parser("status"); s.add_argument("review_id")
+    v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
+    release.add_argument("--observation", action="append", default=[], metavar="CLAIM :: COMMAND",
+                         help="what the approver checked and the command that supports it; re-run by `verify`")
     record = sub.add_parser("record-release"); record.add_argument("review_id"); record.add_argument("--repo", required=True); record.add_argument("--pr", required=True, type=int)
     a = ap.parse_args()
     if a.selftest:
@@ -635,7 +873,7 @@ def main():
     try:
         if os.environ.get(RECURSION_ENV) and a.cmd != "status":
             raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
-        result = {"open": cmd_open, "round": cmd_round, "disposition": cmd_disposition, "status": cmd_status, "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
+        result = {"open": cmd_open, "round": cmd_round, "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify, "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
     except ReviewError as e:
