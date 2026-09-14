@@ -27,7 +27,7 @@ command -> frozen packet + workflow -> executor -> worker evidence
 
 ### Core Implementation
 
-- [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) resolves packet refs to commit SHAs and persists packets, rounds, dispositions, and state under the review ID. `GSTACK_PEER_REVIEW_DIR` overrides the default local review root.
+- [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) resolves packet refs to commit SHAs and persists packets, rounds, dispositions, and state under the review ID. `GSTACK_PEER_REVIEW_DIR` names the review root and is required; there is no default, because a record written to a session-local home is destroyed with the session while its review ID goes on reading like evidence.
 - `validate()` in [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) requires exact acceptance coverage, boolean results, and nonblank evidence. Fix rounds account for every prior blocker with an explicit resolution and compatible disposition. Malformed or incomplete results cannot produce a passing round.
 - `cmd_round()` in [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) advances fix-round bases to preceding heads, records failures as named outcomes, and tears down snapshots. Nonpassing rounds exit nonzero; terminal outcomes require a new review.
 - `cmd_release()` in [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) revalidates evidence and clean local heads, writes or reuses the same revision/action handoff without resetting its request timestamp, and stops with `awaiting_human_release`. `cmd_record_release()` reads GitHub's merge record and writes the exact head, actor, merge commit, and source into a local decision.

@@ -30,7 +30,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CONTRACT = HERE.parent / "skills" / "gstack-execution" / "references" / "peer-review-contract.md"
-REVIEW_DIR = Path(os.environ.get("GSTACK_PEER_REVIEW_DIR", Path.home() / ".gstack" / "peer-review"))
+_env_review_dir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+REVIEW_DIR = Path(_env_review_dir) if _env_review_dir else None
 RECURSION_ENV = "GSTACK_PEER_REVIEW_SESSION"
 _SELFTEST = False
 OTHER_TOOL = {"claude": "codex", "codex": "claude"}
@@ -168,10 +169,27 @@ def load_packet(path, allow_unchanged=False):
     return packet
 
 
+def review_root():
+    """EV-009: a review whose record goes to an undeclared directory has no record.
+
+    The default here used to be $HOME/.gstack/peer-review. In a sandboxed session $HOME is
+    per-session and sits outside every connected folder, so the record was destroyed when the
+    session ended while its review ID went on reading like evidence in the design document.
+    A silent default is the wrong shape for this: the caller names a durable directory or the
+    review does not open.
+    """
+    if REVIEW_DIR is None:
+        sys.exit("set GSTACK_PEER_REVIEW_DIR to a directory that outlives this session "
+                 "(a path inside the repository or a connected folder, not $HOME); "
+                 "records written to a session-local home are lost and their review IDs then "
+                 "resolve to nothing")
+    return REVIEW_DIR
+
+
 def rdir(review_id):
-    d = REVIEW_DIR / review_id
+    d = review_root() / review_id
     if not (d / "state.json").exists():
-        sys.exit(f"no review {review_id} under {REVIEW_DIR}")
+        sys.exit(f"no review {review_id} under {review_root()}")
     return d
 
 
@@ -639,8 +657,9 @@ def cmd_open(a):
         raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
-    REVIEW_DIR.mkdir(parents=True, exist_ok=True)
-    d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=REVIEW_DIR))
+    root = review_root()
+    root.mkdir(parents=True, exist_ok=True)
+    d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=root))
     review_id = d.name
     state = {"review_id": review_id, "builder": a.builder, "reviewer": OTHER_TOOL[a.builder],
              "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
