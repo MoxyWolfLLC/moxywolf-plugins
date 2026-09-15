@@ -71,6 +71,22 @@ API's PUT replaces the whole protection object, so anything not carried forward 
 destroyed. Enabling protection on an unprotected branch is out of scope and reported as a wider
 decision for the Release Owner.
 
+**The plan can make this impossible, and usually does.** Branch protection and rulesets are not
+available on a **private repository on a free plan**: GitHub answers 403 with *"Upgrade to GitHub Pro or
+make this repository public"*, the branch object reports `protected: false`, and **no credential changes
+that** - not a classic token, not a fine-grained one, not an owner's. `OpenControls-AI/cki` is in
+exactly that state, which is why its eight check-runs are advisory and were always going to be. A 403
+from the protection endpoint is therefore ambiguous by design and must be read from its message, not its
+status: insufficient rights and unavailable-on-this-plan are different answers with different fixes, and
+`repo_gates.py` exits 2 and 3 to keep them apart.
+
+**When GitHub cannot hold the gate, the process is the gate.** On such a repository the plugin's refusal
+is the only thing standing between a red suite and a merge, so it has to actually refuse: `/gstack-build`
+does not report `ready_for_human_release` while a suite is red or has examined nothing, and the handoff
+states plainly that the merge is unprotected and rests on the Release Owner reading the evidence. That is
+weaker than a required check and must be described as weaker. The upgrade path is a paid plan on the
+organisation; until then, no document should describe these suites as gates.
+
 **What an agent run looks like without the gate token**, which is the normal case: `repo_gates.py check`
 reports the check-runs the branch produced and `UNREADABLE (HTTP 403)` for what it requires, because
 reading protection needs rights the push token does not have. That is reported as neither evidence that

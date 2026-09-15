@@ -9,7 +9,9 @@ team believes it is covered because the run exists. This tells the two apart.
          Lists what the branch requires, and what the latest commit's
          check-runs actually produced. A check observed but not required is the
          gap. Exit 0 all observed checks are required, 1 some are not,
-         2 no protection or no access to read it.
+         2 protection could not be read, 3 required checks are not available on
+         this repository's plan at all - which is a different answer from "no
+         access", and the one a private repository on a free plan gives.
 
   ensure --repo <path> [--branch main] --require "<context>" [--require ...]
          Adds those contexts to the branch's required checks, preserving every
@@ -147,6 +149,15 @@ def token_kind(token):
     return "fine-grained", None
 
 
+def plan_limited(payload):
+    """GitHub answers 403 for a private repository on a plan without branch
+    protection, with the same status it uses for insufficient rights. Reporting
+    that as a rights problem sends the reader to mint a token that cannot help.
+    The message is the only thing that distinguishes them."""
+    msg = ((payload or {}).get("message") or "")
+    return "upgrade to github" in msg.lower() or "make this repository public" in msg.lower()
+
+
 def required_contexts(prot):
     """Both shapes GitHub returns: legacy `contexts`, and `checks` with app ids."""
     rsc = (prot or {}).get("required_status_checks") or {}
@@ -195,6 +206,14 @@ def cmd_check(repo, branch, token):
             print(f"    repo_gates.py ensure --repo {repo} --branch {branch} "
                   + " ".join(f'--require "{c}"' for c in seen))
         return 2
+    if st == 403 and plan_limited(prot):
+        print("  required: NOT AVAILABLE ON THIS PLAN. GitHub answers "
+              '"Upgrade to GitHub Pro or make this repository public" - this repository is private on a '
+              "plan without branch protection or rulesets, so NO required check can exist here and no "
+              "credential changes that. Every check above is advisory, permanently, until the plan changes.")
+        print("  so the gate has to live in the process instead: /gstack-build must refuse to report")
+        print("  ready_for_human_release while a suite is red, because GitHub will not refuse the merge.")
+        return 3
     if st != 200:
         print(f"  required: UNREADABLE (HTTP {st}). Reading protection needs admin rights, which the agent "
               f"token is not meant to have - so this is NOT evidence that nothing is required, and not "
@@ -254,6 +273,11 @@ def cmd_ensure(repo, branch, add, token):
         print(f"{owner}/{name}@{branch} is not protected. Enabling protection is a wider decision than "
               f"adding a required check - do it deliberately, then run this again.")
         return 2
+    if st == 403 and plan_limited(prot):
+        print(f"{owner}/{name}: required checks are NOT AVAILABLE ON THIS PLAN (private repository without "
+              f"branch protection or rulesets). There is nothing to configure and no token that would "
+              f"change that. Gate it in the process, or change the plan.")
+        return 3
     if st != 200:
         print(f"could not read protection (HTTP {st}); refusing to write a configuration built on a failed read.")
         return 2
