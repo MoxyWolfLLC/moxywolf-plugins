@@ -45,3 +45,25 @@ command -> frozen packet + workflow -> executor -> worker evidence
 - [GOVERNANCE.md](/plugins/gstack-execution/GOVERNANCE.md) separates authorized branch work from human merge authority. Local records are writable and are not signatures; external branch protection and withholding human merge credentials from agents establish the operational boundary.
 
 Created and maintained by Nori.
+
+## repo_gates.py
+
+Required status checks on a protected branch, told apart from workflows that
+merely run.
+
+- `check --repo <path> [--branch main]` - lists the check-runs the branch's tip
+  actually produced and what the branch requires. Exit 0 every observed check is
+  required, 1 some are not, 2 protection could not be read. Reading protection
+  needs admin rights the agent token is not meant to hold, so 2 with
+  `UNREADABLE (HTTP 403)` is the expected result of an agent run and means
+  exactly "ask the Release Owner", not "nothing is required".
+- `ensure --repo <path> --require "<context>" [--require ...]` - adds contexts,
+  carrying over every other protection setting (the API's PUT replaces the whole
+  object, so anything not carried is protection silently removed). Never removes
+  a context, never relaxes protection, refuses to write on a failed read.
+  Administrative, not part of a build.
+- `selftest` - covers the merge logic, which is the part that can destroy
+  protection. No network.
+
+`GITHUB_TOKEN` from the environment for one call; the script never reads a token
+from disk and never prints one.
