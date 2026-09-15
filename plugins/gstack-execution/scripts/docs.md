@@ -65,5 +65,15 @@ merely run.
 - `selftest` - covers the merge logic, which is the part that can destroy
   protection. No network.
 
-`GITHUB_TOKEN` from the environment for one call; the script never reads a token
-from disk and never prints one.
+Two credentials, separated by capability (see GOVERNANCE.md, "Gate configuration"):
+`GITHUB_TOKEN` (the push PAT) for `check`, which only reads; `GITHUB_GATE_TOKEN`
+(a fine-grained token with Administration: write and Contents: READ) for
+`ensure`. `ensure` refuses a classic token by name and cites its scopes, because
+classic scopes cannot grant administration without also granting push. Neither
+token is read from disk here and neither is ever printed.
+
+Two portability notes, both learned the hard way on macOS: the script talks to
+the API over `curl`, not urllib, because the system python3 has no CA bundle and
+urllib dies with CERTIFICATE_VERIFY_FAILED; and it reads owner/name out of
+`.git/config` rather than asking `git`, because `/usr/bin/git` is a licence-gated
+shim that fails every call until someone runs `xcodebuild -license`.

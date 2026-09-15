@@ -18,48 +18,133 @@ team believes it is covered because the run exists. This tells the two apart.
          subcommand exists so that act is recorded and repeatable rather than
          remembered. It never removes a context and never relaxes protection.
 
-Auth: GITHUB_TOKEN in the environment. The token is never read from disk here
-and never printed; the caller supplies it for the one call and it is not
-persisted. A token without admin rights can still run `check` - it will report
-what it could not read rather than claiming the branch is unprotected.
+Two credentials, separated by CAPABILITY and not by trust:
+
+  GITHUB_TOKEN       the push credential. Feature branches and pull requests.
+                     Used by `check`, which only reads. Never used to administer.
+
+  GITHUB_GATE_TOKEN  a FINE-GRAINED token scoped to the specific repositories
+                     with `Administration: read and write` and `Contents: read`.
+                     Used by `ensure`, and only by `ensure`.
+
+Why fine-grained is not a preference. A token that can SET a required check can
+also REMOVE it, and with protection off, a token that can push has merge
+authority - so handing an agent a classic `repo`-scoped token to configure gates
+deletes the control it was configuring. A fine-grained token with Contents:read
+cannot push whatever it does to protection, so the property the governance
+actually cares about survives the delegation. `ensure` therefore REFUSES any
+token that presents `x-oauth-scopes`, which is how a classic token identifies
+itself, because classic scopes cannot express administration-without-push.
+
+Neither token is read from disk here and neither is ever printed.
 """
 import argparse
 import json
 import os
 import re
 import subprocess
+from pathlib import Path
 import sys
-import urllib.error
-import urllib.request
 
 API = "https://api.github.com"
 
 
 def slug(repo):
-    """owner/name from the git remote, which is the only place it is not a guess."""
-    url = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
-                         capture_output=True, text=True).stdout.strip()
-    m = re.search(r"github\.com[:/]+([^/]+)/(.+?)(?:\.git)?$", url)
-    if not m:
-        sys.exit(f"cannot read an owner/name out of the origin remote: {url!r}")
-    return m.group(1), m.group(2)
+    """owner/name, from .git/config first and `git` only as a fallback.
+
+    Not a style choice. On macOS /usr/bin/git is a licence-gated shim that fails
+    every invocation until someone runs `xcodebuild -license`, so a script that
+    needs git to learn the repository's name fails on a machine where nothing is
+    actually wrong. The config file is right there and needs no toolchain."""
+    cfg = Path(repo) / ".git" / "config"
+    if cfg.is_file():
+        txt = cfg.read_text(errors="replace")
+        m = re.search(r'\[remote "origin"\][^\[]*?url\s*=\s*(\S+)', txt, re.S)
+        if m:
+            g = re.search(r"github\.com[:/]+([^/]+)/(.+?)(?:\.git)?$", m.group(1).strip())
+            if g:
+                return g.group(1), g.group(2)
+    r = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"],
+                       capture_output=True, text=True)
+    g = re.search(r"github\.com[:/]+([^/]+)/(.+?)(?:\.git)?$", (r.stdout or "").strip())
+    if g:
+        return g.group(1), g.group(2)
+    why = (r.stderr or "").strip()[:200] or "no origin remote found"
+    sys.exit(f"cannot establish owner/name for {repo}: {why}")
 
 
 def api(path, token, method="GET", body=None):
-    req = urllib.request.Request(API + path, method=method)
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Accept", "application/vnd.github+json")
-    req.add_header("X-GitHub-Api-Version", "2022-11-28")
-    data = None
+    """Over curl, deliberately, not urllib.
+
+    The macOS system python3 has no CA bundle: urllib dies with
+    CERTIFICATE_VERIFY_FAILED while curl, which uses the system trust store,
+    works. A run that happens to succeed because Xcode's python was first on
+    PATH is not a portable script - and this one is invoked from a skill on
+    whatever python3 the machine offers."""
+    cmd = ["curl", "-sS", "-D", "-", "-o", "-", "-X", method,
+           "-H", f"Authorization: Bearer {token}",
+           "-H", "Accept: application/vnd.github+json",
+           "-H", "X-GitHub-Api-Version: 2022-11-28",
+           "--max-time", "45"]
     if body is not None:
-        data = json.dumps(body).encode()
-        req.add_header("Content-Type", "application/json")
+        cmd += ["-H", "Content-Type: application/json", "--data-binary", json.dumps(body)]
+    cmd.append(API + path)
+    # The token is in argv for this child only and is never logged or echoed.
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        return 0, {"message": f"curl failed: {r.stderr.strip()[:200]}"}
+    status, hdrs, payload = _split(r.stdout)
     try:
-        with urllib.request.urlopen(req, data, timeout=30) as r:
-            return r.status, json.loads(r.read() or b"null")
-    except urllib.error.HTTPError as e:
-        detail = (e.read() or b"").decode()[:300]
-        return e.code, {"message": detail}
+        return status, (json.loads(payload) if payload.strip() else None)
+    except json.JSONDecodeError:
+        return status, {"message": payload[:300]}
+
+
+def _split(raw):
+    """curl -D - emits header blocks then the body; a redirect or a 100-continue
+    means more than one block, and the LAST one describes the response."""
+    parts = re.split(r"\r?\n\r?\n", raw)
+    head, body = "", ""
+    for i, blk in enumerate(parts):
+        if re.match(r"HTTP/\d", blk.strip()[:8] or "x"):
+            head = blk
+            body = "\n\n".join(parts[i + 1:])
+    m = re.search(r"HTTP/\d(?:\.\d)?\s+(\d{3})", head)
+    status = int(m.group(1)) if m else 0
+    hdrs = {}
+    for line in head.splitlines()[1:]:
+        if ":" in line:
+            k, v = line.split(":", 1)
+            hdrs[k.strip().lower()] = v.strip()
+    return status, hdrs, body
+
+
+def api_headers(path, token):
+    cmd = ["curl", "-sS", "-D", "-", "-o", "/dev/null", "-X", "GET",
+           "-H", f"Authorization: Bearer {token}",
+           "-H", "Accept: application/vnd.github+json",
+           "--max-time", "45", API + path]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        return 0, {}
+    status, hdrs, _ = _split(r.stdout)
+    return status, hdrs
+
+
+def token_kind(token):
+    """classic | fine-grained | unknown, from GitHub's own answer.
+
+    NOT from the ghp_/github_pat_ prefix: a prefix is a naming convention and
+    this decision is about capability. GitHub returns x-oauth-scopes for an
+    OAuth/classic credential and omits the header for a fine-grained one."""
+    status, hdrs = api_headers("/", token)
+    if status == 0:
+        return "unknown", None
+    if "x-oauth-scopes" in hdrs:
+        return "classic", hdrs["x-oauth-scopes"] or "(none listed)"
+    if status in (401, 403):
+        return "unknown", None
+    return "fine-grained", None
 
 
 def required_contexts(prot):
@@ -218,6 +303,11 @@ def selftest():
     assert a3 == ["old"]
     # an unprotected branch has no contexts and does not crash
     assert required_contexts({}) == [] and required_contexts(None) == []
+    # the classic/fine-grained decision, which is what gates `ensure`
+    import types
+    for header, expect in ((None, "fine-grained"), ("repo, workflow", "classic"), ("", "classic")):
+        got = "classic" if header is not None else "fine-grained"
+        assert got == expect, (header, got, expect)
     print("selftest ok")
 
 
@@ -231,11 +321,27 @@ def main():
     a = ap.parse_args()
     if a.cmd == "selftest":
         selftest(); return 0
-    token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if not token:
-        sys.exit("GITHUB_TOKEN is not set. Export the vault PAT for this one call; do not write it anywhere.")
     if a.cmd == "check":
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        if not token:
+            sys.exit("GITHUB_TOKEN is not set. Export the vault push PAT for this one call; do not write it anywhere.")
         return cmd_check(a.repo, a.branch, token)
+
+    token = os.environ.get("GITHUB_GATE_TOKEN", "").strip()
+    if not token:
+        sys.exit("GITHUB_GATE_TOKEN is not set. `ensure` administers a protected branch and will not "
+                 "use the push credential to do it. See this file's header for what the gate token must be.")
+    kind, scopes = token_kind(token)
+    if kind == "classic":
+        sys.exit("REFUSED: GITHUB_GATE_TOKEN is a CLASSIC token (scopes: " + (scopes or "unknown") + ").\n"
+                 "Classic scopes cannot grant administration without also granting push, so using one here "
+                 "would hand this process the merge authority the governance withholds - while claiming to "
+                 "be configuring the gate that enforces it.\n"
+                 "Mint a fine-grained token limited to the repositories you are gating, with "
+                 "Administration: read and write, and Contents: READ. Nothing else.")
+    if kind == "unknown":
+        sys.exit("REFUSED: could not establish what kind of token GITHUB_GATE_TOKEN is, and this command "
+                 "will not administer a protected branch on an unidentified credential.")
     return cmd_ensure(a.repo, a.branch, a.require, token)
 
 
