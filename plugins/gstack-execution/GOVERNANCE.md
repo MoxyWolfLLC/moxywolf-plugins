@@ -39,6 +39,15 @@ Routine feature-branch work remains authorized. The packet's `release_owner` is 
 
 ## Gate configuration: delegated by capability, not by trust
 
+> **NOT IN EFFECT.** The separation below is a design, not a live control. The vault's classic PAT
+> already reads and writes branch protection on a Team-plan repository - verified against
+> `MoxyWolfLLC/moxywolf-plugins`, which answers `404 Branch not protected` rather than refusing - so
+> today the pushing credential and the administering credential are the same token. `repo_gates.py
+> ensure` refuses a classic token, which means gate configuration is currently blocked by this plugin
+> rather than by GitHub. Nothing here should be read as a separation that exists. Minting the
+> fine-grained token is what makes it real.
+
+
 Branch protection was "enforced externally" and nothing checked it, which meant a workflow could run
 on every pull request, go red, and merge anyway while the team believed it was covered. `cki@main`
 produced eight check-runs in that state. Verifying and configuring required checks is therefore a
@@ -71,14 +80,21 @@ API's PUT replaces the whole protection object, so anything not carried forward 
 destroyed. Enabling protection on an unprotected branch is out of scope and reported as a wider
 decision for the Release Owner.
 
-**The plan can make this impossible, and usually does.** Branch protection and rulesets are not
-available on a **private repository on a free plan**: GitHub answers 403 with *"Upgrade to GitHub Pro or
-make this repository public"*, the branch object reports `protected: false`, and **no credential changes
-that** - not a classic token, not a fine-grained one, not an owner's. `OpenControls-AI/cki` is in
-exactly that state, which is why its eight check-runs are advisory and were always going to be. A 403
-from the protection endpoint is therefore ambiguous by design and must be read from its message, not its
-status: insufficient rights and unavailable-on-this-plan are different answers with different fixes, and
-`repo_gates.py` exits 2 and 3 to keep them apart.
+**The plan can make this impossible, and it is the ORGANISATION's plan, not the account's.** Branch
+protection needs a paid plan on the org that owns the repository. MoxyWolf's repositories are split
+across two organisations and only one of them is paid:
+
+| Organisation | Plan | Consequence |
+| --- | --- | --- |
+| `MoxyWolfLLC` | team, 13 seats, 7 filled | protection available; the API answers `404 Branch not protected` |
+| `OpenControls-AI` | free, 5 members | protection unavailable; the API answers `403 Upgrade to GitHub Pro` |
+
+`cki` and `oc-website` are in the free org, which is why their eight check-runs are advisory and were
+always going to be - not because of any token. A 403 from the protection endpoint is ambiguous by design
+and must be read from its **message**, not its status: insufficient rights and unavailable-on-this-plan
+are different answers with different fixes, and `repo_gates.py` exits 2 and 3 to keep them apart. The
+two routes out are upgrading the free org, or moving those repositories into the paid one, which has
+six seats already paid for.
 
 **When GitHub cannot hold the gate, the process is the gate.** On such a repository the plugin's refusal
 is the only thing standing between a red suite and a merge, so it has to actually refuse: `/gstack-build`
