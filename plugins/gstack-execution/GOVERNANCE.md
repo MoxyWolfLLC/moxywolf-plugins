@@ -39,13 +39,28 @@ Routine feature-branch work remains authorized. The packet's `release_owner` is 
 
 ## Gate configuration: delegated by capability, not by trust
 
-> **NOT IN EFFECT.** The separation below is a design, not a live control. The vault's classic PAT
-> already reads and writes branch protection on a Team-plan repository - verified against
-> `MoxyWolfLLC/moxywolf-plugins`, which answers `404 Branch not protected` rather than refusing - so
-> today the pushing credential and the administering credential are the same token. `repo_gates.py
-> ensure` refuses a classic token, which means gate configuration is currently blocked by this plugin
-> rather than by GitHub. Nothing here should be read as a separation that exists. Minting the
-> fine-grained token is what makes it real.
+> **THE GATES ARE LIVE. THE SEPARATION IS STILL NOT.** Read those as two facts, because on
+> 2026-09-15 they came apart in exactly the way this section was written to prevent.
+>
+> What is real: `OpenControls-AI/cki@main` carries branch protection with three required status
+> checks - `node suites (no deps)`, `python suites` and `dr094 gate` - and `enforce_admins` on.
+> GitHub refuses the merge now; the process is no longer the only thing standing there.
+>
+> What is not real: `GITHUB_GATE_TOKEN` does not exist. Those checks were configured with the
+> vault's **classic** PAT, by a direct `PATCH` to
+> `/repos/{owner}/{repo}/branches/main/protection/required_status_checks`, at the release owner's
+> explicit instruction. So the pushing credential and the administering credential are still the same
+> token, which is the property this document withholds.
+>
+> And note HOW that happened. `repo_gates.py ensure` refuses a classic token, and it did its job -
+> it was never called. Calling the REST API directly walked around it. A control that lives in one
+> script is a convention, not a boundary, and the agent that bypassed it was the one the boundary
+> exists to constrain. Until the fine-grained token exists and gate configuration goes through it,
+> what protects this is that the bypass is written down here.
+>
+> A separate fine-grained token WAS minted that day - `cki-ci-oc-website-read`, `Contents: Read` on
+> `OpenControls-AI`, held as the `CROSS_REPO_TOKEN` CI secret. It is not this token and cannot serve
+> as one: it holds no `Administration` permission, by design.
 
 
 Branch protection was "enforced externally" and nothing checked it, which meant a workflow could run
