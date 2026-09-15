@@ -236,7 +236,7 @@ def cmd_check(repo, branch, token):
     return 0
 
 
-def merged_payload(prot, add):
+def merged_payload(prot, add, enforce_admins=None):
     """The PUT replaces the whole object, so every existing setting is carried
     over deliberately. Anything dropped here is protection silently removed."""
     rsc = (prot or {}).get("required_status_checks") or {}
@@ -250,7 +250,9 @@ def merged_payload(prot, add):
             "strict": bool(rsc.get("strict", False)),
             "contexts": contexts,
         },
-        "enforce_admins": bool((prot.get("enforce_admins") or {}).get("enabled", False)),
+        # None means "leave as it is"; True/False is this call deciding.
+        "enforce_admins": bool((prot.get("enforce_admins") or {}).get("enabled", False))
+                          if enforce_admins is None else bool(enforce_admins),
         "required_pull_request_reviews": None if pr is None else {
             "dismiss_stale_reviews": bool(pr.get("dismiss_stale_reviews", False)),
             "require_code_owner_reviews": bool(pr.get("require_code_owner_reviews", False)),
@@ -266,23 +268,26 @@ def merged_payload(prot, add):
     return body, contexts
 
 
-def cmd_ensure(repo, branch, add, token):
+def cmd_ensure(repo, branch, add, token, enable=False, enforce_admins=False):
     owner, name = slug(repo)
     st, prot = api(f"/repos/{owner}/{name}/branches/{branch}/protection", token)
-    if st == 404:
+    if st == 404 and not enable:
         print(f"{owner}/{name}@{branch} is not protected. Enabling protection is a wider decision than "
-              f"adding a required check - do it deliberately, then run this again.")
+              f"adding a required check - pass --enable to do it, deliberately.")
         return 2
-    if st == 403 and plan_limited(prot):
+    elif st == 404:
+        print(f"{owner}/{name}@{branch}: NOT PROTECTED. Creating protection with these checks required.")
+        prot = {}
+    elif st == 403 and plan_limited(prot):
         print(f"{owner}/{name}: required checks are NOT AVAILABLE ON THIS PLAN (private repository without "
               f"branch protection or rulesets). There is nothing to configure and no token that would "
               f"change that. Gate it in the process, or change the plan.")
         return 3
-    if st != 200:
+    elif st != 200:
         print(f"could not read protection (HTTP {st}); refusing to write a configuration built on a failed read.")
         return 2
     before = required_contexts(prot)
-    body, after = merged_payload(prot, add)
+    body, after = merged_payload(prot, add, True if enforce_admins else None)
     if set(after) == set(before):
         print(f"{owner}/{name}@{branch}: already required: {', '.join(before)}")
         return 0
@@ -341,6 +346,18 @@ def main():
     c = sub.add_parser("check"); c.add_argument("--repo", required=True); c.add_argument("--branch", default="main")
     e = sub.add_parser("ensure"); e.add_argument("--repo", required=True); e.add_argument("--branch", default="main")
     e.add_argument("--require", action="append", required=True)
+    e.add_argument("--enable", action="store_true",
+                   help="create protection when the branch has none. Without this, an unprotected "
+                        "branch is reported and left alone, because enabling protection is a wider "
+                        "decision than adding a check to protection that already exists.")
+    e.add_argument("--enforce-admins", dest="enforce_admins", action="store_true",
+                   help="bind admins too. Without it, organisation owners bypass the checks - which "
+                        "usually includes whatever account this token belongs to, so the gate would "
+                        "not bind the process that just configured it.")
+    e.add_argument("--allow-classic", action="store_true",
+                   help="proceed on a classic token. The capability separation is a design and not a "
+                        "live control (GOVERNANCE.md), so the Release Owner is not blocked by it - but "
+                        "the run says out loud that the administering token can also push.")
     sub.add_parser("selftest")
     a = ap.parse_args()
     if a.cmd == "selftest":
@@ -356,7 +373,11 @@ def main():
         sys.exit("GITHUB_GATE_TOKEN is not set. `ensure` administers a protected branch and will not "
                  "use the push credential to do it. See this file's header for what the gate token must be.")
     kind, scopes = token_kind(token)
-    if kind == "classic":
+    if kind == "classic" and a.allow_classic:
+        print("NOTE: administering with a CLASSIC token at the operator's instruction. This token can "
+              "also push, so the credential that configures the gate is the credential the gate is "
+              "meant to constrain. The separation in GOVERNANCE.md is not in effect for this run.")
+    elif kind == "classic":
         sys.exit("REFUSED: GITHUB_GATE_TOKEN is a CLASSIC token (scopes: " + (scopes or "unknown") + ").\n"
                  "Classic scopes cannot grant administration without also granting push, so using one here "
                  "would hand this process the merge authority the governance withholds - while claiming to "
@@ -366,7 +387,7 @@ def main():
     if kind == "unknown":
         sys.exit("REFUSED: could not establish what kind of token GITHUB_GATE_TOKEN is, and this command "
                  "will not administer a protected branch on an unidentified credential.")
-    return cmd_ensure(a.repo, a.branch, a.require, token)
+    return cmd_ensure(a.repo, a.branch, a.require, token, a.enable, a.enforce_admins)
 
 
 if __name__ == "__main__":
