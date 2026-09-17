@@ -226,7 +226,7 @@ Opened 2026-09-17 after an audit of a three-day Codex session that built the Ope
 
 The premise: **a loop that cannot prove its own preconditions pays for them at the slowest point, and an approval that must be re-derived is not a decision, it is an interruption.** Completeness is a property of the change. Economy is a property of the path taken to make it, and that path is not in the diff.
 
-XE-001 is built in this change. XE-002 through XE-004 are declared and not started.
+XE-001, XE-002 and XE-005 are built and merged at f1a1034. XE-003 and XE-004 are built and under review as PR #14. Each item's own status below is the authority; this line summarizes it.
 
 ### XE-001 — The gate proves it can run before anything is pushed
 
