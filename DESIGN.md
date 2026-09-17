@@ -197,7 +197,7 @@ runtime rather than against other declarations.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** planned.
+**Status:** built, partially, and the unbuilt criterion is named rather than folded in. Criterion 1 is met for identifiers whose canonical form is mechanical: arXiv ids, DOIs and PubMed ids now resolve to one work identity regardless of the URL wrapped around them, and the duplicate check reports which rule produced each identity. Linking a preprint to the DOI it later received is NOT mechanical — it needs a registry lookup — so it is not attempted and the two remain separate works. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository to check against returns SKIP rather than PASS. Criterion 2 is NOT built. Archiving every cited URL at citation time is not a gate check — it changes what happens when a citation is made and needs a decision on where snapshots live, what the hash covers, and what a citation does when the archive is unreachable. Building it as a gate would put the archive step at the wrong end of the workflow, which is the shape of defect this objective exists to remove.
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
