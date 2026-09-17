@@ -104,6 +104,19 @@ reviewer never reads as a slow one.
 
 Run `/gstack-peer-review --builder <tool>` with the packet built from the design doc: `outcome` = the item, `acceptance_criteria` = the item's criteria verbatim, `exclusions` = the doc's Constraints and settled decisions, `tests` = Step 3's commands and results, `release_owner` = the accountable human's GitHub login, one `{path, base=main, head=branch HEAD}` pair per repo. Follow that command's loop: substantiate, fix in scope, commit, **push and pull back (Step 4) after every fix commit**, disposition, next round.
 
+**Before building, check the repository has a gate that matches its kind.** A Vercel-deployed repo
+needs the Endform E2E gate. A repo of scripts and tests needs its own suites running on pull
+requests. A repo with neither has no gate, and "the web gate does not apply here" is not the same
+claim as "no gate applies" — reading the first as the second is how a repo ends up shipping a
+verification discipline it does not run on itself. If the matching gate is missing, add it as part
+of the work rather than reporting its absence in the unverified list. What is never right is
+installing a gate the repo cannot exercise: a Playwright suite over a repo with no pages produces a
+green check over nothing, which EV-001 forbids.
+
+`scripts/run_all_tests.py` is the non-web gate: it discovers every `test_*.py` and `--selftest`
+entry point, reports what it examined by name, and **fails when it discovers none**, because a gate
+that finds nothing and exits green is how a gate dies silently when files move.
+
 Exit only on `no_blocking_findings` or `fixes_verified`, and, for a Vercel-deployed repo, a green Endform check on the PR at the final head (`gh pr checks` shows it passing, with the run link). `rounds_exhausted` → present the escalation and stop; the item stays `review`. `review_unavailable`, `model_below_floor`, and the other non-pass outcomes → report them as such and stop; do not merge on an unreviewed item.
 
 ## Step 6: Human release handoff, then record completion

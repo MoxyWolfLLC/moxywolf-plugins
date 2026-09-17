@@ -290,6 +290,32 @@ The dispatcher hardcodes two tools and derives the reviewer as "the other one". 
 5. A reviewer response cut off at its output limit reports `output_truncated`, distinct from `malformed_output`. The two have different causes and different fixes, and collapsing them makes a headroom problem look like a broken reviewer. Gemini truncated a long structured response twice in this team's only run of it, during the 2026-09-15 Council deliberation, and the reviewer contract demands a longer and stricter structure than that deliberation did.
 6. Each table entry carries its own output headroom, set against the reviewer contract's full response rather than a provider default. Precedent: the Council Sonnet-5 slot was configured at 3000 tokens and needed 12000, and under-provisioned it returned empty content while the dispatcher still reported success.
 
+### XE-006 — The repo runs its own checks, or it has no gate
+
+**Status:** declared, building in this change.
+
+**Links introduced:** none.
+
+This repository ships the verification discipline and does not apply it to itself. It carries eight
+test files and four `--selftest` entry points, and no `.github/workflows` directory at all. Every
+"suites green" reported during the XE objective was a human running commands in a sandbox and
+reporting the result. Nothing ran at the boundary, so nothing stopped a broken dispatcher from
+merging except attention.
+
+The E2E gate is correctly scoped to Vercel-deployed repositories, and this is not one: there is no
+`package.json`, no `vercel.json`, and no page to drive. Adding Playwright here would manufacture a
+green check over nothing, which EV-001 already forbids. The error was not the missing browser suite.
+It was reading "the web gate does not apply" as "no gate applies."
+
+1. Every pull request and every push to `main` runs the repository's own checks in CI, and the
+   merge is gated on them.
+2. The runner reports what it examined — how many suites it discovered and ran, by name — rather
+   than reporting only a verdict.
+3. A run that discovers zero suites fails. A gate that finds nothing and exits green is the exact
+   false pass this objective exists to remove, and it is how a gate silently dies when files move.
+4. The check the loop requires is the one matching the repository kind. A repository with no web
+   deployment is not exempt from having a gate; it is exempt from having *that* gate.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
