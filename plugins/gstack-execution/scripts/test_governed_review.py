@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 import subprocess
+import peer_review as peer
 import sys
 import tempfile
 import unittest
@@ -41,7 +42,10 @@ class GovernedReview(unittest.TestCase):
         binary = self.root / "bin"
         binary.mkdir()
         reviewer = binary / "codex"
-        reviewer.write_text("#!" + sys.executable + "\nimport os,sys,pathlib\nassert (pathlib.Path.cwd()/'changed'/'0-repo'/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\n")
+        # XE-008: the layout comes from peer_review, not a hardcoded spelling. A copy of the
+        # format in a fixture is one of the four homes that let it drift twice in an hour.
+        prefix = peer.surface_prefix(0, self.packet['repos'][0], 'changed')
+        reviewer.write_text('#!' + sys.executable + '\n' + f'PREFIX={prefix!r}\n' + "import os,sys,pathlib\nassert (pathlib.Path.cwd()/PREFIX/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\n")
         reviewer.chmod(0o755)
         self.env["PATH"] = str(binary) + os.pathsep + os.environ["PATH"]
 

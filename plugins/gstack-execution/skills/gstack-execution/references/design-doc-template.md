@@ -33,4 +33,11 @@ One row per unit of work. An item is buildable when its acceptance criteria are 
 
 Newest first. One line each: date, item or constraint touched, what changed, why, who approved.
 
-- 
+-
+
+## On the objective preamble
+
+State the premise and what prompted the objective. Do **not** restate which items are built, merged,
+or pending: each item's `**Status:**` field carries that, and a preamble repeating it is a second
+home that drifts on the first merge touching one of them. Observed 2026-09-17, where a preamble read
+"XE-002 through XE-004 are declared and not started" while the three statuses beneath it said done.

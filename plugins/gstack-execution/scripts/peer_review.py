@@ -309,6 +309,17 @@ SURFACE_CAP = 25
 
 CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml"}   # code that can break; not docs that name it
 
+# XE-008: the surface layout had four homes -- written in build_surface, parsed in _subject_path,
+# asserted in a test fixture, described in SURFACE.md -- and I broke it twice in an hour by
+# updating one. A format with one producer and one parser cannot drift; a rule telling me to
+# remember to check all four already existed and did not work.
+SURFACE_KINDS = ("changed", "callers")
+
+
+def surface_prefix(i, repo, kind):
+    """The only place the surface layout is spelled. Writer and parser both call it."""
+    return f"{kind}/{i}-{Path(repo['path']).name}/"
+
 
 def changed_files(repos):
     out = []
@@ -369,7 +380,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
     # _subject_path then binds a finding to the wrong repository. The snapshot layout used the index
     # for exactly this reason; dropping it reintroduced the bug it had already solved.
     idx = {id(r): i for i, r in enumerate(repos)}
-    for group, sub in ((changed, "changed"), (callers, "callers")):
+    for group, sub in zip((changed, callers), SURFACE_KINDS):
         for r, name in group:
             src = Path(r["path"]) / name
             # snapshot() refused a symlink escaping the repository; the surface copies with
@@ -382,7 +393,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
                                       f"review surface refused {name}: symlink escapes repository scope")
             except OSError:
                 continue
-            dest = surf / sub / f"{idx[id(r)]}-{Path(r['path']).name}" / name
+            dest = surf / surface_prefix(idx[id(r)], r, sub) / name
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 dest.write_bytes(src.read_bytes())
@@ -390,12 +401,25 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
                 continue
     stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
              "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())])}
+    # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
+    # what to do with them, routes the second-home check to the party whose job is finding the
+    # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
+    caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
+                  or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
         "# What this review can see\n\n"
         f"- `CHANGE.diff` — the full diff under review\n"
-        f"- `changed/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
-        f"- `callers/` — {len(callers)} files that reference a changed file by name\n"
+        f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
+        f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
         f"- withheld by the {cap}-file cap: {dropped}\n\n"
+        "## Files the change did NOT touch, which reference what it changed\n\n"
+        f"{caller_list}\n\n"
+        "Check each against the diff. A change is not finished because the file it edits is "
+        "consistent; it is finished when the files that depend on it still hold. This list exists "
+        "because the builder's own checks repeatedly missed exactly this — a symbol updated in one "
+        "place and left stale in another — so it is computed here rather than asserted in the "
+        "packet.\n\n"
+        "## Limits\n\n"
         "The repository tree is NOT here. This is deliberate: a reviewer given the whole tree spends "
         "its budget reading it. If a judgement needs a file that is not present, do not guess — "
         "report it as a finding with severity `separate` naming the file you needed.\n")
@@ -517,6 +541,16 @@ def disposition_value(value):
 
 
 def validate(raw, packet, prior=None, dispositions=None):
+    # A reviewer that returned NOTHING did not return something wrong. Distinguishing them matters
+    # for the same reason output_truncated does: different causes, different fixes. Observed
+    # 2026-09-17 -- gemini exited 0 with an empty response and the round reported malformed_output,
+    # sending a reader looking for a formatting defect in a response that did not exist. This is
+    # the case XE-005's sixth criterion was written about: the Council Sonnet-5 slot returned empty
+    # content while the dispatcher reported success.
+    if not (raw or "").strip():
+        raise ReviewError("empty_output",
+                          "reviewer exited successfully and returned nothing; check its quota, its "
+                          "output headroom, and whether the request was refused")
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
         raise ReviewError(*_no_json_outcome(raw))
@@ -628,7 +662,7 @@ def _subject_path(path, repos):
     p = p.lstrip("/")
     for i, r in enumerate(repos):
         name = Path(r["path"]).name
-        for prefix in (f"{i}-{name}/", f"changed/{i}-{name}/", f"callers/{i}-{name}/"):
+        for prefix in (f"{i}-{name}/", *(surface_prefix(i, r, k) for k in SURFACE_KINDS)):
             if p.startswith(prefix):
                 return i, p[len(prefix):]
     for i, r in enumerate(repos):

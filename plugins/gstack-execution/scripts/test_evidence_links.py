@@ -97,7 +97,8 @@ class LinkTests(unittest.TestCase):
         nothing and the EV-002 guarantee degrades silently instead of failing loudly."""
         repos = self.packet["repos"]
         base = pr.bind_subjects([dict(BLOCKING["findings"][0], file="a.py")], repos)["F1"]
-        for spelling in (f"changed/0-{self.repo.name}/a.py", f"callers/0-{self.repo.name}/a.py"):
+        for kind in pr.SURFACE_KINDS:          # the format comes from the producer, never restated here
+            spelling = pr.surface_prefix(0, repos[0], kind) + "a.py"
             got = pr.bind_subjects([dict(BLOCKING["findings"][0], file=spelling)], repos)["F1"]
             self.assertTrue(got["bound"], f"{spelling} must bind")
             self.assertEqual((base["blob"], base["span"]), (got["blob"], got["span"]), spelling)

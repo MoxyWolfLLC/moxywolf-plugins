@@ -226,7 +226,7 @@ Opened 2026-09-17 after an audit of a three-day Codex session that built the Ope
 
 The premise: **a loop that cannot prove its own preconditions pays for them at the slowest point, and an approval that must be re-derived is not a decision, it is an interruption.** Completeness is a property of the change. Economy is a property of the path taken to make it, and that path is not in the diff.
 
-XE-001, XE-002 and XE-005 are built and merged at f1a1034. XE-003 and XE-004 are built and under review as PR #14. Each item's own status below is the authority; this line summarizes it.
+Each item's `**Status:**` below is the only record of what is built. This preamble deliberately restates none of it: the previous version carried a count that contradicted the statuses beneath it within a day, because a fact with two homes drifts on the first merge that touches one.
 
 ### XE-001 — The gate proves it can run before anything is pushed
 
@@ -339,6 +339,34 @@ that a change breaks an untouched caller, which is where the substantive blocker
    does not carry reports that as a finding rather than guessing.
 4. The round record names how many files the review could see and how many were withheld, so a later
    reader can tell a narrow review from a thorough one.
+
+### XE-008 — A fact with two homes drifts; a format with one producer cannot
+
+**Status:** declared, building in this change.
+
+**Links introduced:** none.
+
+On 2026-09-17 the same defect shipped three times in one session: a design-doc preamble contradicting
+the item statuses beneath it, a surface path format updated in its writer and not its parser, and a
+function deleted after grepping the tests and not the callers. Checks caught all three. Reading
+caught none — and verification check 5, "before changing a rule, find its second home", was already
+written in four files and injected into every turn of that session. Restating it a fifth time is the
+intervention that had already failed, which is the same shape as XE-003.
+
+The three cases do not share one fix, and pretending they do is how a single mechanism gets credit
+for coverage it does not have.
+
+1. Where a fact can have one home, it has one. Prose does not restate a status that a structured
+   field already carries.
+2. Where a format crosses a boundary, one function emits it and the same function's output is what
+   the parser accepts, so the two cannot drift. A test asserts the round trip rather than restating
+   the spelling, because a spelling copied into a test is another home.
+3. Where neither applies — a function's callers cannot be structurally prevented — the dispatcher
+   computes which files reference the change and were not themselves touched, names them to the
+   reviewer, and says what to do with them. The builder asserting "I checked the callers" is worth
+   what the prose rule was worth.
+4. This is a report routed to the reviewer, not a gate. Referencing a changed file is not an error,
+   and a check that cannot fail must not be dressed as one.
 
 ## Validation
 
