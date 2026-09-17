@@ -168,6 +168,34 @@ def test_a_symlink_escaping_the_repository_is_refused():
             assert e.outcome == "data_use_denied", e.outcome
 
 
+def test_the_layout_has_exactly_one_producer_and_one_parser():
+    """XE-008. The prefix format had four homes and I broke it twice in an hour by updating one.
+    This asserts the parser accepts what the writer emits, for any index, without either side
+    restating the format -- so the two cannot drift even if the spelling changes."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t)
+        root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root)
+        for kind in pr.SURFACE_KINDS:
+            prefix = pr.surface_prefix(0, repos[0], kind)
+            got = pr.bind_subjects([{"id": "F1", "file": f"{prefix}widget.py", "line": 1}], repos)["F1"]
+            assert got["bound"], f"the parser must accept what the writer emits for {kind}: {prefix}"
+        # and the writer really did use it on disk
+        assert (surf / pr.surface_prefix(0, repos[0], "changed") / "widget.py").exists()
+
+
+def test_surface_md_names_the_untouched_callers_and_says_what_to_do_with_them():
+    """XE-008.3: the check is routed to the reviewer, not left as a builder self-report."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t)
+        root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root)
+        md = (surf/"SURFACE.md").read_text()
+        assert "did NOT touch" in md
+        assert "caller.py" in md, "the untouched caller must be named, not just counted"
+        assert "Check each against the diff" in md
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
