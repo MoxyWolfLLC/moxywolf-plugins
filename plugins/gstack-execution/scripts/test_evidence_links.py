@@ -91,6 +91,17 @@ class LinkTests(unittest.TestCase):
         self.assertTrue(a["bound"] and b["bound"])
         self.assertEqual((a["blob"], a["span"]), (b["blob"], b["span"]))
 
+    def test_surface_prefixed_paths_bind_to_the_same_subject(self):
+        """XE-007: a reviewer reading the review surface reports 'changed/<repo>/a.py' or
+        'callers/<repo>/a.py'. Without these, every finding from a surface-based review binds to
+        nothing and the EV-002 guarantee degrades silently instead of failing loudly."""
+        repos = self.packet["repos"]
+        base = pr.bind_subjects([dict(BLOCKING["findings"][0], file="a.py")], repos)["F1"]
+        for spelling in (f"changed/{self.repo.name}/a.py", f"callers/{self.repo.name}/a.py"):
+            got = pr.bind_subjects([dict(BLOCKING["findings"][0], file=spelling)], repos)["F1"]
+            self.assertTrue(got["bound"], f"{spelling} must bind")
+            self.assertEqual((base["blob"], base["span"]), (got["blob"], got["span"]), spelling)
+
     def test_a_line_past_the_end_of_the_file_is_not_a_resolved_subject(self):
         s = pr.bind_subjects([dict(BLOCKING["findings"][0], line=400)], self.packet["repos"])["F1"]
         self.assertFalse(s["line_exists"], "a finding pointing past the end of the file never resolved")

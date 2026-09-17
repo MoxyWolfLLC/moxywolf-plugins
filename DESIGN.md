@@ -316,6 +316,30 @@ It was reading "the web gate does not apply" as "no gate applies."
 4. The check the loop requires is the one matching the repository kind. A repository with no web
    deployment is not exempt from having a gate; it is exempt from having *that* gate.
 
+### XE-007 — The reviewer gets the change and its callers, not the tree
+
+**Status:** declared, building in this change.
+
+**Links introduced:** none. The surface is derived per round from the pinned commits; it stores nothing.
+
+Every review in the 2026-09-17 session ran close to its time limit, and three did not finish at all.
+The cause was measured, not guessed: the reviewer is handed a detached worktree of the whole
+repository — 776 files, 31 MB — to answer a question about a 4-file, 172-line diff, and spends its
+budget reading the repository. The same prompt and model against the change and the files it touches
+returned a valid review in 81 seconds. This is XE-003's principle applied to the review loop itself.
+
+The naive fix is wrong. Handing over only the changed files removes the reviewer's ability to see
+that a change breaks an untouched caller, which is where the substantive blockers come from.
+
+1. The reviewer receives the diff, the files it changes, and the files that reference those files —
+   not the repository tree.
+2. The surface is bounded, and when the bound excludes candidate files the excluded set is reported
+   rather than silently dropped.
+3. The surface states its own limits to the reviewer, and a reviewer that needs a file the surface
+   does not carry reports that as a finding rather than guessing.
+4. The round record names how many files the review could see and how many were withheld, so a later
+   reader can tell a narrow review from a thorough one.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.

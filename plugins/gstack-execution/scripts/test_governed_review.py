@@ -41,7 +41,7 @@ class GovernedReview(unittest.TestCase):
         binary = self.root / "bin"
         binary.mkdir()
         reviewer = binary / "codex"
-        reviewer.write_text("#!" + sys.executable + "\nimport os,sys,pathlib\nassert (pathlib.Path.cwd()/'0-repo'/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\n")
+        reviewer.write_text("#!" + sys.executable + "\nimport os,sys,pathlib\nassert (pathlib.Path.cwd()/'changed'/'repo'/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\n")
         reviewer.chmod(0o755)
         self.env["PATH"] = str(binary) + os.pathsep + os.environ["PATH"]
 

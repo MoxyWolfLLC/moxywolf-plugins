@@ -281,12 +281,106 @@ def _no_json_outcome(text):
     return ("malformed_output", "no JSON object in reviewer output")
 
 
+# ---- XE-007: the reviewer gets the change and its callers, not the tree ----
+#
+# Measured 2026-09-17: the same prompt and model returned a valid review in 81s against the change
+# and the files it touches, and timed out past 120s three times against the 776-file worktree. The
+# reviewer was reading the repository instead of the diff.
+#
+# ponytail: callers are found by grepping for the changed file's module/base name. No import graph,
+# no AST. A miss costs one unexamined caller, which the surface REPORTS rather than hides -- and
+# SURFACE_CAP keeps a popular module from dragging the tree back in. Upgrade path: a real import
+# graph if the grep proves too loose in practice.
+SURFACE_CAP = 60
+
+
+def changed_files(repos):
+    out = []
+    for r in repos:
+        names = git(r["path"], "diff", "--name-only", f"{r['base']}..{r['head']}").split()
+        out += [(r, n) for n in names]
+    return out
+
+
+def caller_files(repos, changed, cap):
+    """Files referencing a changed file's base name. Bounded, and reports what it dropped."""
+    stems = {Path(n).stem for _, n in changed if Path(n).stem not in {"__init__", "index"}}
+    hits, seen = [], {n for _, n in changed}
+    for r in repos:
+        try:
+            tracked = git(r["path"], "ls-files").split()
+        except Exception:
+            continue
+        for f in tracked:
+            if f in seen or Path(f).suffix not in {".py", ".md", ".yml", ".yaml", ".json", ".sh"}:
+                continue
+            fp = Path(r["path"]) / f
+            try:
+                body = fp.read_text(errors="replace")
+            except OSError:
+                continue
+            if any(st in body for st in stems):
+                hits.append((r, f)); seen.add(f)
+    dropped = max(0, len(hits) - cap)
+    return hits[:cap], dropped
+
+
+def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
+    """Write the review surface. Returns (path, stats).
+
+    prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
+    fixed, there are no new commits, so the diff is empty and a diff-derived surface would carry
+    nothing for the reviewer to verify against. The files those findings name travel with it.
+    Found by the repo gate on XE-007's own change.
+    """
+    surf = root / "surface"; surf.mkdir(parents=True, exist_ok=True)
+    diffs = []
+    for r in repos:
+        diffs.append(f"=== {Path(r['path']).name}: {r['base'][:12]}..{r['head'][:12]} ===\n"
+                     + git(r["path"], "diff", f"{r['base']}..{r['head']}"))
+    (surf / "CHANGE.diff").write_text("\n\n".join(diffs))
+
+    changed = changed_files(repos)
+    seen = {(id(r), n) for r, n in changed}
+    for f in prior_findings or ():
+        i, rel = _subject_path(f.get("file", ""), repos)
+        if i is not None and (id(repos[i]), rel) not in seen:
+            changed.append((repos[i], rel)); seen.add((id(repos[i]), rel))
+    callers, dropped = caller_files(repos, changed, cap)
+    for group, sub in ((changed, "changed"), (callers, "callers")):
+        for r, name in group:
+            src = Path(r["path"]) / name
+            dest = surf / sub / Path(r["path"]).name / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                dest.write_bytes(src.read_bytes())
+            except OSError:
+                continue
+    stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
+             "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())])}
+    (surf / "SURFACE.md").write_text(
+        "# What this review can see\n\n"
+        f"- `CHANGE.diff` — the full diff under review\n"
+        f"- `changed/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
+        f"- `callers/` — {len(callers)} files that reference a changed file by name\n"
+        f"- withheld by the {cap}-file cap: {dropped}\n\n"
+        "The repository tree is NOT here. This is deliberate: a reviewer given the whole tree spends "
+        "its budget reading it. If a judgement needs a file that is not present, do not guess — "
+        "report it as a finding with severity `separate` naming the file you needed.\n")
+    return surf, stats
+
+
 def build_prompt(packet, snaps, round_no, prior_round, dispositions):
-    repos = "\n".join(f"- {name}: base {r['base'][:12]} head {r['head'][:12]} (review `git diff {r['base']}..{r['head']}` inside this directory)"
-                      for (name, _), r in zip(snaps, packet["repos"]))
+    repos = "\n".join(f"- {Path(r['path']).name}: base {r['base'][:12]} head {r['head'][:12]}"
+                      for r in packet["repos"])
     p = [
         "You are the independent reviewer in a bounded cross-tool peer review. Read-only. Do not edit, deploy, or start another review.",
-        f"Working directory holds one detached snapshot per repository at the head commit:\n{repos}",
+        f"Repositories under review:\n{repos}",
+        "The working directory is a review surface, not a checkout: `CHANGE.diff` is the diff under "
+        "review, `changed/` holds the modified files at the reviewed head, and `callers/` holds files "
+        "that reference them. `SURFACE.md` states what is present and what was withheld. The "
+        "repository tree is not here; if a judgement needs a file the surface does not carry, report "
+        "that as a finding with severity `separate` naming the file, rather than guessing.",
         "The builder's packet is a claim to check, not evidence. Open the code.",
         "=== PACKET ===", json.dumps({k: packet[k] for k in PACKET_FIELDS}, indent=2),
         "=== CONTRACT ===", contract_sections(),
@@ -489,15 +583,22 @@ def _subject_path(path, repos):
     Reviewers report either a snapshot-prefixed path ("0-cki/calc.py", which is what
     Codex returns) or a repo-relative one ("calc.py", which is what Claude returns).
     Both have to land on the same subject or the binding is worthless.
+
+    XE-007 added two more spellings. A reviewer reading the review surface reports
+    "changed/cki/calc.py" or "callers/cki/calc.py", and without stripping those every finding
+    from a surface-based review binds to nothing -- the EV-002 guarantee degrading silently
+    rather than failing loudly. Found by following a failing test to its contract instead of
+    patching the assert.
     """
     p = path.replace("\\", "/")
     while p.startswith("./"):          # F1: lstrip("./") also ate the dot of .claude-plugin
         p = p[2:]
     p = p.lstrip("/")
     for i, r in enumerate(repos):
-        prefix = f"{i}-{Path(r['path']).name}/"
-        if p.startswith(prefix):
-            return i, p[len(prefix):]
+        name = Path(r["path"]).name
+        for prefix in (f"{i}-{name}/", f"changed/{name}/", f"callers/{name}/"):
+            if p.startswith(prefix):
+                return i, p[len(prefix):]
     for i, r in enumerate(repos):
         if _has_path(r["path"], r["head"], p):
             return i, p
@@ -811,6 +912,9 @@ def cmd_round(a):
         except ValueError as e:
             raise ReviewError("data_use_denied", str(e))
         snaps = snapshot(packet["repos"], root)
+        surf, surf_stats = build_surface(packet["repos"], root,
+                                         prior_findings=(prior or {}).get("findings", []))
+        record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
         prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
         # resolved now, not at open: availability changes between the two, and a fallback is a
@@ -823,7 +927,7 @@ def cmd_round(a):
             reviewer, family(reviewer), is_fallback
         record["max_output"] = REVIEWERS[reviewer]["max_output"]
         record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None
-        raw, record["model"] = run_reviewer(reviewer, prompt, root, state["timeout"])
+        raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)
