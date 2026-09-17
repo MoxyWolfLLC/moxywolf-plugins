@@ -33,17 +33,78 @@ CONTRACT = HERE.parent / "skills" / "gstack-execution" / "references" / "peer-re
 REVIEW_DIR = Path(os.environ.get("GSTACK_PEER_REVIEW_DIR", Path.home() / ".gstack" / "peer-review"))
 RECURSION_ENV = "GSTACK_PEER_REVIEW_SESSION"
 _SELFTEST = False
-OTHER_TOOL = {"claude": "codex", "codex": "claude"}
-# Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or higher.
-# Override the model with GSTACK_CODEX_MODEL / GSTACK_CLAUDE_MODEL; the floor still applies to what actually ran.
-MODEL = {"codex": os.environ.get("GSTACK_CODEX_MODEL", "gpt-6-astra"),
-         "claude": os.environ.get("GSTACK_CLAUDE_MODEL", "claude-opus-5")}
-MODEL_FLOOR = {"codex": r"^gpt-([6-9]|\d{2,})\b",
-               "claude": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)"}
+# XE-005: independence is a property, not a name.
+#
+# Routing used to be {"claude":"codex","codex":"claude"} and derived the reviewer as "the other
+# one". That encodes independence as a name. Cursor can run Claude models, so a Claude builder
+# reviewed by Cursor could share the builder's model family while satisfying every check here,
+# and a record that cannot tell a harness swap from an independent mind reads as the stronger
+# thing. Each entry therefore declares the family it actually belongs to, and a reviewer whose
+# family matches the builder's is refused before it runs.
+#
+# Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or
+# higher. Override a model with GSTACK_<TOOL>_MODEL; the floor still applies to what ran.
+REVIEWERS = {
+    "codex":  {"family": "gpt",
+               "model": os.environ.get("GSTACK_CODEX_MODEL", "gpt-6-astra"),
+               "floor": r"^gpt-([6-9]|\d{2,})\b",
+               "floor_name": "Astra (gpt-6) or higher"},
+    "claude": {"family": "claude",
+               "model": os.environ.get("GSTACK_CLAUDE_MODEL", "claude-opus-5"),
+               "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
+               "floor_name": "Opus 5 or higher"},
+    "gemini": {"family": "gemini",
+               "model": os.environ.get("GSTACK_GEMINI_MODEL", "gemini-3.1-pro-preview"),
+               "floor": r"^gemini-([3-9]|\d{2,})\b",
+               "floor_name": "Gemini 3 or higher"},
+}
+# Preference order when more than one independent reviewer is installed.
+REVIEWER_ORDER = ["codex", "claude", "gemini"]
+# Builders are the tools that write code here. Their family decides who may review them.
+OTHER_TOOL = {"claude": "codex", "codex": "claude"}  # kept: task_graph.py and --builder choices
+
+
+def family(tool):
+    return REVIEWERS[tool]["family"] if tool in REVIEWERS else None
 
 
 def model_ok(tool, model):
-    return bool(re.match(MODEL_FLOOR[tool], model or ""))
+    return bool(re.match(REVIEWERS[tool]["floor"], model or ""))
+
+
+def reviewer_candidates(builder):
+    """Installed reviewers whose model family differs from the builder's, in preference order."""
+    bf = family(builder)
+    return [t for t in REVIEWER_ORDER if t in REVIEWERS and REVIEWERS[t]["family"] != bf]
+
+
+def choose_reviewer(builder, forced=None, require_installed=True):
+    """(tool, is_fallback). A forced reviewer sharing the builder's family is refused, not silently
+    accepted; a fallback is recorded as one, because an unrecorded fallback is a silent downgrade.
+
+    `open` records the INTENDED reviewer and does not require it on PATH; `round` resolves the one
+    that actually runs. Availability legitimately changes between the two -- on 2026-09-17 codex was
+    absent when the review opened and installed before the next attempt -- so binding the decision at
+    open would pin a stale answer and hide the fallback that really happened.
+    """
+    cands = reviewer_candidates(builder)
+    if forced:
+        if forced not in REVIEWERS:
+            raise ReviewError("review_unavailable", f"unknown reviewer {forced}")
+        if family(forced) == family(builder):
+            raise ReviewError("reviewer_not_independent",
+                              f"{forced} runs the {family(forced)} family, the same as builder {builder}; "
+                              "a harness swap is not an independent review")
+        return forced, bool(cands) and forced != cands[0]
+    if not cands:
+        raise ReviewError("review_unavailable", f"no reviewer of a different family than builder {builder}")
+    if not require_installed:
+        return cands[0], False
+    available = [t for t in cands if shutil.which(t)]
+    if not available:
+        raise ReviewError("review_unavailable",
+                          f"no independent reviewer on PATH for builder {builder}; tried {', '.join(cands)}")
+    return available[0], available[0] != cands[0]
 PACKET_FIELDS = ["outcome", "acceptance_criteria", "repos", "changed_behavior", "exclusions", "tests", "release_owner"]
 SEVERITIES = {"blocking", "follow_up", "separate"}
 VERDICTS = {"no_blocking_findings", "blocking_findings"}
@@ -192,6 +253,26 @@ def contract_sections():
     return text[start:end]
 
 
+def _looks_truncated(text):
+    """A response cut off at its output limit, as distinct from one that is simply wrong.
+
+    ponytail: heuristic, not a provider signal. Gemini's CLI reports no finish reason, so the tell
+    is an opening brace whose structure never closes. Upgrade path: read an explicit finish/stop
+    reason per reviewer when one is available and fall back to this.
+    """
+    t = (text or "").strip()
+    if not t or "{" not in t:
+        return False
+    return t.count("{") > t.count("}") or t.count("[") > t.count("]")
+
+
+def _no_json_outcome(text):
+    if _looks_truncated(text):
+        return ("output_truncated", "reviewer output opens a JSON structure that never closes; "
+                                    "raise this reviewer's output headroom")
+    return ("malformed_output", "no JSON object in reviewer output")
+
+
 def build_prompt(packet, snaps, round_no, prior_round, dispositions):
     repos = "\n".join(f"- {name}: base {r['base'][:12]} head {r['head'][:12]} (review `git diff {r['base']}..{r['head']}` inside this directory)"
                       for (name, _), r in zip(snaps, packet["repos"]))
@@ -223,11 +304,11 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     elif tool == "codex":
         if not shutil.which("codex"):
             raise ReviewError("review_unavailable", "codex CLI not installed on PATH")
-        if not model_ok("codex", MODEL["codex"]):
-            raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={MODEL['codex']}; floor is Astra (gpt-6) or higher")
+        if not model_ok("codex", REVIEWERS["codex"]["model"]):
+            raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={REVIEWERS['codex']['model']}; floor is {REVIEWERS['codex']['floor_name']}")
         schema = root / "schema.json"; last = root / "last.txt"
         schema.write_text(json.dumps(output_schema))
-        cmd = ["codex", "exec", "-C", str(root), "-m", MODEL["codex"], "-c", "model_reasoning_effort=high",
+        cmd = ["codex", "exec", "-C", str(root), "-m", REVIEWERS["codex"]["model"], "-c", "model_reasoning_effort=high",
                "--sandbox", "read-only", "--skip-git-repo-check",
                "--output-schema", str(schema), "--output-last-message", str(last), prompt]
         def parse(r):
@@ -236,9 +317,9 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     elif tool == "claude":
         if not shutil.which("claude"):
             raise ReviewError("review_unavailable", "claude CLI not installed on PATH")
-        if not model_ok("claude", MODEL["claude"]):
-            raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={MODEL['claude']}; floor is Opus 5 or higher")
-        cmd = ["claude", "-p", prompt, "--model", MODEL["claude"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
+        if not model_ok("claude", REVIEWERS["claude"]["model"]):
+            raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={REVIEWERS['claude']['model']}; floor is {REVIEWERS['claude']['floor_name']}")
+        cmd = ["claude", "-p", prompt, "--model", REVIEWERS["claude"]["model"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
                "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
         def parse(r):
@@ -253,6 +334,26 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
             model = max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None
             text = json.dumps(env_["structured_output"]) if "structured_output" in env_ else env_.get("result", r.stdout)
             return text, model
+    elif tool == "gemini":
+        if not shutil.which("gemini"):
+            raise ReviewError("review_unavailable", "gemini CLI not installed on PATH")
+        if not model_ok("gemini", REVIEWERS["gemini"]["model"]):
+            raise ReviewError("model_below_floor", f"GSTACK_GEMINI_MODEL={REVIEWERS['gemini']['model']}; floor is {REVIEWERS['gemini']['floor_name']}")
+        # gemini has -o json but no --output-schema: the schema goes in the prompt and is validated
+        # on the way back. `--approval-mode plan` is its read-only mode.
+        cmd = ["gemini", "-m", REVIEWERS["gemini"]["model"], "--approval-mode", "plan", "--skip-trust",
+               "-o", "json", "--include-directories", str(root),
+               "-p", prompt + "\n\n=== REQUIRED OUTPUT SCHEMA ===\n" + json.dumps(output_schema)
+                    + "\n\nReturn one complete JSON object matching it. Do not truncate."]
+        def parse(r):
+            try:
+                env_ = json.loads(r.stdout)
+            except json.JSONDecodeError:
+                return r.stdout, REVIEWERS["gemini"]["model"]
+            if not isinstance(env_, dict):
+                return r.stdout, REVIEWERS["gemini"]["model"]
+            model = (env_.get("stats", {}) or {}).get("model") or REVIEWERS["gemini"]["model"]
+            return env_.get("response", r.stdout), model
     else:
         raise ReviewError("review_unavailable", f"unknown tool {tool}")
     try:
@@ -266,7 +367,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
         raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
     text, model = parse(r)
     if not fake and not model_ok(tool, model):
-        raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({MODEL_FLOOR[tool]})")
+        raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({REVIEWERS[tool]['floor']})")
     return text, model
 
 
@@ -277,10 +378,14 @@ def disposition_value(value):
 def validate(raw, packet, prior=None, dispositions=None):
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
-        raise ReviewError("malformed_output", "no JSON object in reviewer output")
+        raise ReviewError(*_no_json_outcome(raw))
     try:
         out = json.loads(m.group(0))
     except json.JSONDecodeError as e:
+        if _looks_truncated(raw):
+            raise ReviewError("output_truncated",
+                              f"reviewer output ends mid-structure ({len(raw)} chars); raise this reviewer's "
+                              f"output headroom rather than treating it as a malformed review. ({e})")
         raise ReviewError("malformed_output", f"invalid JSON: {e}")
     if not isinstance(out, dict):
         raise ReviewError("malformed_output", "review must be an object")
@@ -642,7 +747,9 @@ def cmd_open(a):
     REVIEW_DIR.mkdir(parents=True, exist_ok=True)
     d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=REVIEW_DIR))
     review_id = d.name
-    state = {"review_id": review_id, "builder": a.builder, "reviewer": OTHER_TOOL[a.builder],
+    reviewer, is_fallback = choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)
+    state = {"review_id": review_id, "builder": a.builder, "builder_family": family(a.builder),
+             "reviewer": reviewer, "reviewer_family": family(reviewer), "reviewer_is_fallback": is_fallback,
              "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
              "heads": [[r["head"] for r in packet["repos"]]]}
     save(d, "packet.json", packet); save(d, "state.json", state)
@@ -685,13 +792,21 @@ def cmd_round(a):
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"]}
     try:
         try:
-            data_permission(packet, tool=state["reviewer"])
+            data_permission(packet, tool=state["reviewer"])  # intended reviewer; the run records what ran
         except ValueError as e:
             raise ReviewError("data_use_denied", str(e))
         snaps = snapshot(packet["repos"], root)
         prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
-        raw, record["model"] = run_reviewer(state["reviewer"], prompt, root, state["timeout"])
+        # resolved now, not at open: availability changes between the two, and a fallback is a
+        # property of the run. GSTACK_PEER_REVIEW_FAKE_CMD keeps the selftest on the recorded tool.
+        if _SELFTEST and os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD"):
+            reviewer, is_fallback = state["reviewer"], state.get("reviewer_is_fallback", False)
+        else:
+            reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
+        record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
+            reviewer, family(reviewer), is_fallback
+        raw, record["model"] = run_reviewer(reviewer, prompt, root, state["timeout"])
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)

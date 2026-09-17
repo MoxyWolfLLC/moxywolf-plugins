@@ -220,6 +220,76 @@ citation-to-snapshot link.
 3. Ad-hoc consultations with other tools are conducted through an address that leaves a
    record, so the denominator of a search stops being unknown.
 
+## Fourth objective: execution economy
+
+Opened 2026-09-17 after an audit of a three-day Codex session that built the OpenControls support platform. That session spent 2,319 tool calls to produce 54 file changes, 1,039 of them browser calls where an API existed, and was interrupted 43 times by approvals that re-derived authority the human had already granted. The implementation stayed small, so the restraint layer did its job. The cost was in the loop around the change, which no item in this design governs.
+
+The premise: **a loop that cannot prove its own preconditions pays for them at the slowest point, and an approval that must be re-derived is not a decision, it is an interruption.** Completeness is a property of the change. Economy is a property of the path taken to make it, and that path is not in the diff.
+
+XE-001 is built in this change. XE-002 through XE-004 are declared and not started.
+
+### XE-001 — The gate proves it can run before anything is pushed
+
+**Status:** in build.
+
+**Links introduced:** none. The preflight report is derived from the working tree at call time and is not stored.
+
+1. `endform_workflow.py preflight --repo <path>` answers, locally and without network, whether the E2E gate can run in this repository, and names every condition it examined.
+2. It fails when the Playwright project root and the workflow's run directory differ, which is the defect that cost two push/CI/fix cycles in the audited session.
+3. It fails when a `tsconfig` the test project extends resolves outside that project root, which is the defect that cost a third.
+4. It reports every `secrets.*` name the workflow references, so a missing CI secret is discovered before the push rather than by a red check.
+5. Per EV-001, a condition that could not be examined reports `SKIP` and is distinct from `PASS`, and a run that examined nothing exits non-zero rather than reporting success.
+6. `/gstack-build` runs it once per repository before the first item and refuses to treat a red E2E gate as a code defect until it is green.
+
+### XE-002 — An approval binds to a scope, and re-resolves
+
+**Status:** in build.
+
+**Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
+
+1. An approval writes a structured grant, not a sentence. The grant carries the action class, a resource pattern, a scope of one-shot, session or project, and the granting human.
+2. The checker matches a pending action against the ledger by pattern. It never re-reads the prose of a prior approval to decide whether that prose covers a new action.
+3. A grant that does not match prompts once and writes a new grant. The prompt names the class and pattern being granted, so the human decides policy rather than re-deciding the same act.
+4. Action classes that stay one-shot by construction: production data writes, sending mail to a real recipient, and merge.
+5. This inherits EV-002's mechanism. Findings bind to content and re-resolve; grants bind to a scope and re-resolve. Neither re-reads prose to decide whether a link still holds.
+6. **The ledger is not a security control.** It is written by the process it governs, exactly as `GOVERNANCE.md` already says of the review state files, so an agent that can write a grant can write its own. What the ledger buys is the human's attention, not containment. The containment is `ONE_SHOT_ONLY`, a set of classes no grant satisfies in advance at any scope, and protected-branch enforcement outside this process. An item that moves a class out of `ONE_SHOT_ONLY` is amending that boundary and needs the amendment, not a code change.
+7. The ledger widens what a packet's `data_use` policy covers. It never removes a refusal: the owner, classification and repository/history checks are unchanged, and an action with no matching grant is still denied rather than resolved by re-reading a prior approval.
+
+### XE-003 — The cheapest surface that answers the question
+
+**Status:** declared, not started.
+
+**Links introduced:** none.
+
+1. The tool order is connector, then CLI, then REST, then browser. A browser call is the last rung, not the first.
+2. A session that uses a browser where a connector for that service is configured says so, and says which rung it took.
+3. Where a browser is genuinely required, the page is read as structure rather than as pixels, and a query-focused read is preferred over a full snapshot on any page large enough for the difference to matter.
+
+### XE-004 — A checkpoint is a batch, not an item
+
+**Status:** declared, not started.
+
+**Links introduced:** none.
+
+1. Cross-tool review runs at a checkpoint covering several items, not once per item.
+2. A review is dispatched and collected. The dispatching session does not block on it and does not narrate its progress while it runs.
+3. The audited session produced 51 messages whose entire content was that a review had not yet returned. That is the behavior this item removes.
+
+### XE-005 — A reviewer is independent by what differs, not by its name
+
+**Status:** declared, not started.
+
+**Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
+
+The dispatcher hardcodes two tools and derives the reviewer as "the other one". That encodes independence as a name rather than as a property, and two things already break it. Cursor can run Claude models, so a Claude builder reviewed by Cursor could share the builder's model family while satisfying every current check. And when the only named reviewer is unreachable, as happened on 2026-09-17 when Codex was first absent and then refused by its API for billing, the loop has nowhere to fall back to and the checkpoint lands unreviewed.
+
+1. Reviewer routing is a table of `{tool, model_family, floor, invocation}` rather than a two-key map of builder to other tool. Adding a reviewer is a table entry, not a change to the dispatch path.
+2. A reviewer whose `model_family` matches the builder's is refused before it runs, under an outcome distinct from `review_unavailable`, because a harness swap is not an independent mind and a record that cannot tell the two apart is worth less than no record.
+3. The review record names the reviewer's tool **and** its model family, so a later reader can see what independence was actually obtained rather than inferring it from a tool name.
+4. Fallback to a second reviewer is permitted only among entries whose family differs from the builder's, and the record says which reviewer ran and that it was a fallback. A fallback that is not recorded as one is a silent downgrade.
+5. A reviewer response cut off at its output limit reports `output_truncated`, distinct from `malformed_output`. The two have different causes and different fixes, and collapsing them makes a headroom problem look like a broken reviewer. Gemini truncated a long structured response twice in this team's only run of it, during the 2026-09-15 Council deliberation, and the reviewer contract demands a longer and stricter structure than that deliberation did.
+6. Each table entry carries its own output headroom, set against the reviewer contract's full response rather than a provider default. Precedent: the Council Sonnet-5 slot was configured at 3000 tokens and needed 12000, and under-provisioned it returned empty content while the dispatcher still reported success.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -227,6 +297,12 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-17: XE-005 declared after the checkpoint for XE-001 and XE-002 landed unreviewed. Two review records for `5761c37` both returned `review_unavailable`, first because the `codex` CLI was absent and then, once it was installed and authenticated, because the OpenAI account had no credits. Dorian merged as Release Owner with the gap recorded on the pull request, which the release-boundary contract already allows: a passing machine review was never release authorization. Cursor and Gemini were both considered as a third reviewer. Gemini is the better fit on independence, since Cursor can run the builder's own model family, and the item is written so that neither can be added without declaring what actually differs.
+
+- 2026-09-17: XE-002 built alongside XE-001 and reviewed with it in one checkpoint, per XE-004. Capability grants extend `governance.py` rather than adding a parallel authority path: the packet's `data_use` policy already carried an owner, an exact-match `allowed_tools` list and pattern-matched `output_roots`, and the defect was that the policy is re-declared per invocation and matched by exact string. Grants persist, match by pattern, and record the granting human. The classes that matter are unreachable by any grant.
+
+- 2026-09-17: Dorian approved a fourth objective after an audit of the 2026-09-15/16 support-platform session. The audit counted 2,319 tool calls against 54 file changes, 1,039 browser calls where connectors were configured, 43 approval interruptions, and 193 failed commands. XE-001 is built in this change; XE-002 through XE-004 are declared and not started. The session's own self-diagnosis, recorded in its transcript, agrees: the implementation stayed small and the loop around it did not.
 
 - 2026-09-12: Dorian approved a third objective after reading "When Structure Pays", which reports three defects in this executor and three false passes in this repository's own completeness gate. EV-001 through EV-005 are built in this change; EV-006 through EV-008 are declared and not started. The paper's central claim is the reason the objective exists: completeness is a property of an artifact, evidential force is a property of the relationship between the artifact and the work, and that relationship is not in the artifact.
 
