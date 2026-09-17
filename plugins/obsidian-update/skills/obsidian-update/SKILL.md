@@ -55,6 +55,14 @@ Review the full conversation from this Cowork session. You have access to the co
 - **Capture the "why" not just the "what."** "We chose Supabase" is useless. "We chose Supabase over Firebase because of Row Level Security for multi-tenant compliance data" is a durable decision record.
 - **Check for Council deliberation records.** If the session included a Council deliberation, check whether the deliberation-engine already wrote a decision record via its Step 8d vault sync. Look in `${VAULT}/_Shared Knowledge/Agents and Plugins/council-deliberation-log.md` for the deliberation ID. If already logged, create a reference link rather than a duplicate note.
 
+### Knowledge candidates from federated plugins
+
+In addition to scanning prose, ingest any structured **Knowledge candidates** emitted by plugins or collected in the session handoff. Each candidate must identify its producing plugin, durable claim or decision, rationale, project, proposed route, sensitivity, related projects, and supporting Taskade and Git sources.
+
+Treat candidates as proposals, never prior approval. Verify their supporting sources, deduplicate them against existing Vault notes, distinguish project-specific memory from cross-company knowledge, and merge valid candidates into the Step 2 extraction plan. Working artifacts remain in Taskade and code remains in Git; neither belongs in company memory merely because it was produced during the session.
+
+Read `00 – Project Hub/knowledge-candidates.json` before scanning prose. Validate it against this plugin's packaged `schemas/knowledge-candidate.schema.json`; malformed entries are reported and skipped, never guessed into shape. After an approved Vault write, update only the promoted records to `status: promoted`. Keep rejected or deferred records with their explicit status so another session cannot silently reinterpret them.
+
 ### Action Item Detection
 
 When extracting action items, also check if they should be added to the Kanban board:

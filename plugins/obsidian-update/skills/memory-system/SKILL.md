@@ -9,6 +9,16 @@ description: ""
 > Called by the personal-os skill — not typically invoked directly.
 > Also called by the Council deliberation-engine and pattern-memory skills for cross-plugin vault operations.
 
+## COMPANY-MEMORY BOUNDARY
+
+The MoxyWolf Vault is the company's **company-wide long-term memory**. It is not the active project workspace and it is not a code checkout.
+
+- **Working artifacts remain in Taskade** under the active `Taskade/<Project>/` folder.
+- **Code remains in the declared Git repository** or repositories for that project.
+- Durable decisions, rationale, research, insights, relationships, and cross-project patterns may be promoted into the Vault after deduplication, correct routing, and explicit human approval.
+- Project-specific company memory belongs under `${VAULT}/Projects/<Project>/`; cross-project knowledge belongs under `${VAULT}/_Shared Knowledge/`.
+- Derived graphs and generated views are supporting context, never higher authority than authored decisions and evidence.
+
 ---
 
 ## MEMORY FILE LOCATIONS

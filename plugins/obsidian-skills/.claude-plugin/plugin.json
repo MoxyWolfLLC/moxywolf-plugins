@@ -1,6 +1,6 @@
 {
   "name": "obsidian-skills",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Steph Ango / Obsidian's five official agent skills, vendored into the MoxyWolf marketplace so every team Mac gets consistent Obsidian fluency. Ships obsidian-markdown (proper wiki-link / callout / embed rendering), obsidian-bases (the new Bases query syntax), json-canvas (the JSON Canvas spec for visual boards), obsidian-cli (script-friendly Obsidian invocation), and defuddle (Defuddle HTML-to-Markdown cleanup for web clips). Upstream: kepano/obsidian-skills.",
   "author": {
     "name": "Obsidian (vendored by MoxyWolf LLC)"

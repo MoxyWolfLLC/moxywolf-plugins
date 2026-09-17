@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MoxyWolf Project Surfaces",
+  "type": "object",
+  "required": ["schema_version", "project_id", "display_name", "workspace", "memory", "repositories"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "display_name": {"type": "string", "minLength": 1},
+    "aliases": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "workspace": {
+      "type": "object",
+      "required": ["type", "path"],
+      "properties": {
+        "type": {"enum": ["taskade", "vault-only"]},
+        "path": {"type": "string", "pattern": "^(Taskade|MoxyWolf Vault)/[^.].*"}
+      },
+      "additionalProperties": false
+    },
+    "memory": {
+      "type": "object",
+      "required": ["path", "moc"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^MoxyWolf Vault/[^.].*"},
+        "moc": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+"}
+      },
+      "additionalProperties": false
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "access", "role"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^GitHub/[^.].*"},
+          "access": {"enum": ["read-only", "read-write"]},
+          "role": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "related_workspaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "access", "role"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^Taskade/[^.].*"},
+          "access": {"enum": ["read-only", "read-write"]},
+          "role": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "task_tags": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

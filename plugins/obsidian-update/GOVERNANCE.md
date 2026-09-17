@@ -16,6 +16,8 @@ Vault writes present the extraction plan for approval before writing. The extern
 carries the named-approver rule: **external sends require a named human's approval before they
 leave; record who approved.**
 
+Structured knowledge candidates from federated plugins remain proposals. The plugin verifies provenance, deduplicates, routes them to project or shared company memory, and includes them in the same human approval gate before any Vault write.
+
 | Skill / command | risk_tier | gate / note |
 |---|---|---|
 | `obsidian-update` (command) | side-effectful-gated | Captures session knowledge to the vault; presents the extraction plan for approval before writing (Tests 1, 5). |

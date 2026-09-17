@@ -1,7 +1,7 @@
 {
   "name": "vault-skills",
-  "version": "1.0.0",
-  "description": "Six vault-* workflow skills (vault-capture, vault-save, vault-journal, vault-synthesize, vault-moc, vault-health) vendored from az9713/claude-code-obsidian. Companion to obsidian-skills (kepano's foundational five) — those handle the file formats; these run the daily vault workflows: quick-capture into the inbox, structured saves into the right folder, daily-journal authoring, multi-note synthesis, Map-of-Content authoring, and vault-health audits (orphan notes, broken links, stale tags).",
+  "version": "1.0.1",
+  "description": "Six vault-* workflow skills (vault-capture, vault-save, vault-journal, vault-synthesize, vault-moc, vault-health) vendored from az9713/claude-code-obsidian. Companion to obsidian-skills (kepano's foundational five) \u2014 those handle the file formats; these run the daily vault workflows: quick-capture into the inbox, structured saves into the right folder, daily-journal authoring, multi-note synthesis, Map-of-Content authoring, and vault-health audits (orphan notes, broken links, stale tags).",
   "author": {
     "name": "az9713 (vendored by MoxyWolf LLC)"
   },

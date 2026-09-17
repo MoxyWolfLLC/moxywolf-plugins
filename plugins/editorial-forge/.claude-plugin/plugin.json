@@ -1,7 +1,7 @@
 {
   "name": "editorial-forge",
-  "version": "0.1.1",
-  "description": "Transform AI-generated content into author-owned work through structured editorial judgment, voice extraction, and Sorkin DOB narrative framing — with a complete authorship record documenting every copyrightable decision.",
+  "version": "0.1.2",
+  "description": "Transform AI-generated content into author-owned work through structured editorial judgment, voice extraction, and Sorkin DOB narrative framing \u2014 with a complete authorship record documenting every copyrightable decision.",
   "author": {
     "name": "MoxyWolf LLC"
   },

@@ -120,22 +120,34 @@ The marketplace gets the plugins installed. The protocol below is how the MoxyWo
 
 ### The short version
 
-1. Every project gets configured with `/init-project` once. That writes a `cowork-project-instructions.md` to the project's Drive folder.
+1. Every project gets configured with `/init-project` once. That writes human-readable instructions plus a machine-readable `project-surfaces.json` mapping its Taskade workspace, Vault memory, repositories, aliases, and task scope.
 2. At the end of every session, run `/session-end`. That writes a `cowork-session-handoff.md` to the same folder.
 3. The next person to work on that project — same Mac, different Mac, different human — runs `/session-start [Project]` and Claude reads the handoff and briefs them.
-4. Drive carries the protocol (instructions + handoff + vault knowledge). GitHub carries the code. Slack carries the "I'm picking this up now" ping.
+4. Taskade carries active project work and handoffs. GitHub carries code. The Vault carries company-wide long-term memory. Slack carries the "I'm picking this up now" ping.
 
 ### What syncs through Drive vs. what doesn't
 
 | Thing | Lives in | Synced across the team? |
 |---|---|---|
-| Project Instructions, session handoff, decision records | Drive — project's `00 – Project Hub/` | Yes |
-| Vault notes, kanban, daily journal | Drive — `MoxyWolf Vault/` | Yes |
+| Project Instructions, surface manifest, session handoff, product decisions | Drive — Taskade project's `00 – Project Hub/` | Yes |
+| Company memory, kanban, daily journal | Drive — `MoxyWolf Vault/` | Yes |
 | Plugin code (this repo) | GitHub | Yes (after marketplace update) |
 | Repo working trees (`~/Documents/GitHub/<repo>`) | Local clone | **No — sync via `git push` / `git pull`** |
 | Cowork plugin installs, mounted folders, MCP OAuth tokens, memory | Per Mac, per user | **No — each person sets up their own** |
 
-Rule of thumb: if it's about a project's state, it's in Drive. If it's about how *your* Claude has learned to work with *you*, it's on your machine.
+Rule of thumb: current project state and deliverables live in Taskade; executable truth lives in Git; durable rationale and learned knowledge live in the Vault. Personal agent preferences stay on the individual machine.
+
+### Federated project context
+
+Every initialized project carries `project-surfaces.json` in its `00 – Project Hub/`. `/session-start` uses it to keep three planes separate:
+
+- **Project workspace (Taskade)** — active plans, handoffs, deliverables, and product-scoped decisions
+- **Code workspace (Git)** — zero, one, or many declared repositories with explicit access and roles
+- **Company memory (Vault)** — durable rationale, research, insights, relationships, and cross-project knowledge
+
+Every marketplace plugin also ships `vault-context.json`, declaring which planes and memory scopes it needs. Authority follows the question: Git wins for executable behavior, Taskade wins for current work, and authored Vault records win for institutional rationale. Durable knowledge returns to the Vault as a candidate through the approval-gated `obsidian-update` flow; working artifacts and code stay where they belong.
+
+The `project-init` SessionStart hook injects this contract automatically, including when a plugin is invoked without `/session-start`. Every other plugin also bundles a `federated-context-preflight` skill so an independently installed plugin still fails closed and follows the same routing contract on Claude Code versions that predate transitive plugin dependencies. Candidate records travel through the project's `00 – Project Hub/knowledge-candidates.json`, validated against the packaged schema. That Taskade file is a proposal queue, not Vault-write authorization.
 
 ### Ending a session
 
