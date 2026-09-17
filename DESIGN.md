@@ -220,6 +220,59 @@ citation-to-snapshot link.
 3. Ad-hoc consultations with other tools are conducted through an address that leaves a
    record, so the denominator of a search stops being unknown.
 
+## Fourth objective: execution economy
+
+Opened 2026-09-17 after an audit of a three-day Codex session that built the OpenControls support platform. That session spent 2,319 tool calls to produce 54 file changes, 1,039 of them browser calls where an API existed, and was interrupted 43 times by approvals that re-derived authority the human had already granted. The implementation stayed small, so the restraint layer did its job. The cost was in the loop around the change, which no item in this design governs.
+
+The premise: **a loop that cannot prove its own preconditions pays for them at the slowest point, and an approval that must be re-derived is not a decision, it is an interruption.** Completeness is a property of the change. Economy is a property of the path taken to make it, and that path is not in the diff.
+
+XE-001 is built in this change. XE-002 through XE-004 are declared and not started.
+
+### XE-001 — The gate proves it can run before anything is pushed
+
+**Status:** in build.
+
+**Links introduced:** none. The preflight report is derived from the working tree at call time and is not stored.
+
+1. `endform_workflow.py preflight --repo <path>` answers, locally and without network, whether the E2E gate can run in this repository, and names every condition it examined.
+2. It fails when the Playwright project root and the workflow's run directory differ, which is the defect that cost two push/CI/fix cycles in the audited session.
+3. It fails when a `tsconfig` the test project extends resolves outside that project root, which is the defect that cost a third.
+4. It reports every `secrets.*` name the workflow references, so a missing CI secret is discovered before the push rather than by a red check.
+5. Per EV-001, a condition that could not be examined reports `SKIP` and is distinct from `PASS`, and a run that examined nothing exits non-zero rather than reporting success.
+6. `/gstack-build` runs it once per repository before the first item and refuses to treat a red E2E gate as a code defect until it is green.
+
+### XE-002 — An approval binds to a scope, and re-resolves
+
+**Status:** declared, not started.
+
+**Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
+
+1. An approval writes a structured grant, not a sentence. The grant carries the action class, a resource pattern, a scope of one-shot, session or project, and the granting human.
+2. The checker matches a pending action against the ledger by pattern. It never re-reads the prose of a prior approval to decide whether that prose covers a new action.
+3. A grant that does not match prompts once and writes a new grant. The prompt names the class and pattern being granted, so the human decides policy rather than re-deciding the same act.
+4. Action classes that stay one-shot by construction: production data writes, sending mail to a real recipient, and merge.
+5. This inherits EV-002's mechanism. Findings bind to content and re-resolve; grants bind to a scope and re-resolve. Neither re-reads prose to decide whether a link still holds.
+
+### XE-003 — The cheapest surface that answers the question
+
+**Status:** declared, not started.
+
+**Links introduced:** none.
+
+1. The tool order is connector, then CLI, then REST, then browser. A browser call is the last rung, not the first.
+2. A session that uses a browser where a connector for that service is configured says so, and says which rung it took.
+3. Where a browser is genuinely required, the page is read as structure rather than as pixels, and a query-focused read is preferred over a full snapshot on any page large enough for the difference to matter.
+
+### XE-004 — A checkpoint is a batch, not an item
+
+**Status:** declared, not started.
+
+**Links introduced:** none.
+
+1. Cross-tool review runs at a checkpoint covering several items, not once per item.
+2. A review is dispatched and collected. The dispatching session does not block on it and does not narrate its progress while it runs.
+3. The audited session produced 51 messages whose entire content was that a review had not yet returned. That is the behavior this item removes.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -227,6 +280,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-17: Dorian approved a fourth objective after an audit of the 2026-09-15/16 support-platform session. The audit counted 2,319 tool calls against 54 file changes, 1,039 browser calls where connectors were configured, 43 approval interruptions, and 193 failed commands. XE-001 is built in this change; XE-002 through XE-004 are declared and not started. The session's own self-diagnosis, recorded in its transcript, agrees: the implementation stayed small and the loop around it did not.
 
 - 2026-09-12: Dorian approved a third objective after reading "When Structure Pays", which reports three defects in this executor and three false passes in this repository's own completeness gate. EV-001 through EV-005 are built in this change; EV-006 through EV-008 are declared and not started. The paper's central claim is the reason the objective exists: completeness is a property of an artifact, evidential force is a property of the relationship between the artifact and the work, and that relationship is not in the artifact.
 
