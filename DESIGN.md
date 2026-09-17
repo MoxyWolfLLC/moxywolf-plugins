@@ -257,7 +257,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-003 — The cheapest surface that answers the question
 
-**Status:** declared, not started.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
 
 **Links introduced:** none.
 
@@ -267,7 +267,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-004 — A checkpoint is a batch, not an item
 
-**Status:** declared, not started.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
 
 **Links introduced:** none.
 
