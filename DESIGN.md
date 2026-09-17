@@ -230,7 +230,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-001 — The gate proves it can run before anything is pushed
 
-**Status:** in build.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** none. The preflight report is derived from the working tree at call time and is not stored.
 
@@ -243,7 +243,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-002 — An approval binds to a scope, and re-resolves
 
-**Status:** in build.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
 
@@ -277,7 +277,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-005 — A reviewer is independent by what differs, not by its name
 
-**Status:** declared, not started.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
 
 **Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
 
