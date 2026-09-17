@@ -109,6 +109,36 @@ def test_cited_urls_are_deduplicated_and_trailing_punctuation_is_dropped():
     assert ar.cited_urls(text) == ["https://a.com/x", "https://b.com/y"]
 
 
+def test_the_gate_counts_the_papers_cited_urls_not_the_index_contents():
+    """Reported as blocking by the review of this change. Counting index entries meant a paper
+    citing ten unarchived URLs passed on the strength of one archived entry belonging to a
+    different paper: coverage computed over the wrong denominator."""
+    import json as _json, tempfile as _tf
+    import release_gate as rg
+    paper = "Cited https://example.com/a and https://gone.example/z."
+    with _tf.TemporaryDirectory() as t:
+        idx = Path(t)/"i.json"
+        idx.write_text(_json.dumps({"https://unrelated.com/other": {"status": "archived"}}))
+        status, detail, examined, _ = rg.check_archive_coverage(paper, {"archive_index": str(idx)})
+        assert status == rg.SKIP, "an index covering none of this paper's URLs cannot pass"
+        assert examined == 0 and "no archive record" in detail
+
+        idx.write_text(_json.dumps({"https://example.com/a": {"status": "archived"},
+                                    "https://gone.example/z": {"status": "unavailable"}}))
+        status, detail, examined, _ = rg.check_archive_coverage(paper, {"archive_index": str(idx)})
+        assert status == rg.PASS and examined == 2, (status, detail, examined)
+        assert "of 2 cited" in detail and "unavailable" in detail
+
+
+def test_the_gate_and_the_archiver_agree_on_what_a_cited_url_is():
+    """Two URL extractors meant a URL the archiver recorded could not be matched back to the paper
+    that cited it. One producer now; this asserts they are literally the same function."""
+    import release_gate as rg
+    assert ar.cited_urls is rg.cited_urls
+    text = "see https://a.com/x, and https://a.com/x again (https://b.com/y)."
+    assert rg.cited_urls(text) == ["https://a.com/x", "https://b.com/y"]
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

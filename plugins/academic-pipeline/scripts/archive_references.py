@@ -25,7 +25,7 @@ import argparse, hashlib, json, os, re, sys, urllib.error, urllib.parse, urllib.
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from release_gate import canonical_work            # one producer of identity, not a second copy
+from release_gate import canonical_work, cited_urls   # one producer of identity and of cited URLs
 
 AVAILABILITY = "https://archive.org/wayback/available?url="
 SAVE = "https://web.archive.org/save/"
@@ -39,16 +39,6 @@ def _open(url, timeout=TIMEOUT):
     req = urllib.request.Request(url, headers={"User-Agent": "gstack-archive/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.status, r.read()
-
-
-def cited_urls(text):
-    """Bare http(s) URLs in a reference list or bibliography, de-duplicated, in order."""
-    out, seen = [], set()
-    for m in re.finditer(r"https?://[^\s\"'<>{}\\]+", text):
-        u = m.group(0).rstrip(".,;)]}")
-        if u not in seen:
-            seen.add(u); out.append(u)
-    return out
 
 
 def _lookup_key(url):
