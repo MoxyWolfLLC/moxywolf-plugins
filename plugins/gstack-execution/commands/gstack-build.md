@@ -87,6 +87,23 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" dispatch <review-id>
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" collect <review-id>
 ```
 
+**Stand up a review host for anything that will not finish in one call.**
+`scripts/review_host.sh <branch>` prepares a shell where a dispatched review survives between calls:
+it installs the reviewer CLI, checks the branch out, and writes an env file to source. It is
+idempotent and reads credentials from staged vault files rather than arguments.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/review_host.sh" build/my-branch
+source ~/review-host/.review-env && cd ~/review-host
+python3 plugins/gstack-execution/scripts/peer_review.py open --builder claude --packet <packet>
+python3 plugins/gstack-execution/scripts/peer_review.py dispatch <review-id>   # returns at once
+python3 plugins/gstack-execution/scripts/peer_review.py collect  <review-id>   # answers once
+```
+
+Use it whenever a review has already timed out once, or the diff is large enough to expect it.
+Do NOT respond to a review that will not fit the clock by lowering the reviewer floor or trimming
+acceptance criteria until one does: that buys a pass instead of earning one. Move the shell.
+
 **Where the dispatching shell is short-lived**, dispatch and collect must happen inside one call.
 Cowork's `device_bash` gives each call its own PID namespace and tears it down on return, so a
 detached child does not survive the call that spawned it — `start_new_session` and `nohup` have
