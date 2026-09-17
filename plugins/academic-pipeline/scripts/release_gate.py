@@ -72,13 +72,47 @@ def check_sections_present(paper, req):
     return (FAIL if missing else PASS), detail, len(required), "required sections"
 
 
-def _normalize_identifier(text):
+# EV-007.1: a reference is a claim about a WORK, not about a string. One study cited as an arXiv
+# preprint and again as its journal DOI is one work and two strings, and a duplicate check keyed on
+# the string reports it as two distinct sources -- a padded bibliography passing as a broad one.
+#
+# These are the forms whose canonical identity is MECHANICAL: arXiv ids, DOIs and PubMed ids each
+# name one work regardless of the URL wrapped around them. Linking a preprint to the DOI it later
+# received is NOT mechanical -- it needs a registry lookup -- so it is not attempted here and not
+# claimed. What this removes is the same identifier cited in different clothes.
+_ARXIV = re.compile(r"arxiv\.org/(?:abs|pdf|html)/([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?", re.I)
+_ARXIV_BARE = re.compile(r"\barxiv:\s*([0-9]{4}\.[0-9]{4,5})(?:v[0-9]+)?", re.I)
+_DOI = re.compile(r'\b(10\.[0-9]{4,9}/[^\s"<>]+?)(?=[.,;)\]]*(?:\s|$))', re.I)
+_PMID = re.compile(r"\bpmid:?\s*([0-9]{6,9})\b", re.I)
+
+
+def canonical_work(text):
+    """(identity, how) for a reference entry, or (None, None).
+
+    `how` names the rule that produced it, so a reader can tell a DOI match from a URL fallback
+    rather than inferring confidence from a bare string.
+    """
+    for rx, kind, norm in ((_ARXIV, "arxiv", str.lower), (_ARXIV_BARE, "arxiv", str.lower),
+                           (_PMID, "pmid", str.lower)):
+        m = rx.search(text)
+        if m:
+            return f"{kind}:{norm(m.group(1))}", kind
+    m = _DOI.search(text)
+    if m:
+        # a versioned or case-varied DOI still names one work
+        return "doi:" + m.group(1).rstrip(".").lower(), "doi"
     link = re.search(r"https?://\S+", text)
     if not link:
-        return None
+        return None, None
     key = link.group(0).rstrip(".,);]")
     key = re.sub(r"^https?://(www\.)?", "", key).rstrip("/").lower()
-    return re.sub(r"^(dx\.)?doi\.org/", "", key)
+    return "url:" + re.sub(r"^(dx\.)?doi\.org/", "", key), "url"
+
+
+def _normalize_identifier(text):
+    """Kept as the URL-shaped key some callers still expect; identity now comes from canonical_work."""
+    ident, _ = canonical_work(text)
+    return None if ident is None else ident.split(":", 1)[1]
 
 
 def _split_reference_entries(body):
@@ -116,8 +150,11 @@ def check_duplicate_sources(paper, _req):
     body = refs[-1] if len(refs) > 1 else ""
     entries = _split_reference_entries(body)
     seen, dupes, without = {}, [], 0
+    by_kind = {}
     for entry in entries:
-        key = _normalize_identifier(entry)
+        key, how = canonical_work(entry)
+        if how:
+            by_kind[how] = by_kind.get(how, 0) + 1
         if not key:
             without += 1
             continue
@@ -127,7 +164,10 @@ def check_duplicate_sources(paper, _req):
             dupes.append(f"'{seen[key]}' and '{label}' share {key}")
         else:
             seen[key] = label
-    detail = f"{len(dupes)} duplicate source(s): {dupes}" if dupes else f"{len(seen)} unique sources"
+    kinds = ", ".join(f"{n} by {k}" for k, n in sorted(by_kind.items()) if k)
+    detail = (f"{len(dupes)} duplicate work(s): {dupes}" if dupes else f"{len(seen)} unique works")
+    if kinds:
+        detail += f" (identity resolved: {kinds})"
     if without:
         detail += f"; {without} entr{'y' if without == 1 else 'ies'} carried no resolvable identifier and could not be compared"
     return (FAIL if dupes else PASS), detail, len(entries), "reference entries"
@@ -158,12 +198,68 @@ def check_citation_order(paper_path, req):
     return (PASS if r.returncode == 0 else FAIL), detail, markers, "citation markers"
 
 
+# EV-007.3: a manuscript citing a commit, a test or a review identifier is making a checkable claim
+# about a repository. Unchecked, those are the easiest citations in a paper to get wrong and the
+# hardest for a reader to verify -- a SHA that never existed reads exactly like one that did.
+#
+# The repository comes from requirements["repository"]; without it the claim cannot be checked and
+# this returns SKIP. Not PASS. A gate that cannot reach the repository has examined nothing, and
+# EV-001's whole point is that such a run must not come back green.
+_SHA = re.compile(r"\b(?:commit|sha|at)\s+`?([0-9a-f]{7,40})`?\b", re.I)
+_REVIEW_ID = re.compile(r"\b(\d{8}-\d{6}-[0-9a-f]{7}-[A-Za-z0-9_]{8})\b")
+_TESTNAME = re.compile(r"`(test_[A-Za-z0-9_]+\.py)`")
+
+
+def _git(repo, *args):
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    return r.returncode, (r.stdout or "").strip()
+
+
+def check_repository_references(paper, req):
+    """Every commit, test file and review id the paper cites, resolved in the named repository."""
+    repo = req.get("repository") or os.environ.get("GSTACK_PAPER_REPOSITORY")
+    shas = sorted({m.group(1) for m in _SHA.finditer(paper)})
+    reviews = sorted({m.group(1) for m in _REVIEW_ID.finditer(paper)})
+    tests = sorted({m.group(1) for m in _TESTNAME.finditer(paper)})
+    cited = len(shas) + len(reviews) + len(tests)
+
+    if not cited:
+        return SKIP, "the paper cites no commit, test file or review identifier", 0, "repository references"
+    if not repo:
+        return (SKIP, f"{cited} repository reference(s) cited but no repository given "
+                      f"(requirements['repository'] or GSTACK_PAPER_REPOSITORY); cited claims went unchecked",
+                0, "repository references")
+    if not os.path.isdir(os.path.join(repo, ".git")):
+        return SKIP, f"{repo} is not a git repository; {cited} cited reference(s) went unchecked", 0, "repository references"
+
+    unresolved = []
+    for sha in shas:
+        rc, _ = _git(repo, "cat-file", "-e", sha + "^{commit}")
+        if rc:
+            unresolved.append(f"commit {sha} does not exist in {os.path.basename(repo)}")
+    for name in tests:
+        rc, out = _git(repo, "ls-files", "--", "*" + name)
+        if rc or not out:
+            unresolved.append(f"test file {name} is not tracked in {os.path.basename(repo)}")
+    for rid in reviews:
+        # a review id names a run, not a commit; the commit it embeds must at least resolve
+        embedded = rid.split("-")[2]
+        rc, _ = _git(repo, "cat-file", "-e", embedded + "^{commit}")
+        if rc:
+            unresolved.append(f"review {rid} names commit {embedded}, which does not exist in {os.path.basename(repo)}")
+
+    detail = (f"{len(unresolved)} unresolved: {unresolved}" if unresolved
+              else f"all {cited} resolved ({len(shas)} commit(s), {len(tests)} test file(s), {len(reviews)} review id(s))")
+    return (FAIL if unresolved else PASS), detail, cited, "repository references"
+
+
 CHECKS = [
     ("em_dashes", check_em_dashes, "paper"),
     ("forbidden_phrases", check_forbidden_phrases, "paper"),
     ("sections_present", check_sections_present, "paper"),
     ("duplicate_sources", check_duplicate_sources, "paper"),
     ("citation_order", check_citation_order, "path"),
+    ("repository_references", check_repository_references, "paper"),
 ]
 
 

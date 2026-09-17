@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Static, bounded gstack task graphs. Stdlib; no merge/deploy handler."""
 import argparse
+import re
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -171,6 +172,52 @@ def candidates(results):
     return out
 
 
+
+# ---- EV-006: the read side of the fake-edge test ----
+#
+# EV-003 catches a handler writing where it did not declare. This catches the other direction: a
+# node declaring a dependency it never actually uses. A graph whose edges are decorative describes
+# a pipeline nobody runs.
+#
+# HONEST SCOPE. The item says "compared against what its handler actually read", and that is NOT
+# what this measures. Dependencies reach a command handler inlined in input.json and reach a model
+# handler inlined in its prompt, so there is no per-dependency read to observe without changing the
+# payload contract every existing handler depends on. What is measurable is whether the handler's
+# RESULT shows any sign of the dependency -- cited in evidence, named in a finding, carried in
+# sources. A dependency absent from all of those was, at best, not used.
+#
+# So this reports `unreferenced`, not `unread`, and the distinction is the point: an unreferenced
+# dependency is a candidate fake edge, not proof of one. A handler could read a dependency, be
+# correctly influenced by it, and cite nothing. Reported as a finding for a human to judge, never
+# as a failure -- EV-006 asks for the fake edge to be REPORTED, and a check that cannot distinguish
+# "unused" from "used silently" must not fail a run on the difference.
+#
+# ponytail: a JSON scan for the dependency id, not a dataflow analysis. Upgrade path, verified
+# available on 2026-09-17: writing each dependency to its own file makes reads observable through
+# st_atime under relatime, because a freshly written file has atime < mtime and the first read
+# moves it. That needs a payload-contract change and a runtime probe for filesystems mounted
+# noatime, where the instrument is blind and must say so rather than reporting everything unread.
+
+def dependency_references(result, dep_id):
+    """Does the result show any sign of this dependency?
+
+    Whole-token match, not a naked substring: a substring scan reports dependency "a" as
+    referenced by the word "relevant", so short ids would almost never be flagged and the check
+    would under-report silently -- a false green wearing a check's clothes. Caught by its own test.
+
+    ponytail: a word-boundary scan over the serialized result, not dataflow. The ceiling is short
+    or common ids, where a coincidental token still reads as a reference. Real node ids here are
+    'claim-<id>', 'proof-<id>', 'review-<n>', which do not collide by accident; a graph that names
+    a node "a" gets a weaker check and that is the graph's choice.
+    """
+    return re.search(r"\b" + re.escape(dep_id) + r"\b", json.dumps(result)) is not None
+
+
+def unreferenced_dependencies(result, node, dependencies):
+    """Declared dependencies the result gives no sign of using, in declaration order."""
+    return [d for d in node.get('depends_on', []) if d in dependencies and not dependency_references(result, d)]
+
+
 def validate_result(result,node,expected_candidates):
     if not isinstance(result,dict) or result.get('complete') is not True:raise ValueError('worker incomplete')
     coverage=result.get('coverage',[])
@@ -196,8 +243,16 @@ def worker(node,packet,dependencies,root):
     if node['kind']=='report':
         fs=[]
         for source in node.get('findings_from',node['depends_on']):fs.extend(dependencies[source]['findings'])
+        # EV-006.2: a declared dependency nothing referenced is surfaced where a reader will see
+        # it, not left in a per-node result nobody opens.
+        fake_edges={nid:r['unreferenced_dependencies'] for nid,r in dependencies.items()
+                    if isinstance(r,dict) and r.get('unreferenced_dependencies')}
         return {'complete':True,'coverage':node['checks'],'evidence':list(dependencies),'findings':fs,
-                'summary':'Advisory report. Findings and all node evidence are preserved; no release authorization.',
+                'summary':'Advisory report. Findings and all node evidence are preserved; no release authorization.'
+                          +(' Candidate fake edges reported: '+', '.join(f'{n} -> {d}' for n,ds in fake_edges.items() for d in ds)
+                            +'. These are declared dependencies whose consumer result gave no sign of using them; '
+                             'unreferenced is not proof of unused.' if fake_edges else ''),
+                'unreferenced_dependencies':fake_edges,
                 'revision':packet['repos'],'owner':packet['owner'],
                 'sources':dict(dependencies)}
     tool=peer.OTHER_TOOL[packet['builder']] if node['kind'] in {'checker','peer'} else packet['builder']
@@ -261,7 +316,11 @@ def worker(node,packet,dependencies,root):
                 prompt+='\nInspect the pinned repositories. Return complete=false if the task cannot be completed. Coverage must equal node.checks exactly. Every finding needs id, status, detail, evidence. Do not disclose secret values. For verify use BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE findings for every claim. For CSO investigate every candidate before filtering; include severity/confidence/exploit scenario/remediation in detail. Checker: independently inspect all dependencies and candidates, return every candidate ID with VERIFIED/UNVERIFIED/TENTATIVE/DISMISSED and evidence. Never discard a candidate. Read the node instruction. Return JSON only.'
                 raw,model=peer.run_reviewer(tool,prompt,work,packet.get('timeout',900),schema=RESULT_SCHEMA)
                 result=json.loads(raw);result['model']=model
-            return validate_result(result,node,payload['candidates'])
+            result=validate_result(result,node,payload['candidates'])
+            # EV-006: reported, never fatal -- see dependency_references for why a proxy must not
+            # fail a run on the difference between "unused" and "used without citing".
+            result['unreferenced_dependencies']=unreferenced_dependencies(result,node,dependencies)
+            return result
         finally:peer.teardown(repos,work)
 
 

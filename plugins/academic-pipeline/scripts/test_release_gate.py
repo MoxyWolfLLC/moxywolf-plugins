@@ -221,7 +221,9 @@ Otherlastname, B. (2025). Second work, worded entirely differently. https://dx.d
 """
         rec = gate(mixed)["duplicate_sources"]
         self.assertEqual(rec["status"], PASS, rec["detail"])
-        self.assertIn("3 unique sources", rec["detail"])
+        # EV-007.1 renamed this: a reference names a WORK, not a source string, and the same
+        # work cited in two URL forms is one work. The count is unchanged; the noun is the point.
+        self.assertIn("3 unique works", rec["detail"])
         self.assertEqual(rec["examined"], 3, "coverage must equal the entries actually parsed")
 
     def test_entries_without_identifiers_are_counted_and_named(self):

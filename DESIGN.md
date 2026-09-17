@@ -187,7 +187,7 @@ runtime rather than against other declarations.
 
 ### EV-006 — Instrument reads
 
-**Status:** planned.
+**Status:** built, partially. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008.
 
 **Links introduced:** the read side of every handler's declaration.
 
@@ -197,7 +197,7 @@ runtime rather than against other declarations.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** planned.
+**Status:** built, partially, and the unbuilt criterion is named rather than folded in. Criterion 1 is met for identifiers whose canonical form is mechanical: arXiv ids, DOIs and PubMed ids now resolve to one work identity regardless of the URL wrapped around them, and the duplicate check reports which rule produced each identity. Linking a preprint to the DOI it later received is NOT mechanical — it needs a registry lookup — so it is not attempted and the two remain separate works. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository to check against returns SKIP rather than PASS. Criterion 2 is NOT built. Archiving every cited URL at citation time is not a gate check — it changes what happens when a citation is made and needs a decision on where snapshots live, what the hash covers, and what a citation does when the archive is unreachable. Building it as a gate would put the archive step at the wrong end of the workflow, which is the shape of defect this objective exists to remove.
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
@@ -211,7 +211,7 @@ citation-to-snapshot link.
 
 ### EV-008 — Record what a review examined, not only what it found
 
-**Status:** planned.
+**Status:** built. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record.
 
 **Links introduced:** the review-to-search-space link.
 
