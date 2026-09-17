@@ -483,7 +483,7 @@ def read_tracking_probe(root):
         return False
 
 
-def examined_report(before, root, surface_stats):
+def examined_report(before, root):
     """What the reviewer opened, or an honest statement that it could not be measured."""
     if before is None:
         return {"read_tracking": "unavailable",
@@ -1075,7 +1075,7 @@ def cmd_round(a):
         _age_atimes(surf)
         before = _atime_map(surf) if read_tracking_probe(surf) else None
         raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
-        record["examined"] = examined_report(before, surf, surf_stats)
+        record["examined"] = examined_report(before, surf)
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)

@@ -40,7 +40,7 @@ def test_only_the_files_actually_opened_are_reported():
         r = surface(t)
         before = pr._atime_map(r)
         (r/"changed"/"a.py").read_text()
-        rep = pr.examined_report(before, r, {})
+        rep = pr.examined_report(before, r)
         assert rep["examined"] == ["changed/a.py"], rep
         assert rep["offered_count"] == 3, rep
 
@@ -52,7 +52,7 @@ def test_a_review_that_stayed_inside_the_diff_is_visible_as_such():
         r = surface(t)
         before = pr._atime_map(r)
         (r/"CHANGE.diff").read_text()
-        rep = pr.examined_report(before, r, {})
+        rep = pr.examined_report(before, r)
         assert rep["looked_beyond_the_diff"] is False, rep
         assert rep["examined_beyond_the_diff"] == [], rep
 
@@ -62,7 +62,7 @@ def test_reading_a_caller_counts_as_going_beyond_the_diff():
         r = surface(t)
         before = pr._atime_map(r)
         (r/"callers"/"b.py").read_text()
-        rep = pr.examined_report(before, r, {})
+        rep = pr.examined_report(before, r)
         assert rep["looked_beyond_the_diff"] is True
         assert rep["examined_beyond_the_diff"] == ["callers/b.py"], rep
 
@@ -70,7 +70,7 @@ def test_reading_a_caller_counts_as_going_beyond_the_diff():
 def test_examining_nothing_is_recorded_as_nothing_not_omitted():
     with tempfile.TemporaryDirectory() as t:
         r = surface(t)
-        rep = pr.examined_report(pr._atime_map(r), r, {})
+        rep = pr.examined_report(pr._atime_map(r), r)
         assert rep["read_tracking"] == "available"
         assert rep["examined"] == [] and rep["examined_count"] == 0, rep
 
@@ -78,7 +78,7 @@ def test_examining_nothing_is_recorded_as_nothing_not_omitted():
 def test_an_unmeasurable_filesystem_says_so_rather_than_reporting_nothing_examined():
     """The failure this must never produce: 'the reviewer examined nothing' when the truth is
     'reads could not be measured'. A false accusation of laziness is worse than no measurement."""
-    rep = pr.examined_report(None, Path("/tmp"), {})
+    rep = pr.examined_report(None, Path("/tmp"))
     assert rep["read_tracking"] == "unavailable"
     assert "examined" not in rep, "an unmeasurable run must not report an empty examined list"
     assert "not measured" in rep["why"]
@@ -92,7 +92,7 @@ def test_the_probe_agrees_with_reality():
         assert pr.read_tracking_probe(r) is True
         before = pr._atime_map(r)
         (r/"changed"/"a.py").read_text()
-        assert pr.examined_report(before, r, {})["examined"] == ["changed/a.py"]
+        assert pr.examined_report(before, r)["examined"] == ["changed/a.py"]
 
 
 if __name__ == "__main__":
