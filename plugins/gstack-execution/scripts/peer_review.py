@@ -426,6 +426,82 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
     return surf, stats
 
 
+# ---- EV-008: record what a review examined, not only what it found ----
+#
+# A review reporting no findings is two different events: it looked and found nothing, or it barely
+# looked. Without the denominator those are indistinguishable, and the first few Gemini reviews on
+# 2026-09-17 returned confirmatory evidence for every criterion with no way to tell which had
+# happened.
+#
+# Since XE-007 the reviewer works inside a surface directory, so what it opened is observable from
+# the filesystem rather than from whatever the CLI chooses to report -- which differs per tool and
+# is absent for some. Under relatime a freshly written file has atime < mtime, so the FIRST read
+# moves atime; the surface is written immediately before the reviewer runs, which is exactly that
+# case.
+#
+# ponytail: st_atime_ns before and after, no tracing. The ceiling is a noatime mount, where atime
+# never moves and every file would read as unexamined -- a false "it looked at nothing" is worse
+# than no measurement, so a canary probe decides whether the instrument works and the round records
+# `unavailable` instead of an empty list when it does not.
+
+def _age_atimes(root):
+    """Set every file's atime strictly older than its mtime.
+
+    relatime updates atime on read only when atime < mtime. A freshly written file has
+    atime == mtime, so whether the first read registers comes down to sub-millisecond luck:
+    measured 2026-09-17, the naive scheme detected 0 reads out of 6 and this one detected 6 of 6.
+    Without this the instrument would have reported "examined nothing" on every review, which is
+    the false green it exists to prevent.
+    """
+    for p in root.rglob("*"):
+        if p.is_file():
+            try:
+                st = p.stat()
+                os.utime(p, ns=(st.st_mtime_ns - 2_000_000_000, st.st_mtime_ns))
+            except OSError:
+                continue
+
+
+def _atime_map(root):
+    return {str(p.relative_to(root)): p.stat().st_atime_ns
+            for p in root.rglob("*") if p.is_file()}
+
+
+def read_tracking_probe(root):
+    """Can reads be observed on this filesystem at all? Write, read, see if atime moves."""
+    c = root / ".read-probe"
+    try:
+        c.write_text("probe\n")
+        st = c.stat()
+        os.utime(c, ns=(st.st_mtime_ns - 2_000_000_000, st.st_mtime_ns))  # same treatment as the surface
+        before = c.stat().st_atime_ns
+        c.read_text()
+        works = c.stat().st_atime_ns != before
+        c.unlink()
+        return works
+    except OSError:
+        return False
+
+
+def examined_report(before, root, surface_stats):
+    """What the reviewer opened, or an honest statement that it could not be measured."""
+    if before is None:
+        return {"read_tracking": "unavailable",
+                "why": "filesystem does not update atime on read (noatime); an empty examined list "
+                       "here would mean 'not measured', not 'not examined'"}
+    after = _atime_map(root)
+    opened = sorted(rel for rel, t in after.items()
+                    if rel in before and t != before[rel] and not rel.startswith(".read-probe"))
+    # EV-008.2: the diff itself is the floor. Anything under callers/ is the reviewer going beyond it.
+    beyond = [p for p in opened if p.split("/")[0] == SURFACE_KINDS[1]]
+    return {"read_tracking": "available",
+            "examined": opened,
+            "examined_count": len(opened),
+            "offered_count": len(after),
+            "examined_beyond_the_diff": beyond,
+            "looked_beyond_the_diff": bool(beyond)}
+
+
 def build_prompt(packet, round_no, prior_round, dispositions):
     repos = "\n".join(f"- {Path(r['path']).name}: base {r['base'][:12]} head {r['head'][:12]}"
                       for r in packet["repos"])
@@ -995,7 +1071,11 @@ def cmd_round(a):
             reviewer, family(reviewer), is_fallback
         record["max_output"] = REVIEWERS[reviewer]["max_output"]
         record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None
+        # EV-008: the denominator of the search, recorded alongside the findings
+        _age_atimes(surf)
+        before = _atime_map(surf) if read_tracking_probe(surf) else None
         raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
+        record["examined"] = examined_report(before, surf, surf_stats)
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)
