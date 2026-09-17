@@ -368,6 +368,31 @@ for coverage it does not have.
 4. This is a report routed to the reviewer, not a gate. Referencing a changed file is not an error,
    and a check that cannot fail must not be dressed as one.
 
+### XE-009 — A review that cannot finish is not a review
+
+**Status:** declared, building in this change.
+
+**Links introduced:** none.
+
+XE-004 split review into dispatch and collect so the loop would stop blocking. It could not actually
+be used: Cowork's `device_bash` caps each call and gives it a PID namespace torn down on return, so
+a dispatched review is reaped before it writes anything. Three reviews died that way on 2026-09-17,
+and one change reached its pull request unreviewed as a result. The vault records the same class of
+failure on 2026-06-13, where a reasoning model tripped a 45-second sandbox cap.
+
+The wrong fix is available and tempting: pick a faster model, or trim acceptance criteria until a
+review fits the clock. Both buy a pass rather than earning one, and the second is the XE-005.6
+error — criteria narrower than the item, so the review passes something unfinished.
+
+1. A review host is stood up by one idempotent script: reviewer CLI, checkout, and the environment
+   a review needs.
+2. Credentials are read from files, never passed as arguments, so they do not appear in `ps` or
+   shell history.
+3. The script fails loudly and specifically when it cannot do its job, rather than leaving a
+   half-prepared host that fails later at the review.
+4. The build loop names when to reach for a host, and names the two wrong fixes so they are not
+   discovered independently by the next session.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
