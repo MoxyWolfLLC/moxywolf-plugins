@@ -275,6 +275,21 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 2. A review is dispatched and collected. The dispatching session does not block on it and does not narrate its progress while it runs.
 3. The audited session produced 51 messages whose entire content was that a review had not yet returned. That is the behavior this item removes.
 
+### XE-005 — A reviewer is independent by what differs, not by its name
+
+**Status:** declared, not started.
+
+**Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
+
+The dispatcher hardcodes two tools and derives the reviewer as "the other one". That encodes independence as a name rather than as a property, and two things already break it. Cursor can run Claude models, so a Claude builder reviewed by Cursor could share the builder's model family while satisfying every current check. And when the only named reviewer is unreachable, as happened on 2026-09-17 when Codex was first absent and then refused by its API for billing, the loop has nowhere to fall back to and the checkpoint lands unreviewed.
+
+1. Reviewer routing is a table of `{tool, model_family, floor, invocation}` rather than a two-key map of builder to other tool. Adding a reviewer is a table entry, not a change to the dispatch path.
+2. A reviewer whose `model_family` matches the builder's is refused before it runs, under an outcome distinct from `review_unavailable`, because a harness swap is not an independent mind and a record that cannot tell the two apart is worth less than no record.
+3. The review record names the reviewer's tool **and** its model family, so a later reader can see what independence was actually obtained rather than inferring it from a tool name.
+4. Fallback to a second reviewer is permitted only among entries whose family differs from the builder's, and the record says which reviewer ran and that it was a fallback. A fallback that is not recorded as one is a silent downgrade.
+5. A reviewer response cut off at its output limit reports `output_truncated`, distinct from `malformed_output`. The two have different causes and different fixes, and collapsing them makes a headroom problem look like a broken reviewer. Gemini truncated a long structured response twice in this team's only run of it, during the 2026-09-15 Council deliberation, and the reviewer contract demands a longer and stricter structure than that deliberation did.
+6. Each table entry carries its own output headroom, set against the reviewer contract's full response rather than a provider default. Precedent: the Council Sonnet-5 slot was configured at 3000 tokens and needed 12000, and under-provisioned it returned empty content while the dispatcher still reported success.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -282,6 +297,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-17: XE-005 declared after the checkpoint for XE-001 and XE-002 landed unreviewed. Two review records for `5761c37` both returned `review_unavailable`, first because the `codex` CLI was absent and then, once it was installed and authenticated, because the OpenAI account had no credits. Dorian merged as Release Owner with the gap recorded on the pull request, which the release-boundary contract already allows: a passing machine review was never release authorization. Cursor and Gemini were both considered as a third reviewer. Gemini is the better fit on independence, since Cursor can run the builder's own model family, and the item is written so that neither can be added without declaring what actually differs.
 
 - 2026-09-17: XE-002 built alongside XE-001 and reviewed with it in one checkpoint, per XE-004. Capability grants extend `governance.py` rather than adding a parallel authority path: the packet's `data_use` policy already carried an owner, an exact-match `allowed_tools` list and pattern-matched `output_roots`, and the defect was that the policy is re-declared per invocation and matched by exact string. Grants persist, match by pattern, and record the granting human. The classes that matter are unreachable by any grant.
 
