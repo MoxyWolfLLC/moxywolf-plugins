@@ -54,7 +54,7 @@ REVIEWERS = {
                "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
                "floor_name": "Opus 5 or higher"},
     "gemini": {"family": "gemini",
-               "model": os.environ.get("GSTACK_GEMINI_MODEL", "gemini-3-pro"),
+               "model": os.environ.get("GSTACK_GEMINI_MODEL", "gemini-3.1-pro-preview"),
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher"},
 }
@@ -341,7 +341,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
             raise ReviewError("model_below_floor", f"GSTACK_GEMINI_MODEL={REVIEWERS['gemini']['model']}; floor is {REVIEWERS['gemini']['floor_name']}")
         # gemini has -o json but no --output-schema: the schema goes in the prompt and is validated
         # on the way back. `--approval-mode plan` is its read-only mode.
-        cmd = ["gemini", "-m", REVIEWERS["gemini"]["model"], "--approval-mode", "plan",
+        cmd = ["gemini", "-m", REVIEWERS["gemini"]["model"], "--approval-mode", "plan", "--skip-trust",
                "-o", "json", "--include-directories", str(root),
                "-p", prompt + "\n\n=== REQUIRED OUTPUT SCHEMA ===\n" + json.dumps(output_schema)
                     + "\n\nReturn one complete JSON object matching it. Do not truncate."]
