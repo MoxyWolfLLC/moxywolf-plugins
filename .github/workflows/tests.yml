@@ -1,0 +1,32 @@
+# XE-006: this repository runs its own checks, or it has no gate.
+#
+# Not a Playwright/Endform gate: there is no package.json, no vercel.json and no page to drive here,
+# and a browser suite over a plugin marketplace would be a green check over nothing. The gate that
+# applies to this repository is its own stdlib test suites, and run_all_tests.py fails when it
+# discovers none -- a gate that examines nothing is broken, not passing.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: What this run will examine
+        run: python3 plugins/gstack-execution/scripts/run_all_tests.py --list
+
+      - name: The runner's own check
+        run: python3 plugins/gstack-execution/scripts/run_all_tests.py --selftest
+
+      - name: Run every check in the repository
+        run: python3 plugins/gstack-execution/scripts/run_all_tests.py
