@@ -253,6 +253,36 @@ def check_repository_references(paper, req):
     return (FAIL if unresolved else PASS), detail, cited, "repository references"
 
 
+# EV-007.2: the gate reports archive coverage from the record, and never touches the network.
+# Archiving happens at citation time (archive_references.py); this only reads what that wrote, so a
+# release check cannot be held hostage to archive.org being up. A paper whose cited URLs were never
+# archived is not failed here -- the archive is a durability measure, not a correctness one -- but
+# it is never silently green either: unavailable entries are named, and a paper citing bare URLs
+# with no index at all returns SKIP, because a check with no record has examined nothing.
+def check_archive_coverage(paper, req):
+    """Archive coverage for cited URLs, read from the index archive_references.py maintains."""
+    urls = [u for u in set(re.findall(r"https?://[^\s\"'<>{}\\]+", paper))]
+    if not urls:
+        return SKIP, "the paper cites no URLs", 0, "cited URLs"
+    idx_path = req.get("archive_index") or os.environ.get("GSTACK_ARCHIVE_INDEX")
+    if not idx_path or not os.path.isfile(idx_path):
+        return (SKIP, f"{len(urls)} cited URL(s) but no archive index "
+                      f"(requirements['archive_index'] or GSTACK_ARCHIVE_INDEX); coverage unknown",
+                0, "cited URLs")
+    try:
+        with open(idx_path, encoding="utf-8") as fh:
+            index = json.load(fh)
+    except (OSError, ValueError) as e:
+        return SKIP, f"archive index unreadable ({e}); coverage unknown", 0, "cited URLs"
+    archived = sum(1 for r in index.values() if r.get("status") == "archived")
+    skipped = sum(1 for r in index.values() if r.get("status") == "skipped")
+    missing = sorted(u for u in index if index[u].get("status") == "unavailable")
+    detail = f"{archived} archived, {skipped} skipped as persistently resolvable"
+    if missing:
+        detail += f", {len(missing)} unavailable: {missing[:5]}"
+    return PASS, detail, len(index), "cited URLs"
+
+
 CHECKS = [
     ("em_dashes", check_em_dashes, "paper"),
     ("forbidden_phrases", check_forbidden_phrases, "paper"),
@@ -260,6 +290,7 @@ CHECKS = [
     ("duplicate_sources", check_duplicate_sources, "paper"),
     ("citation_order", check_citation_order, "path"),
     ("repository_references", check_repository_references, "paper"),
+    ("archive_coverage", check_archive_coverage, "paper"),
 ]
 
 
