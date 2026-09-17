@@ -243,7 +243,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-002 — An approval binds to a scope, and re-resolves
 
-**Status:** declared, not started.
+**Status:** in build.
 
 **Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
 
@@ -252,6 +252,8 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 3. A grant that does not match prompts once and writes a new grant. The prompt names the class and pattern being granted, so the human decides policy rather than re-deciding the same act.
 4. Action classes that stay one-shot by construction: production data writes, sending mail to a real recipient, and merge.
 5. This inherits EV-002's mechanism. Findings bind to content and re-resolve; grants bind to a scope and re-resolve. Neither re-reads prose to decide whether a link still holds.
+6. **The ledger is not a security control.** It is written by the process it governs, exactly as `GOVERNANCE.md` already says of the review state files, so an agent that can write a grant can write its own. What the ledger buys is the human's attention, not containment. The containment is `ONE_SHOT_ONLY`, a set of classes no grant satisfies in advance at any scope, and protected-branch enforcement outside this process. An item that moves a class out of `ONE_SHOT_ONLY` is amending that boundary and needs the amendment, not a code change.
+7. The ledger widens what a packet's `data_use` policy covers. It never removes a refusal: the owner, classification and repository/history checks are unchanged, and an action with no matching grant is still denied rather than resolved by re-reading a prior approval.
 
 ### XE-003 — The cheapest surface that answers the question
 
@@ -280,6 +282,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-17: XE-002 built alongside XE-001 and reviewed with it in one checkpoint, per XE-004. Capability grants extend `governance.py` rather than adding a parallel authority path: the packet's `data_use` policy already carried an owner, an exact-match `allowed_tools` list and pattern-matched `output_roots`, and the defect was that the policy is re-declared per invocation and matched by exact string. Grants persist, match by pattern, and record the granting human. The classes that matter are unreachable by any grant.
 
 - 2026-09-17: Dorian approved a fourth objective after an audit of the 2026-09-15/16 support-platform session. The audit counted 2,319 tool calls against 54 file changes, 1,039 browser calls where connectors were configured, 43 approval interruptions, and 193 failed commands. XE-001 is built in this change; XE-002 through XE-004 are declared and not started. The session's own self-diagnosis, recorded in its transcript, agrees: the implementation stayed small and the loop around it did not.
 
