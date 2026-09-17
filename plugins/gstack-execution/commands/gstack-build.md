@@ -87,6 +87,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" dispatch <review-id>
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" collect <review-id>
 ```
 
+**Where the dispatching shell is short-lived**, dispatch and collect must happen inside one call.
+Cowork's `device_bash` gives each call its own PID namespace and tears it down on return, so a
+detached child does not survive the call that spawned it — `start_new_session` and `nohup` have
+nothing to escape to. Verified 2026-09-17: a dispatched round was reaped before it wrote its prompt.
+There, dispatch and then poll `collect` in the same call, or run `round` directly. The split still
+earns its place: `collect` reported `failed` rather than `pending`, which is how the teardown was
+found at all. A persistent shell has no such limit.
+
 While a review is in flight, do not narrate it. The audited session produced 51 messages whose
 entire content was that a review had not yet returned; every one of them cost the user attention and
 told them nothing. Say the review is dispatched, then either do unrelated work or end the turn. Poll
