@@ -347,6 +347,16 @@ If the session produced significant new context that future Claude sessions shou
 
 This step is optional — only do it if the handoff alone won't carry the weight. Most session-end runs don't need a memory update.
 
+### Step 6.5: Collect Knowledge candidates
+
+Scan plugin outputs and the session for structured **Knowledge candidates**: durable decisions, rationale, research findings, reusable insights, or cross-project patterns that should outlive the active project work. Preserve the producing plugin, proposed title/type, project, supporting Taskade and Git sources, proposed Vault route, sensitivity, related projects, and why the knowledge remains useful.
+
+Route each candidate through `project_surfaces.py route --output-type durable-knowledge`. The expected action is `propose-via-obsidian-update`. A candidate **does not authorize a Vault write**; it is an input to Step 7's extraction plan. Working artifacts stay in Taskade, and code stays in the declared Git repository.
+
+Add a `## Knowledge candidates` section to the handoff when candidates exist. If none exist, omit the section rather than inventing memory work.
+
+Also merge valid candidates into `00 – Project Hub/knowledge-candidates.json`, the machine-readable transport defined by `${CLAUDE_PLUGIN_ROOT}/schemas/knowledge-candidate.schema.json`. Preserve unresolved candidates already in the file, deduplicate on producing plugin + project + normalized claim + supporting-source paths, and set new records to `status: proposed`. Reject malformed or unsupported candidates visibly; do not repair them by guessing. This Taskade transport file does not authorize a Vault write.
+
 ### Step 7: Run `/obsidian-update` to persist cross-project knowledge to the vault
 
 After the handoff is written, **always invoke the `/obsidian-update:obsidian-update` skill** to capture the session's durable knowledge into the MoxyWolf Obsidian vault.

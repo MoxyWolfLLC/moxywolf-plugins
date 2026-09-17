@@ -10,6 +10,7 @@ config, no plugins -- the suites are stdlib-only and self-running by design. Eac
 to its own directory, because they import sibling modules by name.
 """
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -30,8 +31,19 @@ def discover(root):
 
 
 def run(path, args, root):
+    """Run one check from its own directory, with the repository root importable.
+
+    cwd is the check's directory because most suites here import sibling modules by bare name.
+    But some import package-style (`from tests.support import ...`), which needs the repository
+    root on the path: without it those suites fail with ModuleNotFoundError and the gate reports a
+    broken test rather than a missing path entry. A false failure is the mirror of a false pass --
+    it makes a working suite look broken and trains a reader to ignore the gate. Found when a
+    branch whose tests use package imports was merged.
+    """
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(root), env.get("PYTHONPATH", "")]))
     r = subprocess.run([sys.executable, path.name] + args, cwd=str(path.parent),
-                       capture_output=True, text=True, timeout=TIMEOUT)
+                       capture_output=True, text=True, timeout=TIMEOUT, env=env)
     return r.returncode, (r.stdout + r.stderr)
 
 

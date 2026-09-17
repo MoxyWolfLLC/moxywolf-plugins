@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "planes": {
+    "project_workspace": "required",
+    "company_memory": "optional",
+    "repositories": "required"
+  },
+  "memory_scopes": [
+    "project-moc",
+    "recent-decisions"
+  ],
+  "outputs": [
+    "code-change",
+    "knowledge-candidate"
+  ]
+}

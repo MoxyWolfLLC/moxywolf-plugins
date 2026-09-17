@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MoxyWolf Knowledge Candidate Transport",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "producing_plugin",
+      "project_id",
+      "claim",
+      "rationale",
+      "proposed_route",
+      "sensitivity",
+      "supporting_sources"
+    ],
+    "properties": {
+      "producing_plugin": {"type": "string", "minLength": 1},
+      "project_id": {"type": "string", "minLength": 1},
+      "claim": {"type": "string", "minLength": 1},
+      "rationale": {"type": "string", "minLength": 1},
+      "proposed_route": {"type": "string", "pattern": "^MoxyWolf Vault/(?!\\.\\.(?:/|$))(?!.*?/\\.\\.(?:/|$)).+"},
+      "sensitivity": {"enum": ["public", "internal", "confidential", "restricted"]},
+      "related_projects": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+      "supporting_sources": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": ["plane", "path"],
+          "properties": {
+            "plane": {"enum": ["project-workspace", "code-workspace", "company-memory"]},
+            "path": {"type": "string", "pattern": "^(Taskade|GitHub|MoxyWolf Vault)/(?!\\.\\.(?:/|$))(?!.*?/\\.\\.(?:/|$)).+"},
+            "modified_at": {"type": "string", "format": "date-time"}
+          },
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {"properties": {"plane": {"const": "project-workspace"}}, "required": ["plane"]},
+              "then": {"properties": {"path": {"pattern": "^(Taskade|MoxyWolf Vault)/"}}}
+            },
+            {
+              "if": {"properties": {"plane": {"const": "code-workspace"}}, "required": ["plane"]},
+              "then": {"properties": {"path": {"pattern": "^GitHub/"}}}
+            },
+            {
+              "if": {"properties": {"plane": {"const": "company-memory"}}, "required": ["plane"]},
+              "then": {"properties": {"path": {"pattern": "^MoxyWolf Vault/"}}}
+            }
+          ]
+        }
+      },
+      "status": {"enum": ["proposed", "approved", "deferred", "rejected", "promoted"]}
+    },
+    "additionalProperties": false
+  }
+}

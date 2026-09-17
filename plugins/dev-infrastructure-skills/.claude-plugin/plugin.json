@@ -1,6 +1,6 @@
 {
   "name": "dev-infrastructure-skills",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Framework-specific development best practices for React, Next.js, Supabase/Postgres, TDD, and Playwright E2E testing. Fills the engineering knowledge gaps that workflow orchestrators need to produce better code.",
   "author": {
     "name": "MoxyWolf LLC"

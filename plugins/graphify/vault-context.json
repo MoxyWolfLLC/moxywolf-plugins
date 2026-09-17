@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "planes": {
+    "project_workspace": "optional",
+    "company_memory": "required",
+    "repositories": "optional"
+  },
+  "memory_scopes": [
+    "project-moc",
+    "recent-decisions",
+    "shared-operating-norms",
+    "derived-graphs"
+  ],
+  "outputs": [
+    "derived-vault-artifact",
+    "knowledge-candidate"
+  ]
+}
