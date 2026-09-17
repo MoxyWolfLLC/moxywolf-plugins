@@ -291,7 +291,13 @@ def _no_json_outcome(text):
 # no AST. A miss costs one unexamined caller, which the surface REPORTS rather than hides -- and
 # SURFACE_CAP keeps a popular module from dragging the tree back in. Upgrade path: a real import
 # graph if the grep proves too loose in practice.
-SURFACE_CAP = 60
+# 60 was too generous: the XE-007 surface came to 70 files / 842 KB and still blew the reviewer's
+# budget. The knob that matters is relevance, not just count -- callers are CODE. A markdown file
+# mentioning "peer_review" is not going to break when peer_review changes.
+SURFACE_CAP = 25
+
+
+CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml"}   # code that can break; not docs that name it
 
 
 def changed_files(repos):
@@ -312,7 +318,7 @@ def caller_files(repos, changed, cap):
         except Exception:
             continue
         for f in tracked:
-            if f in seen or Path(f).suffix not in {".py", ".md", ".yml", ".yaml", ".json", ".sh"}:
+            if f in seen or Path(f).suffix not in CALLER_SUFFIXES:
                 continue
             fp = Path(r["path"]) / f
             try:
