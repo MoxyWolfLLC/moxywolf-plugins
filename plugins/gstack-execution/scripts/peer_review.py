@@ -541,6 +541,16 @@ def disposition_value(value):
 
 
 def validate(raw, packet, prior=None, dispositions=None):
+    # A reviewer that returned NOTHING did not return something wrong. Distinguishing them matters
+    # for the same reason output_truncated does: different causes, different fixes. Observed
+    # 2026-09-17 -- gemini exited 0 with an empty response and the round reported malformed_output,
+    # sending a reader looking for a formatting defect in a response that did not exist. This is
+    # the case XE-005's sixth criterion was written about: the Council Sonnet-5 slot returned empty
+    # content while the dispatcher reported success.
+    if not (raw or "").strip():
+        raise ReviewError("empty_output",
+                          "reviewer exited successfully and returned nothing; check its quota, its "
+                          "output headroom, and whether the request was refused")
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
         raise ReviewError(*_no_json_outcome(raw))

@@ -93,7 +93,10 @@ def test_validate_reports_truncation_through_the_real_entry_point():
     cases = [('{"verdict":"no_blocking_findings","acceptance":[{"criterion":"c","met":true',
               "output_truncated"),
              ("the model declined to answer", "malformed_output"),
-             ('{"verdict":"nope"}', "malformed_output")]
+             ('{"verdict":"nope"}', "malformed_output"),
+             # a reviewer that returned NOTHING did not return something wrong
+             ("", "empty_output"),
+             ("   \n  ", "empty_output")]
     for body, want in cases:
         try:
             pr.validate(body, pkt)
