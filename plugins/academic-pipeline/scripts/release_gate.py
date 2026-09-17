@@ -253,6 +253,60 @@ def check_repository_references(paper, req):
     return (FAIL if unresolved else PASS), detail, cited, "repository references"
 
 
+def cited_urls(text):
+    """Bare http(s) URLs in a text, de-duplicated, in order, with trailing punctuation dropped.
+
+    One producer. The gate and the archiver MUST agree on what counts as a cited URL: when the gate
+    used its own regex, a URL the archiver had recorded could not be matched back to the paper that
+    cited it, so coverage was computed against the wrong set entirely.
+    """
+    out, seen = [], set()
+    for m in re.finditer(r"https?://[^\s\"'<>{}\\]+", text):
+        u = m.group(0).rstrip(".,;)]}")
+        if u not in seen:
+            seen.add(u); out.append(u)
+    return out
+
+
+# EV-007.2: the gate reports archive coverage from the record, and never touches the network.
+# Archiving happens at citation time (archive_references.py); this only reads what that wrote, so a
+# release check cannot be held hostage to archive.org being up. A paper whose cited URLs were never
+# archived is not failed here -- the archive is a durability measure, not a correctness one -- but
+# it is never silently green either: unavailable entries are named, and a paper citing bare URLs
+# with no index at all returns SKIP, because a check with no record has examined nothing.
+def check_archive_coverage(paper, req):
+    """Archive coverage for cited URLs, read from the index archive_references.py maintains."""
+    urls = cited_urls(paper)
+    if not urls:
+        return SKIP, "the paper cites no URLs", 0, "cited URLs"
+    idx_path = req.get("archive_index") or os.environ.get("GSTACK_ARCHIVE_INDEX")
+    if not idx_path or not os.path.isfile(idx_path):
+        return (SKIP, f"{len(urls)} cited URL(s) but no archive index "
+                      f"(requirements['archive_index'] or GSTACK_ARCHIVE_INDEX); coverage unknown",
+                0, "cited URLs")
+    try:
+        with open(idx_path, encoding="utf-8") as fh:
+            index = json.load(fh)
+    except (OSError, ValueError) as e:
+        return SKIP, f"archive index unreadable ({e}); coverage unknown", 0, "cited URLs"
+    # The denominator is THIS paper's cited URLs, never the index's contents. Reported by the
+    # reviewer on 2026-09-17: counting index entries meant a paper citing ten unarchived URLs
+    # passed on the strength of one archived entry belonging to a different paper. Coverage over
+    # the wrong denominator is the false green this objective exists to remove.
+    unrecorded = [u for u in urls if u not in index]
+    if unrecorded:
+        return (SKIP, f"{len(unrecorded)} of {len(urls)} cited URL(s) have no archive record at all "
+                      f"({unrecorded[:5]}); run archive_references.py before release", 0, "cited URLs")
+    mine = {u: index[u] for u in urls}
+    archived = sum(1 for r in mine.values() if r.get("status") == "archived")
+    skipped = sum(1 for r in mine.values() if r.get("status") == "skipped")
+    missing = sorted(u for u, r in mine.items() if r.get("status") == "unavailable")
+    detail = f"{archived} archived, {skipped} skipped as persistently resolvable, of {len(urls)} cited"
+    if missing:
+        detail += f"; {len(missing)} unavailable: {missing[:5]}"
+    return PASS, detail, len(urls), "cited URLs"
+
+
 CHECKS = [
     ("em_dashes", check_em_dashes, "paper"),
     ("forbidden_phrases", check_forbidden_phrases, "paper"),
@@ -260,6 +314,7 @@ CHECKS = [
     ("duplicate_sources", check_duplicate_sources, "paper"),
     ("citation_order", check_citation_order, "path"),
     ("repository_references", check_repository_references, "paper"),
+    ("archive_coverage", check_archive_coverage, "paper"),
 ]
 
 
