@@ -178,7 +178,13 @@ def resolve_commit(repo, ref):
 
 
 def snapshot(repos, root):
-    """Detached read-only worktree per repo at its head commit. Returns [(name, path)]."""
+    """Detached read-only worktree per repo at its head commit. Returns [(name, path)].
+
+    The peer review no longer uses this -- the reviewer gets a surface (XE-007). task_graph's proof
+    nodes still do: they EXECUTE code in a disposable checkout, which is a different need from
+    handing a reviewer something to read. Deleting it as dead code broke them, because that check
+    grepped the tests and not the callers.
+    """
     out = []
     for i, r in enumerate(repos):
         name = f"{i}-{Path(r['path']).name}"
@@ -194,6 +200,10 @@ def snapshot(repos, root):
 
 
 def teardown(repos, root):
+    """Removes worktrees snapshot() may have created, then the directory itself.
+
+    cmd_round creates no worktrees any more, but task_graph does, and both call this.
+    """
     for r in repos:
         subprocess.run(["git", "-C", r["path"], "worktree", "prune"], capture_output=True)
     for d in root.iterdir() if root.exists() else []:
@@ -311,14 +321,16 @@ def changed_files(repos):
 def caller_files(repos, changed, cap):
     """Files referencing a changed file's base name. Bounded, and reports what it dropped."""
     stems = {Path(n).stem for _, n in changed if Path(n).stem not in {"__init__", "index"}}
-    hits, seen = [], {n for _, n in changed}
+    # F1 (reviewer, 20260917-213250): a bare relative path is not unique across repositories --
+    # repo A's utils.py masked repo B's. Keyed by repository identity, as build_surface already was.
+    hits, seen = [], {(id(r), n) for r, n in changed}
     for r in repos:
         try:
             tracked = git(r["path"], "ls-files").split()
         except Exception:
             continue
         for f in tracked:
-            if f in seen or Path(f).suffix not in CALLER_SUFFIXES:
+            if (id(r), f) in seen or Path(f).suffix not in CALLER_SUFFIXES:
                 continue
             fp = Path(r["path"]) / f
             try:
@@ -326,7 +338,7 @@ def caller_files(repos, changed, cap):
             except OSError:
                 continue
             if any(st in body for st in stems):
-                hits.append((r, f)); seen.add(f)
+                hits.append((r, f)); seen.add((id(r), f))
     dropped = max(0, len(hits) - cap)
     return hits[:cap], dropped
 
@@ -353,10 +365,24 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
         if i is not None and (id(repos[i]), rel) not in seen:
             changed.append((repos[i], rel)); seen.add((id(repos[i]), rel))
     callers, dropped = caller_files(repos, changed, cap)
+    # F2 (reviewer): the bare directory name collides when two repositories share a basename, and
+    # _subject_path then binds a finding to the wrong repository. The snapshot layout used the index
+    # for exactly this reason; dropping it reintroduced the bug it had already solved.
+    idx = {id(r): i for i, r in enumerate(repos)}
     for group, sub in ((changed, "changed"), (callers, "callers")):
         for r, name in group:
             src = Path(r["path"]) / name
-            dest = surf / sub / Path(r["path"]).name / name
+            # snapshot() refused a symlink escaping the repository; the surface copies with
+            # read_bytes(), which FOLLOWS one. Dropping the snapshot silently dropped that control,
+            # so it is restored here rather than assumed. Found by tracing what snapshot() did
+            # before deleting it.
+            try:
+                if src.is_symlink() and not src.resolve().is_relative_to(Path(r["path"]).resolve()):
+                    raise ReviewError("data_use_denied",
+                                      f"review surface refused {name}: symlink escapes repository scope")
+            except OSError:
+                continue
+            dest = surf / sub / f"{idx[id(r)]}-{Path(r['path']).name}" / name
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 dest.write_bytes(src.read_bytes())
@@ -376,7 +402,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
     return surf, stats
 
 
-def build_prompt(packet, snaps, round_no, prior_round, dispositions):
+def build_prompt(packet, round_no, prior_round, dispositions):
     repos = "\n".join(f"- {Path(r['path']).name}: base {r['base'][:12]} head {r['head'][:12]}"
                       for r in packet["repos"])
     p = [
@@ -602,7 +628,7 @@ def _subject_path(path, repos):
     p = p.lstrip("/")
     for i, r in enumerate(repos):
         name = Path(r["path"]).name
-        for prefix in (f"{i}-{name}/", f"changed/{name}/", f"callers/{name}/"):
+        for prefix in (f"{i}-{name}/", f"changed/{i}-{name}/", f"callers/{i}-{name}/"):
             if p.startswith(prefix):
                 return i, p[len(prefix):]
     for i, r in enumerate(repos):
@@ -917,11 +943,13 @@ def cmd_round(a):
             data_permission(packet, tool=state["reviewer"])  # intended reviewer; the run records what ran
         except ValueError as e:
             raise ReviewError("data_use_denied", str(e))
-        snaps = snapshot(packet["repos"], root)
+        # F3 (reviewer): snapshot() copied the whole tree to disk every round and nothing reads it
+        # now that the reviewer gets a surface. Shipping the tree to disk while the item is about
+        # not shipping the tree is the joke writing itself.
         surf, surf_stats = build_surface(packet["repos"], root,
                                          prior_findings=(prior or {}).get("findings", []))
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
-        prompt = build_prompt(packet, snaps, round_no, prior, dispositions)
+        prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
         # resolved now, not at open: availability changes between the two, and a fallback is a
         # property of the run. GSTACK_PEER_REVIEW_FAKE_CMD keeps the selftest on the recorded tool.

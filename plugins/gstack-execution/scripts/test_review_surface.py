@@ -100,6 +100,74 @@ def test_a_disproof_round_with_no_new_commits_still_carries_the_files_under_revi
         assert st["from_prior_findings"] == 1, st
 
 
+def _mini(t, name, extra=""):
+    r = Path(t) / name; r.mkdir(parents=True)
+    for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"]):
+        subprocess.run(c, cwd=r, check=True, capture_output=True)
+    (r/"utils.py").write_text(f"VALUE = '{name}'\n")
+    (r/"uses.py").write_text("import utils\n" + extra)
+    subprocess.run(["git","add","-A"], cwd=r, check=True, capture_output=True)
+    subprocess.run(["git","commit","-qm","base"], cwd=r, check=True, capture_output=True)
+    base = subprocess.run(["git","rev-parse","HEAD"],cwd=r,capture_output=True,text=True).stdout.strip()
+    (r/"utils.py").write_text(f"VALUE = '{name}-changed'\n")
+    subprocess.run(["git","commit","-qam","change"], cwd=r, check=True, capture_output=True)
+    head = subprocess.run(["git","rev-parse","HEAD"],cwd=r,capture_output=True,text=True).stdout.strip()
+    return {"path": str(r), "base": base, "head": head}
+
+
+def test_two_repositories_sharing_a_basename_do_not_collide():
+    """F1 and F2 from review 20260917-213250. A bare relative path is not unique across
+    repositories: one repo's utils.py masked the other's in the caller scan, and both wrote to the
+    same surface directory, so a finding bound to the wrong repository."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = [_mini(t, "a/proj"), _mini(t, "b/proj")]
+        assert Path(repos[0]["path"]).name == Path(repos[1]["path"]).name == "proj"
+        root = Path(t)/"root"; root.mkdir()
+        surf, st = pr.build_surface(repos, root)
+        assert st["changed"] == 2, f"both repos' changed files must survive: {st}"
+        assert (surf/"changed"/"0-proj"/"utils.py").exists()
+        assert (surf/"changed"/"1-proj"/"utils.py").exists()
+        assert (surf/"changed"/"0-proj"/"utils.py").read_text() != (surf/"changed"/"1-proj"/"utils.py").read_text()
+        assert st["callers"] == 2, f"each repo's caller must be found, not masked: {st}"
+
+        # and a surface-relative finding must bind to the repository it names
+        for i, repo in enumerate(repos):
+            got = pr.bind_subjects([{"id": "F1", "file": f"changed/{i}-proj/utils.py", "line": 1}], repos)["F1"]
+            assert got["bound"], got
+            assert got["repo"] == repo["path"], f"bound to the wrong repository: {got['repo']}"
+
+
+def test_the_round_no_longer_copies_the_whole_tree_to_disk():
+    """F3: snapshot() shipped the tree to disk every round while the item is about not shipping
+    the tree."""
+    import inspect
+    src = inspect.getsource(pr.cmd_round)
+    assert "build_surface(" in src
+    # snapshot() itself must STAY: task_graph's proof nodes execute code in a disposable checkout,
+    # which is a different need from handing a reviewer something to read. Deleting it as dead code
+    # broke them, because that check grepped the tests and not the callers.
+    assert hasattr(pr, "snapshot"), "snapshot() has a non-review caller and must not be deleted"
+    assert "snapshot(packet" not in src, "cmd_round must not build a full worktree any more"
+
+
+def test_a_symlink_escaping_the_repository_is_refused():
+    """snapshot() refused these; the surface copies with read_bytes(), which follows them. Dropping
+    the snapshot silently dropped the control."""
+    with tempfile.TemporaryDirectory() as t:
+        outside = Path(t)/"secret.txt"; outside.write_text("not yours\n")
+        repos = repo(t); r = Path(repos[0]["path"])
+        (r/"widget.py").unlink(); (r/"widget.py").symlink_to(outside)
+        subprocess.run(["git","add","-A"], cwd=r, check=True, capture_output=True)
+        subprocess.run(["git","commit","-qm","symlink"], cwd=r, check=True, capture_output=True)
+        repos[0]["head"] = subprocess.run(["git","rev-parse","HEAD"],cwd=r,capture_output=True,text=True).stdout.strip()
+        root = Path(t)/"root"; root.mkdir()
+        try:
+            pr.build_surface(repos, root)
+            raise AssertionError("a symlink escaping the repository must be refused")
+        except pr.ReviewError as e:
+            assert e.outcome == "data_use_denied", e.outcome
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
