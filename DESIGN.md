@@ -104,7 +104,7 @@ this repository's own executor plus three false passes in its own completeness g
 
 ### EV-001 — No check reports a pass over input it did not examine
 
-**Status:** review. Built; peer review and human merge pending.
+**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** none; this item removes a false one (a verdict that implied
 coverage it never had).
@@ -122,7 +122,7 @@ coverage it never had).
 
 ### EV-002 — Findings bind to content, and every link re-resolves on demand
 
-**Status:** review. Built and reviewed (20260912-122421-80159e3-_lrr97ak, codex/gpt-6-astra, rounds_exhausted). Six blockers raised, five verified fixed by the reviewer. F2 was raised three times: a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape. The third repair and the one-walk change that followed it carry regressions but no reviewer sign-off, because the round limit was reached first. Exhausting the limit is not approval; the Release Owner decides whether to merge on the evidence as it stands or open a fresh review on the final head.
+**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner, on the evidence as it stood and without a fresh review of the final head. Reviewed as `20260912-122421-80159e3-_lrr97ak` (codex/gpt-6-astra, `rounds_exhausted`): six blockers raised, five verified fixed by the reviewer. F2 was raised three times, as a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape; repairing the third surfaced a fourth instance, two later sweeps re-reading the rounds without the shape check. The third repair and the one-walk change that followed it carry regression tests and no reviewer sign-off, because the round limit was reached first. **The record that review ID names no longer exists.** See EV-009: it was written to a session-local home and destroyed with the session, so what follows from it in this document is reconstruction from the pull request and the commit messages, not a record a reader can pull on.
 
 **Links introduced:** a per-finding subject (blob id plus a span hash at the reviewed
 head) retained in `round-N.json`; the `verify` report's re-resolution of that subject at
@@ -143,7 +143,7 @@ the repository's current head.
 
 ### EV-003 — The undeclared-write sweep, in the direction nobody had
 
-**Status:** review. Built; peer review and human merge pending.
+**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** the declaration-to-behaviour link for every handler, checked at
 runtime rather than against other declarations.
@@ -161,7 +161,7 @@ runtime rather than against other declarations.
 
 ### EV-004 — The approver's reconstruction gets a field
 
-**Status:** review. Built; peer review and human merge pending.
+**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** each observation's claim-to-command-to-output link, re-runnable by
 `verify`.
@@ -174,7 +174,7 @@ runtime rather than against other declarations.
 
 ### EV-005 — Each item declares the links it introduces
 
-**Status:** review. Built; peer review and human merge pending.
+**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** none.
 
@@ -184,6 +184,34 @@ runtime rather than against other declarations.
    covered, and amends the doc before any code.
 3. The review packet carries that row, and the reviewer rules on each link in both
    directions.
+
+### EV-009 — A review record outlives the session that produced it
+
+**Status:** building.
+
+**Links introduced:** the review ID to its record on disk, which is the link this item
+exists because it was already broken.
+
+Found on 14 September 2026 by going to pull review `20260912-122421-80159e3-_lrr97ak`,
+cited as the evidence for EV-002 one day after merge. `REVIEW_DIR` defaulted to
+`$HOME/.gstack/peer-review`. In a sandboxed session `$HOME` is per-session and outside
+every connected folder, so every record written there was destroyed when the session
+ended. The identifier went on reading like evidence in this document, which is the same
+failure the EV items were built to catch, in the governance record of the fix for it.
+
+1. `GSTACK_PEER_REVIEW_DIR` is required and has no default. A review that cannot name a
+   durable root does not open, and the error says what to set and why.
+2. No code path falls back to the home directory, and a test asserts that against the
+   source rather than against one call, because the defect was a default rather than a
+   call site.
+3. The command, the contract and `docs.md` all state the requirement, so the three places
+   a reader could learn the old default agree with the code.
+4. Tests: `review_root` exits naming the variable when it is unset; a declared directory
+   is used as given; the source contains no home-directory fallback.
+
+**Open:** graph-driven reviews already land in the run directory because `task_graph.py`
+sets the variable. Direct invocations were the unprotected path, and nothing here recovers
+the records already lost.
 
 ### EV-006 — Instrument reads
 

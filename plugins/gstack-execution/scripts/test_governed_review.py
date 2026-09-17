@@ -1,3 +1,4 @@
+import pathlib
 """Exercise the real peer-review CLI and Git snapshots with controlled CLI responses."""
 import json
 from datetime import datetime, timezone
@@ -250,6 +251,41 @@ class GovernedReview(unittest.TestCase):
                 self.env["GITHUB_RESPONSE"] = json.dumps(dict(baseline, **change))
                 r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
                 self.assertNotEqual(r.returncode, 0)
+
+
+class ReviewRootIsDeclared(unittest.TestCase):
+    """EV-009. The old default wrote records to a session-local home, so the record was
+    gone and the review ID in the design document still read like evidence."""
+
+    def run_open(self, env_dir):
+        env = {k: v for k, v in os.environ.items() if k != "GSTACK_PEER_REVIEW_DIR"}
+        if env_dir:
+            env["GSTACK_PEER_REVIEW_DIR"] = str(env_dir)
+        return subprocess.run([sys.executable, str(SCRIPT), "open", "--help"],
+                              capture_output=True, text=True, env=env)
+
+    def test_unset_review_dir_is_named_in_the_error_rather_than_defaulted(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("pr_ev9", SCRIPT)
+        pr = importlib.util.module_from_spec(spec); spec.loader.exec_module(pr)
+        pr.REVIEW_DIR = None
+        with self.assertRaises(SystemExit) as e:
+            pr.review_root()
+        self.assertIn("GSTACK_PEER_REVIEW_DIR", str(e.exception))
+        self.assertIn("outlives this session", str(e.exception))
+
+    def test_a_declared_directory_is_used_as_given(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("pr_ev9b", SCRIPT)
+        pr = importlib.util.module_from_spec(spec); spec.loader.exec_module(pr)
+        pr.REVIEW_DIR = pathlib.Path("/tmp/declared-review-root")
+        self.assertEqual(pr.review_root(), pathlib.Path("/tmp/declared-review-root"))
+
+    def test_no_code_path_falls_back_to_the_home_directory(self):
+        """The defect was a default, so the test is about the source, not one call."""
+        src = SCRIPT.read_text()
+        self.assertNotIn('Path.home() / ".gstack"', src)
+        self.assertNotIn("Path.home()/'.gstack'", src)
 
 if __name__ == "__main__":
     unittest.main()
