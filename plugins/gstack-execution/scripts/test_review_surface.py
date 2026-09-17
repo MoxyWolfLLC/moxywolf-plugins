@@ -28,7 +28,7 @@ def test_the_surface_carries_the_diff_and_the_changed_file():
         repos = repo(t); root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root)
         assert (surf/"CHANGE.diff").exists() and "return 2" in (surf/"CHANGE.diff").read_text()
-        assert list(surf.rglob("changed/**/widget.py")), "the changed file must be present"
+        assert (surf / pr.surface_prefix(0, repos[0], "changed") / "widget.py").exists()
         assert st["changed"] == 1, st
 
 
@@ -38,7 +38,7 @@ def test_a_caller_of_the_changed_file_comes_with_it():
     with tempfile.TemporaryDirectory() as t:
         repos = repo(t); root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root)
-        assert list(surf.rglob("callers/**/caller.py")), "a file referencing widget must be carried"
+        assert (surf / pr.surface_prefix(0, repos[0], "callers") / "caller.py").exists()
         assert st["callers"] >= 1, st
 
 
@@ -96,7 +96,7 @@ def test_a_disproof_round_with_no_new_commits_still_carries_the_files_under_revi
         surf, st = pr.build_surface(repos, root,
                                     prior_findings=[{"file": "widget.py", "line": 1}])
         assert st["changed"] == 1, st
-        assert list(surf.rglob("changed/**/widget.py")), "the file the finding names must be present"
+        assert (surf / pr.surface_prefix(0, repos[0], "changed") / "widget.py").exists()
         assert st["from_prior_findings"] == 1, st
 
 
@@ -125,14 +125,16 @@ def test_two_repositories_sharing_a_basename_do_not_collide():
         root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root)
         assert st["changed"] == 2, f"both repos' changed files must survive: {st}"
-        assert (surf/"changed"/"0-proj"/"utils.py").exists()
-        assert (surf/"changed"/"1-proj"/"utils.py").exists()
-        assert (surf/"changed"/"0-proj"/"utils.py").read_text() != (surf/"changed"/"1-proj"/"utils.py").read_text()
+        p0 = surf / pr.surface_prefix(0, repos[0], "changed") / "utils.py"
+        p1 = surf / pr.surface_prefix(1, repos[1], "changed") / "utils.py"
+        assert p0.exists() and p1.exists()
+        assert p0.read_text() != p1.read_text(), "each repository's file must survive separately"
         assert st["callers"] == 2, f"each repo's caller must be found, not masked: {st}"
 
         # and a surface-relative finding must bind to the repository it names
         for i, repo in enumerate(repos):
-            got = pr.bind_subjects([{"id": "F1", "file": f"changed/{i}-proj/utils.py", "line": 1}], repos)["F1"]
+            spelling = pr.surface_prefix(i, repo, "changed") + "utils.py"
+            got = pr.bind_subjects([{"id": "F1", "file": spelling, "line": 1}], repos)["F1"]
             assert got["bound"], got
             assert got["repo"] == repo["path"], f"bound to the wrong repository: {got['repo']}"
 
