@@ -226,11 +226,11 @@ Opened 2026-09-17 after an audit of a three-day Codex session that built the Ope
 
 The premise: **a loop that cannot prove its own preconditions pays for them at the slowest point, and an approval that must be re-derived is not a decision, it is an interruption.** Completeness is a property of the change. Economy is a property of the path taken to make it, and that path is not in the diff.
 
-XE-001 is built in this change. XE-002 through XE-004 are declared and not started.
+XE-001, XE-002 and XE-005 are built and merged at f1a1034. XE-003 and XE-004 are built and under review as PR #14. Each item's own status below is the authority; this line summarizes it.
 
 ### XE-001 — The gate proves it can run before anything is pushed
 
-**Status:** in build.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** none. The preflight report is derived from the working tree at call time and is not stored.
 
@@ -243,7 +243,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-002 — An approval binds to a scope, and re-resolves
 
-**Status:** in build.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
 
@@ -257,7 +257,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-003 — The cheapest surface that answers the question
 
-**Status:** declared, not started.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
 
 **Links introduced:** none.
 
@@ -267,7 +267,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-004 — A checkpoint is a batch, not an item
 
-**Status:** declared, not started.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
 
 **Links introduced:** none.
 
@@ -277,7 +277,7 @@ XE-001 is built in this change. XE-002 through XE-004 are declared and not start
 
 ### XE-005 — A reviewer is independent by what differs, not by its name
 
-**Status:** declared, not started.
+**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
 
 **Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
 

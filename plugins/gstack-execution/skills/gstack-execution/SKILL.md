@@ -81,39 +81,58 @@ Optional (enhances functionality):
 - **gh CLI** — for PR creation in `/gstack-ship`. If not available, the plugin prepares everything and instructs the user to create the PR manually.
 - **npm/bun** — for dependency auditing in `/gstack-cso`.
 
-## Browser Operations via Claude in Chrome
+## Tool order — the cheapest surface that answers the question
 
-gstack's original `/qa` and `/browse` skills use a compiled Chromium binary. In Cowork, we route all browser operations through the **Claude in Chrome** extension — Claude controls the user's real, signed-in Chrome session.
+**connector → CLI → REST → browser.** A browser call is the last rung, not the first.
 
-**Why this is better than headless tooling:**
+This is not a style preference. The 2026-09-15 audit found 1,039 browser calls against 51 API calls
+in a single session, with connectors configured for several of the services it drove through the
+browser. A browser call costs a page load, a screenshot or a DOM dump, and a parse, to obtain what an
+API returns as a field. It is also the least reproducible: the same call tomorrow meets a different
+page.
 
-- The user's authenticated sessions (LinkedIn, Gmail, Supabase dashboards, deployed staging URLs gated by SSO) are already live — no separate auth dance.
-- Real cookies, real extensions, real network conditions — the QA verdict is what an actual user would see.
-- DOM-aware tools (`javascript_tool`, `get_page_text`, `read_page`) extract structured data more reliably than screen-scraping a headless screenshot.
-
-**Standard session pattern:**
-
-```
-1. tabs_create_mcp                       — open a fresh tab
-2. navigate(url)                          — go to the target
-3. read_console_messages / read_network_requests   — capture errors
-4. get_page_text / read_page              — pull rendered content
-5. javascript_tool(code)                  — run structural / a11y checks in-page
-6. form_input / shortcuts_execute         — drive interactions
-7. resize_window(w, h)                    — responsive checks
-```
-
-**Capturing visuals:** Claude in Chrome ships `gif_creator` for short interaction recordings. For single still frames, take a native screenshot with `mcp__computer-use__screenshot` while the Chrome window is frontmost.
-
-**Headless fallback (rare):** for fully unattended runs (scheduled regression suites with no human around to host Chrome), install Playwright inside the workspace bash sandbox:
+The reason sessions land on the browser is not principle, it is convenience — with several hundred
+tools available, "is there a connector for this?" gets answered by eyeballing, and eyeballing favours
+whatever is already in hand. So answer it by looking:
 
 ```bash
-npm i -g playwright
-npx playwright install chromium
-node /path/to/regression-suite.js
+# what is the cheapest rung available for a service?
+printf '%s\n' "${TOOL_NAMES[@]}" | python3 scripts/tool_rung.py Github
+# did this session take a lower rung than it had to?
+printf '%s\n' "${TOOL_NAMES[@]}" | python3 scripts/tool_rung.py Github browser
 ```
 
-This is the legacy code path. Prefer Claude in Chrome whenever a real session is available.
+**Say which rung you took.** A session that uses a browser where a connector for that service is
+configured states that plainly, and states why — a connector that lacks the specific operation, an
+auth wall, a page with no API behind it are all legitimate reasons. What is not legitimate is
+reaching for the browser without having looked. REST is invisible to a tool list, so `tool_rung.py`
+will not claim it is absent; check the service's API yourself before settling for the browser.
+
+**When a browser is genuinely required,** read the page as structure, not as pixels. `get_page_text`
+and `read_page` return the text and the DOM; a screenshot returns an image you then have to read
+back. Prefer a query-focused read (`find`, a targeted `javascript_tool` selector) over a full
+snapshot on any page large enough for the difference to matter. Take a screenshot when the visual
+layout **is** the question — a rendering bug, a responsive break, something the user asked to see.
+
+**Which browser.** Claude in Chrome drives the user's real, signed-in Chrome, so authenticated
+sessions (LinkedIn, Gmail, Supabase dashboards, SSO-gated staging URLs) are already live. Use it for
+anything needing the user's session. The in-app browser is the default otherwise. For fully
+unattended runs with no human to host Chrome, Playwright in the workspace sandbox is the legacy
+path.
+
+**Standard session pattern, once the browser rung is the right one:**
+
+```
+1. tabs_create_mcp                                 — open a fresh tab
+2. navigate(url)                                   — go to the target
+3. get_page_text / read_page / find                — pull rendered content as structure
+4. read_console_messages / read_network_requests   — capture errors
+5. javascript_tool(code)                           — structural / a11y checks in-page
+6. form_input / shortcuts_execute                  — drive interactions
+7. resize_window(w, h)                             — responsive checks
+```
+
+`gif_creator` records short interaction sequences when a recording is the deliverable.
 
 ## Verification Discipline — what "it works" is allowed to mean
 

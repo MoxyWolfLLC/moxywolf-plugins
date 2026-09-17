@@ -45,19 +45,27 @@ _SELFTEST = False
 # Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or
 # higher. Override a model with GSTACK_<TOOL>_MODEL; the floor still applies to what ran.
 REVIEWERS = {
-    "codex":  {"family": "gpt",
+    "codex":  {"family": "gpt", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_CODEX_MODEL", "gpt-6-astra"),
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher"},
-    "claude": {"family": "claude",
+    "claude": {"family": "claude", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_CLAUDE_MODEL", "claude-opus-5"),
                "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
                "floor_name": "Opus 5 or higher"},
-    "gemini": {"family": "gemini",
+    "gemini": {"family": "gemini", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_GEMINI_MODEL", "gemini-3.1-pro-preview"),
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher"},
 }
+# max_output is the headroom the reviewer contract's full response needs, set against that
+# contract rather than a provider default. Precedent: the Council Sonnet-5 slot was configured at
+# 3000 and needed 12000, and under-provisioned it returned empty content while the dispatcher still
+# reported success. max_output_flag is how to apply it on the command line -- None means this CLI
+# exposes no such flag (checked 2026-09-17: none of codex, claude or gemini does). Where it is None
+# the headroom is NOT enforced, and the round records that, because a record that cannot distinguish
+# a bounded run from an unbounded one is worth less than no record. Detection still applies either
+# way: a response that hits the real ceiling reports output_truncated.
 # Preference order when more than one independent reviewer is installed.
 REVIEWER_ORDER = ["codex", "claude", "gemini"]
 # Builders are the tools that write code here. Their family decides who may review them.
@@ -294,6 +302,13 @@ def build_prompt(packet, snaps, round_no, prior_round, dispositions):
     return "\n\n".join(p)
 
 
+def headroom_argv(tool):
+    """The flag that applies this entry's max_output, or [] when the CLI exposes none."""
+    cfg = REVIEWERS[tool]
+    flag = cfg.get("max_output_flag")
+    return [flag, str(cfg["max_output"])] if flag else []
+
+
 def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
     output_schema = schema or STRICT_SCHEMA
@@ -310,7 +325,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
         schema.write_text(json.dumps(output_schema))
         cmd = ["codex", "exec", "-C", str(root), "-m", REVIEWERS["codex"]["model"], "-c", "model_reasoning_effort=high",
                "--sandbox", "read-only", "--skip-git-repo-check",
-               "--output-schema", str(schema), "--output-last-message", str(last), prompt]
+               "--output-schema", str(schema), "--output-last-message", str(last)] + headroom_argv("codex") + [prompt]
         def parse(r):
             m = re.search(r"^model:\s*(\S+)", r.stderr + r.stdout, re.M)  # codex echoes the resolved model in its header
             return (last.read_text() if last.exists() else r.stdout), (m.group(1) if m else None)
@@ -321,7 +336,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
             raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={REVIEWERS['claude']['model']}; floor is {REVIEWERS['claude']['floor_name']}")
         cmd = ["claude", "-p", prompt, "--model", REVIEWERS["claude"]["model"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
-               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"]
+               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"] + headroom_argv("claude")
         def parse(r):
             try:
                 env_ = json.loads(r.stdout)
@@ -344,7 +359,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
         cmd = ["gemini", "-m", REVIEWERS["gemini"]["model"], "--approval-mode", "plan", "--skip-trust",
                "-o", "json", "--include-directories", str(root),
                "-p", prompt + "\n\n=== REQUIRED OUTPUT SCHEMA ===\n" + json.dumps(output_schema)
-                    + "\n\nReturn one complete JSON object matching it. Do not truncate."]
+                    + "\n\nReturn one complete JSON object matching it. Do not truncate."] + headroom_argv("gemini")
         def parse(r):
             try:
                 env_ = json.loads(r.stdout)
@@ -806,6 +821,8 @@ def cmd_round(a):
             reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
             reviewer, family(reviewer), is_fallback
+        record["max_output"] = REVIEWERS[reviewer]["max_output"]
+        record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None
         raw, record["model"] = run_reviewer(reviewer, prompt, root, state["timeout"])
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
@@ -854,6 +871,73 @@ def cmd_disposition(a):
         disp[fid] = {"disposition": value, "evidence": evidence} if evidence else value
     save(d, "dispositions.json", disp)
     print(json.dumps(disp, indent=2))
+
+
+# ---- XE-004: a review is dispatched and collected, never blocked on ----
+#
+# The audited session produced 51 messages whose entire content was that a review had not yet
+# returned. Blocking is what produced them: `round` runs the reviewer in the foreground, so a caller
+# with nothing else to do narrates the wait. dispatch/collect splits that: dispatch starts the SAME
+# `round` in a detached process and returns at once, collect answers once.
+#
+# ponytail: os.kill(pid, 0) for liveness, no supervisor. A pid can be recycled, so liveness is only
+# the hint -- whether rounds_used advanced past its value at dispatch is the authority. That
+# ordering also makes a dispatched round that DIED report failed instead of pending forever.
+
+def _alive(pid):
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, TypeError, ValueError):
+        return False
+    return True
+
+
+def cmd_dispatch(a):
+    if os.environ.get(RECURSION_ENV):
+        sys.exit("refused: this is a reviewer session; peer review does not recurse")
+    d = rdir(a.review_id)
+    state = load(d, "state.json")
+    prior = load(d, "dispatch.json")
+    if prior and _alive(prior.get("pid")) and load(d, "state.json")["rounds_used"] <= prior.get("rounds_at_dispatch", -1):
+        sys.exit(f"a review is already in flight for {a.review_id} (pid {prior['pid']}); collect it first")
+    log = d / "dispatch.log"
+    argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
+    for h in getattr(a, "head", []) or []:
+        argv += ["--head", h]
+    with open(log, "ab") as fh:
+        proc = subprocess.Popen(argv, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                start_new_session=True, cwd=str(d))
+    rec = {"pid": proc.pid, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "started_epoch": int(time.time()),
+           "rounds_at_dispatch": state["rounds_used"], "log": str(log), "argv": argv[1:]}
+    save(d, "dispatch.json", rec)
+    out = {"status": "dispatched", "review_id": a.review_id, "pid": proc.pid,
+           "collect_with": f"peer_review.py collect {a.review_id}"}
+    print(json.dumps(out, indent=2))
+    return out
+
+
+def cmd_collect(a):
+    d = rdir(a.review_id)
+    disp = load(d, "dispatch.json")
+    if not disp:
+        out = {"status": "not_dispatched", "review_id": a.review_id}
+        print(json.dumps(out, indent=2)); return out
+    state = load(d, "state.json")
+    advanced = state["rounds_used"] > disp.get("rounds_at_dispatch", -1)
+    if advanced:                                   # authority: the round landed
+        out = {"status": "complete", "outcome": state["outcome"], "rounds_used": state["rounds_used"],
+               "review_id": a.review_id}
+    elif _alive(disp.get("pid")):
+        out = {"status": "pending", "review_id": a.review_id,
+               "elapsed_s": int(time.time()) - disp.get("started_epoch", int(time.time()))}
+    else:                                          # died without advancing: a failure, not a wait
+        tail = ""
+        lg = Path(disp.get("log", ""))
+        if lg.exists():
+            tail = lg.read_text(errors="replace").strip()[-600:]
+        out = {"status": "failed", "review_id": a.review_id,
+               "detail": "dispatched process exited without completing a round", "log_tail": tail}
+    print(json.dumps(out, indent=2)); return out
 
 
 def cmd_status(a):
@@ -1035,6 +1119,8 @@ def main():
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
+    di = sub.add_parser("dispatch"); di.add_argument("review_id"); di.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
+    co = sub.add_parser("collect"); co.add_argument("review_id")
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
@@ -1050,9 +1136,18 @@ def main():
     try:
         if os.environ.get(RECURSION_ENV) and a.cmd != "status":
             raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
-        result = {"open": cmd_open, "round": cmd_round, "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify, "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
+        result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
+                  "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
+                  "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
+        if a.cmd == "collect":
+            # pending is an answer, not a failure; a non-pass outcome and a dead dispatch are failures
+            st = result.get("status")
+            if st == "complete" and result.get("outcome") not in {"no_blocking_findings", "fixes_verified"}:
+                sys.exit(1)
+            if st in {"failed", "not_dispatched"}:
+                sys.exit(1)
     except ReviewError as e:
         sys.exit(f"{e.outcome}: {e.detail}")
     except KeyError as e:

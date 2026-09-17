@@ -74,6 +74,34 @@ On the first push of the branch, open the pull request (`gh pr create --base mai
 
 ## Step 5: Review loop until clean
 
+**A checkpoint is a batch, not an item.** Review covers every item built since the last review, not
+one review per item. Build the items, then open one review whose `acceptance_criteria` are the
+criteria of all of them, verbatim. Two or three related items in one checkpoint is normal.
+
+**Dispatch the review; do not sit on it.** `dispatch` starts the reviewer detached and returns at
+once; `collect` answers once, with `pending`, `complete`, or `failed`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" dispatch <review-id>
+# ... do other work, or end the turn ...
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" collect <review-id>
+```
+
+**Where the dispatching shell is short-lived**, dispatch and collect must happen inside one call.
+Cowork's `device_bash` gives each call its own PID namespace and tears it down on return, so a
+detached child does not survive the call that spawned it — `start_new_session` and `nohup` have
+nothing to escape to. Verified 2026-09-17: a dispatched round was reaped before it wrote its prompt.
+There, dispatch and then poll `collect` in the same call, or run `round` directly. The split still
+earns its place: `collect` reported `failed` rather than `pending`, which is how the teardown was
+found at all. A persistent shell has no such limit.
+
+While a review is in flight, do not narrate it. The audited session produced 51 messages whose
+entire content was that a review had not yet returned; every one of them cost the user attention and
+told them nothing. Say the review is dispatched, then either do unrelated work or end the turn. Poll
+`collect` when there is a reason to — work finished, or the user asked. A `pending` is an answer, not
+a failure; a dispatch whose process died reports `failed` rather than pending forever, so a crashed
+reviewer never reads as a slow one.
+
 Run `/gstack-peer-review --builder <tool>` with the packet built from the design doc: `outcome` = the item, `acceptance_criteria` = the item's criteria verbatim, `exclusions` = the doc's Constraints and settled decisions, `tests` = Step 3's commands and results, `release_owner` = the accountable human's GitHub login, one `{path, base=main, head=branch HEAD}` pair per repo. Follow that command's loop: substantiate, fix in scope, commit, **push and pull back (Step 4) after every fix commit**, disposition, next round.
 
 Exit only on `no_blocking_findings` or `fixes_verified`, and, for a Vercel-deployed repo, a green Endform check on the PR at the final head (`gh pr checks` shows it passing, with the run link). `rounds_exhausted` → present the escalation and stop; the item stays `review`. `review_unavailable`, `model_below_floor`, and the other non-pass outcomes → report them as such and stop; do not merge on an unreviewed item.
