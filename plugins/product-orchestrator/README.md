@@ -1,6 +1,5 @@
 # Product Orchestrator Plugin
 
-**Version:** 0.4.0
 **Author:** MoxyWolf LLC
 **Requires:** Council plugin (v0.7.0+) and the team-shared OpenRouter API key file in the MoxyWolf Vault (see Council's README — no shell-rc edits required)
 

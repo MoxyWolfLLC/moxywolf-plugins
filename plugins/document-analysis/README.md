@@ -1,6 +1,5 @@
 # document-analysis Plugin
 
-**Version:** 0.1.1
 **Author:** MoxyWolf LLC
 **Wraps:** [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft (MIT License)
 **Requires:** Python 3.10+ (Cowork sandbox has it). Optional: team OpenRouter key for LLM image descriptions + OCR.

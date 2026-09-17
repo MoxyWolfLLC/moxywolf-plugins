@@ -2,7 +2,6 @@
 
 > Generate Excalidraw diagrams directly into the MoxyWolf Vault.
 
-**Version:** 0.1.0
 **Marketplace:** [moxywolf-plugins](https://github.com/MoxyWolfLLC/moxywolf-plugins) v1.16.0
 
 ## What it does
