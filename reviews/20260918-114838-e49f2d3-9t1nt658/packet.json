@@ -18,8 +18,8 @@
   "repos": [
     {
       "path": "/root/mp",
-      "base": "9fac74d6a51c187578603d463a462945b5672104",
-      "head": "e49f2d3099ff4f7b12f2c423b03dee04d5173a40"
+      "base": "e49f2d3099ff4f7b12f2c423b03dee04d5173a40",
+      "head": "3b87de779db426b668a4b831a562a62cacf57b08"
     }
   ],
   "changed_behavior": "peer_review.open gains coverage_verdict and a packet_narrower_than_item refusal plus --accept-narrow-packet; packet_coverage.mjs scores declared criteria against the packet and writes the report; DESIGN.md declares XE-010.",
@@ -36,7 +36,20 @@
     "environment": "cloud container, python 3.11, node 22"
   },
   "release_owner": "dorianatmoxywolf",
-  "prior_findings": [],
+  "prior_findings": [
+    {
+      "id": "F1",
+      "severity": "blocking",
+      "what": "An unavailable scorer is incorrectly recorded as having checked coverage.",
+      "disposition": "fixed"
+    },
+    {
+      "id": "F2",
+      "severity": "separate",
+      "what": "The repository gate script `run_all_tests.py` is missing from the review surface.",
+      "disposition": "deferred"
+    }
+  ],
   "data_use": {
     "owner": "dorianatmoxywolf",
     "classification": "internal",

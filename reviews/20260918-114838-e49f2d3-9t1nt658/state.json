@@ -8,8 +8,8 @@
   "release_owner": "dorianatmoxywolf",
   "max_rounds": 3,
   "timeout": 900,
-  "rounds_used": 1,
-  "outcome": "blocking_findings",
+  "rounds_used": 2,
+  "outcome": "fixes_verified",
   "coverage_checked": true,
   "coverage_status": "covered",
   "coverage_overridden": false,
@@ -19,6 +19,9 @@
     ],
     [
       "e49f2d3099ff4f7b12f2c423b03dee04d5173a40"
+    ],
+    [
+      "3b87de779db426b668a4b831a562a62cacf57b08"
     ]
   ]
 }
