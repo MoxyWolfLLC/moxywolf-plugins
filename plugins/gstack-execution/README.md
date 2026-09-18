@@ -3,7 +3,7 @@
 **Author:** MoxyWolf LLC
 **Based on:** [gstack](https://github.com/garrytan/gstack) by Garry Tan (MIT License), with adversarial-review framing from OpenAI's [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) (Apache-2.0)
 **Version:** see `.claude-plugin/plugin.json` — deliberately not restated here, because a version in prose has nothing keeping it true. This README sat at 0.5.0 through sixteen minor releases.
-**Requires:** Git. Optional but load-bearing: a reviewer CLI of a different model family than the builder (`codex`, `gemini`), and Claude in Chrome for the browser commands.
+**Requires:** Git. Optional but load-bearing: a reviewer CLI of a different model family than the builder (`codex`, `gemini`), Claude in Chrome for the browser commands, and Node with `ai@7.0.105+` plus an `AI_GATEWAY_API_KEY` for the packet coverage scorer.
 
 ## What this is
 
@@ -46,6 +46,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | Script | What it does |
 |--------|--------------|
 | `peer_review.py` | The review dispatcher: reviewer routing by model family, surface construction, content-bound findings, dispatch/collect, explicit outcomes |
+| `packet_coverage.mjs` | Scores each acceptance criterion declared for an item against the review packet, so a packet narrower than the item it claims is caught before the review opens. Typed boolean scoring through TypeSafe AI's Jev on the Vercel AI Gateway |
 | `review_host.sh` | Stands up a shell where a dispatched review survives between calls. Use it whenever a review has timed out once |
 | `run_all_tests.py` | The repository's own gate. Discovers every `test_*.py` and `--selftest`, names what it examined, and **fails when it discovers none** |
 | `tool_rung.py` | Answers "is there a connector for this service?" by looking. Connector → CLI → REST → browser |
@@ -69,6 +70,28 @@ Peer-review records are written to a directory you name. There is no silent defa
 When a review will not fit the time available, the tempting fixes are to pick a faster model or to trim acceptance criteria until one completes. Both buy a pass rather than earning it, and the second is worse: criteria narrower than the declared item let a review approve something unfinished. That happened here — an item passed 13/13 with one of its criteria never built.
 
 Move the shell instead. That is what `review_host.sh` is for.
+
+The second one is now gated rather than trusted. Before a review opens, `packet_coverage.mjs` reads
+the criteria the item declared in `DESIGN.md`, reads the packet the review would be handed, and scores
+each criterion for whether the packet covers it. A criterion scoring below the floor blocks the open.
+`--accept-narrow-packet` proceeds anyway and the record says so, because an override that reads like a
+pass is the failure this gate exists to prevent.
+
+Three properties of the gate matter more than the scorer behind it:
+
+- **The score may raise a gate and never lower one.** A model that says "ship it" cannot open a door
+  that was closed; it can only close one that was open. A scoring step wired the other way turns every
+  miscalibration into a merge.
+- **A scorer that did not run is recorded as not run.** No key, no Node, no network: the record reads
+  `not_run` or `unavailable`, never `coverage verified`. This was wrong once — an unavailable scorer
+  set `coverage_checked` to true — and the fix is the only reason the field means anything.
+- **Scoring stays out of the dispatcher.** `coverage_verdict` reads a report and never produces one,
+  so the gate can be audited, replayed and tested without a network call.
+
+The scorer found two criteria that had been declared and never built, in items that had already passed
+review. It also, once, reported zero problems over 16 of 19 criteria because a regex anchor borrowed
+from Python silently dropped the last criterion of every item — which is check #1 of the verification
+discipline applied to the gate itself: a pass over input it never read is a failure, whoever produced it.
 
 ## Licence and provenance
 

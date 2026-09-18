@@ -1,0 +1,112 @@
+{
+  "outcome": "XE-010 \u2014 a packet narrower than the item it claims does not open a review",
+  "items": [
+    "XE-010"
+  ],
+  "acceptance_criteria": [
+    "a packet names the declared items it claims, and the items are not inferred from its prose",
+    "each declared criterion of each claimed item is scored against the packet's acceptance criteria, and an untested criterion refuses to open the review",
+    "the gate can refuse to open a review and has no path that approves one",
+    "opening despite uncovered criteria requires an explicit flag and is recorded as overridden, not as covered",
+    "a scorer that did not run is recorded as not run rather than as covered, and does not block the review",
+    "the extractor's own coverage is checked by a second independent count, and a partial extraction refuses to score",
+    "every existing caller of peer_review open in this repository still works under the new required behaviour, including task_graph and the test suites that open reviews",
+    "the new gate does not change any outcome string or state field that another script or test already depends on",
+    "the new test file is discovered and run by the repository's own gate rather than needing separate invocation",
+    "the scorer's failure modes leave the packet in a state the dispatcher reads correctly, with no path that writes a malformed coverage report"
+  ],
+  "repos": [
+    {
+      "path": "/root/mp",
+      "base": "e49f2d3099ff4f7b12f2c423b03dee04d5173a40",
+      "head": "3b87de779db426b668a4b831a562a62cacf57b08"
+    }
+  ],
+  "changed_behavior": "peer_review.open gains coverage_verdict and a packet_narrower_than_item refusal plus --accept-narrow-packet; packet_coverage.mjs scores declared criteria against the packet and writes the report; DESIGN.md declares XE-010.",
+  "exclusions": [
+    "Scoring is not done inside the dispatcher: it needs a model and a network, and the dispatcher is stdlib and offline by design.",
+    "Four criteria here are deliberately not answerable from the diff alone; they require reading callers. They were added to make a thorough review necessary, not to raise the examined count."
+  ],
+  "tests": {
+    "commands": [
+      "python3 plugins/gstack-execution/scripts/run_all_tests.py",
+      "node plugins/gstack-execution/scripts/packet_coverage.mjs <packet> DESIGN.md"
+    ],
+    "results": "20 checks pass. The gate refuses the reconstructed PR #13 packet naming XE-001 #6 (0.14) and XE-005 #6 (0.18).",
+    "environment": "cloud container, python 3.11, node 22"
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [
+    {
+      "id": "F1",
+      "severity": "blocking",
+      "what": "An unavailable scorer is incorrectly recorded as having checked coverage.",
+      "disposition": "fixed"
+    },
+    {
+      "id": "F2",
+      "severity": "separate",
+      "what": "The repository gate script `run_all_tests.py` is missing from the review surface.",
+      "disposition": "deferred"
+    }
+  ],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "gemini"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/root/mp"
+    ]
+  },
+  "coverage": {
+    "status": "checked",
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-09-18T18:48:26.591Z",
+    "input_tokens": 1305,
+    "criteria": [
+      {
+        "item": "XE-010",
+        "criterion_no": 1,
+        "declared": "A packet names the declared items it claims, explicitly. It is not inferred from the packet's prose: packets are reused and their outcome text goes stale, which mis-mapped two reviews the first time this was measured.",
+        "probability": 0.83
+      },
+      {
+        "item": "XE-010",
+        "criterion_no": 2,
+        "declared": "Each declared criterion of each claimed item is scored against the packet's acceptance criteria, and a criterion no acceptance criterion tests refuses to open the review.",
+        "probability": 0.79
+      },
+      {
+        "item": "XE-010",
+        "criterion_no": 3,
+        "declared": "The gate is monotonic. It can refuse to open a review and can never approve one, because a score that removes a gate fails open exactly where being wrong matters most.",
+        "probability": 0.75
+      },
+      {
+        "item": "XE-010",
+        "criterion_no": 4,
+        "declared": "Opening anyway requires an explicit flag, and the review state records that it was overridden rather than covered.",
+        "probability": 0.89
+      },
+      {
+        "item": "XE-010",
+        "criterion_no": 5,
+        "declared": "A scorer that did not run is recorded as not run, never as covered. Not running it authorises nothing, so it must not block every review on a paid third-party service; it must also never let a later reader believe coverage was checked when it was not.",
+        "probability": 0.87
+      },
+      {
+        "item": "XE-010",
+        "criterion_no": 6,
+        "declared": "The extractor's own coverage is checked by a second independent count, and a partial extraction refuses to score rather than passing over what it did not read.",
+        "probability": 0.84
+      }
+    ]
+  }
+}
