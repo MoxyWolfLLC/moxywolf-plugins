@@ -1077,7 +1077,12 @@ def cmd_open(a):
     state = {"review_id": review_id, "builder": a.builder, "builder_family": family(a.builder),
              "reviewer": reviewer, "reviewer_family": family(reviewer), "reviewer_is_fallback": is_fallback,
              "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
-             "coverage_checked": cov_status not in {"not_run"}, "coverage_status": cov_status,
+             # F1 (reviewer, 20260918-114838): an UNAVAILABLE scorer had been recorded as checked.
+             # The record then claimed coverage was verified when nothing had run -- the precise
+             # false green this item exists to remove, inside the item's own gate. Only a report
+             # that actually scored criteria counts as checked.
+             "coverage_checked": cov_status not in {"not_run"} and not cov_status.startswith("unavailable"),
+             "coverage_status": cov_status,
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "heads": [[r["head"] for r in packet["repos"]]]}
     save(d, "packet.json", packet); save(d, "state.json", state)

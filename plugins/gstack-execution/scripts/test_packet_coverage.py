@@ -71,6 +71,19 @@ def test_the_gate_can_only_ever_add_a_gate():
     assert ok is False and uncovered, "a low score must block, never pass"
 
 
+def test_an_unavailable_scorer_is_not_recorded_as_checked():
+    """F1 from review 20260918-114838. `coverage_checked` was true whenever the status was not
+    'not_run', so an unavailable scorer recorded coverage as verified when nothing had run. A
+    record claiming a check that did not happen is the false green this whole item removes."""
+    def checked(status):
+        return status not in {"not_run"} and not status.startswith("unavailable")
+    assert checked("covered") is True
+    assert checked("uncovered") is True
+    assert checked("not_run") is False
+    assert checked("unavailable: AI_GATEWAY_API_KEY is not set") is False, \
+        "an un-run scorer must never read as checked"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

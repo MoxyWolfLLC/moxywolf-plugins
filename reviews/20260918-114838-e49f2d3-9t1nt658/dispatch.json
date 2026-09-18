@@ -1,0 +1,12 @@
+{
+  "pid": 10504,
+  "started": "2026-09-18T11:48:38",
+  "started_epoch": 1789757318,
+  "rounds_at_dispatch": 0,
+  "log": "/root/mp/reviews/20260918-114838-e49f2d3-9t1nt658/dispatch.log",
+  "argv": [
+    "/root/mp/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20260918-114838-e49f2d3-9t1nt658"
+  ]
+}
