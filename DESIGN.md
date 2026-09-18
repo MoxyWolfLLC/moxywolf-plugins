@@ -421,6 +421,35 @@ error — criteria narrower than the item, so the review passes something unfini
 4. The build loop names when to reach for a host, and names the two wrong fixes so they are not
    discovered independently by the next session.
 
+### XE-010 — A packet narrower than the item it claims is not a review
+
+**Status:** declared, building in this change.
+
+**Links introduced:** the packet-to-declared-item link. A packet names the items it claims; the
+coverage report binds each declared criterion to a score against that packet.
+
+On 2026-09-17 a review returned `no_blocking_findings` at 13/13 on a packet whose acceptance
+criteria were narrower than the items it claimed. XE-005 criterion 6 was never in the packet, so the
+review could not have examined it, and it merged unbuilt. Scoring that day's packets against their
+declared items afterwards found four of the same shape — XE-001 #6, XE-002 #3, EV-008 #1 and #3 —
+two of which nobody had noticed. A review is only ever as wide as the criteria it is handed, and
+nothing checked that width.
+
+1. A packet names the declared items it claims, explicitly. It is not inferred from the packet's
+   prose: packets are reused and their outcome text goes stale, which mis-mapped two reviews the
+   first time this was measured.
+2. Each declared criterion of each claimed item is scored against the packet's acceptance criteria,
+   and a criterion no acceptance criterion tests refuses to open the review.
+3. The gate is monotonic. It can refuse to open a review and can never approve one, because a score
+   that removes a gate fails open exactly where being wrong matters most.
+4. Opening anyway requires an explicit flag, and the review state records that it was overridden
+   rather than covered.
+5. A scorer that did not run is recorded as not run, never as covered. Not running it authorises
+   nothing, so it must not block every review on a paid third-party service; it must also never let
+   a later reader believe coverage was checked when it was not.
+6. The extractor's own coverage is checked by a second independent count, and a partial extraction
+   refuses to score rather than passing over what it did not read.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.

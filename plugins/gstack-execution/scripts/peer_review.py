@@ -1013,12 +1013,61 @@ def human_observations(packet, extra):
 
 # ---------- commands ----------
 
+# ---- XE-010: a packet whose criteria are narrower than the item it claims ----
+#
+# On 2026-09-17 a review returned no_blocking_findings at 13/13 on a packet whose criteria were
+# NARROWER than the items it claimed. XE-005 criterion 6 was never in the packet, so the review
+# could not have examined it, and it merged unbuilt. A later scoring pass over that day's reviews
+# found three more of the same shape -- XE-001 #6, XE-002 #3, EV-008 #1 and #3 -- two of which
+# nobody had noticed. A review can only ever be as wide as the criteria it is given.
+#
+# This gate is MONOTONIC by construction: it can refuse to open a review, never approve one. The
+# scoring itself is NOT done here. It needs a model and a network, and the dispatcher is stdlib and
+# offline on purpose, so packet_coverage.mjs writes a `coverage` report into the packet beforehand
+# and this only reads it.
+#
+# When no report is present the review still opens, and the state records coverage_checked: false.
+# Not running this authorises nothing -- the review and the human merge still happen -- so blocking
+# every review on a paid third-party service would trade a real gate for a theoretical one. What it
+# must never do is let a later reader believe coverage was checked when it was not.
+COVERAGE_FLOOR = 0.5
+
+
+def coverage_verdict(packet, floor=COVERAGE_FLOOR):
+    """(ok, status, uncovered). Reads a report; never produces one."""
+    rep = packet.get("coverage")
+    if not rep:
+        return True, "not_run", []
+    if rep.get("status") == "unavailable":
+        return True, f"unavailable: {rep.get('why', 'no reason given')}", []
+    scores = rep.get("criteria") or []
+    if not scores:
+        # EV-001: a report that examined nothing is not a clean report
+        return False, "empty", [{"item": "-", "criterion_no": 0,
+                                 "declared": "coverage report carries no criteria; it examined nothing"}]
+    uncovered = [c for c in scores if (c.get("probability") is None or c["probability"] < floor)]
+    return (not uncovered), ("covered" if not uncovered else "uncovered"), uncovered
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if not 1 <= a.max_rounds <= 3 or a.timeout <= 0:
         raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
+
+    # XE-010: refuse a packet narrower than the items it claims. Only ever adds a gate.
+    ok, cov_status, uncovered = coverage_verdict(packet)
+    if not ok and not getattr(a, "accept_narrow_packet", False):
+        lines = "\n".join(f"  {c.get('item')} #{c.get('criterion_no')} "
+                           f"(p={c.get('probability')}): {str(c.get('declared'))[:120]}"
+                           for c in uncovered)
+        raise ReviewError("packet_narrower_than_item",
+                          "these declared criteria are not tested by any acceptance criterion in this "
+                          "packet, so a review against it could pass while they remain unbuilt:\n"
+                          f"{lines}\nWiden the packet, or pass --accept-narrow-packet with a reason "
+                          "recorded in exclusions.")
+
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
     root = review_root()
     root.mkdir(parents=True, exist_ok=True)
@@ -1028,6 +1077,8 @@ def cmd_open(a):
     state = {"review_id": review_id, "builder": a.builder, "builder_family": family(a.builder),
              "reviewer": reviewer, "reviewer_family": family(reviewer), "reviewer_is_fallback": is_fallback,
              "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
+             "coverage_checked": cov_status not in {"not_run"}, "coverage_status": cov_status,
+             "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "heads": [[r["head"] for r in packet["repos"]]]}
     save(d, "packet.json", packet); save(d, "state.json", state)
     print(json.dumps(state, indent=2))
@@ -1387,6 +1438,8 @@ def main():
     ap.add_argument("--selftest", action="store_true")
     sub = ap.add_subparsers(dest="cmd")
     o = sub.add_parser("open"); o.add_argument("--builder", required=True, choices=sorted(OTHER_TOOL)); o.add_argument("--packet", required=True)
+    o.add_argument("--accept-narrow-packet", action="store_true",
+                   help="open anyway despite uncovered declared criteria; recorded in the review state")
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
