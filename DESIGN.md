@@ -187,7 +187,7 @@ runtime rather than against other declarations.
 
 ### EV-009 — A review record outlives the session that produced it
 
-**Status:** building.
+**Status:** done. Merged as `7b72605` (PR #10) on 2026-09-17 by the Release Owner. Review ID not carried here; see the pull request.
 
 **Links introduced:** the review ID to its record on disk, which is the link this item
 exists because it was already broken.
@@ -215,7 +215,7 @@ the records already lost.
 
 ### EV-006 — Instrument reads
 
-**Status:** built, partially. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008.
+**Status:** built, partially. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the read side of every handler's declaration.
 
@@ -225,7 +225,7 @@ the records already lost.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** built. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS.
+**Status:** built. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
@@ -239,7 +239,7 @@ citation-to-snapshot link.
 
 ### EV-008 — Record what a review examined, not only what it found
 
-**Status:** built. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record.
+**Status:** built. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the review-to-search-space link.
 
@@ -285,7 +285,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-003 — The cheapest surface that answers the question
 
-**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
 
 **Links introduced:** none.
 
@@ -295,7 +295,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-004 — A checkpoint is a batch, not an item
 
-**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14; human merge pending.
+**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
 
 **Links introduced:** none.
 
@@ -320,7 +320,7 @@ The dispatcher hardcodes two tools and derives the reviewer as "the other one". 
 
 ### XE-006 — The repo runs its own checks, or it has no gate
 
-**Status:** declared, building in this change.
+**Status:** done. Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -346,7 +346,7 @@ It was reading "the web gate does not apply" as "no gate applies."
 
 ### XE-007 — The reviewer gets the change and its callers, not the tree
 
-**Status:** declared, building in this change.
+**Status:** done. Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none. The surface is derived per round from the pinned commits; it stores nothing.
 
@@ -370,7 +370,7 @@ that a change breaks an untouched caller, which is where the substantive blocker
 
 ### XE-008 — A fact with two homes drifts; a format with one producer cannot
 
-**Status:** declared, building in this change.
+**Status:** done. Merged as `dbbe5dd` (PR #17) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -398,7 +398,7 @@ for coverage it does not have.
 
 ### XE-009 — A review that cannot finish is not a review
 
-**Status:** declared, building in this change.
+**Status:** done. Merged as `2733a56` (PR #20) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -423,7 +423,7 @@ error — criteria narrower than the item, so the review passes something unfini
 
 ### XE-010 — A packet narrower than the item it claims is not a review
 
-**Status:** declared, building in this change.
+**Status:** done. Merged as `1cff7f5` (PR #22) on 2026-09-18. Review ID not carried here; see the pull request.
 
 **Links introduced:** the packet-to-declared-item link. A packet names the items it claims; the
 coverage report binds each declared criterion to a score against that packet.
@@ -450,6 +450,80 @@ nothing checked that width.
 6. The extractor's own coverage is checked by a second independent count, and a partial extraction
    refuses to score rather than passing over what it did not read.
 
+### XE-011: One vocabulary for what the loop's agents hand each other
+
+**Status:** planned.
+
+**Links introduced:** the term-to-definition link. A packet, round record or design status names a term by its id, and a reader assumes the definition that id carries today. The vocabulary is versioned, and a record cites the version it was written against, so a changed definition is visible in the record rather than silently read into it.
+
+Agents in this loop spend tokens working out what the words in their own contracts mean, and spend more when two of them work it out differently. Three cases, all from this repository and this project:
+
+- F2 on PR #9 was raised three times over one question, what a complete review round is: first a missing round, then a round carrying only an outcome, then fields checked for presence but not shape. The contract defined the round in prose, and the builder and the reviewer each read the prose.
+- This file's own item statuses. The template allows five values: `planned`, `building`, `review`, `done`, `dropped`. On 2026-09-19 the `**Status:**` lines used ten spellings, including `built`, `built, partially` and `declared, building in this change`, none of which is in the set, and XE-003 read `done` and `human merge pending` in one line. Five items said `declared, building in this change` after they had merged.
+- The MOXY board query used `project-moxywolf-plugins` while the board labels with `moxywolf-plugins`. The query returned zero rows, and zero rows read as an empty backlog rather than a wrong query. Corrected 2026-09-17.
+
+The claim this item tests is that meaning defined once, with a stable id, is cheaper than meaning re-derived on every task. It's a claim, not a result. The cost of building and maintaining the vocabulary is real, so the item is judged on cost per correct answer across repeated tasks, maintenance included, and the decision rule is fixed before the measurement runs.
+
+Scope is gstack-execution's own contracts. `project-init`, `team-kanban` and the other plugins adopt it only in a later item, and only if this one pays.
+
+1. One file, `plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json`, defines every term the peer-review contract, the packet, the round record and the design-doc template name as a controlled value, and nothing else. Seed set: review round, finding, blocking finding, every round and review outcome the dispatcher emits, sign-off, Release Owner, packet, acceptance criterion, item status. Each entry carries an id, a one-line definition, and where the term has a machine shape, the shape itself (the enum, or the JSON Schema fragment the validator uses). The file carries a version. Terms use SKOS labels (`prefLabel`, `definition`, `inScheme`) so the file reads as a standard concept scheme and not a format this repo invented.
+2. The shapes in the vocabulary are the ones the code enforces. The dispatcher's outcome set and the round-record schema are loaded from `vocabulary.json`, not restated as literals in `peer_review.py` or its siblings. A test asserts that every outcome string the scripts can emit is a vocabulary id, and fails on a literal outside it. This is XE-008 criterion 2 applied to meaning: one producer, and the reader accepts what that producer emits.
+3. `vocab_check.py` (or a `--selftest` case on an existing script) reports, for the design doc and each contract file: files examined, term uses found, uses that resolve, and uses that don't. It fails on an item status outside the vocabulary. It fails on a contract that restates a definition the vocabulary holds, detected as the definition text appearing outside `vocabulary.json`. It fails when it examined zero files or zero term uses, per EV-001.
+4. Every `**Status:**` line in `DESIGN.md` uses a vocabulary status id, followed by free prose. `vocab_check.py` passes on the doc as committed.
+5. A round record and a packet name the vocabulary version they were written against. `peer_review.py verify` reports a record whose version differs from the current vocabulary as `vocabulary_drift`. That's a report and not a failure, since an older record isn't wrong for being older, but a reader has to be able to see it.
+6. Baseline before criteria 1 to 5 are wired in, and the same measurement after. Fixed task set: one `/gstack-peer-review` round on a seeded change, one design-doc status refresh, one `/gstack-build` packet assembly, each run at least five times. Per run, record input and output tokens, tool calls, files read, and whether the result was correct as judged by the named human. Report cost per correct answer before and after, and include the tokens and edits spent maintaining `vocabulary.json` over the window. The result is written to `reviews/` beside the review records, with its run IDs.
+7. The decision rule is fixed now. If cost per correct answer does not fall, the item is reported as not earning its keep, the vocabulary is frozen at its seed terms, and no follow-on item extends it to other plugins. A win is never claimed from a single run.
+8. What criterion 6 cannot see is named in its report, not smoothed over. Files read comes from EV-008 criterion 1's opened-files list, and it's labelled a proxy until EV-006 criterion 1, per-dependency read observation, is built. Commands a reviewer ran (EV-008 criterion 1, second half) and ad-hoc consultations with other tools (EV-008 criterion 3) are unmeasured, and the report says so rather than counting them as zero.
+
+## Fifth objective: session memory
+
+Premise: a session's context window should be filled from the sources that hold state, not from a prose copy of them, and what a session learns should go back as pointers those sources can check. Today it runs the other way. `/session-start` reads a handoff that restates state in prose, and `/session-end` writes one. On 2026-09-19 the handoff said PR #10 was open and EV-006 through EV-008 were unstarted. `git log origin/main` said all of it had merged two days earlier. The session spent its first calls and its first premise on the copy. That's XE-008's two-homes defect at the scale of a whole session.
+
+The objective borrows a three-layer model: the context window is text, the knowledge graph holds the entities and the links between them, and the ontology says what those links mean. The arrows between the layers are where the value is and where the drift starts. This objective builds all four in `project-init`, and it measures them the way XE-011 does, because structure has to earn its keep.
+
+What the board looked like when this was written, counted through the Atlassian connector on 2026-09-19: MOXY holds 129 issues. 102 carry no label at all, and 50 of those are open. Of the 27 labeled, 4 carry the bare `moxywolf-plugins` and 23 carry `project-moxywolf-crm`. So two label conventions are live on one board, and the rule `project-init` ships, "a `#project/<slug>` maps to `project-<slug>`", is right for one project and wrong for the other. That rule has three homes: `session-start/SKILL.md`, `project-init/SKILL.md` and `team-kanban/references/jira-board-mapping.md`. The Team Plugins instructions override it in prose. The connector itself works: `labels = moxywolf-plugins` returns 4 (1 Done, 3 To Do), and `labels = project-moxywolf-plugins` returns 0 with no error, which is the failure mode.
+
+### SM-001: Session start and end run on the graph, not on a copy of it
+
+**Status:** planned.
+
+**Links introduced:** the handoff-ref-to-subject link. A handoff names a commit, a pull request, a design item, a review ID or a Jira key, and the next session assumes it still means what it meant. Every ref is re-resolved at the next session start. The source-precedence link: where a source and the handoff disagree, the briefing assumes the source is right. Criterion 4 makes that visible every time rather than silent. The declared-label link: the project instructions name the exact Jira label, and the board query assumes that label is the one the board uses. Criterion 2 makes that checkable.
+
+**Arrow 1, graph into context: the briefing is assembled from sources.**
+
+1. `/session-start` builds its "Where things stand" section from sources at read time: `git log origin/main` and open pull requests for each declared repo, `**Status:**` lines in each declared repo's `DESIGN.md`, and the MOXY board. It reads no status from the handoff.
+2. The Jira label is declared literally in the project instructions and used as written. No code or skill derives a label from a slug, and the `project-<slug>` mapping rule is removed from all three of its homes. A test asserts that none of the three files contains the mapping. An instructions file that declares a `#project/` tag with no literal label gets a one-line prompt to declare it; nothing guesses.
+3. The briefing prints a coverage line naming each source it examined and how many records each returned. For the board, it prints the label it queried, the count, and the count of open issues on MOXY that carry no label at all, since any project's work could be among them and none of it can be shown. A source it could not reach is shown as `SKIP` with the reason, never as an empty result, per EV-001. Zero records from a reachable source is printed as zero records, not as "nothing open".
+4. When the handoff asserts a state a source contradicts, the briefing shows both values and the source, and says the source wins. Fixture test: a handoff whose open work names PR #10 against a git fixture where PR #10 is merged produces a `resolved_since_handoff` line naming both, and PR #10 is not listed as open.
+5. The handoff contributes only what no source holds: intent and priority order, decisions not yet recorded as DRs, production-data state no repo carries (the row counts "What landed" is written to hold), procedural reminders, and the suggested opening line. The briefing labels those as carried from the handoff, with its date.
+6. A handoff with no `refs:` block, which is every handoff written before this item, is read as prose only, and the briefing says so in one line rather than failing.
+
+**Arrow 2, context into graph: session end writes pointers, not prose state.**
+
+7. `/session-end` writes a `refs:` block in the handoff frontmatter. Each entry is a typed pointer: `{kind, id, repo, relation}`, for example `{kind: commit, id: 7b72605, repo: moxywolf-plugins, relation: merged}`. For each declared repo it also records the branch and `git rev-parse HEAD` at write time, because a second session can commit into the same checkout (team-shared rule, 2026-09-18).
+8. "Commit & push state" is rendered from the `refs:` block, not written beside it. "What landed" stays a prose paragraph, because it carries production-data state no repo holds, but every commit, PR, item or Jira key it names also appears in `refs:`. Each open-work item that names a PR, item or Jira key carries a ref, so criterion 4 can check it next time.
+9. The suggested opening line names refs, not their status. It says "PR #10", not "PR #10 is waiting on review", because the status is the part that goes stale.
+10. Every ref is resolved at write time: commits with `git cat-file -e` against the remote-tracking ref, pull requests and review IDs as EV-007 criterion 3 already resolves them, Jira keys through the connector. An unresolvable ref is written with `resolved: false` and its reason. The write reports how many refs it resolved. A handoff that states work landed and carries zero refs fails, per EV-001.
+11. `/session-start` re-resolves every ref from the previous handoff and reports any that no longer resolves as `stale_ref`. That's a report, not a failure. A branch deleted after merge is ordinary, but a reader has to see it.
+12. The frontmatter writer and the `/session-start` parser land in one change, with a round-trip test: a handoff written by `/session-end` parses in `/session-start` to the same refs. This is XE-008 criterion 2, and the session-end skill already warns that deviating from its section names breaks the parse.
+13. `session_ended` takes its UTC offset from the clock at write time. The template hardcodes `-08:00`, which is wrong for half the year.
+
+**Arrow 3, ontology into graph: relations are typed.**
+
+14. The `relation` and `kind` values in `refs:`, and the item statuses arrow 1 reads, are XE-011 vocabulary ids. `/session-start` shows an unknown value verbatim and marked `untyped` rather than interpreting it.
+15. graphify is out of scope here. Its model-extracted relation labels are the untyped-graph case this arrow names, and typing them is a separate item for the graphify plugin, raised only if this one pays.
+
+**Arrow 4, graph into ontology: new terms are proposed, never promoted by the agent.**
+
+16. A status spelling, relation or kind that arrow 1 or arrow 2 meets outside the vocabulary is appended to a candidates file beside `vocabulary.json`, with the value, where it was seen, and a count. The candidates file is the only thing this arrow writes.
+17. Promotion into `vocabulary.json` is an amendment to this document, approved by a named human. A test asserts that no code path in `project-init` or `gstack-execution` writes to `vocabulary.json`. This follows the team's HITL rule: the machine surfaces and recommends, and the human decides.
+
+**Dependencies and the decision rule.**
+
+18. Arrows 1 and 2 need no vocabulary and ship on their own. Arrows 3 and 4 depend on XE-011. If XE-011's decision rule freezes the vocabulary, criteria 14, 16 and 17 are dropped and recorded as dropped, not left planned.
+19. Baseline before arrow 1 lands and the same measurement after: at least five `/session-start` runs on this project. Per run, record input and output tokens, tool calls, and whether the briefing's open-work list matched the sources, as judged by the named human. Report cost per correct briefing before and after, and include the tokens spent writing handoffs at session end, since arrow 2 moves cost there. If cost per correct briefing does not fall, arrows 1 and 2 are reported as not earning their keep, and the handoff format reverts to the one before this item. Criterion 2's label fix is kept either way, because it's a correctness fix, not an economy one. A win is never claimed from a single run.
+20. `project-init` and `team-kanban` each get a minor version bump, and each `plugin.json` changelog states which arrows shipped and which were dropped.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -457,6 +531,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-19: Fifth objective, session memory, and SM-001 declared, pending Dorian's approval. SM-001 builds all four arrows between the context window, the graph and the vocabulary in `project-init`'s session start and end. Arrows 1 and 2 ship alone, and arrows 3 and 4 wait on XE-011's decision rule. Prompted the same day, when `/session-start` read a handoff saying PR #10 was open two days after it had merged. Revised the same day after reading the whole `/session-end` skill and querying MOXY: the label rule is removed rather than corrected, because two conventions are live on the board; "What landed" stays prose for production-data state; refs record branch and HEAD per repo; and the `-08:00` offset is fixed.
+
+- 2026-09-19: XE-011 declared, pending Dorian's approval. It asks whether a shared vocabulary for the loop's own contracts lowers cost per correct answer, and it fixes the decision rule before the measurement runs. It depends on EV-006 criterion 1 and EV-008 criteria 1 (second half) and 3 for full measurement, and names what it can't see until they're built. Same refresh, status lines only: EV-009 and XE-006 through XE-010 read `building` or `declared, building in this change` after they had merged, and XE-003 and XE-004 read `human merge pending` after `d26c18a`. Each now cites its merge commit from `git log origin/main`. Review IDs for those merges weren't carried into this doc, and this refresh didn't add them. GA-001 through GA-004 still read `review`. PR #4 (`9f08abe`) and PR #5 (`47fb530`) are merged, but the item-to-PR mapping wasn't verified here, so those lines are unchanged. No acceptance criterion on any existing item was edited.
 
 - 2026-09-17: XE-005 declared after the checkpoint for XE-001 and XE-002 landed unreviewed. Two review records for `5761c37` both returned `review_unavailable`, first because the `codex` CLI was absent and then, once it was installed and authenticated, because the OpenAI account had no credits. Dorian merged as Release Owner with the gap recorded on the pull request, which the release-boundary contract already allows: a passing machine review was never release authorization. Cursor and Gemini were both considered as a third reviewer. Gemini is the better fit on independence, since Cursor can run the builder's own model family, and the item is written so that neither can be added without declaring what actually differs.
 
