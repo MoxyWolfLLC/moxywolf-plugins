@@ -297,7 +297,36 @@ def load(d, name):
     return json.loads(p.read_text()) if p.exists() else None
 
 
-def save(d, name, obj):
+ORIGINS = vocab_ids("origin")
+
+
+def save_map(d, name, obj):
+    """A keyed map, not a record: dispositions.json is finding id -> disposition, so stamping an
+    origin into it would invent a finding called "origin". Found by the disposition cross-check in
+    verify, which is the check that exists to catch exactly that. Its provenance is the review it
+    sits in; `verify` skips it for the same reason."""
+    (d / name).write_text(json.dumps(obj, indent=2))
+
+
+def save(d, name, obj, origin, examined_by=None):
+    """TB-001: a record says where its content came from, or it is not written.
+
+    `origin` is positional and has no default on purpose. A default is how every record ends up
+    claiming the safest origin without anyone deciding, which is the same shape as a check that
+    passes over input it never examined (EV-001). A writer that forgets it raises TypeError here
+    rather than writing an unlabelled record.
+
+    External text is the case that matters: the loop did not produce it and no human here wrote
+    it. It carries `examined_by`, naming the gate or the human that read it, or the vocabulary's
+    `unexamined`, which is a fact rather than a reassurance.
+    """
+    if origin not in ORIGINS:
+        raise ReviewError("malformed_record", f"origin {origin!r} is not a vocabulary origin; one of {sorted(ORIGINS)}")
+    if origin == "external_text" and not examined_by:
+        raise ReviewError("malformed_record", f"{name}: external_text needs examined_by (a gate, a human, or 'unexamined')")
+    obj["origin"] = origin
+    if examined_by:
+        obj["examined_by"] = examined_by
     (d / name).write_text(json.dumps(obj, indent=2))
 
 
@@ -1001,6 +1030,33 @@ def verify_links(d):
         except Exception as e:
             record(f"observation '{obs['claim']}' re-runs", False, f"{type(e).__name__}: {e}")
 
+    # TB-001: every record in this review says where its content came from. A record with no
+    # origin, or one outside the vocabulary, is an incomplete record rather than drift: nothing
+    # resolved to the wrong thing, the record just cannot say what it is. External text with no
+    # examined_by is the same failure with a sharper edge, because that is the content a reader
+    # is most likely to treat as the loop's own.
+    # Counted apart from `examined` on purpose. `examined` is the verifier's own EV-001 guard: it
+    # asks whether any LINK was re-resolved, and a review with no links must still report
+    # examined_nothing. Folding provenance checks into it would let a review that re-resolved
+    # nothing report links_verified because it had counted two origin fields, which is the false
+    # green this file exists to refuse.
+    origins, records_examined = {}, 0
+    for f in sorted(d.glob("*.json")):
+        if f.name == "dispositions.json":
+            continue                      # a map of ids, not a record with its own provenance
+        obj = load(d, f.name)
+        if not isinstance(obj, dict):
+            continue
+        origin = obj.get("origin")
+        origins[origin or "missing"] = origins.get(origin or "missing", 0) + 1
+        records_examined += 1
+        checks.append({"link": f"{f.name} names its origin", "ok": origin in ORIGINS,
+                       "detail": "" if origin in ORIGINS else f"origin is {origin!r}", "kind": "record"})
+        if origin == "external_text":
+            ok = bool(obj.get("examined_by"))
+            checks.append({"link": f"{f.name} names what examined its external text", "ok": ok,
+                           "detail": "" if ok else "external_text with no examined_by", "kind": "record"})
+
     broken = [c for c in checks if not c["ok"]]
     failed_kinds = {c["kind"] for c in broken}
     if examined == 0:
@@ -1022,6 +1078,7 @@ def verify_links(d):
              if v != VOCAB_VERSION]
     return {"review_id": d.name, "outcome": outcome, "examined": examined,
             "broken": len(broken), "unbound": unbound, "checks": checks,
+            "records_examined": records_examined, "records_by_origin": origins,
             "vocabulary_version": VOCAB_VERSION, "vocabulary_drift": drift}
 
 
@@ -1035,6 +1092,9 @@ def cmd_verify(a):
         for c in report["checks"]:
             print(f"  {'ok  ' if c['ok'] else 'FAIL'}  {c['link']}" + (f"  — {c['detail']}" if c["detail"] else ""))
         print(f"outcome: {report['outcome']}  ({report['examined']} links examined, {report['broken']} broken)")
+        # TB-001: say what the records claim about themselves, in the place a reader already looks.
+        origins = ", ".join(f"{n} {o}" for o, n in sorted(report["records_by_origin"].items())) or "none"
+        print(f"records: {report['records_examined']} examined  ({origins})")
         # XE-011 criterion 5: drift is reported where a reader looks, not only in --json.
         drift = report["vocabulary_drift"]
         print(f"vocabulary: {report['vocabulary_version']}  " +
@@ -1157,7 +1217,7 @@ def cmd_open(a):
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
-    save(d, "packet.json", packet); save(d, "state.json", state)
+    save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
     print(json.dumps(state, indent=2))
     return state
 
@@ -1244,10 +1304,13 @@ def cmd_round(a):
     finally:
         teardown(packet["repos"], root)
     record["outcome"] = outcome
-    save(d, f"round-{round_no}.json", record)
+    # The reviewer is another vendor's model: its output is external text, examined by the
+    # schema check and the finding-shape check this round already ran on it.
+    save(d, f"round-{round_no}.json", record, "external_text",
+         examined_by="peer_review round-record schema check" if record.get("outcome") != "review_unavailable" else "unexamined")
     state.update(rounds_used=round_no, outcome=outcome)
     state["heads"].append([r["head"] for r in packet["repos"]])
-    save(d, "packet.json", packet); save(d, "state.json", state)
+    save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
     print(json.dumps({k: record[k] for k in record if k not in ("raw",)}, indent=2))
     return outcome
 
@@ -1270,7 +1333,7 @@ def cmd_disposition(a):
         if value == "deferred" and known[fid]["severity"] == "blocking":
             raise ReviewError("authorization_required", "blocking deferral requires an approved design amendment and a new review; this CLI cannot grant it")
         disp[fid] = {"disposition": value, "evidence": evidence} if evidence else value
-    save(d, "dispositions.json", disp)
+    save_map(d, "dispositions.json", disp)
     print(json.dumps(disp, indent=2))
 
 
@@ -1310,7 +1373,7 @@ def cmd_dispatch(a):
                                 start_new_session=True, cwd=str(d))
     rec = {"pid": proc.pid, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "started_epoch": int(time.time()),
            "rounds_at_dispatch": state["rounds_used"], "log": str(log), "argv": argv[1:]}
-    save(d, "dispatch.json", rec)
+    save(d, "dispatch.json", rec, "gate_output")
     out = {"status": "dispatched", "review_id": a.review_id, "pid": proc.pid,
            "collect_with": f"peer_review.py collect {a.review_id}"}
     print(json.dumps(out, indent=2))
@@ -1386,7 +1449,7 @@ def cmd_release(a):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
     else:
-        save(d, "release.json", record)
+        save(d, "release.json", record, "gate_output")
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
     raise ReviewError("awaiting_human_release", "human merge required; no release executed")
@@ -1516,7 +1579,11 @@ def cmd_record_release(a):
         decision.update({"merged_by": merger.get("login"), "instructed_by": state["release_owner"],
                          "instruction": p["instruction"], "instruction_given_at": p["given_at"],
                          "instruction_comment": c.get("html_url"), "outcome": "agent_merge_on_instruction"})
-    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision)
+    # An agent merge stands on a quoted human instruction, so the record carries that origin and
+    # names where the quote came from. A human merge is read from the repository's own record.
+    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
+         "human_instruction" if agent else "repository_artifact",
+         examined_by=None)
     print(json.dumps(decision, indent=2))
 
 

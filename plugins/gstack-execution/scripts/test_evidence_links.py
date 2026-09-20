@@ -146,7 +146,7 @@ class LinkTests(unittest.TestCase):
         _, d = self.reviewed()
         rec = pr.load(d, "round-1.json")
         rec["subjects"]["F1"]["span"] = "0" * 16
-        pr.save(d, "round-1.json", rec)
+        pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertEqual(report["outcome"], "stale_link")
         self.assertTrue(any("record altered" in c["detail"] for c in report["checks"] if not c["ok"]))
@@ -156,7 +156,7 @@ class LinkTests(unittest.TestCase):
         edit of the run directory, which is exactly what the contract says those files
         are: writable evidence, not tamperproof storage."""
         rid, d = self.reviewed()
-        pr.save(d, "dispositions.json", {"F1": "fixed", "F9": "deferred"})
+        pr.save_map(d, "dispositions.json", {"F1": "fixed", "F9": "deferred"})
         report = pr.verify_links(d)
         self.assertTrue(any(c["link"].startswith("disposition F9") and not c["ok"] for c in report["checks"]))
         self.assertEqual(report["outcome"], "incomplete_record")
@@ -178,15 +178,15 @@ class LinkTests(unittest.TestCase):
         """An old record cannot be re-resolved. That is a third answer, and folding it
         into either of the other two would be the false pass this work is about."""
         _, d = self.reviewed()
-        rec = pr.load(d, "round-1.json"); rec.pop("subjects"); pr.save(d, "round-1.json", rec)
+        rec = pr.load(d, "round-1.json"); rec.pop("subjects"); pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         self.assertEqual(pr.verify_links(d)["outcome"], "links_unverifiable")
 
     def test_verifying_nothing_is_not_a_pass(self):
         """EV-001 applied to the verifier itself."""
         _, d = self.reviewed()
-        pr.save(d, "packet.json", dict(self.packet, repos=[]))
-        pr.save(d, "state.json", dict(pr.load(d, "state.json"), rounds_used=0))
-        pr.save(d, "dispositions.json", {})
+        pr.save(d, "packet.json", dict(self.packet, repos=[]), "gate_output")
+        pr.save(d, "state.json", dict(pr.load(d, "state.json"), rounds_used=0), "gate_output")
+        pr.save_map(d, "dispositions.json", {})
         self.assertEqual(pr.verify_links(d)["outcome"], "examined_nothing")
 
     # ---- the human edge ----
@@ -222,7 +222,7 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(pr.load(d, "round-1.json")["vocabulary_version"], pr.VOCAB_VERSION)
         clean = pr.verify_links(d)
         self.assertEqual(clean["vocabulary_drift"], [])
-        rec = pr.load(d, "round-1.json"); rec["vocabulary_version"] = "0.9.0"; pr.save(d, "round-1.json", rec)
+        rec = pr.load(d, "round-1.json"); rec["vocabulary_version"] = "0.9.0"; pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         drifted = pr.verify_links(d)
         self.assertEqual(drifted["vocabulary_drift"], ["round 1: 0.9.0"])
         self.assertEqual(drifted["outcome"], clean["outcome"])
@@ -239,17 +239,17 @@ class LinkTests(unittest.TestCase):
         rid, d = self.reviewed()
         pr.save(d, "release.json", {"observations": [
             {"claim": "head is what I checked", "command": f"git -C {self.repo} rev-parse HEAD",
-             "output_digest": "deadbeefdeadbeef", "automatic": True}]})
+             "output_digest": "deadbeefdeadbeef", "automatic": True}]}, "gate_output")
         report = pr.verify_links(d)
         self.assertTrue(any("head is what I checked" in c["link"] and not c["ok"] for c in report["checks"]))
 
     def test_release_refuses_while_an_evidential_link_is_stale(self):
         """A passing review plus moved code is exactly the document a person signs."""
         rid, d = self.reviewed()
-        state = pr.load(d, "state.json"); state["outcome"] = "no_blocking_findings"; pr.save(d, "state.json", state)
+        state = pr.load(d, "state.json"); state["outcome"] = "no_blocking_findings"; pr.save(d, "state.json", state, "gate_output")
         rec = pr.load(d, "round-1.json")
         rec["subjects"]["F1"]["span"] = "0" * 16
-        pr.save(d, "round-1.json", rec)
+        pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         with self.assertRaises(pr.ReviewError) as caught:
             pr.cmd_release(self.ns(review_id=rid, target="main", observation=[]))
         self.assertIn(caught.exception.outcome, {"stale_link", "release_blocked"})
@@ -289,7 +289,7 @@ class ReviewRegressions(unittest.TestCase):
         nothing else still contributed no checks and verified by being empty, which is
         the same defect one layer in."""
         _, d = self.reviewed()
-        pr.save(d, "round-1.json", {"round": 1, "outcome": "no_blocking_findings"})
+        pr.save(d, "round-1.json", {"round": 1, "outcome": "no_blocking_findings"}, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertEqual(report["outcome"], "incomplete_record")
         self.assertTrue(any("record is complete" in c["link"] and not c["ok"] for c in report["checks"]))
@@ -300,7 +300,7 @@ class ReviewRegressions(unittest.TestCase):
         for field, value in (("findings", "not a list"), ("acceptance", 5), ("repos", {}), ("subjects", [])):
             with self.subTest(field=field):
                 _, d = self.reviewed()
-                rec = pr.load(d, "round-1.json"); rec[field] = value; pr.save(d, "round-1.json", rec)
+                rec = pr.load(d, "round-1.json"); rec[field] = value; pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
                 report = pr.verify_links(d)
                 self.assertNotEqual(report["outcome"], "links_verified")
                 self.assertTrue(any("record is complete" in c["link"] and not c["ok"] for c in report["checks"]),
@@ -308,13 +308,13 @@ class ReviewRegressions(unittest.TestCase):
 
     def test_f2_a_finding_that_is_not_an_object_does_not_verify(self):
         _, d = self.reviewed()
-        rec = pr.load(d, "round-1.json"); rec["findings"] = ["just a string"]; pr.save(d, "round-1.json", rec)
+        rec = pr.load(d, "round-1.json"); rec["findings"] = ["just a string"]; pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertTrue(any("findings are well formed" in c["link"] and not c["ok"] for c in report["checks"]))
 
     def test_f2_a_round_whose_acceptance_drops_a_criterion_does_not_verify(self):
         _, d = self.reviewed()
-        rec = pr.load(d, "round-1.json"); rec["acceptance"] = []; pr.save(d, "round-1.json", rec)
+        rec = pr.load(d, "round-1.json"); rec["acceptance"] = []; pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertTrue(any("acceptance covers every criterion" in c["link"] and not c["ok"] for c in report["checks"]))
 
@@ -322,7 +322,7 @@ class ReviewRegressions(unittest.TestCase):
         """review_unavailable is a legitimate round with no findings. Demanding fields
         it cannot have would make the check cry wolf on every honest failure."""
         _, d = self.reviewed()
-        pr.save(d, "round-1.json", {"round": 1, "outcome": "review_unavailable", "error": "codex CLI not installed on PATH"})
+        pr.save(d, "round-1.json", {"round": 1, "outcome": "review_unavailable", "error": "codex CLI not installed on PATH"}, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertTrue(any("record is complete" in c["link"] and c["ok"] for c in report["checks"]))
 
@@ -332,7 +332,7 @@ class ReviewRegressions(unittest.TestCase):
         _, d = self.reviewed()
         rec = pr.load(d, "round-1.json")
         rec["findings"][0]["file"] = "nonexistent.py"; rec["findings"][0]["line"] = 999999
-        pr.save(d, "round-1.json", rec)
+        pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         report = pr.verify_links(d)
         self.assertEqual(report["outcome"], "stale_link")
         self.assertTrue(any("no longer names the subject" in c["detail"] for c in report["checks"] if not c["ok"]))
@@ -352,7 +352,7 @@ class ReviewRegressions(unittest.TestCase):
         finally:
             os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
         self.assertEqual(pr.verify_links(d)["outcome"], "links_verified")
-        pr.save(d, "dispositions.json", {})
+        pr.save_map(d, "dispositions.json", {})
         report = pr.verify_links(d)
         self.assertTrue(any("disposition for blocking F1 (round 1)" in c["link"] and not c["ok"] for c in report["checks"]),
                         "the round-one blocker's disposition must still be required after a later round resolves it")
