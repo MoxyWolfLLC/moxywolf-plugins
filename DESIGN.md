@@ -66,7 +66,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-005 — The agent acts as itself, and its merges say so
 
-**Status:** building. Criteria 1 to 6 and 11 are built on `build/GA-005-agent-identity`. Criterion 3 is met: PR #27 was opened by `moxywolf-agent[bot]`. Criteria 7 to 10 need Dorian or the merge.
+**Status:** review. Merged as `ce7a5e6` (PR #27) on 2026-09-20, executed by `moxywolf-agent[bot]` on Dorian's instruction recorded on the pull request. **Merged without peer review at that head**: Gemini was over its daily quota and the OpenAI account had no credit, and Dorian chose not to wait. `record-release` requires a passing review, so it has recorded no release for this item and none was faked. Criteria 1 to 7, 10 and 11 are met, criterion 7 checked live (the bot's merge refused with 405 before the bypass, its direct write to `main` refused with 409 after). Criterion 8 waits on Dorian's answers per merge, and criterion 9 on the OpenControls-AI decision and the PAT leaving every connected folder. The item stays `review`, not `done`, until the file is gone, per its own criterion 9.
 
 **Links introduced:** the commit-to-actor link. A commit, pull request or merge names a GitHub login, and every reader, `record-release` included, assumes that login is the one who acted. Today the agent acts under Dorian's login, so the link resolves and names the wrong actor. The token-to-installation link: a token is minted from the app key for one command and lasts an hour, and nothing assumes it outlives that. The merge-to-instruction link: an agent merge names the instruction it acted on, and a reader assumes that instruction covered this pull request. The backfill-to-confirmation link: each past merge this item marks as agent-executed names its evidence and Dorian's answer, and nothing is marked from a commit subject alone.
 
@@ -477,7 +477,7 @@ nothing checked that width.
 
 ### XE-011 — One vocabulary for what the loop's agents hand each other
 
-**Status:** building.
+**Status:** review. Merged as `c20699a` (PR #24) on 2026-09-20 with SM-002 as one checkpoint. Criteria 1 to 5 are built: `vocabulary.json` 1.0.0 with 48 concepts, the dispatcher loading its outcome set from it, `vocab_check.py`, and version stamping on packets and round records. Criteria 6 to 8 are superseded by XE-012, which measures forward because this item's baseline was lost when it merged before any measurement ran. The review state of that merge is not recorded in this document and was not established when this status was written.
 
 **Links introduced:** the term-to-definition link. A packet, round record or design status names a term by its id, and a reader assumes the definition that id carries today. The vocabulary is versioned, and a record cites the version it was written against, so a changed definition is visible in the record rather than silently read into it.
 
@@ -502,7 +502,7 @@ Scope is gstack-execution's own contracts. `project-init`, `team-kanban` and the
 
 ### XE-012 — Every gstack run records what it cost, against predictions stated before the data
 
-**Status:** building.
+**Status:** review. Merged as `56dca19` (PR #25) on 2026-09-20, executed by `moxywolf-agent[bot]` on Dorian's instruction recorded on the pull request. **Merged without peer review at that head**: the last review, `20260919-214027-cbdc848-bwwwt75e`, ended `review_unavailable` after its round-1 findings were fixed, and Dorian chose not to wait. `record-release` has recorded no release for it, for the same reason as GA-005. Criteria 1 to 5 and 7 to 9 are built. Criterion 6 is built as `measure.py report` and **the weekly scheduled task is not registered**, so the first report was run by hand on 2026-09-20. Criterion 10 is added by the 2026-09-20 amendment and is not built. Two defects found after merge are open: the report prints `reviewer tokens 0 (reported rounds only)` for a run whose total is null, and a `thin-review rate 0%` over a null field, both of which this file's own rule forbids (EV-001, and `measure.py`'s docstring).
 
 **Links introduced:** the run-to-transcript link: a run record's token counts come from a session transcript over a stated time window, and transcripts are ephemeral, so the record carries the counts, the window and the transcript's path at capture, and never assumes the path resolves later. The run-to-review link: the record names its review ID. The run-to-vocabulary link: the record names the vocabulary version it ran under, which is what makes a version change a break point.
 
@@ -519,6 +519,7 @@ One measured session sets the scale. The session of 2026-09-19 that built SM-002
 7. Every record carries the model IDs, and any comparison across vocabulary versions that also crosses a model change says so in the report.
 8. The predictions below were written on 2026-09-19, before any run was recorded, and commit the refutation condition with them. Changing a prediction after data exists is an amendment that keeps the original text beside the new one.
 9. What the measurement cannot see is stated in every report: commands the reviewer ran and ad-hoc consultations (EV-008 criteria 1 and 3), per-dependency reads (EV-006 criterion 1), human time, and the measurement's own cost, which is counted and reported rather than hidden inside the totals.
+10. Each run note records the packet's size in tokens and the context size at the run's first and last measured turn. A study of 2,451 coding agents reports the active context holding between 7,949 and 8,452 tokens while windows ranged from 38,886 to 644,962, so if that pattern holds here, packet width is a lever that can be measured rather than assumed. Recorded only: no prediction is attached to it until there is data.
 
 **Predictions, stated 2026-09-19 before any data.**
 
@@ -578,7 +579,7 @@ What the board looked like when this was written, counted through the Atlassian 
 
 ### SM-002 — The board label is declared, never derived
 
-**Status:** building.
+**Status:** review. Merged as `c20699a` (PR #24) on 2026-09-20 with XE-011 as one checkpoint. All seven homes of the derived-label mapping are removed and `test_no_derived_label.py` keeps them out. The review state of that merge is not recorded in this document and was not established when this status was written.
 
 **Links introduced:** the declared-label link. A project's instructions name its exact Jira label, and every board query and every issue write assumes that label is the one the board uses. Criterion 5 makes a wrong one visible in every briefing.
 
@@ -593,6 +594,53 @@ Split out of SM-001 on 2026-09-19. The rule "a `#project/<slug>` maps to the lab
 7. team-kanban writes a project's issues with that project's declared label, never a derived one.
 8. `project-init` and `team-kanban` each get a minor version bump with a changelog line.
 
+## Sixth objective: trust boundaries
+
+Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
+
+The premise: **a record the loop reads as settled is a record nobody re-derives, and that is the property worth attacking.** EV-001 made a check say what it examined. Nothing makes a record say where it came from.
+
+gstack's own writes are narrow: its gates produce them from repository artifacts, they land through a pull request, and they live in git, where a write nobody asked for appears in a diff. The wider exposure is elsewhere in this marketplace. `obsidian-update`'s memory extraction and `vault-skills`' capture write durable notes that later sessions read as established. `research-pipeline` ingests web sources into a library with no inclusion rubric. `synergy-engine` scores text scraped from LinkedIn. `document-analysis` converts documents other people wrote. Each of those turns outside text into a record, and none of them records that it did.
+
+Scope is the write path, not the model. These items don't claim to make a prompt injection-proof.
+
+### TB-001 — Every record says where it came from
+
+**Status:** planned.
+
+**Links introduced:** the record-to-origin link. A reader of any record, human or agent, assumes it was produced by the system that names it. The field makes that assumption checkable instead of implicit. Also the origin-to-reviewer link: a record whose origin is external text names the gate or the human that examined it, and a record that names neither is treated as unexamined.
+
+1. Every record gstack writes (round record, packet, run measurement note, release record, handoff ref) carries `origin`, a controlled value from the vocabulary: `repository_artifact`, `gate_output`, `human_instruction`, `external_text`. The writer sets it. Nothing defaults it.
+2. A record whose origin is `external_text` also carries `examined_by`, naming the gate or the human that read it, or the value `unexamined`.
+3. `verify` reports records carrying `unknown` or a value outside the vocabulary. It reports how many records it examined, and zero examined is a failure, per EV-001.
+4. Adding `origin` and `examined_by` moves the vocabulary to 1.2.0, which is an XE-012 break point.
+5. Tests: a writer that omits `origin` fails; a record with `external_text` and no `examined_by` fails; the verify pass reports its coverage; the vocabulary version bump appears in the run note.
+6. P5 in the pre-registration becomes measurable when this merges, and the weekly report scores it from that point rather than reporting it as declared.
+
+### TB-002 — One enclosure for text the loop did not write
+
+**Status:** planned.
+
+**Links introduced:** the quotation link. Text pasted into a prompt is assumed by the reader to be data, and the model has no way to tell data from instruction unless the boundary is marked. The enclosure marks it. It does not enforce it.
+
+1. One file, `plugins/gstack-execution/skills/gstack-execution/references/untrusted-enclosure.md`, defines the enclosure and the instruction-immunity rule: text inside it is data, never a directive, whatever it claims about itself.
+2. Every place the loop puts text it did not produce into a prompt loads that file rather than restating the rule: reviewer output, pull request and issue bodies, fetched pages, and any retrieved memory. One producer, per XE-008.
+3. A test greps the ingesting skills for a restated enclosure rule and fails on a second home, reporting how many files it examined.
+4. The item's report states the measured limit of this defense rather than implying it is one. In the numbers the external response supplied (revised edition, 2026-09-20), an enclosure of this kind moved executed adversarial actions from 60% to 30%, on a synthetic benchmark whose traces and harness were not published. It is a speed bump on unverified evidence. TB-001 and TB-003 are the controls.
+5. Adoption outside gstack is a later item, and only for the plugins named in the objective preamble.
+
+### TB-003 — Egress is granted, not filtered
+
+**Status:** planned.
+
+**Links introduced:** the destination-to-grant link. A tool call carrying a destination is assumed to be going somewhere the owner allowed. Today the grant covers tools and output roots, not destinations.
+
+1. `governance.py`'s grant model gains destination patterns beside `allowed_tools` and `output_roots`. A call whose destination matches no grant is refused and named, with the destination and the item that would have to grant it.
+2. Refusal is the default. There is no pattern list of bad destinations, because a denylist reports a pass over whatever it hasn't thought of. DR-099 has the worked example.
+3. The refusal is a typed error naming the exact missing grant and its value, for example `MissingGrantError: NetConnectGrant(host=192.168.1.10) required`, so an honest call is one approval away rather than a mystery. Grants are typed by what they cover: network destinations first, with database and executable grants as a later item. This shape comes from the external response's third round and is better than the plain message this item first carried.
+4. Tests: an ungranted destination is refused; a granted one passes; the check reports how many calls it examined; a test asserts no denylist of destination patterns exists in the source.
+
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -600,6 +648,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-20: Sixth objective, trust boundaries, declared and approved by Dorian. TB-001 puts an `origin` on every record, which is what makes the fifth prediction in "Paid in the Bottom Layer" measurable. TB-002 puts the untrusted-text enclosure in one file. TB-003 extends the existing grant model to destinations rather than adding a denylist, with the reasoning and the test evidence in DR-099: a four-pattern denylist allowed nine of twelve attacks from its own author's list, and its seven-pattern successor blocked four of six ordinary engineering calls while still allowing four attacks. XE-012 gains criterion 10, recording packet and context size, with no prediction attached. The vocabulary goes to 1.2.0 when TB-001 merges, which is an XE-012 break point. Prompted by three rounds of external response to the pre-registration; the security literature verified on reading and the proposed fix did not.
+
+- 2026-09-20: Status lines corrected for GA-005, XE-012, XE-011 and SM-002, which all read `building` after they had merged. GA-005 (`ce7a5e6`, PR #27) and XE-012 (`56dca19`, PR #25) were merged by `moxywolf-agent[bot]` on Dorian's recorded instruction **without peer review at the merged head**, because no reviewer was available, and each status now says so. `record-release` requires a passing review and has recorded no release for either; no record was fabricated to close the gap. XE-012's status also carries the two open defects in its first report, both of which report a zero for a value the record holds as null.
 
 - 2026-09-20: GA-005 declared, pending Dorian's approval, with three new constraints: the agent's GitHub identity is the `moxywolf-agent` app, `main` carries a ruleset the app bypasses for pull requests only, and the agent merges when Dorian tells it to, recorded as agent-executed. The first draft said the agent never merges; Dorian rejected that the same day. It closes the gap the 2026-09-12 entry below named and node 14 of the memory graph. The GitHub settings were made and tested by hand before this entry, and GA-005 records that test. XE-012's DESIGN.md changes are on `build/XE-012-run-measurement` and aren't in this copy; the two branches touch different sections.
 - 2026-09-19: P1's "net of tokens spent in commits that change vocabulary.json" read two ways. The builder took it as "including" and two independent reviews read it as "subtract". Dorian settled it as subtract: correct runs that changed `vocabulary.json` leave P1's comparison and their tokens are reported apart. The text is unchanged; this line records which reading it means.
