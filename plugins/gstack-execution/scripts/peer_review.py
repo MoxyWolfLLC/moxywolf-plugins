@@ -573,6 +573,39 @@ def headroom_argv(tool):
     return [flag, str(cfg["max_output"])] if flag else []
 
 
+LAST_REVIEWER_USAGE = "not_reported"   # XE-012: set by run_reviewer, read by the round that called it
+
+
+def reviewer_usage(tool, stdout, stderr):
+    """XE-012 criterion 3: the reviewer's token usage as its CLI reports it, normalised to
+    {input, output, cache_read, total, source}. A CLI that reports nothing returns the string
+    "not_reported", never zeros: a zero is a claim that nothing was spent."""
+    def num(v):
+        return int(v) if isinstance(v, (int, float)) else 0
+    try:
+        env_ = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        env_ = None
+    if tool == "gemini" and isinstance(env_, dict):
+        models = ((env_.get("stats") or {}).get("models") or {})
+        toks = [m.get("tokens") or {} for m in models.values() if isinstance(m, dict)]
+        if toks:
+            u = {"input": sum(num(t.get("prompt")) for t in toks), "output": sum(num(t.get("candidates")) + num(t.get("thoughts")) for t in toks),
+                 "cache_read": sum(num(t.get("cached")) for t in toks), "total": sum(num(t.get("total")) for t in toks)}
+            return {**u, "source": "gemini stats.models"}
+    if tool == "claude" and isinstance(env_, dict) and isinstance(env_.get("modelUsage"), dict) and env_["modelUsage"]:
+        mu = [m for m in env_["modelUsage"].values() if isinstance(m, dict)]
+        u = {"input": sum(num(m.get("inputTokens")) for m in mu), "output": sum(num(m.get("outputTokens")) for m in mu),
+             "cache_read": sum(num(m.get("cacheReadInputTokens")) for m in mu)}
+        u["total"] = u["input"] + u["output"] + u["cache_read"] + sum(num(m.get("cacheCreationInputTokens")) for m in mu)
+        return {**u, "source": "claude modelUsage"}
+    if tool == "codex":
+        m = re.search(r"tokens used\W*([\d,]+)", (stderr or "") + "\n" + (stdout or ""), re.I)
+        if m:
+            return {"input": None, "output": None, "cache_read": None, "total": int(m.group(1).replace(",", "")), "source": "codex 'tokens used'"}
+    return "not_reported"
+
+
 def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
     output_schema = schema or STRICT_SCHEMA
@@ -635,9 +668,12 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
             return env_.get("response", r.stdout), model
     else:
         raise ReviewError("review_unavailable", f"unknown tool {tool}")
+    global LAST_REVIEWER_USAGE
+    LAST_REVIEWER_USAGE = "not_reported"
     try:
         # stdin closed: codex exec otherwise blocks on "Reading additional input from stdin..."
         r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        LAST_REVIEWER_USAGE = reviewer_usage("fake" if fake else tool, r.stdout, r.stderr)
     except subprocess.TimeoutExpired:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
     except FileNotFoundError as e:
@@ -1187,6 +1223,7 @@ def cmd_round(a):
         _age_atimes(surf)
         before = _atime_map(surf) if read_tracking_probe(surf) else None
         raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
+        record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
         record["examined"] = examined_report(before, surf)
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
@@ -1351,9 +1388,24 @@ def cmd_release(a):
     else:
         save(d, "release.json", record)
     print(json.dumps(record, indent=2))
+    record_measurement(a.review_id)
     raise ReviewError("awaiting_human_release", "human merge required; no release executed")
 
 
+def record_measurement(review_id):
+    """XE-012 criterion 1: release writes the run's measurement note. Without a destination it says
+    so, because a run nobody recorded looks exactly like a run that was never made."""
+    dest = os.environ.get("GSTACK_MEASURE_DIR")
+    if not dest:
+        print("measurement not recorded: GSTACK_MEASURE_DIR is unset "
+              f"(run `measure.py record {review_id} --vault <dir>` to record it)", file=sys.stderr)
+        return None
+    import measure
+    rec = measure.build_record(review_id)
+    path = measure.write_note(dest, rec)
+    print(f"measurement recorded: {path}" + (f" (builder tokens not measured: {rec['builder_tokens_reason']})"
+                                               if rec.get("builder_tokens_reason") else ""), file=sys.stderr)
+    return path
 INSTRUCTION_MARK = "gstack-merge-instruction"
 
 
