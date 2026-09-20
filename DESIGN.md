@@ -88,7 +88,7 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 
 ### GA-006 — A token is minted for the installation that owns the repository
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the repository-to-installation link. Until now a token's scope came from a constant in a file, and every caller assumed that constant covered the repository in front of it. After this the scope is derived from the repository at mint time, so the token names where it came from, and a repository the app cannot reach becomes a named refusal rather than a 404 the caller has to interpret.
 
