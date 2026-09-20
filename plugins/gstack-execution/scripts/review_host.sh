@@ -31,11 +31,12 @@ say() { printf '  %s\n' "$*"; }
 # --- credentials -------------------------------------------------------------------------------
 # Read from files, never from arguments or the environment of a logged command: a secret passed as
 # an argument shows up in ps and in shell history.
+# GA-005: the host holds the reviewer's key and no GitHub credential. The reviewer only reads, and
+# this repository is public, so the checkout is anonymous. Pushes happen elsewhere, as the
+# moxywolf-agent app through agent_token.py, never with a person's token.
 [ -d "$CREDS" ] || { echo "no credentials directory at $CREDS" >&2
-                     echo "stage the vault's github-pat.env and gemini.env there first" >&2; exit 2; }
-GITHUB_PAT=$(grep -m1 '^GITHUB_PAT=' "$CREDS/github-pat.env" | cut -d= -f2- | tr -d '"'\'' \r\n')
+                     echo "stage the vault's gemini.env there first" >&2; exit 2; }
 GEMINI_API_KEY=$(grep -m1 '^GOOGLE_GEMINI_API_KEY=' "$CREDS/gemini.env" | cut -d= -f2- | tr -d '"'\'' \r\n')
-[ -n "$GITHUB_PAT" ] || { echo "GITHUB_PAT empty in $CREDS/github-pat.env" >&2; exit 2; }
 [ -n "$GEMINI_API_KEY" ] || { echo "GOOGLE_GEMINI_API_KEY empty in $CREDS/gemini.env" >&2; exit 2; }
 export GEMINI_API_KEY
 say "credentials loaded from $CREDS"
@@ -57,19 +58,6 @@ if [ ! -d "$WORK/.git" ]; then
   git -C "$WORK" remote add origin "$REPO_URL"
 fi
 
-# F1 (reviewer, 20260917-160040): the token must not reach git's ARGV. The earlier form passed it
-# as `-c http.https://...extraheader=<token>`, which any user can read out of `ps`, and this
-# script's own acceptance criterion said credentials are never passed as arguments. A credential
-# file referenced by the store helper keeps the secret in a 0600 file; only the PATH to it is an
-# argument. `git config` would put the value in argv too, so the config is written with git's
-# environment form instead.
-CREDFILE="$WORK/.git-credentials"
-: > "$CREDFILE"; chmod 600 "$CREDFILE"        # exists and is private BEFORE the secret goes in
-printf 'https://x-access-token:%s@github.com\n' "$GITHUB_PAT" > "$CREDFILE"
-GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper \
-  GIT_CONFIG_VALUE_0="store --file=$CREDFILE" \
-  git -C "$WORK" config --local credential.helper "store --file=$CREDFILE" >/dev/null
-chmod 600 "$WORK/.git/config" 2>/dev/null || true
 # Fetch to FETCH_HEAD, never into refs/heads/review-target: git refuses to fetch into a branch that
 # is checked out, so the direct form worked exactly once and every re-run died with rc=128. Found by
 # running the script twice instead of once, which is the only way an idempotency claim is worth

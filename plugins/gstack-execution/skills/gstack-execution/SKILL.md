@@ -165,6 +165,10 @@ Adapted from gstack's communication philosophy:
 - No AI vocabulary. No "delve", "crucial", "robust", "comprehensive", "landscape."
 - Short paragraphs. Mix one-liners with 2-3 sentence blocks.
 
+## Who acts on GitHub, and who merges
+
+The agent acts on GitHub as the `moxywolf-agent` app, never under a person's login: `scripts/agent_token.py exec -- <command>` for git, `agent_token.py api` for REST (GA-005). When the Release Owner tells the agent to merge, it merges. First it posts their words on the pull request (`peer_review.py merge-instruction`), naming the pull requests it reads them as covering, then it merges through the pull request as the app, pinned to the reviewed head, and `record-release` records `agent_merge_on_instruction`. It never merges without an instruction. The steps are in `/gstack-build` Step 6.
+
 ## What This Plugin Does NOT Do
 
 - **No deployment.** `/gstack-ship` prepares PRs but doesn't merge or deploy. Use your CI/CD pipeline.

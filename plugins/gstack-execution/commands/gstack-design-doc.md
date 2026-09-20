@@ -46,10 +46,10 @@ Then, in this order:
 1. Before any write or commit, reuse the authorized feature branch supplied by `/gstack-build`. For standalone design work, create or reuse a design feature branch from up-to-date main. Never write or commit the design on main or another protected branch.
 2. Write `markdown` to `<repo>/DESIGN.md` and to `<taskade>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
 3. Commit the repo copy alone on that feature branch: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.
-4. Push that feature branch with a vault PAT constrained to branch/PR work, without protected-target merge or push authority, over a per-URL header; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
+4. Push that feature branch as the `moxywolf-agent` app, `agent_token.py exec -- git push origin <branch>`, which cannot push to a protected target; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
 5. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.
 
-Content approval authorizes saving the design, not its release. When called by `/gstack-build`, retain these commits on the same feature branch through implementation, peer review, and human merge; do not merge the design separately or restart the branch from main. For standalone design work, prepare a PR, complete the applicable peer review and revision-bound release handoff, and stop for the named human to merge in GitHub. Record that merge via `peer_review.py record-release` before claiming it landed. Human Release Owner credentials remain outside agent access.
+Content approval authorizes saving the design, not its release. When called by `/gstack-build`, retain these commits on the same feature branch through implementation, peer review, and human merge; do not merge the design separately or restart the branch from main. For standalone design work, prepare a PR, complete the applicable peer review and revision-bound release handoff, and stop for the named human to merge in GitHub or to tell the agent to merge (`/gstack-build` Step 6). Record that merge via `peer_review.py record-release` before claiming it landed. Personal credentials remain outside agent access.
 
 ## Step 6: Report
 

@@ -1406,6 +1406,59 @@ def record_measurement(review_id):
     print(f"measurement recorded: {path}" + (f" (builder tokens not measured: {rec['builder_tokens_reason']})"
                                                if rec.get("builder_tokens_reason") else ""), file=sys.stderr)
     return path
+INSTRUCTION_MARK = "gstack-merge-instruction"
+
+
+def merge_instruction_body(text, given_at, covers, owner):
+    """GA-005: the one producer of a merge instruction comment. record-release parses exactly
+    what this emits (XE-008 criterion 2), so the two cannot drift."""
+    payload = {"instruction": text, "given_at": given_at, "covers": sorted(set(int(n) for n in covers)), "instructed_by": owner}
+    shown = "\n".join("> " + line for line in text.splitlines() or [""])
+    return (f"**Merge instruction from {owner}**, {given_at}\n\n{shown}\n\n"
+            f"Read as covering: {', '.join('#%d' % n for n in payload['covers'])}.\n\n"
+            f"<!-- {INSTRUCTION_MARK}: {json.dumps(payload, ensure_ascii=False)} -->")
+
+
+def parse_merge_instruction(body):
+    m = re.search(r"<!-- " + INSTRUCTION_MARK + r": (\{.*\}) -->", body or "", re.S)
+    if not m:
+        return None
+    try:
+        p = json.loads(m.group(1))
+    except ValueError:
+        return None
+    ok = (isinstance(p.get("instruction"), str) and p["instruction"].strip() and isinstance(p.get("given_at"), str)
+          and isinstance(p.get("covers"), list) and all(isinstance(n, int) for n in p["covers"]))
+    return p if ok else None
+
+
+def cmd_merge_instruction(a):
+    covers = [int(n.strip().lstrip("#")) for n in a.covers.split(",") if n.strip()]
+    if not covers or not a.text.strip():
+        raise ReviewError("release_blocked", "an instruction needs the words and the pull requests it covers")
+    print(json.dumps({"body": merge_instruction_body(a.text, a.given_at, covers, a.owner)}))
+
+
+def github_get(name, path):
+    """Read GitHub. With GITHUB_TOKEN set (agent_token.py exec supplies the app's), over REST;
+    otherwise through gh. The device shell has no gh, so the REST path is the one GA-005 uses."""
+    token = os.environ.get("GITHUB_TOKEN")
+    try:
+        if token:
+            import urllib.request
+            api = os.environ.get("GSTACK_GITHUB_API", "https://api.github.com").rstrip("/")
+            req = urllib.request.Request(f"{api}/repos/{name}/{path}", headers={
+                "Authorization": "token " + token, "Accept": "application/vnd.github+json", "User-Agent": "gstack-record-release"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read())
+        result = subprocess.run(["gh", "api", f"repos/{name}/{path}"], capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            raise ReviewError("release_unavailable", "GitHub merge record could not be read")
+        return json.loads(result.stdout)
+    except ReviewError:
+        raise
+    except Exception as e:  # network, HTTP status, gh absent, bad JSON: all mean the record was not read
+        raise ReviewError("release_unavailable", f"GitHub merge record could not be read: {e}")
 
 
 def cmd_record_release(a):
@@ -1424,20 +1477,18 @@ def cmd_record_release(a):
     if not match:
         raise ReviewError("release_blocked", "origin must identify a github.com repository")
     name = match.group(1)
-    try:
-        result = subprocess.run(["gh", "api", f"repos/{name}/pulls/{a.pr}"], capture_output=True, text=True, timeout=60)
-        if result.returncode:
-            raise ReviewError("release_unavailable", "GitHub merge record could not be read")
-        pr = json.loads(result.stdout)
-    except (OSError, subprocess.TimeoutExpired, ValueError) as e:
-        raise ReviewError("release_unavailable", str(e))
+    pr = github_get(name, f"pulls/{a.pr}")
+    merger = pr.get("merged_by") or {} if isinstance(pr, dict) else {}
+    agent = merger.get("type") == "Bot"
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
             pr.get("head", {}).get("sha") != repo["head"] or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
-            str(pr.get("merged_by", {}).get("login", "")).casefold() != state["release_owner"].casefold() or
-            pr.get("merged_by", {}).get("type") != "User" or not pr.get("merged_at") or not pr.get("merge_commit_sha")):
-        raise ReviewError("release_blocked", "GitHub does not record a merge by the named human of the exact reviewed head")
+            not (agent or (str(merger.get("login", "")).casefold() == state["release_owner"].casefold()
+                           and merger.get("type") == "User")) or
+            not pr.get("merged_at") or not pr.get("merge_commit_sha")):
+        raise ReviewError("release_blocked", "GitHub does not record a merge of the exact reviewed head by the named human "
+                          "or by the agent on the named human's instruction")
     try:
         if datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00")) < datetime.fromisoformat(prepared["requested_at"].replace("Z", "+00:00")):
             raise ReviewError("release_blocked", "merge predates the release handoff")
@@ -1447,6 +1498,24 @@ def cmd_record_release(a):
                 "target": prepared["target"], "merge_commit": pr["merge_commit_sha"], "approver": state["release_owner"],
                 "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "merged_at": pr["merged_at"], "source": pr["html_url"], "outcome": "human_merge_recorded"}
+    if agent:
+        # GA-005: an agent merge is recorded as one. It stands only on an instruction the agent posted
+        # on this pull request before merging, naming it. The comment is written by the agent quoting
+        # the owner, so it is a record of what the agent acted on, not proof the owner said it.
+        found = None
+        for c in github_get(name, f"issues/{a.pr}/comments?per_page=100") or []:
+            p = parse_merge_instruction(c.get("body"))
+            if (p and a.pr in p["covers"] and (c.get("user") or {}).get("login") == merger.get("login")
+                    and str(p.get("instructed_by", "")).casefold() == state["release_owner"].casefold()
+                    and c.get("created_at", "~") <= pr["merged_at"]):
+                found = (p, c)
+        if not found:
+            raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr} and no merge "
+                              f"instruction from {state['release_owner']} on it covers this pull request")
+        p, c = found
+        decision.update({"merged_by": merger.get("login"), "instructed_by": state["release_owner"],
+                         "instruction": p["instruction"], "instruction_given_at": p["given_at"],
+                         "instruction_comment": c.get("html_url"), "outcome": "agent_merge_on_instruction"})
     save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision)
     print(json.dumps(decision, indent=2))
 
@@ -1546,6 +1615,9 @@ def main():
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
     release.add_argument("--observation", action="append", default=[], metavar="CLAIM :: COMMAND",
                          help="what the approver checked and the command that supports it; re-run by `verify`")
+    mi = sub.add_parser("merge-instruction"); mi.add_argument("--covers", required=True, help="PR numbers, comma-separated")
+    mi.add_argument("--text", required=True, help="the owner's words, verbatim"); mi.add_argument("--given-at", required=True)
+    mi.add_argument("--owner", required=True, help="the Release Owner's GitHub login")
     record = sub.add_parser("record-release"); record.add_argument("review_id"); record.add_argument("--repo", required=True); record.add_argument("--pr", required=True, type=int)
     a = ap.parse_args()
     if a.selftest:
@@ -1558,7 +1630,8 @@ def main():
             raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
-                  "release": cmd_release, "record-release": cmd_record_release}[a.cmd](a)
+                  "release": cmd_release, "record-release": cmd_record_release,
+                  "merge-instruction": cmd_merge_instruction}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
         if a.cmd == "collect":
