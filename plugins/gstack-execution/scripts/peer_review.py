@@ -999,6 +999,10 @@ def cmd_verify(a):
         for c in report["checks"]:
             print(f"  {'ok  ' if c['ok'] else 'FAIL'}  {c['link']}" + (f"  — {c['detail']}" if c["detail"] else ""))
         print(f"outcome: {report['outcome']}  ({report['examined']} links examined, {report['broken']} broken)")
+        # XE-011 criterion 5: drift is reported where a reader looks, not only in --json.
+        drift = report["vocabulary_drift"]
+        print(f"vocabulary: {report['vocabulary_version']}  " +
+              ("no drift" if not drift else "written against another version: " + "; ".join(drift)))
     if report["outcome"] != "links_verified":
         raise ReviewError(report["outcome"], f"{report['broken']} of {report['examined']} links did not re-resolve")
     return report

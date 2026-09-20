@@ -226,6 +226,14 @@ class LinkTests(unittest.TestCase):
         drifted = pr.verify_links(d)
         self.assertEqual(drifted["vocabulary_drift"], ["round 1: 0.9.0"])
         self.assertEqual(drifted["outcome"], clean["outcome"])
+        import contextlib, io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            try:   # this fixture's review has an undisposed blocker, so verify also raises; the print is what is tested
+                pr.cmd_verify(argparse.Namespace(review_id=rid, json=False))
+            except pr.ReviewError:
+                pass
+        self.assertIn("round 1: 0.9.0", out.getvalue())
 
     def test_an_observation_that_no_longer_holds_is_caught_by_verify(self):
         rid, d = self.reviewed()
