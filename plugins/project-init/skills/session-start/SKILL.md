@@ -88,7 +88,7 @@ Parse to extract:
 
 - The active Taskade subfolder name (or `none` for vault-only projects)
 - The list of active GitHub repos (subfolder names + descriptions) — there may be 0, 1, or many
-- The **Kanban project tag(s)** — the `Kanban project tag(s):` bullet in the *Project Setup* block. This declares the project's scope on the team Jira board (MOXY); a `#project/<slug>` value maps to the Jira label `project-<slug>`. It may be `none` (the project has no board presence) or absent entirely (instructions written before this field existed). Record whichever you find — Step 4b uses it to scope the board query.
+- The **Jira label(s)** — the `Jira label(s):` bullet in the *Project Setup* block: the exact label or labels this project's issues carry on the team Jira board (MOXY), or `none`. Record whether it is present, `none`, or absent — Step 4b uses it to scope the board query, as written. Also record the `Kanban project tag(s):` value for display only. A label is never derived from the `#project/` tag or from any name: MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm`, so no mapping rule is right for every project (SM-002).
 - Any `## Project-Specific Overrides` block at the bottom
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
@@ -125,15 +125,15 @@ b. **Project task board (project-scoped, dual-source)** — Surface only tasks t
 
    **Source 2 — the team Jira board (MOXY), strictly filtered (backup).** The single canonical task board is Jira, project **MOXY** (https://moxywolf.atlassian.net) — shared by *every* MoxyWolf project. Query it via the Atlassian MCP (`searchJiraIssuesUsingJql`), scoped to this project's Jira **label**, and pull — from the in-scope issues only — the top 3 P0, top 3 P1, and all Blocked/Waiting items. (There is no vault `KANBAN_VIEW.md` anymore — it was retired 2026-07-16 when Jira became the single board.)
 
-   **Strict project filter (fail-closed).** First decide the in-scope Jira **label** set. Jira labels can't contain `/`, so a `#project/<slug>` scope maps to the label `project-<slug>`:
+   **Strict project filter (fail-closed).** The in-scope label set is exactly the `Jira label(s):` value from Step 2, used as written. Never derive a label from the `#project/` tag, the project name or a repo name.
 
-   1. **Field declared** — Step 2 found a `Kanban project tag(s)` value that is not `none`: that value is authoritative. Map each `#project/<slug>` token to the label `project-<slug>`; the label set is exactly those.
-   2. **Field is `none`** — the project has no board presence. Surface zero items, note "this project declares no kanban scope", and skip the board query entirely. Do not filter, do not fall back.
-   3. **Field absent** — older instructions: derive an *inferred* label set from the kebab-cased project name plus each active GitHub repo subfolder name (each as `project-<slug>`). Filter on that inferred set, and add this one-line warning to the briefing: *"Kanban Scope not declared — filtered MOXY on inferred labels [list]. Add a `Kanban project tag(s):` line to `00 – Project Hub/cowork-project-instructions.md` (or rerun `/init-project`) to make this exact."*
+   1. **Labels declared** — Step 2 found a `Jira label(s):` value that is not `none`: the label set is exactly those labels.
+   2. **Declared `none`** — the project has no board presence. Surface zero items, note "this project declares no kanban scope", and skip the board query entirely. Do not filter, do not fall back.
+   3. **Not declared** — the instructions carry a `#project/` tag but no `Jira label(s):` line, or neither. Skip the board query and add this one line to the briefing: *"No Jira label declared — add a `Jira label(s):` line with the exact label from MOXY to `00 – Project Hub/cowork-project-instructions.md`."* Don't guess: a guessed label that matches nothing reads as an empty backlog.
 
-   Then run the query, fail-closed on the label: `project = MOXY AND labels IN (<label-set>) AND statusCategory != Done ORDER BY priority DESC, updated DESC`. An issue is **in scope only if** it carries a project label in the set. Every other issue is out of scope — including issues with no `project-*` label at all (cross-cutting, personal, or company-wide) and issues whose project label isn't in the set. When in doubt, exclude.
+   Then run the query, fail-closed on the label: `project = MOXY AND labels IN (<label-set>) AND statusCategory != Done ORDER BY priority DESC, updated DESC`. An issue is **in scope only if** it carries a project label in the set. Every other issue is out of scope — including issues with no label at all (cross-cutting, personal, or company-wide) and issues whose project label isn't in the set. When in doubt, exclude.
 
-   The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero issues match, write "no MOXY issues labeled for this project" on one line and move on. A shared board can only be made safe by showing an issue *only* when it is positively labeled for the resolved project; that fail-closed rule is the entire point of this step. If the Atlassian MCP isn't connected, note that and rely on the project's backlog folder (Source 1).
+   The skill must **never** widen to "show the whole board" because the filter matched nothing. An empty result is a correct result — if zero issues match, write "no MOXY issues labeled for this project" on one line and move on. A shared board can only be made safe by showing an issue *only* when it is positively labeled for the resolved project; that fail-closed rule is the entire point of this step. On the MOXY line, print the label(s) queried and how many issues came back, so a label that matches nothing reads as a wrong label rather than an empty backlog. If the Atlassian MCP isn't connected, note that and rely on the project's backlog folder (Source 1).
 
 c. **Project map (MOC) + recent decision records** — The durable front door to a project is its vault Map of Content; the recent-DR list is the fresh slice on top of it. Read both.
 
@@ -238,10 +238,10 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 
 **Project tasks** (scoped to [PROJECT_NAME])
 - Backlog files: [open files in 04 – Backlog & Sprints/, or "none"]
-- MOXY P0: …   (Jira board filtered to label project-[slug])
+- MOXY P0: …   (label `[label]`: N issues)
 - MOXY P1: …
 - MOXY Blocked/Waiting: …
-[If the Kanban Scope was inferred or undeclared, add the one-line "Kanban Scope not declared…" warning here. If it is `none`, write "this project declares no kanban scope" here instead.]
+[If no Jira label is declared, add the one-line "No Jira label declared…" note here. If it is `none`, write "this project declares no kanban scope" here instead.]
 
 **Project map** (durable front door)
 - MOC: `Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md` — [one line: what the project is, from the MOC]. Open it for the full map, or ask "what do we know about X here?" for a scoped memory search.
@@ -316,8 +316,8 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **One of the three standard roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
 - **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
-- **Kanban Scope not declared in the Project Instructions.** Don't widen to the whole board. Derive inferred slugs from the kebab-cased project name and the GitHub repo names, filter strictly on those (Step 4b case 3), and add the "add a `Kanban project tag(s):` line" warning to the briefing. If the inferred set matches nothing, show "no kanban items tagged for this project" — still never show the unfiltered board.
-- **Kanban Scope declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
+- **No Jira label declared in the Project Instructions.** Don't query the board and never widen to it. Add the one-line "No Jira label declared" note (Step 4b case 3). Never infer a label from the project or repo names.
+- **Jira label declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
 - **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
 - **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
 - **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path. Skip Taskade-subfolder references in the briefing.
@@ -331,7 +331,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - This skill complements `/init-project` and `/session-end`. `/init-project` configures a project once; `/session-end` writes the per-session handoff at the end of each session; `/session-start` reads that handoff to brief next-session Claude in one step.
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
-- The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled `project-<slug>` for the resolved project — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
+- The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled with the resolved project's declared Jira label — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
 - The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.

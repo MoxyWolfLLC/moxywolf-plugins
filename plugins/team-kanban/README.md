@@ -57,6 +57,10 @@ This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONF
 
 ## Changelog
 
+### v0.7.0
+
+A project's issues carry the label declared on that project's `Jira label(s):` line, never one derived from its `#project/` slug (SM-002). A project with no declared label gets no project label and a flag in the sync report.
+
 ### v0.6.0
 
 Jira (project MOXY) becomes the single canonical board. The vault kanban (`KANBAN_VIEW.md`) and all Slack task flows are retired — no Obsidian source-of-truth, no dual-authority sync-back, no Slack scraping, no #general digest. Team members file tickets directly in Jira (including from Slack via the Jira Slack app). The skill now sweeps only Google Drive / Calendar / Gmail for new action items, dedups against the board (open + recently-Done), and files to MOXY with the same issue-authoring standard (Context/Acceptance/Notes, real Subtasks, Blocks links, Backlog default). Board hygiene (priorities, column limits, In Review reviewer pairings) preserved.

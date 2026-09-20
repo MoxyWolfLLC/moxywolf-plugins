@@ -26,7 +26,7 @@ How tasks map onto the single canonical board — Jira project **MOXY** (https:/
 
 Additional label conventions:
 
-- Project → label `project-<slug>` (Jira labels can't contain `/`, so a `project/sams` scope becomes `project-sams`)
+- Project → the exact label declared on that project's `Jira label(s):` line in its `cowork-project-instructions.md`, looked up by its `#project/<slug>` tag. Never derive it from the slug: MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm` (SM-002). A task whose project declares no label is written without a project label and flagged in the sync report.
 - Category → label `cat-<name>` (e.g. `cat-technical`)
 - Blocked context ("Waiting on X since DATE") goes in the issue description, not a label
 - Reviewer for In Review items: `Review: <name>` line in the description + label `review-<shortname>`

@@ -29,7 +29,7 @@ function declaredCriteria(designPath) {
   // never examined -- and the one criterion it existed to catch, XE-005 #6, was among the dropped.
   // A false pass over unexamined input, inside the check built to prevent exactly that.
   const END = '$(?![\\s\\S])';
-  const itemRe = new RegExp(`^### ((?:XE|EV|GA|GS)-\\d+) — (.+?)$([\\s\\S]*?)(?=^#{2,3} |${END})`, 'gm');
+  const itemRe = new RegExp(`^### ([A-Z]{2}-\\d+) — (.+?)$([\\s\\S]*?)(?=^#{2,3} |${END})`, 'gm');
   for (const m of design.matchAll(itemRe)) {
     const body = m[3];
     const critRe = new RegExp(`^\\d+\\.\\s+([\\s\\S]+?)(?=^\\d+\\.\\s|\\n\\n\\*\\*|\\n\\n##|${END})`, 'gm');

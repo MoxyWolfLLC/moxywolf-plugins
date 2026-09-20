@@ -1,0 +1,24 @@
+{
+  "review_id": "20260919-204444-2933c08-lwp9vyts",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "gemini",
+  "reviewer_family": "gemini",
+  "reviewer_is_fallback": true,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 1,
+  "outcome": "no_blocking_findings",
+  "coverage_checked": true,
+  "coverage_status": "uncovered",
+  "coverage_overridden": true,
+  "heads": [
+    [
+      "2933c08b8cb96e2ef291f5c9290b0dfa9e6690a1"
+    ],
+    [
+      "2933c08b8cb96e2ef291f5c9290b0dfa9e6690a1"
+    ]
+  ]
+}

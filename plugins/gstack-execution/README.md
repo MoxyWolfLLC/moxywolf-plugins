@@ -54,6 +54,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `endform_workflow.py` | The E2E gate and its preflight: proves the gate *can* run before anything is pushed |
 | `repo_gates.py` | Reads and configures branch protection; reports which checks actually gate a merge |
 | `governance.py` | Capability grants that name what they permit rather than who may act |
+| `vocab_check.py` | Checks that DESIGN.md's item statuses and the contracts use the vocabulary in `references/vocabulary.json`, the one home for every outcome, status and round shape the dispatcher enforces |
 
 ## What a review is, and is not
 

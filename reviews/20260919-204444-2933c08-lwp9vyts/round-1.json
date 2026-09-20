@@ -1,0 +1,110 @@
+{
+  "round": 1,
+  "started": "2026-09-19T20:44:48",
+  "repos": [
+    {
+      "path": "/root/review-host",
+      "base": "3df35d08b0db20a9745c63fad7957c3226761d17",
+      "head": "2933c08b8cb96e2ef291f5c9290b0dfa9e6690a1"
+    }
+  ],
+  "vocabulary_version": "1.0.0",
+  "surface": {
+    "changed": 21,
+    "callers": 25,
+    "callers_withheld": 5,
+    "cap": 25,
+    "from_prior_findings": 0
+  },
+  "reviewer": "gemini",
+  "reviewer_family": "gemini",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "max_output_enforced": false,
+  "model": "gemini-3.1-pro-preview",
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff"
+    ],
+    "examined_count": 1,
+    "offered_count": 48,
+    "examined_beyond_the_diff": [],
+    "looked_beyond_the_diff": false
+  },
+  "raw": "```json\n{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"A project's instructions carry a `Jira label(s):` value beside the `#project/` tag: the exact label or labels as they appear on MOXY, or `none`. `/session-start` queries MOXY with those labels as written.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/skills/session-start/SKILL.md Step 4b handles the new field: \\\"The in-scope label set is exactly the `Jira label(s):` value from Step 2, used as written. Never derive a label from the `#project/` tag\\\".\"\n    },\n    {\n      \"criterion\": \"No skill, command or reference derives a label from a slug. The derivation is removed from all seven homes. In the repo: `project-init/skills/session-start/SKILL.md`, `project-init/commands/session-start.md`, `project-init/skills/project-init/SKILL.md`, `project-init/commands/init-project.md` and `team-kanban/skills/team-kanban/references/jira-board-mapping.md`. In the vault: `_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` and `_Templates/Cowork Project Instructions Template.md`. `plugin.json` changelogs are exempt, because they record what was.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/tests/test_no_derived_label.py verifies the derivation rule string is removed from the 5 repo homes. The packet's tests.results verifies the hand-run grep over the 2 vault files had no hits.\"\n    },\n    {\n      \"criterion\": \"A test in the repo asserts that none of the five repo files states the mapping, and it reports how many files it examined; zero examined is a failure, per EV-001. The vault has no CI, so the same check is run by hand against the two vault files and its output goes into the review packet.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/tests/test_no_derived_label.py iterates the HOMES array, asserts 5 files are present (fails if any are missing), and prints the count of examined files. The packet's test output explicitly confirms the hand-run test over vault files.\"\n    },\n    {\n      \"criterion\": \"Instructions with a `#project/` tag and no `Jira label(s):` value, or with no field at all, get no board query. The briefing says in one line which field is missing. Nothing is inferred from the project name or the repo names.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/skills/session-start/SKILL.md step 4b specifies that if no labels are declared, it skips the board query entirely and prints: \\\"No Jira label declared \\u2014 add a `Jira label(s):` line...\\\" It explicitly forbids inferences.\"\n    },\n    {\n      \"criterion\": \"The briefing prints the label it queried and how many issues came back, so a label that matches nothing reads as a wrong label rather than an empty backlog.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/skills/session-start/SKILL.md modifies the structured briefing output to: \\\"- MOXY P0: \\u2026 (label [label]: N issues)\\\" for exact reporting.\"\n    },\n    {\n      \"criterion\": \"`/init-project` asks for the label exactly as it appears on MOXY and confirms it back verbatim.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/skills/project-init/SKILL.md asks via AskUserQuestion: \\\"What is the exact Jira label on MOXY for these issues?\\\" and repeats it back verbatim (\\\"Got it, Jira label <label>\\\").\"\n    },\n    {\n      \"criterion\": \"team-kanban writes a project's issues with that project's declared label, never a derived one.\",\n      \"met\": true,\n      \"evidence\": \"plugins/team-kanban/skills/team-kanban/references/jira-board-mapping.md states explicitly: \\\"Project \\u2192 the exact label declared on that project's `Jira label(s):` line ... Never derive it from the slug\\\".\"\n    },\n    {\n      \"criterion\": \"`project-init` and `team-kanban` each get a minor version bump with a changelog line.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/.claude-plugin/plugin.json bumps to 0.29.0 and plugins/team-kanban/.claude-plugin/plugin.json bumps to 0.7.0, with both adding corresponding changelog entries in their README.md files.\"\n    },\n    {\n      \"criterion\": \"One file, `plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json`, defines every term the peer-review contract, the packet, the round record and the design-doc template name as a controlled value, and nothing else. Seed set: review round, finding, blocking finding, every round and review outcome the dispatcher emits, sign-off, Release Owner, packet, acceptance criterion, item status. Each entry carries an id, a one-line definition, and where the term has a machine shape, the shape itself (the enum, or the JSON Schema fragment the validator uses). The file carries a version. Terms use SKOS labels (`prefLabel`, `definition`, `inScheme`) so the file reads as a standard concept scheme and not a format this repo invented.\",\n      \"met\": true,\n      \"evidence\": \"plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json contains version 1.0.0, the necessary seed terms alongside definitions, exact machine shapes, and standard SKOS labels.\"\n    },\n    {\n      \"criterion\": \"The shapes in the vocabulary are the ones the code enforces. The dispatcher's outcome set and the round-record schema are loaded from `vocabulary.json`, not restated as literals in `peer_review.py` or its siblings. A test asserts that every outcome string the scripts can emit is a vocabulary id, and fails on a literal outside it. This is XE-008 criterion 2 applied to meaning: one producer, and the reader accepts what that producer emits.\",\n      \"met\": true,\n      \"evidence\": \"plugins/gstack-execution/scripts/peer_review.py replaces hardcoded literal mappings with dynamical assignments via `VOCAB`, `vocab_ids()`, and `vocab_shape()`. test_vocabulary.py walks the AST of peer_review.py to extract emitted outcomes and enforces validation against the vocabulary IDs.\"\n    },\n    {\n      \"criterion\": \"`vocab_check.py` (or a `--selftest` case on an existing script) reports, for the design doc and each contract file: files examined, term uses found, uses that resolve, and uses that don't. It fails on an item status outside the vocabulary. It fails on a contract that restates a definition the vocabulary holds, detected as the definition text appearing outside `vocabulary.json`. It fails when it examined zero files or zero term uses, per EV-001.\",\n      \"met\": true,\n      \"evidence\": \"plugins/gstack-execution/scripts/vocab_check.py scans the provided files against the vocabulary to ensure term usage resolves accurately and counts files/lines. It flags duplicate definitions explicitly and issues failures upon evaluating zero files or finding zero terms.\"\n    },\n    {\n      \"criterion\": \"Every `**Status:**` line in `DESIGN.md` uses a vocabulary status id, followed by free prose. `vocab_check.py` passes on the doc as committed.\",\n      \"met\": true,\n      \"evidence\": \"DESIGN.md has updated statuses reflecting vocabulary IDs (e.g. \\\"building.\\\", \\\"done.\\\"). The test suite's run logs show vocab_check.py successfully validates all files with zero failures.\"\n    },\n    {\n      \"criterion\": \"A round record and a packet name the vocabulary version they were written against. `peer_review.py verify` reports a record whose version differs from the current vocabulary as `vocabulary_drift`. That's a report and not a failure, since an older record isn't wrong for being older, but a reader has to be able to see it.\",\n      \"met\": true,\n      \"evidence\": \"plugins/gstack-execution/scripts/peer_review.py correctly assigns `VOCAB_VERSION` on open/round operations. `verify_links` calculates drift through difference evaluations directly mapping the versions from packet strings to the `vocabulary_drift` report variable.\"\n    }\n  ],\n  \"findings\": [],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"notes\": \"All acceptance criteria have been verified and met across both objectives. The vocabulary abstraction perfectly enforces terminology while the newly decoupled Jira labels rule handles distinct task tracking conventions seamlessly.\"\n}\n```",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "A project's instructions carry a `Jira label(s):` value beside the `#project/` tag: the exact label or labels as they appear on MOXY, or `none`. `/session-start` queries MOXY with those labels as written.",
+      "met": true,
+      "evidence": "plugins/project-init/skills/session-start/SKILL.md Step 4b handles the new field: \"The in-scope label set is exactly the `Jira label(s):` value from Step 2, used as written. Never derive a label from the `#project/` tag\"."
+    },
+    {
+      "criterion": "No skill, command or reference derives a label from a slug. The derivation is removed from all seven homes. In the repo: `project-init/skills/session-start/SKILL.md`, `project-init/commands/session-start.md`, `project-init/skills/project-init/SKILL.md`, `project-init/commands/init-project.md` and `team-kanban/skills/team-kanban/references/jira-board-mapping.md`. In the vault: `_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` and `_Templates/Cowork Project Instructions Template.md`. `plugin.json` changelogs are exempt, because they record what was.",
+      "met": true,
+      "evidence": "plugins/project-init/tests/test_no_derived_label.py verifies the derivation rule string is removed from the 5 repo homes. The packet's tests.results verifies the hand-run grep over the 2 vault files had no hits."
+    },
+    {
+      "criterion": "A test in the repo asserts that none of the five repo files states the mapping, and it reports how many files it examined; zero examined is a failure, per EV-001. The vault has no CI, so the same check is run by hand against the two vault files and its output goes into the review packet.",
+      "met": true,
+      "evidence": "plugins/project-init/tests/test_no_derived_label.py iterates the HOMES array, asserts 5 files are present (fails if any are missing), and prints the count of examined files. The packet's test output explicitly confirms the hand-run test over vault files."
+    },
+    {
+      "criterion": "Instructions with a `#project/` tag and no `Jira label(s):` value, or with no field at all, get no board query. The briefing says in one line which field is missing. Nothing is inferred from the project name or the repo names.",
+      "met": true,
+      "evidence": "plugins/project-init/skills/session-start/SKILL.md step 4b specifies that if no labels are declared, it skips the board query entirely and prints: \"No Jira label declared \u2014 add a `Jira label(s):` line...\" It explicitly forbids inferences."
+    },
+    {
+      "criterion": "The briefing prints the label it queried and how many issues came back, so a label that matches nothing reads as a wrong label rather than an empty backlog.",
+      "met": true,
+      "evidence": "plugins/project-init/skills/session-start/SKILL.md modifies the structured briefing output to: \"- MOXY P0: \u2026 (label [label]: N issues)\" for exact reporting."
+    },
+    {
+      "criterion": "`/init-project` asks for the label exactly as it appears on MOXY and confirms it back verbatim.",
+      "met": true,
+      "evidence": "plugins/project-init/skills/project-init/SKILL.md asks via AskUserQuestion: \"What is the exact Jira label on MOXY for these issues?\" and repeats it back verbatim (\"Got it, Jira label <label>\")."
+    },
+    {
+      "criterion": "team-kanban writes a project's issues with that project's declared label, never a derived one.",
+      "met": true,
+      "evidence": "plugins/team-kanban/skills/team-kanban/references/jira-board-mapping.md states explicitly: \"Project \u2192 the exact label declared on that project's `Jira label(s):` line ... Never derive it from the slug\"."
+    },
+    {
+      "criterion": "`project-init` and `team-kanban` each get a minor version bump with a changelog line.",
+      "met": true,
+      "evidence": "plugins/project-init/.claude-plugin/plugin.json bumps to 0.29.0 and plugins/team-kanban/.claude-plugin/plugin.json bumps to 0.7.0, with both adding corresponding changelog entries in their README.md files."
+    },
+    {
+      "criterion": "One file, `plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json`, defines every term the peer-review contract, the packet, the round record and the design-doc template name as a controlled value, and nothing else. Seed set: review round, finding, blocking finding, every round and review outcome the dispatcher emits, sign-off, Release Owner, packet, acceptance criterion, item status. Each entry carries an id, a one-line definition, and where the term has a machine shape, the shape itself (the enum, or the JSON Schema fragment the validator uses). The file carries a version. Terms use SKOS labels (`prefLabel`, `definition`, `inScheme`) so the file reads as a standard concept scheme and not a format this repo invented.",
+      "met": true,
+      "evidence": "plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json contains version 1.0.0, the necessary seed terms alongside definitions, exact machine shapes, and standard SKOS labels."
+    },
+    {
+      "criterion": "The shapes in the vocabulary are the ones the code enforces. The dispatcher's outcome set and the round-record schema are loaded from `vocabulary.json`, not restated as literals in `peer_review.py` or its siblings. A test asserts that every outcome string the scripts can emit is a vocabulary id, and fails on a literal outside it. This is XE-008 criterion 2 applied to meaning: one producer, and the reader accepts what that producer emits.",
+      "met": true,
+      "evidence": "plugins/gstack-execution/scripts/peer_review.py replaces hardcoded literal mappings with dynamical assignments via `VOCAB`, `vocab_ids()`, and `vocab_shape()`. test_vocabulary.py walks the AST of peer_review.py to extract emitted outcomes and enforces validation against the vocabulary IDs."
+    },
+    {
+      "criterion": "`vocab_check.py` (or a `--selftest` case on an existing script) reports, for the design doc and each contract file: files examined, term uses found, uses that resolve, and uses that don't. It fails on an item status outside the vocabulary. It fails on a contract that restates a definition the vocabulary holds, detected as the definition text appearing outside `vocabulary.json`. It fails when it examined zero files or zero term uses, per EV-001.",
+      "met": true,
+      "evidence": "plugins/gstack-execution/scripts/vocab_check.py scans the provided files against the vocabulary to ensure term usage resolves accurately and counts files/lines. It flags duplicate definitions explicitly and issues failures upon evaluating zero files or finding zero terms."
+    },
+    {
+      "criterion": "Every `**Status:**` line in `DESIGN.md` uses a vocabulary status id, followed by free prose. `vocab_check.py` passes on the doc as committed.",
+      "met": true,
+      "evidence": "DESIGN.md has updated statuses reflecting vocabulary IDs (e.g. \"building.\", \"done.\"). The test suite's run logs show vocab_check.py successfully validates all files with zero failures."
+    },
+    {
+      "criterion": "A round record and a packet name the vocabulary version they were written against. `peer_review.py verify` reports a record whose version differs from the current vocabulary as `vocabulary_drift`. That's a report and not a failure, since an older record isn't wrong for being older, but a reader has to be able to see it.",
+      "met": true,
+      "evidence": "plugins/gstack-execution/scripts/peer_review.py correctly assigns `VOCAB_VERSION` on open/round operations. `verify_links` calculates drift through difference evaluations directly mapping the versions from packet strings to the `vocabulary_drift` report variable."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "notes": "All acceptance criteria have been verified and met across both objectives. The vocabulary abstraction perfectly enforces terminology while the newly decoupled Jira labels rule handles distinct task tracking conventions seamlessly.",
+  "subjects": {},
+  "outcome": "no_blocking_findings"
+}

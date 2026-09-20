@@ -215,7 +215,7 @@ the records already lost.
 
 ### EV-006 — Instrument reads
 
-**Status:** built, partially. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008. Merged as `8bd7fae` (PR #18) on 2026-09-17.
+**Status:** building. Merged in part; criterion 1 is still open. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the read side of every handler's declaration.
 
@@ -225,7 +225,7 @@ the records already lost.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** built. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
+**Status:** done. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
@@ -239,7 +239,7 @@ citation-to-snapshot link.
 
 ### EV-008 — Record what a review examined, not only what it found
 
-**Status:** built. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record. Merged as `8bd7fae` (PR #18) on 2026-09-17.
+**Status:** building. Merged in part; criterion 1 (commands run) and criterion 3 are still open. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the review-to-search-space link.
 
@@ -450,9 +450,9 @@ nothing checked that width.
 6. The extractor's own coverage is checked by a second independent count, and a partial extraction
    refuses to score rather than passing over what it did not read.
 
-### XE-011: One vocabulary for what the loop's agents hand each other
+### XE-011 — One vocabulary for what the loop's agents hand each other
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the term-to-definition link. A packet, round record or design status names a term by its id, and a reader assumes the definition that id carries today. The vocabulary is versioned, and a record cites the version it was written against, so a changed definition is visible in the record rather than silently read into it.
 
@@ -481,18 +481,18 @@ Premise: a session's context window should be filled from the sources that hold 
 
 The objective borrows a three-layer model: the context window is text, the knowledge graph holds the entities and the links between them, and the ontology says what those links mean. The arrows between the layers are where the value is and where the drift starts. This objective builds all four in `project-init`, and it measures them the way XE-011 does, because structure has to earn its keep.
 
-What the board looked like when this was written, counted through the Atlassian connector on 2026-09-19: MOXY holds 129 issues. 102 carry no label at all, and 50 of those are open. Of the 27 labeled, 4 carry the bare `moxywolf-plugins` and 23 carry `project-moxywolf-crm`. So two label conventions are live on one board, and the rule `project-init` ships, "a `#project/<slug>` maps to `project-<slug>`", is right for one project and wrong for the other. That rule has three homes: `session-start/SKILL.md`, `project-init/SKILL.md` and `team-kanban/references/jira-board-mapping.md`. The Team Plugins instructions override it in prose. The connector itself works: `labels = moxywolf-plugins` returns 4 (1 Done, 3 To Do), and `labels = project-moxywolf-plugins` returns 0 with no error, which is the failure mode.
+What the board looked like when this was written, counted through the Atlassian connector on 2026-09-19: MOXY holds 129 issues. 102 carry no label at all, and 50 of those are open. Of the 27 labeled, 4 carry the bare `moxywolf-plugins` and 23 carry `project-moxywolf-crm`. So two label conventions are live on one board, and the rule `project-init` ships, "a `#project/<slug>` maps to `project-<slug>`", is right for one project and wrong for the other. That rule has seven homes, listed in SM-002. The Team Plugins instructions override it in prose. The connector itself works: `labels = moxywolf-plugins` returns 4 (1 Done, 3 To Do), and `labels = project-moxywolf-plugins` returns 0 with no error, which is the failure mode.
 
-### SM-001: Session start and end run on the graph, not on a copy of it
+### SM-001 — Session start and end run on the graph, not on a copy of it
 
 **Status:** planned.
 
-**Links introduced:** the handoff-ref-to-subject link. A handoff names a commit, a pull request, a design item, a review ID or a Jira key, and the next session assumes it still means what it meant. Every ref is re-resolved at the next session start. The source-precedence link: where a source and the handoff disagree, the briefing assumes the source is right. Criterion 4 makes that visible every time rather than silent. The declared-label link: the project instructions name the exact Jira label, and the board query assumes that label is the one the board uses. Criterion 2 makes that checkable.
+**Links introduced:** the handoff-ref-to-subject link. A handoff names a commit, a pull request, a design item, a review ID or a Jira key, and the next session assumes it still means what it meant. Every ref is re-resolved at the next session start. The source-precedence link: where a source and the handoff disagree, the briefing assumes the source is right. Criterion 4 makes that visible every time rather than silent.
 
 **Arrow 1, graph into context: the briefing is assembled from sources.**
 
 1. `/session-start` builds its "Where things stand" section from sources at read time: `git log origin/main` and open pull requests for each declared repo, `**Status:**` lines in each declared repo's `DESIGN.md`, and the MOXY board. It reads no status from the handoff.
-2. The Jira label is declared literally in the project instructions and used as written. No code or skill derives a label from a slug, and the `project-<slug>` mapping rule is removed from all three of its homes. A test asserts that none of the three files contains the mapping. An instructions file that declares a `#project/` tag with no literal label gets a one-line prompt to declare it; nothing guesses.
+2. Moved to SM-002 on 2026-09-19, so the label fix can ship and be reviewed on its own.
 3. The briefing prints a coverage line naming each source it examined and how many records each returned. For the board, it prints the label it queried, the count, and the count of open issues on MOXY that carry no label at all, since any project's work could be among them and none of it can be shown. A source it could not reach is shown as `SKIP` with the reason, never as an empty result, per EV-001. Zero records from a reachable source is printed as zero records, not as "nothing open".
 4. When the handoff asserts a state a source contradicts, the briefing shows both values and the source, and says the source wins. Fixture test: a handoff whose open work names PR #10 against a git fixture where PR #10 is merged produces a `resolved_since_handoff` line naming both, and PR #10 is not listed as open.
 5. The handoff contributes only what no source holds: intent and priority order, decisions not yet recorded as DRs, production-data state no repo carries (the row counts "What landed" is written to hold), procedural reminders, and the suggested opening line. The briefing labels those as carried from the handoff, with its date.
@@ -521,8 +521,25 @@ What the board looked like when this was written, counted through the Atlassian 
 **Dependencies and the decision rule.**
 
 18. Arrows 1 and 2 need no vocabulary and ship on their own. Arrows 3 and 4 depend on XE-011. If XE-011's decision rule freezes the vocabulary, criteria 14, 16 and 17 are dropped and recorded as dropped, not left planned.
-19. Baseline before arrow 1 lands and the same measurement after: at least five `/session-start` runs on this project. Per run, record input and output tokens, tool calls, and whether the briefing's open-work list matched the sources, as judged by the named human. Report cost per correct briefing before and after, and include the tokens spent writing handoffs at session end, since arrow 2 moves cost there. If cost per correct briefing does not fall, arrows 1 and 2 are reported as not earning their keep, and the handoff format reverts to the one before this item. Criterion 2's label fix is kept either way, because it's a correctness fix, not an economy one. A win is never claimed from a single run.
+19. Baseline before arrow 1 lands and the same measurement after: at least five `/session-start` runs on this project. Per run, record input and output tokens, tool calls, and whether the briefing's open-work list matched the sources, as judged by the named human. Report cost per correct briefing before and after, and include the tokens spent writing handoffs at session end, since arrow 2 moves cost there. If cost per correct briefing does not fall, arrows 1 and 2 are reported as not earning their keep, and the handoff format reverts to the one before this item. SM-002 is kept either way, because it's a correctness fix, not an economy one. A win is never claimed from a single run.
 20. `project-init` and `team-kanban` each get a minor version bump, and each `plugin.json` changelog states which arrows shipped and which were dropped.
+
+### SM-002 — The board label is declared, never derived
+
+**Status:** building.
+
+**Links introduced:** the declared-label link. A project's instructions name its exact Jira label, and every board query and every issue write assumes that label is the one the board uses. Criterion 5 makes a wrong one visible in every briefing.
+
+Split out of SM-001 on 2026-09-19. The rule "a `#project/<slug>` maps to the label `project-<slug>`" is right for `moxywolf-crm` and wrong for `moxywolf-plugins`, and it lives in seven places, not the three SM-001 first named.
+
+1. A project's instructions carry a `Jira label(s):` value beside the `#project/` tag: the exact label or labels as they appear on MOXY, or `none`. `/session-start` queries MOXY with those labels as written.
+2. No skill, command or reference derives a label from a slug. The derivation is removed from all seven homes. In the repo: `project-init/skills/session-start/SKILL.md`, `project-init/commands/session-start.md`, `project-init/skills/project-init/SKILL.md`, `project-init/commands/init-project.md` and `team-kanban/skills/team-kanban/references/jira-board-mapping.md`. In the vault: `_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md` and `_Templates/Cowork Project Instructions Template.md`. `plugin.json` changelogs are exempt, because they record what was.
+3. A test in the repo asserts that none of the five repo files states the mapping, and it reports how many files it examined; zero examined is a failure, per EV-001. The vault has no CI, so the same check is run by hand against the two vault files and its output goes into the review packet.
+4. Instructions with a `#project/` tag and no `Jira label(s):` value, or with no field at all, get no board query. The briefing says in one line which field is missing. Nothing is inferred from the project name or the repo names.
+5. The briefing prints the label it queried and how many issues came back, so a label that matches nothing reads as a wrong label rather than an empty backlog.
+6. `/init-project` asks for the label exactly as it appears on MOXY and confirms it back verbatim.
+7. team-kanban writes a project's issues with that project's declared label, never a derived one.
+8. `project-init` and `team-kanban` each get a minor version bump with a changelog line.
 
 ## Validation
 
@@ -531,6 +548,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-19: XE-011, SM-001 and SM-002 headings take the ` — ` separator the other items use. It is a machine format, not prose: `packet_coverage.mjs` finds items by it, and with a colon it reported "DESIGN.md declares no criteria" for all three. The same extractor only recognised the XE, EV, GA and GS prefixes, so AP and SM items could never be claimed by a packet; it now takes any two-letter prefix. Both found while opening the SM-002 and XE-011 review.
+
+- 2026-09-19: SM-001 criterion 2 split into SM-002, approved by Dorian, so the label fix can ship and be reviewed without the rest of SM-001. Building one criterion under SM-001's ID would have been refused by XE-010's packet-coverage gate, correctly. Reading the files showed the mapping lives in seven places, five in the repo and two in the vault, not the three SM-001 named, so SM-002 lists all seven. SM-002 and XE-011 are built on one branch and reviewed as one checkpoint, per XE-004.
 
 - 2026-09-19: Fifth objective, session memory, and SM-001 declared, pending Dorian's approval. SM-001 builds all four arrows between the context window, the graph and the vocabulary in `project-init`'s session start and end. Arrows 1 and 2 ship alone, and arrows 3 and 4 wait on XE-011's decision rule. Prompted the same day, when `/session-start` read a handoff saying PR #10 was open two days after it had merged. Revised the same day after reading the whole `/session-end` skill and querying MOXY: the label rule is removed rather than corrected, because two conventions are live on the board; "What landed" stays prose for production-data state; refs record branch and HEAD per repo; and the `-08:00` offset is fixed.
 

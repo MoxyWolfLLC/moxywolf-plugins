@@ -98,7 +98,7 @@ d. Repeat until all N repos are picked. If the user wants to add a repo that isn
 
 ### 5. Kanban project tag(s)
 
-The team task board is Jira, project **MOXY** — a single board shared by every MoxyWolf project (the vault `KANBAN_VIEW.md` was retired 2026-07-16 when Jira became the single board). Each issue is scoped by a Jira **label** of the form `project-<slug>`. `/session-start` uses that label to brief the user on this project's tasks only, so every project must declare which `#project/…` scope(s) its issues carry. The `#project/<slug>` value is stored in the instructions for readability and maps to the Jira label `project-<slug>` (Jira labels can't contain `/`).
+The team task board is Jira, project **MOXY** — a single board shared by every MoxyWolf project (the vault `KANBAN_VIEW.md` was retired 2026-07-16 when Jira became the single board). Each issue is scoped by a Jira **label**. `/session-start` uses that label, exactly as written, to brief the user on this project's tasks only, so every project declares two things: the `#project/…` scope(s) its tasks carry, for readability, and the exact Jira label(s) its issues carry on MOXY. The label is never derived from the slug. MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm`, so no mapping rule is right for every project (SM-002).
 
 Ask via AskUserQuestion (multi-select): *"Which `#project/…` scope(s) do this project's tasks carry on the MOXY board?"* Build the options from:
 
@@ -106,9 +106,11 @@ Ask via AskUserQuestion (multi-select): *"Which `#project/…` scope(s) do this 
 - Each GitHub repo subfolder name picked in section 4 (e.g. `#project/moxywolf-plugins`)
 - `none — this project has no board presence`
 
-The user can pick one option, several (multi-select), or type a custom slug via "Other". Most projects carry exactly one slug, and it usually matches either the kebab-cased project name or a repo name — but not always (the "Team Plugins" project's scope is `moxywolf-plugins`, the repo name, not the project name). Don't assume; let the user confirm. Confirm back: "Got it — board scope `#project/<slug>` (Jira label `project-<slug>`)."
+The user can pick one option, several (multi-select), or type a custom slug via "Other". Most projects carry exactly one slug, and it usually matches either the kebab-cased project name or a repo name — but not always (the "Team Plugins" project's scope is `moxywolf-plugins`, the repo name, not the project name). Don't assume; let the user confirm. Confirm back: "Got it — board scope `#project/<slug>`."
 
 Store the result as `[KANBAN_SLUG]`: a single slug, a comma-separated list of slugs, or `none`.
+
+Unless the scope is `none`, then ask via AskUserQuestion: *"What is the exact Jira label on MOXY for these issues?"* Offer the slug itself and the slug with a `project-` prefix as options, plus "Other" for free text, and say the answer must match the board exactly. Confirm it back verbatim: "Got it, Jira label `<label>`." Store it as `[JIRA_LABEL]`: one label, a comma-separated list, or `none` when the scope is `none`. If the user doesn't know, store `none` and flag it in the output; never fill it with a guess.
 
 If the user can't answer a question or wants to defer, accept "skip" and proceed with reasonable defaults; flag deferred items in the output so the user knows to fill them in later.
 
@@ -138,6 +140,7 @@ Replace placeholders with the user's answers:
   - **one slug:** substitute `#project/[KANBAN_SLUG]` (e.g. `#project/moxywolf-plugins`).
   - **multiple slugs:** write them comma-separated, each wrapped in backticks as `` `#project/<slug>` `` (e.g. `` `#project/sams`, `#project/ghl` ``).
   - **none:** write `none`.
+- The `[JIRA_LABEL]` placeholder in the *Project Setup* block's `Jira label(s):` line: the label(s) exactly as confirmed, each in backticks and comma-separated, or `none`. Never derive it from `[KANBAN_SLUG]`.
 
 If the project's Active Taskade subfolder is `none` (vault-only project), replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
 
