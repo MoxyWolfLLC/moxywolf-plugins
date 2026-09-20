@@ -215,7 +215,7 @@ the records already lost.
 
 ### EV-006 — Instrument reads
 
-**Status:** built, partially. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008. Merged as `8bd7fae` (PR #18) on 2026-09-17.
+**Status:** building. Merged in part; criterion 1 is still open. Criterion 2 is met: a declared dependency the consumer's result gives no sign of using is reported as a candidate fake edge, surfaced in the report node. Criterion 1 is NOT met and is not claimed. Dependencies reach a command handler inlined in input.json and a model handler inlined in its prompt, so there is no per-dependency read to observe without changing the payload contract every existing handler depends on. What is measured is whether the handler's result references the dependency, which is a proxy: unreferenced is not proof of unused, so it is reported and never fatal. Upgrade path, mechanism verified 2026-09-17: per-dependency files make reads observable through atime, given the aging described in EV-008. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the read side of every handler's declaration.
 
@@ -225,7 +225,7 @@ the records already lost.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** built. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
+**Status:** done. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
@@ -239,7 +239,7 @@ citation-to-snapshot link.
 
 ### EV-008 — Record what a review examined, not only what it found
 
-**Status:** built. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record. Merged as `8bd7fae` (PR #18) on 2026-09-17.
+**Status:** building. Merged in part; criterion 1 (commands run) and criterion 3 are still open. Criteria 1 and 2 are met for file reads: the round records which surface files the reviewer opened, how many were offered, and whether it looked beyond the diff. Commands the reviewer ran are NOT recorded — the CLIs differ in what they report and some report nothing — so criterion 1's second half is unmet and unclaimed. Criterion 3 is not built; routing ad-hoc consultations through a recording address is a separate change to how tools are invoked, not to the review record. Merged as `8bd7fae` (PR #18) on 2026-09-17.
 
 **Links introduced:** the review-to-search-space link.
 
@@ -452,7 +452,7 @@ nothing checked that width.
 
 ### XE-011: One vocabulary for what the loop's agents hand each other
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the term-to-definition link. A packet, round record or design status names a term by its id, and a reader assumes the definition that id carries today. The vocabulary is versioned, and a record cites the version it was written against, so a changed definition is visible in the record rather than silently read into it.
 

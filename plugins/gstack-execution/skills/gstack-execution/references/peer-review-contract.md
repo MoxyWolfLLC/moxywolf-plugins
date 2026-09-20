@@ -205,7 +205,7 @@ Every run ends in exactly one:
 | `data_use_denied` | Repository/history or reviewer destination permission is absent or denied, or a snapshot symlink escapes scope |
 | `model_below_floor` | The reviewer ran (or was configured to run) below the model floor |
 
-Only `no_blocking_findings` and `fixes_verified` are passing round outcomes; all other round outcomes exit nonzero. Only `opened` and `blocking_findings` accept another round. A terminal result closes the review; retry requires a new review ID.
+Every outcome named here is defined once, with its id, in `vocabulary.json` beside this file; the dispatcher loads its outcome set, enums and round-record shape from there. Only `no_blocking_findings` and `fixes_verified` are passing round outcomes; all other round outcomes exit nonzero. Only `opened` and `blocking_findings` accept another round. A terminal result closes the review; retry requires a new review ID.
 
 ## Release boundary
 

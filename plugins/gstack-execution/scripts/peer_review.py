@@ -114,10 +114,28 @@ def choose_reviewer(builder, forced=None, require_installed=True):
         raise ReviewError("review_unavailable",
                           f"no independent reviewer on PATH for builder {builder}; tried {', '.join(cands)}")
     return available[0], available[0] != cands[0]
-PACKET_FIELDS = ["outcome", "acceptance_criteria", "repos", "changed_behavior", "exclusions", "tests", "release_owner"]
-SEVERITIES = {"blocking", "follow_up", "separate"}
-VERDICTS = {"no_blocking_findings", "blocking_findings"}
-DISPOSITIONS = {"fixed", "disproved", "deferred", "unresolved"}
+# XE-011: the terms this dispatcher names have one home, references/vocabulary.json. The enums,
+# the round-record shape and the outcome set are read from it, not restated here, so the contract
+# the reviewer is held to and the code enforcing it cannot drift apart (XE-008 criterion 2).
+VOCAB_PATH = Path(__file__).resolve().parent.parent / "skills" / "gstack-execution" / "references" / "vocabulary.json"
+VOCAB = json.loads(VOCAB_PATH.read_text())
+VOCAB_VERSION = VOCAB["version"]
+_CONCEPTS = {c["id"]: c for c in VOCAB["concepts"]}
+
+
+def vocab_ids(*groups):
+    return {c["id"] for c in VOCAB["concepts"] if c["group"] in groups}
+
+
+def vocab_shape(term):
+    return _CONCEPTS[term]["shape"]
+
+
+PACKET_FIELDS = vocab_shape("packet")["required"]
+SEVERITIES = vocab_ids("severity")
+VERDICTS = {c["id"] for c in VOCAB["concepts"] if c.get("verdict")}
+DISPOSITIONS = vocab_ids("disposition")
+OUTCOMES = vocab_ids("round_outcome", "review_outcome", "verify_outcome")
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -158,6 +176,8 @@ STRICT_SCHEMA = strict(OUTPUT_SCHEMA)
 class ReviewError(Exception):
     """Carries an explicit outcome name."""
     def __init__(self, outcome, detail):
+        if outcome not in OUTCOMES:   # XE-011: an outcome nobody defined is a bug, not a new outcome
+            raise ValueError(f"{outcome!r} is not an outcome in vocabulary {VOCAB_VERSION}")
         super().__init__(f"{outcome}: {detail}")
         self.outcome, self.detail = outcome, detail
 
@@ -850,14 +870,17 @@ def verify_links(d):
         # having nothing in it to verify. Require the fields a completed round must have.
         # Presence is not validity: a field of the wrong shape reaches the per-finding
         # loop and either crashes it or slips past it, so check the shape here.
-        shape = {"repos": list, "findings": list, "acceptance": list, "subjects": dict}
-        bad = [k for k, t in shape.items() if k in rec and not isinstance(rec[k], t)]
-        missing = [k for k in ("repos", "findings", "acceptance") if k not in rec]
+        # XE-011: what a completed round is has one home, the vocabulary's review_round shape.
+        round_shape = vocab_shape("review_round")
+        types = {"list": list, "dict": dict}
+        bad = [k for k, t in round_shape["types"].items() if k in rec and not isinstance(rec[k], types[t])]
+        missing = [k for k in round_shape["required"] if k not in rec]
         if missing or bad:
             record(f"round {n} record is complete", False,
                    f"completed round is missing {missing} and malformed in {bad}", kind="record")
             continue
-        if any(not isinstance(f, dict) or "id" not in f or "severity" not in f for f in rec["findings"]):
+        need = vocab_shape("finding")["required"]
+        if any(not isinstance(f, dict) or any(k not in f for k in need) for f in rec["findings"]):
             record(f"round {n} findings are well formed", False, "a finding is not an object carrying id and severity", kind="record")
             continue
         covered = {row.get("criterion") for row in rec["acceptance"] if isinstance(row, dict)}
@@ -954,8 +977,16 @@ def verify_links(d):
         outcome = "incomplete_record"         # a required entry is missing, which is not drift
     else:
         outcome = "links_verified"
+    # XE-011 criterion 5: a record written against another vocabulary version is reported, not
+    # failed. An older record is not wrong for being older, but a reader has to be able to see it.
+    drift = [f"{name}: {v or 'unversioned'}" for name, v in
+             [("packet", packet.get("vocabulary_version"))] +
+             [(f"round {n}", (load(d, f"round-{n}.json") or {}).get("vocabulary_version"))
+              for n in range(1, state.get("rounds_used", 0) + 1)]
+             if v != VOCAB_VERSION]
     return {"review_id": d.name, "outcome": outcome, "examined": examined,
-            "broken": len(broken), "unbound": unbound, "checks": checks}
+            "broken": len(broken), "unbound": unbound, "checks": checks,
+            "vocabulary_version": VOCAB_VERSION, "vocabulary_drift": drift}
 
 
 def cmd_verify(a):
@@ -1085,6 +1116,7 @@ def cmd_open(a):
              "coverage_status": cov_status,
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "heads": [[r["head"] for r in packet["repos"]]]}
+    packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     save(d, "packet.json", packet); save(d, "state.json", state)
     print(json.dumps(state, indent=2))
     return state
@@ -1122,7 +1154,8 @@ def cmd_round(a):
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
-    record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"]}
+    record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
+              "vocabulary_version": VOCAB_VERSION}
     try:
         try:
             data_permission(packet, tool=state["reviewer"])  # intended reviewer; the run records what ran

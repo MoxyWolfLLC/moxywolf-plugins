@@ -214,6 +214,19 @@ class LinkTests(unittest.TestCase):
         self.assertIn("not evidence that a person read", release["observations_note"])
         self.assertEqual(pr.verify_links(d)["outcome"], "links_verified")
 
+    def test_a_review_names_the_vocabulary_version_and_verify_reports_drift(self):
+        """XE-011 criterion 5: a record written against another vocabulary version is visible,
+        and it is a report, not a failure."""
+        rid, d = self.reviewed()
+        self.assertEqual(pr.load(d, "packet.json")["vocabulary_version"], pr.VOCAB_VERSION)
+        self.assertEqual(pr.load(d, "round-1.json")["vocabulary_version"], pr.VOCAB_VERSION)
+        clean = pr.verify_links(d)
+        self.assertEqual(clean["vocabulary_drift"], [])
+        rec = pr.load(d, "round-1.json"); rec["vocabulary_version"] = "0.9.0"; pr.save(d, "round-1.json", rec)
+        drifted = pr.verify_links(d)
+        self.assertEqual(drifted["vocabulary_drift"], ["round 1: 0.9.0"])
+        self.assertEqual(drifted["outcome"], clean["outcome"])
+
     def test_an_observation_that_no_longer_holds_is_caught_by_verify(self):
         rid, d = self.reviewed()
         pr.save(d, "release.json", {"observations": [

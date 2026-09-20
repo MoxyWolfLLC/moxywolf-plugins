@@ -1,0 +1,380 @@
+{
+  "@context": {
+    "skos": "http://www.w3.org/2004/02/skos/core#"
+  },
+  "id": "gstack-contract-vocabulary",
+  "@type": "skos:ConceptScheme",
+  "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
+  "version": "1.0.0",
+  "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
+  "concepts": [
+    {
+      "id": "planned",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "item_status",
+      "skos:prefLabel": "Planned",
+      "skos:definition": "declared in DESIGN.md with acceptance criteria; no code yet"
+    },
+    {
+      "id": "building",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "item_status",
+      "skos:prefLabel": "Building",
+      "skos:definition": "code for this item is being written, or some of its criteria are merged and others are still open"
+    },
+    {
+      "id": "review",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "item_status",
+      "skos:prefLabel": "Review",
+      "skos:definition": "built and waiting on cross-tool review or on the human merge"
+    },
+    {
+      "id": "done",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "item_status",
+      "skos:prefLabel": "Done",
+      "skos:definition": "every acceptance criterion is met and the merge is recorded"
+    },
+    {
+      "id": "dropped",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "item_status",
+      "skos:prefLabel": "Dropped",
+      "skos:definition": "withdrawn by an approved amendment; kept so the ID is never reused"
+    },
+    {
+      "id": "review_round",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Review round",
+      "skos:definition": "one reviewer pass over pinned commits, recorded as round-N.json; a completed round carries its repos, findings and acceptance rows in the shapes given here",
+      "shape": {
+        "required": [
+          "repos",
+          "findings",
+          "acceptance"
+        ],
+        "types": {
+          "repos": "list",
+          "findings": "list",
+          "acceptance": "list",
+          "subjects": "dict"
+        }
+      }
+    },
+    {
+      "id": "finding",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Finding",
+      "skos:definition": "one issue a reviewer raises in a round, identified so it can be disposed and re-checked",
+      "shape": {
+        "required": [
+          "id",
+          "severity"
+        ]
+      }
+    },
+    {
+      "id": "blocking_finding",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Blocking finding",
+      "skos:definition": "a finding of severity blocking; a round with one open cannot pass"
+    },
+    {
+      "id": "sign_off",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Sign-off",
+      "skos:definition": "a reviewer round ending in no_blocking_findings or fixes_verified at the final head; exhausting the rounds is not a sign-off"
+    },
+    {
+      "id": "release_owner",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Release Owner",
+      "skos:definition": "the named human who merges the reviewed head under their own login; machine review never grants release"
+    },
+    {
+      "id": "packet",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Packet",
+      "skos:definition": "the review's fixed input: outcome, acceptance criteria, repos with base and head, changed behaviour, exclusions, tests and Release Owner",
+      "shape": {
+        "required": [
+          "outcome",
+          "acceptance_criteria",
+          "repos",
+          "changed_behavior",
+          "exclusions",
+          "tests",
+          "release_owner"
+        ]
+      }
+    },
+    {
+      "id": "acceptance_criterion",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "Acceptance criterion",
+      "skos:definition": "one checkable statement in a design item; a review scores each one met or not with evidence"
+    },
+    {
+      "id": "blocking",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "severity",
+      "skos:prefLabel": "blocking",
+      "skos:definition": "must be fixed or disproved before the round can pass"
+    },
+    {
+      "id": "follow_up",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "severity",
+      "skos:prefLabel": "follow_up",
+      "skos:definition": "worth doing, not required for this item"
+    },
+    {
+      "id": "separate",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "severity",
+      "skos:prefLabel": "separate",
+      "skos:definition": "out of this item's scope; belongs elsewhere"
+    },
+    {
+      "id": "fixed",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "disposition",
+      "skos:prefLabel": "fixed",
+      "skos:definition": "the builder changed the code; the next round verifies it"
+    },
+    {
+      "id": "disproved",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "disposition",
+      "skos:prefLabel": "disproved",
+      "skos:definition": "the builder shows with evidence the finding does not hold"
+    },
+    {
+      "id": "deferred",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "disposition",
+      "skos:prefLabel": "deferred",
+      "skos:definition": "postponed; a blocking deferral needs an approved design amendment"
+    },
+    {
+      "id": "unresolved",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "disposition",
+      "skos:prefLabel": "unresolved",
+      "skos:definition": "no disposition yet"
+    },
+    {
+      "id": "opened",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "round_outcome",
+      "skos:prefLabel": "opened",
+      "skos:definition": "a review exists and no round has run"
+    },
+    {
+      "id": "no_blocking_findings",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "round_outcome",
+      "skos:prefLabel": "no_blocking_findings",
+      "skos:definition": "the first round found nothing blocking; passing",
+      "verdict": true
+    },
+    {
+      "id": "blocking_findings",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "round_outcome",
+      "skos:prefLabel": "blocking_findings",
+      "skos:definition": "a round found blocking findings and rounds remain",
+      "verdict": true
+    },
+    {
+      "id": "fixes_verified",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "round_outcome",
+      "skos:prefLabel": "fixes_verified",
+      "skos:definition": "a later round verified every prior blocker fixed with nothing new blocking; passing"
+    },
+    {
+      "id": "rounds_exhausted",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "round_outcome",
+      "skos:prefLabel": "rounds_exhausted",
+      "skos:definition": "the round limit was reached with blockers open; an escalation, never an approval"
+    },
+    {
+      "id": "authorization_required",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "authorization_required",
+      "skos:definition": "the action needs an authority this CLI cannot grant"
+    },
+    {
+      "id": "awaiting_human_release",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "awaiting_human_release",
+      "skos:definition": "the release handoff is written; only the named human can merge"
+    },
+    {
+      "id": "data_use_denied",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "data_use_denied",
+      "skos:definition": "the packet's data-use policy forbids sending this content to the reviewer"
+    },
+    {
+      "id": "empty_output",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "empty_output",
+      "skos:definition": "the reviewer returned nothing to parse"
+    },
+    {
+      "id": "invalid_disposition",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "invalid_disposition",
+      "skos:definition": "a disposition names an unknown finding or lacks required evidence"
+    },
+    {
+      "id": "malformed_output",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "malformed_output",
+      "skos:definition": "the reviewer's output does not match the required schema"
+    },
+    {
+      "id": "malformed_packet",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "malformed_packet",
+      "skos:definition": "the packet is missing a field or has one of the wrong shape"
+    },
+    {
+      "id": "missing_commits",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "missing_commits",
+      "skos:definition": "a pinned commit does not resolve, or base equals head"
+    },
+    {
+      "id": "model_below_floor",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "model_below_floor",
+      "skos:definition": "the reviewer model is below the configured floor"
+    },
+    {
+      "id": "output_truncated",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "output_truncated",
+      "skos:definition": "the reviewer's response was cut off at its output limit"
+    },
+    {
+      "id": "packet_narrower_than_item",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "packet_narrower_than_item",
+      "skos:definition": "the packet's criteria do not cover every declared criterion of the items it claims"
+    },
+    {
+      "id": "release_blocked",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "release_blocked",
+      "skos:definition": "a precondition for release does not hold"
+    },
+    {
+      "id": "release_unavailable",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "release_unavailable",
+      "skos:definition": "the GitHub merge record could not be read"
+    },
+    {
+      "id": "review_closed",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "review_closed",
+      "skos:definition": "the review already reached a terminal outcome; open a new one"
+    },
+    {
+      "id": "review_unavailable",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "review_unavailable",
+      "skos:definition": "no independent reviewer could be run"
+    },
+    {
+      "id": "reviewer_not_independent",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "reviewer_not_independent",
+      "skos:definition": "the chosen reviewer shares the builder's model family"
+    },
+    {
+      "id": "stale_release",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "stale_release",
+      "skos:definition": "the working revision changed after review"
+    },
+    {
+      "id": "timeout",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "timeout",
+      "skos:definition": "the reviewer exceeded its time limit"
+    },
+    {
+      "id": "human_merge_recorded",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "human_merge_recorded",
+      "skos:definition": "the named human's GitHub merge of the reviewed head is recorded"
+    },
+    {
+      "id": "links_verified",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "verify_outcome",
+      "skos:prefLabel": "links_verified",
+      "skos:definition": "every evidential link in the review re-resolved to what was reviewed"
+    },
+    {
+      "id": "stale_link",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "verify_outcome",
+      "skos:prefLabel": "stale_link",
+      "skos:definition": "a link resolved to something other than what was reviewed"
+    },
+    {
+      "id": "incomplete_record",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "verify_outcome",
+      "skos:prefLabel": "incomplete_record",
+      "skos:definition": "an entry the review must carry is missing"
+    },
+    {
+      "id": "links_unverifiable",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "verify_outcome",
+      "skos:prefLabel": "links_unverifiable",
+      "skos:definition": "a link could not be re-resolved either way"
+    },
+    {
+      "id": "examined_nothing",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "verify_outcome",
+      "skos:prefLabel": "examined_nothing",
+      "skos:definition": "the verifier examined no links, which is a failure, not a pass"
+    }
+  ]
+}
