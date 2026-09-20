@@ -477,7 +477,7 @@ Scope is gstack-execution's own contracts. `project-init`, `team-kanban` and the
 
 ### XE-012 — Every gstack run records what it cost, against predictions stated before the data
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the run-to-transcript link: a run record's token counts come from a session transcript over a stated time window, and transcripts are ephemeral, so the record carries the counts, the window and the transcript's path at capture, and never assumes the path resolves later. The run-to-review link: the record names its review ID. The run-to-vocabulary link: the record names the vocabulary version it ran under, which is what makes a version change a break point.
 
