@@ -17,7 +17,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 - Limit the GA items to gstack and the shared declarations necessary to govern it.
 - Other plugins in this repository carry their own objective sections and items.
 - This repository has no Vercel project, no package.json and no Playwright suite, so the Endform E2E gate does not apply to it.
-- The agent's GitHub identity is the `moxywolf-agent` GitHub App (App ID 5007349, installation 163156626), created by Dorian on 2026-09-20. Its key and `github-app.env` live in the vault's `_Shared Knowledge/Agents and Plugins`. No machine user.
+- The agent's GitHub identity is the `moxywolf-agent` GitHub App (App ID 5007349), created by Dorian on 2026-09-20 and made installable on any account the same day. Its key and `github-app.env` live in the vault's `_Shared Knowledge/Agents and Plugins`. No machine user. It has one installation per account, resolved per repository at mint time rather than pinned in configuration (GA-006); as of 2026-09-20, MoxyWolfLLC, OpenControls-AI and GRCSchema.
 - `main` carries a ruleset that restricts updates, requires a pull request and blocks force pushes, with two bypasses: Repository admin, and the `moxywolf-agent` app for pull requests only, so the app can merge a pull request and can't push to `main` (2026-09-20). Loosening it further is an amendment to this document.
 - The agent merges when Dorian tells it to, and only then. It merges as `moxywolf-agent[bot]`, through the pull request, and the merge is recorded as agent-executed on his instruction, never as a human release (Dorian, 2026-09-20).
 
@@ -85,6 +85,21 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 9. The PAT leaves the agent's reach: Dorian moves `github-pat.env` out of every connected folder. It also pushes to OpenControls-AI repos today, and the app is installed on MoxyWolfLLC only. So before it moves, Dorian decides the OpenControls-AI path: switch the app to installable on any account and install it there, or create a second app. Until the file is gone, this item's status is `review`, not `done`, and says why. Check: the vault folder listing shows no `github-pat.env`.
 10. After merge, the memory graph's node 14 is marked closed with the date and this item's merge commit, and the swimlane's merge step shows two paths: Dorian merges, or the agent merges as the bot on his recorded instruction.
 11. `gstack-execution` and `project-init` each get a minor version bump with a changelog line.
+
+### GA-006 — A token is minted for the installation that owns the repository
+
+**Status:** planned.
+
+**Links introduced:** the repository-to-installation link. Until now a token's scope came from a constant in a file, and every caller assumed that constant covered the repository in front of it. After this the scope is derived from the repository at mint time, so the token names where it came from, and a repository the app cannot reach becomes a named refusal rather than a 404 the caller has to interpret.
+
+GA-005 criterion 1 mints from the single installation id in `github-app.env`, and the app-identity constraint named it. That held while the app was installed on one account. It stopped holding on 2026-09-20, when GA-005 criterion 9 asked Dorian to choose the OpenControls-AI path and he chose it, making the app public and installing it on OpenControls-AI. A token minted from the MoxyWolfLLC installation answers 404 for `OpenControls-AI/cki`, which is the same answer GitHub gives for a repository that does not exist. The credential's reach therefore fails in the shape hardest to read, and it cost most of a session to that reading before the cause was found.
+
+1. **The installation is resolved from the repository.** With a repository in hand the script asks `GET /repos/{owner}/{repo}/installation` with the app JWT and mints against the id that comes back. The id in `github-app.env` is a fallback used only when no repository can be determined, and it is never preferred over a resolved one.
+2. **The repository is found where the caller already says it.** `--repo owner/name` when given; otherwise the `{owner}/{repo}` in an `api` path that begins `repos/`; otherwise `origin`'s URL in the working directory for `exec`. When none of the three answers, the script says which it tried before falling back.
+3. **A wrong-installation failure never reads as a missing repository.** When a resolve fails, the script says the app is not installed on that owner, names the owner and the accounts it is installed on, and exits non-zero. It does not retry with the fallback id, because that token produces the same 404 and a second identical failure reads as a flaky network.
+4. **One lookup per invocation, and nothing cached.** The resolve costs one request against the JWT the script already mints. Nothing writes the mapping to disk, because an installation can be removed between runs and a cached id would fail as a 404 long after the cause.
+5. **The constraint stops naming one installation.** This document's app-identity constraint names the app and its key, not a single installation id, and says the installation is resolved per repository.
+6. **Evidence.** `scripts/test_agent_token.py`: a stubbed `/repos/{owner}/{repo}/installation` returns an id different from the env's and the mint is asserted to use the resolved one; a resolve that 404s produces the not-installed message naming the owner and does not fall back; the `api` path parser and the `origin` URL parser each cover ssh and https remotes; no path writes an id to disk. The suite reports how many checks it examined and fails when it examines none, per EV-001. `scripts/run_all_tests.py` runs it.
 
 ## Second objective: academic-pipeline integrity
 
@@ -648,6 +663,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-20: GA-006 declared, and the app-identity constraint stops naming one installation. GA-005 criterion 9 asked Dorian to decide the OpenControls-AI path. He decided it this session, making the app public and installing it on OpenControls-AI, which immediately exposed what criterion 1 had assumed: one installation id in `github-app.env`. A token minted from the MoxyWolfLLC installation answers 404 for `OpenControls-AI/cki`, the same answer GitHub gives for a repository that does not exist, so the credential's reach fails in the shape hardest to read. GA-006 resolves the installation from the repository instead, and it is what makes criterion 9's remaining step safe: the PAT cannot leave the vault while OpenControls-AI pushes depend on it. A third installation, on GRCSchema, was created by the agent misclicking a row during the same session and is Dorian's to keep or remove.
 
 - 2026-09-20: Sixth objective, trust boundaries, declared and approved by Dorian. TB-001 puts an `origin` on every record, which is what makes the fifth prediction in "Paid in the Bottom Layer" measurable. TB-002 puts the untrusted-text enclosure in one file. TB-003 extends the existing grant model to destinations rather than adding a denylist, with the reasoning and the test evidence in DR-099: a four-pattern denylist allowed nine of twelve attacks from its own author's list, and its seven-pattern successor blocked four of six ordinary engineering calls while still allowing four attacks. XE-012 gains criterion 10, recording packet and context size, with no prediction attached. The vocabulary goes to 1.2.0 when TB-001 merges, which is an XE-012 break point. Prompted by three rounds of external response to the pre-registration; the security literature verified on reading and the proposed fix did not.
 
