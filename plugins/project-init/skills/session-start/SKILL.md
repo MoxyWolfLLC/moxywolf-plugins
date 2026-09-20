@@ -230,7 +230,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 
 [If the handoff lists local commits awaiting push:]
 **Commits awaiting push**
-- [N] commits recorded in last session's handoff. If any are still unpushed, push them via sandbox `git` + the classic PAT. See handoff §Commit & push state.
+- [N] commits recorded in last session's handoff. If any are still unpushed, push them via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005). See handoff §Commit & push state.
 
 [If no handoff was found, replace the four sections above with:]
 **Last session left off with**

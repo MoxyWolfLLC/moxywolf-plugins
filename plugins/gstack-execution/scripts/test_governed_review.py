@@ -12,6 +12,13 @@ import unittest
 
 SCRIPT = Path(__file__).with_name("peer_review.py")
 
+
+def load_pr():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("pr_ga5", SCRIPT)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    return mod
+
 class GovernedReview(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -218,8 +225,82 @@ class GovernedReview(unittest.TestCase):
         record.update(changes)
         self.env["GITHUB_RESPONSE"] = json.dumps(record)
         gh = self.root / "bin" / "gh"
-        gh.write_text("#!" + sys.executable + "\nimport os,sys\nassert sys.argv[1:]==['api','repos/example/project/pulls/1']\nprint(os.environ['GITHUB_RESPONSE'])\n")
+        gh.write_text("#!" + sys.executable + "\nimport os,sys\nargs=sys.argv[1:]\n"
+                      "if args==['api','repos/example/project/pulls/1']: print(os.environ['GITHUB_RESPONSE'])\n"
+                      "elif args==['api','repos/example/project/issues/1/comments?per_page=100']: print(os.environ.get('GITHUB_COMMENTS','[]'))\n"
+                      "else: sys.exit('unexpected gh call: %r' % args)\n")
         gh.chmod(0o755)
+
+    # GA-005: an agent merge is recorded as one, on an instruction the agent posted first.
+    BOT = {"login": "moxywolf-agent[bot]", "type": "Bot"}
+
+    def instruction_comment(self, covers=(1,), owner="dorianatmoxywolf", when="2000-01-01T00:00:00Z", by=None):
+        pr = load_pr()
+        return {"user": by or self.BOT, "created_at": when, "html_url": "https://github.com/example/project/pull/1#c1",
+                "body": pr.merge_instruction_body("merge it", "2026-09-20T05:00:00Z", covers, owner)}
+
+    def bot_merge(self, comments):
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)
+        self.install_github_response(merged_by=self.BOT)
+        self.env["GITHUB_COMMENTS"] = json.dumps(comments)
+        return self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+
+    def test_agent_merge_on_instruction_is_recorded_as_the_agents(self):
+        r = self.bot_merge([self.instruction_comment()])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual(rec["outcome"], "agent_merge_on_instruction")
+        self.assertEqual(rec["merged_by"], "moxywolf-agent[bot]")
+        self.assertEqual(rec["instructed_by"], "dorianatmoxywolf")
+        self.assertEqual(rec["instruction"], "merge it")
+        self.assertEqual(rec["instruction_comment"], "https://github.com/example/project/pull/1#c1")
+
+    def test_agent_merge_without_a_matching_instruction_is_refused_by_name(self):
+        cases = {"no comment": [],
+                 "covers another PR": [self.instruction_comment(covers=(2,))],
+                 "another owner": [self.instruction_comment(owner="someone-else")],
+                 "posted after the merge": [self.instruction_comment(when="2999-01-01T00:00:00Z")],
+                 "posted by a person, not the merging bot": [self.instruction_comment(by={"login": "x", "type": "User"})],
+                 "unparseable marker": [{"user": self.BOT, "created_at": "2000-01-01T00:00:00Z", "body": "<!-- gstack-merge-instruction: {nope -->"}]}
+        for name, comments in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                r = self.bot_merge(comments)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("release_blocked", r.stderr)
+                self.assertIn("unrequested agent merge", r.stderr)
+
+    def test_the_instruction_the_producer_writes_is_the_one_the_recorder_reads(self):
+        pr = load_pr()
+        body = pr.merge_instruction_body("merge #1 and #3\nplease", "2026-09-20T05:00:00Z", [3, 1, 1], "dorian")
+        self.assertIn("> merge #1 and #3", body)
+        self.assertEqual(pr.parse_merge_instruction(body),
+                         {"instruction": "merge #1 and #3\nplease", "given_at": "2026-09-20T05:00:00Z", "covers": [1, 3], "instructed_by": "dorian"})
+        r = self.call("merge-instruction", "--covers", "#1, 3", "--text", "merge it", "--given-at", "t", "--owner", "dorian")
+        self.assertEqual(pr.parse_merge_instruction(json.loads(r.stdout)["body"])["covers"], [1, 3])
+
+    def test_record_release_reads_github_over_rest_with_the_app_token_when_gh_is_absent(self):
+        import http.server, threading
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)
+        self.install_github_response()
+        (self.root / "bin" / "gh").unlink()
+        record, seen = self.env.pop("GITHUB_RESPONSE"), []
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(h):
+                seen.append((h.path, h.headers.get("Authorization")))
+                raw = record.encode(); h.send_response(200); h.send_header("Content-Length", str(len(raw))); h.end_headers(); h.wfile.write(raw)
+            def log_message(h, *a): pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
+        self.env.update(GITHUB_TOKEN="ghs_fixture", GSTACK_GITHUB_API=f"http://127.0.0.1:{srv.server_port}")
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["outcome"], "human_merge_recorded")
+        self.assertEqual(seen, [("/repos/example/project/pulls/1", "token ghs_fixture")])
 
     def test_human_merge_is_recorded_from_github(self):
         self.open(); self.response(); self.round()

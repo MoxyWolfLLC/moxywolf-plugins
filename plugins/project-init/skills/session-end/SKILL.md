@@ -83,7 +83,7 @@ Items should be ordered by what next-session Claude should do **first**. Pushing
 
 Per the team-shared rule `Taskade/_Shared Files/_shared-memory/feedback_repos_writable_commits_via_github_desktop.md`, **Claude commits directly** during the session — so by session-end the working tree is normally clean and the session's work already sits in atomic local commits. This section records the **push state**, not draft commit messages:
 
-- List the commits made AND pushed this session (short hash + summary line each), and name the repo, so next-session Claude knows what landed. Claude commits and pushes directly via sandbox `git` + a classic PAT — nothing is left for the human to push.
+- List the commits made AND pushed this session (short hash + summary line each), and name the repo, so next-session Claude knows what landed. Claude commits and pushes directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005) — nothing is left for the human to push.
 - If the working tree still has genuinely uncommitted changes (rare — e.g. a change Claude deliberately left for the human to commit, or a repo not writable from the sandbox), write a full commit block for it: file list, plain-text summary line (under ~72 chars, imperative), description body in a fenced block, ready for the fallback hand-off path.
 - Before declaring the repo pushable, confirm `find <repo>/.git -name "*.lock"` returns nothing.
 
@@ -196,7 +196,7 @@ for: [FOR from Step 3.5]   # OMIT THIS LINE ENTIRELY if FOR is unset
 
 ## Commit & push state
 
-**[repo name]** — commits made and pushed this session (Claude pushes directly via sandbox `git` + a classic PAT):
+**[repo name]** — commits made and pushed this session (Claude pushes directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005)):
 
 - `[short hash]` [commit summary line]
 - `[short hash]` [commit summary line]
@@ -287,7 +287,7 @@ When updating (or initializing) a repo's README, it must carry these 16 sections
 8. **Key Features** — bulleted list of what the repo actually does. Lead with the load-bearing ones. Reference concrete production state where possible (row counts, latest milestones).
 9. **API / Server Actions** — table of routes, server actions, or endpoints. If the repo is a UI workbench reading directly from Supabase / a backing store with no API surface, **say so explicitly** in this section (don't omit it).
 10. **Common Workflows** — common operator tasks step-by-step: re-running a classifier, paging through records, regenerating types, etc. Curl examples for APIs; npm-script invocations for tools.
-11. **Troubleshooting** — table mapping symptom → cause/fix. Always include known operational gotchas: PostgREST 1000-row cap (if Supabase), Cowork sandbox unlink limitation (if applicable), classic-PAT push-flow note (token in the vault file `github-pat.env`, DR-011), env-var missing errors.
+11. **Troubleshooting** — table mapping symptom → cause/fix. Always include known operational gotchas: PostgREST 1000-row cap (if Supabase), Cowork sandbox unlink limitation (if applicable), agent push-flow note (the `moxywolf-agent` app, key and `github-app.env` in the vault, GA-005), env-var missing errors.
 12. **Security** — RLS posture for the database, service-role-key vs anon-key separation, secret hygiene rules, any auth flow. Use a small table for control + status + implementation.
 13. **Technology Stack** — table of category → technology → version. Pin to the vault's current **TECH-STACK** reference (highest-versioned `MoxyWolf Vault/_Shared Knowledge/Tech Stack/TECH-STACK-V*.md`; V4.7 as of 2026-07) — don't hardcode a version here, read the file; only deviate when the repo legitimately uses something newer/older and explain why.
 14. **Project Structure** — `text`-fenced tree of top-level directories with one-line purpose each. Don't enumerate every file — show the shape.
@@ -303,7 +303,7 @@ Optional 17th section if the repo has unusual contributor conventions: **Contrib
 3. **Apply minimal edits via the Edit tool.** Preserve voice, structure, section ordering, badge style, and table conventions already in place.
 4. **Cascade derived sections.** If a new script lands in the Commands Reference table, check Data Initialization, Common Workflows, Project Structure, and Key Features for cascade edits. If a migration lands, refresh the Database Schema migrations list and the ERD if a table was added/dropped.
 5. **Bump version badges** if a real version bump landed.
-6. **Commit AND push the README change directly.** Claude commits and pushes the README refresh directly via sandbox `git` + the classic PAT from the vault (`github-pat.env`, see `reference_github_pat_vault` / DR-011) — make an atomic commit ordered **after** the session's substantive code commits (the README documents the code, so code lands first), then push it with the rest and verify via `ls-remote`.
+6. **Commit AND push the README change directly.** Claude commits and pushes the README refresh directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005); a repo the app isn't installed on is reported as a gap, never pushed with a person's token — make an atomic commit ordered **after** the session's substantive code commits (the README documents the code, so code lands first), then push it with the rest and verify via `ls-remote`.
 
 #### Surface the README change in the handoff
 
@@ -390,7 +390,7 @@ Top of stack for next session:
 [If Step 5c wrote README updates:]
 README updates written + committed:
 - [repo-name]/README.md — [one-line summary of what changed]
-(Committed and pushed directly via sandbox `git` + the classic PAT.)
+(Committed and pushed directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005).)
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
@@ -430,5 +430,5 @@ Keep it factual. Dorian can open the file in Obsidian to review the full handoff
 
 - This skill complements `/session-start` (read the handoff next time) and bundles `/obsidian-update` (extract durable knowledge to the vault) as a final step. One wrap-up command writes the project-scoped handoff AND captures cross-project knowledge in the vault — no need to remember to run two commands.
 - The handoff is intentionally project-scoped. Cross-project knowledge belongs in the vault via `/obsidian-update`, which now runs automatically at Step 7.
-- Claude commits AND pushes its code changes directly during the session and at session-end (the README refresh in Step 5c included) via sandbox `git` + the classic PAT from the vault (`github-pat.env`, see `reference_github_pat_vault` / DR-011), verifying each push via `ls-remote`. The handoff's "Commit & push state" section records which commits landed this session.
+- Claude commits AND pushes its code changes directly during the session and at session-end (the README refresh in Step 5c included) via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005); a repo the app isn't installed on is reported as a gap, never pushed with a person's token, verifying each push via `ls-remote`. The handoff's "Commit & push state" section records which commits landed this session.
 - Step ordering matters: handoff (Step 5) before Cowork session-memory (Step 6) before vault update (Step 7). The handoff is the load-bearing artifact for tomorrow; memory is Claude's own context; the vault is the long-term institutional record. If anything fails, the earlier steps stand on their own.

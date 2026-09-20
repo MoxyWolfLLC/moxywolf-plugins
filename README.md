@@ -254,7 +254,7 @@ This repo is the **source of truth**. The flow is:
 
 1. Edit a plugin in your local clone: `~/Documents/GitHub/moxywolf-plugins/plugins/<name>/`.
 2. Bump the `version` in that plugin's `.claude-plugin/plugin.json`. Without a bump Cowork won't notice the change — the `version` field is what gates updates.
-3. Commit and push the change (`git push`; in a Cowork session Claude commits AND pushes directly via sandbox `git` + a classic PAT).
+3. Commit and push the change (`git push`; in a Cowork session Claude commits AND pushes directly as the `moxywolf-agent` GitHub App, through `plugins/gstack-execution/scripts/agent_token.py`, never with a person's token).
 4. On every consumer machine, run `claude plugin marketplace update moxywolf-plugins`. Cowork has a **Refresh** button that does the same thing.
 
 **Watch out for**: don't set `version` in both `plugin.json` and `marketplace.json`. The `plugin.json` value silently wins, so a stale manifest version will mask the bump you made in the catalog.

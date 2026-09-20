@@ -72,7 +72,7 @@ delegated act now, and the delegation is built so that it cannot become merge au
 
 | Credential | What it is | What it may do |
 | --- | --- | --- |
-| `GITHUB_PAT` | the existing classic token in the vault | feature branches, pull requests, reads. **Never used to administer a branch.** |
+| `moxywolf-agent` app token | minted per command by `scripts/agent_token.py` from the app key in the vault (GA-005); `Contents` and `Pull requests` write, `Metadata` read | feature branches, pull requests, reads, and a merge through a pull request when the Release Owner tells the agent to. Cannot push to `main`, and carries no `Administration`. Acts as `moxywolf-agent[bot]`, never under a person's login. |
 | `GITHUB_GATE_TOKEN` | a **fine-grained** token, scoped to the named repositories, `Administration: read and write`, `Contents: read` | add required status checks. Cannot push anything. |
 
 A token that can *set* a required check can also *remove* it, and with protection removed a token that
@@ -88,8 +88,9 @@ refuses a classic token by name, citing its scopes. It also refuses a token it c
 check is on capability, not on the `ghp_`/`github_pat_` prefix, because a prefix is a naming convention
 and this decision is not about naming.
 
-**What stays outside agent authority, unchanged.** The human merge credential. Pushing to a protected
-branch. Merging a pull request. `ensure` only ever *adds* a required context: it never removes one,
+**What stays outside agent authority, unchanged.** Every personal credential. Pushing to a protected
+branch. Merging a pull request nobody asked for: the agent merges only on the Release Owner's instruction,
+posted on the pull request first, and `record-release` refuses a bot merge without one (GA-005). `ensure` only ever *adds* a required context: it never removes one,
 never relaxes a protection setting, and refuses to write a configuration built on a failed read - the
 API's PUT replaces the whole protection object, so anything not carried forward is protection silently
 destroyed. Enabling protection on an unprotected branch is out of scope and reported as a wider
@@ -124,7 +125,7 @@ reading protection needs rights the push token does not have. That is reported a
 nothing is required nor that anything is. The observed names go into the handoff for the Release Owner
 to confirm.
 
-Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. The human merge credential must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's named `User` merge actor for the exact reviewed head, not a claim of substantive human review. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
+Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. Personal credentials must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's merge actor for the exact reviewed head: the named `User` as `human_merge_recorded`, or the agent's app as `agent_merge_on_instruction` with the instruction it posted before merging. Neither is a claim of substantive human review, and the instruction comment is the agent's own record of what it acted on. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
 
 ## Governed task graphs
 

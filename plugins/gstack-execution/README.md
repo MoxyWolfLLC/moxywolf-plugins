@@ -47,6 +47,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 |--------|--------------|
 | `peer_review.py` | The review dispatcher: reviewer routing by model family, surface construction, content-bound findings, dispatch/collect, explicit outcomes |
 | `packet_coverage.mjs` | Scores each acceptance criterion declared for an item against the review packet, so a packet narrower than the item it claims is caught before the review opens. Typed boolean scoring through TypeSafe AI's Jev on the Vercel AI Gateway |
+| `agent_token.py` | Acts on GitHub as the `moxywolf-agent` app (GA-005): mints a one-hour token per command and passes it through the environment, never argv, output or a file. No fallback to a person's token |
 | `review_host.sh` | Stands up a shell where a dispatched review survives between calls. Use it whenever a review has timed out once |
 | `run_all_tests.py` | The repository's own gate. Discovers every `test_*.py` and `--selftest`, names what it examined, and **fails when it discovers none** |
 | `tool_rung.py` | Answers "is there a connector for this service?" by looking. Connector → CLI → REST → browser |
