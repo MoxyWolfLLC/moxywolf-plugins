@@ -526,7 +526,7 @@ What the board looked like when this was written, counted through the Atlassian 
 
 ### SM-002: The board label is declared, never derived
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the declared-label link. A project's instructions name its exact Jira label, and every board query and every issue write assumes that label is the one the board uses. Criterion 5 makes a wrong one visible in every briefing.
 
