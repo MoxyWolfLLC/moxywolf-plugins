@@ -280,12 +280,15 @@ def score(runs):
                     "pending": sum(1 for r in rs if str(r.get("correct")) == "pending"),
                     "builder_tokens": sum(r["builder_total_tokens"] for r in known),
                     "runs_with_tokens": len(known),
-                    "builder_tokens_per_correct": (sum(r["builder_total_tokens"] for r in known) / len(correct)) if correct else None,
+                    # Criterion 5: cost per correct run counts only runs marked true, numerator included.
+                    # All runs' tokens stay visible as builder_tokens, so the cost of wrong runs is not hidden.
+                    "builder_tokens_per_correct": (sum(r["builder_total_tokens"] for r in correct if isinstance(r.get("builder_total_tokens"), int))
+                                                   / len(correct)) if correct else None,
                     "reviewer_tokens": sum(r["reviewer_tokens"] for r in rs if isinstance(r.get("reviewer_tokens"), int)),
-                    "reviewer_tokens_per_correct": (sum(r["reviewer_tokens"] for r in rs if isinstance(r.get("reviewer_tokens"), int)) / len(correct)) if correct else None,
+                    "reviewer_tokens_per_correct": (sum(r["reviewer_tokens"] for r in correct if isinstance(r.get("reviewer_tokens"), int)) / len(correct)) if correct else None,
                     "cache_read_share": (sum(r.get("builder_cache_read_tokens") or 0 for r in known) / sum(r["builder_total_tokens"] for r in known))
                                         if known and sum(r["builder_total_tokens"] for r in known) else None,
-                    "maintenance_tokens": sum(r["builder_total_tokens"] for r in known if r.get("touches_vocabulary")),
+                    "maintenance_tokens": sum(r["builder_total_tokens"] for r in correct if isinstance(r.get("builder_total_tokens"), int) and r.get("touches_vocabulary")),
                     "rounds_per_review": (sum(r.get("rounds") or 0 for r in rs) / len(rs)) if rs else None,
                     "repeat_findings": sum(r.get("repeat_findings") or 0 for r in rs),
                     "thin_review_rate": (sum(1 for r in rs if r.get("thin_review") is True) / len(rs)) if rs else None,
@@ -348,7 +351,7 @@ def report_text(runs, own_cost):
                 f"- runs {s['runs']} (correct {s['correct']}, pending {s['pending']}); {s['runs_with_tokens']} with builder token counts",
                 f"- builder tokens {s['builder_tokens']:,}; per correct run {per}",
                 f"- cache-read share of builder tokens {s['cache_read_share']:.1%}" if s["cache_read_share"] is not None else "- cache-read share: n/a (no token counts)",
-                f"- vocabulary upkeep (runs that changed vocabulary.json) {s['maintenance_tokens']:,} builder tokens, included above",
+                f"- vocabulary upkeep (correct runs that changed vocabulary.json) {s['maintenance_tokens']:,} builder tokens, included in the per-correct-run figure",
                 f"- reviewer tokens {s['reviewer_tokens']:,} (reported rounds only); per correct run "
                 + (f"{s['reviewer_tokens_per_correct']:,.0f}" if s["reviewer_tokens_per_correct"] is not None else "n/a"),
                 f"- rounds per review {s['rounds_per_review']:.2f}; repeat findings {s['repeat_findings']}; thin-review rate {s['thin_review_rate']:.0%}",
@@ -366,8 +369,11 @@ def cmd_report(vault, transcript=None):
     vault = Path(vault)
     runs = [read_note(p) for p in sorted(vault.glob("*.md")) if not p.name.endswith("-report.md")]
     runs = [r for r in runs if r.get("type") == "gstack-run"]
-    path = Path(transcript) if transcript else default_transcript()
-    usage, why = transcript_usage(path, "1970-01-01T00:00:00Z", now_iso()) if path else (None, "no transcript")
+    # F2 (review 20260919-213145): the newest transcript on a shared host may be someone else's
+    # session, so the report's own cost is measured only from a transcript named explicitly.
+    named = transcript or os.environ.get("GSTACK_TRANSCRIPT")
+    usage, why = (transcript_usage(Path(named), "1970-01-01T00:00:00Z", now_iso()) if named
+                  else (None, "no transcript named; pass --transcript or set GSTACK_TRANSCRIPT"))
     own = (f"{usage['builder_total_tokens']:,} tokens in the session that produced it ({usage['builder_turns']} turns)"
            if usage else f"not measured ({why})")
     out = vault / f"{now_iso()[:10]}-gstack-measurement-report.md"

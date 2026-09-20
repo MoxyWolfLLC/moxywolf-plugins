@@ -118,7 +118,11 @@ class Predictions(unittest.TestCase):
     def test_p1_compares_the_first_two_qualifying_versions_and_counts_only_correct_runs(self):
         runs = [run("1.0.0", tokens=1000) for _ in range(10)] + [run("1.1.0", tokens=800) for _ in range(10)]
         self.assertEqual(measure.score(runs)[2]["P1"][0], "supported")
-        runs += [run("1.1.0", correct="pending", tokens=5000) for _ in range(3)]   # pending runs still cost
+        runs += [run("1.1.0", correct="pending", tokens=5000) for _ in range(3)]
+        # F1 (review 20260919-213145): criterion 5 counts only runs marked true, numerator included
+        self.assertEqual(measure.score(runs)[2]["P1"][0], "supported")
+        self.assertEqual(measure.score(runs)[1]["1.1.0"]["builder_tokens"], 800 * 10 + 5000 * 3)   # still visible in total
+        runs += [run("1.1.0", tokens=3000) for _ in range(10)]
         self.assertEqual(measure.score(runs)[2]["P1"][0], "refuted")
         few = [run("1.0.0") for _ in range(10)] + [run("1.1.0") for _ in range(9)]
         self.assertEqual(measure.score(few)[2]["P1"][0], "insufficient data")
@@ -145,7 +149,15 @@ class Predictions(unittest.TestCase):
         text = measure.report_text(runs, "n/a")
         self.assertIn("cache-read share of builder tokens 95.0%", text)
         self.assertIn("reviewer tokens 50 (reported rounds only); per correct run 5", text)
-        self.assertIn("vocabulary upkeep (runs that changed vocabulary.json) 1,000 builder tokens, included above", text)
+        self.assertIn("vocabulary upkeep (correct runs that changed vocabulary.json) 1,000 builder tokens", text)
+
+    def test_report_measures_its_own_cost_only_from_a_named_transcript(self):
+        """F2 (review 20260919-213145)."""
+        import tempfile
+        os.environ.pop("GSTACK_TRANSCRIPT", None)
+        with tempfile.TemporaryDirectory() as t:
+            out, _ = measure.cmd_report(t)
+            self.assertIn("no transcript named", Path(out).read_text())
 
     def test_p3_and_p4(self):
         runs = [run("1.0.0") for _ in range(10)]
