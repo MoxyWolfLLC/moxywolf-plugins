@@ -111,6 +111,24 @@ class RunRecord(unittest.TestCase):
             self.assertIsNone(pr.record_measurement(rid))
         self.assertIn("GSTACK_MEASURE_DIR is unset", err2.getvalue())
 
+    def test_a_later_review_of_the_same_run_supersedes_the_earlier_note(self):
+        """Found recording XE-012's own run: two reviews of one run gave two notes with the same
+        window, and the report counted the builder's tokens twice."""
+        vault = self.tmp / "vault"
+        base = {"type": "gstack-run", "items": ["XE-012"], "window_start": "2026-09-20T04:19:50Z",
+                "recorded_at": "2026-09-20T05:00:00Z", "correct": "pending", "defect_traced": "pending",
+                "builder_total_tokens": 100, "vocabulary_version": "1.0.0",
+                "outcome": "fixes_verified", "rounds": 1}
+        first = measure.write_note(vault, dict(base, review_id="r1"))
+        first.write_text(first.read_text().replace('correct: "pending"', "correct: false"))
+        measure.write_note(vault, dict(base, review_id="r2"))
+        old = measure.read_note(first)
+        self.assertEqual(old["superseded_by"], "r2")
+        self.assertIs(old["correct"], False)                      # the human's field survives
+        out, n = measure.cmd_report(vault)
+        self.assertEqual(n, 1)
+        self.assertIn("builder tokens 100;", Path(out).read_text())
+
     def test_a_rerecord_keeps_the_humans_verdict(self):
         rid = self.passed_review()
         vault = self.tmp / "vault"

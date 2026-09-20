@@ -257,6 +257,19 @@ def write_note(vault, rec):
             "Set `correct` to true or false once you have judged the result, and `defect_traced` to true if a defect is later "
             "traced to this run. Nothing else writes those two fields.\n")
     path.write_text(note_text(rec, body))
+    # Criterion 1 is one record per RUN, and a run can hold several reviews: a review that ends
+    # review_unavailable or goes stale is followed by a fresh one over the same commits. Their
+    # windows overlap, so summing both notes counts the builder's tokens twice. Found recording
+    # XE-012's own run, whose two notes summed to 46.7M tokens over one 30-minute window.
+    for other in vault.glob("*.md"):
+        if other == path or other.name.endswith("-report.md"):
+            continue
+        o = read_note(other)
+        if (o.get("type") == "gstack-run" and o.get("items") == rec["items"]
+                and o.get("window_start") == rec["window_start"] and not o.get("superseded_by")):
+            o["superseded_by"] = rec["review_id"]
+            text = other.read_text(encoding="utf-8")
+            other.write_text(note_text(o, text.split("\n---\n", 1)[1] if "\n---\n" in text else ""))
     return path
 
 
@@ -387,7 +400,7 @@ def report_text(runs, own_cost):
 def cmd_report(vault, transcript=None):
     vault = Path(vault)
     runs = [read_note(p) for p in sorted(vault.glob("*.md")) if not p.name.endswith("-report.md")]
-    runs = [r for r in runs if r.get("type") == "gstack-run"]
+    runs = [r for r in runs if r.get("type") == "gstack-run" and not r.get("superseded_by")]
     # F2 (review 20260919-213145): the newest transcript on a shared host may be someone else's
     # session, so the report's own cost is measured only from a transcript named explicitly.
     named = transcript or os.environ.get("GSTACK_TRANSCRIPT")
