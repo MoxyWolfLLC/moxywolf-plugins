@@ -281,19 +281,28 @@ def score(runs):
         rs = by[v]
         known = [r for r in rs if isinstance(r.get("builder_total_tokens"), int)]
         correct = [r for r in rs if _is_true(r.get("correct"))]
+        correct_b = [r for r in correct if isinstance(r.get("builder_total_tokens"), int)]
+        correct_r = [r for r in correct if isinstance(r.get("reviewer_tokens"), int)]
+        correct_net = [r for r in correct_b if not r.get("touches_vocabulary")]
         stats[v] = {"runs": len(rs), "correct": len(correct),
                     "pending": sum(1 for r in rs if str(r.get("correct")) == "pending"),
                     "builder_tokens": sum(r["builder_total_tokens"] for r in known),
                     "runs_with_tokens": len(known),
                     # Criterion 5: cost per correct run counts only runs marked true, numerator included.
                     # All runs' tokens stay visible as builder_tokens, so the cost of wrong runs is not hidden.
-                    "builder_tokens_per_correct": (sum(r["builder_total_tokens"] for r in correct if isinstance(r.get("builder_total_tokens"), int))
-                                                   / len(correct)) if correct else None,
+                    # F2 (review 20260919-214027): divide by the correct runs that HAVE a count; a
+                    # correct run with no token data must not deflate the average toward zero.
+                    "builder_tokens_per_correct": (sum(r["builder_total_tokens"] for r in correct_b) / len(correct_b)) if correct_b else None,
+                    "correct_without_builder_tokens": len(correct) - len(correct_b),
                     "reviewer_tokens": sum(r["reviewer_tokens"] for r in rs if isinstance(r.get("reviewer_tokens"), int)),
-                    "reviewer_tokens_per_correct": (sum(r["reviewer_tokens"] for r in correct if isinstance(r.get("reviewer_tokens"), int)) / len(correct)) if correct else None,
+                    "reviewer_tokens_per_correct": (sum(r["reviewer_tokens"] for r in correct_r) / len(correct_r)) if correct_r else None,
+                    "correct_without_reviewer_tokens": len(correct) - len(correct_r),
                     "cache_read_share": (sum(r.get("builder_cache_read_tokens") or 0 for r in known) / sum(r["builder_total_tokens"] for r in known))
                                         if known and sum(r["builder_total_tokens"] for r in known) else None,
-                    "maintenance_tokens": sum(r["builder_total_tokens"] for r in correct if isinstance(r.get("builder_total_tokens"), int) and r.get("touches_vocabulary")),
+                    "maintenance_tokens": sum(r["builder_total_tokens"] for r in correct_b if r.get("touches_vocabulary")),
+                    # P1 is net of upkeep (Dorian, 2026-09-19): correct runs that changed vocabulary.json
+                    # leave both the numerator and the denominator, and their tokens are reported apart.
+                    "builder_tokens_per_correct_net": (sum(r["builder_total_tokens"] for r in correct_net) / len(correct_net)) if correct_net else None,
                     "rounds_per_review": (sum(r.get("rounds") or 0 for r in rs) / len(rs)) if rs else None,
                     "repeat_findings": sum(r.get("repeat_findings") or 0 for r in rs),
                     "thin_review_rate": (sum(1 for r in rs if r.get("thin_review") is True) / len(rs)) if rs else None,
@@ -304,17 +313,20 @@ def score(runs):
     q = [v for v in versions if stats[v]["correct"] >= MIN_CORRECT_RUNS]
     qruns = [r for r in runs if str(r.get("vocabulary_version")) in q]
     short = f"no version has {MIN_CORRECT_RUNS}+ correct runs yet"
-    # P1: first two qualifying versions. Cost per correct run INCLUDES runs that changed
-    # vocabulary.json: the vocabulary's upkeep is part of its price (XE-011 criterion 6 as first written).
+    # P1: first two qualifying versions, compared net of vocabulary upkeep (Dorian's reading of
+    # "net of", 2026-09-19): runs that changed vocabulary.json are left out and reported apart.
     if len(q) < 2:
         preds["P1"] = ("insufficient data", f"{len(q)} version(s) have {MIN_CORRECT_RUNS}+ correct runs; 2 needed")
     else:
         a, b = q[0], q[1]
-        ca, cb = stats[a]["builder_tokens_per_correct"], stats[b]["builder_tokens_per_correct"]
+        ca, cb = stats[a]["builder_tokens_per_correct_net"], stats[b]["builder_tokens_per_correct_net"]
         note = "" if stats[a]["models"] == stats[b]["models"] else " The comparison crosses a model change."
-        preds["P1"] = ("supported" if cb < ca else "refuted",
-                       f"{a}: {ca:,.0f} builder tokens per correct run; {b}: {cb:,.0f}, each including "
-                       f"{stats[a]['maintenance_tokens']:,} and {stats[b]['maintenance_tokens']:,} tokens of vocabulary upkeep.{note}")
+        if ca is None or cb is None:
+            preds["P1"] = ("insufficient data", "a qualifying version has no correct run outside vocabulary upkeep")
+        else:
+            preds["P1"] = ("supported" if cb < ca else "refuted",
+                           f"{a}: {ca:,.0f} builder tokens per correct run; {b}: {cb:,.0f}, net of "
+                           f"{stats[a]['maintenance_tokens']:,} and {stats[b]['maintenance_tokens']:,} tokens of vocabulary upkeep, reported apart.{note}")
     # P2: cache reads are >= 90% of builder tokens in >= 9 of 10 runs
     known = [r for r in qruns if isinstance(r.get("builder_total_tokens"), int) and r["builder_total_tokens"] > 0]
     if not q or not known:
@@ -354,9 +366,11 @@ def report_text(runs, own_cost):
         per = f"{s['builder_tokens_per_correct']:,.0f}" if s["builder_tokens_per_correct"] is not None else "n/a (no correct runs)"
         out += [f"## Vocabulary {v}", "",
                 f"- runs {s['runs']} (correct {s['correct']}, pending {s['pending']}); {s['runs_with_tokens']} with builder token counts",
-                f"- builder tokens {s['builder_tokens']:,}; per correct run {per}",
+                f"- builder tokens {s['builder_tokens']:,}; per correct run {per}"
+                + (f" ({s['correct_without_builder_tokens']} correct run(s) have no count and are left out)" if s["correct_without_builder_tokens"] else ""),
                 f"- cache-read share of builder tokens {s['cache_read_share']:.1%}" if s["cache_read_share"] is not None else "- cache-read share: n/a (no token counts)",
-                f"- vocabulary upkeep (correct runs that changed vocabulary.json) {s['maintenance_tokens']:,} builder tokens, included in the per-correct-run figure",
+                f"- vocabulary upkeep (correct runs that changed vocabulary.json) {s['maintenance_tokens']:,} builder tokens, left out of P1's per-correct-run figure"
+                + (f"; net per correct run {s['builder_tokens_per_correct_net']:,.0f}" if s["builder_tokens_per_correct_net"] is not None else ""),
                 f"- reviewer tokens {s['reviewer_tokens']:,} (reported rounds only); per correct run "
                 + (f"{s['reviewer_tokens_per_correct']:,.0f}" if s["reviewer_tokens_per_correct"] is not None else "n/a"),
                 f"- rounds per review {s['rounds_per_review']:.2f}; repeat findings {s['repeat_findings']}; thin-review rate {s['thin_review_rate']:.0%}",

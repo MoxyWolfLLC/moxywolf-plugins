@@ -576,6 +576,8 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-19: P1's "net of tokens spent in commits that change vocabulary.json" read two ways. The builder took it as "including" and two independent reviews read it as "subtract". Dorian settled it as subtract: correct runs that changed `vocabulary.json` leave P1's comparison and their tokens are reported apart. The text is unchanged; this line records which reading it means.
+
 - 2026-09-19: XE-012 approved by Dorian, in the session rather than with the editor's button, on text identical to the editor's draft. Before any code, its opening figures were corrected. The first count of the session's tokens summed transcript entries, and the transcript repeats one message's usage across several entries, so turns and cache reads were overstated by about 1.9 times. The corrected count, deduplicated by message ID, replaces it, and the error is recorded in the item as its first finding.
 
 - 2026-09-19: XE-012 declared, pending Dorian's approval. It measures every gstack run's cost from here on, into the vault, with each vocabulary version as a break point, and states four predictions with their refutation conditions before any data exists. XE-011 criteria 6 to 8 are superseded by it, because the baseline they required was lost when XE-011 merged before measurement ran; their original text is in git history at `3df35d0`. Dorian chose to measure forward rather than replay tasks against the pre-vocabulary commit.

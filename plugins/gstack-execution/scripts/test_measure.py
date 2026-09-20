@@ -148,6 +148,14 @@ class Predictions(unittest.TestCase):
         few = [run("1.0.0") for _ in range(10)] + [run("1.1.0") for _ in range(9)]
         self.assertEqual(measure.score(few)[2]["P1"][0], "insufficient data")
 
+    def test_a_correct_run_without_a_count_does_not_deflate_the_average(self):
+        """F2 (review 20260919-214027)."""
+        runs = [run("1.0.0", tokens=1000) for _ in range(2)] + [run("1.0.0", tokens=None)]
+        st = measure.score(runs)[1]["1.0.0"]
+        self.assertEqual(st["builder_tokens_per_correct"], 1000)
+        self.assertEqual(st["correct_without_builder_tokens"], 1)
+        self.assertIn("1 correct run(s) have no count", measure.report_text(runs, "n/a"))
+
     def test_p1_names_a_model_change(self):
         runs = [run("1.0.0", tokens=1000) for _ in range(10)] + [run("1.1.0", tokens=800, model="m2") for _ in range(10)]
         self.assertIn("model change", measure.score(runs)[2]["P1"][1])
@@ -170,7 +178,16 @@ class Predictions(unittest.TestCase):
         text = measure.report_text(runs, "n/a")
         self.assertIn("cache-read share of builder tokens 95.0%", text)
         self.assertIn("reviewer tokens 50 (reported rounds only); per correct run 5", text)
-        self.assertIn("vocabulary upkeep (correct runs that changed vocabulary.json) 1,000 builder tokens", text)
+        self.assertIn("vocabulary upkeep (correct runs that changed vocabulary.json) 1,000 builder tokens, left out of P1", text)
+
+    def test_p1_is_net_of_vocabulary_upkeep(self):
+        """Dorian, 2026-09-19: 'net of' means upkeep runs leave P1's comparison and are reported apart."""
+        runs = [run("1.0.0", tokens=1000) for _ in range(10)] + [run("1.1.0", tokens=900) for _ in range(10)]
+        for r in runs[10:12]:
+            r["touches_vocabulary"], r["builder_total_tokens"] = True, 50000
+        verdict, why = measure.score(runs)[2]["P1"]
+        self.assertEqual(verdict, "supported")
+        self.assertIn("net of 0 and 100,000 tokens of vocabulary upkeep", why)
 
     def test_report_measures_its_own_cost_only_from_a_named_transcript(self):
         """F2 (review 20260919-213145)."""
