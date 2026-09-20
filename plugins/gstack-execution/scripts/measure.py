@@ -282,13 +282,22 @@ def score(runs):
                     "runs_with_tokens": len(known),
                     "builder_tokens_per_correct": (sum(r["builder_total_tokens"] for r in known) / len(correct)) if correct else None,
                     "reviewer_tokens": sum(r["reviewer_tokens"] for r in rs if isinstance(r.get("reviewer_tokens"), int)),
+                    "reviewer_tokens_per_correct": (sum(r["reviewer_tokens"] for r in rs if isinstance(r.get("reviewer_tokens"), int)) / len(correct)) if correct else None,
+                    "cache_read_share": (sum(r.get("builder_cache_read_tokens") or 0 for r in known) / sum(r["builder_total_tokens"] for r in known))
+                                        if known and sum(r["builder_total_tokens"] for r in known) else None,
+                    "maintenance_tokens": sum(r["builder_total_tokens"] for r in known if r.get("touches_vocabulary")),
                     "rounds_per_review": (sum(r.get("rounds") or 0 for r in rs) / len(rs)) if rs else None,
                     "repeat_findings": sum(r.get("repeat_findings") or 0 for r in rs),
                     "thin_review_rate": (sum(1 for r in rs if r.get("thin_review") is True) / len(rs)) if rs else None,
                     "models": sorted({m for r in rs for m in (r.get("builder_models") or [])} | {r.get("reviewer_model") for r in rs if r.get("reviewer_model")})}
     preds = {}
-    # P1: first two versions with enough correct runs; cost includes vocabulary-maintenance runs
+    # Criterion 6: a version with fewer than 10 correct runs is insufficient data for ANY prediction,
+    # so every prediction is scored only over runs in qualifying versions.
     q = [v for v in versions if stats[v]["correct"] >= MIN_CORRECT_RUNS]
+    qruns = [r for r in runs if str(r.get("vocabulary_version")) in q]
+    short = f"no version has {MIN_CORRECT_RUNS}+ correct runs yet"
+    # P1: first two qualifying versions. Cost per correct run INCLUDES runs that changed
+    # vocabulary.json: the vocabulary's upkeep is part of its price (XE-011 criterion 6 as first written).
     if len(q) < 2:
         preds["P1"] = ("insufficient data", f"{len(q)} version(s) have {MIN_CORRECT_RUNS}+ correct runs; 2 needed")
     else:
@@ -296,26 +305,27 @@ def score(runs):
         ca, cb = stats[a]["builder_tokens_per_correct"], stats[b]["builder_tokens_per_correct"]
         note = "" if stats[a]["models"] == stats[b]["models"] else " The comparison crosses a model change."
         preds["P1"] = ("supported" if cb < ca else "refuted",
-                       f"{a}: {ca:,.0f} builder tokens per correct run; {b}: {cb:,.0f}.{note}")
+                       f"{a}: {ca:,.0f} builder tokens per correct run; {b}: {cb:,.0f}, each including "
+                       f"{stats[a]['maintenance_tokens']:,} and {stats[b]['maintenance_tokens']:,} tokens of vocabulary upkeep.{note}")
     # P2: cache reads are >= 90% of builder tokens in >= 9 of 10 runs
-    known = [r for r in runs if isinstance(r.get("builder_total_tokens"), int) and r["builder_total_tokens"] > 0]
-    if len(known) < MIN_CORRECT_RUNS:
-        preds["P2"] = ("insufficient data", f"{len(known)} run(s) with token counts; {MIN_CORRECT_RUNS} needed")
+    known = [r for r in qruns if isinstance(r.get("builder_total_tokens"), int) and r["builder_total_tokens"] > 0]
+    if not q or not known:
+        preds["P2"] = ("insufficient data", short if not q else "no run in a qualifying version has token counts")
     else:
         hi = sum(1 for r in known if r["builder_cache_read_tokens"] / r["builder_total_tokens"] >= 0.9)
         preds["P2"] = ("supported" if hi / len(known) >= 0.9 else "refuted", f"{hi} of {len(known)} runs at 90%+ cache reads")
     # P3: repeat findings about a vocabulary-defined term in at most 1 review in 10
-    reviewed = [r for r in runs if (r.get("rounds") or 0) > 0]
-    if len(reviewed) < MIN_CORRECT_RUNS:
-        preds["P3"] = ("insufficient data", f"{len(reviewed)} reviewed run(s); {MIN_CORRECT_RUNS} needed")
+    reviewed = [r for r in qruns if (r.get("rounds") or 0) > 0]
+    if not q or not reviewed:
+        preds["P3"] = ("insufficient data", short if not q else "no reviewed run in a qualifying version")
     else:
         hit = sum(1 for r in reviewed if (r.get("repeat_findings_vocab") or 0) > 0)
         preds["P3"] = ("supported" if hit / len(reviewed) <= 0.1 else "refuted", f"{hit} of {len(reviewed)} reviews repeated a finding about a defined term")
     # P4: thin reviews over-represented among passing runs later traced to a defect
-    passing = [r for r in runs if r.get("outcome") in PASSING and r.get("thin_review") is not None]
+    passing = [r for r in qruns if r.get("outcome") in PASSING and r.get("thin_review") is not None]
     traced = [r for r in passing if _is_true(r.get("defect_traced"))]
-    if len(traced) < MIN_TRACED_DEFECTS:
-        preds["P4"] = ("insufficient data", f"{len(traced)} traced defect(s); {MIN_TRACED_DEFECTS} needed")
+    if not q or len(traced) < MIN_TRACED_DEFECTS:
+        preds["P4"] = ("insufficient data", short if not q else f"{len(traced)} traced defect(s); {MIN_TRACED_DEFECTS} needed")
     else:
         share_all = sum(r["thin_review"] for r in passing) / len(passing)
         share_def = sum(r["thin_review"] for r in traced) / len(traced)
@@ -337,7 +347,10 @@ def report_text(runs, own_cost):
         out += [f"## Vocabulary {v}", "",
                 f"- runs {s['runs']} (correct {s['correct']}, pending {s['pending']}); {s['runs_with_tokens']} with builder token counts",
                 f"- builder tokens {s['builder_tokens']:,}; per correct run {per}",
-                f"- reviewer tokens {s['reviewer_tokens']:,} (reported rounds only)",
+                f"- cache-read share of builder tokens {s['cache_read_share']:.1%}" if s["cache_read_share"] is not None else "- cache-read share: n/a (no token counts)",
+                f"- vocabulary upkeep (runs that changed vocabulary.json) {s['maintenance_tokens']:,} builder tokens, included above",
+                f"- reviewer tokens {s['reviewer_tokens']:,} (reported rounds only); per correct run "
+                + (f"{s['reviewer_tokens_per_correct']:,.0f}" if s["reviewer_tokens_per_correct"] is not None else "n/a"),
                 f"- rounds per review {s['rounds_per_review']:.2f}; repeat findings {s['repeat_findings']}; thin-review rate {s['thin_review_rate']:.0%}",
                 f"- models: {', '.join(s['models']) or 'none recorded'}", ""]
     if len({tuple(stats[v]['models']) for v in versions}) > 1:

@@ -133,6 +133,20 @@ class Predictions(unittest.TestCase):
         runs[0] = run("1.0.0", cache=100)
         self.assertEqual(measure.score(runs)[2]["P2"][0], "refuted")
 
+    def test_no_prediction_is_scored_from_a_version_short_of_ten_correct_runs(self):
+        """F3 (review 20260919-212511): P2-P4 had counted runs across versions, ignoring criterion 6."""
+        runs = [run("1.0.0", correct="pending") for _ in range(30)]
+        self.assertEqual({v for v, _ in measure.score(runs)[2].values()}, {"insufficient data"})
+
+    def test_report_carries_cache_share_reviewer_per_correct_and_upkeep(self):
+        """F1, F2 (review 20260919-212511)."""
+        runs = [run("1.0.0") for _ in range(10)]
+        runs[0]["touches_vocabulary"] = True
+        text = measure.report_text(runs, "n/a")
+        self.assertIn("cache-read share of builder tokens 95.0%", text)
+        self.assertIn("reviewer tokens 50 (reported rounds only); per correct run 5", text)
+        self.assertIn("vocabulary upkeep (runs that changed vocabulary.json) 1,000 builder tokens, included above", text)
+
     def test_p3_and_p4(self):
         runs = [run("1.0.0") for _ in range(10)]
         self.assertEqual(measure.score(runs)[2]["P3"][0], "supported")
