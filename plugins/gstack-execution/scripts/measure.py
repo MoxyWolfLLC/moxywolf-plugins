@@ -102,9 +102,14 @@ def _git(repo, *a):
 
 
 def run_window(d, packet):
-    """From the run's first commit to release (or now, when not released yet)."""
+    """From the run's first commit to release (or now, when not released yet).
+
+    The packet's base moves: a fix-verification round rewrites it to the previous head, so the
+    packet alone would date the run from its last fix. Round 1 keeps the original base. Found by
+    recording this item's own run, which the first version dated from its final commit."""
+    first_round = pr.load(d, "round-1.json") or {}
     starts = []
-    for r in packet["repos"]:
+    for r in first_round.get("repos") or packet["repos"]:
         first = _git(r["path"], "log", "--reverse", "--format=%cI", f"{r['base']}..{r['head']}").splitlines()
         if first:
             starts.append(_ts(first[0]))

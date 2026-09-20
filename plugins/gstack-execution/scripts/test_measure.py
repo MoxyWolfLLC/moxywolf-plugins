@@ -58,6 +58,27 @@ class RunRecord(unittest.TestCase):
         self.assertEqual(rec["reviewer_tokens_per_round"], ["not_reported"])
         self.assertIn("not reported", rec["reviewer_tokens_reason"])
 
+    def test_the_window_starts_at_the_first_commit_after_a_fix_round(self):
+        """Found recording XE-012's own run: a fix round moves the packet base to the previous
+        head, and the window was dated from the last fix instead of the first commit."""
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid), "blocking_findings")
+        first = self.sh("log", "--reverse", "--format=%cI", f"{self.base}..{self.head}").splitlines()[0]
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        self.write("def f(x):\n    return x + 1\n")
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qam", "fix"], check=True,   # a later date, so the two windows differ
+                       env={**os.environ, "GIT_COMMITTER_DATE": "2030-01-01T00:00:00Z", "GIT_AUTHOR_DATE": "2030-01-01T00:00:00Z"})
+        clean = dict(CLEAN, blocker_resolutions=[{"id": "F1", "resolved": True, "evidence": "a.py:2"}])
+        os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "cat " + str(self.tmp / "reply.json")
+        (self.tmp / "reply.json").write_text(json.dumps(clean))
+        try:
+            pr.cmd_round(self.ns(review_id=rid, head=[f"{self.repo}={self.sh('rev-parse', 'HEAD')}"]))
+        finally:
+            os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+        self.assertNotEqual(pr.load(pr.rdir(rid), "packet.json")["repos"][0]["base"], self.base)   # the packet moved
+        rec = measure.build_record(rid, transcript=self.tmp / "none")
+        self.assertEqual(measure._ts(rec["window_start"]), measure._ts(first))
+
     def test_an_unreadable_transcript_is_null_with_a_reason_not_zero(self):
         rid = self.passed_review()
         rec = measure.build_record(rid, transcript=self.tmp / "gone.jsonl")
