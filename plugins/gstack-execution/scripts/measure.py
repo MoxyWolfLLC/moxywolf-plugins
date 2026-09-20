@@ -191,6 +191,8 @@ def build_record(review_id, transcript=None, since=None, until=None):
     rec["builder_models"] = usage["builder_models"] if usage else []
     if not usage:
         rec["builder_tokens_reason"] = why
+    # TB-001: the run note is this loop's own output, assembled from records it wrote.
+    rec["origin"] = "gate_output"
     rec["correct"] = "pending"
     rec["defect_traced"] = "pending"
     return rec

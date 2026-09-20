@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -258,6 +258,13 @@
       "skos:definition": "the packet is missing a field or has one of the wrong shape"
     },
     {
+      "id": "malformed_record",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "malformed_record",
+      "skos:definition": "a record could not be written because it did not say where its content came from: no origin, an origin outside the vocabulary, or external text with nothing named as having examined it"
+    },
+    {
       "id": "missing_commits",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",
@@ -382,6 +389,41 @@
       "group": "verify_outcome",
       "skos:prefLabel": "examined_nothing",
       "skos:definition": "the verifier examined no links, which is a failure, not a pass"
+    },
+    {
+      "id": "repository_artifact",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "origin",
+      "skos:prefLabel": "Repository artifact",
+      "skos:definition": "content produced from files, commits or diffs in a repository the loop reads"
+    },
+    {
+      "id": "gate_output",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "origin",
+      "skos:prefLabel": "Gate output",
+      "skos:definition": "content produced by one of this loop's own scripts or gates"
+    },
+    {
+      "id": "human_instruction",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "origin",
+      "skos:prefLabel": "Human instruction",
+      "skos:definition": "content a named human wrote, quoted where the loop recorded it"
+    },
+    {
+      "id": "external_text",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "origin",
+      "skos:prefLabel": "External text",
+      "skos:definition": "content the loop did not produce and no human here authored: reviewer output, pull request and issue bodies, fetched pages, retrieved memory"
+    },
+    {
+      "id": "unexamined",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "origin",
+      "skos:prefLabel": "Unexamined",
+      "skos:definition": "the examined_by value for external text that no gate and no human read before it was recorded"
     }
   ]
 }

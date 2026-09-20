@@ -606,7 +606,7 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 
 ### TB-001 — Every record says where it came from
 
-**Status:** planned.
+**Status:** building. Criteria 1 to 5 are built in this change; criterion 6 follows when the weekly report scores P5 from the origin field.
 
 **Links introduced:** the record-to-origin link. A reader of any record, human or agent, assumes it was produced by the system that names it. The field makes that assumption checkable instead of implicit. Also the origin-to-reviewer link: a record whose origin is external text names the gate or the human that examined it, and a record that names neither is treated as unexamined.
 
