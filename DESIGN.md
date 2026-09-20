@@ -450,7 +450,7 @@ nothing checked that width.
 6. The extractor's own coverage is checked by a second independent count, and a partial extraction
    refuses to score rather than passing over what it did not read.
 
-### XE-011: One vocabulary for what the loop's agents hand each other
+### XE-011 — One vocabulary for what the loop's agents hand each other
 
 **Status:** building.
 
@@ -483,7 +483,7 @@ The objective borrows a three-layer model: the context window is text, the knowl
 
 What the board looked like when this was written, counted through the Atlassian connector on 2026-09-19: MOXY holds 129 issues. 102 carry no label at all, and 50 of those are open. Of the 27 labeled, 4 carry the bare `moxywolf-plugins` and 23 carry `project-moxywolf-crm`. So two label conventions are live on one board, and the rule `project-init` ships, "a `#project/<slug>` maps to `project-<slug>`", is right for one project and wrong for the other. That rule has seven homes, listed in SM-002. The Team Plugins instructions override it in prose. The connector itself works: `labels = moxywolf-plugins` returns 4 (1 Done, 3 To Do), and `labels = project-moxywolf-plugins` returns 0 with no error, which is the failure mode.
 
-### SM-001: Session start and end run on the graph, not on a copy of it
+### SM-001 — Session start and end run on the graph, not on a copy of it
 
 **Status:** planned.
 
@@ -524,7 +524,7 @@ What the board looked like when this was written, counted through the Atlassian 
 19. Baseline before arrow 1 lands and the same measurement after: at least five `/session-start` runs on this project. Per run, record input and output tokens, tool calls, and whether the briefing's open-work list matched the sources, as judged by the named human. Report cost per correct briefing before and after, and include the tokens spent writing handoffs at session end, since arrow 2 moves cost there. If cost per correct briefing does not fall, arrows 1 and 2 are reported as not earning their keep, and the handoff format reverts to the one before this item. SM-002 is kept either way, because it's a correctness fix, not an economy one. A win is never claimed from a single run.
 20. `project-init` and `team-kanban` each get a minor version bump, and each `plugin.json` changelog states which arrows shipped and which were dropped.
 
-### SM-002: The board label is declared, never derived
+### SM-002 — The board label is declared, never derived
 
 **Status:** building.
 
@@ -548,6 +548,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-19: XE-011, SM-001 and SM-002 headings take the ` — ` separator the other items use. It is a machine format, not prose: `packet_coverage.mjs` finds items by it, and with a colon it reported "DESIGN.md declares no criteria" for all three. The same extractor only recognised the XE, EV, GA and GS prefixes, so AP and SM items could never be claimed by a packet; it now takes any two-letter prefix. Both found while opening the SM-002 and XE-011 review.
 
 - 2026-09-19: SM-001 criterion 2 split into SM-002, approved by Dorian, so the label fix can ship and be reviewed without the rest of SM-001. Building one criterion under SM-001's ID would have been refused by XE-010's packet-coverage gate, correctly. Reading the files showed the mapping lives in seven places, five in the repo and two in the vault, not the three SM-001 named, so SM-002 lists all seven. SM-002 and XE-011 are built on one branch and reviewed as one checkpoint, per XE-004.
 
