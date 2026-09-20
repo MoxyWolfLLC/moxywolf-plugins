@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -95,7 +95,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
       "skos:prefLabel": "Release Owner",
-      "skos:definition": "the named human who merges the reviewed head under their own login; machine review never grants release"
+      "skos:definition": "the named human who releases the reviewed head: by merging under their own login, or by instructing the agent to merge it, which is recorded as agent_merge_on_instruction; machine review never grants release"
     },
     {
       "id": "packet",
@@ -340,6 +340,13 @@
       "group": "review_outcome",
       "skos:prefLabel": "human_merge_recorded",
       "skos:definition": "the named human's GitHub merge of the reviewed head is recorded"
+    },
+    {
+      "id": "agent_merge_on_instruction",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "agent_merge_on_instruction",
+      "skos:definition": "the agent merged the reviewed head under its own GitHub identity, on the named human's instruction recorded on the pull request before the merge"
     },
     {
       "id": "links_verified",

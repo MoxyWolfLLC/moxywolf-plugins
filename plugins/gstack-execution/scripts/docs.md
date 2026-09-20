@@ -66,7 +66,7 @@ merely run.
   protection. No network.
 
 Two credentials, separated by capability (see GOVERNANCE.md, "Gate configuration"):
-`GITHUB_TOKEN` (the push PAT) for `check`, which only reads; `GITHUB_GATE_TOKEN`
+`GITHUB_TOKEN` (the agent app's token, supplied by `agent_token.py exec`) for `check`, which only reads; `GITHUB_GATE_TOKEN`
 (a fine-grained token with Administration: write and Contents: READ) for
 `ensure`. `ensure` refuses a classic token by name and cites its scopes, because
 classic scopes cannot grant administration without also granting push. Neither

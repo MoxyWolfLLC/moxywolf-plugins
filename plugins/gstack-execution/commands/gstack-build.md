@@ -18,7 +18,7 @@ commit → push → verify ls-remote → pull back into the local clone
    ↓
 /gstack-peer-review (the other tool) → fix → push → pull back → re-verify   (bounded)
    ↓ clean
-prepare revision-bound handoff → named human merges in GitHub → record-release verifies merge
+prepare revision-bound handoff → named human merges, or tells the agent to → record-release verifies merge
    ↓
 mark done through a separate authorized branch/PR → mirror to Taskade
    ↓
@@ -63,14 +63,14 @@ Reuse the Step 0 feature branch, including its approved design and E2E commits. 
 
 ## Step 4: Commit, push, pull back
 
-Claude authors the commit (plain text, Summary + Description). The agent-accessible vault PAT must lack authority to merge or push to protected targets; the named human Release Owner’s merge credentials remain outside agent access. Use only credentials constrained to the authorized feature-branch and PR work. Then, every time, in this order (substitute the retained branch name if Step 0 used a descriptive name):
+Claude authors the commit (plain text, Summary + Description). Git work on GitHub runs as the `moxywolf-agent` app (GA-005), never under a person's login: `agent_token.py exec -- <command>` mints a one-hour installation token and hands it to git through the environment, with `GSTACK_AGENT_APP_ENV` pointing at the vault's `github-app.env`. Minting needs GitHub's `/app` endpoints, which the Cowork cloud proxy refuses, so push from the device shell. The app cannot push to `main`. A repository the app is not installed on is a gap to report, not a reason to reach for a person's token. Then, every time, in this order (substitute the retained branch name if Step 0 used a descriptive name):
 
 ```bash
-git push origin build/<item-id>-<slug>          # PAT over a per-URL header, never in the URL or echoed
-git ls-remote origin refs/heads/build/<item-id>-<slug>   # must equal git rev-parse HEAD
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- git push origin build/<item-id>-<slug>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- git ls-remote origin refs/heads/build/<item-id>-<slug>   # must equal git rev-parse HEAD
 ```
 
-On the first push of the branch, open the pull request (`gh pr create --base main --title … --body …` when `gh` is installed; otherwise `POST /repos/{owner}/{repo}/pulls` with the vault PAT as a Bearer token) so the Endform check has somewhere to report. Then pull back into the user's local clone (`~/Documents/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
+On the first push of the branch, open the pull request (`gh pr create --base main --title … --body …` when `gh` is installed; otherwise `agent_token.py api POST repos/{owner}/{repo}/pulls --data -` with the JSON on stdin) so the Endform check has somewhere to report. Then pull back into the user's local clone (`~/Documents/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
 
 ## Step 5: Review loop until clean
 
@@ -147,22 +147,32 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" release <review-id>
 **Say which checks actually gate the merge.** A workflow that runs is not a gate: until its check is required on the protected branch, a red suite merges as easily as a green one, and the team believes it is covered because the run exists. Before reporting `ready_for_human_release`, run:
 
 ```bash
-GITHUB_TOKEN=<vault PAT, this call only> python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repo_gates.py" check --repo <path>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- python3 "${CLAUDE_PLUGIN_ROOT}/scripts/repo_gates.py" check --repo <path>
 ```
 
 It lists the check-runs the protected branch actually produced and what it requires. **Exit 3 means required checks are not available on this repository's plan at all** - a private repository on a free plan cannot have them, GitHub says so in the message rather than the status, and no credential changes it. On such a repository say so in the handoff and say what follows: the merge is unprotected, GitHub will not refuse a red head, and the only gate is this loop's own refusal - so do not report `ready_for_human_release` while any suite is red or has examined nothing. Never call a suite a gate on a repository that cannot require it. **Reading branch protection needs admin rights the agent token is deliberately not given** (GOVERNANCE.md), so expect `UNREADABLE (HTTP 403)`, and report that as what it is: not evidence that nothing is required, and not evidence that anything is. Include the observed check names in the handoff so the Release Owner can confirm in Settings > Branches which of them gate. Configuring them is their act, not the agent's; `repo_gates.py ensure --require "<context>"` exists for when an admin token is supplied, preserves every other protection setting, and never removes a context or relaxes protection. Never present a suite as a gate on the strength of a green run alone.
 
 This revalidates the review and requires clean local HEADs matching the reviewed commits. It writes `release.json` and intentionally exits nonzero as `awaiting_human_release`; it never merges or accepts approval flags. Report `ready_for_human_release` with the PR URL, review ID, exact heads, and named Release Owner. The item stays `review`.
 
-The named human merges the exact reviewed head in GitHub under their own login. Do not use their merge credential on their behalf. After they merge, record each repository's GitHub merge:
+The named human releases the exact reviewed head in one of two ways. They merge it in GitHub under their own login, or they tell the agent to merge it. Asked to merge, the agent merges, and the record says it did (GA-005):
+
+1. Post the instruction on the pull request first: the owner's words verbatim, the time, and the pull requests the agent reads it as covering. "Merge whatever else we have" is listed back as specific pull requests before any merge.
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" merge-instruction --covers <n>[,<n>…] --text "<their words>" --given-at <UTC time> --owner <login> \
+     | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api POST repos/<owner>/<repo>/issues/<n>/comments --data -
+   ```
+2. Merge through the pull request as the app: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api PUT repos/<owner>/<repo>/pulls/<n>/merge --data '{"sha":"<reviewed head>"}'`. The `sha` pins the merge to the reviewed head.
+3. Never merge without an instruction, and never under the owner's credential.
+
+Either way, record each repository's GitHub merge:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" record-release <review-id> --repo <path> --pr <number>
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" record-release <review-id> --repo <path> --pr <number>
 ```
 
-The recorder requires the exact reviewed head and the named human's GitHub `User` identity. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review and human merge, never a direct main push. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
+The recorder requires the exact reviewed head. A merge by the named human's GitHub `User` identity is `human_merge_recorded`. A merge by the app with a matching instruction posted before it is `agent_merge_on_instruction`, carrying the words and the comment link. A merge by the app with no such instruction is refused as an unrequested agent merge. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review and human merge, never a direct main push. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
 
-These are governance controls, not an OS security sandbox: local review files are agent-writable. Human merge credentials must remain outside agent authority and protected-branch enforcement is configured externally. See [GOVERNANCE.md](../GOVERNANCE.md).
+These are governance controls, not an OS security sandbox: local review files are agent-writable, and the instruction comment is written by the agent quoting the owner, so it records what the agent acted on rather than proving the owner said it. Personal credentials stay outside agent authority, and the protected-branch ruleset is configured externally. See [GOVERNANCE.md](../GOVERNANCE.md).
 
 ## Step 7: Report, then stop
 

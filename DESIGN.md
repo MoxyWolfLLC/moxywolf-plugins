@@ -66,7 +66,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 
 ### GA-005 — The agent acts as itself, and its merges say so
 
-**Status:** planned.
+**Status:** building. Criteria 1 to 6 and 11 are built on `build/GA-005-agent-identity`. Criterion 3 is met: PR #27 was opened by `moxywolf-agent[bot]`. Criteria 7 to 10 need Dorian or the merge.
 
 **Links introduced:** the commit-to-actor link. A commit, pull request or merge names a GitHub login, and every reader, `record-release` included, assumes that login is the one who acted. Today the agent acts under Dorian's login, so the link resolves and names the wrong actor. The token-to-installation link: a token is minted from the app key for one command and lasts an hour, and nothing assumes it outlives that. The merge-to-instruction link: an agent merge names the instruction it acted on, and a reader assumes that instruction covered this pull request. The backfill-to-confirmation link: each past merge this item marks as agent-executed names its evidence and Dorian's answer, and nothing is marked from a commit subject alone.
 

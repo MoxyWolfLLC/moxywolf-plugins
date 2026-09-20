@@ -186,7 +186,7 @@ def observed_contexts(owner, name, branch, token):
 
 def cmd_check(repo, branch, token):
     """Observed FIRST, protection second, because the two need different rights.
-    Reading branch protection needs admin; the agent PAT deliberately does not
+    Reading branch protection needs admin; the agent's app token deliberately does not
     have it (GOVERNANCE.md). A run that cannot read protection can still say
     which checks exist and who has to make them gates, and that is worth more
     than an exit code with no detail."""
@@ -365,7 +365,7 @@ def main():
     if a.cmd == "check":
         token = os.environ.get("GITHUB_TOKEN", "").strip()
         if not token:
-            sys.exit("GITHUB_TOKEN is not set. Export the vault push PAT for this one call; do not write it anywhere.")
+            sys.exit("GITHUB_TOKEN is not set. Run this under agent_token.py exec, which supplies the agent app's token for this one call.")
         return cmd_check(a.repo, a.branch, token)
 
     token = os.environ.get("GITHUB_GATE_TOKEN", "").strip()
