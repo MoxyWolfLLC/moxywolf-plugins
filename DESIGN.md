@@ -664,7 +664,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-002 — The probe runs the pipeline, or says it did not
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the probe holds, for one run, the chunk identifiers captured at the model-call boundary and the citation identifiers captured at the answer boundary. Both belong to the executed repository and to that run only. They are compared and discarded; nothing is retained across runs, so a later reader cannot mistake a captured id for a durable handle.
 

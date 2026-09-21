@@ -34,9 +34,30 @@ Exit 0 when nothing failed, 1 when a check failed, 2 on a usage error.
 | `grounding_fallback` | Retrieval with no early exit on an empty or low-scoring result | Whether the threshold is right |
 | `citation_attribution` | An answering pipeline that emits no citation or chunk identifier | That each citation resolves to a chunk that was in the context window |
 
-**It never executes the pipeline.** `executed` is `false` in the JSON and the header says
-so. Where a claim needs a run, the check returns SKIP with the reason rather than a verdict
-it did not earn. That is the point of the item, not a limitation to apologise for.
+**The static checker never executes the pipeline.** `executed` is `false` in the JSON and the
+header says so. Where a claim needs a run, the check returns SKIP with the reason rather than a
+verdict it did not earn.
+
+## When you need the run: the probe
+
+`citation_attribution` is the one check static analysis cannot finish. `retrieval_probe.py`
+finishes it, by running the pipeline once and watching two boundaries.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/retrieval_probe.py" --repo <path> --entry <module:function> --query "<text>"
+```
+
+Exit 0 pass, 1 fail, 2 usage, 3 nothing ran.
+
+**Execution is opt-in and it is your decision, not the reviewer's.** Without `--entry` the probe
+executes nothing and exits 3, and `citation_attribution` stays a counted SKIP. Running a
+repository's code is a different risk posture from reading it, so this tool never starts on its
+own. The run happens in a subprocess with **no network** unless you pass `--allow-network`, and
+the record says which runs had it.
+
+It patches exactly two boundaries, the model call and the answer return, and nothing else. A run
+that reaches no model call, captures no context, or finds no citation is a FAIL naming the
+shortfall, never a pass: a probe that watched nothing has established nothing.
 
 ## Reading the result
 
