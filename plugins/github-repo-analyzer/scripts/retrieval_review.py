@@ -63,7 +63,8 @@ class FileFacts:
     guard in one module does not protect a retrieval call in another, and correlating
     them repo-wide is how a reviewer assembles a PASS out of unrelated code."""
 
-    __slots__ = ("rerank", "topk", "retrieve", "model", "citation", "discarded_rerank", "empty_guards")
+    __slots__ = ("rerank", "topk", "retrieve", "model", "citation", "discarded_rerank",
+                 "empty_guards", "ordered_cuts", "unordered_models")
 
     def __init__(self):
         for f in self.__slots__:
@@ -151,6 +152,21 @@ class Facts:
             if isinstance(node, ast.If) and self._is_empty_test(node.test, retrieved) \
                     and any(isinstance(b, (ast.Return, ast.Raise)) for b in ast.walk(node)):
                 ff.empty_guards.append((rel, node.lineno, "early exit on an empty or low-scoring retrieval result"))
+        # Criterion 2 says the cut happens BEFORE the model call. Presence of a cut somewhere in the
+        # file does not establish that. Within one function, line order does: a cut above the call
+        # runs first. Across functions it does not, and that case is reported as unverified rather
+        # than counted either way.
+        fn_topk = sorted(n.lineno for n in ast.walk(fn) if isinstance(n, ast.Call)
+                         and (TOPK.search(_last(_call_name(n)))
+                              or TOPK.search(" ".join(k.arg or "" for k in n.keywords))))
+        fn_model = sorted(n.lineno for n in ast.walk(fn) if isinstance(n, ast.Call)
+                          and MODEL.search(_call_name(n)))
+        for mline in fn_model:
+            earlier = [t for t in fn_topk if t < mline]
+            if earlier:
+                ff.ordered_cuts.append((rel, earlier[-1], f"cut before the model call at line {mline}"))
+            else:
+                ff.unordered_models.append((rel, mline, "model call with no top-k cut above it in this function"))
 
     @staticmethod
     def _is_empty_test(test, retrieved):
@@ -230,13 +246,19 @@ def check_topk_before_model(f):
     if not pipeline_models:
         return (SKIP, "no file both retrieves and calls a model; no retrieval output reaches a model",
                 0, "model calls in retrieval files")
-    offenders = [x for ff in pf.values() if not ff.topk for x in ff.model]
-    if offenders:
-        return (FAIL, f"model called at {_ev(offenders)} with no top-k cut in the same file; "
+    nocut = [x for ff in pf.values() if not ff.topk for x in ff.model]
+    if nocut:
+        return (FAIL, f"model called at {_ev(nocut)} with no top-k cut in the same file; "
                       f"retrieval output reaches the model unbounded", len(pipeline_models),
                 "model calls in retrieval files")
-    return (PASS, f"every file that retrieves and calls a model also cuts top-k "
-                  f"({_ev(_all(f, 'topk'))})", len(pipeline_models), "model calls in retrieval files")
+    unordered = [x for ff in pf.values() for x in ff.unordered_models]
+    ordered = [x for ff in pf.values() for x in ff.ordered_cuts]
+    if unordered:
+        return (SKIP, f"a top-k cut exists in the file but not above the model call at "
+                      f"{_ev(unordered)}; whether it runs first needs the call graph, which this "
+                      f"reviewer does not follow", len(pipeline_models), "model calls in retrieval files")
+    return (PASS, f"top-k is cut above every model call in the same function ({_ev(ordered)})",
+            len(pipeline_models), "model calls in retrieval files")
 
 
 def check_grounding_fallback(f):
@@ -505,7 +527,20 @@ def _selftest():
     """}))
     assert status(r, "rerank_effective") != PASS, r
 
-    print("selftest OK: 12 fixtures, 36 assertions")
+    # Regression 9 (round-2 finding): a cut that exists in the file but not above the model call
+    # is not established as running first. Presence was previously reported as PASS.
+    r, _ = run_review(build({"rag.py": """
+        def prep(q):
+            return retriever.retrieve(q, top_k=5)
+        def answer(q):
+            docs = prep(q)
+            if not docs:
+                return None
+            return client.chat.completions.create(messages=docs, citations=[1])
+    """}))
+    assert status(r, "topk_before_model") != PASS, r
+
+    print("selftest OK: 13 fixtures, 38 assertions")
     return 0
 
 
