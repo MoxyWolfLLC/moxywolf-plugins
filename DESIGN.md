@@ -641,6 +641,25 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 4. Tests: an ungranted destination is refused; a granted one passes; the check reports how many calls it examined; a test asserts no denylist of destination patterns exists in the source.
 
 
+## Seventh objective: retrieval review
+
+Opened 2026-09-20. The third objective made our own checks say what they examined. This one asks the same of somebody else's retrieval pipeline.
+
+The premise: **a retrieval stage that does nothing returns exactly what a working one returns, an ordered list.** A reranker that passes its input through, a top-k that never cuts, a grounding check that never fires: each is a stage reporting work it did not do, and the pipeline's output looks the same either way. `code-review-pro` and `analyze-repo` read code for correctness and security. Neither can tell whether a reranking step reorders anything.
+
+### RR-001 — A retrieval stage proves it did its work
+
+**Status:** proposed.
+
+**Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
+
+1. The reviewer identifies the reranking stage and reports whether the post-rerank top result differs from the raw-similarity top result over a sample of queries. Where it cannot execute the pipeline, it reports the static finding (stage absent, output unused, score discarded) and says it did not execute, rather than a verdict it did not earn.
+2. The reviewer names the line where top-k is cut before the model call, or reports that no cut exists.
+3. The reviewer reports the absence of an explicit insufficient-grounding path as a finding, not a note. A pipeline that answers regardless of retrieval quality has no floor.
+4. Where the pipeline emits citations, each is checked to resolve to a chunk that was in the context window, not merely in the corpus.
+5. Every check reports what it examined, per EV-001. A repository with no reranking stage returns SKIP for criterion 1, counted in the summary, never folded into a green line.
+6. Tests: a fixture whose reranker returns input order unchanged is caught by 1; a fixture with no grounding fallback is caught by 3; a repository with no retrieval pipeline SKIPs every criterion and reports zero coverage rather than a pass.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -648,6 +667,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-20: Seventh objective, retrieval review, approved by Dorian after the ECC upstream refresh (`Taskade/Team Plugins/06 – Engineering/ecc-refresh-2026-09-20.md`). RR-001 concept-ports the checks from ECC's `rag-pipeline-reviewer` (MIT, (c) Affaan Mustafa), taking the ideas and no code. It is EV-001's rule applied to somebody else's pipeline. The refresh's three other concept-ports are not proposed here.
 
 - 2026-09-20: Sixth objective, trust boundaries, declared and approved by Dorian. TB-001 puts an `origin` on every record, which is what makes the fifth prediction in "Paid in the Bottom Layer" measurable. TB-002 puts the untrusted-text enclosure in one file. TB-003 extends the existing grant model to destinations rather than adding a denylist, with the reasoning and the test evidence in DR-099: a four-pattern denylist allowed nine of twelve attacks from its own author's list, and its seven-pattern successor blocked four of six ordinary engineering calls while still allowing four attacks. XE-012 gains criterion 10, recording packet and context size, with no prediction attached. The vocabulary goes to 1.2.0 when TB-001 merges, which is an XE-012 break point. Prompted by three rounds of external response to the pre-registration; the security literature verified on reading and the proposed fix did not.
 
