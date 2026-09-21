@@ -1277,6 +1277,14 @@ def cmd_round(a):
             reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
             reviewer, family(reviewer), is_fallback
+        # XE-005.4: the record says which reviewer RAN and that it was a fallback, and `status`
+        # reads state.json rather than the round record. Leaving state on the tool chosen at open
+        # credited a reviewer that was not installed, which is the silent downgrade this criterion
+        # exists to forbid. The intent is kept rather than overwritten, because the gap between
+        # what was routed and what ran is itself worth reading.
+        state.setdefault("reviewer_intended", state["reviewer"])
+        state["reviewer"], state["reviewer_family"], state["reviewer_is_fallback"] = \
+            reviewer, family(reviewer), is_fallback
         record["max_output"] = REVIEWERS[reviewer]["max_output"]
         record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None
         # EV-008: the denominator of the search, recorded alongside the findings
