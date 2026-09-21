@@ -347,6 +347,8 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 **Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
 
+Criterion 4 carried a defect from that merge until 2026-09-21: `round` resolved the reviewer and wrote it to the round record but never back to `state.json`, and `status` reads `state.json`. A review run on gemini because codex was absent therefore reported `reviewer: codex, reviewer_is_fallback: false`, which is precisely the unrecorded fallback the criterion forbids. Found while confirming which tool had reviewed RR-001. Fixed on `build/RR-001-retrieval-review`; the intended reviewer is retained as `reviewer_intended` rather than overwritten.
+
 **Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
 
 The dispatcher hardcodes two tools and derives the reviewer as "the other one". That encodes independence as a name rather than as a property, and two things already break it. Cursor can run Claude models, so a Claude builder reviewed by Cursor could share the builder's model family while satisfying every current check. And when the only named reviewer is unreachable, as happened on 2026-09-17 when Codex was first absent and then refused by its API for billing, the loop has nowhere to fall back to and the checkpoint lands unreviewed.
@@ -656,6 +658,59 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 4. Tests: an ungranted destination is refused; a granted one passes; the check reports how many calls it examined; a test asserts no denylist of destination patterns exists in the source.
 
 
+## Seventh objective: retrieval review
+
+Opened 2026-09-20. The third objective made our own checks say what they examined. This one asks the same of somebody else's retrieval pipeline.
+
+The premise: **a retrieval stage that does nothing returns exactly what a working one returns, an ordered list.** A reranker that passes its input through, a top-k that never cuts, a grounding check that never fires: each is a stage reporting work it did not do, and the pipeline's output looks the same either way. `code-review-pro` and `analyze-repo` read code for correctness and security. Neither can tell whether a reranking step reorders anything.
+
+### RR-001 — A retrieval stage proves it did its work
+
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
+
+**Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
+
+1. The reviewer identifies the reranking stage and reports whether the post-rerank top result differs from the raw-similarity top result over a sample of queries. Where it cannot execute the pipeline, it reports the static finding (stage absent, output unused, score discarded) and says it did not execute, rather than a verdict it did not earn.
+2. The reviewer names the line where top-k is cut before the model call, or reports that no cut exists.
+3. The reviewer reports the absence of an explicit insufficient-grounding path as a finding, not a note. A pipeline that answers regardless of retrieval quality has no floor.
+4. Where the pipeline emits citations, each is checked to resolve to a chunk that was in the context window, not merely in the corpus. Where the reviewer cannot execute the pipeline, it reports that it did not execute and returns a counted SKIP, rather than a verdict it did not earn. RR-002 provides the execution path.
+5. Every check reports what it examined, per EV-001. A repository with no reranking stage returns SKIP for criterion 1, counted in the summary, never folded into a green line.
+6. Tests: a fixture whose reranker returns input order unchanged is caught by 1; a fixture with no grounding fallback is caught by 3; a repository with no retrieval pipeline SKIPs every criterion and reports zero coverage rather than a pass.
+
+### RR-002 — The probe runs the pipeline, or says it did not
+
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
+
+**Links introduced:** the probe holds, for one run, the chunk identifiers captured at the model-call boundary and the citation identifiers captured at the answer boundary. Both belong to the executed repository and to that run only. They are compared and discarded; nothing is retained across runs, so a later reader cannot mistake a captured id for a durable handle.
+
+1. Execution is opt-in and explicit. Absent a named entry point supplied by the operator, nothing is executed, and RR-001 criterion 4 stays a counted SKIP. The reviewer never decides on its own to run someone's code.
+2. The probe captures the context window at the model-call boundary and the citations at the answer boundary, then asserts that every emitted citation identifies a chunk present in that captured context. A citation naming a corpus chunk that never entered the context is the finding.
+3. It patches only those two boundaries. A probe that rewrites the pipeline is measuring itself.
+4. It runs in a subprocess with no network granted by default. Egress is granted per TB-003, never filtered.
+5. A run that captures zero context, or zero citations, is a FAIL naming the shortfall, never a pass. EV-001 governs the probe as it governs the static checks.
+6. Tests: a fixture citing a chunk that was never in context is caught by 2; a fixture whose model boundary is never reached reports zero capture and fails by 5; a repository with no declared entry point executes nothing and returns SKIP.
+
+## Eighth objective: the catalog imports
+
+Opened 2026-09-21. The seventh objective reviews somebody else's retrieval pipeline. This one asks whether our own packages load.
+
+The premise: **every check in this repository tests the scripts, and nothing tests the catalog they ship inside.** A skill whose frontmatter will not parse, or whose description the loader truncates, is broken at the only moment that matters, which is when somebody installs the plugin. The suites were green while ten of the 150 packages here were not loadable as written. An outside compatibility assessment found them. The gate did not, because the gate had never looked.
+
+### CI-001 — A shipped package is one a loader can read
+
+**Status:** done. Merged to `main` in `d619c06` (PR #33, head `69ab8e4`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-134157-69ab8e4-oolg8b8m` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
+
+**No release record.** `record-release` has recorded no release for this item, and none was fabricated to close the gap. The handoff step was skipped: the review landed, the checkpoint was presented for a decision in conversation rather than through `peer_review.py release`, and the merge followed. `record-release` refuses on that order twice over, first because no `release.json` exists for the revision and then because a handoff prepared now would postdate the merge. The review itself is intact and the merge is recorded on the pull request; what is missing is the artifact that binds the two, and it cannot be produced after the fact without lying about when it was made.
+
+**Links introduced:** none. The check reads files already in the tree and names them by repository path, so there is nothing to re-resolve later.
+
+1. Every `SKILL.md` in the repository is examined: the frontmatter block parses, `description` is present, it is not empty, and it is at most 1024 characters.
+2. The check asserts what the compatibility assessment asserted, and nothing it did not. No judgement of wording, tone or usefulness. A check that grows opinions is a check people start overriding, and then the loadability finding goes out with the opinions.
+3. It reports what it examined, per EV-001, and a run that finds no packages FAILS rather than reporting a clean catalog it never located.
+4. It is stdlib-only, as the rest of this repository's checks are. The CI runner is a bare `setup-python` with no install step, so a check that needs PyYAML is a check that stops running the first time it matters. The frontmatter reader covers the subset this catalog uses and reports anything outside it as unreadable, which is the honest answer for a block a simple loader also could not read. Its agreement with PyYAML was measured over all 150 real packages, text and length, before and after the fixes: 150 of 150, including the two files PyYAML rejects.
+5. The ten failures are fixed in the same change, because a check that lands red is a check somebody turns off. Where a description was shortened to fit the limit, its original text is preserved in the body under `## When this skill applies`, so no trigger wording is lost. Two of the ten were only malformed, never too long, and their text is unchanged.
+6. Tests: a description over the limit, an empty one, an absent one, an unquoted colon in a plain scalar, and an unterminated block are each caught by a fixture; a description of exactly 1024 characters passes; and an empty tree FAILS rather than passing, which is criterion 3 as a test. The gate also runs the check over this repository's own 150 packages, not only over fixtures: a check whose only caller is its own selftest is a check nobody is running.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -663,6 +718,20 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: `test_agent_token` defect found and fixed while bringing GA-006 current. It read `GIT_CONFIG_KEY_0` and asserted the extraheader sat there, but `token_env` APPENDS at the existing `GIT_CONFIG_COUNT`, so slot 0 only holds when the ambient environment sets no git config entry. The production code was right and the test asserted an empty environment instead of the contract: on a host that sets `credential.interactive` the suite went red with `'credential.interactive' != 'http.https://github.com/.extraheader'` while nothing was wrong. The test now derives the slot from the count and names it when the assertion fails. Pre-existing on `main`, not introduced by GA-006, and carried in this checkpoint because GA-006 already edits that file. No criteria changed.
+
+- 2026-09-21: CI-001 merged as `d619c06`, and the release handoff was skipped. The review passed and the merge was instructed, but `peer_review.py release` never ran, so `record-release` has no `release.json` to verify against and a handoff prepared now would postdate the merge. No record was fabricated. The loop treated "present the checkpoint to the named human" as satisfied by saying so in conversation; the contract means the artifact. Carried here as a note rather than a criterion change, because nothing in the contract needs changing: the step exists and was not run.
+
+- 2026-09-21: Peer-review host defect found and fixed. Two consecutive rounds against the CI-001 checkpoint returned `empty_output`, which the gate's error text attributes to quota or headroom. Neither was the cause. Replaying the round prompt directly showed the reviewer attempting `run_shell_command` twice, being told the tool does not exist, and then exiting 0 with an empty response: `--approval-mode plan` is read-only and withholds shell execution, and nothing in the prompt said so, so the reviewer spent its whole turn discovering it. The packet's `tests.commands` read as an instruction to re-run them. The prompt now states that no commands can be run, that the commands are a record rather than an instruction, and that a judgement genuinely needing execution is reported with severity `separate`. No criteria changed. Carried in the CI-001 checkpoint and covered by its review, per the XE-005.4 precedent.
+
+- 2026-09-21: Eighth objective, the catalog imports, and CI-001, approved by Dorian. Prompted by an outside compatibility assessment of this repository's plugins, which found ten `SKILL.md` packages that a loader cannot read: eight descriptions over the 1024-character limit, and two whose plain-scalar descriptions contain an unquoted colon, which YAML reads as a nested key. Every one of them shipped under a green build, because this repository's suites examine its scripts and never its catalog. CI-001 adds the check and fixes all ten in the same change. The fix is the same in every case, a folded (`>`) block, which is immune to the colon; the eight shortened descriptions keep their original text in the body.
+
+- 2026-09-21: RR-002 declared and approved by Dorian, and RR-001 criterion 4 given criterion 1's "did not execute" clause. Three peer-review rounds landed on the same point: criterion 4 as written demanded runtime verification that a static reviewer cannot supply, and the reviewer's own note was that the criteria must be relaxed to match the static design or the tool needs a dynamic component. Dorian chose the dynamic component. RR-001 stays the static reviewer; RR-002 carries the execution, opt-in only, because running a reviewed repository's code is a different risk posture from reading it.
+
+- 2026-09-21: XE-005 criterion 4 defect found and fixed (see its status). No criteria changed; the code now does what the approved criterion already required. Carried in the RR-001 checkpoint and covered by its review.
+
+- 2026-09-20: Seventh objective, retrieval review, approved by Dorian after the ECC upstream refresh (`Taskade/Team Plugins/06 – Engineering/ecc-refresh-2026-09-20.md`). RR-001 concept-ports the checks from ECC's `rag-pipeline-reviewer` (MIT, (c) Affaan Mustafa), taking the ideas and no code. It is EV-001's rule applied to somebody else's pipeline. The refresh's three other concept-ports are not proposed here.
 
 - 2026-09-20: GA-006 declared, and the app-identity constraint stops naming one installation. GA-005 criterion 9 asked Dorian to decide the OpenControls-AI path. He decided it this session, making the app public and installing it on OpenControls-AI, which immediately exposed what criterion 1 had assumed: one installation id in `github-app.env`. A token minted from the MoxyWolfLLC installation answers 404 for `OpenControls-AI/cki`, the same answer GitHub gives for a repository that does not exist, so the credential's reach fails in the shape hardest to read. GA-006 resolves the installation from the repository instead, and it is what makes criterion 9's remaining step safe: the PAT cannot leave the vault while OpenControls-AI pushes depend on it. A third installation, on GRCSchema, was created by the agent misclicking a row during the same session and is Dorian's to keep or remove.
 

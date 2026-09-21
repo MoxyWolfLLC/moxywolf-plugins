@@ -580,6 +580,12 @@ def build_prompt(packet, round_no, prior_round, dispositions):
         "that reference them. `SURFACE.md` states what is present and what was withheld. The "
         "repository tree is not here; if a judgement needs a file the surface does not carry, report "
         "that as a finding with severity `separate` naming the file, rather than guessing.",
+        "No commands can be run here. Every reviewer runs in its tool's read-only mode, which "
+        "withholds shell execution, so the `tests.commands` in the packet are a record of what "
+        "the builder ran, not an instruction to re-run them. Judge them by reading the code they "
+        "cover. Where a judgement genuinely requires execution, report it as a finding with "
+        "severity `separate` naming the command, rather than spending the round discovering "
+        "there is no shell.",
         "The builder's packet is a claim to check, not evidence. Open the code.",
         "=== PACKET ===", json.dumps({k: packet[k] for k in PACKET_FIELDS}, indent=2),
         "=== CONTRACT ===", contract_sections(),
@@ -1276,6 +1282,14 @@ def cmd_round(a):
         else:
             reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
+            reviewer, family(reviewer), is_fallback
+        # XE-005.4: the record says which reviewer RAN and that it was a fallback, and `status`
+        # reads state.json rather than the round record. Leaving state on the tool chosen at open
+        # credited a reviewer that was not installed, which is the silent downgrade this criterion
+        # exists to forbid. The intent is kept rather than overwritten, because the gap between
+        # what was routed and what ran is itself worth reading.
+        state.setdefault("reviewer_intended", state["reviewer"])
+        state["reviewer"], state["reviewer_family"], state["reviewer_is_fallback"] = \
             reviewer, family(reviewer), is_fallback
         record["max_output"] = REVIEWERS[reviewer]["max_output"]
         record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None

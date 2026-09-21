@@ -77,15 +77,21 @@ class AgentToken(unittest.TestCase):
 
     def test_the_token_reaches_the_command_and_nowhere_else(self):
         probe = self.tmp / "probe.json"
+        # token_env APPENDS at the existing GIT_CONFIG_COUNT, so the slot is not always 0.
+        # Reading _0 asserted an empty ambient environment, not the contract, and turned a
+        # correct build red on any host that already sets a git config entry.
         child = ("import hashlib,json,os,sys;"
+                 "i=str(int(os.environ['GIT_CONFIG_COUNT'])-1);"
                  f"json.dump({{'argv':sys.argv,'tok':hashlib.sha256(os.environ['GITHUB_TOKEN'].encode()).hexdigest(),"
-                 f"'header':os.environ['GIT_CONFIG_VALUE_0'],'key':os.environ['GIT_CONFIG_KEY_0']}},open({str(probe)!r},'w'))")
+                 f"'header':os.environ['GIT_CONFIG_VALUE_'+i],'key':os.environ['GIT_CONFIG_KEY_'+i],"
+                 f"'slot':i}},open({str(probe)!r},'w'))")
         r = self.run_script("exec", "--", sys.executable, "-c", child)
         self.assertEqual(r.returncode, 0, r.stderr)
         got = json.loads(probe.read_text())
         import base64, hashlib
         self.assertEqual(got["tok"], hashlib.sha256(TOKEN.encode()).hexdigest())
-        self.assertEqual(got["key"], "http.https://github.com/.extraheader")
+        self.assertEqual(got["key"], "http.https://github.com/.extraheader",
+                         f"the header landed in slot {got['slot']} under another key")
         self.assertIn(base64.b64encode(f"x-access-token:{TOKEN}".encode()).decode(), got["header"])
         self.assertNotIn(TOKEN, " ".join(got["argv"]))
         self.assertNotIn(TOKEN, r.stdout + r.stderr)

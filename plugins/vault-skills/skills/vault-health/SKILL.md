@@ -1,6 +1,9 @@
 ---
 name: vault-health
-description: Audit vault health: unresolved links, orphan notes, dead-end files, missing frontmatter, structural gaps. Produces an actionable report note with prioritized fix suggestions. Use when wanting to clean up, organize, or assess the current state of the vault.
+description: >
+  Audit vault health: unresolved links, orphan notes, dead-end files, missing frontmatter,
+  structural gaps. Produces an actionable report note with prioritized fix suggestions. Use when
+  wanting to clean up, organize, or assess the current state of the vault.
 ---
 
 # Vault Health
