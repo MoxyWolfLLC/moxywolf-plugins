@@ -18,9 +18,24 @@ TOKEN = "ghs_FIXTURE_TOKEN_0123456789abcdef"
 class Stub(http.server.BaseHTTPRequestHandler):
     seen = []
 
+    def do_GET(self):
+        Stub.seen.append((self.path, self.headers.get("Authorization", "")))
+        if self.path == "/repos/owner/known/installation":
+            body, code = {"id": 77, "account": {"login": "owner"}}, 200
+        elif self.path == "/repos/owner/known/pulls":
+            body, code = [], 200
+        elif self.path == "/app/installations":
+            body, code = [{"id": 42, "account": {"login": "MoxyWolfLLC"}},
+                          {"id": 77, "account": {"login": "owner"}}], 200
+        else:
+            body, code = {"message": "Not Found"}, 404
+        raw = json.dumps(body).encode()
+        self.send_response(code); self.send_header("Content-Length", str(len(raw))); self.end_headers()
+        self.wfile.write(raw)
+
     def do_POST(self):
         Stub.seen.append((self.path, self.headers.get("Authorization", "")))
-        if self.path == "/app/installations/42/access_tokens":
+        if self.path in ("/app/installations/42/access_tokens", "/app/installations/77/access_tokens"):
             body, code = {"token": TOKEN, "expires_at": "2099-01-01T00:00:00Z"}, 201
         else:
             body, code = {"message": "Bad credentials"}, 401
@@ -55,19 +70,28 @@ class AgentToken(unittest.TestCase):
         env = dict(os.environ, GSTACK_AGENT_APP_ENV=str(self.envfile),
                    GSTACK_GITHUB_API=f"http://127.0.0.1:{self.srv.server_port}")
         env.pop("GITHUB_TOKEN", None)
-        return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env)
+        # cwd is outside any checkout: these tests are about the token, not about which
+        # installation owns a repository, and origin would otherwise force a resolve.
+        return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
+                              env=env, cwd=str(self.tmp))
 
     def test_the_token_reaches_the_command_and_nowhere_else(self):
         probe = self.tmp / "probe.json"
+        # token_env APPENDS at the existing GIT_CONFIG_COUNT, so the slot is not always 0.
+        # Reading _0 asserted an empty ambient environment, not the contract, and turned a
+        # correct build red on any host that already sets a git config entry.
         child = ("import hashlib,json,os,sys;"
+                 "i=str(int(os.environ['GIT_CONFIG_COUNT'])-1);"
                  f"json.dump({{'argv':sys.argv,'tok':hashlib.sha256(os.environ['GITHUB_TOKEN'].encode()).hexdigest(),"
-                 f"'header':os.environ['GIT_CONFIG_VALUE_0'],'key':os.environ['GIT_CONFIG_KEY_0']}},open({str(probe)!r},'w'))")
+                 f"'header':os.environ['GIT_CONFIG_VALUE_'+i],'key':os.environ['GIT_CONFIG_KEY_'+i],"
+                 f"'slot':i}},open({str(probe)!r},'w'))")
         r = self.run_script("exec", "--", sys.executable, "-c", child)
         self.assertEqual(r.returncode, 0, r.stderr)
         got = json.loads(probe.read_text())
         import base64, hashlib
         self.assertEqual(got["tok"], hashlib.sha256(TOKEN.encode()).hexdigest())
-        self.assertEqual(got["key"], "http.https://github.com/.extraheader")
+        self.assertEqual(got["key"], "http.https://github.com/.extraheader",
+                         f"the header landed in slot {got['slot']} under another key")
         self.assertIn(base64.b64encode(f"x-access-token:{TOKEN}".encode()).decode(), got["header"])
         self.assertNotIn(TOKEN, " ".join(got["argv"]))
         self.assertNotIn(TOKEN, r.stdout + r.stderr)
@@ -102,6 +126,98 @@ class AgentToken(unittest.TestCase):
         self.assertGreater(len(code), 5, f"examined only {len(code)} files")
         readers = [str(p.relative_to(HERE.parent)) for p in code if "github-pat.env" in p.read_text(errors="replace")]
         self.assertEqual(readers, [], "these read the personal token file")
+
+
+class InstallationPerRepository(unittest.TestCase):
+    """GA-006: the token is minted for the installation that owns the repository, and a repository
+    the app cannot reach is a named refusal rather than a 404 the caller has to interpret."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = http.server.HTTPServer(("127.0.0.1", 0), Stub)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        subprocess.run(["openssl", "genrsa", "-out", str(self.tmp / "key.pem"), "2048"], capture_output=True, check=True)
+        self.envfile = self.tmp / "github-app.env"
+        self.envfile.write_text("GITHUB_APP_ID=7\nGITHUB_APP_INSTALLATION_ID=42\nGITHUB_APP_KEY_FILE=key.pem\n")
+        Stub.seen.clear()
+
+    def run_script(self, *args, cwd=None):
+        env = dict(os.environ, GSTACK_AGENT_APP_ENV=str(self.envfile),
+                   GSTACK_GITHUB_API=f"http://127.0.0.1:{self.srv.server_port}")
+        env.pop("GITHUB_TOKEN", None)
+        return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env, cwd=cwd)
+
+    def minted_from(self):
+        return [path for path, _ in Stub.seen if path.endswith("/access_tokens")]
+
+    def test_the_resolved_installation_wins_over_the_configured_one(self):
+        r = self.run_script("exec", "--repo", "owner/known", "--", sys.executable, "-c", "pass")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("/repos/owner/known/installation", [p for p, _ in Stub.seen])
+        self.assertEqual(self.minted_from(), ["/app/installations/77/access_tokens"],
+                         "minted from the configured 42 instead of the resolved 77")
+
+    def test_an_api_path_names_its_own_repository(self):
+        r = self.run_script("api", "GET", "repos/owner/known/pulls")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.minted_from(), ["/app/installations/77/access_tokens"])
+
+    def test_an_unreachable_repository_is_named_not_left_as_a_404(self):
+        r = self.run_script("exec", "--repo", "stranger/repo", "--", sys.executable, "-c", "pass")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not installed on stranger", r.stderr)
+        self.assertIn("MoxyWolfLLC", r.stderr, "does not say where it IS installed")
+        self.assertIn("404", r.stderr)
+        self.assertEqual(self.minted_from(), [], "fell back to the configured installation after a failed resolve")
+
+    def test_no_repository_falls_back_and_says_what_it_tried(self):
+        r = self.run_script("exec", "--", sys.executable, "-c", "pass", cwd=str(self.tmp))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("--repo", r.stderr)
+        self.assertIn("origin", r.stderr)
+        self.assertEqual(self.minted_from(), ["/app/installations/42/access_tokens"])
+
+    def test_the_parsers_cover_ssh_and_https_and_reject_what_is_not_a_repo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("at", SCRIPT)
+        at = importlib.util.module_from_spec(spec); spec.loader.exec_module(at)
+        cases = 0
+        for path, want in [("repos/o/r", "o/r"), ("/repos/o/r/pulls/1", "o/r"),
+                           ("app/installations", None), ("repos/o", None), ("", None)]:
+            self.assertEqual(at.repo_from_path(path), want, path); cases += 1
+        for url, want in [("https://github.com/o/r.git", "o/r"), ("git@github.com:o/r.git", "o/r"),
+                          ("https://github.com/o/r", "o/r"), ("https://example.com/o/r.git", None)]:
+            git = self.tmp / "git"
+            git.write_text(f"#!/bin/sh\necho {url}\n"); git.chmod(0o755)
+            env = dict(os.environ, PATH=f"{self.tmp}:{os.environ['PATH']}")
+            out = subprocess.run([sys.executable, "-c",
+                                  f"import importlib.util;s=importlib.util.spec_from_file_location('at',{str(SCRIPT)!r});"
+                                  "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(m.repo_from_origin())"],
+                                 capture_output=True, text=True, env=env, cwd=str(self.tmp))
+            self.assertEqual(out.stdout.strip(), str(want), url); cases += 1
+        print(f"\nexamined {cases} parser cases")
+        self.assertGreater(cases, 0, "examined no cases")
+
+    def test_nothing_writes_a_resolved_id_to_disk(self):
+        """A cached id would fail as a 404 long after the installation was removed, so the run
+        leaves no new file behind. Searching files for the id itself gives false positives: a
+        2048-bit PEM contains most short digit strings somewhere."""
+        before = {p for p in self.tmp.rglob("*")}
+        r = self.run_script("exec", "--repo", "owner/known", "--", sys.executable, "-c", "pass")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(before, "examined no files")
+        after = {p for p in self.tmp.rglob("*")}
+        self.assertEqual(after - before, set(), "the run left a file behind")
+        home = Path(os.path.expanduser("~"))
+        for name in (".agent_token_cache", ".gstack_installations.json"):
+            self.assertFalse((home / name).exists(), f"cached to {name}")
 
 
 class NoPushWithAPersonsToken(unittest.TestCase):
