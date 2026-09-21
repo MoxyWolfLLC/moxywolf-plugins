@@ -1,11 +1,26 @@
 ---
 name: synergy-engine
-description: |
-  This skill should be used when the user wants to find people writing about their topics and engage them, reach out to authors they cited in their own paper, or runs any /synergy-engine command. Triggers: "find people posting about X", "who's writing about <topic> on LinkedIn", "engage the discourse on Y", "run the LinkedIn outreach cycle", "build my topic fingerprint", "discover on-theme posts", "comment-first outreach", "synergy scan", "reach out to the authors we cited", "we cited you outreach", "harvest the bibliography", "thank the people we cited", "/synergy-engine", "/synergy-discover", "/synergy-run", "/synergy-cite-harvest". The engine matches what YOU'VE published against what TARGETS are posting, then joins their conversations with a like + a practitioner comment (never a pitch), optionally citing their own work or your anchor paper in your content. It runs three discovery centers — author + content (comment-first, from who's posting) and citation (connect-first + email, from who you cited) — scores against a topic fingerprint, keeps xlsx trackers as memory/dedupe/queue, and executes through the user's own logged-in browser with a human-approval gate on every public action. Do NOT use this skill for: writing blog posts (use 4d-blog-engine), generic LinkedIn analytics (use linkedin-growth), or cold sales sequences (use apollo).
+description: >
+  Finds people writing about the user's topics and engages them, including the authors cited in
+  their own paper. Use it for "find people posting about X", "who's writing about <topic> on
+  LinkedIn", "engage the discourse on Y", "run the LinkedIn outreach cycle", "build my topic
+  fingerprint", "comment-first outreach", "reach out to the authors we cited", "harvest the
+  bibliography", or any /synergy-engine, /synergy-discover, /synergy-run or /synergy-cite-harvest
+  command. It matches what the user has published against what targets are posting, then joins
+  their conversations with a like and a practitioner comment, never a pitch. Three discovery
+  centers: author and content (comment-first), and citation (connect-first plus email). It scores
+  against a topic fingerprint, keeps xlsx trackers as memory, dedupe and queue, and acts through
+  the user's own logged-in browser with a human-approval gate on every public action. Do not use
+  it for writing blog posts, generic LinkedIn analytics, or cold sales sequences.
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion]
 ---
 
 # Synergy Engine — topic-synergy outreach, comment-first
+
+## When this skill applies
+
+This skill should be used when the user wants to find people writing about their topics and engage them, reach out to authors they cited in their own paper, or runs any /synergy-engine command. Triggers: "find people posting about X", "who's writing about <topic> on LinkedIn", "engage the discourse on Y", "run the LinkedIn outreach cycle", "build my topic fingerprint", "discover on-theme posts", "comment-first outreach", "synergy scan", "reach out to the authors we cited", "we cited you outreach", "harvest the bibliography", "thank the people we cited", "/synergy-engine", "/synergy-discover", "/synergy-run", "/synergy-cite-harvest". The engine matches what YOU'VE published against what TARGETS are posting, then joins their conversations with a like + a practitioner comment (never a pitch), optionally citing their own work or your anchor paper in your content. It runs three discovery centers — author + content (comment-first, from who's posting) and citation (connect-first + email, from who you cited) — scores against a topic fingerprint, keeps xlsx trackers as memory/dedupe/queue, and executes through the user's own logged-in browser with a human-approval gate on every public action. Do NOT use this skill for: writing blog posts (use 4d-blog-engine), generic LinkedIn analytics (use linkedin-growth), or cold sales sequences (use apollo).
+
 
 > **Read this when:** the user wants to find and engage the people writing about their topics. Your job is to route to the right command and hold the methodology so every run stays on-pattern. The detailed contracts live in the command files; the durable rules live in `references/`.
 

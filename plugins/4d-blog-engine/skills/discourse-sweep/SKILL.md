@@ -1,12 +1,26 @@
 ---
 name: discourse-sweep
-description: |
-  This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It optionally resolves the topic to concrete entities (subreddits, handles, repos) first, then fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery) — including zero-config reddit public-JSON queries that capture real engagement (upvotes + comments) — then ranks the findings via a relevance/recency/engagement blend, dedupes by 70% title-overlap, applies cross-source clustering, caps any single author at 3 primaries, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
+description: >
+  Runs the 30-day discourse sweep, the Phase 3 (Discernment) step of the 4D Blog Engine. It can
+  resolve the topic to concrete entities (subreddits, handles, repos) first, then fires
+  platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, GitHub, LinkedIn
+  Pulse, Facebook, Quora, podcasts and academic sources, including zero-config reddit public-JSON
+  queries that capture real engagement. It ranks findings on a relevance, recency and engagement
+  blend, dedupes on 70% title overlap, clusters across sources, caps any one author at three
+  primaries, and writes discourse.md into the piece's 03-discernment/ folder. Triggers:
+  "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the
+  world saying about <topic>". This is a specialist skill the orchestrator invokes, not one the
+  user calls directly.
 allowed-tools: [Read, Write, Bash, WebSearch, Glob]
 user-invocable: false
 ---
 
 # Discourse Sweep — the 30-day platform-targeted research engine
+
+## When this skill applies
+
+This skill should be used when running the 30-day discourse sweep step of the 4D Blog Engine — Phase 3 (Discernment). It optionally resolves the topic to concrete entities (subreddits, handles, repos) first, then fires platform-targeted queries across reddit, X, Hacker News, Substack, dev.to, github, linkedin.com/pulse, Facebook, Quora, podcasts (Apify), and academic sources (research-pipeline/literature-discovery) — including zero-config reddit public-JSON queries that capture real engagement (upvotes + comments) — then ranks the findings via a relevance/recency/engagement blend, dedupes by 70% title-overlap, applies cross-source clustering, caps any single author at 3 primaries, and writes a discourse.md to the piece's 03-discernment/ folder. Triggers: "/4d-blog-engine:blog-discern", "run the 30-day sweep", "sweep the discourse on", "what's the world saying about <topic>", "research the last 30 days for <topic>". This is a specialist skill — invoked by the 4d-blog-engine orchestrator, not directly by the user in normal usage.
+
 
 > **Read this when:** Phase 3 (Discernment) has just started. The orchestrator skill has confirmed Phase 2's outline is approved and the piece directory exists. Your job is to populate `<piece>/03-discernment/discourse.md` with a ranked, themed brief of the last 30 days of conversation on this topic.
 

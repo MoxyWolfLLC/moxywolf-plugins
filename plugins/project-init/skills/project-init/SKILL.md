@@ -1,9 +1,24 @@
 ---
 name: project-init
-description: This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
+description: >
+  Scaffolds Project Instructions for a project that does not have them yet. Use it for "set up a
+  new project", "init a new project", "new Cowork project", "start a new project", or
+  /init-project. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade)
+  are mounted, then gathers the active Taskade subfolder and the active GitHub repo folders and
+  writes tailored instructions following the MoxyWolf template, with shared-knowledge writes
+  routed to the vault. The full instructions are saved on disk as the single source of truth, and
+  a thin loader stub goes in Cowork's settings field so the embedded copy cannot drift. If the
+  project already has a saved cowork-project-instructions.md it stops and redirects to
+  /refresh-project-instructions rather than overwriting hand-written overrides. Use that command
+  directly to update an existing project.
 ---
 
 # Project Init
+
+## When this skill applies
+
+This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
+
 
 Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the same three roots — MoxyWolf Vault, GitHub, and Taskade — and the Project Instructions just declare *which* subfolder of Taskade is the active project and *which* subfolder of GitHub is the active repo. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
 

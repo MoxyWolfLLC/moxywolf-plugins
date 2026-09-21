@@ -1,11 +1,24 @@
 ---
 name: blog-social
-description: |
-  This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). When a LinkedIn surface is selected, it discovers the writer's authorable LinkedIn channels (personal profile + Company/Showcase Pages + newsletters) live from their logged-in browser via Claude in Chrome and asks which channel to publish to. On a Company/Showcase Page the output is an Article-led trio — long-form Article (lead) + a short teaser Post + a first comment that links to the published Article + blog + sources, published in that order; on a personal profile it stays the feed Post + first-comment-to-blog pair. The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
+description: >
+  Derives social-platform posts from a Diligence-passed blog. Use it for
+  /4d-blog-engine:blog-social or "derive the LinkedIn post", "derive the LinkedIn article", "make
+  the Twitter thread", "write a Facebook post from this", "social derivatives". It covers LinkedIn
+  (a feed post plus its first comment, with an optional long-form Article), Twitter/X (a 5 to 10
+  post thread at 280 characters each) and Facebook (a single short post). For LinkedIn it
+  discovers the writer's authorable channels live from their logged-in browser and asks which one
+  to publish to; a Company or Showcase Page gets the Article-led trio, a personal profile gets the
+  post and comment pair. The writer picks the platforms, so nothing is auto-invoked at Phase 4
+  sign-off. Outputs and a per-platform scorecard land in the piece's 04-diligence/social/ folder.
 allowed-tools: [Read, Write, Edit, Bash, Glob, AskUserQuestion, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__javascript_tool]
 ---
 
 # Blog Social Deriver — multi-platform social derivatives from a signed blog
+
+## When this skill applies
+
+This skill should be used when deriving social-platform posts from a Diligence-passed blog in the 4D Blog Engine, or whenever the writer runs /4d-blog-engine:blog-social. Supports LinkedIn (feed Post + companion first-comment, with optional long-form Article), Twitter/X (5-10 post thread, ≤280 chars per post), and Facebook (single ~300-500 char post). When a LinkedIn surface is selected, it discovers the writer's authorable LinkedIn channels (personal profile + Company/Showcase Pages + newsletters) live from their logged-in browser via Claude in Chrome and asks which channel to publish to. On a Company/Showcase Page the output is an Article-led trio — long-form Article (lead) + a short teaser Post + a first comment that links to the published Article + blog + sources, published in that order; on a personal profile it stays the feed Post + first-comment-to-blog pair. The writer picks which platforms to derive — nothing is auto-invoked at Phase 4 sign-off. Reads <piece>/04-diligence/blog.md plus 01-delegation.md (angle + earned secret) and the writer's voice profile, applies per-platform register shifts, generates platform-appropriate hooks, runs scripts/social_score.py for format-compliance checks, and produces per-platform 3-axis scorecards. Outputs land in <piece>/04-diligence/social/. Triggers: "/4d-blog-engine:blog-social", "/blog-social", "derive the LinkedIn post", "derive the LinkedIn article", "make the Twitter thread", "write a Facebook post from this", "social derivatives".
+
 
 > **Read this when:** Phase 4 (Diligence) has signed off and the writer wants to derive social-platform posts. Your job is to produce one or more of: `<piece>/04-diligence/social/linkedin-post.md` (+ its companion `linkedin-first-comment.md`), `<piece>/04-diligence/social/linkedin-article.md` (optional long-form), `<piece>/04-diligence/social/twitter-thread.md`, `<piece>/04-diligence/social/facebook-post.md` — based on which platforms the writer picks.
 

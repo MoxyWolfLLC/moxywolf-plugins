@@ -1,6 +1,14 @@
 ---
 name: email-lifecycle
-description: This skill should be used when the user invokes one of the /email-* lifecycle commands (/email-activation, /email-nurture, /email-convert, /email-retain, /email-lifecycle) or asks for the best practices, tooling, or a drafted sequence for a stage of the product email lifecycle (onboarding/activation, nurture, convert-to-paid, retain/expand, or the whole arc). For the stage in scope it returns: (1) best practices, (2) which installed skills to use + catalog adoption candidates, (3) a benchmark of the named product's current setup, (4) prioritized recommendations, and (5) an auto-drafted email sequence. It is the email-specific, stage-sharded sibling of marcom-audit.
+description: >
+  This skill should be used when the user invokes one of the /email-* lifecycle commands
+  (/email-activation, /email-nurture, /email-convert, /email-retain, /email-lifecycle) or asks for
+  the best practices, tooling, or a drafted sequence for a stage of the product email lifecycle
+  (onboarding/activation, nurture, convert-to-paid, retain/expand, or the whole arc). For the
+  stage in scope it returns: (1) best practices, (2) which installed skills to use + catalog
+  adoption candidates, (3) a benchmark of the named product's current setup, (4) prioritized
+  recommendations, and (5) an auto-drafted email sequence. It is the email-specific, stage-sharded
+  sibling of marcom-audit.
 ---
 
 # Email Lifecycle
