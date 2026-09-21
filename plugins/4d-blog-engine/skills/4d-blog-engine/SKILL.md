@@ -1,11 +1,23 @@
 ---
 name: 4d-blog-engine
-description: |
-  This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "make a Twitter thread from this blog", "write a Facebook post from my blog", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post (and optional multi-platform social derivatives) under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (blog-delegate, blog-describe, blog-discern, blog-diligence), the social derivative command (blog-social), and the lifecycle commands. It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing multi-platform social derivatives. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
+description: >
+  Orchestrates the 4D Blog Engine. Use it when the user wants a blog post derived from a base
+  document: a whitepaper, a report, a transcript, meeting notes. It routes to the four phase
+  commands (blog-delegate, blog-describe, blog-discern, blog-diligence), to blog-social for
+  multi-platform derivatives, and to the lifecycle commands, and it is where the active Cowork
+  project and the per-piece working directory get resolved. Trigger it for anything touching the
+  4D framework, the Release Owner Gate, or deriving a blog from a base document. Do not use it to
+  write a post from scratch with no base document, to edit an already-published post, or to
+  rewrite a document with no derivation target.
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
 
 # 4D Blog Engine — orchestrator
+
+## When this skill applies
+
+This skill should be used when the user asks to "write a blog post from this document", "derive a blog from this whitepaper / report / transcript / meeting notes", "run the 4D pipeline on this", "write a LinkedIn article + teaser from this", "make a Twitter thread from this blog", "write a Facebook post from my blog", "run the release-owner gate on my draft", or any request to turn a base document into a publication-ready blog post (and optional multi-platform social derivatives) under the 4D AI Fluency Framework. This skill is the orchestrator — it routes to the four phase commands (blog-delegate, blog-describe, blog-discern, blog-diligence), the social derivative command (blog-social), and the lifecycle commands. It is also the central place that detects the active Cowork project and computes the per-piece working directory. Trigger aggressively for anything touching deriving a blog from a base doc, the 4D framework, the Release Owner Gate, or producing multi-platform social derivatives. Do NOT use this skill for: writing a blog post from scratch with no base document; editing an existing published post; rewriting an arbitrary document with no derivation target.
+
 
 > **Read this when:** any `/4d-blog-engine:*` command runs. This file is the spine; it routes work to the phase commands and computes the working directory. Read `references/4d-discipline.md` immediately after this file — every phase needs the framework loaded.
 

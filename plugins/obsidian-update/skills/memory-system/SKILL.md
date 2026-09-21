@@ -1,6 +1,11 @@
 ---
 name: memory-system
-description: ""
+description: >
+  Vault-native read and write operations for memory. A sub-skill of the obsidian-update plugin
+  that handles memory persistence in the vault: where memory files live, how they are read, and
+  how they are written back. The personal-os skill calls it, and the Council deliberation-engine
+  and pattern-memory skills call it for cross-plugin vault operations. It is not usually invoked
+  directly.
 ---
 
 # Memory System — Vault-Native Read/Write Operations

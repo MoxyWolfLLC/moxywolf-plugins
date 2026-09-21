@@ -580,6 +580,12 @@ def build_prompt(packet, round_no, prior_round, dispositions):
         "that reference them. `SURFACE.md` states what is present and what was withheld. The "
         "repository tree is not here; if a judgement needs a file the surface does not carry, report "
         "that as a finding with severity `separate` naming the file, rather than guessing.",
+        "No commands can be run here. Every reviewer runs in its tool's read-only mode, which "
+        "withholds shell execution, so the `tests.commands` in the packet are a record of what "
+        "the builder ran, not an instruction to re-run them. Judge them by reading the code they "
+        "cover. Where a judgement genuinely requires execution, report it as a finding with "
+        "severity `separate` naming the command, rather than spending the round discovering "
+        "there is no shell.",
         "The builder's packet is a claim to check, not evidence. Open the code.",
         "=== PACKET ===", json.dumps({k: packet[k] for k in PACKET_FIELDS}, indent=2),
         "=== CONTRACT ===", contract_sections(),

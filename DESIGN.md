@@ -651,7 +651,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-001 — A retrieval stage proves it did its work
 
-**Status:** review. Built on `build/RR-001-retrieval-review` at `1e74d6e` (PR #32). Peer review `20260921-160832-1e74d6e-v5wvg01s` returned `no_blocking_findings` in one round, all six criteria met with file and line evidence. The reviewer was **gemini** (`gemini-3.1-pro-preview`), resolved as a fallback because codex is not installed here; gemini is an independent family above its floor. The round record names it correctly and `state.json` does not, which is a dispatcher defect recorded separately, not a property of this item. Awaiting human release; not merged.
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
 
 **Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
 
@@ -664,7 +664,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-002 — The probe runs the pipeline, or says it did not
 
-**Status:** building.
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
 
 **Links introduced:** the probe holds, for one run, the chunk identifiers captured at the model-call boundary and the citation identifiers captured at the answer boundary. Both belong to the executed repository and to that run only. They are compared and discarded; nothing is retained across runs, so a later reader cannot mistake a captured id for a durable handle.
 
@@ -675,6 +675,25 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 5. A run that captures zero context, or zero citations, is a FAIL naming the shortfall, never a pass. EV-001 governs the probe as it governs the static checks.
 6. Tests: a fixture citing a chunk that was never in context is caught by 2; a fixture whose model boundary is never reached reports zero capture and fails by 5; a repository with no declared entry point executes nothing and returns SKIP.
 
+## Eighth objective: the catalog imports
+
+Opened 2026-09-21. The seventh objective reviews somebody else's retrieval pipeline. This one asks whether our own packages load.
+
+The premise: **every check in this repository tests the scripts, and nothing tests the catalog they ship inside.** A skill whose frontmatter will not parse, or whose description the loader truncates, is broken at the only moment that matters, which is when somebody installs the plugin. The suites were green while ten of the 150 packages here were not loadable as written. An outside compatibility assessment found them. The gate did not, because the gate had never looked.
+
+### CI-001 — A shipped package is one a loader can read
+
+**Status:** building.
+
+**Links introduced:** none. The check reads files already in the tree and names them by repository path, so there is nothing to re-resolve later.
+
+1. Every `SKILL.md` in the repository is examined: the frontmatter block parses, `description` is present, it is not empty, and it is at most 1024 characters.
+2. The check asserts what the compatibility assessment asserted, and nothing it did not. No judgement of wording, tone or usefulness. A check that grows opinions is a check people start overriding, and then the loadability finding goes out with the opinions.
+3. It reports what it examined, per EV-001, and a run that finds no packages FAILS rather than reporting a clean catalog it never located.
+4. It is stdlib-only, as the rest of this repository's checks are. The CI runner is a bare `setup-python` with no install step, so a check that needs PyYAML is a check that stops running the first time it matters. The frontmatter reader covers the subset this catalog uses and reports anything outside it as unreadable, which is the honest answer for a block a simple loader also could not read. Its agreement with PyYAML was measured over all 150 real packages, text and length, before and after the fixes: 150 of 150, including the two files PyYAML rejects.
+5. The ten failures are fixed in the same change, because a check that lands red is a check somebody turns off. Where a description was shortened to fit the limit, its original text is preserved in the body under `## When this skill applies`, so no trigger wording is lost. Two of the ten were only malformed, never too long, and their text is unchanged.
+6. Tests: a description over the limit, an empty one, an absent one, an unquoted colon in a plain scalar, and an unterminated block are each caught by a fixture; a description of exactly 1024 characters passes; and an empty tree FAILS rather than passing, which is criterion 3 as a test. The gate also runs the check over this repository's own 150 packages, not only over fixtures: a check whose only caller is its own selftest is a check nobody is running.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -682,6 +701,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: Peer-review host defect found and fixed. Two consecutive rounds against the CI-001 checkpoint returned `empty_output`, which the gate's error text attributes to quota or headroom. Neither was the cause. Replaying the round prompt directly showed the reviewer attempting `run_shell_command` twice, being told the tool does not exist, and then exiting 0 with an empty response: `--approval-mode plan` is read-only and withholds shell execution, and nothing in the prompt said so, so the reviewer spent its whole turn discovering it. The packet's `tests.commands` read as an instruction to re-run them. The prompt now states that no commands can be run, that the commands are a record rather than an instruction, and that a judgement genuinely needing execution is reported with severity `separate`. No criteria changed. Carried in the CI-001 checkpoint and covered by its review, per the XE-005.4 precedent.
+
+- 2026-09-21: Eighth objective, the catalog imports, and CI-001, approved by Dorian. Prompted by an outside compatibility assessment of this repository's plugins, which found ten `SKILL.md` packages that a loader cannot read: eight descriptions over the 1024-character limit, and two whose plain-scalar descriptions contain an unquoted colon, which YAML reads as a nested key. Every one of them shipped under a green build, because this repository's suites examine its scripts and never its catalog. CI-001 adds the check and fixes all ten in the same change. The fix is the same in every case, a folded (`>`) block, which is immune to the colon; the eight shortened descriptions keep their original text in the body.
 
 - 2026-09-21: RR-002 declared and approved by Dorian, and RR-001 criterion 4 given criterion 1's "did not execute" clause. Three peer-review rounds landed on the same point: criterion 4 as written demanded runtime verification that a static reviewer cannot supply, and the reviewer's own note was that the criteria must be relaxed to match the static design or the tool needs a dynamic component. Dorian chose the dynamic component. RR-001 stays the static reviewer; RR-002 carries the execution, opt-in only, because running a reviewed repository's code is a different risk posture from reading it.
 

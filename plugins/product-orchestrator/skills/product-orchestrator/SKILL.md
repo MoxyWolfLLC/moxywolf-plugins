@@ -1,24 +1,25 @@
 ---
 name: product-orchestrator
 description: >
-  This skill should be used when the user asks to "deliberate on a product decision",
-  "scope this feature", "evaluate this architecture", "deliberate on positioning",
-  "product council", "should we build this", "sprint planning with deliberation",
-  "what should we ship", "product scope review", "architecture decision",
-  "GTM strategy deliberation", or any request that involves making a product
-  decision that would benefit from structured multi-model friction before execution.
-  Also trigger when the user uses /product-scope, /product-arch, /product-gtm,
-  or /product-sprint. This plugin wraps the Council deliberation engine with
-  product-specific role prompts and routes outputs to downstream execution skills.
-  Also triggers on /project-charter to create or update a project's durable
-  governing principles, which the Council consults before scope and PRD decisions.
-  Also triggers on /product-clarify (resolve PRD ambiguity before architecture)
-  and /product-analyze (read-only cross-artifact + charter consistency check
-  before execution).
+  Wraps the Council deliberation engine with product-specific role prompts, and routes the outputs
+  to downstream execution skills. Use it when a product decision would benefit from structured
+  multi-model friction before execution: "deliberate on a product decision", "scope this feature",
+  "evaluate this architecture", "should we build this", "what should we ship", "product scope
+  review", "architecture decision", "GTM strategy deliberation", "sprint planning with
+  deliberation". It also triggers on /product-scope, /product-arch, /product-gtm and
+  /product-sprint; on /project-charter, which creates or updates a project's durable governing
+  principles for the Council to consult before scope and PRD decisions; on /product-clarify, which
+  resolves PRD ambiguity before architecture; and on /product-analyze, a read-only consistency
+  check across artifacts and charter before execution.
 version: 0.5.0
 ---
 
 # Product Orchestrator
+
+## When this skill applies
+
+This skill should be used when the user asks to "deliberate on a product decision", "scope this feature", "evaluate this architecture", "deliberate on positioning", "product council", "should we build this", "sprint planning with deliberation", "what should we ship", "product scope review", "architecture decision", "GTM strategy deliberation", or any request that involves making a product decision that would benefit from structured multi-model friction before execution. Also trigger when the user uses /product-scope, /product-arch, /product-gtm, or /product-sprint. This plugin wraps the Council deliberation engine with product-specific role prompts and routes outputs to downstream execution skills. Also triggers on /project-charter to create or update a project's durable governing principles, which the Council consults before scope and PRD decisions. Also triggers on /product-clarify (resolve PRD ambiguity before architecture) and /product-analyze (read-only cross-artifact + charter consistency check before execution).
+
 
 Transform product decisions into structured multi-model deliberations, then route the synthesized output to downstream execution skills. This plugin does not duplicate Council. It wraps it with product-specific intelligence.
 
