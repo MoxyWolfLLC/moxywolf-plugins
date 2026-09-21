@@ -88,7 +88,11 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 
 ### GA-006 — A token is minted for the installation that owns the repository
 
-**Status:** building.
+**Status:** done. Merged to `main` in `27fd672` (PR #31, head `29dff5c`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-142113-29dff5c-xs3jf4jy` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
+
+**Release handoff prepared, release record blocked by where the review ran.** Unlike CI-001, this item has its handoff: `release.json`, `awaiting_human_release`, prepared at 2026-09-21T21:22:56Z, links 3 of 3 re-resolved, which predates the merge. `record-release` still could not run, for a different reason. The reviewer needs more wall time than the device shell allows, so the review ran in the session's cloud container and the record's `repos[].path` is that container's checkout. `record-release` requires `--repo` to resolve to exactly that path, and the only host where it does is the one where `api.github.com` answers 403 through the agent proxy. The device has the credential and the API; the cloud has the record. No record was fabricated.
+
+The fix is not a contract change. A review whose slow step runs elsewhere should still be opened with the packet pointing at the host that holds the credential, so the record and the release land together. That is a change to how the loop is driven, not to what it requires.
 
 **Links introduced:** the repository-to-installation link. Until now a token's scope came from a constant in a file, and every caller assumed that constant covered the repository in front of it. After this the scope is derived from the repository at mint time, so the token names where it came from, and a repository the app cannot reach becomes a named refusal rather than a 404 the caller has to interpret.
 
@@ -718,6 +722,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: GA-006 merged as `27fd672`. Its release handoff was prepared before the merge, which CI-001's was not, but `record-release` was still blocked: the review ran in the session cloud container because the reviewer needs more wall time than the device shell allows, so the record names that container's checkout, and `api.github.com` answers 403 there through the agent proxy. The host with the credential cannot see the record and the host with the record cannot reach GitHub. Verified rather than assumed: the same installation token reads PR #31 from the device and returns 403 from the cloud, and a bare `curl` to `api.github.com` from the cloud returns 403 as well. No record was fabricated. The lesson is about where a review is opened, not about what the contract demands.
+
+- 2026-09-21: `test_agent_token` fixed-slot defect fixed, carried in the GA-006 checkpoint. It read `GIT_CONFIG_KEY_0` and asserted the extraheader sat there, but `token_env` APPENDS at the existing `GIT_CONFIG_COUNT`, so slot 0 only holds when the ambient environment sets no git config entry. The production code was right; the test asserted an empty environment instead of the contract and went red on a host that sets `credential.interactive`. Demonstrated both ways before and after the fix. Pre-existing on `main`, not introduced by GA-006. No criteria changed.
 
 - 2026-09-21: `test_agent_token` defect found and fixed while bringing GA-006 current. It read `GIT_CONFIG_KEY_0` and asserted the extraheader sat there, but `token_env` APPENDS at the existing `GIT_CONFIG_COUNT`, so slot 0 only holds when the ambient environment sets no git config entry. The production code was right and the test asserted an empty environment instead of the contract: on a host that sets `credential.interactive` the suite went red with `'credential.interactive' != 'http.https://github.com/.extraheader'` while nothing was wrong. The test now derives the slot from the count and names it when the assertion fails. Pre-existing on `main`, not introduced by GA-006, and carried in this checkpoint because GA-006 already edits that file. No criteria changed.
 
