@@ -651,7 +651,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-001 — A retrieval stage proves it did its work
 
-**Status:** review. Built on `build/RR-001-retrieval-review` at `1e74d6e` (PR #32). Peer review `20260921-160832-1e74d6e-v5wvg01s` returned `no_blocking_findings` in one round, all six criteria met with file and line evidence. The reviewer was **gemini** (`gemini-3.1-pro-preview`), resolved as a fallback because codex is not installed here; gemini is an independent family above its floor. The round record names it correctly and `state.json` does not, which is a dispatcher defect recorded separately, not a property of this item. Awaiting human release; not merged.
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
 
 **Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
 
@@ -664,7 +664,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-002 — The probe runs the pipeline, or says it did not
 
-**Status:** building.
+**Status:** done. Merged to `main` in `6c9912c` (PR #32, head `991dd34`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-185258-991dd34-a61iuonn` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 13/13 acceptance).
 
 **Links introduced:** the probe holds, for one run, the chunk identifiers captured at the model-call boundary and the citation identifiers captured at the answer boundary. Both belong to the executed repository and to that run only. They are compared and discarded; nothing is retained across runs, so a later reader cannot mistake a captured id for a durable handle.
 
