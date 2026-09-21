@@ -1,0 +1,19 @@
+github-repo-analyzer
+====================
+
+The retrieval-review checks (RR-001) are concept-ported from:
+
+  ECC (Everything Claude Code) — https://github.com/affaan-m/ECC
+  Copyright (c) Affaan Mustafa, MIT License
+
+  - skills/retrieval-review/     (ideas from ecc agents/rag-pipeline-reviewer)
+  - scripts/retrieval_review.py  (independent implementation)
+
+No code was copied. The durable ideas taken are that reranking must be shown to
+reorder rather than assumed to, that top-k must be cut before the model call, and
+that a pipeline needs an explicit insufficient-grounding path. The implementation,
+the per-file scoping, the coverage rule and the SKIP semantics are ours and follow
+EV-001 in this repository's DESIGN.md.
+
+ECC's 67 agents / 271 skills were not vendored (DR-011), and the 2026-09-20 upstream
+refresh re-confirmed that decision.

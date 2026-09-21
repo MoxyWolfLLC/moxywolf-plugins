@@ -649,7 +649,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-001 — A retrieval stage proves it did its work
 
-**Status:** proposed.
+**Status:** building.
 
 **Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
 
