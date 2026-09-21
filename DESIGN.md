@@ -530,23 +530,6 @@ One measured session sets the scale. The session of 2026-09-19 that built SM-002
 - **P3. Defined terms stop being argued.** A repeat finding is a blocking finding raised again in a later round of the same review about the same criterion. Repeat findings about a term the vocabulary defines occur in at most 1 review in 10. Refuted if more.
 - **P4. Thin reviews miss more.** A thin review opened nothing beyond the diff. Among runs that pass review and later have a defect traced to them, thin reviews are over-represented relative to their share of all passing runs. Refuted if they are not. This is first testable once at least 5 post-release defects are traced.
 
-### XE-013 — A review that examined less than the item it claims is not a pass
-
-**Status:** planned.
-
-**Links introduced:** one new id in `references/vocabulary.json`'s `round_outcome` group, `review_incomplete`. XE-011 makes that file the single home for the outcome set, so the enum and the code enforcing it cannot drift apart.
-
-XE-010 made the packet as wide as the item it claims. Nothing makes the review as wide as the packet it was handed.
-
-On 2026-09-21 a round returned `no_blocking_findings` having opened one of thirty-six offered files (`examined_count: 1`, `looked_beyond_the_diff: false`) and having returned criteria coverage for none of thirteen declared criteria, with confident notes about code it never opened. EV-008 recorded every bit of that faithfully. Nothing acted on it. Four rounds earlier the same reviewer on near-identical code itemised six of six criteria with file and line evidence, so the gate is not measuring what it appears to measure.
-
-1. A round whose `criteria_coverage` does not name every acceptance criterion in the packet cannot return a pass. It returns `review_incomplete`. Where the reviewer also returned blocking findings, those stand, because a finding is actionable and an incomplete pass is not.
-2. A criterion marked met with absent or empty evidence is not met. An assertion with nothing behind it is the same false pass as no assertion at all.
-3. The round record and the reported outcome carry EV-008's denominator, examined of offered, so a pass states what it rests on without a reader opening the record. The denominator is reported, never thresholded: a bar at some percentage is a number nobody can justify and a reviewer can satisfy by opening files it does not read.
-4. The rule is applied where the round's outcome is decided, not inside the reviewer's response, so no reviewer can opt out by returning a shape that omits the field.
-5. `review_incomplete` is not a finding and is not dispositioned. It consumes a round and says why, because its remedy is to run the round again rather than to fix code.
-6. Tests: zero criteria coverage over a packet with N criteria returns `review_incomplete` rather than a pass; a criterion met with empty evidence returns `review_incomplete`; full coverage with evidence passes; the denominator appears in the outcome record.
-
 ## Fifth objective: session memory
 
 Premise: a session's context window should be filled from the sources that hold state, not from a prose copy of them, and what a session learns should go back as pointers those sources can check. Today it runs the other way. `/session-start` reads a handoff that restates state in prose, and `/session-end` writes one. On 2026-09-19 the handoff said PR #10 was open and EV-006 through EV-008 were unstarted. `git log origin/main` said all of it had merged two days earlier. The session spent its first calls and its first premise on the copy. That's XE-008's two-homes defect at the scale of a whole session.
@@ -699,8 +682,6 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
-
-- 2026-09-21: XE-013 declared and approved by Dorian after the RR-001/RR-002 checkpoint passed on a round that opened one of thirty-six files and covered none of thirteen criteria. XE-010 closed the packet side of this in September; this closes the reviewer side. Five rounds of the same reviewer on near-identical code returned six-of-six clean, four blockers, two, two different, then clean having read one file.
 
 - 2026-09-21: RR-002 declared and approved by Dorian, and RR-001 criterion 4 given criterion 1's "did not execute" clause. Three peer-review rounds landed on the same point: criterion 4 as written demanded runtime verification that a static reviewer cannot supply, and the reviewer's own note was that the criteria must be relaxed to match the static design or the tool needs a dynamic component. Dorian chose the dynamic component. RR-001 stays the static reviewer; RR-002 carries the execution, opt-in only, because running a reviewed repository's code is a different risk posture from reading it.
 
