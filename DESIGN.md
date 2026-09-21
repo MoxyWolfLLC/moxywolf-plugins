@@ -683,7 +683,9 @@ The premise: **every check in this repository tests the scripts, and nothing tes
 
 ### CI-001 — A shipped package is one a loader can read
 
-**Status:** building.
+**Status:** done. Merged to `main` in `d619c06` (PR #33, head `69ab8e4`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-134157-69ab8e4-oolg8b8m` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
+
+**No release record.** `record-release` has recorded no release for this item, and none was fabricated to close the gap. The handoff step was skipped: the review landed, the checkpoint was presented for a decision in conversation rather than through `peer_review.py release`, and the merge followed. `record-release` refuses on that order twice over, first because no `release.json` exists for the revision and then because a handoff prepared now would postdate the merge. The review itself is intact and the merge is recorded on the pull request; what is missing is the artifact that binds the two, and it cannot be produced after the fact without lying about when it was made.
 
 **Links introduced:** none. The check reads files already in the tree and names them by repository path, so there is nothing to re-resolve later.
 
@@ -701,6 +703,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: CI-001 merged as `d619c06`, and the release handoff was skipped. The review passed and the merge was instructed, but `peer_review.py release` never ran, so `record-release` has no `release.json` to verify against and a handoff prepared now would postdate the merge. No record was fabricated. The loop treated "present the checkpoint to the named human" as satisfied by saying so in conversation; the contract means the artifact. Carried here as a note rather than a criterion change, because nothing in the contract needs changing: the step exists and was not run.
 
 - 2026-09-21: Peer-review host defect found and fixed. Two consecutive rounds against the CI-001 checkpoint returned `empty_output`, which the gate's error text attributes to quota or headroom. Neither was the cause. Replaying the round prompt directly showed the reviewer attempting `run_shell_command` twice, being told the tool does not exist, and then exiting 0 with an empty response: `--approval-mode plan` is read-only and withholds shell execution, and nothing in the prompt said so, so the reviewer spent its whole turn discovering it. The packet's `tests.commands` read as an instruction to re-run them. The prompt now states that no commands can be run, that the commands are a record rather than an instruction, and that a judgement genuinely needing execution is reported with severity `separate`. No criteria changed. Carried in the CI-001 checkpoint and covered by its review, per the XE-005.4 precedent.
 
