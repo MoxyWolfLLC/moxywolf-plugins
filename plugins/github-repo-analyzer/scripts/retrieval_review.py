@@ -122,7 +122,22 @@ class Facts:
             self._scan_function(fn_node, rel, ff)
 
     def _scan_function(self, fn, rel, ff):
-        loaded = {n.id for n in ast.walk(fn) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+        # F4: a name is "consumed" only if it is READ AFTER the assignment. Collecting every Load
+        # in the function without ordering meant `docs = retrieve(); log(docs); docs = rerank(docs)`
+        # read as consumed, because the earlier read put the name in the set. Reproduced 2026-09-21.
+        reads = [(n.id, getattr(n, "lineno", 0)) for n in ast.walk(fn)
+                 if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)]
+        # F1: a grounding guard must test something that CAME FROM retrieval. Any If with a Not or
+        # a comparison used to qualify, so ordinary input validation (`if not query: return`) passed
+        # the check with no retrieval guard present at all. Reproduced 2026-09-21.
+        retrieved = set()
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                tail = _last(_call_name(node.value))
+                if RETRIEVE.search(tail) or RERANK.search(tail) or TOPK.search(tail):
+                    for t in node.targets:
+                        if isinstance(t, ast.Name):
+                            retrieved.add(t.id)
         for node in ast.walk(fn):
             if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) \
                     and RERANK.search(_last(_call_name(node.value))):
@@ -130,14 +145,22 @@ class Facts:
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call) \
                     and RERANK.search(_last(_call_name(node.value))):
                 for t in node.targets:
-                    if isinstance(t, ast.Name) and t.id not in loaded:
-                        ff.discarded_rerank.append((rel, node.lineno, f"{t.id} never read"))
-            if isinstance(node, ast.If) and self._is_empty_test(node.test) \
+                    if isinstance(t, ast.Name) and not any(
+                            nm == t.id and ln > node.lineno for nm, ln in reads):
+                        ff.discarded_rerank.append((rel, node.lineno, f"{t.id} never read after line {node.lineno}"))
+            if isinstance(node, ast.If) and self._is_empty_test(node.test, retrieved) \
                     and any(isinstance(b, (ast.Return, ast.Raise)) for b in ast.walk(node)):
-                ff.empty_guards.append((rel, node.lineno, "early exit on empty or low score"))
+                ff.empty_guards.append((rel, node.lineno, "early exit on an empty or low-scoring retrieval result"))
 
     @staticmethod
-    def _is_empty_test(test):
+    def _is_empty_test(test, retrieved):
+        """An emptiness or threshold test ON A RETRIEVED VALUE. The second argument is what
+        separates a grounding guard from ordinary input validation."""
+        if not retrieved:
+            return False
+        names = {n.id for n in ast.walk(test) if isinstance(n, ast.Name)}
+        if not (names & retrieved):
+            return False
         if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
             return True
         if isinstance(test, ast.Compare):
@@ -185,8 +208,13 @@ def check_rerank_effective(f):
     if bad:
         return (FAIL, f"reranked result is discarded at {_ev(bad)}; the stage runs and the "
                       f"order it produces is never used", len(sites), "rerank sites")
-    return (PASS, f"reranked result is consumed at every site ({_ev(sites)}); not executed, so the "
-                  f"reorder was observed in the code and not at runtime", len(sites), "rerank sites")
+    # F3: a reranker that returns its input unchanged but whose result IS consumed looks exactly
+    # like a working one here. Static analysis can falsify this criterion (a discarded result proves
+    # the order is unused) but cannot verify it, so a consumed result is SKIP and never PASS.
+    # Claiming "the reorder was observed in the code" was the overclaim this tool exists to catch.
+    return (SKIP, f"reranked result is consumed at every site ({_ev(sites)}), which rules out a "
+                  f"discarded reorder but does not establish that the order changed; that needs the "
+                  f"pipeline run, which this reviewer does not do", len(sites), "rerank sites")
 
 
 def check_topk_before_model(f):
@@ -374,7 +402,11 @@ def _selftest():
             chunk_ids = [d.chunk_id for d in ranked]
             return client.chat.completions.create(messages=build(ranked), citations=chunk_ids)
     """}))
-    assert status(r, "rerank_effective") == PASS, r
+    # F3: a consumed reranked result is SKIP, not PASS. Consumption rules out a discarded
+    # reorder; it does not establish that the order changed.
+    assert status(r, "rerank_effective") == SKIP, r
+    assert "does not establish that the order changed" in next(
+        x["detail"] for x in r if x["name"] == "rerank_effective")
     assert status(r, "topk_before_model") == PASS, r
     assert status(r, "grounding_fallback") == PASS, r
     assert status(r, "citation_attribution") == SKIP, r
@@ -436,7 +468,44 @@ def _selftest():
     assert status(r, "citation_attribution") == SKIP, r
     assert not [x for x in r if x["status"] == FAIL], "a retrieval library must not be failed as a pipeline"
 
-    print("selftest OK: 9 fixtures, 30 assertions")
+    # Regression 6 (F1, peer review 20260921-161113): ordinary input validation is not a
+    # grounding guard. `if not q: return` tests the query, not anything retrieved.
+    r, _ = run_review(build({"rag.py": """
+        def answer(q):
+            if not q:
+                return "empty query"
+            docs = retriever.retrieve(q, top_k=5)
+            return client.chat.completions.create(messages=docs, citations=docs)
+    """}))
+    assert status(r, "grounding_fallback") == FAIL, r
+
+    # Regression 7 (F4, same review): a name read BEFORE being reassigned by the reranker is not
+    # consumed afterwards. Collecting Loads without ordering made this read as consumed.
+    r, _ = run_review(build({"rag.py": """
+        def answer(q):
+            docs = retriever.retrieve(q, top_k=5)
+            log(docs)
+            docs = reranker.rerank(q, docs)
+            if not docs_other:
+                return None
+            return client.chat.completions.create(messages=build_ctx(), citations=[1])
+    """}))
+    assert status(r, "rerank_effective") == FAIL, r
+
+    # Regression 8 (F3, same review): an identity reranker whose result is consumed must not PASS.
+    r, _ = run_review(build({"rag.py": """
+        def rerank(q, docs):
+            return docs
+        def answer(q):
+            docs = retriever.retrieve(q, top_k=5)
+            ranked = rerank(q, docs)
+            if not ranked:
+                return None
+            return client.chat.completions.create(messages=ranked, citations=[d.chunk_id for d in ranked])
+    """}))
+    assert status(r, "rerank_effective") != PASS, r
+
+    print("selftest OK: 12 fixtures, 36 assertions")
     return 0
 
 

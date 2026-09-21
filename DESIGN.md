@@ -332,6 +332,8 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 **Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
 
+Criterion 4 carried a defect from that merge until 2026-09-21: `round` resolved the reviewer and wrote it to the round record but never back to `state.json`, and `status` reads `state.json`. A review run on gemini because codex was absent therefore reported `reviewer: codex, reviewer_is_fallback: false`, which is precisely the unrecorded fallback the criterion forbids. Found while confirming which tool had reviewed RR-001. Fixed on `build/RR-001-retrieval-review`; the intended reviewer is retained as `reviewer_intended` rather than overwritten.
+
 **Links introduced:** none. The reviewer table is static configuration in the dispatcher, not stored state.
 
 The dispatcher hardcodes two tools and derives the reviewer as "the other one". That encodes independence as a name rather than as a property, and two things already break it. Cursor can run Claude models, so a Claude builder reviewed by Cursor could share the builder's model family while satisfying every current check. And when the only named reviewer is unreachable, as happened on 2026-09-17 when Codex was first absent and then refused by its API for billing, the loop has nowhere to fall back to and the checkpoint lands unreviewed.
@@ -667,6 +669,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: XE-005 criterion 4 defect found and fixed (see its status). No criteria changed; the code now does what the approved criterion already required. Carried in the RR-001 checkpoint and covered by its review.
 
 - 2026-09-20: Seventh objective, retrieval review, approved by Dorian after the ECC upstream refresh (`Taskade/Team Plugins/06 – Engineering/ecc-refresh-2026-09-20.md`). RR-001 concept-ports the checks from ECC's `rag-pipeline-reviewer` (MIT, (c) Affaan Mustafa), taking the ideas and no code. It is EV-001's rule applied to somebody else's pipeline. The refresh's three other concept-ports are not proposed here.
 
