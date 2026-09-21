@@ -26,6 +26,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -46,19 +48,52 @@ _SELFTEST = False
 # Model floors (Dorian, 2026-09-11): Codex uses Astra or higher, Claude Code uses Opus 5 or
 # higher. Override a model with GSTACK_<TOOL>_MODEL; the floor still applies to what ran.
 REVIEWERS = {
-    "codex":  {"family": "gpt", "max_output": 16000, "max_output_flag": None,
+    "codex":  {"family": "gpt", "transport": "cli", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_CODEX_MODEL", "gpt-6-astra"),
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher"},
-    "claude": {"family": "claude", "max_output": 16000, "max_output_flag": None,
+    "claude": {"family": "claude", "transport": "cli", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_CLAUDE_MODEL", "claude-opus-5"),
                "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
                "floor_name": "Opus 5 or higher"},
-    "gemini": {"family": "gemini", "max_output": 16000, "max_output_flag": None,
+    "gemini": {"family": "gemini", "transport": "cli", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_GEMINI_MODEL", "gemini-3.1-pro-preview"),
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher"},
+    # XE-013: the openrouter transport. One entry per model family, never one named for the
+    # transport: OpenRouter serves every family at once, so "reviewed by openrouter" would say
+    # nothing about independence, which is the error XE-005 removed from tool names.
+    # `sends` is criterion 5: what this reviewer is given, recorded per round, because it cannot
+    # open anything for itself.
+    "openrouter-gpt": {"family": "gpt", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+               "model": os.environ.get("GSTACK_OPENROUTER_GPT_MODEL", "openai/gpt-6-astra"),
+               "floor": r"^gpt-([6-9]|\d{2,})\b",
+               "floor_name": "Astra (gpt-6) or higher",
+               "sends": ["CHANGE.diff", "changed", "callers"]},
+    "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+               "model": os.environ.get("GSTACK_OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
+               "floor": r"^gemini-([3-9]|\d{2,})\b",
+               "floor_name": "Gemini 3 or higher",
+               "sends": ["CHANGE.diff", "changed", "callers"]},
+    "openrouter-claude": {"family": "claude", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+               "model": os.environ.get("GSTACK_OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-5"),
+               "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
+               "floor_name": "Opus 5 or higher",
+               "sends": ["CHANGE.diff", "changed", "callers"]},
+    "openrouter-deepseek": {"family": "deepseek", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+               "model": os.environ.get("GSTACK_OPENROUTER_DEEPSEEK_MODEL", "deepseek/deepseek-v4.1-flash"),
+               "floor": r"^deepseek-v([4-9]|\d{2,})\b",
+               "floor_name": "DeepSeek v4 or higher",
+               "sends": ["CHANGE.diff", "changed", "callers"]},
 }
+TRANSPORTS = {"cli", "openrouter"}
+# XE-013.2: refused at the table, not at run time. An entry named for its transport would span
+# every model family behind one name.
+for _n, _c in REVIEWERS.items():
+    if _n in TRANSPORTS:
+        raise RuntimeError(f"reviewer entry {_n!r} is named for a transport; XE-013 requires one entry per model family")
+    if _c.get("transport") not in TRANSPORTS:
+        raise RuntimeError(f"reviewer entry {_n!r} declares no known transport")
 # max_output is the headroom the reviewer contract's full response needs, set against that
 # contract rather than a provider default. Precedent: the Council Sonnet-5 slot was configured at
 # 3000 and needed 12000, and under-provisioned it returned empty content while the dispatcher still
@@ -68,7 +103,11 @@ REVIEWERS = {
 # a bounded run from an unbounded one is worth less than no record. Detection still applies either
 # way: a response that hits the real ceiling reports output_truncated.
 # Preference order when more than one independent reviewer is installed.
-REVIEWER_ORDER = ["codex", "claude", "gemini"]
+# XE-013.7: a reviewer that opens its own surface comes first, because EV-008 can only
+# measure what a reviewer CHOSE to read when it does the choosing. The api entries are
+# the fallback that stops a missing binary from landing a checkpoint unreviewed.
+REVIEWER_ORDER = ["codex", "claude", "gemini",
+                  "openrouter-gpt", "openrouter-gemini", "openrouter-claude", "openrouter-deepseek"]
 # Builders are the tools that write code here. Their family decides who may review them.
 OTHER_TOOL = {"claude": "codex", "codex": "claude"}  # kept: task_graph.py and --builder choices
 
@@ -78,7 +117,27 @@ def family(tool):
 
 
 def model_ok(tool, model):
-    return bool(re.match(REVIEWERS[tool]["floor"], model or ""))
+    # An OpenRouter id is "provider/model". The floor patterns have one home (XE-008) and match the
+    # bare name, so the prefix is stripped here rather than duplicated into every pattern.
+    return bool(re.match(REVIEWERS[tool]["floor"], (model or "").split("/")[-1]))
+
+
+def installed(tool):
+    """Can this entry actually run here? A CLI needs its binary; an api entry needs its credential."""
+    if REVIEWERS[tool]["transport"] == "cli":
+        return bool(shutil.which(tool))
+    try:
+        openrouter_key()
+        return True
+    except ReviewError:
+        return False
+
+
+def headroom_enforced(tool):
+    """XE-013.3. A CLI entry enforces max_output only if its CLI exposes a flag, and none of the
+    three do. An api entry sets it on the request, so for those it is applied rather than declared."""
+    cfg = REVIEWERS[tool]
+    return True if cfg["transport"] == "openrouter" else cfg.get("max_output_flag") is not None
 
 
 def reviewer_candidates(builder):
@@ -109,10 +168,11 @@ def choose_reviewer(builder, forced=None, require_installed=True):
         raise ReviewError("review_unavailable", f"no reviewer of a different family than builder {builder}")
     if not require_installed:
         return cands[0], False
-    available = [t for t in cands if shutil.which(t)]
+    available = [t for t in cands if installed(t)]
     if not available:
         raise ReviewError("review_unavailable",
-                          f"no independent reviewer on PATH for builder {builder}; tried {', '.join(cands)}")
+                          f"no independent reviewer available for builder {builder}; tried {', '.join(cands)} "
+                          "(a cli entry needs its binary on PATH, an api entry needs its credential)")
     return available[0], available[0] != cands[0]
 # XE-011: the terms this dispatcher names have one home, references/vocabulary.json. The enums,
 # the round-record shape and the outcome set are read from it, not restated here, so the contract
@@ -641,6 +701,101 @@ def reviewer_usage(tool, stdout, stderr):
     return "not_reported"
 
 
+OPENROUTER_URL = os.environ.get("GSTACK_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
+API_SURFACE_CAP = 400_000          # characters of surface sent to an api reviewer
+LAST_SENT_SURFACE = None           # XE-013.6: set by run_openrouter, read by the round that called it
+
+
+def openrouter_key():
+    """XE-013.8. The credential has one home, the vault file GSTACK_OPENROUTER_ENV names. Never an
+    argument, never the repository. Same convention as agent_token.py's GSTACK_AGENT_APP_ENV."""
+    envfile = os.environ.get("GSTACK_OPENROUTER_ENV")
+    if not envfile:
+        raise ReviewError("review_unavailable",
+                          "GSTACK_OPENROUTER_ENV is not set; point it at the vault's openrouter.env")
+    path = Path(envfile).expanduser()
+    if not path.exists():
+        raise ReviewError("review_unavailable",
+                          f"GSTACK_OPENROUTER_ENV names {path}, which does not exist. No other credential is tried.")
+    for line in path.read_text().splitlines():
+        k, _, v = line.partition("=")
+        if k.strip() == "OPENROUTER_API_KEY" and v.strip():
+            return v.strip().strip('"').strip("'")
+    raise ReviewError("review_unavailable", f"{path} sets no OPENROUTER_API_KEY")
+
+
+def surface_as_text(tool, root):
+    """XE-013.5: an api reviewer has no filesystem, so the surface is SENT to it.
+
+    Returns (text, sent). `sent` is the per-file record: this is the honest denominator for a
+    reviewer that opens nothing, and it is what the round stores instead of EV-008's atime
+    measurement, which would report an empty examined list and read as "it looked at nothing".
+
+    ponytail: concatenation with a byte cap. The ceiling is a surface larger than the cap, where the
+    tail is declared unsent rather than silently dropped; paginate only if that starts happening.
+    """
+    sends = REVIEWERS[tool]["sends"]
+    parts, sent, total = [], [], 0
+    for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file()):
+        if rel not in sends and rel.split("/")[0] not in sends:
+            continue
+        body = (root / rel).read_text(errors="replace")
+        if total + len(body) > API_SURFACE_CAP:
+            sent.append({"path": rel, "sent": False, "why": f"surface cap {API_SURFACE_CAP} reached"})
+            continue
+        total += len(body)
+        parts.append(f"=== {rel} ===\n{body}")
+        sent.append({"path": rel, "sent": True, "chars": len(body)})
+    return "\n\n".join(parts), sent
+
+
+def run_openrouter(tool, prompt, root, timeout, output_schema):
+    """One reviewer round over the openrouter transport. Returns (text, model_that_ran)."""
+    global LAST_REVIEWER_USAGE, LAST_SENT_SURFACE
+    cfg = REVIEWERS[tool]
+    if not model_ok(tool, cfg["model"]):
+        raise ReviewError("model_below_floor", f"{tool} is configured for {cfg['model']!r}; floor is {cfg['floor_name']}")
+    key = openrouter_key()
+    text, sent = surface_as_text(tool, root)
+    LAST_SENT_SURFACE, LAST_REVIEWER_USAGE = sent, "not_reported"
+    body = {"model": cfg["model"], "max_tokens": cfg["max_output"],
+            "messages": [{"role": "user",
+                          "content": prompt + "\n\n=== REVIEW SURFACE ===\n"
+                          + "You cannot open files and cannot run commands. Everything you are "
+                            "permitted to examine is below.\n\n" + text}],
+            "response_format": {"type": "json_schema",
+                                "json_schema": {"name": "review", "strict": True, "schema": output_schema}}}
+    req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            env_ = json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        raise ReviewError("review_unavailable", f"{tool}: HTTP {e.code} {e.read()[:400].decode(errors='replace')}")
+    except urllib.error.URLError as e:
+        raise ReviewError("timeout" if isinstance(e.reason, TimeoutError) else "review_unavailable", f"{tool}: {e.reason}")
+    except TimeoutError:
+        raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
+    if env_.get("error"):
+        raise ReviewError("review_unavailable", f"{tool}: {str(env_['error'])[:400]}")
+    u = env_.get("usage") or {}
+    if u:   # XE-013.4 / XE-012.3: one shape from the provider, not a per-CLI parse
+        LAST_REVIEWER_USAGE = {"input": u.get("prompt_tokens"), "output": u.get("completion_tokens"),
+                               "cache_read": (u.get("prompt_tokens_details") or {}).get("cached_tokens"),
+                               "total": u.get("total_tokens"), "source": "openrouter usage"}
+    choice = (env_.get("choices") or [{}])[0]
+    out = ((choice.get("message") or {}).get("content") or "")
+    model = env_.get("model") or cfg["model"]
+    # XE-005.5: a ceiling hit and a broken reviewer have different causes and different fixes.
+    if choice.get("finish_reason") in ("length", "MAX_TOKENS"):
+        raise ReviewError("output_truncated", f"{tool} stopped at its {cfg['max_output']}-token ceiling")
+    if not out.strip():
+        raise ReviewError("malformed_output", f"{tool} returned empty content (finish_reason={choice.get('finish_reason')!r})")
+    if not model_ok(tool, model):
+        raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({cfg['floor']})")
+    return out, model
+
+
 def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
     output_schema = schema or STRICT_SCHEMA
@@ -648,6 +803,8 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD") if _SELFTEST else None  # selftest hook: any command that prints the JSON
     if fake:
         cmd, parse = ["sh", "-c", fake], lambda r: (r.stdout, "fake")
+    elif REVIEWERS.get(tool, {}).get("transport") == "openrouter":
+        return run_openrouter(tool, prompt, root, timeout, output_schema)
     elif tool == "codex":
         if not shutil.which("codex"):
             raise ReviewError("review_unavailable", "codex CLI not installed on PATH")
@@ -1292,13 +1449,29 @@ def cmd_round(a):
         state["reviewer"], state["reviewer_family"], state["reviewer_is_fallback"] = \
             reviewer, family(reviewer), is_fallback
         record["max_output"] = REVIEWERS[reviewer]["max_output"]
-        record["max_output_enforced"] = REVIEWERS[reviewer]["max_output_flag"] is not None
+        record["transport"] = REVIEWERS[reviewer]["transport"]
+        record["max_output_enforced"] = headroom_enforced(reviewer)
         # EV-008: the denominator of the search, recorded alongside the findings
-        _age_atimes(surf)
-        before = _atime_map(surf) if read_tracking_probe(surf) else None
+        api = record["transport"] != "cli"
+        before = None
+        if not api:
+            _age_atimes(surf)
+            before = _atime_map(surf) if read_tracking_probe(surf) else None
         raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
-        record["examined"] = examined_report(before, surf)
+        if api:
+            # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
+            # measures what a reviewer CHOSE to read; an empty examined list here would be a
+            # constant wearing a choice's clothes, which EV-001 forbids. What it was SENT is the
+            # honest denominator and gets its own key.
+            record["examined"] = {"read_tracking": "not_applicable",
+                                  "why": "this reviewer has no filesystem; it read exactly what it was "
+                                         "sent, which is recorded under 'sent'"}
+            record["sent"] = {"files": LAST_SENT_SURFACE or [],
+                              "sent_count": sum(1 for f in (LAST_SENT_SURFACE or []) if f.get("sent")),
+                              "offered_count": len(LAST_SENT_SURFACE or [])}
+        else:
+            record["examined"] = examined_report(before, surf)
         record["raw"] = raw
         out = validate(raw, packet, prior, dispositions)
         record.update(out)
