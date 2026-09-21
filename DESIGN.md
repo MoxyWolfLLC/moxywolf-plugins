@@ -649,7 +649,7 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 
 ### RR-001 — A retrieval stage proves it did its work
 
-**Status:** building.
+**Status:** review. Built on `build/RR-001-retrieval-review` at `3030246` (PR #32). Peer review `20260921-043031-3030246-fy5_0ddc` returned `review_unavailable`: no independent reviewer on PATH for builder claude, tried codex and gemini. Not merged.
 
 **Links introduced:** findings carry chunk and citation identifiers belonging to the *analyzed* repository, not this one. They are names, not handles: they re-resolve only against that repository at the commit examined, and each finding records that commit so a later reader cannot mistake a stale id for a live one.
 
