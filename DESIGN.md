@@ -658,9 +658,22 @@ The premise: **a retrieval stage that does nothing returns exactly what a workin
 1. The reviewer identifies the reranking stage and reports whether the post-rerank top result differs from the raw-similarity top result over a sample of queries. Where it cannot execute the pipeline, it reports the static finding (stage absent, output unused, score discarded) and says it did not execute, rather than a verdict it did not earn.
 2. The reviewer names the line where top-k is cut before the model call, or reports that no cut exists.
 3. The reviewer reports the absence of an explicit insufficient-grounding path as a finding, not a note. A pipeline that answers regardless of retrieval quality has no floor.
-4. Where the pipeline emits citations, each is checked to resolve to a chunk that was in the context window, not merely in the corpus.
+4. Where the pipeline emits citations, each is checked to resolve to a chunk that was in the context window, not merely in the corpus. Where the reviewer cannot execute the pipeline, it reports that it did not execute and returns a counted SKIP, rather than a verdict it did not earn. RR-002 provides the execution path.
 5. Every check reports what it examined, per EV-001. A repository with no reranking stage returns SKIP for criterion 1, counted in the summary, never folded into a green line.
 6. Tests: a fixture whose reranker returns input order unchanged is caught by 1; a fixture with no grounding fallback is caught by 3; a repository with no retrieval pipeline SKIPs every criterion and reports zero coverage rather than a pass.
+
+### RR-002 — The probe runs the pipeline, or says it did not
+
+**Status:** planned.
+
+**Links introduced:** the probe holds, for one run, the chunk identifiers captured at the model-call boundary and the citation identifiers captured at the answer boundary. Both belong to the executed repository and to that run only. They are compared and discarded; nothing is retained across runs, so a later reader cannot mistake a captured id for a durable handle.
+
+1. Execution is opt-in and explicit. Absent a named entry point supplied by the operator, nothing is executed, and RR-001 criterion 4 stays a counted SKIP. The reviewer never decides on its own to run someone's code.
+2. The probe captures the context window at the model-call boundary and the citations at the answer boundary, then asserts that every emitted citation identifies a chunk present in that captured context. A citation naming a corpus chunk that never entered the context is the finding.
+3. It patches only those two boundaries. A probe that rewrites the pipeline is measuring itself.
+4. It runs in a subprocess with no network granted by default. Egress is granted per TB-003, never filtered.
+5. A run that captures zero context, or zero citations, is a FAIL naming the shortfall, never a pass. EV-001 governs the probe as it governs the static checks.
+6. Tests: a fixture citing a chunk that was never in context is caught by 2; a fixture whose model boundary is never reached reports zero capture and fails by 5; a repository with no declared entry point executes nothing and returns SKIP.
 
 ## Validation
 
@@ -669,6 +682,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: RR-002 declared and approved by Dorian, and RR-001 criterion 4 given criterion 1's "did not execute" clause. Three peer-review rounds landed on the same point: criterion 4 as written demanded runtime verification that a static reviewer cannot supply, and the reviewer's own note was that the criteria must be relaxed to match the static design or the tool needs a dynamic component. Dorian chose the dynamic component. RR-001 stays the static reviewer; RR-002 carries the execution, opt-in only, because running a reviewed repository's code is a different risk posture from reading it.
 
 - 2026-09-21: XE-005 criterion 4 defect found and fixed (see its status). No criteria changed; the code now does what the approved criterion already required. Carried in the RR-001 checkpoint and covered by its review.
 
