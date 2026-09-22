@@ -3,6 +3,7 @@
 
   agent_token.py exec [--repo owner/name] -- <command...>   run a command holding an installation token
   agent_token.py api METHOD PATH [--data JSON|-] [--repo owner/name]  one REST call; response JSON on stdout
+  agent_token.py permissions [--repo owner/name]        what the installation actually grants
   agent_token.py --selftest
 
 Settings come from the file GSTACK_AGENT_APP_ENV names (github-app.env in the vault):
@@ -188,7 +189,51 @@ def selftest():
         env = token_env("tok", {"GIT_CONFIG_COUNT": "1"})
         assert env["GIT_CONFIG_KEY_1"].endswith("extraheader") and env["GIT_CONFIG_COUNT"] == "2"
         assert "tok" not in env["GIT_CONFIG_VALUE_1"], "the header carries the token encoded, not bare"
-    print("agent_token selftest: examined 4 checks, 4 passed")
+        # The permissions command has to be REACHABLE. A subcommand nobody can
+        # dispatch to is the same defect as a gate nobody runs, one layer down.
+        assert "permissions" in __doc__, "the usage text offers it"
+        assert callable(cmd_permissions), "and it exists to be dispatched to"
+    print("agent_token selftest: examined 6 checks, 6 passed")
+    return 0
+
+
+def cmd_permissions(repo=None):
+    """What this installation ACTUALLY grants, which is not what the app declares.
+
+    Changing a GitHub App's permissions raises a REQUEST. Until the installation
+    accepts it, its tokens carry the old set, and a push refused for a missing
+    permission fails with a message byte-identical to the one you get before
+    asking for it at all. Nothing in the failure distinguishes "not declared"
+    from "declared, not yet accepted", so the loop stalls on a change that was
+    already made.
+
+    The answer was always on the wire: the access-token response carries the
+    granted permissions and mint() threw them away. This prints them.
+
+    Cost 25 minutes on 2026-09-21 - the app had workflows:write, installation
+    163337150 did not, and the only way to see that was to import this module
+    and call request() by hand.
+    """
+    app_id, inst, key = settings()
+    if repo:
+        inst = installation_for(repo, app_id, key)
+    status, body = request("POST", f"/app/installations/{inst}/access_tokens",
+                           "Bearer " + jwt(app_id, key))
+    if status != 201 or not isinstance(body, dict):
+        msg = (body or {}).get("message", "") if isinstance(body, dict) else ""
+        sys.exit(f"could not read the installation: POST {API}/app/installations/{inst}"
+                 f"/access_tokens returned {status or 'no response'}{': ' + msg if msg else ''}")
+    granted = body.get("permissions") or {}
+    print(f"installation {inst}" + (f" (resolved from {repo})" if repo else " (from github-app.env)"))
+    for k in sorted(granted):
+        print(f"  {k:<24} {granted[k]}")
+    if not granted:
+        print("  (none reported)")
+    # The repository selection matters too: a token can hold workflows:write and
+    # still refuse, because the installation does not cover the repository.
+    sel = body.get("repository_selection")
+    if sel:
+        print(f"  repository_selection: {sel}")
     return 0
 
 
@@ -205,6 +250,8 @@ def main(argv):
     if argv[:1] == ["exec"]:
         rest = argv[1:]
         return cmd_exec(rest[1:] if rest[:1] == ["--"] else rest, repo)
+    if argv[:1] == ["permissions"]:
+        return cmd_permissions(repo)
     if argv[:1] == ["api"] and len(argv) >= 3:
         data = argv[argv.index("--data") + 1] if "--data" in argv else None
         return cmd_api(argv[1], argv[2], data, repo)
