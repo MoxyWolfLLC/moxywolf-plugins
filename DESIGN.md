@@ -86,6 +86,24 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 10. After merge, the memory graph's node 14 is marked closed with the date and this item's merge commit, and the swimlane's merge step shows two paths: Dorian merges, or the agent merges as the bot on his recorded instruction.
 11. `gstack-execution` and `project-init` each get a minor version bump with a changelog line.
 
+### GA-007 — The credential can say what it actually grants
+
+**Status:** building in this change.
+
+**Links introduced:** none. It reads the access-token response the app already receives and prints a field `mint()` was discarding.
+
+The failure it closes, measured on 2026-09-21. `workflows` was added to the app's declared permissions and a push touching `.github/workflows` was still refused, with a message byte-identical to the one returned before the permission existed:
+
+> refusing to allow a GitHub App to create or update workflow `.github/workflows/unit-checks.yml` without `workflows` permission
+
+Changing a GitHub App's permissions raises a REQUEST. Until each installation accepts it, that installation's tokens carry the old set. Nothing in the refusal distinguishes "not declared" from "declared, not yet accepted", and the loop has no way to tell which state it is in, so it either waits on a change already made or re-makes a change already accepted. The answer was on the wire the whole time: every `access_tokens` response carries the granted permissions, and `mint()` threw them away. Finding it cost 25 minutes and required importing the module and calling `request()` by hand.
+
+1. `agent_token.py permissions [--repo owner/name]` prints the permissions the resolved installation actually grants, and its `repository_selection`. Repository resolution is GA-006's, unchanged.
+2. It reports the installation id it read, and whether that id came from `--repo` or from `github-app.env`, because GA-006 made those two different answers and a reader comparing output across repositories needs to know which one they are looking at.
+3. The subcommand is reachable. `--selftest` asserts the usage text offers it and the function exists, because a subcommand nobody can dispatch to is the same defect as a gate nobody runs.
+4. Step 4 of the build loop names the permission case alongside the installation case it already covers, and names this command as what tells the two states apart.
+5. Evidence: the command run against two installations of the same app in the same minute, one that has accepted a permission request and one that has not, showing the difference the refusal message hides.
+
 ### GA-006 — A token is minted for the installation that owns the repository
 
 **Status:** done. Merged to `main` in `27fd672` (PR #31, head `29dff5c`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-142113-29dff5c-xs3jf4jy` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
@@ -765,6 +783,8 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-09-22: CI-002 criterion 9's worked example corrected before any code, approved by Dorian. The criterion named `github-repo-analyzer` at 0.11.0 as the real-history catch at `6c9912c`. Measured, it bumped there, 0.10.0 to 0.11.0. What `6c9912c` actually ships at an unmoved version is `gstack-execution`, which changed in that merge and stayed at 0.27.0. The premise is untouched and only the example was wrong, but a test written to the old wording asserts something false, and a check that lands red is a check somebody turns off, per DR-102. The criterion now names `gstack-execution` and adds the range `d619c06..2293ff6`, where the top-level version is unmoved across six consecutive merges. Three of those six changed a plugin and are caught; the other three changed no plugin and owe no bump, which is criterion 2 read exactly. A first draft of this entry claimed all six were catches. The real-history test refuted it on the first run, which is the test doing its job on the sentence that introduced it.
+
+- 2026-09-21: GA-007 declared and built in the same change, on Dorian's instruction to fix it and merge. It follows directly from GA-006. GA-006 made the installation resolve per repository, which is right, and made the credential's reach a thing that varies per repository, which nothing could then inspect. A permission accepted on one installation and pending on another is invisible: the refusal reads the same as never having asked. The information was already in the response `mint()` parses. This item prints it.
 
 - 2026-09-21: CI-002 declared and approved by Dorian, and its top-level criterion added before any code. The item was approved checking the per-plugin version only. Reading DR-013 before writing it found the version has three homes and that the client gates on the top-level `marketplace.json` version, so the approved criteria would have passed a change nobody can install. Measured rather than assumed: the top-level moved once, at `6c9912c`, across four merges, so `github-repo-analyzer` 0.12.0 has not reached clients either. Criterion 2 added and approved, and the top-level bump rides in the CI-002 change so the check lands over a clean catalog, per DR-102. Not verified: that the plugin manager still gates this way today. DR-013 is taken on the document's word.
 
