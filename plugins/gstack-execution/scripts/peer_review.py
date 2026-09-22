@@ -1420,8 +1420,19 @@ def cmd_round(a):
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
               "vocabulary_version": VOCAB_VERSION}
     try:
+        # resolved BEFORE the data_use gate, not after. Availability changes between open and round,
+        # and a fallback is a property of the run, so the tool recorded at open is an intention and
+        # not a destination. Gating on that intention checked one tool and sent to another: a grant
+        # naming the reviewer that would actually run was refused, and, the way that matters, a
+        # grant for an absent codex PASSED and the surface then went to whichever entry the fallback
+        # reached. A permission control has to bind the tool that receives the source.
+        # GSTACK_PEER_REVIEW_FAKE_CMD keeps the selftest on the recorded tool.
+        if _SELFTEST and os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD"):
+            reviewer, is_fallback = state["reviewer"], state.get("reviewer_is_fallback", False)
+        else:
+            reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
         try:
-            data_permission(packet, tool=state["reviewer"])  # intended reviewer; the run records what ran
+            data_permission(packet, tool=reviewer)  # the tool that will receive the surface
         except ValueError as e:
             raise ReviewError("data_use_denied", str(e))
         # F3 (reviewer): snapshot() copied the whole tree to disk every round and nothing reads it
@@ -1432,12 +1443,6 @@ def cmd_round(a):
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
-        # resolved now, not at open: availability changes between the two, and a fallback is a
-        # property of the run. GSTACK_PEER_REVIEW_FAKE_CMD keeps the selftest on the recorded tool.
-        if _SELFTEST and os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD"):
-            reviewer, is_fallback = state["reviewer"], state.get("reviewer_is_fallback", False)
-        else:
-            reviewer, is_fallback = choose_reviewer(state["builder"], os.environ.get("GSTACK_REVIEWER"))
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
             reviewer, family(reviewer), is_fallback
         # XE-005.4: the record says which reviewer RAN and that it was a fallback, and `status`

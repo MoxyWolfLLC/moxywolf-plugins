@@ -206,6 +206,45 @@ class OpenRouterTransport(unittest.TestCase):
         finally:
             pr.shutil.which = real
 
+class DataUseBindsTheToolThatRuns(unittest.TestCase):
+    """XE-013 defect found by using it: the data_use gate ran against the reviewer recorded at
+    `open`, while `round` resolved a different one afterwards and sent the surface to that.
+
+    Two failures, one cause. A grant naming the entry that would actually run was refused, so the
+    round the grant authorized could not be opened. And a grant for an absent `codex` PASSED, after
+    which the fallback sent the source to whichever entry it reached, which the owner never named.
+    `cmd_round` now resolves the reviewer first and gates on the tool that receives the surface.
+    """
+
+    def setUp(self):
+        self._which, self._key = pr.shutil.which, pr.openrouter_key
+        pr.shutil.which = lambda _n: None            # no CLI reviewer on this host
+        pr.openrouter_key = lambda: "sk-test"        # the api entries can run
+        self.resolved, _ = pr.choose_reviewer("claude")
+
+    def tearDown(self):
+        pr.shutil.which, pr.openrouter_key = self._which, self._key
+
+    @staticmethod
+    def grant(*tools):
+        return {"release_owner": "o",
+                "data_use": {"owner": "o", "classification": "internal", "allow_repository": True,
+                             "allow_history": True, "allowed_tools": list(tools)}}
+
+    def test_the_resolved_reviewer_differs_from_the_one_open_would_record(self):
+        # codex heads the preference order and is absent here, which is the whole gap.
+        self.assertEqual(pr.reviewer_candidates("claude")[0], "codex")
+        self.assertNotEqual(self.resolved, "codex")
+        self.assertEqual(pr.REVIEWERS[self.resolved]["transport"], "openrouter")
+
+    def test_a_grant_for_the_tool_that_runs_is_honoured(self):
+        pr.data_permission(self.grant(self.resolved), tool=self.resolved)
+
+    def test_a_grant_for_an_absent_tool_does_not_authorize_the_fallback(self):
+        """The direction that matters: permission for codex must not licence a send to another."""
+        with self.assertRaises(ValueError):
+            pr.data_permission(self.grant("codex"), tool=self.resolved)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
