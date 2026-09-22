@@ -22,8 +22,13 @@ def fake_codex(tmp, body, sleep=0):
     silently fell through to the real reviewer and 'passed' on review_unavailable."""
     bin_dir = tmp / "bin"; bin_dir.mkdir(parents=True, exist_ok=True)
     f = bin_dir / "codex"
+    # XE-015: the loop refuses a round that opened none of the files it was offered, so a stub
+    # reviewer that reads nothing is no longer a stand-in for one that reviewed. `read` is a shell
+    # builtin, so this needs nothing on PATH, and it genuinely READS: an input redirect alone opens
+    # the file without moving atime on APFS, which is what the record measures.
     f.write_text("#!/bin/sh\n"
                  f"{'sleep %d' % sleep if sleep else ':'}\n"
+                 "read -r _ < CHANGE.diff || true\n"
                  "echo 'model: gpt-6-astra' >&2\n"
                  f"cat <<'JSONEOF'\n{body}\nJSONEOF\n")
     f.chmod(0o755)
