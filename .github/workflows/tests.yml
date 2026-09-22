@@ -16,7 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # CI-002.7: the version-bump check diffs against a base commit, and its real-history
+      # test reads merges back to 6c9912c. The default depth of 1 has neither, and a check
+      # that cannot resolve its range FAILS rather than reporting a tree it never diffed.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -24,6 +29,18 @@ jobs:
 
       - name: What this run will examine
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --list
+
+      # CI-002: this change ships to installs only if its version moves. The suites above
+      # prove the check works; this points it at the range being merged right now.
+      - name: Every changed plugin moved its version, and so did the marketplace
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "no base commit for this event; nothing to diff against"
+            exit 0
+          fi
+          python3 plugins/gstack-execution/scripts/version_bump.py --base "$BASE" --head "$GITHUB_SHA"
 
       - name: The runner's own check
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --selftest
