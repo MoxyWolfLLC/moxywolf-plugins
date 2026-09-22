@@ -260,6 +260,10 @@ args=sys.argv[1:]; tool=pathlib.Path(sys.argv[0]).name
 prompt=args[-1] if tool=='codex' else args[args.index('-p')+1]
 if '=== PACKET ===' in prompt:
  p=json.loads(prompt.split('=== PACKET ===\\n\\n')[1].split('\\n\\n=== CONTRACT')[0])
+ # XE-015: the loop refuses a reviewer that opened none of the files it was offered, so a stub
+ # that reads nothing is no longer a valid stand-in for one that reviewed.
+ try: pathlib.Path('CHANGE.diff').read_text()
+ except OSError: pass
  r={'verdict':'blocking_findings' if os.environ.get('GRAPH_BLOCK') else 'no_blocking_findings','acceptance':[{'criterion':c,'met':True,'evidence':'value:1'} for c in p['acceptance_criteria']],'findings':[],'blocker_resolutions':[],'regressions_from_fixes':[],'notes':''}
  if os.environ.get('GRAPH_BLOCK'):r['findings']=[{'id':'F1','severity':'blocking','file':'value','line':1,'what':'bad','evidence':'value:1','criterion':p['acceptance_criteria'][0],'fix':'fix'}]
 else:
