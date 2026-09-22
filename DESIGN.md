@@ -86,6 +86,24 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 10. After merge, the memory graph's node 14 is marked closed with the date and this item's merge commit, and the swimlane's merge step shows two paths: Dorian merges, or the agent merges as the bot on his recorded instruction.
 11. `gstack-execution` and `project-init` each get a minor version bump with a changelog line.
 
+### GA-007 — The credential can say what it actually grants
+
+**Status:** building in this change.
+
+**Links introduced:** none. It reads the access-token response the app already receives and prints a field `mint()` was discarding.
+
+The failure it closes, measured on 2026-09-21. `workflows` was added to the app's declared permissions and a push touching `.github/workflows` was still refused, with a message byte-identical to the one returned before the permission existed:
+
+> refusing to allow a GitHub App to create or update workflow `.github/workflows/unit-checks.yml` without `workflows` permission
+
+Changing a GitHub App's permissions raises a REQUEST. Until each installation accepts it, that installation's tokens carry the old set. Nothing in the refusal distinguishes "not declared" from "declared, not yet accepted", and the loop has no way to tell which state it is in, so it either waits on a change already made or re-makes a change already accepted. The answer was on the wire the whole time: every `access_tokens` response carries the granted permissions, and `mint()` threw them away. Finding it cost 25 minutes and required importing the module and calling `request()` by hand.
+
+1. `agent_token.py permissions [--repo owner/name]` prints the permissions the resolved installation actually grants, and its `repository_selection`. Repository resolution is GA-006's, unchanged.
+2. It reports the installation id it read, and whether that id came from `--repo` or from `github-app.env`, because GA-006 made those two different answers and a reader comparing output across repositories needs to know which one they are looking at.
+3. The subcommand is reachable. `--selftest` asserts the usage text offers it and the function exists, because a subcommand nobody can dispatch to is the same defect as a gate nobody runs.
+4. Step 4 of the build loop names the permission case alongside the installation case it already covers, and names this command as what tells the two states apart.
+5. Evidence: the command run against two installations of the same app in the same minute, one that has accepted a permission request and one that has not, showing the difference the refusal message hides.
+
 ### GA-006 — A token is minted for the installation that owns the repository
 
 **Status:** done. Merged to `main` in `27fd672` (PR #31, head `29dff5c`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-142113-29dff5c-xs3jf4jy` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
@@ -722,6 +740,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-21: GA-007 declared and built in the same change, on Dorian's instruction to fix it and merge. It follows directly from GA-006. GA-006 made the installation resolve per repository, which is right, and made the credential's reach a thing that varies per repository, which nothing could then inspect. A permission accepted on one installation and pending on another is invisible: the refusal reads the same as never having asked. The information was already in the response `mint()` parses. This item prints it.
 
 - 2026-09-21: GA-006 merged as `27fd672`. Its release handoff was prepared before the merge, which CI-001's was not, but `record-release` was still blocked: the review ran in the session cloud container because the reviewer needs more wall time than the device shell allows, so the record names that container's checkout, and `api.github.com` answers 403 there through the agent proxy. The host with the credential cannot see the record and the host with the record cannot reach GitHub. Verified rather than assumed: the same installation token reads PR #31 from the device and returns 403 from the cloud, and a bare `curl` to `api.github.com` from the cloud returns 403 as well. No record was fabricated. The lesson is about where a review is opened, not about what the contract demands.
 
