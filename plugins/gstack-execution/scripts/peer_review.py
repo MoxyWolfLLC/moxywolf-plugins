@@ -629,6 +629,18 @@ def examined_report(before, root):
             "looked_beyond_the_diff": bool(beyond)}
 
 
+def examined_nothing(ex):
+    """True when the reviewer could be measured and opened none of what it was offered.
+
+    Deliberately false when read_tracking is anything but "available": an api reviewer has no
+    filesystem and a noatime mount cannot be measured, and in both cases an empty examined list
+    is a constant rather than a choice (EV-001).
+    """
+    return (ex.get("read_tracking") == "available"
+            and ex.get("offered_count", 0) > 0
+            and ex.get("examined_count", 0) == 0)
+
+
 def build_prompt(packet, round_no, prior_round, dispositions):
     repos = "\n".join(f"- {Path(r['path']).name}: base {r['base'][:12]} head {r['head'][:12]}"
                       for r in packet["repos"])
@@ -640,12 +652,15 @@ def build_prompt(packet, round_no, prior_round, dispositions):
         "that reference them. `SURFACE.md` states what is present and what was withheld. The "
         "repository tree is not here; if a judgement needs a file the surface does not carry, report "
         "that as a finding with severity `separate` naming the file, rather than guessing.",
-        "No commands can be run here. Every reviewer runs in its tool's read-only mode, which "
-        "withholds shell execution, so the `tests.commands` in the packet are a record of what "
-        "the builder ran, not an instruction to re-run them. Judge them by reading the code they "
-        "cover. Where a judgement genuinely requires execution, report it as a finding with "
-        "severity `separate` naming the command, rather than spending the round discovering "
-        "there is no shell.",
+        "Read the surface before judging anything. Your tool runs read-only, which withholds "
+        "writes, not reading: you may open the files here, and where your tool provides a shell "
+        "you may run read-only commands such as `cat`, `grep`, `ls` and `find` against this "
+        "directory. For some reviewers the shell IS the only way to open a file, so do not "
+        "conclude from read-only mode that you cannot read. You may not write, deploy, or run "
+        "the project's build or tests. The `tests.commands` in the packet are a record of what "
+        "the builder ran, not an instruction to re-run them; judge them by reading the code they "
+        "cover. Where a judgement genuinely requires running something, report it as a finding "
+        "with severity `separate` naming the command.",
         "The builder's packet is a claim to check, not evidence. Open the code.",
         "=== PACKET ===", json.dumps({k: packet[k] for k in PACKET_FIELDS}, indent=2),
         "=== CONTRACT ===", contract_sections(),
@@ -1475,9 +1490,29 @@ def cmd_round(a):
             record["sent"] = {"files": LAST_SENT_SURFACE or [],
                               "sent_count": sum(1 for f in (LAST_SENT_SURFACE or []) if f.get("sent")),
                               "offered_count": len(LAST_SENT_SURFACE or [])}
+        elif _SELFTEST and os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD"):
+            # XE-015: same ground as the api branch above and as examined_report's own
+            # `before is None` case. atime has one-second resolution and a selftest round runs
+            # in milliseconds, so an empty examined list here means "not measurable", not "not
+            # examined", and EV-001 says not to read the first as the second.
+            record["examined"] = {"read_tracking": "not_applicable",
+                                  "why": "selftest fake reviewer; the round is shorter than atime "
+                                         "resolution, so reads cannot be measured"}
         else:
             record["examined"] = examined_report(before, surf)
         record["raw"] = raw
+        # XE-015. EV-001 applied to the reviewer: a round that opened none of the files it was
+        # offered has examined nothing, whatever its verdict says. Refused here rather than left
+        # to the verdict/severity cross-check, which catches it only by luck. 2026-09-22: a codex
+        # round returned schema-shaped output after reading 0 of 11 offered files, because the
+        # prompt above told it no commands could be run and the shell is how codex opens a file.
+        # Had its verdict agreed with its empty findings array, that round would have been banked
+        # as a clean cross-tool review having read nothing. The api transports are unaffected:
+        # they record read_tracking not_applicable because they have no filesystem at all.
+        if examined_nothing(record.get("examined") or {}):
+            raise ReviewError("examined_nothing",
+                              "reviewer opened 0 of %d offered files; its verdict rests on the "
+                              "packet alone" % record["examined"]["offered_count"])
         out = validate(raw, packet, prior, dispositions)
         record.update(out)
         # Bind each finding to the content at the reviewed head, not merely to a name.

@@ -367,7 +367,7 @@
       "name": "gstack-execution",
       "source": "./plugins/gstack-execution",
       "description": "The MoxyWolf coding loop. Design doc first, build against it, cross-tool peer review at a checkpoint, human merge. Carries the verification discipline: a check reports what it examined, a pass over zero input is a failure, and every claim of 'it works' names what was and was not verified.",
-      "version": "0.31.0",
+      "version": "0.32.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
