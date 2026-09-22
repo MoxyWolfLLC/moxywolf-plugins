@@ -30,6 +30,7 @@ def test_a_round_that_read_nothing_is_refused_on_that_and_not_on_its_verdict():
     """
     tmp = Path(tempfile.mkdtemp(prefix="gstack-xe015-"))
     saved_dir, saved_report, saved_run = pr.REVIEW_DIR, pr.examined_report, pr.run_reviewer
+    saved_choose = pr.choose_reviewer
     try:
         # Not _SELFTEST and not the FAKE_CMD hook: both exempt the round from measurement, and
         # exempting the thing under test is how a guard passes without guarding. run_reviewer is
@@ -63,6 +64,12 @@ def test_a_round_that_read_nothing_is_refused_on_that_and_not_on_its_verdict():
         clean = json.dumps({"verdict": "no_blocking_findings",
                             "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}],
                             "findings": [], "blocker_resolutions": []})
+        # cmd_round picks the reviewer before it runs one, and choose_reviewer refuses when no
+        # reviewer CLI is installed. Replacing run_reviewer alone made this test pass only on a
+        # machine with codex on PATH and fail as review_unavailable everywhere else, CI included,
+        # where the workflow provisions checkout and Python only. Peer review 20260922-160502
+        # F1 caught it; reproduced with PATH stripped of the npm global bin before fixing.
+        pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("codex", False)
         pr.run_reviewer = lambda tool, prompt, root, timeout, schema=None: (clean, "gpt-6-astra")
         ns = lambda **k: argparse.Namespace(**k)
         rid = pr.cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
@@ -74,6 +81,7 @@ def test_a_round_that_read_nothing_is_refused_on_that_and_not_on_its_verdict():
         assert rec.get("raw"), "the refusal must still record what the reviewer said"
     finally:
         pr.examined_report, pr.run_reviewer = saved_report, saved_run
+        pr.choose_reviewer = saved_choose
         pr.REVIEW_DIR = saved_dir
 
 
