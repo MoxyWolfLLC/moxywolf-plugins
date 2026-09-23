@@ -632,6 +632,20 @@ After the prompt was corrected on the Release Owner's machine, the same packet a
 5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.31.0, per CI-002.
 6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports the suites it examined by name with a nonzero count.
 
+### XE-016 — Counting what a review cost never costs the review
+
+**Status:** building.
+
+**Links introduced:** none. The round record's `reviewer_usage` field already exists (XE-012); this item changes how it is parsed, not what it holds.
+
+Round 2 of DS-001's review (`20260923-090656-95ef88a-xatof78b`) crashed after codex had finished and been paid for. `reviewer_usage()` looks for codex's `tokens used` line with `tokens used\W*([\d,]+)`, and `[\d,]+` accepts a string of commas alone. Codex printed something that matched that way, `int(",")` raised `ValueError`, and the exception escaped `run_reviewer` before the verdict was parsed or saved. The review state stayed at one round used, so nothing was corrupted, but the round was lost. Usage is bookkeeping. A defect in bookkeeping must not be able to throw away the thing it was counting.
+
+1. The codex pattern requires a digit before any comma: `tokens used\W*(\d[\d,]*)`. A match with no digits is no match.
+2. `run_reviewer` treats any exception from `reviewer_usage()` as `"not_reported"`, the value XE-012 already defines for usage a CLI did not report, and the round continues to parse and save its verdict.
+3. Tests: `reviewer_usage("codex", "", "tokens used: ,")` returns `"not_reported"`; the existing `tokens used\n1,234` case still returns 1234; and a round driven through `cmd_round` with a reviewer whose usage parse raises still records its verdict with `reviewer_usage` set to `"not_reported"`.
+4. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.32.0, and the top-level marketplace version moves, per CI-002.
+5. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count.
+
 ## Fifth objective: session memory
 
 Premise: a session's context window should be filled from the sources that hold state, not from a prose copy of them, and what a session learns should go back as pointers those sources can check. Today it runs the other way. `/session-start` reads a handoff that restates state in prose, and `/session-end` writes one. On 2026-09-19 the handoff said PR #10 was open and EV-006 through EV-008 were unstarted. `git log origin/main` said all of it had merged two days earlier. The session spent its first calls and its first premise on the copy. That's XE-008's two-homes defect at the scale of a whole session.
@@ -825,6 +839,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-23: Added XE-016 on Dorian's instruction after DS-001's review round 2 crashed inside `reviewer_usage()` on a comma-only codex usage match, losing a completed codex round. Fixed as its own item rather than inside DS-001.
 
 - 2026-09-22: Added XE-015, drafted by Claude for Dorian after a live BD-001 review on `MoxyWolfLLC/crm` came back having opened none of the eleven files it was offered. The prompt told it no commands could be run; `codex exec --sandbox read-only` withholds writes, not shell, and shell is how codex opens a file. Proved on the Release Owner's Mac at codex-cli 0.154.0 with the flags `run_reviewer` passes, twice, once with `--output-schema` to rule out structured output disabling tools: codex ran `cat` and returned the file both times. The round was refused only because its verdict disagreed with its severities, so the second half of this item applies `examined_nothing`, which the vocabulary already defines and already applies to the verifier, to the reviewer as well. Also restored XE-014 in the preceding commit: it was approved the same day and existed only in a checkout whose `.git` points at a missing `.git.nosync`, with no objects, refs or history.
 
