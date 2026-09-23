@@ -8,7 +8,7 @@ description: >
   routing is enabled via /council-config. Uses heuristic fallbacks when
   pattern memory has insufficient data, and learned rules once 20+
   deliberations are logged.
-version: 0.5.0
+version: 0.6.0
 ---
 
 # Smart Router
@@ -31,11 +31,11 @@ Incoming Query
             ├── Step 1: Extract query features
             │
             ├── Step 2: Check pattern memory
-            │     ├── No memory file → HEURISTIC ROUTING (Step 3)
-            │     ├── < 20 deliberations → HEURISTIC ROUTING (Step 3)
+            │     ├── No memory file → JEV ROUTING (Step 3), heuristics (Step 3b)
+            │     ├── < 20 deliberations → JEV ROUTING (Step 3), heuristics (Step 3b)
             │     └── 20+ deliberations with routing rules → LEARNED ROUTING (Step 4)
             │
-            ├── Step 3: Heuristic routing (fallback)
+            ├── Step 3: Jev routing (calibrated)
             │     ├── Match against keyword/signal tables
             │     └── Return decision with heuristic confidence
             │
@@ -90,7 +90,43 @@ Read `council-memory.json` from the workspace.
 - **File found, `deliberations.length` >= 20, `routing_model.rules` is empty:** Proceed to Step 3. Log a suggestion: "20+ deliberations logged — run `/council-config rebuild-router` to activate learned routing."
 - **File found, `routing_model.rules` has entries:** Proceed to Step 4 (learned routing).
 
-## Step 3: Heuristic Routing (Fallback)
+## Step 3: Jev Routing (Preferred)
+
+Ask Jev the routing questions directly instead of matching keywords. One call, four
+questions, roughly 100ms and a fraction of a cent, which matters because the router
+exists to avoid spending four frontier calls on a query that does not need them. A
+router that costs a frontier call defeats its own purpose.
+
+```bash
+python3 "${COUNCIL_PLUGIN}/scripts/jev_route.py" "<the user's query>" [--budget 0.05]
+```
+
+It returns the same feature shape Step 1 produces, plus `routing_source: "jev"`, the
+calibrated probability behind each answer, and the token usage. Use it as the routing
+decision.
+
+The three confidence bands are applied inside the script, from Step 4b, but now over a
+calibrated probability rather than a hand-picked one. Jev is trained so that an answer
+given 0.9 is right about nine times in ten, which is what those bands always assumed
+and never had:
+
+| `confidence` | Behavior |
+|--------------|----------|
+| > 0.8 | Follow the decision. |
+| 0.5 – 0.8 | Follow it, `uncertain: true` is set, and the deliberation-engine notes it. |
+| < 0.5 | `decision` is forced to `deliberate` and `exploration: true` is set. An uncertain route that deliberates produces an outcome the learned router can train on; one that shortcuts produces nothing and may be wrong. |
+
+**When Jev cannot answer**, the script exits 2 with `routing_source: "jev_unavailable"`
+and a `why` naming every path it looked for the key in. No key, no network, or a
+gateway error all land here. Fall through to Step 3b and record the routing source as
+heuristic, so a later reader can tell a heuristic route from a calibrated one. The
+script never guesses a route it did not get an answer for.
+
+The key resolves the way DR-010 resolves the OpenRouter key: `AI_GATEWAY_API_KEY`,
+then `AIGATEWAY_KEY_FILE`, then the vault's `aigateway.env` through the sandbox and
+native Drive globs. `jev_route.py --where` prints which one answered.
+
+## Step 3b: Heuristic Routing (Fallback)
 
 Apply hard-coded rules when pattern memory is insufficient. These are intentionally conservative — they lean toward deliberation for ambiguous cases because every deliberation generates training data for the learned router.
 
