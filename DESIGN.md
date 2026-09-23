@@ -648,7 +648,7 @@ Round 2 of DS-001's review (`20260923-090656-95ef88a-xatof78b`) crashed after co
 
 ### XE-017 — A finding about a file the reviewer was never shown is not checked, and says so
 
-**Status:** building.
+**Status:** done. Merged to `main` in `f82f4e2` (PR #49, head `67db337`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Reviews: `20260923-100054-6f9e6f9-vxfm8nrq` (two blockers, F1 record failures hidden behind unverifiable and F2 older records skipping the per-file report, both fixed; ended `malformed_output` on a verdict over separate findings only), `20260923-100641-877ad1b-hcoyl11f` (`no_blocking_findings`, 6/6), and after the rebase onto DS-001 `20260923-101449-67db337-zs9d1axd` (`no_blocking_findings`, 6/6, 31 of 34 files examined), with the `tests` workflow green on the merged head.
 
 **Links introduced:** none. The check reads the existing `severity`, `file` and `line` of each finding and the existing subject record; it adds no field.
 
