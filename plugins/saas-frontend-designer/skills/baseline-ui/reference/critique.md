@@ -1,4 +1,4 @@
-> Modified by MoxyWolf LLC (2026-09-22) from impeccable v4.3.1 at `e0881d2` (Apache-2.0, (c) 2025 Paul Bakaus): impeccable's engine calls are removed. Assessment B is a manual sweep against `craft-floor.md` and the skill's bans instead of the `impeccable detect` binary, the browser overlay step is dropped, the snapshot and trend are written and read by hand in `.critique/`, and command names point at this plugin's playbooks and `/polish`. See the plugin `NOTICE`.
+> Modified by MoxyWolf LLC (2026-09-22) from impeccable v4.3.1 at `e0881d2` (Apache-2.0, (c) 2025 Paul Bakaus): impeccable's engine calls are removed. Assessment B is a manual sweep against `craft-floor.md` and the skill's bans instead of the `impeccable detect` binary, the browser overlay step is dropped, the snapshot and trend are written and read by hand in `.critique/` (trend filtered by exact target), the sweep invariant accepts a browser-only sweep of a URL, and command names point at this plugin's playbooks and `/polish`. See the plugin `NOTICE`.
 
 ### Purpose
 
@@ -10,7 +10,7 @@ Resolve one stable target, run two independent assessments, synthesize a design 
 - Assessment A and B MUST run as two isolated sub-agents whenever a sub-agent/Task tool is exposed. Running them inline in this context is "possible" but is NOT permitted; it is a degraded run. Inline is allowed ONLY when no sub-agent tool exists (or the user declined, on harnesses that ask).
 - If you degrade for any reason, the report's first line MUST be a banner: `⚠️ DEGRADED: single-context (<reason>)`. A silent degraded critique is a failed critique.
 - Assessment A must finish before sweep findings enter the parent synthesis context. A rule checklist still anchors judgment.
-- A skipped sweep is a failed critique run. Say what the sweep examined, by file, and a sweep over zero files is a failure, not a clean result.
+- A skipped sweep is a failed critique run. Say what the sweep examined: files for the source sweep, pages or views for the browser evidence. A URL with no source examines no files and is still valid when the browser evidence examined at least one page. A sweep that examined nothing of either kind is a failure, not a clean result.
 - Viewable targets require browser inspection when available.
 - Any local server started only for critique visualization must run in the background, have a recorded stop method, and be stopped before final reporting unless the user asks to keep it.
 - The question is the LAST thing in the response. Write the entire report out first, then ask; nothing follows the question. Prose emitted after a structured question is withheld until the user answers it, so a report written after the question reads as if the critique never ran.
@@ -171,7 +171,7 @@ Persistence is not the end of the run. After it, the response continues with the
 
 ### Persist the Snapshot
 
-Once the report above is finalized, write it to `.critique/` at the project root so the user can refer back, and so `/polish` can pick up the priority issues without a copy-paste.
+Once the report above is finalized, write it to `.critique/` at the project root so the user can refer back, and so the priority issues can be handed to `/polish` by pointing it at the snapshot instead of copy-pasting them. `/polish` does not look for snapshots on its own.
 
 Skip this step if the target has no slug (vague or root-level target).
 
@@ -179,7 +179,7 @@ Skip this step if the target has no slug (vague or root-level target).
 
    This is a copy of the report you already delivered above, for later passes to read. It is not delivery. If you find yourself composing the report for the first time inside this file, you have skipped Deliver the Report; go back and send it.
 
-2. **Read the trend**: list `.critique/<slug>-*.md`, newest last, and read the frontmatter of the last five (including the one you just wrote).
+2. **Read the trend**: list `.critique/<slug>-*.md`, keep only the files whose `resolved` frontmatter equals this run's resolved target exactly (a slug prefix can match a different page, such as `/settings` and `/settings/profile`), sort them newest last, and read the frontmatter of the last five (including the one you just wrote).
 
 3. **Append a single line to the user-visible output**, after the report and before the questions:
 
@@ -190,7 +190,7 @@ Skip this step if the target has no slug (vague or root-level target).
 
    If this is the first run for the slug, the trend is just one score; say so: "First run for this target, no trend yet."
 
-6. **Close the run.** Go to Ask the User below and emit the questions, or the `Questions skipped: <reason>` line when the count allows it. The run is not complete until you do. Persistence is bookkeeping and cleanup is not an ending; stopping here leaves the user with a report and no way forward, and leaves `/polish` with no priorities to inherit.
+6. **Close the run.** Go to Ask the User below and emit the questions, or the `Questions skipped: <reason>` line when the count allows it. The run is not complete until you do. Persistence is bookkeeping and cleanup is not an ending; stopping here leaves the user with a report and no way forward, and leaves no priorities to hand to `/polish`.
 
 This is fire-and-forget. Show the user only the trend line and the written path. Failures here should not block the rest of the flow; print the error and move on.
 
