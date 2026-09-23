@@ -1148,6 +1148,14 @@ def verify_links(d):
         for f in findings:
             s = (subjects or {}).get(f["id"])
             tag = f"round {n} {f['id']} -> {f['file']}:{f['line']}"
+            # XE-017: the prompt tells the reviewer to report a file the surface did not carry as a
+            # `separate` finding naming it, and line 0 is the only line it can give. That names a
+            # gap in what the review saw, not a location, so it is not checked, and it says so.
+            if f.get("severity") == "separate" and f.get("line") == 0:
+                unbound += 1
+                record(tag, False, f"names {f['file']}, a file the review surface did not carry; not checked",
+                       kind="unverifiable")
+                continue
             if not s or not s.get("bound"):
                 unbound += 1
                 record(tag, False, (s or {}).get("why", "finding was never bound to content"), kind="unverifiable")

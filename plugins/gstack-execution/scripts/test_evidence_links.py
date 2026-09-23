@@ -181,6 +181,35 @@ class LinkTests(unittest.TestCase):
         rec = pr.load(d, "round-1.json"); rec.pop("subjects"); pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
         self.assertEqual(pr.verify_links(d)["outcome"], "links_unverifiable")
 
+    def _unseen_file_finding(self, severity):
+        """XE-017: the contract's own spelling for 'I needed a file I was not shown'."""
+        return dict(BLOCKING, verdict="no_blocking_findings" if severity == "separate" else "blocking_findings",
+                    findings=[{"id": "F1", "severity": severity, "file": "a.py", "line": 0,
+                               "what": "a.py was not in the surface", "evidence": "absent",
+                               "criterion": "f(1) == 2", "fix": "include a.py"}])
+
+    def test_a_separate_finding_about_an_unseen_file_is_unverifiable_not_stale(self):
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self._unseen_file_finding("separate")), "no_blocking_findings")
+        report = pr.verify_links(pr.rdir(rid))
+        self.assertEqual(report["outcome"], "links_unverifiable")
+        broken = [c for c in report["checks"] if not c["ok"]]
+        self.assertTrue(broken and all(c["kind"] == "unverifiable" for c in broken), broken)
+        self.assertTrue(any("did not carry; not checked" in c["detail"] for c in broken), broken)
+
+    def test_a_blocking_finding_at_line_zero_still_has_to_resolve(self):
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self._unseen_file_finding("blocking")), "blocking_findings")
+        self.assertEqual(pr.verify_links(pr.rdir(rid))["outcome"], "stale_link")
+
+    def test_release_accepts_a_passing_review_that_names_an_unseen_file(self):
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self._unseen_file_finding("separate")), "no_blocking_findings")
+        with self.assertRaises(pr.ReviewError) as caught:
+            pr.cmd_release(self.ns(review_id=rid, target="main", observation=None))
+        self.assertEqual(caught.exception.outcome, "awaiting_human_release")
+        self.assertEqual(pr.load(pr.rdir(rid), "release.json")["links"]["outcome"], "links_unverifiable")
+
     def test_verifying_nothing_is_not_a_pass(self):
         """EV-001 applied to the verifier itself."""
         _, d = self.reviewed()
