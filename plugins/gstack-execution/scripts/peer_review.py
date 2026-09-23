@@ -710,7 +710,7 @@ def reviewer_usage(tool, stdout, stderr):
         u["total"] = u["input"] + u["output"] + u["cache_read"] + sum(num(m.get("cacheCreationInputTokens")) for m in mu)
         return {**u, "source": "claude modelUsage"}
     if tool == "codex":
-        m = re.search(r"tokens used\W*([\d,]+)", (stderr or "") + "\n" + (stdout or ""), re.I)
+        m = re.search(r"tokens used\W*(\d[\d,]*)", (stderr or "") + "\n" + (stdout or ""), re.I)  # XE-016.1: a digit first; "," alone is no match
         if m:
             return {"input": None, "output": None, "cache_read": None, "total": int(m.group(1).replace(",", "")), "source": "codex 'tokens used'"}
     return "not_reported"
@@ -880,7 +880,10 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     try:
         # stdin closed: codex exec otherwise blocks on "Reading additional input from stdin..."
         r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
-        LAST_REVIEWER_USAGE = reviewer_usage("fake" if fake else tool, r.stdout, r.stderr)
+        try:
+            LAST_REVIEWER_USAGE = reviewer_usage("fake" if fake else tool, r.stdout, r.stderr)
+        except Exception:   # XE-016.2: counting the cost must never throw away the round it counted
+            LAST_REVIEWER_USAGE = "not_reported"
     except subprocess.TimeoutExpired:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
     except FileNotFoundError as e:
