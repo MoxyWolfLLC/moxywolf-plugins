@@ -634,7 +634,7 @@ After the prompt was corrected on the Release Owner's machine, the same packet a
 
 ### XE-016 — Counting what a review cost never costs the review
 
-**Status:** building.
+**Status:** done. Merged to `main` in `ecd461f` (PR #47, head `4ebde4e`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260923-093946-4ebde4e-x_j2eigq` (codex/gpt-6-astra, `no_blocking_findings`, 5/5 acceptance, 32 of 34 surface files examined), with the `tests` workflow green on the same head.
 
 **Links introduced:** none. The round record's `reviewer_usage` field already exists (XE-012); this item changes how it is parsed, not what it holds.
 
