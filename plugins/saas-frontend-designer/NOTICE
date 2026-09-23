@@ -20,6 +20,27 @@ section 4(b), modified files are marked as changed).
 What was NOT taken: impeccable's live-browser runtime, scripts, hooks,
 standalone plugin shell, site, CLI, and extension.
 
+Second port, 2026-09-22, from impeccable v4.3.1 at commit e0881d2:
+
+  skills/baseline-ui/reference/clarify.md      MODIFIED (closing hand-off only)
+  skills/baseline-ui/reference/onboard.md      MODIFIED (closing hand-off only)
+  skills/baseline-ui/reference/animate.md      MODIFIED (native-platform links,
+                                               closing hand-off)
+  skills/baseline-ui/reference/craft-floor.md  MODIFIED (editor-hook sentence)
+  skills/baseline-ui/reference/critique.md     MODIFIED (engine calls removed;
+                                               the detector step is a manual
+                                               sweep; snapshots written by hand)
+  skills/baseline-ui/SKILL.md                  MODIFIED (page modes concept, in
+                                               MoxyWolf's words; reference table)
+
+Each modified file is marked at its top. The ten v3.8.0 references above are
+unchanged.
+
+What was NOT taken from v4.3.1: the Rust engine and its 61 detector rules,
+the launcher script, live mode, generate, hooks, doctor, the native iOS and
+Android references, and the init and document commands, because DESIGN.md in
+MoxyWolf repositories is written by /gstack-design-doc.
+
 ---
 
 This plugin also includes anti-slop design-inference material adapted from:

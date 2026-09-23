@@ -838,7 +838,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### DS-001 — Port impeccable v4.3.1's missing playbooks, without its engine
 
-**Status:** approved.
+**Status:** building.
 
 **Links introduced:** the NOTICE names the upstream source as impeccable v4.3.1 at commit `e0881d2`, which re-resolves by cloning that commit. `SKILL.md` names each new reference by relative path, which resolves inside the tree and is checked by criterion 3.
 

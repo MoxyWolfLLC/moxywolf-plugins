@@ -7,12 +7,12 @@ description: >
   "typography needs work", "colors clash", "improve readability",
   "remove AI slop", "make it look less AI-generated", "tighten up the design",
   or any request to audit and improve the visual quality of an existing interface.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Baseline UI — Visual Polish Pipeline
 
-> Modified by MoxyWolf LLC (2026-06-25): folded in design-fluency material from [impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, (c) 2025 Paul Bakaus). The anti-pattern bans, OKLCH color strategy, typography craft, and two-altitude slop test below are adapted from impeccable; the `reference/` library is redistributed verbatim. See the plugin `NOTICE`.
+> Modified by MoxyWolf LLC (2026-06-25): folded in design-fluency material from [impeccable](https://github.com/pbakaus/impeccable) (Apache-2.0, (c) 2025 Paul Bakaus). The anti-pattern bans, OKLCH color strategy, typography craft, and two-altitude slop test below are adapted from impeccable; the `reference/` library is redistributed verbatim. 2026-09-22: added the page modes and five playbooks from impeccable v4.3.1 (`critique`, `clarify`, `onboard`, `animate`, `craft-floor`). See the plugin `NOTICE`.
 
 Systematically raise the visual quality floor of an existing interface. Most UIs don't need redesign — they need consistent application of foundational decisions. Run this as a sequential audit.
 
@@ -206,19 +206,39 @@ The slop-detection list above catches surface patterns. Also run the category-re
 
 If someone could look at the interface and say "AI made that" without doubt, it failed.
 
+## Page modes
+
+Judge a surface by what the visitor came to do, not by the product it belongs to. Pick the mode from the surface in front of you, before any pass, and say which one you picked.
+
+| Mode | The visitor | What wins | Examples |
+|---|---|---|---|
+| **Persuade** | decides and acts | attention, clarity of the offer, one next step | landing pages, pricing, campaigns |
+| **Operate** | gets a task done | scanability, consistency, platform habits, speed | app screens, dashboards, settings, admin, editors |
+| **Read** | understands something | structure, measure, a reading rhythm worth staying in | docs, articles, help, changelogs |
+| **Experience** | is inside the work | the artifact leads and the interface gets out of the way | portfolios, galleries, showcases |
+
+A compliance tool's marketing page is still Persuade. Its control catalog is Operate. Its docs are Read. Most of what we ship is Operate, where brand lives in precise details, not in expression. Mode concept adapted from impeccable (Apache-2.0).
+
 ## Design-craft reference library
 
-Deeper craft references (redistributed from impeccable, Apache-2.0) live in `reference/`. Read the matching one when a pass needs depth beyond the checklists above:
+Deeper craft playbooks, adapted from impeccable (Apache-2.0), live in `reference/`. Load the one that matches the job when a pass needs more than the checklists above. Load `craft-floor.md` before any UI edit, however small.
 
-- `reference/craft.md` — build a feature end-to-end with taste
-- `reference/layout.md` — layout, grid, spacing rhythm
-- `reference/typeset.md` — typography systems
-- `reference/colorize.md` — strategic color, OKLCH palettes
-- `reference/interaction-design.md` — interaction and motion
-- `reference/audit.md` — a11y / performance / responsive checks
-- `reference/harden.md` — production: errors, i18n, edge cases
-- `reference/distill.md` — strip to essence
-- `reference/bolder.md` / `reference/quieter.md` — dial a design up or down
+| Load | When |
+|---|---|
+| `reference/craft-floor.md` | before every UI edit: the verify checks and the defaults to refuse |
+| `reference/critique.md` | a scored UX review of a page or flow, with priorities and personas |
+| `reference/clarify.md` | labels, buttons, errors, empty-state copy and other UX writing |
+| `reference/onboard.md` | first-run flows, empty states, the path to the first win |
+| `reference/animate.md` | adding or fixing motion |
+| `reference/craft.md` | building a feature end to end with taste |
+| `reference/layout.md` | layout, grid, spacing rhythm |
+| `reference/typeset.md` | typography systems |
+| `reference/colorize.md` | strategic color, OKLCH palettes |
+| `reference/interaction-design.md` | interaction patterns and forms |
+| `reference/audit.md` | a11y, performance and responsive checks |
+| `reference/harden.md` | production edge cases: errors, i18n, overflow |
+| `reference/distill.md` | stripping a design to its essence |
+| `reference/bolder.md`, `reference/quieter.md` | dialing a design up or down |
 
 ## Anti-slop inference (design-taste)
 
