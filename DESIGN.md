@@ -634,7 +634,7 @@ After the prompt was corrected on the Release Owner's machine, the same packet a
 
 ### XE-016 — Counting what a review cost never costs the review
 
-**Status:** building.
+**Status:** done. Merged to `main` in `ecd461f` (PR #47, head `4ebde4e`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260923-093946-4ebde4e-x_j2eigq` (codex/gpt-6-astra, `no_blocking_findings`, 5/5 acceptance, 32 of 34 surface files examined), with the `tests` workflow green on the same head.
 
 **Links introduced:** none. The round record's `reviewer_usage` field already exists (XE-012); this item changes how it is parsed, not what it holds.
 
@@ -648,7 +648,7 @@ Round 2 of DS-001's review (`20260923-090656-95ef88a-xatof78b`) crashed after co
 
 ### XE-017 — A finding about a file the reviewer was never shown is not checked, and says so
 
-**Status:** building.
+**Status:** done. Merged to `main` in `f82f4e2` (PR #49, head `67db337`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Reviews: `20260923-100054-6f9e6f9-vxfm8nrq` (two blockers, F1 record failures hidden behind unverifiable and F2 older records skipping the per-file report, both fixed; ended `malformed_output` on a verdict over separate findings only), `20260923-100641-877ad1b-hcoyl11f` (`no_blocking_findings`, 6/6), and after the rebase onto DS-001 `20260923-101449-67db337-zs9d1axd` (`no_blocking_findings`, 6/6, 31 of 34 files examined), with the `tests` workflow green on the merged head.
 
 **Links introduced:** none. The check reads the existing `severity`, `file` and `line` of each finding and the existing subject record; it adds no field.
 
@@ -853,7 +853,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### DS-001 — Port impeccable v4.3.1's missing playbooks, without its engine
 
-**Status:** building.
+**Status:** done. Merged to `main` in `bc0b33e` (PR #46, head `aa4feea`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260923-095118-c5b5358-7kb81jmu` (codex/gpt-6-astra): round 1 two blockers in `critique.md`, round 2 `fixes_verified`, 8/8 acceptance, with the `tests` workflow green on the same head. Five `separate` findings named files the review surface never carried (impeccable's originals, the untouched references, `commands/polish.md`); the release record carries them as `links_unverifiable`, not checked, per XE-017. Fidelity to upstream and the whole-skill link check rest on the builder's verbatim diff and sweep output in the review packet.
 
 **Links introduced:** the NOTICE names the upstream source as impeccable v4.3.1 at commit `e0881d2`, which re-resolves by cloning that commit. `SKILL.md` names each new reference by relative path, which resolves inside the tree and is checked by criterion 3.
 
