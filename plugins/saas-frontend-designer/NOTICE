@@ -33,8 +33,13 @@ Second port, 2026-09-22, from impeccable v4.3.1 at commit e0881d2:
   skills/baseline-ui/SKILL.md                  MODIFIED (page modes concept, in
                                                MoxyWolf's words; reference table)
 
-Each modified file is marked at its top. The ten v3.8.0 references above are
-unchanged.
+  skills/baseline-ui/reference/craft.md        MODIFIED (v3.8.0; two dead links
+                                               to adapt.md and codex.md rewritten)
+  skills/baseline-ui/reference/typeset.md      MODIFIED (v3.8.0; two dead links
+                                               to brand.md rewritten)
+
+Each modified file is marked at its top. The other eight v3.8.0 references
+above are unchanged.
 
 What was NOT taken from v4.3.1: the Rust engine and its 61 detector rules,
 the launcher script, live mode, generate, hooks, doctor, the native iOS and
