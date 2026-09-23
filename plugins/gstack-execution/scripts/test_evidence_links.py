@@ -210,6 +210,31 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(caught.exception.outcome, "awaiting_human_release")
         self.assertEqual(pr.load(pr.rdir(rid), "release.json")["links"]["outcome"], "links_unverifiable")
 
+    def test_an_unchecked_finding_does_not_hide_a_missing_record_entry(self):
+        """Review F1: release accepts links_unverifiable, so a missing record entry must still refuse it."""
+        rid = self.open_review()
+        self.fake_round(rid, self._unseen_file_finding("separate"))
+        d = pr.rdir(rid)
+        rec = pr.load(d, "round-1.json"); rec.pop("origin")
+        (d / "round-1.json").write_text(json.dumps(rec))
+        self.assertTrue(any(c["kind"] == "record" and not c["ok"] for c in pr.verify_links(d)["checks"]))
+        with self.assertRaises(pr.ReviewError) as caught:
+            pr.cmd_release(self.ns(review_id=rid, target="main", observation=None))
+        self.assertEqual(caught.exception.outcome, "incomplete_record")
+
+    def test_an_older_record_without_subjects_still_names_each_unseen_file(self):
+        """Review F2: the no-subjects shortcut must not swallow the per-file report."""
+        rid = self.open_review()
+        payload = self._unseen_file_finding("separate")
+        payload["findings"].append(dict(payload["findings"][0], id="F2", file="b.py"))
+        self.fake_round(rid, payload)
+        d = pr.rdir(rid)
+        rec = pr.load(d, "round-1.json"); rec.pop("subjects")
+        pr.save(d, "round-1.json", rec, "external_text", examined_by="unexamined")
+        details = [c["detail"] for c in pr.verify_links(d)["checks"] if not c["ok"]]
+        for name in ("a.py", "b.py"):
+            self.assertTrue(any(f"names {name}," in x for x in details), details)
+
     def test_verifying_nothing_is_not_a_pass(self):
         """EV-001 applied to the verifier itself."""
         _, d = self.reviewed()
