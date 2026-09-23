@@ -632,6 +632,21 @@ After the prompt was corrected on the Release Owner's machine, the same packet a
 5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.31.0, per CI-002.
 6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports the suites it examined by name with a nonzero count.
 
+### XE-016 — Grok reviews over OpenRouter, as its own family
+
+**Status:** building.
+
+**Links introduced:** the reviewer name `openrouter-grok` and the family name `grok`. Round records, `state.json` and measurement notes will carry both, so renaming either orphans every review that cites them.
+
+Dorian asked for the FrontierFounder Body Clock Audit checkpoint (PR #1, I-002 to I-004) to be reviewed by Grok on 2026-09-22. The reviewer table from XE-013 has no Grok entry, so the only way to use it today would be to point an existing family's model override at an `x-ai/` id, which would record a Grok review as a GPT or Gemini one. That's the harness-swap error XE-005 removed. This item adds Grok the way XE-013 said new families arrive: one entry per model family, named for the family, reached over the openrouter transport.
+
+1. `REVIEWERS` in `peer_review.py` gains `openrouter-grok` with `family` `grok`, `transport` `openrouter`, `model` from `GSTACK_OPENROUTER_GROK_MODEL` defaulting to `x-ai/grok-4.7`, `floor_name` `Grok 4.5 or higher`, and the same `sends` and `max_output` as the other openrouter entries.
+2. The floor accepts `grok-4.5` through `grok-4.9` and any `grok-5` or later, and rejects `grok-4.3`, `grok-4.20` and `grok-build-0.1`. A test asserts each of those six.
+3. `openrouter-grok` is last in `REVIEWER_ORDER`, so no existing default routing changes. It is reached by forcing it.
+4. `reviewer_candidates("claude")` and `reviewer_candidates("codex")` both include it, since `grok` is neither builder's family. A test asserts it.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.32.0, per CI-002.
+6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports the suites it examined by name with a nonzero count.
+
 ## Fifth objective: session memory
 
 Premise: a session's context window should be filled from the sources that hold state, not from a prose copy of them, and what a session learns should go back as pointers those sources can check. Today it runs the other way. `/session-start` reads a handoff that restates state in prose, and `/session-end` writes one. On 2026-09-19 the handoff said PR #10 was open and EV-006 through EV-008 were unstarted. `git log origin/main` said all of it had merged two days earlier. The session spent its first calls and its first premise on the copy. That's XE-008's two-homes defect at the scale of a whole session.
@@ -825,6 +840,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-22: Added XE-016 on Dorian's instruction to review FrontierFounder PR #1 with Grok. Drafted by Claude; the choice of adding a table entry rather than overriding an existing family's model was put to Dorian and approved in session. Default model `x-ai/grok-4.7` and the Grok 4.5 floor are Claude's proposal, stated in the item for Dorian to change at review.
 
 - 2026-09-22: Added XE-015, drafted by Claude for Dorian after a live BD-001 review on `MoxyWolfLLC/crm` came back having opened none of the eleven files it was offered. The prompt told it no commands could be run; `codex exec --sandbox read-only` withholds writes, not shell, and shell is how codex opens a file. Proved on the Release Owner's Mac at codex-cli 0.154.0 with the flags `run_reviewer` passes, twice, once with `--output-schema` to rule out structured output disabling tools: codex ran `cat` and returned the file both times. The round was refused only because its verdict disagreed with its severities, so the second half of this item applies `examined_nothing`, which the vocabulary already defines and already applies to the verifier, to the reviewer as well. Also restored XE-014 in the preceding commit: it was approved the same day and existed only in a checkout whose `.git` points at a missing `.git.nosync`, with no objects, refs or history.
 

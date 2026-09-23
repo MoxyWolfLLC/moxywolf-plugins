@@ -85,6 +85,12 @@ REVIEWERS = {
                "floor": r"^deepseek-v([4-9]|\d{2,})\b",
                "floor_name": "DeepSeek v4 or higher",
                "sends": ["CHANGE.diff", "changed", "callers"]},
+    # XE-016: Grok as its own family. Last in REVIEWER_ORDER, so it runs only when forced.
+    "openrouter-grok": {"family": "grok", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+               "model": os.environ.get("GSTACK_OPENROUTER_GROK_MODEL", "x-ai/grok-4.7"),
+               "floor": r"^grok-(4\.[5-9]|([5-9]|\d{2,})(\.\d+)?)$",
+               "floor_name": "Grok 4.5 or higher",
+               "sends": ["CHANGE.diff", "changed", "callers"]},
 }
 TRANSPORTS = {"cli", "openrouter"}
 # XE-013.2: refused at the table, not at run time. An entry named for its transport would span
@@ -107,7 +113,8 @@ for _n, _c in REVIEWERS.items():
 # measure what a reviewer CHOSE to read when it does the choosing. The api entries are
 # the fallback that stops a missing binary from landing a checkpoint unreviewed.
 REVIEWER_ORDER = ["codex", "claude", "gemini",
-                  "openrouter-gpt", "openrouter-gemini", "openrouter-claude", "openrouter-deepseek"]
+                  "openrouter-gpt", "openrouter-gemini", "openrouter-claude", "openrouter-deepseek",
+                  "openrouter-grok"]
 # Builders are the tools that write code here. Their family decides who may review them.
 OTHER_TOOL = {"claude": "codex", "codex": "claude"}  # kept: task_graph.py and --builder choices
 

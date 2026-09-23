@@ -110,3 +110,15 @@ if __name__ == "__main__":
     for t in tests:
         t(); print(f"ok  {t.__name__}")
     print(f"\n{len(tests)} passed")
+
+
+def test_grok_is_its_own_family_with_a_floor():
+    """XE-016."""
+    assert pr.family("openrouter-grok") == "grok"
+    assert pr.REVIEWER_ORDER[-1] == "openrouter-grok"
+    for ok in ("x-ai/grok-4.5", "x-ai/grok-4.7", "grok-4.9", "grok-5"):
+        assert pr.model_ok("openrouter-grok", ok), ok
+    for bad in ("x-ai/grok-4.3", "x-ai/grok-4.20", "x-ai/grok-build-0.1"):
+        assert not pr.model_ok("openrouter-grok", bad), bad
+    assert "openrouter-grok" in pr.reviewer_candidates("claude")
+    assert "openrouter-grok" in pr.reviewer_candidates("codex")
