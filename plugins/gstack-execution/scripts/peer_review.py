@@ -1139,6 +1139,16 @@ def verify_links(d):
             known.add(f["id"])
             if f["severity"] == "blocking":
                 blocking_ids.setdefault(f["id"], n)
+        # XE-017: the prompt tells the reviewer to report a file the surface did not carry as a
+        # `separate` finding naming it, and line 0 is the only line it can give. That names a gap in
+        # what the review saw, not a location, so it is not checked, and it says so, file by file.
+        # Taken out before the no-subjects shortcut (review F2), so an older record names them too.
+        unseen = [f for f in findings if f.get("severity") == "separate" and f.get("line") == 0]
+        for f in unseen:
+            unbound += 1
+            record(f"round {n} {f['id']} -> {f['file']}:0", False,
+                   f"names {f['file']}, a file the review surface did not carry; not checked", kind="unverifiable")
+        findings = [f for f in findings if f not in unseen]
         if subjects is None and findings:
             unbound += 1
             record(f"round {n} finding subjects", False,
@@ -1668,6 +1678,12 @@ def cmd_release(a):
     if links["outcome"] in {"stale_link", "incomplete_record"}:
         broken = [c["link"] for c in links["checks"] if not c["ok"]][:5]
         raise ReviewError(links["outcome"], f"{links['broken']} of {links['examined']} link(s) did not re-resolve: {broken}")
+    # XE-017 review F1: links_unverifiable outranks incomplete_record in verify's single outcome, and
+    # release accepts links_unverifiable. Once an unseen-file finding can make a review unverifiable,
+    # a missing record entry would hide behind it, so release refuses on record failures directly.
+    missing = [c["link"] for c in links["checks"] if not c["ok"] and c["kind"] == "record"]
+    if missing:
+        raise ReviewError("incomplete_record", f"{len(missing)} required record entr(ies) missing: {missing[:5]}")
     record = {"review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
               "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"]},
