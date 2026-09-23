@@ -1,3 +1,5 @@
+> Modified by MoxyWolf LLC (2026-09-22): two links to references this plugin never carried (`adapt.md`, `codex.md`) are rewritten. Otherwise as redistributed from impeccable v3.8.0. See the plugin `NOTICE`.
+
 # Craft Flow
 
 Build a feature with impeccable UX and UI quality: shape the design, land the visual direction, build real production code, inspect and improve in-browser until it meets a high-end studio bar.
@@ -63,12 +65,12 @@ Then add references based on the brief's needs:
 - Complex interactions or forms? Consult [interaction-design.md](interaction-design.md)
 - Animation or transitions? Consult [animate.md](animate.md) (Reference Material covers motion materials, durations, easing, perceived performance)
 - Color-heavy or themed? Consult [colorize.md](colorize.md) (Reference Material covers OKLCH, palette structure, dark mode, contrast)
-- Responsive requirements? Consult [adapt.md](adapt.md) (Reference Material covers breakpoints, input methods, safe areas, responsive images)
+- Responsive requirements? Consult the Responsive Design section of [audit.md](audit.md)
 - Heavy on copy, labels, or errors? Consult [clarify.md](clarify.md) (Reference Material covers button labels, error formula, voice/tone, translation)
 
 ## Step 3: Visual Direction & Assets (Harness-Gated)
 
-If the harness has **native image generation** (currently Codex via `image_gen`), this step is mandatory. **Stop and load [codex.md](codex.md)**. It covers palette generation, mock exploration, the approval loop, mock-fidelity inventory, and asset slicing via the `impeccable_asset_producer` subagent. Follow Steps A-F in that file, then return here for Step 4.
+If the harness has **native image generation** (currently Codex via `image_gen`), this step is mandatory. Use it to generate palette and mock options, get the user's approval on one, then return here for Step 4. (impeccable's Codex-specific playbook for this step is not carried in this plugin.)
 
 If the harness lacks native image generation, **state in one line that the visual-direction-by-generation step is being skipped because the harness lacks native image generation, then proceed**. The one-line announcement is required; it forces a conscious decision instead of letting the step quietly evaporate. The brief is your only visual reference. Implement directly from it, treating any named anchor references and the brief's "Design Direction" as the contract.
 

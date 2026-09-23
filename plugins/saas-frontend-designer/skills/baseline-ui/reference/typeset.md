@@ -1,10 +1,12 @@
+> Modified by MoxyWolf LLC (2026-09-22): two links to `brand.md`, which this plugin never carried, are rewritten. Otherwise as redistributed from impeccable v3.8.0. See the plugin `NOTICE`.
+
 Typography carries most of the information on the page. Replace generic defaults (Inter, Roboto, system fallback at flat scale) with type that reflects the brand and scales with intentional contrast.
 
 ---
 
 ## Register
 
-Brand: run the font selection procedure in [brand.md](brand.md). Fluid `clamp()` scale, ≥1.25 ratio between steps.
+Brand: choose a face through **Font Selection & Pairing** below. Fluid `clamp()` scale, ≥1.25 ratio between steps.
 
 Product: system fonts and familiar sans stacks are legitimate here. One well-tuned family typically carries the whole UI. Fixed `rem` scale, 1.125–1.2 ratio between more closely-spaced steps.
 
@@ -163,7 +165,7 @@ Use `ch` units for character-based measure (`max-width: 65ch`). Line-height scal
 
 #### Font Selection & Pairing
 
-The tactical selection procedure and the reflex-reject list live in [reference/brand.md](brand.md) under **Font selection procedure** and **Reflex-reject list** (loaded for brand-register tasks). The rest of this section covers the adjacent knowledge: anti-reflex corrections, system font use, and pairing rules.
+This section covers anti-reflex corrections, system font use, and pairing rules. (impeccable's separate font-selection procedure and reflex-reject list are not carried in this plugin.)
 
 ##### Anti-reflexes worth defending against
 

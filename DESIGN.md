@@ -832,6 +832,25 @@ The version has three homes, not two, and DR-013 (2026-06-14) says which one the
 8. The catalog is clean when the check lands, per DR-102. The top-level version is bumped in this same change, which is what finally ships 0.12.0.
 9. Tests: a changed plugin at an unmoved version FAILS; the same plugin with a moved version passes; a changed plugin whose own version moved while the top-level did not FAILS, which is criterion 2 as a test; a new plugin passes; a range touching no plugin passes while reporting zero examined; an unresolvable base FAILS; and the check runs over this repository's real history: across `6c9912c`, where it must catch `gstack-execution` at an unmoved 0.27.0, and across `d619c06..2293ff6`, where six consecutive merges sit at an unmoved top-level version and it must fail the three of them that changed a plugin while passing the three that changed none.
 
+## Ninth objective: design craft
+
+Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for design taste in this marketplace (fold-in plan, 2026-06-25). It carries impeccable's playbooks as of v3.8.0. Upstream is now v4.3.1 and has added playbooks we lack, next to a Rust engine we won't ship.
+
+### DS-001 — Port impeccable v4.3.1's missing playbooks, without its engine
+
+**Status:** building.
+
+**Links introduced:** the NOTICE names the upstream source as impeccable v4.3.1 at commit `e0881d2`, which re-resolves by cloning that commit. `SKILL.md` names each new reference by relative path, which resolves inside the tree and is checked by criterion 3.
+
+1. `skills/baseline-ui/reference/` gains `critique.md`, `clarify.md`, `onboard.md`, `animate.md` and `craft-floor.md`, taken from impeccable at `e0881d2`. Files with nothing to strip go in verbatim. Files that call the engine or link to references we don't carry are modified, and each modified file says so at its top (Apache-2.0 section 4(b)).
+2. Every engine dependency is removed or re-expressed as something the agent does by hand: launcher calls, `detect`, `live-server`, `critique-storage`, and the editor-hook sentence in `craft-floor.md`. No step in a ported file needs a binary, a network download or a script.
+3. A grep of `skills/baseline-ui/` finds no `scripts/impeccable`, no `skill-base-dir` and no `live-server`, and every relative `.md` link in the skill resolves to a file that exists. Run over the whole skill, not only the new files.
+4. `SKILL.md` gains the four page modes (Persuade, Operate, Read, Experience), written in our words, and a table saying when to load each new reference. Its description stays within the CI-001 limit.
+5. The ten references already vendored keep their content. The one exception is link repair: `craft.md` and `typeset.md` link to `adapt.md`, `codex.md` and `brand.md`, which were never vendored, and those four links are rewritten to point at material this skill carries. Both files are then marked modified, here and in the NOTICE. Refreshing the ten to v4.3.1 is a separate decision.
+6. `NOTICE` and `README.md` name v4.3.1 at `e0881d2`, list each new file as verbatim or modified, and list what was not taken: the engine and its detector rules, live mode, `generate`, hooks, `doctor`, and `init` and `document`, because `DESIGN.md` belongs to `/gstack-design-doc`.
+7. `saas-frontend-designer` moves 1.2.0 to 1.3.0 in `plugin.json` and its `marketplace.json` entry, and the top-level marketplace version moves too (CI-002). Versions change by surgical text replace, and the diff on both JSON files shows version lines only.
+8. Tests: `run_all_tests.py` green on the branch, with the CI-001 packaging check and the CI-002 version check both reporting `saas-frontend-designer` among what they examined.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -841,6 +860,10 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-09-23: Added XE-016 on Dorian's instruction after DS-001's review round 2 crashed inside `reviewer_usage()` on a comma-only codex usage match, losing a completed codex round. Fixed as its own item rather than inside DS-001.
+
+- 2026-09-22: Dorian approved a ninth objective, design craft, after a fit review of impeccable v4.3.1 against the v3.8.0 material already in `saas-frontend-designer` (`Taskade/Team Plugins/06 – Engineering/impeccable-v4-delta-fit-2026-09-22.md`). DS-001 ports five playbooks and the four page modes and leaves the engine out.
+
+- 2026-09-22: Dorian amended DS-001 criterion 5 during the build. Criterion 3's whole-skill link check found four dead links in two of the ten June-vendored references (`craft.md`, `typeset.md`); criterion 5 had forbidden touching them. Link repair only is now allowed in those two files.
 
 - 2026-09-22: Added XE-015, drafted by Claude for Dorian after a live BD-001 review on `MoxyWolfLLC/crm` came back having opened none of the eleven files it was offered. The prompt told it no commands could be run; `codex exec --sandbox read-only` withholds writes, not shell, and shell is how codex opens a file. Proved on the Release Owner's Mac at codex-cli 0.154.0 with the flags `run_reviewer` passes, twice, once with `--output-schema` to rule out structured output disabling tools: codex ran `cat` and returned the file both times. The round was refused only because its verdict disagreed with its severities, so the second half of this item applies `examined_nothing`, which the vocabulary already defines and already applies to the verifier, to the reviewer as well. Also restored XE-014 in the preceding commit: it was approved the same day and existed only in a checkout whose `.git` points at a missing `.git.nosync`, with no objects, refs or history.
 
