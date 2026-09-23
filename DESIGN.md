@@ -853,7 +853,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### DS-001 — Port impeccable v4.3.1's missing playbooks, without its engine
 
-**Status:** building.
+**Status:** done. Merged to `main` in `bc0b33e` (PR #46, head `aa4feea`) on 23 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260923-095118-c5b5358-7kb81jmu` (codex/gpt-6-astra): round 1 two blockers in `critique.md`, round 2 `fixes_verified`, 8/8 acceptance, with the `tests` workflow green on the same head. Five `separate` findings named files the review surface never carried (impeccable's originals, the untouched references, `commands/polish.md`); the release record carries them as `links_unverifiable`, not checked, per XE-017. Fidelity to upstream and the whole-skill link check rest on the builder's verbatim diff and sweep output in the review packet.
 
 **Links introduced:** the NOTICE names the upstream source as impeccable v4.3.1 at commit `e0881d2`, which re-resolves by cloning that commit. `SKILL.md` names each new reference by relative path, which resolves inside the tree and is checked by criterion 3.
 
