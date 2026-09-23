@@ -646,6 +646,21 @@ Round 2 of DS-001's review (`20260923-090656-95ef88a-xatof78b`) crashed after co
 4. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.32.0, and the top-level marketplace version moves, per CI-002.
 5. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count.
 
+### XE-017 — A finding about a file the reviewer was never shown is not checked, and says so
+
+**Status:** building.
+
+**Links introduced:** none. The check reads the existing `severity`, `file` and `line` of each finding and the existing subject record; it adds no field.
+
+`build_prompt()` tells the reviewer that when a judgement needs a file the surface does not carry, it reports "a finding with severity `separate` naming the file". Reviewers do exactly that, at line 0, because there is no line to name. `verify_links()` then treats the finding as a location to re-resolve: a line-0 finding against a file that exists at the head fails `line_exists` and is counted as a `link` failure, and `release` refuses the whole review as `stale_link`. DS-001's review `20260923-095118-c5b5358-7kb81jmu` reached `fixes_verified` and was refused this way, on five such findings. The contract asked for the finding, and the verifier punished the review for having it.
+
+1. In `verify_links()`, a finding with severity `separate` and line 0 is recorded as `unverifiable`, with a detail saying it names a file the review surface did not carry and was not checked. It is not a `link` failure. This is decided before the `bound` and `line_exists` checks, so it holds for records written before this change, and for paths inside and outside the packet repositories alike.
+2. Every other finding is judged as before. A `blocking` or `follow_up` finding at line 0, or a `separate` finding at a real line, still has to re-resolve.
+3. A review whose only broken checks are these reports `links_unverifiable`, which `release` already accepts, and the release record carries that outcome and the count, so the handoff says what was not checked.
+4. Tests in `test_evidence_links.py`: a round with a `separate` line-0 finding against an existing file reports `links_unverifiable`, not `stale_link`, and its check detail names the file as not carried; the same finding marked `blocking` still reports `stale_link`; and `cmd_release` on a passing review carrying such a finding reaches `awaiting_human_release`.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.33.0, and the top-level marketplace version moves, per CI-002.
+6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count.
+
 ## Fifth objective: session memory
 
 Premise: a session's context window should be filled from the sources that hold state, not from a prose copy of them, and what a session learns should go back as pointers those sources can check. Today it runs the other way. `/session-start` reads a handoff that restates state in prose, and `/session-end` writes one. On 2026-09-19 the handoff said PR #10 was open and EV-006 through EV-008 were unstarted. `git log origin/main` said all of it had merged two days earlier. The session spent its first calls and its first premise on the copy. That's XE-008's two-homes defect at the scale of a whole session.
@@ -858,6 +873,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-23: Added XE-017 on Dorian's instruction ("Handle it like XE-016") after DS-001's passing review was refused at release as `stale_link`, on five line-0 `separate` findings the contract itself had asked the reviewer to write.
 
 - 2026-09-23: Added XE-016 on Dorian's instruction after DS-001's review round 2 crashed inside `reviewer_usage()` on a comma-only codex usage match, losing a completed codex round. Fixed as its own item rather than inside DS-001.
 
