@@ -866,6 +866,25 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 7. `saas-frontend-designer` moves 1.2.0 to 1.3.0 in `plugin.json` and its `marketplace.json` entry, and the top-level marketplace version moves too (CI-002). Versions change by surgical text replace, and the diff on both JSON files shows version lines only.
 8. Tests: `run_all_tests.py` green on the branch, with the CI-001 packaging check and the CI-002 version check both reporting `saas-frontend-designer` among what they examined.
 
+### XE-018 — A reviewer sees what the change names, and CI results the dispatcher fetched itself
+
+**Status:** building.
+
+**Links introduced:** `tests.ci_runs` in the packet names GitHub Actions runs by ID. The round record carries what the dispatcher fetched for each one, including the run's `head_sha`, and a run is evidence only for the head it ran at. A run ID that later points at nothing is reported as not read, never dropped.
+
+PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 September 2026 and none could pass. Every round found no code defect. Every round marked a criterion that needs a command to succeed as not established, and said why. The surface carries the diff, the changed files, and files that name a changed file's stem in `.py`, `.sh` or `.yml`. It never carries a file the change itself names. `ci.yml` calls `scripts/local-supabase.ts` and the new test imports `./client`, and the reviewer was shown neither. The only execution evidence it had was the builder's own account in `tests.results`, which the contract tells it to treat as a claim. The green CI run at the reviewed head existed, and nothing put it in front of the reviewer in a form the builder could not have written. Round 3 accepted the type check on that account and round 4 refused the same words, so the outcome turned on the reviewer's reading rather than on evidence. Rounds 1, 2 and 4 then ended `malformed_output`, because a reviewer that cannot establish a criterion calls the verdict blocking with no blocking finding.
+
+1. The surface gains `dependencies/`: tracked files, not changed and not already callers, that a changed file names by repository-relative path or imports by a relative specifier (`./x`, `../x`, resolved with the extensions `.ts`, `.tsx`, `.js`, `.mjs`, `.py`, `.json` and `/index.ts`), and files an acceptance criterion names by path. A criterion that names a directory brings that directory's `package.json` or `pyproject.toml`. The set is bounded by the same cap as callers and the withheld count is reported.
+2. `SURFACE.md` lists the dependencies and says why each is there, and the round record's `surface` block counts them.
+3. The packet may carry `tests.ci_runs`, a list of `{repo, run_id}` where `repo` is a packet repository path or directory name. For each, the dispatcher reads the GitHub Actions run and its jobs through `github_get` and writes `evidence/ci-<run_id>.json` into the surface with `origin` `gate_output`: the run URL, `head_sha`, the reviewed head, `head_matches`, the conclusion, and every job and step with its conclusion. The builder never writes this file.
+4. A run whose `head_sha` is not the reviewed head is still written, with `head_matches: false`, and `SURFACE.md` says it is not evidence for this head. A run that cannot be read is written with `read: false` and the error, and the round continues. Neither is silently dropped.
+5. The prompt tells the reviewer that `evidence/` was fetched by the dispatcher from the CI provider, not written by the builder, and that a step with conclusion `success` in a run whose `head_matches` is true is evidence that step ran and passed at the reviewed head.
+6. The round record carries an `evidence` block: runs requested, runs read, and runs whose head matched.
+7. Tests in `test_review_evidence.py` drive `build_surface` over a temporary repository: a changed file naming another by path, a relative import, and a criterion naming a file and a directory each bring the named file into `dependencies/`; the cap reports what it withheld; a CI run is written with `head_matches` true and false as the fake GitHub answers; and a run GitHub refuses is written with `read: false` without raising.
+8. The peer-review contract's packet table and scope section, and `/gstack-build`'s Step 5, name `tests.ci_runs` and the two new surface folders, each in one place.
+9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.34.0, and the top-level marketplace version moves, per CI-002.
+10. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -873,6 +892,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-24: Added XE-018 on Dorian's instruction ("fix the gstack plugin first") after four codex reviews of SAMS PL-001 found no code defect and still could not pass: the surface never carried the files the change names, and the green CI run at the reviewed head reached the reviewer only as the builder's account of it.
 
 - 2026-09-23: Added XE-017 on Dorian's instruction ("Handle it like XE-016") after DS-001's passing review was refused at release as `stale_link`, on five line-0 `separate` findings the contract itself had asked the reviewer to write.
 
