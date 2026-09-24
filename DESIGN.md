@@ -868,7 +868,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### XE-018 — A reviewer sees what the change names, and CI results the dispatcher fetched itself
 
-**Status:** review.
+**Status:** done. Merged to `main` in `b213899` (PR #50, head `53cb396`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-145914-09e6ee3-gtge526o` (codex/gpt-6-astra): round 1 found three blockers (F1 single-component paths, F2 one page of jobs, F3 Step 5 folders), all fixed; round 2 `fixes_verified`, 10/10, with the `tests` workflow green at the reviewed head and read by the dispatcher itself. First use: SAMS PL-001 review `20260924-150655-40254e8-b7gynlsz` passed 4/4 after four earlier rounds could not.
 
 **Links introduced:** `tests.ci_runs` in the packet names GitHub Actions runs by ID. The round record carries what the dispatcher fetched for each one, including the run's `head_sha`, and a run is evidence only for the head it ran at. A run ID that later points at nothing is reported as not read, never dropped.
 
