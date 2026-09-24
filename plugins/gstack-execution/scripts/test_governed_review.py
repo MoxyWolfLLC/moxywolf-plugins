@@ -305,6 +305,15 @@ class GovernedReview(unittest.TestCase):
         self.assertEqual(json.loads(r.stdout)["outcome"], "human_merge_recorded")
         self.assertEqual(seen, [("/repos/example/project/pulls/1", "token ghs_fixture")])
 
+    def test_a_callers_github_token_does_not_reach_the_record(self):
+        # XE-019 criterion 2: a shell exporting a token GitHub would refuse, and an API URL nothing
+        # answers on, must not route record-release away from the stub. Proven in CI on every run.
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "ghs_refused", "GSTACK_GITHUB_API": "http://127.0.0.1:9"}):
+            self.setUp()
+        self.assertNotIn("GITHUB_TOKEN", self.env)
+        self.test_human_merge_is_recorded_from_github()
+
     def test_human_merge_is_recorded_from_github(self):
         self.open(); self.response(); self.round()
         self.call("release", self.rid)
