@@ -891,7 +891,7 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 ### XE-019 — A test that fakes GitHub cannot reach the real one
 
-**Status:** building.
+**Status:** done. Merged to `main` in `fda18ed` (PR #52, head `247c448`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-163849-247c448-m56xedwi` (codex/gpt-6-astra, `no_blocking_findings`, 4/4), with the `tests` workflow green at the reviewed head and read by the dispatcher itself. The review before it (`20260924-163251-860613c-9aou_1nn`, also clean) raised a separate finding: a plaintext Composio API key in the archived May handoff, public since `0bea07b`. It is redacted from the tree in `247c448`; it remains in history, so rotating the key is the fix, and that is Dorian's act.
 
 **Links introduced:** none. The test drops two variables from the environment it hands its subprocess; nothing is named, cached or retained.
 
