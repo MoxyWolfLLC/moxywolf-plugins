@@ -549,6 +549,15 @@ def github_name(path):
     return match.group(1) if match else None
 
 
+def apply_ci_runs(packet, specs):
+    """XE-018: a fix round moves the head, so the run that is evidence for it moves too.
+    Each spec is REPO=RUN_ID; given any, they replace tests.ci_runs for this and later rounds."""
+    if specs:
+        packet.setdefault("tests", {})["ci_runs"] = [
+            {"repo": k, "run_id": int(v)} for k, v in (s.rsplit("=", 1) for s in specs)]
+    return packet
+
+
 def fetch_ci_evidence(repos, ci_runs, surf):
     """XE-018.3-4: read each named GitHub Actions run and write what it says into the surface.
     A run at another head is written and marked; a run that cannot be read is written as unread.
@@ -1582,6 +1591,7 @@ def cmd_round(a):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
+    apply_ci_runs(packet, getattr(a, "ci_run", None))
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
               "vocabulary_version": VOCAB_VERSION}
@@ -1749,6 +1759,8 @@ def cmd_dispatch(a):
     argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
     for h in getattr(a, "head", []) or []:
         argv += ["--head", h]
+    for c in getattr(a, "ci_run", []) or []:
+        argv += ["--ci-run", c]
     with open(log, "ab") as fh:
         proc = subprocess.Popen(argv, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                 start_new_session=True, cwd=str(d))
@@ -2059,8 +2071,10 @@ def main():
                    help="open anyway despite uncovered declared criteria; recorded in the review state")
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
+    r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     di = sub.add_parser("dispatch"); di.add_argument("review_id"); di.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
+    di.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
     co = sub.add_parser("collect"); co.add_argument("review_id")
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")

@@ -131,6 +131,13 @@ class SurfaceEvidenceTests(unittest.TestCase):
         self.assertEqual(len(rec["jobs"]), 101)
         self.assertEqual(rec["jobs"][-1]["name"], "j100")
 
+    def test_a_fix_round_names_the_run_for_its_new_head(self):
+        packet = {"tests": {"commands": [], "ci_runs": [{"repo": "app", "run_id": 1}]}}
+        pr.apply_ci_runs(packet, [])
+        self.assertEqual(packet["tests"]["ci_runs"], [{"repo": "app", "run_id": 1}], "no flag keeps the packet's runs")
+        pr.apply_ci_runs(packet, ["app=9"])
+        self.assertEqual(packet["tests"]["ci_runs"], [{"repo": "app", "run_id": 9}])
+
     def test_no_ci_runs_means_no_evidence_folder(self):
         surf, stats = self.surface()
         self.assertFalse((surf / "evidence").exists())
