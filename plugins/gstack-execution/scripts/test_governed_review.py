@@ -47,6 +47,9 @@ class GovernedReview(unittest.TestCase):
         self.env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), PYTHONDONTWRITEBYTECODE="1")
         self.env.pop("GSTACK_PEER_REVIEW_SESSION", None)
         self.env.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+        # XE-019: the caller's token would route record-release to the live API instead of the stubs
+        self.env.pop("GITHUB_TOKEN", None)
+        self.env.pop("GSTACK_GITHUB_API", None)
         binary = self.root / "bin"
         binary.mkdir()
         reviewer = binary / "codex"

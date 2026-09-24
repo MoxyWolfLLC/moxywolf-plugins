@@ -88,7 +88,7 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 
 ### GA-007 — The credential can say what it actually grants
 
-**Status:** building in this change.
+**Status:** review. Merged to `main` in `3c79c86` (PR #39, head `571574b`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, with its version in `2014ab5` (PR #40). Criteria 1 to 5 are evidenced in the pull request, criterion 5 against two live installations. **Merged without cross-tool review at that head**, on Dorian's instruction to fix it and merge, so no review record or release record exists and the item stays `review`, not `done`.
 
 **Links introduced:** none. It reads the access-token response the app already receives and prints a field `mint()` was discarding.
 
@@ -569,7 +569,9 @@ One measured session sets the scale. The session of 2026-09-19 that built SM-002
 
 ### XE-013 — A reviewer is reached over a transport, and its identity stays the model's
 
-**Status:** building.
+**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+
+**No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
 **Links introduced:** the round record gains a transport name and a provider model id. The model id resolves at the provider, not in this repository, so a model the provider retires leaves a record naming something that no longer resolves. The record keeps the model family alongside it, which does not go stale, and a reader checking what independence was obtained reads that rather than the id.
 
@@ -615,7 +617,7 @@ What is not wrong, and was claimed as wrong in this item's first draft: there is
 
 ### XE-015 — A reviewer told it has no shell opens nothing, and still answers in schema
 
-**Status:** planned.
+**Status:** review. Merged to `main` in `ee9800e` (PR #42, head `5cd483f`) on 22 September 2026 by `moxywolf-agent[bot]`. The fix was exercised live on `MoxyWolfLLC/crm` (review `20260922-152749-f66c764-h4odx948` read 0 of 11 files before it, 8 of 11 after), but no review record at head `5cd483f` exists in `_gstack-review`, so the item stays `review`, not `done`.
 
 **Links introduced:** none. The round record's `examined` block already carries `read_tracking`, `examined_count` and `offered_count`; this item reads them instead of adding a field.
 
@@ -829,7 +831,9 @@ The premise: **every check in this repository tests the scripts, and nothing tes
 
 ### CI-002 — A change ships to installs only if its version moves
 
-**Status:** building.
+**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+
+**No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
 **Links introduced:** none. The check resolves a diff range at run time, names plugins by their marketplace roster name and repository path, and retains nothing.
 
@@ -887,7 +891,7 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 ### XE-019 — A test that fakes GitHub cannot reach the real one
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** none. The test drops two variables from the environment it hands its subprocess; nothing is named, cached or retained.
 
