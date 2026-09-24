@@ -492,7 +492,7 @@ def caller_files(repos, changed, cap):
 DEP_EXTS = ("", ".ts", ".tsx", ".js", ".mjs", ".py", ".json", "/index.ts")
 MANIFESTS = ("package.json", "pyproject.toml")
 REL_IMPORT = re.compile(r"""['"](\.{1,2}/[^'"\s]+)['"]""")
-PATH_TOKEN = re.compile(r"[A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)+")
+PATH_TOKEN = re.compile(r"[A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)*")   # F1: one component is a path too
 
 
 def dependency_files(repos, changed, criteria, exclude, cap):
@@ -531,6 +531,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
             except OSError:
                 continue
             for tok in PATH_TOKEN.findall(body):
+                tok = tok.rstrip("/.")
                 if tok in tracked:
                     add(r, tok, f"named in {name}")
             for spec in REL_IMPORT.findall(body):
@@ -566,7 +567,14 @@ def fetch_ci_evidence(repos, ci_runs, surf):
                 raise ValueError("origin is not a github.com repository")
             run_id = int(entry.get("run_id"))
             run = github_get(name, f"actions/runs/{run_id}")
-            jobs = github_get(name, f"actions/runs/{run_id}/jobs?per_page=100")
+            jobs, page = [], 1
+            while True:   # F2: a run with more than 100 jobs spans pages; all of them are evidence
+                got = github_get(name, f"actions/runs/{run_id}/jobs?per_page=100&page={page}")
+                batch = got.get("jobs") or []
+                jobs += batch
+                if len(batch) < 100 or len(jobs) >= int(got.get("total_count") or 0):
+                    break
+                page += 1
             rec.update(read=True, url=run.get("html_url"), workflow=run.get("name"),
                        head_sha=run.get("head_sha"), reviewed_head=repo["head"],
                        head_matches=run.get("head_sha") == repo["head"],
@@ -574,7 +582,7 @@ def fetch_ci_evidence(repos, ci_runs, surf):
                        jobs=[{"name": j.get("name"), "conclusion": j.get("conclusion"),
                               "steps": [{"name": st.get("name"), "conclusion": st.get("conclusion")}
                                         for st in j.get("steps") or []]}
-                             for j in (jobs.get("jobs") or [])])
+                             for j in jobs])
         except Exception as e:
             rec["error"] = str(e)
         (surf / EVIDENCE_DIR).mkdir(exist_ok=True)

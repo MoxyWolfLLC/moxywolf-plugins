@@ -69,8 +69,8 @@ class SurfaceEvidenceTests(unittest.TestCase):
             self.assertEqual(name, "acme/app")
             if fail:
                 raise pr.ReviewError("release_unavailable", "403 Resource not accessible")
-            if path.endswith("/jobs?per_page=100"):
-                return {"jobs": [{"name": "Unit", "conclusion": "success",
+            if "/jobs?per_page=100" in path:
+                return {"total_count": 1, "jobs": [{"name": "Unit", "conclusion": "success",
                                   "steps": [{"name": "Run listing test", "conclusion": "success"}]}]}
             return {"html_url": "https://github.com/acme/app/actions/runs/7", "name": "CI",
                     "head_sha": head_sha, "status": "completed", "conclusion": "success"}
@@ -106,6 +106,30 @@ class SurfaceEvidenceTests(unittest.TestCase):
         self.assertFalse(rec["read"]); self.assertIn("403", rec["error"])
         self.assertEqual(stats["evidence"], {"requested": 1, "read": 0, "head_matched": 0})
         self.assertIn("could not be read", (surf / "SURFACE.md").read_text())
+
+    def test_root_file_and_top_level_directory_are_carried(self):
+        self.write("Makefile", "all:\n"); self.write("tools/pyproject.toml", "[project]\n")
+        self.sh("add", "."); self.sh("commit", "-qm", "more")
+        self.base = self.sh("rev-parse", "HEAD")
+        self.write("ci.yml", "steps:\n  - run: make -f Makefile\n"); self.sh("commit", "-qam", "use it")
+        self.repos[0].update(base=self.base, head=self.sh("rev-parse", "HEAD"))
+        surf, stats = self.surface(criteria=["`cd tools && pytest` passes."])
+        deps = surf / "dependencies" / "0-app"
+        self.assertTrue((deps / "Makefile").exists(), "a root-level file named in a changed file")
+        self.assertTrue((deps / "tools/pyproject.toml").exists(), "manifest of a top-level directory")
+
+    def test_every_page_of_jobs_is_written(self):
+        head = self.head
+        def get(name, path):
+            if "/jobs?per_page=100&page=1" in path:
+                return {"total_count": 101, "jobs": [{"name": f"j{i}", "conclusion": "success", "steps": []} for i in range(100)]}
+            if "/jobs?per_page=100&page=2" in path:
+                return {"total_count": 101, "jobs": [{"name": "j100", "conclusion": "success", "steps": []}]}
+            return {"head_sha": head, "conclusion": "success"}
+        surf, _ = self.run_with(get)
+        rec = json.loads((surf / "evidence" / "ci-7.json").read_text())
+        self.assertEqual(len(rec["jobs"]), 101)
+        self.assertEqual(rec["jobs"][-1]["name"], "j100")
 
     def test_no_ci_runs_means_no_evidence_folder(self):
         surf, stats = self.surface()
