@@ -440,7 +440,8 @@ CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml"}   # code that can break; not d
 # asserted in a test fixture, described in SURFACE.md -- and I broke it twice in an hour by
 # updating one. A format with one producer and one parser cannot drift; a rule telling me to
 # remember to check all four already existed and did not work.
-SURFACE_KINDS = ("changed", "callers")
+SURFACE_KINDS = ("changed", "callers", "dependencies")
+EVIDENCE_DIR = "evidence"   # XE-018: not per repository, so not a surface kind
 
 
 def surface_prefix(i, repo, kind):
@@ -481,7 +482,108 @@ def caller_files(repos, changed, cap):
     return hits[:cap], dropped
 
 
-def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
+# ---- XE-018: the files a change names, and CI results the dispatcher fetched itself ----
+#
+# Callers are files that name a changed file. The other direction was missing: a workflow calling
+# scripts/local-supabase.ts, a test importing ./client. Four reviews of SAMS PL-001 could not
+# judge a criterion because the file it rested on was never shown.
+# ponytail: path tokens and relative specifiers, matched against `git ls-files`. No import graph.
+# A miss costs one unshown file, which the reviewer reports as `separate`.
+DEP_EXTS = ("", ".ts", ".tsx", ".js", ".mjs", ".py", ".json", "/index.ts")
+MANIFESTS = ("package.json", "pyproject.toml")
+REL_IMPORT = re.compile(r"""['"](\.{1,2}/[^'"\s]+)['"]""")
+PATH_TOKEN = re.compile(r"[A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)+")
+
+
+def dependency_files(repos, changed, criteria, exclude, cap):
+    """Files a changed file names by path or imports relatively, and files a criterion names.
+    Returns ([(repo, name, why)], withheld). Criteria come first: they are what the verdict needs."""
+    hits, seen = [], set(exclude)
+
+    def add(r, f, why):
+        if (id(r), f) not in seen:
+            seen.add((id(r), f)); hits.append((r, f, why))
+
+    for r in repos:
+        try:
+            tracked = set(git(r["path"], "ls-files").split())
+        except Exception:
+            continue
+        dirs = set()
+        for f in tracked:
+            d = Path(f).parent
+            while str(d) != ".":
+                dirs.add(str(d)); d = d.parent
+        for c in criteria:
+            for tok in PATH_TOKEN.findall(c):
+                tok = tok.rstrip("/.")
+                if tok in tracked:
+                    add(r, tok, "named in an acceptance criterion")
+                elif tok in dirs:
+                    for m in MANIFESTS:
+                        if f"{tok}/{m}" in tracked:
+                            add(r, f"{tok}/{m}", f"manifest of {tok}/, which an acceptance criterion names")
+        for rr, name in changed:
+            if rr is not r:
+                continue
+            try:
+                body = (Path(r["path"]) / name).read_text(errors="replace")
+            except OSError:
+                continue
+            for tok in PATH_TOKEN.findall(body):
+                if tok in tracked:
+                    add(r, tok, f"named in {name}")
+            for spec in REL_IMPORT.findall(body):
+                base = os.path.normpath(os.path.join(os.path.dirname(name), spec))
+                for ext in DEP_EXTS:
+                    if base + ext in tracked:
+                        add(r, base + ext, f"imported by {name}"); break
+    return hits[:cap], max(0, len(hits) - cap)
+
+
+def github_name(path):
+    """owner/name from a repository's origin, or None when origin is not github.com."""
+    remote = git(path, "remote", "get-url", "origin")
+    match = re.fullmatch(r"(?:https://github\.com/|git@github\.com:)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?", remote)
+    return match.group(1) if match else None
+
+
+def fetch_ci_evidence(repos, ci_runs, surf):
+    """XE-018.3-4: read each named GitHub Actions run and write what it says into the surface.
+    A run at another head is written and marked; a run that cannot be read is written as unread.
+    Nothing here raises: a missing piece of evidence is a fact about the review, not a crash."""
+    out = []
+    for entry in ci_runs or ():
+        entry = entry if isinstance(entry, dict) else {}
+        rec = {"origin": "gate_output", "repo": entry.get("repo"), "run_id": entry.get("run_id"), "read": False,
+               "read_via": "GITHUB_TOKEN" if os.environ.get("GITHUB_TOKEN") else "gh"}
+        try:
+            repo = next((r for r in repos if entry.get("repo") in (r["path"], Path(r["path"]).name)), None)
+            if repo is None:
+                raise ValueError("repo is not a repository in this packet")
+            name = github_name(repo["path"])
+            if not name:
+                raise ValueError("origin is not a github.com repository")
+            run_id = int(entry.get("run_id"))
+            run = github_get(name, f"actions/runs/{run_id}")
+            jobs = github_get(name, f"actions/runs/{run_id}/jobs?per_page=100")
+            rec.update(read=True, url=run.get("html_url"), workflow=run.get("name"),
+                       head_sha=run.get("head_sha"), reviewed_head=repo["head"],
+                       head_matches=run.get("head_sha") == repo["head"],
+                       status=run.get("status"), conclusion=run.get("conclusion"),
+                       jobs=[{"name": j.get("name"), "conclusion": j.get("conclusion"),
+                              "steps": [{"name": st.get("name"), "conclusion": st.get("conclusion")}
+                                        for st in j.get("steps") or []]}
+                             for j in (jobs.get("jobs") or [])])
+        except Exception as e:
+            rec["error"] = str(e)
+        (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
+        (surf / EVIDENCE_DIR / f"ci-{rec['run_id']}.json").write_text(json.dumps(rec, indent=2))
+        out.append(rec)
+    return out
+
+
+def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=()):
     """Write the review surface. Returns (path, stats).
 
     prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
@@ -503,11 +605,13 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
         if i is not None and (id(repos[i]), rel) not in seen:
             changed.append((repos[i], rel)); seen.add((id(repos[i]), rel))
     callers, dropped = caller_files(repos, changed, cap)
+    deps, deps_dropped = dependency_files(repos, changed, criteria,
+                                          seen | {(id(r), n) for r, n in callers}, cap)
     # F2 (reviewer): the bare directory name collides when two repositories share a basename, and
     # _subject_path then binds a finding to the wrong repository. The snapshot layout used the index
     # for exactly this reason; dropping it reintroduced the bug it had already solved.
     idx = {id(r): i for i, r in enumerate(repos)}
-    for group, sub in zip((changed, callers), SURFACE_KINDS):
+    for group, sub in zip((changed, callers, [(r, n) for r, n, _ in deps]), SURFACE_KINDS):
         for r, name in group:
             src = Path(r["path"]) / name
             # snapshot() refused a symlink escaping the repository; the surface copies with
@@ -527,10 +631,22 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
             except OSError:
                 continue
     stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
-             "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())])}
+             "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())]),
+             "dependencies": len(deps), "dependencies_withheld": deps_dropped}
+    ci = fetch_ci_evidence(repos, ci_runs, surf)
+    stats["evidence"] = {"requested": len(ci), "read": sum(1 for c in ci if c["read"]),
+                         "head_matched": sum(1 for c in ci if c.get("head_matches"))}
     # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
     # what to do with them, routes the second-home check to the party whose job is finding the
     # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
+    dep_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'dependencies')}{n}` ({why})"
+                         for r, n, why in deps) or "  (none)"
+    ci_list = "\n".join(
+        f"  - `{EVIDENCE_DIR}/ci-{c['run_id']}.json`: "
+        + (("run at the reviewed head, conclusion " + str(c.get("conclusion"))) if c.get("head_matches")
+           else f"run at {str(c.get('head_sha'))[:12]}, NOT the reviewed head, so not evidence for it") if c["read"]
+        else f"  - `{EVIDENCE_DIR}/ci-{c['run_id']}.json`: could not be read ({c.get('error')})"
+        for c in ci) or "  (no CI runs named in the packet)"
     caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
@@ -538,7 +654,10 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
         f"- `CHANGE.diff` — the full diff under review\n"
         f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
         f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
-        f"- withheld by the {cap}-file cap: {dropped}\n\n"
+        f"- `{SURFACE_KINDS[2]}/` — {len(deps)} files the change or a criterion names\n"
+        f"- `{EVIDENCE_DIR}/` — {len(ci)} CI runs, fetched by the dispatcher, not the builder\n"
+        f"- withheld by the {cap}-file cap: {dropped}\n"
+        f"- dependencies withheld by the same cap: {deps_dropped}\n\n"
         "## Files the change did NOT touch, which reference what it changed\n\n"
         f"{caller_list}\n\n"
         "Check each against the diff. A change is not finished because the file it edits is "
@@ -546,6 +665,13 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=()):
         "because the builder's own checks repeatedly missed exactly this — a symbol updated in one "
         "place and left stale in another — so it is computed here rather than asserted in the "
         "packet.\n\n"
+        "## Files the change or a criterion names\n\n"
+        f"{dep_list}\n\n"
+        "## CI runs\n\n"
+        f"{ci_list}\n\n"
+        "Each file under `evidence/` was read from GitHub Actions by the dispatcher. A step with "
+        "conclusion `success` in a run whose `head_matches` is true ran and passed at the reviewed "
+        "head.\n\n"
         "## Limits\n\n"
         "The repository tree is NOT here. This is deliberate: a reviewer given the whole tree spends "
         "its budget reading it. If a judgement needs a file that is not present, do not guess — "
@@ -620,7 +746,7 @@ def examined_report(before, root):
     opened = sorted(rel for rel, t in after.items()
                     if rel in before and t != before[rel] and not rel.startswith(".read-probe"))
     # EV-008.2: the diff itself is the floor. Anything under callers/ is the reviewer going beyond it.
-    beyond = [p for p in opened if p.split("/")[0] == SURFACE_KINDS[1]]
+    beyond = [p for p in opened if p.split("/")[0] in (*SURFACE_KINDS[1:], EVIDENCE_DIR)]
     return {"read_tracking": "available",
             "examined": opened,
             "examined_count": len(opened),
@@ -649,7 +775,11 @@ def build_prompt(packet, round_no, prior_round, dispositions):
         f"Repositories under review:\n{repos}",
         "The working directory is a review surface, not a checkout: `CHANGE.diff` is the diff under "
         "review, `changed/` holds the modified files at the reviewed head, and `callers/` holds files "
-        "that reference them. `SURFACE.md` states what is present and what was withheld. The "
+        "that reference them, `dependencies/` holds files the change or an acceptance criterion "
+        "names, and `evidence/` holds CI runs the dispatcher read from GitHub Actions itself; the "
+        "builder did not write them. A step with conclusion `success` in a run whose `head_matches` "
+        "is true is evidence that the step ran and passed at the reviewed head. "
+        "`SURFACE.md` states what is present and what was withheld. The "
         "repository tree is not here; if a judgement needs a file the surface does not carry, report "
         "that as a finding with severity `separate` naming the file, rather than guessing.",
         "Read the surface before judging anything. Your tool runs read-only, which withholds "
@@ -1467,7 +1597,10 @@ def cmd_round(a):
         # now that the reviewer gets a surface. Shipping the tree to disk while the item is about
         # not shipping the tree is the joke writing itself.
         surf, surf_stats = build_surface(packet["repos"], root,
-                                         prior_findings=(prior or {}).get("findings", []))
+                                         prior_findings=(prior or {}).get("findings", []),
+                                         criteria=packet["acceptance_criteria"],
+                                         ci_runs=(packet.get("tests") or {}).get("ci_runs"))
+        record["evidence"] = surf_stats.pop("evidence")   # XE-018.6
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
@@ -1781,11 +1914,9 @@ def cmd_record_release(a):
     repo = next((r for r in packet["repos"] if r["path"] == path), None)
     if repo is None or a.pr < 1:
         raise ReviewError("release_blocked", "unknown repository or invalid PR")
-    remote = git(path, "remote", "get-url", "origin")
-    match = re.fullmatch(r"(?:https://github\.com/|git@github\.com:)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?", remote)
-    if not match:
+    name = github_name(path)
+    if not name:
         raise ReviewError("release_blocked", "origin must identify a github.com repository")
-    name = match.group(1)
     pr = github_get(name, f"pulls/{a.pr}")
     merger = pr.get("merged_by") or {} if isinstance(pr, dict) else {}
     agent = merger.get("type") == "Bot"

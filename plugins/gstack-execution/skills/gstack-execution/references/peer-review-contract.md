@@ -35,7 +35,7 @@ The builder supplies one packet per completed implementation checkpoint (not per
 | `repos` | List of `{path, base, head}`. Exact commits, one pair per repository. Approval of one pair never carries to another |
 | `changed_behavior` | What now behaves differently, and the entry points where execution reaches it |
 | `exclusions` | Settled decisions and out-of-scope areas the review must not reopen |
-| `tests` | `{commands, results, environment}`. What was run, what it showed, where |
+| `tests` | `{commands, results, environment}`, and optionally `ci_runs`: `[{repo, run_id}]` naming GitHub Actions runs. What was run, what it showed, where. The dispatcher reads each named run itself and puts it in the surface's `evidence/` folder with its `head_sha`; the builder's `results` stay a claim |
 | `data_use` | Policy owner matching `release_owner`, classification, explicit repository/history permissions, and allowed reviewer tools; checked before reviewer dispatch |
 | `prior_findings` | Finding IDs and dispositions from earlier rounds (filled in by the dispatcher after round 1) |
 
@@ -67,6 +67,8 @@ Review the diff `base..head` in each repository against the packet's outcome and
 - helpers and contracts those functions immediately depend on;
 - the API/client or writer/database boundary the change crosses;
 - tests intended to demonstrate the changed behavior.
+
+The surface carries these where it can find them. `callers/` holds files that name a changed file, `dependencies/` holds files a changed file or an acceptance criterion names, and `evidence/` holds CI runs the dispatcher read from GitHub Actions, not the builder. A step with conclusion `success` in a run whose `head_matches` is true ran and passed at the reviewed head, and counts as evidence for a criterion that needs a command to succeed.
 
 Example: a change to a writer's offsets permits examining the browser's offset calculation and the database constraint. It does not authorize redesigning the parser.
 

@@ -868,7 +868,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### XE-018 — A reviewer sees what the change names, and CI results the dispatcher fetched itself
 
-**Status:** building.
+**Status:** review.
 
 **Links introduced:** `tests.ci_runs` in the packet names GitHub Actions runs by ID. The round record carries what the dispatcher fetched for each one, including the run's `head_sha`, and a run is evidence only for the head it ran at. A run ID that later points at nothing is reported as not read, never dropped.
 
