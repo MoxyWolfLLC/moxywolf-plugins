@@ -88,7 +88,7 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 
 ### GA-007 — The credential can say what it actually grants
 
-**Status:** building in this change.
+**Status:** review. Merged to `main` in `3c79c86` (PR #39, head `571574b`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, with its version in `2014ab5` (PR #40). Criteria 1 to 5 are evidenced in the pull request, criterion 5 against two live installations. **Merged without cross-tool review at that head**, on Dorian's instruction to fix it and merge, so no review record or release record exists and the item stays `review`, not `done`.
 
 **Links introduced:** none. It reads the access-token response the app already receives and prints a field `mint()` was discarding.
 
@@ -569,7 +569,9 @@ One measured session sets the scale. The session of 2026-09-19 that built SM-002
 
 ### XE-013 — A reviewer is reached over a transport, and its identity stays the model's
 
-**Status:** building.
+**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+
+**No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
 **Links introduced:** the round record gains a transport name and a provider model id. The model id resolves at the provider, not in this repository, so a model the provider retires leaves a record naming something that no longer resolves. The record keeps the model family alongside it, which does not go stale, and a reader checking what independence was obtained reads that rather than the id.
 
@@ -615,7 +617,7 @@ What is not wrong, and was claimed as wrong in this item's first draft: there is
 
 ### XE-015 — A reviewer told it has no shell opens nothing, and still answers in schema
 
-**Status:** planned.
+**Status:** review. Merged to `main` in `ee9800e` (PR #42, head `5cd483f`) on 22 September 2026 by `moxywolf-agent[bot]`. The fix was exercised live on `MoxyWolfLLC/crm` (review `20260922-152749-f66c764-h4odx948` read 0 of 11 files before it, 8 of 11 after), but no review record at head `5cd483f` exists in `_gstack-review`, so the item stays `review`, not `done`.
 
 **Links introduced:** none. The round record's `examined` block already carries `read_tracking`, `examined_count` and `offered_count`; this item reads them instead of adding a field.
 
@@ -829,7 +831,9 @@ The premise: **every check in this repository tests the scripts, and nothing tes
 
 ### CI-002 — A change ships to installs only if its version moves
 
-**Status:** building.
+**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+
+**No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
 **Links introduced:** none. The check resolves a diff range at run time, names plugins by their marketplace roster name and repository path, and retains nothing.
 
@@ -885,6 +889,21 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.34.0, and the top-level marketplace version moves, per CI-002.
 10. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count.
 
+### XE-019 — A test that fakes GitHub cannot reach the real one
+
+**Status:** building.
+
+**Links introduced:** none. The test drops two variables from the environment it hands its subprocess; nothing is named, cached or retained.
+
+`test_governed_review.py` builds its subprocess environment from `os.environ` and fakes GitHub two ways: a `gh` stub on `PATH`, and a local HTTP server named by `GSTACK_GITHUB_API`. `github_get` takes the REST path whenever `GITHUB_TOKEN` is set, which is right in production, where `agent_token.py exec` supplies the app's token. But the test inherits the token from whatever shell runs it. In a Cowork cloud session, which exports one, nine cases skip the `gh` stub, call the live `api.github.com`, and fail `release_unavailable ... HTTP Error 403`. Measured on 24 September 2026 at `b213899`: 27 tests, 9 failures, and 27 of 27 once the two variables are dropped. CI passes only because Actions does not export the token into the step. A test whose result depends on the caller's credentials is testing the caller.
+
+1. `test_governed_review.py` drops `GITHUB_TOKEN` and `GSTACK_GITHUB_API` from `self.env` in `setUp`, beside the variables it already drops. The one test that sets them for its stub server still does, after `setUp`.
+2. With `GITHUB_TOKEN` exported to a value GitHub would refuse, `test_governed_review.py` passes in full. That is the evidence: the suite no longer reads the caller's token.
+3. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.35.0, and the top-level marketplace version moves, per CI-002.
+4. `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
+
+**Also in this change (administrative, no criteria):** `MIGRATION-rube-commits.md` and the May 2026 root `cowork-session-handoff.md` move to `docs/archive/`. Nothing in the repository references either. The other two `MIGRATION-*` files stay, because the `composio` and `daily-ops` READMEs cite them by name, and `CHARTER.md` and `PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md` are active governance cited by 35 `GOVERNANCE.md` files. The status lines of CI-002, XE-013, XE-015 and GA-007 are brought to what merged, from the review records and pull requests.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -892,6 +911,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-24: Dorian approved XE-019 after a health pass (graphify plus github-repo-analyzer) found `test_governed_review.py` failing 9 of 27 in any shell that exports `GITHUB_TOKEN`. The same change archives two unreferenced root documents and brings four status lines to what merged.
 
 - 2026-09-24: Added XE-018 on Dorian's instruction ("fix the gstack plugin first") after four codex reviews of SAMS PL-001 found no code defect and still could not pass: the surface never carried the files the change names, and the green CI run at the reviewed head reached the reviewer only as the builder's account of it.
 

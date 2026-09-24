@@ -29,7 +29,7 @@ Two manual Cowork-settings actions Claude can't perform. First, Cowork → Setti
 
 ### 3. Finish the standalone composio-agent and rotate the key
 
-`GitHub/composio-agent/` is scaffolded and typechecks but isn't a git repo yet. To run it: `npm install`, then add a real `ANTHROPIC_API_KEY` to `.env` (the Claude Agent SDK needs it to call Claude). Then `git init` and add it to GitHub Desktop. Also rotate the Composio API key `ak_b1gi2U9tb4P6rNBbGflF` — it was pasted in plaintext during setup. Generate a fresh one in the Composio dashboard and update the project `.env` and the connector config.
+`GitHub/composio-agent/` is scaffolded and typechecks but isn't a git repo yet. To run it: `npm install`, then add a real `ANTHROPIC_API_KEY` to `.env` (the Claude Agent SDK needs it to call Claude). Then `git init` and add it to GitHub Desktop. Also rotate the Composio API key `[REDACTED: key removed 2026-09-24, rotate in the Composio dashboard]` — it was pasted in plaintext during setup. Generate a fresh one in the Composio dashboard and update the project `.env` and the connector config.
 
 ### 4. Decide on the Bern email
 
@@ -69,7 +69,7 @@ Paste Summary and Description as the two GitHub Desktop fields — plain text, n
 - **moxywolf-plugins is a git repo — quit GitHub Desktop before bulk writes.** Its file-watcher races multi-file writes and can strand a `.git/index.lock`.
 - **The composio plugin does not bundle an MCP server.** Composio's MCP endpoint is org-specific (URL plus API key); the connector is added at the Cowork level via `/composio-setup`, not shipped in the plugin.
 - **Google Drive mounts — use the Read tool, not bash.** bash `sed` / `cat` on vault files (Google Drive) hit "Resource deadlock avoided" this session. The Read tool works fine. bash is fine on the local `GitHub/` repos.
-- **Composio API key was pasted in plaintext** (`ak_b1gi2U9tb4P6rNBbGflF`) — rotate it. See Open work #3.
+- **Composio API key was pasted in plaintext** (`[REDACTED: key removed 2026-09-24, rotate in the Composio dashboard]`) — rotate it. See Open work #3.
 
 ## Suggested opening line
 
