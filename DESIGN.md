@@ -955,7 +955,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-022 — A test that stages an absent reviewer cannot find the real one
 
-**Status:** building on `build/XE-022-no-real-reviewer-in-tests`.
+**Status:** done. Merged to `main` in `e715da2` (PR #61, head `c400a53`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260925-080303-c400a53-vpkvgbxq` (codex/gpt-6-astra, `no_blocking_findings`, 5/5), with the `tests` workflow green at the reviewed head and read by the dispatcher itself. The review before it (`20260925-075306-d939046-6xn07qgh`) found F1, relative and empty `PATH` entries judged from the wrong working directory, fixed in `932eca7` and verified resolved; it ended `malformed_output` on a verdict that disagreed with its own severities, so the pass is a new review.
 
 **Links introduced:** none. The test narrows the environment it hands its subprocess; nothing is named, cached or retained.
 
