@@ -88,7 +88,7 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 
 ### GA-007 — The credential can say what it actually grants
 
-**Status:** review. Merged to `main` in `3c79c86` (PR #39, head `571574b`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, with its version in `2014ab5` (PR #40). Criteria 1 to 5 are evidenced in the pull request, criterion 5 against two live installations. **Merged without cross-tool review at that head**, on Dorian's instruction to fix it and merge, so no review record or release record exists and the item stays `review`, not `done`.
+**Status:** done. Merged to `main` in `3c79c86` (PR #39, head `571574b`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, with its version in `2014ab5` (PR #40), without cross-tool review at that head. Reviewed retroactively on 25 September at exactly that head: review `20260925-084234-571574b-9yqea0s4` (codex/gpt-6-astra, `no_blocking_findings`, 5/5), CI run 35690572187 read by the dispatcher. No release record exists: `record-release` refuses a merge that predates its review, and Dorian ruled the item done with this note.
 
 **Links introduced:** none. It reads the access-token response the app already receives and prints a field `mint()` was discarding.
 
@@ -617,7 +617,7 @@ What is not wrong, and was claimed as wrong in this item's first draft: there is
 
 ### XE-015 — A reviewer told it has no shell opens nothing, and still answers in schema
 
-**Status:** review. Merged to `main` in `ee9800e` (PR #42, head `5cd483f`) on 22 September 2026 by `moxywolf-agent[bot]`. The fix was exercised live on `MoxyWolfLLC/crm` (review `20260922-152749-f66c764-h4odx948` read 0 of 11 files before it, 8 of 11 after), but no review record at head `5cd483f` exists in `_gstack-review`, so the item stays `review`, not `done`.
+**Status:** done. Merged to `main` in `ee9800e` (PR #42, head `5cd483f`) on 22 September 2026 by `moxywolf-agent[bot]`, without cross-tool review at that head. Reviewed retroactively on 25 September at exactly that head: review `20260925-084236-5cd483f-frmnwj29` (codex/gpt-6-astra, `no_blocking_findings`, 6/6), CI run 35796467639 read by the dispatcher. No release record exists: `record-release` refuses a merge that predates its review, and Dorian ruled the item done with this note.
 
 **Links introduced:** none. The round record's `examined` block already carries `read_tracking`, `examined_count` and `offered_count`; this item reads them instead of adding a field.
 
@@ -969,6 +969,33 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 **Not in this item:** `endform_workflow --selftest`'s `/tmp` vs `/private/tmp` failure, a separate defect in `_tsconfig_extends`. The three other tests that put a stub on `PATH` stub the reviewer they reach, so they shadow the real one rather than miss it.
 
+### XE-023 — The E2E preflight resolves the repo before it compares paths under it
+
+**Status:** planned.
+
+**Links introduced:** none. `preflight()` resolves the path it's handed; nothing is named, cached or retained.
+
+`endform_workflow.py --selftest` fails on macOS and passes on Linux CI. `_tsconfig_extends` resolves the package root, so a `tsconfig.json` under it comes back as `/private/tmp/...`, then compares it with `relative_to()` against a repo path that was never resolved, `/tmp/...`. On macOS `/tmp` is a link to `/private/tmp`, so `relative_to()` raises `ValueError` and the selftest dies. `main()` resolves `--repo` before it calls `preflight()`, so the command a user runs is safe; the selftest isn't, because it hands `preflight()` the raw `tempfile.mkdtemp()` path. Measured on the Release Owner's Mac on 25 September 2026 at `74f0048`: it fails the same way on `main`. It's the second of the two macOS-only failures open since PR #42.
+
+1. `preflight()` resolves the repo it is given, once, before any helper compares a path against it. Every caller routes through it, so no helper resolves on its own.
+2. The selftest runs `preflight()` through a symlink to a repo whose `tsconfig.json` extends a relative path, so the case is exercised on Linux CI and not only on a Mac.
+3. On the Release Owner's Mac, `endform_workflow.py --selftest` passes, captured by script into `docs/evidence/` with the SHA-256 of every file it ran, as XE-022 did.
+4. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.39.1, and the top-level marketplace version moves, per CI-002. XE-024 ships under the same bump.
+5. `scripts/run_all_tests.py` in CI reports what it examined with a nonzero count and no failures, and on the Release Owner's Mac, captured into the same evidence file, it reports no failures.
+
+
+### XE-024 — A task-graph test that fails says why
+
+**Status:** planned.
+
+**Links introduced:** none. A test helper adds the executor's stderr to an assertion message; nothing is named, cached or retained.
+
+`test_task_graph.py`'s `test_changed_revision_and_evidence_invalidate_cached_success` failed once in a full Linux run at `b847b6c` on 24 September 2026, and once in 33 isolated runs on the Release Owner's Mac on 25 September, both times on the first `execute()` with return code 1, before any caching is involved. 150 in-process runs, 150 under full CPU load, and 218 subprocess runs, four at a time, didn't reproduce it. The cause is unknown, and the test destroys the only evidence: `assertEqual(r.returncode, 0)` prints `1 != 0` and throws the executor's stderr away. Guessing a fix for a failure nobody can see would be a second defect.
+
+1. Every assertion in `test_task_graph.py` that an executor call returned 0 goes through one helper whose failure message carries that call's stderr. No assertion that a call succeeded is left without it.
+2. The root cause is not claimed here. The next failure's stderr is filed as its own item.
+3. It ships with XE-023, under XE-023 criterion 4's version bump.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -976,6 +1003,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-25: Added XE-023 and XE-024 on Dorian's instruction ("fix the last four") to close the two macOS-only failures open since PR #42 (XE-022 closed the other) and the intermittent `test_task_graph` failure. XE-024 makes that test report its cause rather than guessing one: 518 runs could not reproduce it.
+
+- 2026-09-25: GA-007 and XE-015 marked done on Dorian's ruling. Both merged on 22 September without cross-tool review; each was reviewed clean on 25 September at exactly the head that merged. `record-release` refuses both as `merge predates the release handoff`, by design, so neither carries a release record.
 
 - 2026-09-25: Added XE-022 on Dorian's instruction ("do that, yes") after `test_dispatch_collect.py`'s macOS-only failure, open since PR #42, was traced to the real `codex` answering a test that meant to have no reviewer.
 
