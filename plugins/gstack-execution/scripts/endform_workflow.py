@@ -461,11 +461,23 @@ def selftest():
     _, text = run_preflight(mono)
     assert status_of(text, "tsconfig_within_project") == "PASS", text
 
-    # XE-023: the same tree reached through a symlink, as macOS reaches /tmp through /private/tmp.
-    # preflight must resolve the repo before comparing the resolved tsconfig path against it.
-    link = Path(tempfile.mkdtemp()) / "via-link"; link.symlink_to(mono)
-    _, text = run_preflight(link)
-    assert status_of(text, "tsconfig_within_project") == "PASS", text
+    # XE-023: a repo reached through a symlink, as macOS reaches /tmp through /private/tmp. The
+    # tsconfig escapes its package, so the check must compare the resolved tsconfig path against
+    # the repo; an unresolved repo made relative_to() raise instead of reporting FAIL. The fixture
+    # lives under a resolved directory, so this case exercises the link on Linux as well.
+    real = Path(tempfile.mkdtemp()).resolve() / "repo"
+    (real / "website").mkdir(parents=True)
+    (real / "package-lock.json").write_text("{}")
+    (real / "website" / "package.json").write_text('{"devDependencies":{"@playwright/test":"^1.55.0"}}')
+    (real / "website" / "playwright.config.ts").write_text("export default {}")
+    (real / "tsconfig.base.json").write_text("{}")
+    (real / "website" / "tsconfig.json").write_text('{"extends": "../tsconfig.base.json"}')
+    (real / WORKFLOW).parent.mkdir(parents=True)
+    (real / WORKFLOW).write_text(
+        "jobs:\n  e2e:\n    steps:\n      - run: npx endform@latest test\n        working-directory: website\n")
+    link = real.parent / "via-link"; link.symlink_to(real)
+    rc, text = run_preflight(link)
+    assert rc == 1 and status_of(text, "tsconfig_within_project") == "FAIL", text
 
     # a workspace package specifier is NOT examined, so it must not report PASS.
     # Real shape, from stigviewer: "extends": "@repo/typescript-config/nextjs.json".
