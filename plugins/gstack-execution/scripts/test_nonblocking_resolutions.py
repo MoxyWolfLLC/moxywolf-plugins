@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""XE-020 acceptance: a reviewer that also resolves a non-blocking prior finding does not void a
+"""XE-021 acceptance: a reviewer that also resolves a non-blocking prior finding does not void a
 clean round. STIGViewer PL-004 round 2 is the case: F1 blocking and fixed, F2 separate and disproved,
 reply resolved both, and validate threw the clean verdict away."""
 import json, os, sys, unittest

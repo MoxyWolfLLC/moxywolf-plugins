@@ -324,6 +324,7 @@ def load_packet(path, allow_unchanged=False):
         r["base"], r["head"] = resolve_commit(r["path"], r["base"]), resolve_commit(r["path"], r["head"])
         if r["base"] == r["head"] and not allow_unchanged:
             raise ReviewError("missing_commits", f"base == head in {r['path']}; nothing to review")
+    resolve_ci_runs(packet)
     packet.setdefault("prior_findings", [])
     return packet
 
@@ -555,6 +556,35 @@ def apply_ci_runs(packet, specs):
     if specs:
         packet.setdefault("tests", {})["ci_runs"] = [
             {"repo": k, "run_id": int(v)} for k, v in (s.rsplit("=", 1) for s in specs)]
+        resolve_ci_runs(packet)
+    return packet
+
+
+def as_repo_ref(s):
+    """A repository reference is a path when it contains a slash or is '.' or '..', and is then
+    resolved against the caller's working directory; otherwise it is a bare directory name (XE-020)."""
+    return str(Path(s).resolve()) if "/" in s or s in (".", "..") else s
+
+
+def resolve_ci_runs(packet):
+    """XE-020: a CI run is named by the same path its repository is. repos[].path is resolved at
+    load (on macOS /tmp/x becomes /private/tmp/x), so a ci_runs path is resolved the same way before
+    it is matched, and one matching no repository refuses here rather than opening a review whose
+    evidence reads nothing (review 20260924-162903-25a6677-7hrcgdnp spent a round on exactly that)."""
+    tests = packet.get("tests")
+    runs = tests.get("ci_runs") if isinstance(tests, dict) else None
+    if not runs:
+        return packet
+    repos = packet.get("repos") or []
+    names = {r["path"] for r in repos} | {Path(r["path"]).name for r in repos}
+    for e in runs:
+        if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not e["repo"]:
+            raise ReviewError("malformed_packet", f"tests.ci_runs entry must be {{repo, run_id}}: {e!r}")
+        e["repo"] = as_repo_ref(e["repo"])
+        if repos and e["repo"] not in names:  # a packet with no repos yet has nothing to match against
+            raise ReviewError("malformed_packet",
+                              f"tests.ci_runs names {e['repo']!r}, which is not a repository in this packet "
+                              f"(repos: {sorted(r['path'] for r in packet['repos'])})")
     return packet
 
 
@@ -1119,7 +1149,7 @@ def validate(raw, packet, prior=None, dispositions=None):
         if fid in seen_ids:
             raise ReviewError("malformed_output", "unknown or duplicate blocker resolution")
         seen_ids.add(fid)
-        # XE-020: a note on a prior non-blocking finding is not a blocker resolution. Drop it rather
+        # XE-021: a note on a prior non-blocking finding is not a blocker resolution. Drop it rather
         # than void a clean round; an id that was never a finding still fails below.
         if fid in nonblocking_ids:
             continue
@@ -1594,7 +1624,7 @@ def cmd_round(a):
         updates = {}
         for h in a.head:
             k, v = h.rsplit("=", 1)
-            updates[str(Path(k).resolve()) if "/" in k else k] = v  # repo path (resolved, like the packet) or bare dir name
+            updates[as_repo_ref(k)] = v  # repo path (resolved, like the packet) or bare dir name
         for r in packet["repos"]:
             r["base"] = r["head"]
             sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
@@ -1770,10 +1800,12 @@ def cmd_dispatch(a):
         sys.exit(f"a review is already in flight for {a.review_id} (pid {prior['pid']}); collect it first")
     log = d / "dispatch.log"
     argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
-    for h in getattr(a, "head", []) or []:
-        argv += ["--head", h]
-    for c in getattr(a, "ci_run", []) or []:
-        argv += ["--ci-run", c]
+    # the round runs with cwd = the review directory, so a relative path is resolved here, against
+    # the caller's directory, before it is forwarded (XE-020 review F2; --head had the same defect)
+    for flag, specs in (("--head", getattr(a, "head", []) or []), ("--ci-run", getattr(a, "ci_run", []) or [])):
+        for spec in specs:
+            k, sep, v = spec.rpartition("=")
+            argv += [flag, f"{as_repo_ref(k)}={v}" if sep else spec]
     with open(log, "ab") as fh:
         proc = subprocess.Popen(argv, stdout=fh, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                 start_new_session=True, cwd=str(d))

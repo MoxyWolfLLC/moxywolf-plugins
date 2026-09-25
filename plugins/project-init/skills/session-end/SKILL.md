@@ -157,6 +157,23 @@ Combining flags is fine: `/session-end Nexus --author=dorian --handoff-to=michae
 
 If `FOR` is set (a baton-pass happened), include a one-line reminder in the Step 8 final report: *"Baton passed to **[FOR]** — ping them in Slack so they know to pick this up."* Per the marketplace README's handoff protocol, the Slack ping is required when explicitly handing off; if you're just stopping for the day, no ping needed.
 
+### Step 3.6: Turn this session's mistakes into checks or rules (SM-003)
+
+A lesson written down is not a lesson applied: a rule read once at session start is not in front of the agent when the mistake recurs. So a mistake is kept only as a check that fails on a recurrence, or as a rule in the file loaded at that moment.
+
+1. **Gather from evidence, not recall.** Examine: review rounds opened this session (`$GSTACK_PEER_REVIEW_DIR`) whose outcome was not `no_blocking_findings` or `fixes_verified`, or which carried findings; test and CI runs this session that failed; and turns where the user corrected you. Print one coverage line per source with its record count. A source you could not reach is `SKIP <reason>`, never zero. Zero mistakes from examined sources is printed as zero.
+2. **One entry per mistake:** a sentence on what happened, `caught_by` (`user`, `reviewer`, `test`, `ci`, `self`), and an evidence ref (review ID, run ID, or the date and a short quote of the correction).
+3. **One disposition per entry.** `became_check` names the test or check that now fails on a recurrence, or the planned `DESIGN.md` item that will build it (declare it with the user's approval if it does not exist). `became_rule` names the file the rule went into, and that file must be loaded at the point of action: a skill, command, a reference it cites, or the shared team rules. Never the handoff or a session-start memory file. `one_off` stays in the handoff only.
+4. **Before writing a rule, look for it.** Search the target file, the project's memory files and `Taskade/_Shared Files/_shared-memory/`. Update a matching rule in place and name it; do not add a near-duplicate.
+5. **A repeat escalates.** If the mistake repeats a ledger entry, write `repeats: <id>`. It cannot be `one_off`, and it cannot be `became_rule` into the same file again: that rule did not hold, so move it to a check or a different point of action.
+6. **No mistakes found.** Still run the command below with an empty rows file. It exits 3: it creates the ledger with its header if the project has none, writes no rows, and reports 0 rows as not a pass. Exit 3 does not block the handoff; write the handoff line with the coverage counts (see the template) and carry on.
+7. **Validate, then write.** Otherwise put the new rows in a scratch file and run `python3 <project-init>/scripts/mistake_ledger.py "MoxyWolf Vault/Projects/<project>/11-Knowledge/mistake-ledger.md" --append <rows.md>`. It validates the existing ledger and the new rows together and writes the ledger only if the whole is clean, creating it with the header row if absent. On any `FAIL` the ledger is left unchanged: fix the rows and rerun before writing the handoff. Never edit the ledger by hand around the check. A worked example is `references/mistake-ledger-seed.md`, the Moxywolf Plugins ledger as SM-003 seeded it.
+
+```
+| id | date | what | caught_by | evidence | disposition | target | repeats |
+|---|---|---|---|---|---|---|---|
+```
+
 ### Step 4: Compose the handoff document
 
 Use this exact structure. The frontmatter format is fixed so `/session-start` can parse it.
@@ -214,6 +231,11 @@ Description:
 \`\`\`
 
 [If everything is committed and pushed, write _(none — all commits pushed, working tree clean as of session end)_]
+
+## Mistakes this session
+
+- [M-00N]: [disposition] -> [target] (ledger: `MoxyWolf Vault/Projects/[PROJECT_NAME]/11-Knowledge/mistake-ledger.md`)
+[If none: _(none found in N review rounds, M test/CI runs and the conversation)_]
 
 ## Procedural reminders for next-Claude
 

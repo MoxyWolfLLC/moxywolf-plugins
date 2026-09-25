@@ -729,6 +729,27 @@ Split out of SM-001 on 2026-09-19. The rule "a `#project/<slug>` maps to the lab
 7. team-kanban writes a project's issues with that project's declared label, never a derived one.
 8. `project-init` and `team-kanban` each get a minor version bump with a changelog line.
 
+### SM-003 — A session's mistakes become checks or rules, and a repeat escalates
+
+**Status:** done. Merged to `main` in `c4643d7` (PR #54, head `08c2807`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-210422-ec3b581-wnlj4d2k` (codex/gpt-6-astra): round 1 found the zero-mistake path could not finish; round 2 found the fix skipped criterion 8's ledger creation; round 3 `fixes_verified`, 12/12, with the `tests` workflow green at the reviewed head and read by the dispatcher. The review before it (`20260924-205455-da5bfac-60y_oekp`) raised three blockers, all fixed and verified: rows written before validation, rows after a blank line never examined, and a same-target repeat refusal weaker than criterion 5. Not yet exercised in a real `/session-end`.
+
+**Links introduced:** the mistake-to-remedy link. Each ledger entry names the check, rule or item it became, by repository path or item ID, and a later session assumes that target still exists and still covers the mistake. The repeat link: an entry may name an earlier entry it repeats, and the ledger assumes that earlier entry's remedy did not work.
+
+A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs `/private/tmp` resolution was already recorded twice, in the peer-review project memory and in PR #42, and the session had read that memory at start. It still named `/tmp/xe019` in a review packet, and review `20260924-162903-25a6677-7hrcgdnp` spent a Codex round on it. A journal read once at session start is not in front of the agent at the moment of action. A check is, and so is a rule in the skill that runs at that moment. The same session made two more mistakes worth keeping, and something other than the agent caught two of the three: the Codex review found both the packet path and a plaintext key the secret scan missed. A session reviewing itself from recall under-reports, so the step reads evidence first.
+
+1. `/session-end` gains a step before the handoff is composed that gathers mistakes from evidence, not recall: review rounds opened this session whose outcome was not `no_blocking_findings` or `fixes_verified`, or which carried findings; test or CI runs this session that failed; and turns in the conversation where the user corrected the agent. It prints a coverage line naming each source it examined and how many records each returned. A source it could not reach is `SKIP` with the reason, per EV-001, and zero mistakes from examined sources is printed as zero, not omitted.
+2. Each mistake is one entry: what happened in a sentence, `caught_by` (one of `user`, `reviewer`, `test`, `ci`, `self`), and an evidence ref (review ID, run ID, or the date and a short quote of the correction).
+3. Each entry takes exactly one `disposition`. `became_check` names the test or check that now fails on a recurrence, by path, or the planned design item that will build it. `became_rule` names the file the rule was written into, and that file must be one loaded at the point of action (a skill, a command, a reference it cites, or the shared team rules), never the handoff or a session-start-only memory file. `one_off` is recorded in the handoff only.
+4. Before writing a `became_rule`, the step searches the target file, the project's memory files and the shared team rules for an existing rule on the same point. A match is updated in place and the entry names it, rather than adding a near-duplicate.
+5. An entry may declare `repeats: <earlier entry id>`. A repeat cannot be `one_off`, and it cannot be `became_rule` naming the same target the earlier entry named: a rule that did not prevent the recurrence is escalated to a check, or to a different point of action, and the entry says which.
+6. Entries are appended to `MoxyWolf Vault/Projects/<project>/11-Knowledge/mistake-ledger.md`, one table row each with an ID, the date and the fields above. The handoff carries a "Mistakes this session" section listing the entry IDs and dispositions, not a restatement.
+7. `caught_by` and `disposition` are vocabulary groups in `vocabulary.json`, promoted by this amendment under SM-001 criterion 17. Values outside them are refused by the ledger check, not interpreted.
+8. `project-init/scripts/mistake_ledger.py` (stdlib) validates the ledger and is run by the step before it writes: every row has the required fields, IDs are unique, a `repeats` target exists, and criterion 5's two refusals hold. It reports how many rows it examined, and a ledger with no rows FAILS rather than passing. A project with no ledger file yet gets one created by the step, never a pass over nothing.
+9. Tests in `project-init/tests/test_mistake_ledger.py`: a valid ledger passes; a missing field, an unknown `caught_by`, an unknown `disposition` and a duplicate ID each fail by name; a repeat marked `one_off` fails; a repeat marked `became_rule` with the same target as the entry it repeats fails; the same repeat with a different target passes; and an empty ledger fails.
+10. The ledger is seeded with the three mistakes from 2026-09-24, each dispositioned: the `ci_runs` packet path (`became_check`, naming XE-020), the date-based staleness call on `CHARTER.md` (`became_rule`, into the repo analyzer's technical-debt step: count references before calling a document stale), and the missed `ak_` key format (`became_rule`, into the repo analyzer's security-posture step: vendor key prefixes).
+11. `project-init` moves from 0.30.1 and the top-level marketplace version moves, per CI-002. The analyzer rule edits in criterion 10 move `github-repo-analyzer` too.
+12. `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -904,9 +925,22 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 **Also in this change (administrative, no criteria):** `MIGRATION-rube-commits.md` and the May 2026 root `cowork-session-handoff.md` move to `docs/archive/`. Nothing in the repository references either. The other two `MIGRATION-*` files stay, because the `composio` and `daily-ops` READMEs cite them by name, and `CHARTER.md` and `PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md` are active governance cited by 35 `GOVERNANCE.md` files. The status lines of CI-002, XE-013, XE-015 and GA-007 are brought to what merged, from the review records and pull requests.
 
-### XE-020 — A note on a non-blocking finding doesn't void a clean round
+### XE-020 — A CI run is named by the same path the repository is
 
-**Status:** building on `build/XE-020-nonblocking-resolutions`.
+**Status:** done. Merged to `main` in `fec5031` (PR #57, head `f477e5f`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-221356-49b2a74-usjozs79` (codex/gpt-6-astra): round 1 found `.` and `..` treated as directory names and `dispatch` resolving relative paths against the review directory; both fixed through one `as_repo_ref()` rule that `--head` now shares; round 2 `fixes_verified`, 4/4, with the `tests` workflow green at the reviewed head. The builder's own gate run caught a third defect before review (a packet with no repos raised KeyError). Closes SM-003 ledger entry M-001.
+
+**Links introduced:** none. It resolves a value the packet already carries.
+
+Opening a review resolves each `repos[].path` (on macOS, `/tmp/x` becomes `/private/tmp/x`), but `fetch_ci_evidence` compares `tests.ci_runs[].repo` against those resolved paths unresolved, at round time, and nothing checks it at open. A packet naming `/tmp/xe019` for both passes the repository check and fails the CI read with `repo is not a repository in this packet`, which a reviewer then reports as missing evidence. Review `20260924-162903-25a6677-7hrcgdnp` spent a round on exactly this, after the same resolution had already been recorded in project memory and PR #42.
+
+1. A `tests.ci_runs[].repo` that is a path is resolved the same way `repos[].path` is, both in the packet at open and from `--ci-run` on `round` and `dispatch`, before it is matched.
+2. A `ci_runs` entry that still matches no repository after resolution refuses the open with the entry named, rather than opening a review whose evidence will read nothing.
+3. Tests: a `/tmp` alias resolving to a `/private/tmp` repository matches; an entry naming no repository refuses at open.
+4. `gstack-execution` moves its version, and the top-level marketplace version moves, per CI-002.
+
+### XE-021 — A note on a non-blocking finding doesn't void a clean round
+
+**Status:** building on `build/XE-020-nonblocking-resolutions` (branch named before the ID was renumbered from XE-020, which another change took first).
 
 **Links introduced:** none. The validator drops rows it already knows are not blocker resolutions; nothing is named, cached or retained.
 
@@ -916,7 +950,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 2. Coverage is unchanged: every prior blocker still needs exactly one entry, and a resolved blocker still needs a `fixed` or `disproved` disposition.
 3. The peer-review contract says non-blocking prior findings get no entry and that one given is ignored, in the paragraph that defines `blocker_resolutions`.
 4. Tests: a fix round whose reply resolves a prior blocker and also a prior `separate` finding passes and records only the blocker's entry; a reply resolving an id that was never a finding is still `malformed_output`.
-5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.36.0, and the top-level marketplace version moves, per CI-002.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.38.0, and the top-level marketplace version moves, per CI-002.
 6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
 
 ## Validation
@@ -927,7 +961,9 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
-- 2026-09-24: Added XE-020 on Dorian's instruction ("fix the review tool first") after STIGViewer PL-004 round 2 returned a clean verdict that `validate` recorded as `malformed_output` because the reviewer also resolved a non-blocking finding.
+- 2026-09-24: Added XE-021 (drafted as XE-020, renumbered when XE-020 merged first for CI-run paths) on Dorian's instruction ("fix the review tool first") after STIGViewer PL-004 round 2 returned a clean verdict that `validate` recorded as `malformed_output` because the reviewer also resolved a non-blocking finding.
+
+- 2026-09-24: Dorian approved SM-003 after asking whether session end should review the session's mistakes into a journal. The answer was a ledger whose entries must become a check or a rule at the point of action, because the day's own `/private/tmp` mistake repeated a lesson already in memory. XE-020 is declared planned as the check SM-003's first seeded entry becomes.
 
 - 2026-09-24: Dorian approved XE-019 after a health pass (graphify plus github-repo-analyzer) found `test_governed_review.py` failing 9 of 27 in any shell that exports `GITHUB_TOKEN`. The same change archives two unreferenced root documents and brings four status lines to what merged.
 

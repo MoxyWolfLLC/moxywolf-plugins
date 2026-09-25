@@ -18,7 +18,7 @@ class Origin(unittest.TestCase):
         self.d = Path(tempfile.mkdtemp())
 
     def test_vocabulary_defines_the_origins_and_carries_the_bump(self):
-        self.assertEqual(pr.VOCAB_VERSION, "1.2.0")
+        self.assertEqual(pr.VOCAB_VERSION, "1.3.0")
         self.assertEqual(pr.ORIGINS,
                          {"repository_artifact", "gate_output", "human_instruction", "external_text", "unexamined"})
 
