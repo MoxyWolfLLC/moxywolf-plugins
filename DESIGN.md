@@ -940,7 +940,7 @@ Opening a review resolves each `repos[].path` (on macOS, `/tmp/x` becomes `/priv
 
 ### XE-021 — A note on a non-blocking finding doesn't void a clean round
 
-**Status:** building on `build/XE-020-nonblocking-resolutions` (branch named before the ID was renumbered from XE-020, which another change took first).
+**Status:** done. Merged to `main` in `cbc803c` (PR #55, head `d16e285`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-205619-0bb753e-ff9ubeaz` (codex/gpt-6-astra): round 1 found one blocker (F1, a duplicated non-blocking entry passed because the skip ran before the duplicate check), fixed in `086b529`; round 2 `fixes_verified`. Main then moved (XE-020 for CI-run paths merged first), so the branch took main, the item was renumbered from XE-020, and review `20260925-073122-d16e285-nhf26_0s` passed the merged head `no_blocking_findings`, 6/6, with the `tests` workflow green at that head and read by the dispatcher itself. The branch keeps its pre-renumber name.
 
 **Links introduced:** none. The validator drops rows it already knows are not blocker resolutions; nothing is named, cached or retained.
 
