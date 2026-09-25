@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """XE-004: a review is dispatched and collected, never blocked on. Stdlib only."""
-import json, os, subprocess, sys, tempfile, time
+import json, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "peer_review.py"
+sys.path.insert(0, str(HERE))
+import peer_review as pr  # noqa: E402  XE-022: the reviewer table has one home
 
 
 def run(args, env, timeout=60):
@@ -35,10 +37,36 @@ def fake_codex(tmp, body, sleep=0):
     return bin_dir
 
 
+def without_reviewers(env):
+    """XE-022: a test that means to have no reviewer must not find the caller's. Prepending an empty
+    directory to PATH kept the rest, so on a machine with codex installed the real one answered.
+    ponytail: drops every PATH entry holding a reviewer CLI, siblings included; if that ever takes
+    git with it, the run fails loudly rather than reviewing, and a per-binary shadow dir is the upgrade."""
+    clis = [t for t, c in pr.REVIEWERS.items() if c["transport"] == "cli"]
+    # Review F1: the round runs from another directory, so a relative entry (or an empty one, which
+    # means cwd) is judged here and resolved there. Pin every entry to what it means here first.
+    dirs = [os.path.abspath(d or os.curdir) for d in env["PATH"].split(os.pathsep)]
+    env["PATH"] = os.pathsep.join(d for d in dirs
+                                  if not any(os.access(os.path.join(d, t), os.X_OK) for t in clis))
+    env.pop("GSTACK_OPENROUTER_ENV", None)
+
+
+def assert_no_reviewer(env):
+    """XE-022.2: the absence is checked, not assumed, so a test that cannot stage it fails as setup."""
+    assert all(os.path.isabs(d) for d in env["PATH"].split(os.pathsep)), f"setup: relative PATH entry in {env['PATH']}"
+    for tool in pr.REVIEWER_ORDER:
+        if pr.REVIEWERS[tool]["transport"] == "cli":
+            assert shutil.which(tool, path=env["PATH"]) is None, f"setup: {tool} still resolves"
+        else:
+            assert "GSTACK_OPENROUTER_ENV" not in env, f"setup: {tool} can reach its credential"
+
+
 def fixture(tmp, body=None, sleep=0, bin_dir=None):
     env = {**os.environ, "GSTACK_PEER_REVIEW_DIR": str(tmp)}
     env.pop("GSTACK_PEER_REVIEW_SESSION", None)
     env.pop("GSTACK_REVIEWER", None)
+    if bin_dir is not None:
+        without_reviewers(env)
     bd = bin_dir if bin_dir is not None else fake_codex(tmp, body, sleep)
     env["PATH"] = f"{bd}:{env['PATH']}"
     repo = tmp / "repo"; repo.mkdir(parents=True)
@@ -121,6 +149,7 @@ def test_a_reviewer_that_exits_nonzero_completes_the_round_as_unavailable():
     with tempfile.TemporaryDirectory() as t:
         empty = Path(t) / "emptybin"; empty.mkdir()
         env, rid = fixture(Path(t), bin_dir=empty)
+        assert_no_reviewer(env)
         assert run(["dispatch", rid], env)[0] == 0
         for _ in range(30):
             rc, out = run(["collect", rid], env)
@@ -129,6 +158,40 @@ def test_a_reviewer_that_exits_nonzero_completes_the_round_as_unavailable():
             time.sleep(1)
         assert out["status"] == "complete" and out["outcome"] == "review_unavailable", out
         assert rc == 1, "a non-pass outcome must exit nonzero"
+
+
+def test_the_unavailable_fixture_hides_an_installed_reviewer():
+    """XE-022: CI has no reviewer installed, so the case above cannot show there that the fixture
+    hides one. Plant a runnable `codex` behind the caller's PATH, as an install would sit, and
+    prove it resolves before the fixture runs and does not after, while git still does."""
+    with tempfile.TemporaryDirectory() as t:
+        installed = Path(t) / "installed"; installed.mkdir()
+        f = installed / "codex"; f.write_text("#!/bin/sh\nexit 0\n"); f.chmod(0o755)
+        env = {"PATH": os.environ["PATH"] + os.pathsep + str(installed), "GSTACK_OPENROUTER_ENV": "/x"}
+        assert shutil.which("codex", path=env["PATH"]), "setup: the planted reviewer must resolve first"
+        without_reviewers(env)
+        assert_no_reviewer(env)
+        assert str(installed) not in env["PATH"].split(os.pathsep), env["PATH"]
+        assert shutil.which("git", path=env["PATH"]), "git must still resolve"
+
+
+def test_a_relative_path_entry_cannot_carry_a_reviewer_past_the_fixture():
+    """Review F1: a relative entry is checked from the test's cwd but resolved from the round's. Plant
+    codex under a directory named relatively and as an empty entry, and prove neither survives."""
+    with tempfile.TemporaryDirectory() as t:
+        installed = Path(t) / "rel"; installed.mkdir()
+        f = installed / "codex"; f.write_text("#!/bin/sh\nexit 0\n"); f.chmod(0o755)
+        here = os.getcwd()
+        try:
+            os.chdir(t)
+            env = {"PATH": os.pathsep.join(["rel", "", os.environ["PATH"]])}
+            without_reviewers(env)
+            assert_no_reviewer(env)
+            assert str(installed) not in env["PATH"].split(os.pathsep), env["PATH"]
+            os.chdir(installed)  # the round's cwd: an empty entry would now mean this directory
+            assert shutil.which("codex", path=env["PATH"]) is None, env["PATH"]
+        finally:
+            os.chdir(here)
 
 
 def test_dispatch_refuses_a_second_review_in_flight():

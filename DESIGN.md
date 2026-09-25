@@ -953,6 +953,22 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.38.0, and the top-level marketplace version moves, per CI-002.
 6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
 
+### XE-022 — A test that stages an absent reviewer cannot find the real one
+
+**Status:** building on `build/XE-022-no-real-reviewer-in-tests`.
+
+**Links introduced:** none. The test narrows the environment it hands its subprocess; nothing is named, cached or retained.
+
+`test_a_reviewer_that_exits_nonzero_completes_the_round_as_unavailable` in `test_dispatch_collect.py` means to prove that a round with no reviewer completes as `review_unavailable`. It stages the absence by putting an empty directory at the front of `PATH` and keeping the rest, and `run_reviewer` finds `codex` with `shutil.which`. So on any machine with the CLI installed, the real one answers. Measured on the Release Owner's Mac on 25 September 2026 at `cbc803c`: the round record names reviewer `codex`, model `gpt-6-astra`, transport `cli`, with usage parsed from codex's own "tokens used" line, which the stub never prints. It read 3 of 5 files and returned a verdict that disagreed with its severities, recorded `malformed_output`. Four of the file's five tests pass; this one fails. CI passes only because the Actions runner has no reviewer installed. It's XE-019's defect with a different credential: a test whose result depends on what the caller has installed is testing the caller, and every local run of the suite spends a real Codex review.
+
+1. When the fixture is handed a bin directory, it removes from the subprocess `PATH` every entry holding an executable named for a CLI reviewer in `peer_review.REVIEWERS`, read from the module rather than restated, and drops `GSTACK_OPENROUTER_ENV` so no api reviewer can resolve. Other entries stay, so `git` still resolves.
+2. The test asserts its own precondition before it dispatches: no reviewer in `REVIEWER_ORDER` resolves under the environment it hands the subprocess. A test that can't stage the absence fails as a setup error, not on a real review.
+3. On the Release Owner's Mac, with `codex` installed and on `PATH`, `test_dispatch_collect.py` passes 5 of 5, and the round record for the unavailable case names no reviewer model.
+4. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.39.0, and the top-level marketplace version moves, per CI-002.
+5. `scripts/run_all_tests.py` in CI reports what it examined with a nonzero count and no failures.
+
+**Not in this item:** `endform_workflow --selftest`'s `/tmp` vs `/private/tmp` failure, a separate defect in `_tsconfig_extends`. The three other tests that put a stub on `PATH` stub the reviewer they reach, so they shadow the real one rather than miss it.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -960,6 +976,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-25: Added XE-022 on Dorian's instruction ("do that, yes") after `test_dispatch_collect.py`'s macOS-only failure, open since PR #42, was traced to the real `codex` answering a test that meant to have no reviewer.
 
 - 2026-09-24: Added XE-021 (drafted as XE-020, renumbered when XE-020 merged first for CI-run paths) on Dorian's instruction ("fix the review tool first") after STIGViewer PL-004 round 2 returned a clean verdict that `validate` recorded as `malformed_output` because the reviewer also resolved a non-blocking finding.
 
