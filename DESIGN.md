@@ -904,6 +904,21 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 **Also in this change (administrative, no criteria):** `MIGRATION-rube-commits.md` and the May 2026 root `cowork-session-handoff.md` move to `docs/archive/`. Nothing in the repository references either. The other two `MIGRATION-*` files stay, because the `composio` and `daily-ops` READMEs cite them by name, and `CHARTER.md` and `PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md` are active governance cited by 35 `GOVERNANCE.md` files. The status lines of CI-002, XE-013, XE-015 and GA-007 are brought to what merged, from the review records and pull requests.
 
+### XE-020 — A note on a non-blocking finding doesn't void a clean round
+
+**Status:** building on `build/XE-020-nonblocking-resolutions`.
+
+**Links introduced:** none. The validator drops rows it already knows are not blocker resolutions; nothing is named, cached or retained.
+
+STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `no_blocking_findings`, 5 of 5 criteria met, both prior findings resolved with evidence, and CI read by the dispatcher at the reviewed head. The round was recorded `malformed_output`, which is terminal, because `blocker_resolutions` carried an entry for F2, a prior finding of severity `separate`. `validate` accepts a resolution only for a prior blocker and rejects the whole reply on any other id. The prompt hands the reviewer every prior finding with its disposition, so resolving the non-blocking one too is the natural reading, and a clean verdict was thrown away over an entry the contract never asked for. A review that ends on the reviewer's thoroughness rather than on the code is the same failure XE-018 closed from the other side.
+
+1. `validate` ignores a `blocker_resolutions` entry whose id is a prior finding that was not blocking, and removes it from the recorded reply. An id that names no prior finding, and a duplicate, are still `malformed_output`.
+2. Coverage is unchanged: every prior blocker still needs exactly one entry, and a resolved blocker still needs a `fixed` or `disproved` disposition.
+3. The peer-review contract says non-blocking prior findings get no entry and that one given is ignored, in the paragraph that defines `blocker_resolutions`.
+4. Tests: a fix round whose reply resolves a prior blocker and also a prior `separate` finding passes and records only the blocker's entry; a reply resolving an id that was never a finding is still `malformed_output`.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.36.0, and the top-level marketplace version moves, per CI-002.
+6. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -911,6 +926,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-24: Added XE-020 on Dorian's instruction ("fix the review tool first") after STIGViewer PL-004 round 2 returned a clean verdict that `validate` recorded as `malformed_output` because the reviewer also resolved a non-blocking finding.
 
 - 2026-09-24: Dorian approved XE-019 after a health pass (graphify plus github-repo-analyzer) found `test_governed_review.py` failing 9 of 27 in any shell that exports `GITHUB_TOKEN`. The same change archives two unreferenced root documents and brings four status lines to what merged.
 
