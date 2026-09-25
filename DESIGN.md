@@ -927,7 +927,7 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 ### XE-020 — A CI run is named by the same path the repository is
 
-**Status:** building. Declared by SM-003 criterion 10 as the check its first ledger entry became; not built in SM-003's change.
+**Status:** done. Merged to `main` in `fec5031` (PR #57, head `f477e5f`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-221356-49b2a74-usjozs79` (codex/gpt-6-astra): round 1 found `.` and `..` treated as directory names and `dispatch` resolving relative paths against the review directory; both fixed through one `as_repo_ref()` rule that `--head` now shares; round 2 `fixes_verified`, 4/4, with the `tests` workflow green at the reviewed head. The builder's own gate run caught a third defect before review (a packet with no repos raised KeyError). Closes SM-003 ledger entry M-001.
 
 **Links introduced:** none. It resolves a value the packet already carries.
 
