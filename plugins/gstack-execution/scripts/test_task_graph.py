@@ -42,6 +42,10 @@ print(json.dumps(r))
                      'claims':[{'id':'C1','text':'value exists'}], 'spec':'value exists','scope':'all','data_use':self.policy}
         self.pfile=self.root/'packet.json';self.wfile=self.root/'workflow.json';self.run=self.root/'run'
         self.graph={'name':'fixture','nodes':[self.node('prepare'),self.node('a',['prepare'],finding=True,delay=.3),self.node('b',['prepare'],finding=True,delay=.3),self.node('check',['a','b'],kind='checker'),self.node('report',['prepare','a','b','check'],kind='report',findings_from=['check'])]}
+    def ok(self,r):
+        """XE-024: an executor call that should succeed. A bare 1 != 0 threw the stderr away,
+        and an intermittent failure then left nothing to diagnose it with."""
+        self.assertEqual(r.returncode,0,'executor stderr:\n'+(r.stderr or '')[-4000:])
     def git(self,*args):
         return subprocess.check_output(['git','-C',str(self.repo),*args],text=True).strip()
     def node(self,id,deps=None,kind='worker',**extra):
@@ -69,14 +73,14 @@ print(json.dumps(r))
     def test_audit_passes_a_graph_whose_handlers_write_only_what_they_declare(self):
         """The sweep has to be quiet on a clean graph or nobody will run it."""
         r=self.execute(audit=True)
-        self.assertEqual(r.returncode,0,r.stderr)
+        self.ok(r)
         self.assertEqual(self.state()['outcome'],'complete')
 
     def test_audit_forces_serial_execution(self):
         """Attributing a write to a node while another node is writing would be a
         declaration that can be false, which is the defect this is meant to find."""
         r=self.execute(cap=4,audit=True)
-        self.assertEqual(r.returncode,0,r.stderr)
+        self.ok(r)
         a=self.state()['nodes']['a']['result']['interval'];b=self.state()['nodes']['b']['result']['interval']
         self.assertFalse(max(a[0],b[0])<min(a[1],b[1]),'audit mode must not overlap nodes')
 
@@ -110,7 +114,7 @@ print(json.dumps(r))
         self.assertEqual(tg.undeclared_writes({'extra.json':'cc'},{'extra.json':'dd'},node),['extra.json'],'a modification is a write')
     def state(self): return json.loads((self.run/'state.json').read_text())
     def test_diamond_overlaps_and_preserves_all_findings(self):
-        r=self.execute();self.assertEqual(r.returncode,0,r.stderr)
+        r=self.execute();self.ok(r)
         s=self.state(); a=s['nodes']['a']['result'];b=s['nodes']['b']['result']
         self.assertLess(max(a['interval'][0],b['interval'][0]),min(a['interval'][1],b['interval'][1]))
         report=json.loads((self.run/'report.json').read_text())
@@ -138,7 +142,7 @@ print(json.dumps(r))
 
     def test_serial_cap_and_shared_proofs(self):
         for n in self.graph['nodes'][1:3]: n['effects']=['local_proof']
-        r=self.execute(4);self.assertEqual(r.returncode,0,r.stderr)
+        r=self.execute(4);self.ok(r)
         s=self.state();a=s['nodes']['a']['result']['interval'];b=s['nodes']['b']['result']['interval']
         self.assertGreaterEqual(max(a[0],b[0]),min(a[1],b[1]))
     def test_invalid_graphs_are_refused_before_dispatch(self):
@@ -161,54 +165,54 @@ print(json.dumps(r))
             self.assertNotEqual(self.state()['nodes'].get('report',{}).get('status'),'succeeded')
             self.graph['nodes'][1].pop(flag)
     def test_resume_preserves_work_and_invalidates_descendants(self):
-        self.assertEqual(self.execute().returncode,0)
-        first=self.state();self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
+        first=self.state();self.ok(self.execute())
         self.assertEqual(first['nodes'],self.state()['nodes'])
         self.graph['nodes'][1]['finding']=False
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         s=self.state()
         self.assertEqual(s['nodes']['b']['attempts'],1)
         self.assertEqual(s['nodes']['a']['attempts'],2)
         self.assertEqual(s['nodes']['check']['attempts'],2)
         self.assertEqual(s['nodes']['report']['attempts'],2)
     def test_changed_revision_and_evidence_invalidate_cached_success(self):
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         (self.run/'a.json').write_text('{}')
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         self.assertEqual(self.state()['nodes']['a']['attempts'],2)
         (self.repo/'value').write_text('two');self.git('commit','-qam','two')
         self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         self.assertEqual(self.state()['nodes']['prepare']['attempts'],2)
     def test_data_denial_precedes_dispatch_and_export(self):
         self.packet['data_use']['allowed_commands']=[]
         r=self.execute();self.assertNotEqual(r.returncode,0)
         self.assertIn('data_use',r.stderr)
         self.packet['data_use']['allowed_commands']=[self.command]
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         r=self.call('export','--run-dir',str(self.run),'--output','/private/tmp/disallowed-graph-output.json')
         self.assertNotEqual(r.returncode,0)
         dest=self.root/'export.json'
-        self.assertEqual(self.call('export','--run-dir',str(self.run),'--output',str(dest)).returncode,0)
+        self.ok(self.call('export','--run-dir',str(self.run),'--output',str(dest)))
         first=dest.stat().st_mtime_ns
-        self.assertEqual(self.call('export','--run-dir',str(self.run),'--output',str(dest)).returncode,0)
+        self.ok(self.call('export','--run-dir',str(self.run),'--output',str(dest)))
         self.assertEqual(first,dest.stat().st_mtime_ns)
     def test_oversight_is_separate_from_machine_results(self):
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         evidence=self.root/'decision.txt';evidence.write_text('Human stopped publication.')
         r=self.call('observe','--run-dir',str(self.run),'--decision','stopped','--evidence',str(evidence),'--action','publish report')
-        self.assertEqual(r.returncode,0,r.stderr)
+        self.ok(r)
         stats=self.call('oversight','--run-dir',str(self.run))
-        self.assertEqual(stats.returncode,0,stats.stderr)
+        self.ok(stats)
         summary=json.loads(stats.stdout);self.assertEqual(summary['human_decisions'],1);self.assertEqual(summary['override_rate'],1)
         self.assertEqual(self.state()['outcome'],'complete')
     def test_shared_log_and_timing_do_not_count_machine_events_as_humans(self):
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         evidence=self.root/'human.txt';evidence.write_text('Observed human edit')
         log=self.root/'shared.jsonl'
         r=self.call('observe','--run-dir',str(self.run),'--decision','edited','--evidence',str(evidence),'--action','publish',
                     '--requested-at','2026-01-01T00:00:00+00:00','--gate-log',str(log))
-        self.assertEqual(r.returncode,0,r.stderr)
+        self.ok(r)
         self.assertEqual(len(log.read_text().splitlines()),1)
         stats=json.loads(self.call('oversight','--run-dir',str(self.run)).stdout)
         self.assertIsNotNone(stats['median_response_seconds'])
@@ -234,12 +238,12 @@ print(json.dumps(r))
         self.graph['nodes'][1]['effects']=['local_proof']
         self.graph['nodes'][-2]['depends_on'].append('proof');self.graph['nodes'][-2]['inputs'].append('proof')
         self.graph['nodes'][-1]['depends_on'].append('proof');self.graph['nodes'][-1]['inputs'].append('proof')
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         self.assertIn('proof ran',json.dumps(self.state()['nodes']['proof']['result']))
         self.assertIn('FAILED',json.dumps(self.state()['nodes']['proof']['result']))
 
     def test_export_rejects_tampered_report(self):
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         (self.run/'report.json').write_text('{"complete":true}')
         r=self.call('export','--run-dir',str(self.run),'--output',str(self.root/'out.json'))
         self.assertNotEqual(r.returncode,0)
@@ -284,7 +288,7 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         return self.call('run','--workflow',name,'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs','2')
     def test_builtin_verify_uses_both_model_adapters(self):
         self.install_model_tools()
-        r=self.builtin_run('verify');self.assertEqual(r.returncode,0,r.stderr)
+        r=self.builtin_run('verify');self.ok(r)
         s=self.state();self.assertEqual(s['nodes']['claim-C1']['result']['model'],'gpt-6-astra')
         self.assertEqual(s['nodes']['checker']['result']['model'],'claude-opus-5')
     def test_graph_peer_retry_cannot_erase_prior_blockers(self):
@@ -314,7 +318,7 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         self.assertEqual(len([n for n in plan['nodes'] if n['kind']=='peer']),1)
         self.packet['independent_reviews']=[{'repos':[0],'criteria':[0],'independence_evidence':'No shared interface'},
                                             {'repos':[1],'criteria':[1],'independence_evidence':'No shared interface'}]
-        r=self.builtin_run('review');self.assertEqual(r.returncode,0,r.stderr)
+        r=self.builtin_run('review');self.ok(r)
         self.assertEqual(self.state()['nodes']['review-0']['status'],'succeeded')
         self.assertEqual(self.state()['nodes']['review-1']['status'],'succeeded')
 
@@ -329,9 +333,9 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
 
     def test_report_refreshes_sources_when_checker_text_is_unchanged(self):
         self.graph['nodes'][-2]['stable']=True
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         self.graph['nodes'][1]['delay']=.1
-        self.assertEqual(self.execute().returncode,0)
+        self.ok(self.execute())
         report=json.loads((self.run/'report.json').read_text())
         self.assertEqual(report['sources']['a'],self.state()['nodes']['a']['result'])
 
@@ -364,7 +368,7 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         self.install_model_tools()
         (self.repo/'value').write_text('two');self.git('commit','-qam','two')
         self.packet['repos'][0]['head']=self.git('rev-parse','HEAD');self.packet['timeout']=5
-        r=self.builtin_run('review');self.assertEqual(r.returncode,0,r.stderr)
+        r=self.builtin_run('review');self.ok(r)
         marker=json.loads((self.run/'review-0-review.json').read_text())
         state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
         self.assertEqual(state['timeout'],5)
@@ -372,7 +376,7 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
     def test_builtin_graphs_materialize_frozen_nodes(self):
         for workflow in ['cso','verify','review']:
             r=self.call('plan','--workflow',workflow,'--packet',str(self.write_packet()))
-            self.assertEqual(r.returncode,0,r.stderr)
+            self.ok(r)
             nodes=json.loads(r.stdout)['nodes'];self.assertTrue(nodes)
             if workflow=='verify':self.assertIn('claim-C1',[n['id'] for n in nodes])
     def write_packet(self):

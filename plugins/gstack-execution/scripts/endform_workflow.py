@@ -246,6 +246,10 @@ def _workflow_secrets(repo):
 
 def preflight(repo):
     """Every condition reports its own status. SKIP is not PASS; examining nothing is a failure."""
+    # XE-023: helpers resolve paths under the repo, so the repo is resolved once here, where every
+    # caller routes. On macOS /tmp is a link to /private/tmp, and comparing a resolved path with an
+    # unresolved repo raised ValueError out of relative_to().
+    repo = Path(repo).resolve()
     out = []
 
     def rec(name, status, detail):
@@ -456,6 +460,24 @@ def selftest():
     (mono / "website" / "tsconfig.strict.json").write_text("{}")
     _, text = run_preflight(mono)
     assert status_of(text, "tsconfig_within_project") == "PASS", text
+
+    # XE-023: a repo reached through a symlink, as macOS reaches /tmp through /private/tmp. The
+    # tsconfig escapes its package, so the check must compare the resolved tsconfig path against
+    # the repo; an unresolved repo made relative_to() raise instead of reporting FAIL. The fixture
+    # lives under a resolved directory, so this case exercises the link on Linux as well.
+    real = Path(tempfile.mkdtemp()).resolve() / "repo"
+    (real / "website").mkdir(parents=True)
+    (real / "package-lock.json").write_text("{}")
+    (real / "website" / "package.json").write_text('{"devDependencies":{"@playwright/test":"^1.55.0"}}')
+    (real / "website" / "playwright.config.ts").write_text("export default {}")
+    (real / "tsconfig.base.json").write_text("{}")
+    (real / "website" / "tsconfig.json").write_text('{"extends": "../tsconfig.base.json"}')
+    (real / WORKFLOW).parent.mkdir(parents=True)
+    (real / WORKFLOW).write_text(
+        "jobs:\n  e2e:\n    steps:\n      - run: npx endform@latest test\n        working-directory: website\n")
+    link = real.parent / "via-link"; link.symlink_to(real)
+    rc, text = run_preflight(link)
+    assert rc == 1 and status_of(text, "tsconfig_within_project") == "FAIL", text
 
     # a workspace package specifier is NOT examined, so it must not report PASS.
     # Real shape, from stigviewer: "extends": "@repo/typescript-config/nextjs.json".
