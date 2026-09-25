@@ -1132,16 +1132,28 @@ def validate(raw, packet, prior=None, dispositions=None):
     has_block = any(f["severity"] == "blocking" for f in out["findings"])
     if has_block != (out["verdict"] == "blocking_findings"):
         raise ReviewError("malformed_output", "verdict disagrees with finding severities")
-    prior_ids = {f["id"] for f in (prior or {}).get("findings", []) if f["severity"] == "blocking"}
+    prior_findings = (prior or {}).get("findings", [])
+    prior_ids = {f["id"] for f in prior_findings if f["severity"] == "blocking"}
+    nonblocking_ids = {f["id"] for f in prior_findings} - prior_ids
     resolutions = out.get("blocker_resolutions")
     if not isinstance(resolutions, list):
         raise ReviewError("malformed_output", "blocker_resolutions must be a list")
     resolved_ids = set()
+    seen_ids = set()
+    kept = []
     for row in resolutions:
         if (not isinstance(row, dict) or not isinstance(row.get("id"), str) or type(row.get("resolved")) is not bool or
                 not isinstance(row.get("evidence"), str) or not row["evidence"].strip()):
             raise ReviewError("malformed_output", "blocker resolution needs id, boolean resolved, and evidence")
         fid = row["id"]
+        if fid in seen_ids:
+            raise ReviewError("malformed_output", "unknown or duplicate blocker resolution")
+        seen_ids.add(fid)
+        # XE-021: a note on a prior non-blocking finding is not a blocker resolution. Drop it rather
+        # than void a clean round; an id that was never a finding still fails below.
+        if fid in nonblocking_ids:
+            continue
+        kept.append(row)
         if fid not in prior_ids or fid in resolved_ids:
             raise ReviewError("malformed_output", "unknown or duplicate blocker resolution")
         resolved_ids.add(fid)
@@ -1153,6 +1165,7 @@ def validate(raw, packet, prior=None, dispositions=None):
             raise ReviewError("malformed_output", "unresolved blocker must remain blocking")
     if resolved_ids != prior_ids:
         raise ReviewError("malformed_output", "prior blocker coverage is incomplete")
+    out["blocker_resolutions"] = kept
     out.setdefault("regressions_from_fixes", [])
     if not isinstance(out["regressions_from_fixes"], list) or any(not isinstance(v, str) or not v.strip() for v in out["regressions_from_fixes"]):
         raise ReviewError("malformed_output", "regressions_from_fixes must contain nonempty strings")

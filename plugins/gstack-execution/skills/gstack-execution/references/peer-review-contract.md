@@ -111,7 +111,7 @@ Return JSON only, matching this schema (the dispatcher rejects anything else as 
 
 Acceptance must contain exactly one entry for every packet criterion, using the exact criterion text, a boolean `met`, and nonblank evidence. Unknown, duplicate, or missing criteria are rejected. A clean verdict requires all criteria met and no blocking findings.
 
-`blocker_resolutions` is empty in the initial round. In fix rounds it covers every previous blocking finding exactly once with a boolean `resolved` and nonblank evidence. A resolved entry requires a `fixed` or `disproved` builder disposition and cannot also remain blocking. An unresolved entry must retain its blocking finding.
+`blocker_resolutions` is empty in the initial round. In fix rounds it covers every previous blocking finding exactly once with a boolean `resolved` and nonblank evidence. A resolved entry requires a `fixed` or `disproved` builder disposition and cannot also remain blocking. An unresolved entry must retain its blocking finding. Non-blocking prior findings get no entry; one given is ignored.
 
 `regressions_from_fixes` contains only IDs of blocking findings in the same response; the matching finding carries the evidence. Orphan regression strings are rejected, so each regression participates in the next round’s blocker-resolution coverage.
 
