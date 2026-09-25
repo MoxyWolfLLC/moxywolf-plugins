@@ -58,7 +58,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index
 │   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn; v0.2.0 delivers it on the first prompt in cloud sessions, where SessionStart fires before the plugin registers (DR-089)
 │   ├── product-orchestrator/       Council-backed product scope/arch/GTM decisions + project charter governance
-│   ├── project-init/               /init-project /session-start /session-end; the session-start briefing's Shared services line reports whether the gstack-execution / ponytail hooks actually delivered (v0.28.0 knows the cloud first-prompt case)
+│   ├── project-init/               /init-project /session-start /session-end; the session-start briefing's Shared services line reports whether the gstack-execution / ponytail hooks actually delivered (v0.28.0 knows the cloud first-prompt case); v0.31.0: /session-end turns the session's mistakes, gathered from reviews, failed runs and user corrections, into checks or rules at the point of action, in a per-project ledger that scripts/mistake_ledger.py validates
 │   ├── research-pipeline/          Literature discovery, verification, synthesis
 │   ├── saas-frontend-designer/     Next/React/Tailwind/shadcn SaaS UI pipeline
 │   ├── saas-pricing-engine/        Pricing research, modeling, page copy
