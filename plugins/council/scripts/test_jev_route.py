@@ -33,6 +33,22 @@ class OfflineSelftest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertRegex(r.stdout, r"\n([1-9]\d*)/\1 offline cases")
 
+    def test_never_loads_a_key_or_reaches_the_real_ask(self):
+        # The subprocess test above catches transport use, but a bogus key
+        # resolves like a real one, so it can't see a key load (review F1).
+        # Here both the key loader and the real _ask raise if touched.
+        def touched(*_, **__):
+            raise AssertionError("offline selftest touched the key or the gateway")
+        saved = jev_route.load_gateway_key, jev_route._ask
+        jev_route.load_gateway_key, jev_route._ask = touched, touched
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                rc = jev_route.selftest_offline()
+        finally:
+            jev_route.load_gateway_key, jev_route._ask = saved
+        self.assertEqual(rc, 0, out.getvalue())
+
 
 class LiveSelftest(unittest.TestCase):
     def _run(self, **patches):
