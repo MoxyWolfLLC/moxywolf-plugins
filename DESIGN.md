@@ -927,7 +927,7 @@ PL-001 on `MoxyWolfLLC/SAMS` (PR #290) went through four codex reviews on 24 Sep
 
 ### XE-020 — A CI run is named by the same path the repository is
 
-**Status:** planned. Declared by SM-003 criterion 10 as the check its first ledger entry became; not built in SM-003's change.
+**Status:** building. Declared by SM-003 criterion 10 as the check its first ledger entry became; not built in SM-003's change.
 
 **Links introduced:** none. It resolves a value the packet already carries.
 
