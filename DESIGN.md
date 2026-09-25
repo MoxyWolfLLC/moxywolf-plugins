@@ -731,7 +731,7 @@ Split out of SM-001 on 2026-09-19. The rule "a `#project/<slug>` maps to the lab
 
 ### SM-003 — A session's mistakes become checks or rules, and a repeat escalates
 
-**Status:** building.
+**Status:** done. Merged to `main` in `c4643d7` (PR #54, head `08c2807`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-210422-ec3b581-wnlj4d2k` (codex/gpt-6-astra): round 1 found the zero-mistake path could not finish; round 2 found the fix skipped criterion 8's ledger creation; round 3 `fixes_verified`, 12/12, with the `tests` workflow green at the reviewed head and read by the dispatcher. The review before it (`20260924-205455-da5bfac-60y_oekp`) raised three blockers, all fixed and verified: rows written before validation, rows after a blank line never examined, and a same-target repeat refusal weaker than criterion 5. Not yet exercised in a real `/session-end`.
 
 **Links introduced:** the mistake-to-remedy link. Each ledger entry names the check, rule or item it became, by repository path or item ID, and a later session assumes that target still exists and still covers the mistake. The repeat link: an entry may name an earlier entry it repeats, and the ledger assumes that earlier entry's remedy did not work.
 
