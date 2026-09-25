@@ -65,6 +65,36 @@ class MistakeLedger(unittest.TestCase):
         self.assertEqual(check(HEAD + M2 + "| M-003 | 2026-09-25 | again | user | q | became_check | XE-021 | M-002 |\n"), [])
         self.assertEqual(check(HEAD + M2 + "| M-003 | 2026-09-25 | again | user | q | became_rule | other/SKILL.md | M-002 |\n"), [])
 
+    def test_rows_after_a_blank_line_are_examined(self):
+        # review F2: a blank line must not end the scan and hide a bad row behind a clean prefix
+        f = check(HEAD + M1 + "\n" + "| M-003 | 2026-09-25 | x | luck | q | one_off | | |\n")
+        self.assertEqual(len(ml.parse(HEAD + M1 + "\n" + M2)), 2)
+        self.assertTrue(any("caught_by 'luck'" in x for x in f))
+
+    def test_repeat_into_the_same_target_fails_whatever_the_earlier_became(self):
+        # review F3: the refusal holds when the earlier entry was a check, not only a rule
+        f = check(HEAD + M1 + "| M-003 | 2026-09-25 | again | user | q | became_rule | XE-020 | M-001 |\n")
+        self.assertTrue(any("same rule target" in x for x in f))
+
+    def test_append_writes_only_a_clean_combination(self):
+        # review F1: new rows are validated together with the ledger before anything is written
+        import io, contextlib, tempfile
+        d = Path(tempfile.mkdtemp())
+        ledger, rows = d / "ledger.md", d / "rows.md"
+        ledger.write_text(HEAD + M2)
+        rows.write_text("| M-003 | 2026-09-25 | again | user | q | one_off | | M-002 |\n")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ml.main([str(ledger), "--append", str(rows)]), 1)
+        self.assertEqual(ledger.read_text(), HEAD + M2)
+        rows.write_text(M1)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ml.main([str(ledger), "--append", str(rows)]), 0)
+        self.assertEqual({r["id"] for r in ml.parse(ledger.read_text())}, {"M-001", "M-002"})
+        fresh = d / "new.md"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ml.main([str(fresh), "--append", str(rows)]), 0)
+        self.assertEqual(len(ml.parse(fresh.read_text())), 1)
+
     def test_cli_reports_what_it_examined(self):
         import io, contextlib, tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as t:
