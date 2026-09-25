@@ -971,7 +971,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-023 — The E2E preflight resolves the repo before it compares paths under it
 
-**Status:** building on `build/XE-023-XE-024-macos-path-and-flake`.
+**Status:** done. Merged to `main` in `1d87f01` (PR #63, head `6004064`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260925-091247-c1e8f75-wn8thxfc` (codex/gpt-6-astra, `fixes_verified`, 2 rounds): round 1 found F1, the first symlink case never reached the comparison that crashed, fixed in `8f70d6f` and verified resolved. The `tests` workflow was green at the reviewed head and read by the dispatcher itself.
 
 **Links introduced:** none. `preflight()` resolves the path it's handed; nothing is named, cached or retained.
 
@@ -986,7 +986,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-024 — A task-graph test that fails says why
 
-**Status:** building on `build/XE-023-XE-024-macos-path-and-flake`.
+**Status:** done. Merged to `main` in `1d87f01` (PR #63, head `6004064`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260925-091247-c1e8f75-wn8thxfc` (codex/gpt-6-astra, `fixes_verified`, 2 rounds): round 1 found F1, the first symlink case never reached the comparison that crashed, fixed in `8f70d6f` and verified resolved. The `tests` workflow was green at the reviewed head and read by the dispatcher itself. The root cause of the intermittent failure is still open; the next failure carries its stderr.
 
 **Links introduced:** none. A test helper adds the executor's stderr to an assertion message; nothing is named, cached or retained.
 
