@@ -95,6 +95,18 @@ class MistakeLedger(unittest.TestCase):
             self.assertEqual(ml.main([str(fresh), "--append", str(rows)]), 0)
         self.assertEqual(len(ml.parse(fresh.read_text())), 1)
 
+    def test_a_session_with_no_mistakes_appends_nothing_and_does_not_pass(self):
+        # review round 3 F1: no ledger yet and no rows must neither block the handoff nor report a pass
+        import io, contextlib, tempfile
+        d = Path(tempfile.mkdtemp())
+        ledger, rows = d / "absent.md", d / "rows.md"
+        rows.write_text("| id | date | what | caught_by | evidence | disposition | target | repeats |\n|---|---|---|---|---|---|---|---|\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(ml.main([str(ledger), "--append", str(rows)]), 3)
+        self.assertFalse(ledger.exists())
+        self.assertIn("not a pass", out.getvalue())
+
     def test_the_seeded_ledger_validates(self):
         # SM-003 criterion 10: the vault ledger was seeded from this file, byte for byte, so the
         # seed is checked where a reviewer and CI can both read it.

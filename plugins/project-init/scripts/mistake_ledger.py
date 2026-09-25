@@ -12,6 +12,8 @@ repeat can be neither one_off nor the same rule again (criterion 5).
     mistake_ledger.py <ledger.md>                       validate; exit 0 clean, 1 with every failure named
     mistake_ledger.py <ledger.md> --append <rows.md>    validate ledger + new rows together, and write
                                                         the ledger only if the combination is clean
+    exit 3 from --append: the rows file holds no rows. Nothing is written and nothing passed; a
+    session that found no mistakes skips the ledger and says so in the handoff (review F1, round 3).
 """
 import json
 import sys
@@ -93,6 +95,9 @@ def main(argv):
         new = [l for l in Path(argv[2]).read_text().splitlines() if l.strip().startswith("|")
                and [c.strip().lower() for c in l.strip().strip("|").split("|")] != COLUMNS
                and not set(l.replace("|", "")) <= set("-: ")]
+        if not new:
+            print(f"mistake ledger: nothing to append from {argv[2]}; {ledger} left unchanged, and this is not a pass")
+            return 3
         text = text.rstrip("\n") + "\n" + "\n".join(new) + "\n"
     rows = parse(text)
     failures = validate(rows, vocab_ids("caught_by"), vocab_ids("mistake_disposition"))
