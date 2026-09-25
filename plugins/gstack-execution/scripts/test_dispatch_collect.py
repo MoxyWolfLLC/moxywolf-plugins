@@ -43,13 +43,17 @@ def without_reviewers(env):
     ponytail: drops every PATH entry holding a reviewer CLI, siblings included; if that ever takes
     git with it, the run fails loudly rather than reviewing, and a per-binary shadow dir is the upgrade."""
     clis = [t for t, c in pr.REVIEWERS.items() if c["transport"] == "cli"]
-    env["PATH"] = os.pathsep.join(d for d in env["PATH"].split(os.pathsep)
+    # Review F1: the round runs from another directory, so a relative entry (or an empty one, which
+    # means cwd) is judged here and resolved there. Pin every entry to what it means here first.
+    dirs = [os.path.abspath(d or os.curdir) for d in env["PATH"].split(os.pathsep)]
+    env["PATH"] = os.pathsep.join(d for d in dirs
                                   if not any(os.access(os.path.join(d, t), os.X_OK) for t in clis))
     env.pop("GSTACK_OPENROUTER_ENV", None)
 
 
 def assert_no_reviewer(env):
     """XE-022.2: the absence is checked, not assumed, so a test that cannot stage it fails as setup."""
+    assert all(os.path.isabs(d) for d in env["PATH"].split(os.pathsep)), f"setup: relative PATH entry in {env['PATH']}"
     for tool in pr.REVIEWER_ORDER:
         if pr.REVIEWERS[tool]["transport"] == "cli":
             assert shutil.which(tool, path=env["PATH"]) is None, f"setup: {tool} still resolves"
@@ -169,6 +173,25 @@ def test_the_unavailable_fixture_hides_an_installed_reviewer():
         assert_no_reviewer(env)
         assert str(installed) not in env["PATH"].split(os.pathsep), env["PATH"]
         assert shutil.which("git", path=env["PATH"]), "git must still resolve"
+
+
+def test_a_relative_path_entry_cannot_carry_a_reviewer_past_the_fixture():
+    """Review F1: a relative entry is checked from the test's cwd but resolved from the round's. Plant
+    codex under a directory named relatively and as an empty entry, and prove neither survives."""
+    with tempfile.TemporaryDirectory() as t:
+        installed = Path(t) / "rel"; installed.mkdir()
+        f = installed / "codex"; f.write_text("#!/bin/sh\nexit 0\n"); f.chmod(0o755)
+        here = os.getcwd()
+        try:
+            os.chdir(t)
+            env = {"PATH": os.pathsep.join(["rel", "", os.environ["PATH"]])}
+            without_reviewers(env)
+            assert_no_reviewer(env)
+            assert str(installed) not in env["PATH"].split(os.pathsep), env["PATH"]
+            os.chdir(installed)  # the round's cwd: an empty entry would now mean this directory
+            assert shutil.which("codex", path=env["PATH"]) is None, env["PATH"]
+        finally:
+            os.chdir(here)
 
 
 def test_dispatch_refuses_a_second_review_in_flight():
