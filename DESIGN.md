@@ -955,7 +955,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-022 — A test that stages an absent reviewer cannot find the real one
 
-**Status:** planned.
+**Status:** building on `build/XE-022-no-real-reviewer-in-tests`.
 
 **Links introduced:** none. The test narrows the environment it hands its subprocess; nothing is named, cached or retained.
 

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """XE-004: a review is dispatched and collected, never blocked on. Stdlib only."""
-import json, os, subprocess, sys, tempfile, time
+import json, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "peer_review.py"
+sys.path.insert(0, str(HERE))
+import peer_review as pr  # noqa: E402  XE-022: the reviewer table has one home
 
 
 def run(args, env, timeout=60):
@@ -35,10 +37,32 @@ def fake_codex(tmp, body, sleep=0):
     return bin_dir
 
 
+def without_reviewers(env):
+    """XE-022: a test that means to have no reviewer must not find the caller's. Prepending an empty
+    directory to PATH kept the rest, so on a machine with codex installed the real one answered.
+    ponytail: drops every PATH entry holding a reviewer CLI, siblings included; if that ever takes
+    git with it, the run fails loudly rather than reviewing, and a per-binary shadow dir is the upgrade."""
+    clis = [t for t, c in pr.REVIEWERS.items() if c["transport"] == "cli"]
+    env["PATH"] = os.pathsep.join(d for d in env["PATH"].split(os.pathsep)
+                                  if not any(os.access(os.path.join(d, t), os.X_OK) for t in clis))
+    env.pop("GSTACK_OPENROUTER_ENV", None)
+
+
+def assert_no_reviewer(env):
+    """XE-022.2: the absence is checked, not assumed, so a test that cannot stage it fails as setup."""
+    for tool in pr.REVIEWER_ORDER:
+        if pr.REVIEWERS[tool]["transport"] == "cli":
+            assert shutil.which(tool, path=env["PATH"]) is None, f"setup: {tool} still resolves"
+        else:
+            assert "GSTACK_OPENROUTER_ENV" not in env, f"setup: {tool} can reach its credential"
+
+
 def fixture(tmp, body=None, sleep=0, bin_dir=None):
     env = {**os.environ, "GSTACK_PEER_REVIEW_DIR": str(tmp)}
     env.pop("GSTACK_PEER_REVIEW_SESSION", None)
     env.pop("GSTACK_REVIEWER", None)
+    if bin_dir is not None:
+        without_reviewers(env)
     bd = bin_dir if bin_dir is not None else fake_codex(tmp, body, sleep)
     env["PATH"] = f"{bd}:{env['PATH']}"
     repo = tmp / "repo"; repo.mkdir(parents=True)
@@ -121,6 +145,7 @@ def test_a_reviewer_that_exits_nonzero_completes_the_round_as_unavailable():
     with tempfile.TemporaryDirectory() as t:
         empty = Path(t) / "emptybin"; empty.mkdir()
         env, rid = fixture(Path(t), bin_dir=empty)
+        assert_no_reviewer(env)
         assert run(["dispatch", rid], env)[0] == 0
         for _ in range(30):
             rc, out = run(["collect", rid], env)
