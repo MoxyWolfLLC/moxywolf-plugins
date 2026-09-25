@@ -95,6 +95,17 @@ class MistakeLedger(unittest.TestCase):
             self.assertEqual(ml.main([str(fresh), "--append", str(rows)]), 0)
         self.assertEqual(len(ml.parse(fresh.read_text())), 1)
 
+    def test_the_seeded_ledger_validates(self):
+        # SM-003 criterion 10: the vault ledger was seeded from this file, byte for byte, so the
+        # seed is checked where a reviewer and CI can both read it.
+        seed = Path(__file__).resolve().parents[1] / "skills" / "session-end" / "references" / "mistake-ledger-seed.md"
+        rows = ml.parse(seed.read_text())
+        self.assertEqual(check(seed.read_text()), [])
+        self.assertEqual([(r["id"], r["disposition"], r["target"]) for r in rows], [
+            ("M-001", "became_check", "XE-020"),
+            ("M-002", "became_rule", "plugins/github-repo-analyzer/skills/github-repo-analyzer/SKILL.md"),
+            ("M-003", "became_rule", "plugins/github-repo-analyzer/skills/github-repo-analyzer/SKILL.md")])
+
     def test_cli_reports_what_it_examined(self):
         import io, contextlib, tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as t:
