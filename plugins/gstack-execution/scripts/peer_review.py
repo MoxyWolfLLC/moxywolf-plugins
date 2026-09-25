@@ -569,13 +569,14 @@ def resolve_ci_runs(packet):
     runs = tests.get("ci_runs") if isinstance(tests, dict) else None
     if not runs:
         return packet
-    names = {r["path"] for r in packet["repos"]} | {Path(r["path"]).name for r in packet["repos"]}
+    repos = packet.get("repos") or []
+    names = {r["path"] for r in repos} | {Path(r["path"]).name for r in repos}
     for e in runs:
         if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not e["repo"]:
             raise ReviewError("malformed_packet", f"tests.ci_runs entry must be {{repo, run_id}}: {e!r}")
         if "/" in e["repo"]:
             e["repo"] = str(Path(e["repo"]).resolve())
-        if e["repo"] not in names:
+        if repos and e["repo"] not in names:  # a packet with no repos yet has nothing to match against
             raise ReviewError("malformed_packet",
                               f"tests.ci_runs names {e['repo']!r}, which is not a repository in this packet "
                               f"(repos: {sorted(r['path'] for r in packet['repos'])})")

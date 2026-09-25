@@ -41,6 +41,12 @@ class CiRunPaths(unittest.TestCase):
         with self.assertRaises(pr.ReviewError):
             pr.apply_ci_runs(p, ["nowhere=9"])
 
+    def test_a_packet_without_repos_is_resolved_not_refused(self):
+        # a fix-round packet fragment carries no repos; the match is judged at load, where repos exist
+        p = {"tests": {"ci_runs": [{"repo": "app", "run_id": 1}]}}
+        pr.apply_ci_runs(p, [f"{self.via_alias}=9"])
+        self.assertEqual(p["tests"]["ci_runs"], [{"repo": str(self.real.resolve()), "run_id": 9}])
+
     def test_open_refuses_a_packet_whose_run_names_no_repository(self):
         # through load_packet, which cmd_open calls: the refusal happens before any review opens
         git = lambda *a: subprocess.run(["git", "-C", str(self.real), *a], check=True, capture_output=True, text=True).stdout.strip()
