@@ -104,8 +104,15 @@ class MistakeLedger(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(ml.main([str(ledger), "--append", str(rows)]), 3)
-        self.assertFalse(ledger.exists())
+        # criterion 8: the missing ledger is created, header only; the empty ledger still fails validation
+        self.assertEqual(ml.parse(ledger.read_text()), [])
+        self.assertTrue(any("no rows" in f for f in check(ledger.read_text())))
+        self.assertIn("created", out.getvalue())
         self.assertIn("not a pass", out.getvalue())
+        before = ledger.read_text()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(ml.main([str(ledger), "--append", str(rows)]), 3)
+        self.assertEqual(ledger.read_text(), before)
 
     def test_the_seeded_ledger_validates(self):
         # SM-003 criterion 10: the vault ledger was seeded from this file, byte for byte, so the
