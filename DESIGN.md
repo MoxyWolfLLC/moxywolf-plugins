@@ -996,6 +996,22 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 2. The root cause is not claimed here. The next failure's stderr is filed as its own item.
 3. It ships with XE-023, under XE-023 criterion 4's version bump.
 
+### XE-026 — jev_route's selftest examines something on every machine
+
+**Status:** building.
+
+**Links introduced:** the `--selftest --live` flag, which `smart-router/SKILL.md` and anyone running the live check now has to name; and exit code 3 for "skipped, nothing examined," which means the same thing it does for `tests/container/run.sh`.
+
+`council/jev_route.py --selftest` is a live check. It loads the AI Gateway key and calls Jev three times. That gives it two defects. With no key it prints SKIP and exits 0, and `run_all_tests.py` counts only exit codes, so every CI run records a pass over nothing (EV-001). With the key, as on the Release Owner's Mac, the shared suite depends on the gateway being up. It failed once on 25 September with a 503 and passed 3 of 3 on retry. It's the same class of defect as XE-019 and XE-022: a test whose result depends on the caller's machine is testing the caller.
+
+1. `--selftest` makes no network call and loads no key. It swaps `_ask` for a stub and checks three things. First, the request `route()` builds: the model, a state carrying the query and the budget, and the four questions with their types and criteria. Second, parsing: canned gateway answers for each of the three `CHECKS` produce the expected decision and category, with each confidence landing in its band. Third, an answer missing `deliberate` or `category` raises `JevUnavailable`. It prints how many cases it examined, and it exits nonzero on any failure or on zero cases.
+2. A new `test_jev_route.py` runs `--selftest` in a subprocess with a bogus `AI_GATEWAY_API_KEY` set, `JEV_ENDPOINT` pointed at `http://127.0.0.1:9`, and `curl` off `PATH`, and it passes. If the selftest touched the key or the network, it would fail. CI runs this, so the proof doesn't depend on any one machine.
+3. `--selftest --live` is the old three-call check. With no key it prints what it searched and exits 3, not 0. If the gateway fails, it prints the reason and exits 2 rather than a traceback. `run_all_tests.py` never passes `--live`.
+4. `plugins/council/.claude-plugin/plugin.json` goes from 0.8.0 to 0.9.0, and the marketplace's council entry and top-level version move with it, per CI-002.
+5. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** the live check's discrimination quality. It keeps its three cases.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -1003,6 +1019,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-25: Added XE-026 on Dorian's instruction to declare jev_route's selftest fix, handed off from the morning session. XE-025, the M-012 check, is reserved and not declared.
 
 - 2026-09-25: Added XE-023 and XE-024 on Dorian's instruction ("fix the last four") to close the two macOS-only failures open since PR #42 (XE-022 closed the other) and the intermittent `test_task_graph` failure. XE-024 makes that test report its cause rather than guessing one: 518 runs could not reproduce it.
 

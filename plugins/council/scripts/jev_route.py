@@ -106,6 +106,10 @@ def load_gateway_key(*, return_source: bool = False):
     )
 
 
+def _request_body(state, questions: dict) -> str:
+    return json.dumps({"model": MODEL, "state": state, "questions": questions})
+
+
 def _ask(key: str, state, questions: dict) -> dict:
     """POST one evaluate call.
 
@@ -117,7 +121,7 @@ def _ask(key: str, state, questions: dict) -> dict:
     The auth header goes through --config on stdin and the body through a 0600
     temp file, so the key never appears in argv where `ps` would show it.
     """
-    body = json.dumps({"model": MODEL, "state": state, "questions": questions})
+    body = _request_body(state, questions)
     fd, bodyfile = tempfile.mkstemp(prefix="jev.", suffix=".json")
     try:
         os.write(fd, body.encode())
@@ -248,21 +252,112 @@ CHECKS = [
 ]
 
 
-def selftest():
-    """One runnable check: Jev must separate a lookup from a real tradeoff question.
+# Canned gateway answers, one per CHECKS entry and in the same order, plus the
+# band the confidence should land in. The offline selftest routes each CHECKS
+# query through them, so the table the live check uses is the one checked here.
+CANNED = [
+    ({"category": {"choice": "factual_lookup"}, "protocol": {"choice": "consensus"},
+      "compound": {"probability": 0.05}, "deliberate": {"probability": 0.04}}, "follow"),
+    ({"category": {"choice": "architecture_decision"}, "protocol": {"choice": "voting"},
+      "compound": {"probability": 0.9}, "deliberate": {"probability": 0.97}}, "follow"),
+    ({"category": {"choice": "code_implementation"}, "protocol": {"choice": "consensus"},
+      "compound": {"probability": 0.1}, "deliberate": {"probability": 0.12}}, "flag"),
+]
 
-    ponytail: three cases, not a suite. If this passes, the wiring, the key, the
-    schema and the discrimination all work; if it fails, one of them does not.
+
+def _band(r):
+    return "explore" if r["exploration"] else ("flag" if r["uncertain"] else "follow")
+
+
+def selftest_offline():
+    """Everything route() does except the HTTP call: request, parsing, routing.
+
+    _ask is swapped for a stub, so this loads no key and makes no network call.
+    It is the check run_all_tests.py runs, on every machine (XE-026).
+    """
+    global _ask
+    sent, results = [], []
+    reply = {}
+
+    def stub(key, state, questions):
+        sent.append((state, questions))
+        return reply
+
+    def check(name, ok):
+        results.append(ok)
+        print("  %-4s %s" % ("ok" if ok else "FAIL", name))
+
+    real, _ask = _ask, stub
+    try:
+        # The request.
+        reply = {"answers": CANNED[0][0]}
+        route("q", budget=0.05, key="stub")
+        state, qs = sent[-1]
+        check("state carries query and budget", state == {"query": "q", "budget_usd": 0.05})
+        route("q", key="stub")
+        check("no budget, no budget_usd", sent[-1][0] == {"query": "q"})
+        types = {k: v.get("type") for k, v in qs.items()}
+        check("four questions, typed", types == {"category": "choice", "protocol": "choice",
+                                                  "compound": "boolean", "deliberate": "boolean"})
+        check("category criteria are CATEGORIES", qs["category"]["criteria"] == CATEGORIES)
+        check("every question has instructions and criteria",
+              all(v.get("instructions") and v.get("criteria") for v in qs.values()))
+        check("boolean criteria are true/false",
+              all(set(qs[k]["criteria"]) == {"true", "false"} for k in ("compound", "deliberate")))
+        check("request body names the model",
+              json.loads(_request_body(state, qs))["model"] == MODEL)
+
+        # Parsing and routing, for each CHECKS query.
+        for (query, want_decision, want_category), (answers, want_band) in zip(CHECKS, CANNED):
+            reply = {"answers": answers}
+            r = route(query, key="stub")
+            check("%s -> %s/%s" % (query[:36], want_decision, want_band),
+                  r["decision"] == want_decision and _band(r) == want_band
+                  and r["category"] == (want_category or answers["category"]["choice"])
+                  and r["estimated_protocol"] == answers["protocol"]["choice"]
+                  and r["complexity_signals"]["is_compound"]
+                  == (answers["compound"]["probability"] >= 0.5)
+                  and r["model"] == MODEL and r["routing_source"] == "jev")
+
+        # A coin flip deliberates on purpose, flagged as exploration.
+        reply = {"answers": dict(CANNED[0][0], deliberate={"probability": 0.6})}
+        r = route("q", key="stub")
+        check("p=0.6 explores", r["decision"] == "deliberate" and _band(r) == "explore")
+
+        # An answer missing a field the router needs is unavailable, not a guess.
+        for missing in ("deliberate", "category"):
+            reply = {"answers": {k: v for k, v in CANNED[0][0].items() if k != missing}}
+            try:
+                route("q", key="stub")
+                check("no %s raises JevUnavailable" % missing, False)
+            except JevUnavailable:
+                check("no %s raises JevUnavailable" % missing, True)
+    finally:
+        _ask = real
+
+    bad = results.count(False)
+    print("\n%d/%d offline cases" % (len(results) - bad, len(results)))
+    return 1 if bad or not results else 0
+
+
+def selftest_live():
+    """The live check: Jev must separate a lookup from a real tradeoff question.
+
+    Exit 3 with no key (skipped, nothing examined), 2 if the gateway fails.
     """
     try:
         key, src = load_gateway_key(return_source=True)
     except JevUnavailable as e:
-        print("SKIP: no gateway key\n%s" % e)
-        return 0
+        print("SKIPPED: no gateway key, nothing examined\n%s" % e)
+        return 3
     print("key from:", src)
     bad = 0
     for query, want_decision, want_category in CHECKS:
-        r = route(query, key=key)
+        try:
+            r = route(query, key=key)
+        except JevUnavailable as e:
+            print("gateway failed: %s" % e)
+            return 2
         ok = r["decision"] == want_decision and (want_category is None
                                                  or r["category"] == want_category)
         bad += 0 if ok else 1
@@ -279,11 +374,11 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
         print(__doc__.strip().split("\n")[0])
-        print("\nusage: jev_route.py <query> [--budget USD]\n       jev_route.py --selftest"
+        print("\nusage: jev_route.py <query> [--budget USD]\n       jev_route.py --selftest [--live]"
               "\n       jev_route.py --where")
         sys.exit(0)
     if args[0] == "--selftest":
-        sys.exit(selftest())
+        sys.exit(selftest_live() if "--live" in args[1:] else selftest_offline())
     if args[0] == "--where":
         try:
             _, src = load_gateway_key(return_source=True)
