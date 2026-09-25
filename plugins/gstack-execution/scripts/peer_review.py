@@ -324,6 +324,7 @@ def load_packet(path, allow_unchanged=False):
         r["base"], r["head"] = resolve_commit(r["path"], r["base"]), resolve_commit(r["path"], r["head"])
         if r["base"] == r["head"] and not allow_unchanged:
             raise ReviewError("missing_commits", f"base == head in {r['path']}; nothing to review")
+    resolve_ci_runs(packet)
     packet.setdefault("prior_findings", [])
     return packet
 
@@ -555,6 +556,29 @@ def apply_ci_runs(packet, specs):
     if specs:
         packet.setdefault("tests", {})["ci_runs"] = [
             {"repo": k, "run_id": int(v)} for k, v in (s.rsplit("=", 1) for s in specs)]
+        resolve_ci_runs(packet)
+    return packet
+
+
+def resolve_ci_runs(packet):
+    """XE-020: a CI run is named by the same path its repository is. repos[].path is resolved at
+    load (on macOS /tmp/x becomes /private/tmp/x), so a ci_runs path is resolved the same way before
+    it is matched, and one matching no repository refuses here rather than opening a review whose
+    evidence reads nothing (review 20260924-162903-25a6677-7hrcgdnp spent a round on exactly that)."""
+    tests = packet.get("tests")
+    runs = tests.get("ci_runs") if isinstance(tests, dict) else None
+    if not runs:
+        return packet
+    names = {r["path"] for r in packet["repos"]} | {Path(r["path"]).name for r in packet["repos"]}
+    for e in runs:
+        if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not e["repo"]:
+            raise ReviewError("malformed_packet", f"tests.ci_runs entry must be {{repo, run_id}}: {e!r}")
+        if "/" in e["repo"]:
+            e["repo"] = str(Path(e["repo"]).resolve())
+        if e["repo"] not in names:
+            raise ReviewError("malformed_packet",
+                              f"tests.ci_runs names {e['repo']!r}, which is not a repository in this packet "
+                              f"(repos: {sorted(r['path'] for r in packet['repos'])})")
     return packet
 
 
