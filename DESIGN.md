@@ -731,7 +731,7 @@ Split out of SM-001 on 2026-09-19. The rule "a `#project/<slug>` maps to the lab
 
 ### SM-003 — A session's mistakes become checks or rules, and a repeat escalates
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the mistake-to-remedy link. Each ledger entry names the check, rule or item it became, by repository path or item ID, and a later session assumes that target still exists and still covers the mistake. The repeat link: an entry may name an earlier entry it repeats, and the ledger assumes that earlier entry's remedy did not work.
 

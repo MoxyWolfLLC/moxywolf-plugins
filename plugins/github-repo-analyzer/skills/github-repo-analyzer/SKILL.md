@@ -332,8 +332,8 @@ The health report covers these sections:
 - **Dependency Health** — Total count, outdated packages, known vulnerabilities (if detectable), license concerns
 - **Contributor Health** — Active contributors, commit frequency, bus factor, PR merge patterns
 - **Documentation Assessment** — README quality, API docs, inline comments, architecture docs
-- **Security Posture** — .env handling, secret detection patterns, auth approach, dependency audit configs
-- **Technical Debt Indicators** — TODO/FIXME density, large files, complex modules, stale branches. When a graphify graph is available, add its import cycles and isolated/weakly-connected nodes (candidate dead code or undocumented seams) as evidence.
+- **Security Posture** — .env handling, secret detection patterns, auth approach, dependency audit configs. Search for secrets by vendor key prefix as well as generic token shapes: `sk-`, `sk-or-v1-`, `sk-ant-`, `ghp_`, `ghs_`, `github_pat_`, `AKIA`, `xox[bp]-`, `AIza`, and `ak_` (Composio), over the whole tree including archived docs and handoffs. A generic regex missed a Composio `ak_` key in a public repo's May handoff (SM-003, ledger M-003).
+- **Technical Debt Indicators** — TODO/FIXME density, large files, complex modules, stale branches. Never call a document stale from its last-commit date alone: read its frontmatter `status` and count what references it (`git grep -l <filename>`) first. An old date on an `active` charter cited by 35 files is governance, not debt (SM-003, ledger M-002). When a graphify graph is available, add its import cycles and isolated/weakly-connected nodes (candidate dead code or undocumented seams) as evidence.
 - **Recommendations** — Prioritized action items grouped by urgency (critical, important, nice-to-have)
 
 ## Issue Review Report Structure

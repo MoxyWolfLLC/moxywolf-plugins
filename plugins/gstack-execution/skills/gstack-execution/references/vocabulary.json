@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -424,6 +424,62 @@
       "group": "origin",
       "skos:prefLabel": "Unexamined",
       "skos:definition": "the examined_by value for external text that no gate and no human read before it was recorded"
+    },
+    {
+      "id": "user",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "caught_by",
+      "skos:prefLabel": "User",
+      "skos:definition": "the person corrected the agent in the conversation"
+    },
+    {
+      "id": "reviewer",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "caught_by",
+      "skos:prefLabel": "Reviewer",
+      "skos:definition": "a cross-tool review round raised it"
+    },
+    {
+      "id": "test",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "caught_by",
+      "skos:prefLabel": "Test",
+      "skos:definition": "a test or check the agent ran failed on it"
+    },
+    {
+      "id": "ci",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "caught_by",
+      "skos:prefLabel": "CI",
+      "skos:definition": "a CI run failed on it"
+    },
+    {
+      "id": "self",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "caught_by",
+      "skos:prefLabel": "Self",
+      "skos:definition": "the agent caught it before anything else did"
+    },
+    {
+      "id": "became_check",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "mistake_disposition",
+      "skos:prefLabel": "Became a check",
+      "skos:definition": "a test or check now fails on a recurrence; the entry names it by path or planned item"
+    },
+    {
+      "id": "became_rule",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "mistake_disposition",
+      "skos:prefLabel": "Became a rule",
+      "skos:definition": "a rule was written into a file loaded at the point of action; the entry names the file"
+    },
+    {
+      "id": "one_off",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "mistake_disposition",
+      "skos:prefLabel": "One-off",
+      "skos:definition": "recorded in the handoff only; not expected to recur"
     }
   ]
 }
