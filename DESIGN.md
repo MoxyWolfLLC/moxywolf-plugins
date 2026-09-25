@@ -971,7 +971,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-023 — The E2E preflight resolves the repo before it compares paths under it
 
-**Status:** planned.
+**Status:** building on `build/XE-023-XE-024-macos-path-and-flake`.
 
 **Links introduced:** none. `preflight()` resolves the path it's handed; nothing is named, cached or retained.
 
@@ -986,7 +986,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-024 — A task-graph test that fails says why
 
-**Status:** planned.
+**Status:** building on `build/XE-023-XE-024-macos-path-and-flake`.
 
 **Links introduced:** none. A test helper adds the executor's stderr to an assertion message; nothing is named, cached or retained.
 

@@ -246,6 +246,10 @@ def _workflow_secrets(repo):
 
 def preflight(repo):
     """Every condition reports its own status. SKIP is not PASS; examining nothing is a failure."""
+    # XE-023: helpers resolve paths under the repo, so the repo is resolved once here, where every
+    # caller routes. On macOS /tmp is a link to /private/tmp, and comparing a resolved path with an
+    # unresolved repo raised ValueError out of relative_to().
+    repo = Path(repo).resolve()
     out = []
 
     def rec(name, status, detail):
@@ -455,6 +459,12 @@ def selftest():
     (mono / "website" / "tsconfig.json").write_text('{"extends": "./tsconfig.strict.json"}')
     (mono / "website" / "tsconfig.strict.json").write_text("{}")
     _, text = run_preflight(mono)
+    assert status_of(text, "tsconfig_within_project") == "PASS", text
+
+    # XE-023: the same tree reached through a symlink, as macOS reaches /tmp through /private/tmp.
+    # preflight must resolve the repo before comparing the resolved tsconfig path against it.
+    link = Path(tempfile.mkdtemp()) / "via-link"; link.symlink_to(mono)
+    _, text = run_preflight(link)
     assert status_of(text, "tsconfig_within_project") == "PASS", text
 
     # a workspace package specifier is NOT examined, so it must not report PASS.
