@@ -156,6 +156,21 @@ def test_a_reviewer_that_exits_nonzero_completes_the_round_as_unavailable():
         assert rc == 1, "a non-pass outcome must exit nonzero"
 
 
+def test_the_unavailable_fixture_hides_an_installed_reviewer():
+    """XE-022: CI has no reviewer installed, so the case above cannot show there that the fixture
+    hides one. Plant a runnable `codex` behind the caller's PATH, as an install would sit, and
+    prove it resolves before the fixture runs and does not after, while git still does."""
+    with tempfile.TemporaryDirectory() as t:
+        installed = Path(t) / "installed"; installed.mkdir()
+        f = installed / "codex"; f.write_text("#!/bin/sh\nexit 0\n"); f.chmod(0o755)
+        env = {"PATH": os.environ["PATH"] + os.pathsep + str(installed), "GSTACK_OPENROUTER_ENV": "/x"}
+        assert shutil.which("codex", path=env["PATH"]), "setup: the planted reviewer must resolve first"
+        without_reviewers(env)
+        assert_no_reviewer(env)
+        assert str(installed) not in env["PATH"].split(os.pathsep), env["PATH"]
+        assert shutil.which("git", path=env["PATH"]), "git must still resolve"
+
+
 def test_dispatch_refuses_a_second_review_in_flight():
     with tempfile.TemporaryDirectory() as t:
         env, rid = fixture(Path(t), CLEAN, sleep=5)
