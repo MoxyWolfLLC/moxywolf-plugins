@@ -1109,12 +1109,16 @@ def validate(raw, packet, prior=None, dispositions=None):
     if not isinstance(resolutions, list):
         raise ReviewError("malformed_output", "blocker_resolutions must be a list")
     resolved_ids = set()
+    seen_ids = set()
     kept = []
     for row in resolutions:
         if (not isinstance(row, dict) or not isinstance(row.get("id"), str) or type(row.get("resolved")) is not bool or
                 not isinstance(row.get("evidence"), str) or not row["evidence"].strip()):
             raise ReviewError("malformed_output", "blocker resolution needs id, boolean resolved, and evidence")
         fid = row["id"]
+        if fid in seen_ids:
+            raise ReviewError("malformed_output", "unknown or duplicate blocker resolution")
+        seen_ids.add(fid)
         # XE-020: a note on a prior non-blocking finding is not a blocker resolution. Drop it rather
         # than void a clean round; an id that was never a finding still fails below.
         if fid in nonblocking_ids:

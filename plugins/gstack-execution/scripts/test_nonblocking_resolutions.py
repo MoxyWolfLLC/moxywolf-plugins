@@ -40,6 +40,12 @@ class NonBlockingResolutionTests(unittest.TestCase):
         with self.assertRaises(pr.ReviewError):
             pr.validate(reply("F1", "F1"), PACKET, PRIOR, DISP)
 
+    def test_a_duplicate_non_blocking_entry_is_still_malformed(self):
+        """Review 20260924-205619 F1: the skip must not hide a duplicate."""
+        with self.assertRaises(pr.ReviewError) as caught:
+            pr.validate(reply("F1", "F2", "F2"), PACKET, PRIOR, DISP)
+        self.assertEqual(caught.exception.outcome, "malformed_output")
+
 
 if __name__ == "__main__":
     unittest.main()
