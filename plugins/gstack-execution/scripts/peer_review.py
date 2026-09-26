@@ -1570,7 +1570,18 @@ def coverage_verdict(packet, floor=COVERAGE_FLOOR):
 # passes; widen OFF_REPO when a miss is found.
 OFF_REPO = re.compile(r"\b(?:macOS|Mac|locally|vault|(?:Release Owner|builder|caller)['\u2019]s (?:Mac|machine))\b",
                       re.IGNORECASE)
-_PATHLIKE = re.compile(r"`([^`\s]+)`|([\w.-]+(?:/[\w.-]+)+)")
+# A bare path starts at a word boundary, so `/abs/x` or `../x` is never read as the relative `abs/x`.
+_PATHLIKE = re.compile(r"`([^`\s]+)`|(?<![\w./~-])((?:\.{1,2}/)?[\w.-]+(?:/[\w.-]+)+)")
+
+
+def _repo_relative(p):
+    """The repository path a named candidate means, or None. Review F1 (20260926-135446): an
+    lstrip("./") turned `/docs/x` into `docs/x` and `.github/x` into `github/x`. An absolute,
+    home-relative or escaping path names nothing inside the repository."""
+    p = p.rstrip(".,;:)")
+    if p.startswith(("/", "~")) or ".." in p.split("/"):
+        return None
+    return p[2:] if p.startswith("./") else p
 
 
 def _is_file(repo, head, rel):
@@ -1588,7 +1599,7 @@ def off_repo_verdict(packet):
         m = OFF_REPO.search(c)
         if not m:
             continue
-        cands = sorted({(a or b).rstrip(".,;:)").lstrip("./") for a, b in _PATHLIKE.findall(c)} - {""})
+        cands = sorted({_repo_relative(a or b) for a, b in _PATHLIKE.findall(c)} - {None, ""})
         path = next((p for p in cands for r in packet["repos"] if _is_file(r["path"], r["head"], p)), None)
         if path:
             evidenced.append({"criterion": c, "matched": m.group(0), "evidence": path})

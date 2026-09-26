@@ -17,6 +17,7 @@ import peer_review as pr  # noqa: E402
 XE022_C3 = ("On the Release Owner's Mac, with `codex` installed and on `PATH`, `test_dispatch_collect.py` "
             "passes 5 of 5, and the round record for the unavailable case names no reviewer model.")
 EVIDENCE = "docs/evidence/XE-022-macos-run.md"
+HIDDEN = ".github/evidence/run.md"
 
 
 def repo():
@@ -26,6 +27,7 @@ def repo():
     (d / "README.md").write_text("x\n"); run("add", "."); run("commit", "-qm", "base")
     base = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     (d / EVIDENCE).parent.mkdir(parents=True); (d / EVIDENCE).write_text("captured by script\n")
+    (d / HIDDEN).parent.mkdir(parents=True); (d / HIDDEN).write_text("captured by script\n")
     run("add", "."); run("commit", "-qm", "evidence")
     head = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     return d, base, head
@@ -74,6 +76,20 @@ def test_a_directory_is_not_evidence():
     """Replay of review 20260925-091247: XE-023.3 named `docs/evidence/`, a directory, and passed."""
     e = refused([XE022_C3 + " Captured under `docs/evidence/`."])
     assert e and e.outcome == "unevidenced_off_repo_criterion", e
+
+
+def test_a_hidden_repository_file_is_evidence():
+    """Review F1: `.github/...` had its leading dot stripped and was never checked."""
+    st = open_review([XE022_C3 + f" Captured in `{HIDDEN}`."])
+    assert [x["evidence"] for x in st["off_repo_evidence"]] == [HIDDEN]
+
+
+def test_an_absolute_or_escaping_path_is_not_evidence():
+    """Review F1: `/docs/...` was read as the repository's `docs/...`. Quoted and bare, absolute,
+    home-relative and escaping forms all name nothing inside the repository."""
+    for ref in (f"`/{EVIDENCE}`", f"/{EVIDENCE}", f"`../{EVIDENCE}`", f"../{EVIDENCE}", f"~/{EVIDENCE}"):
+        e = refused([XE022_C3 + f" Captured in {ref}."])
+        assert e and e.outcome == "unevidenced_off_repo_criterion", ref
 
 
 def test_a_criterion_with_no_off_repo_word_opens():
