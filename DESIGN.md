@@ -1012,6 +1012,23 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 **Not in this item:** the live check's discrimination quality. It keeps its three cases.
 
+### XE-025 — A criterion about a place the reviewer can't see needs evidence it can
+
+**Status:** planned.
+
+**Links introduced:** a link from a criterion to its evidence file. Each off-repo criterion is tied to a repo path at the reviewed head, and the review assumes that file is the evidence for that claim. The review state gets new fields recording that link and any override.
+
+M-012 repeated M-007. XE-022 criterion 3 made a claim about the Release Owner's Mac, and its only evidence was in `tests.results`, which is the builder's own claim. The reviewer can't open anything outside the repo, so it cost a round and a second review. The team-memory rule written after M-007 didn't stop it, so this makes the rule a check at the point of action (DR-108).
+
+1. `cmd_open` scans every acceptance criterion against one declared pattern, `OFF_REPO`. It matches words naming a place outside the repo: `Mac`, `macOS`, the Release Owner's or the builder's machine, `locally`, the vault. If a criterion matches and names no repo-relative file that exists at a packet repo's pinned head, the open is refused as `unevidenced_off_repo_criterion`. The refusal names each such criterion and the word it matched.
+2. If a matching criterion names such a file, the review opens normally. Existence is checked with `git cat-file -e <head>:<path>`. The review state records each off-repo criterion and its evidence path.
+3. `--accept-off-repo-criterion` opens the review anyway and records the override in the state. That follows the shape of XE-010's `--accept-narrow-packet`, so a false positive never blocks a review.
+4. A new `test_off_repo_criterion.py` covers five cases: XE-022 criterion 3's exact text, with no evidence path, is refused; the same text naming `docs/evidence/XE-022-macos-run.md`, at a head where that file exists, opens; a named path that's missing at the head is refused; a criterion with no off-repo word opens; and the override opens and records itself.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.39.2, and the top-level marketplace version moves with it, per CI-002.
+6. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** whether the evidence file actually supports the claim. That's still the reviewer's call. This check only guarantees there's something to read. It's a keyword gate: a criterion that describes an off-repo place without one of the `OFF_REPO` words gets past it.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -1019,6 +1036,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-26: Added XE-025 on Dorian's approval ("I approve XE-025"). It turns ledger M-012, a repeat of M-007, into a check at review open: a criterion about a place the reviewer can't see must name an in-repo evidence file.
 
 - 2026-09-25: Added XE-026 on Dorian's instruction to declare jev_route's selftest fix, handed off from the morning session. XE-025, the M-012 check, is reserved and not declared.
 
