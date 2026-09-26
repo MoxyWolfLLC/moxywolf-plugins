@@ -998,7 +998,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-026 — jev_route's selftest examines something on every machine
 
-**Status:** building.
+**Status:** done. Merged to `main` in `87763e4` (PR #65, head `89e8d83`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260925-135313-8b7cca5-ae00x9cr` (codex/gpt-6-astra, `fixes_verified`, 2 rounds): round 1 found F1, the subprocess test's bogus key resolves like a real one so it couldn't see a key load, fixed in `89e8d83` with an in-process test that makes the key loader and the real `_ask` raise, and verified resolved. The `tests` workflow was green at the reviewed head and read by the dispatcher itself.
 
 **Links introduced:** the `--selftest --live` flag, which `smart-router/SKILL.md` and anyone running the live check now has to name; and exit code 3 for "skipped, nothing examined," which means the same thing it does for `tests/container/run.sh`.
 
