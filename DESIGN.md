@@ -1014,7 +1014,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-025 — A criterion about a place the reviewer can't see needs evidence it can
 
-**Status:** building.
+**Status:** done. Merged to `main` in `b80464d` (PR #67, head `133a5c9`) on 26 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260926-135446-4639568-vnkf1k0p` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), opened with `--accept-off-repo-criterion` because criterion 1 names the pattern's own words: round 1 found F1, path normalization read `/docs/x` as `docs/x` and `.github/x` as `github/x`, fixed in `133a5c9` and verified resolved. The `tests` workflow was green at the reviewed head and read by the dispatcher itself.
 
 **Links introduced:** a link from a criterion to its evidence file. Each off-repo criterion is tied to a repo path at the reviewed head, and the review assumes that file is the evidence for that claim. The review state gets new fields recording that link and any override.
 
