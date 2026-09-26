@@ -293,6 +293,13 @@
       "skos:definition": "the packet's criteria do not cover every declared criterion of the items it claims"
     },
     {
+      "id": "unevidenced_off_repo_criterion",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "unevidenced_off_repo_criterion",
+      "skos:definition": "a criterion names a place outside the repository and no repository file at the reviewed head carries its evidence"
+    },
+    {
       "id": "release_blocked",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",
