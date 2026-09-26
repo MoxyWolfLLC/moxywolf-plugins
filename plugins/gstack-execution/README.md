@@ -96,6 +96,8 @@ review. It also, once, reported zero problems over 16 of 19 criteria because a r
 from Python silently dropped the last criterion of every item — which is check #1 of the verification
 discipline applied to the gate itself: a pass over input it never read is a failure, whoever produced it.
 
+The open refuses one more shape of packet (XE-025). A criterion about a place the reviewer can't see, such as the Release Owner's Mac, the vault or a local run, has to name a repository file at the reviewed head that carries its evidence, usually `docs/evidence/<item>.md`. Otherwise the open fails as `unevidenced_off_repo_criterion`. `tests.results` doesn't count, because it's the builder's own account. `--accept-off-repo-criterion` proceeds anyway and the record says so.
+
 ## Licence and provenance
 
 MIT, following gstack. Adversarial-review framing adapted from codex-plugin-cc (Apache-2.0). The verification discipline, the peer-review contract, the review surface and the gates are MoxyWolf's.

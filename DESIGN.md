@@ -1014,7 +1014,7 @@ STIGViewer PL-004 review `20260924-202346-8e39522-hibt89yr` round 2 came back `n
 
 ### XE-025 — A criterion about a place the reviewer can't see needs evidence it can
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** a link from a criterion to its evidence file. Each off-repo criterion is tied to a repo path at the reviewed head, and the review assumes that file is the evidence for that claim. The review state gets new fields recording that link and any override.
 

@@ -1561,6 +1561,42 @@ def coverage_verdict(packet, floor=COVERAGE_FLOOR):
     return (not uncovered), ("covered" if not uncovered else "uncovered"), uncovered
 
 
+# XE-025: a criterion about a place the reviewer can't see needs evidence it can. The reviewer
+# opens nothing outside the repository, so a claim about the Release Owner's Mac, the vault or a
+# local run, backed only by tests.results (the builder's own words), cannot be checked. Twice that
+# cost a round (ledger M-007, then M-012); the team rule after the first did not stop the second,
+# so it is a check here, at the point of action. Like XE-010 it can only refuse to open a review.
+# ponytail: a keyword gate. A criterion that names an off-repo place without one of these words
+# passes; widen OFF_REPO when a miss is found.
+OFF_REPO = re.compile(r"\b(?:macOS|Mac|locally|vault|(?:Release Owner|builder|caller)['\u2019]s (?:Mac|machine))\b",
+                      re.IGNORECASE)
+_PATHLIKE = re.compile(r"`([^`\s]+)`|([\w.-]+(?:/[\w.-]+)+)")
+
+
+def _is_file(repo, head, rel):
+    # A directory is not evidence: `cat-file -e` accepts a tree, so a criterion naming
+    # `docs/evidence/` passed a replay of review 20260925-091247 on the directory alone.
+    r = subprocess.run(["git", "-C", str(repo), "cat-file", "-t", f"{head}:{rel}"], capture_output=True, text=True)
+    return r.returncode == 0 and r.stdout.strip() == "blob"
+
+
+def off_repo_verdict(packet):
+    """(unevidenced, evidenced): criteria naming an off-repo place, split by whether each names a
+    repository file that exists at a packet repo's pinned head. Reads git; never writes."""
+    unevidenced, evidenced = [], []
+    for c in packet["acceptance_criteria"]:
+        m = OFF_REPO.search(c)
+        if not m:
+            continue
+        cands = sorted({(a or b).rstrip(".,;:)").lstrip("./") for a, b in _PATHLIKE.findall(c)} - {""})
+        path = next((p for p in cands for r in packet["repos"] if _is_file(r["path"], r["head"], p)), None)
+        if path:
+            evidenced.append({"criterion": c, "matched": m.group(0), "evidence": path})
+        else:
+            unevidenced.append({"criterion": c, "matched": m.group(0)})
+    return unevidenced, evidenced
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -1580,6 +1616,15 @@ def cmd_open(a):
                           f"{lines}\nWiden the packet, or pass --accept-narrow-packet with a reason "
                           "recorded in exclusions.")
 
+    unevidenced, evidenced = off_repo_verdict(packet)
+    if unevidenced and not getattr(a, "accept_off_repo_criterion", False):
+        lines = "\n".join(f"  [{u['matched']}] {u['criterion'][:160]}" for u in unevidenced)
+        raise ReviewError("unevidenced_off_repo_criterion",
+                          "these criteria name a place outside the repository, and none names a repository "
+                          f"file at the reviewed head the reviewer could read as evidence:\n{lines}\n"
+                          "Commit the evidence (e.g. docs/evidence/<item>.md) and name its path in the criterion, "
+                          "or pass --accept-off-repo-criterion.")
+
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
     root = review_root()
     root.mkdir(parents=True, exist_ok=True)
@@ -1596,6 +1641,8 @@ def cmd_open(a):
              "coverage_checked": cov_status not in {"not_run"} and not cov_status.startswith("unavailable"),
              "coverage_status": cov_status,
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
+             "off_repo_evidence": evidenced,
+             "off_repo_overridden": [u["criterion"] for u in unevidenced],
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
@@ -2114,6 +2161,8 @@ def main():
     o = sub.add_parser("open"); o.add_argument("--builder", required=True, choices=sorted(OTHER_TOOL)); o.add_argument("--packet", required=True)
     o.add_argument("--accept-narrow-packet", action="store_true",
                    help="open anyway despite uncovered declared criteria; recorded in the review state")
+    o.add_argument("--accept-off-repo-criterion", action="store_true",
+                   help="open anyway despite a criterion about an off-repo place with no in-repo evidence; recorded in the review state")
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
