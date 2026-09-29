@@ -599,27 +599,28 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def github_job_log(name, job_id):
-    """XE-027.3: a job's raw log. GitHub answers with a redirect to its log store; the token is sent
+    """XE-027.3: a job's raw log, as bytes, untouched. GitHub answers with a redirect to its log store; the token is sent
     to GitHub only, and the redirect is followed without it."""
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         r = subprocess.run(["gh", "api", f"repos/{name}/actions/jobs/{int(job_id)}/logs"],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, timeout=120)   # bytes: text mode would rewrite CRLF (F2)
         if r.returncode:
-            raise ReviewError("release_unavailable", f"job log could not be read: {r.stderr.strip()[:200]}")
+            raise ReviewError("release_unavailable", f"job log could not be read: {r.stderr.decode(errors='replace').strip()[:200]}")
         return r.stdout
     api = os.environ.get("GSTACK_GITHUB_API", "https://api.github.com").rstrip("/")
     req = urllib.request.Request(f"{api}/repos/{name}/actions/jobs/{int(job_id)}/logs", headers={
         "Authorization": "token " + token, "Accept": "application/vnd.github+json", "User-Agent": "gstack-ci-log"})
     try:
         with urllib.request.build_opener(_NoRedirect).open(req, timeout=60) as resp:
-            return resp.read().decode(errors="replace")
+            return resp.read()
     except urllib.error.HTTPError as e:
+        e.close()
         if e.code not in (301, 302, 303, 307, 308) or not e.headers.get("Location"):
             raise
         with urllib.request.urlopen(urllib.request.Request(e.headers["Location"],
                                     headers={"User-Agent": "gstack-ci-log"}), timeout=120) as resp:
-            return resp.read().decode(errors="replace")
+            return resp.read()
 
 
 def reducer_ask(instructions, request):
@@ -647,13 +648,14 @@ def ci_job_log(name, run_id, job, archive_dir, evidence_dir, ask=None):
     or the log's last 64 KB when no receipt applies. Never raises: an unread log is a recorded fact."""
     block = {"read": False}
     try:
-        log = github_job_log(name, job["id"])
+        raw = github_job_log(name, job["id"])
     except Exception as e:
         block["error"] = str(e)[:300]
         return block
     archive_dir.mkdir(parents=True, exist_ok=True); evidence_dir.mkdir(parents=True, exist_ok=True)
     archive = archive_dir / f"{run_id}-{job['id']}.log"
-    archive.write_text(log)
+    archive.write_bytes(raw)                 # F2: the bytes GitHub sent, hashed as sent
+    log = clr.as_text(raw)                   # lossless: clr.as_bytes(log) == raw
     errors = []
     def asked(instructions, request):   # keep why the reducer failed; reduce() only says that it did
         try:
@@ -668,14 +670,14 @@ def ci_job_log(name, run_id, job, archive_dir, evidence_dir, ask=None):
         (evidence_dir / f"{stem}.receipt.txt").write_text(receipt)
         shown = f"{EVIDENCE_DIR}/{stem}.receipt.txt"
     else:
-        (evidence_dir / f"{stem}.log").write_text(clr.tail(log))
+        (evidence_dir / f"{stem}.log").write_bytes(clr.as_bytes(clr.tail(log)))
         shown = f"{EVIDENCE_DIR}/{stem}.log"
-    block.update(read=True, bytes=len(log.encode()), sha256=clr.sha256(log), archive=str(archive),
+    block.update(read=True, bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(), archive=str(archive),
                  receipt="applied" if receipt else why, shown=shown)
     return block
 
 
-def fetch_ci_evidence(repos, ci_runs, surf):
+def fetch_ci_evidence(repos, ci_runs, surf, archive_dir=None):
     """XE-018.3-4: read each named GitHub Actions run and write what it says into the surface.
     A run at another head is written and marked; a run that cannot be read is written as unread.
     Nothing here raises: a missing piece of evidence is a fact about the review, not a crash."""
@@ -711,7 +713,7 @@ def fetch_ci_evidence(repos, ci_runs, surf):
                              for j in jobs])
             for job in rec["jobs"]:   # XE-027: a failed job reaches the reviewer with its log, or a checked receipt of it
                 if job["conclusion"] in FAILED_CONCLUSIONS:
-                    job["log"] = ci_job_log(name, run_id, job, surf.parent / "ci-logs", surf / EVIDENCE_DIR)
+                    job["log"] = ci_job_log(name, run_id, job, archive_dir or surf.parent / "ci-logs", surf / EVIDENCE_DIR)
         except Exception as e:
             rec["error"] = str(e)
         (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
@@ -720,7 +722,7 @@ def fetch_ci_evidence(repos, ci_runs, surf):
     return out
 
 
-def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=()):
+def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None):
     """Write the review surface. Returns (path, stats).
 
     prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
@@ -770,12 +772,16 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
              "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())]),
              "dependencies": len(deps), "dependencies_withheld": deps_dropped}
-    ci = fetch_ci_evidence(repos, ci_runs, surf)
+    ci = fetch_ci_evidence(repos, ci_runs, surf, archive_dir)
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     stats["evidence"] = {"requested": len(ci), "read": sum(1 for c in ci if c["read"]),
                          "head_matched": sum(1 for c in ci if c.get("head_matches")),
                          "failed_jobs": len(failed), "logs_read": sum(1 for j in failed if j["log"]["read"]),
                          "receipts_applied": sum(1 for j in failed if j["log"].get("receipt") == "applied")}
+    # F1 (reviewer): the surface is torn down after the round; what each failed job's log was, and
+    # where the full copy lives, has to survive in the round record.
+    stats["ci_logs"] = [{"run_id": c["run_id"], "job_id": j["id"], "name": j["name"], "conclusion": j["conclusion"],
+                         **j["log"]} for c in ci for j in c.get("jobs") or () if "log" in j]
     # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
     # what to do with them, routes the second-home check to the party whose job is finding the
     # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
@@ -1824,8 +1830,10 @@ def cmd_round(a):
         surf, surf_stats = build_surface(packet["repos"], root,
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
-                                         ci_runs=(packet.get("tests") or {}).get("ci_runs"))
+                                         ci_runs=(packet.get("tests") or {}).get("ci_runs"),
+                                         archive_dir=d / "ci-logs")   # XE-027 F1: outlives the surface
         record["evidence"] = surf_stats.pop("evidence")   # XE-018.6
+        record["ci_logs"] = surf_stats.pop("ci_logs")     # XE-027 F1
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
@@ -2126,7 +2134,7 @@ def cmd_ci_log(a):
                  else f"log not read: {b.get('error')}")
               + (f" ({b['reducer_error']})" if b.get("reducer_error") else "") + " ===")
         if b["read"]:
-            print((out / b["shown"]).read_text())
+            print((out / b["shown"]).read_bytes().decode(errors="replace"))
     return {"examined": len(jobs), "failed": len(failed)}
 
 

@@ -23,8 +23,18 @@ LIKELY_SECRET = re.compile(r"(?i)(-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(gh[pousr
                            r"|\b(password|secret|api[_-]?key|token)\s*[:=]\s*['\"]?[^\s'\"*]{8,})")
 
 
+def as_text(raw):
+    """A lossless text view of log bytes: CRLF stays CRLF, and undecodable bytes survive as
+    surrogates, so as_bytes(as_text(raw)) == raw and a hash of the text is a hash of the bytes."""
+    return raw.decode("utf-8", "surrogateescape")
+
+
+def as_bytes(text):
+    return text.encode("utf-8", "surrogateescape")
+
+
 def sha256(text):
-    return hashlib.sha256(text.encode()).hexdigest()
+    return hashlib.sha256(as_bytes(text)).hexdigest()
 
 
 def instructions():
@@ -43,7 +53,7 @@ def instructions():
 
 
 def request(log, failed):
-    return (f"source_sha256={sha256(log)}\nsource_bytes={len(log.encode())}\nfailed={'true' if failed else 'false'}\n"
+    return (f"source_sha256={sha256(log)}\nsource_bytes={len(as_bytes(log))}\nfailed={'true' if failed else 'false'}\n"
             f"<untrusted_log>\n{log}\n</untrusted_log>")
 
 
@@ -78,7 +88,7 @@ def validate_receipt(raw, log, failed):
 def receipt_text(log, failed, evidence, uncertain, model, usage, archive):
     lines = ["gstack_ci_receipt_v1 (quotes checked byte for byte against the log by the dispatcher)",
              f"status={'failure' if failed else 'success'}", f"uncertain={str(uncertain).lower()}",
-             f"source_sha256={sha256(log)}", f"source_bytes={len(log.encode())}", f"source_lines={log.count(chr(10)) + 1}",
+             f"source_sha256={sha256(log)}", f"source_bytes={len(as_bytes(log))}", f"source_lines={log.count(chr(10)) + 1}",
              f"source_archive={archive}", f"reducer_model={model}", f"reducer_tokens={usage}", "verified_evidence:"]
     lines += [f"- kind={e['kind']} line={e['line']} quote={json.dumps(e['quote'])}" for e in evidence] or ["- none"]
     lines.append("What the reducer left out, and its uncertain flag, prove nothing. Judge the failure yourself.")
@@ -87,7 +97,7 @@ def receipt_text(log, failed, evidence, uncertain, model, usage, archive):
 
 def reduce(log, failed, ask, archive=""):
     """ask(instructions, request) -> (raw_text, model, usage). Returns (receipt, None) or (None, reason)."""
-    size = len(log.encode())
+    size = len(as_bytes(log))
     if size < MIN_BYTES:
         return None, "under_min_bytes"
     if size > MAX_BYTES:
@@ -102,19 +112,19 @@ def reduce(log, failed, ask, archive=""):
     if why:
         return None, why
     text = receipt_text(log, failed, evidence, uncertain, model, usage, archive)
-    if len(text.encode()) >= size:
+    if len(as_bytes(text)) >= size:
         return None, "receipt_not_smaller"
     return text, None
 
 
 def tail(log):
     """The log as it goes to the reviewer when no receipt applies: the last TAIL_BYTES, cut stated."""
-    b = log.encode()
+    b = as_bytes(log)
     if len(b) <= TAIL_BYTES:
         return "[full log, not cut]\n" + log
-    kept = b[-TAIL_BYTES:].decode(errors="ignore")
-    kept = kept[kept.find("\n") + 1:] or kept   # start on a whole line
-    return f"[cut: showing the last {len(kept.encode())} of {len(b)} bytes; earlier lines were withheld]\n" + kept
+    kept = b[-TAIL_BYTES:]
+    kept = kept[kept.find(b"\n") + 1:] or kept   # start on a whole line
+    return f"[cut: showing the last {len(kept)} of {len(b)} bytes; earlier lines were withheld]\n" + as_text(kept)
 
 
 def selftest():
