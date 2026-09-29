@@ -113,7 +113,7 @@ Changing a GitHub App's permissions raises a REQUEST. Until each installation ac
 
 ### GA-006 — A token is minted for the installation that owns the repository
 
-**Status:** done. Merged to `main` in `27fd672` (PR #31, head `29dff5c`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-142113-29dff5c-xs3jf4jy` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. A review folder and a prepared handoff were found, but no release record. Previously: Merged to `main` in `27fd672` (PR #31, head `29dff5c`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-142113-29dff5c-xs3jf4jy` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
 
 **Release handoff prepared, release record blocked by where the review ran.** Unlike CI-001, this item has its handoff: `release.json`, `awaiting_human_release`, prepared at 2026-09-21T21:22:56Z, links 3 of 3 re-resolved, which predates the merge. `record-release` still could not run, for a different reason. The reviewer needs more wall time than the device shell allows, so the review ran in the session's cloud container and the record's `repos[].path` is that container's checkout. `record-release` requires `--repo` to resolve to exactly that path, and the only host where it does is the one where `api.github.com` answers 403 through the agent proxy. The device has the credential and the API; the cloud has the record. No record was fabricated.
 
@@ -136,7 +136,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-001 — Derive deliverable names and attribution from run data
 
-**Status:** done. Review 20260911-163931-423bd0a-bo_glftu, fixes_verified; merged as 6603aae.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260911-163931-423bd0a-bo_glftu, fixes_verified; merged as 6603aae.
 
 1. Stage 7 writes its deliverable to a name derived from the Stage 1 target slug. The orchestrator's artifact table and Stage 8's input reference that same name.
 2. Stage 1's diagram deliverable is derived from the target slug likewise.
@@ -145,7 +145,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-002 — Every declared requirement has a producer
 
-**Status:** done. Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
 
 1. End-matter sections declared in Stage 4 appear in Stage 5's `structure_plan` whenever the venue requires them.
 2. Stage 6 writes those sections as ordinary sections.
@@ -154,7 +154,7 @@ Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and 
 
 ### AP-003 — Mechanical release gate before completion
 
-**Status:** done. Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260911-165938-d11564a-g289mqlt, fixes_verified; merged as 856f5c6.
 
 1. The orchestrator runs a gate before presenting deliverables: zero em dashes, zero forbidden phrases, renumber `--check` exit 0, every `section_order` entry present, and no two references sharing a normalized DOI or URL.
 2. Stage 7 dedupes on normalized DOI/URL, not only on BibTeX key, and warns when two keys resolve to one work.
@@ -191,7 +191,7 @@ coverage it never had).
 
 ### EV-002 — Findings bind to content, and every link re-resolves on demand
 
-**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner, on the evidence as it stood and without a fresh review of the final head. Reviewed as `20260912-122421-80159e3-_lrr97ak` (codex/gpt-6-astra, `rounds_exhausted`): six blockers raised, five verified fixed by the reviewer. F2 was raised three times, as a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape; repairing the third surfaced a fourth instance, two later sweeps re-reading the rounds without the shape check. The third repair and the one-walk change that followed it carry regression tests and no reviewer sign-off, because the round limit was reached first. **The record that review ID names no longer exists.** See EV-009: it was written to a session-local home and destroyed with the session, so what follows from it in this document is reconstruction from the pull request and the commit messages, not a record a reader can pull on.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Only a reconstruction of its review was found, and no release record. Previously: Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner, on the evidence as it stood and without a fresh review of the final head. Reviewed as `20260912-122421-80159e3-_lrr97ak` (codex/gpt-6-astra, `rounds_exhausted`): six blockers raised, five verified fixed by the reviewer. F2 was raised three times, as a missing round record, then a record carrying only an outcome, then fields checked for presence but not shape; repairing the third surfaced a fourth instance, two later sweeps re-reading the rounds without the shape check. The third repair and the one-walk change that followed it carry regression tests and no reviewer sign-off, because the round limit was reached first. **The record that review ID names no longer exists.** See EV-009: it was written to a session-local home and destroyed with the session, so what follows from it in this document is reconstruction from the pull request and the commit messages, not a record a reader can pull on.
 
 **Links introduced:** a per-finding subject (blob id plus a span hash at the reviewed
 head) retained in `round-N.json`; the `verify` report's re-resolution of that subject at
@@ -327,7 +327,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-001 — The gate proves it can run before anything is pushed
 
-**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** none. The preflight report is derived from the working tree at call time and is not stored.
 
@@ -340,7 +340,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-002 — An approval binds to a scope, and re-resolves
 
-**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034.
 
 **Links introduced:** a capability grant ledger. Each grant links a human decision to an action class and a resource pattern, and every subsequent action re-resolves against it.
 
@@ -354,7 +354,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-003 — The cheapest surface that answers the question
 
-**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
 
 **Links introduced:** none.
 
@@ -364,7 +364,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-004 — A checkpoint is a batch, not an item
 
-**Status:** done. Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Built and reviewed (20260917-204651-c8e63f7-humw079_, gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance). PR #14, merged as `d26c18a` on 2026-09-17.
 
 **Links introduced:** none.
 
@@ -374,7 +374,7 @@ Each item's `**Status:**` below is the only record of what is built. This preamb
 
 ### XE-005 — A reviewer is independent by what differs, not by its name
 
-**Status:** done. Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Review 20260917-193232-339fea5-afng5hkw (gemini/gemini-3.1-pro-preview, no_blocking_findings, 13/13 acceptance); merged as f1a1034. Criterion 6 (per-entry output headroom) was NOT in that merge's acceptance criteria and so was not reviewed; it is built in the XE-003/XE-004 checkpoint.
 
 Criterion 4 carried a defect from that merge until 2026-09-21: `round` resolved the reviewer and wrote it to the round record but never back to `state.json`, and `status` reads `state.json`. A review run on gemini because codex was absent therefore reported `reviewer: codex, reviewer_is_fallback: false`, which is precisely the unrecorded fallback the criterion forbids. Found while confirming which tool had reviewed RR-001. Fixed on `build/RR-001-retrieval-review`; the intended reviewer is retained as `reviewer_intended` rather than overwritten.
 
@@ -576,7 +576,7 @@ One measured session sets the scale. The session of 2026-09-19 that built SM-002
 
 ### XE-013 — A reviewer is reached over a transport, and its identity stays the model's
 
-**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. A review folder was found (20260922-105812), but no release record. Previously: Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
 
 **No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
@@ -1005,7 +1005,7 @@ The premise: **every check in this repository tests the scripts, and nothing tes
 
 ### CI-001 — A shipped package is one a loader can read
 
-**Status:** done. Merged to `main` in `d619c06` (PR #33, head `69ab8e4`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-134157-69ab8e4-oolg8b8m` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. A review folder was found (20260921-134157), but no release record. Previously: Merged to `main` in `d619c06` (PR #33, head `69ab8e4`) on 21 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded as `agent_merge_on_instruction`. Review `20260921-134157-69ab8e4-oolg8b8m` (gemini/gemini-3.1-pro-preview, `no_blocking_findings`, 9/9 acceptance), with the `tests` workflow green on the same head.
 
 **No release record.** `record-release` has recorded no release for this item, and none was fabricated to close the gap. The handoff step was skipped: the review landed, the checkpoint was presented for a decision in conversation rather than through `peer_review.py release`, and the merge followed. `record-release` refuses on that order twice over, first because no `release.json` exists for the revision and then because a handoff prepared now would postdate the merge. The review itself is intact and the merge is recorded on the pull request; what is missing is the artifact that binds the two, and it cannot be produced after the fact without lying about when it was made.
 
@@ -1020,7 +1020,7 @@ The premise: **every check in this repository tests the scripts, and nothing tes
 
 ### CI-002 — A change ships to installs only if its version moves
 
-**Status:** done. Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. A review folder was found (20260922-105812), but no release record. Previously: Merged to `main` in `e28909b` (PR #38, head `008099a`) on 22 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction. Review `20260922-105812-008099a-vs3gs2t4` (openrouter-gemini/google/gemini-3.1-pro-preview, `no_blocking_findings`, 20/20 acceptance across XE-013 and CI-002, run as a recorded fallback with no cross-family corroboration).
 
 **No release record.** `peer_review.py release` was never run for that review, and its packet names the cloud container's checkout, so `record-release` cannot resolve it from the device. None was fabricated; see `Taskade/Team Plugins/00 – Project Hub/note-2026-09-22-pr38-no-release-record.md`.
 
@@ -1061,7 +1061,7 @@ Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for d
 
 ### XE-018 — A reviewer sees what the change names, and CI results the dispatcher fetched itself
 
-**Status:** done. Merged to `main` in `b213899` (PR #50, head `53cb396`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-145914-09e6ee3-gtge526o` (codex/gpt-6-astra): round 1 found three blockers (F1 single-component paths, F2 one page of jobs, F3 Step 5 folders), all fixed; round 2 `fixes_verified`, 10/10, with the `tests` workflow green at the reviewed head and read by the dispatcher itself. First use: SAMS PL-001 review `20260924-150655-40254e8-b7gynlsz` passed 4/4 after four earlier rounds could not.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Merged to `main` in `b213899` (PR #50, head `53cb396`) on 24 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-145914-09e6ee3-gtge526o` (codex/gpt-6-astra): round 1 found three blockers (F1 single-component paths, F2 one page of jobs, F3 Step 5 folders), all fixed; round 2 `fixes_verified`, 10/10, with the `tests` workflow green at the reviewed head and read by the dispatcher itself. First use: SAMS PL-001 review `20260924-150655-40254e8-b7gynlsz` passed 4/4 after four earlier rounds could not.
 
 **Links introduced:** `tests.ci_runs` in the packet names GitHub Actions runs by ID. The round record carries what the dispatcher fetched for each one, including the run's `head_sha`, and a run is evidence only for the head it ran at. A run ID that later points at nothing is reported as not read, never dropped.
 
@@ -1108,7 +1108,7 @@ Opening a review resolves each `repos[].path` (on macOS, `/tmp/x` becomes `/priv
 
 ### XE-021 — A note on a non-blocking finding doesn't void a clean round
 
-**Status:** done. Merged to `main` in `cbc803c` (PR #55, head `d16e285`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-205619-0bb753e-ff9ubeaz` (codex/gpt-6-astra): round 1 found one blocker (F1, a duplicated non-blocking entry passed because the skip ran before the duplicate check), fixed in `086b529`; round 2 `fixes_verified`. Main then moved (XE-020 for CI-run paths merged first), so the branch took main, the item was renumbered from XE-020, and review `20260925-073122-d16e285-nhf26_0s` passed the merged head `no_blocking_findings`, 6/6, with the `tests` workflow green at that head and read by the dispatcher itself. The branch keeps its pre-renumber name.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. Its review record and any release record were not found. Previously: Merged to `main` in `cbc803c` (PR #55, head `d16e285`) on 25 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260924-205619-0bb753e-ff9ubeaz` (codex/gpt-6-astra): round 1 found one blocker (F1, a duplicated non-blocking entry passed because the skip ran before the duplicate check), fixed in `086b529`; round 2 `fixes_verified`. Main then moved (XE-020 for CI-run paths merged first), so the branch took main, the item was renumbered from XE-020, and review `20260925-073122-d16e285-nhf26_0s` passed the merged head `no_blocking_findings`, 6/6, with the `tests` workflow green at that head and read by the dispatcher itself. The branch keeps its pre-renumber name.
 
 **Links introduced:** none. The validator drops rows it already knows are not blocker resolutions; nothing is named, cached or retained.
 
@@ -1284,6 +1284,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-29: Second status ruling by Dorian, closing the B-a list. RR-001 and RR-002 join the recorded exception: their review and release record (`release-MoxyWolfLLC-moxywolf-plugins-32.json`) were found in the vault's old review folder. The other 15 are relabelled to `review`, merged unreviewed: AP-001, AP-002, AP-003, CI-001, CI-002, EV-002, GA-006, XE-001, XE-002, XE-003, XE-004, XE-005, XE-013, XE-018, XE-021.
 - 2026-09-29: Status ruling by Dorian on the B-a list (`06 – Engineering/status-ruling-2026-09-29.md`). **Recorded exception:** XE-016, XE-017, SM-003, DS-001, XE-019, XE-020, XE-022, XE-023, XE-024, XE-025, XE-026, XE-027, XE-028 stay `done`. Each was cross-tool reviewed and has a release record from `record-release`; coverage was `not_run` for all of them because the scorer could not start until XE-014, and mandatory coverage postdates their release. **Relabelled** to `review`, merged unreviewed: EV-001, EV-003, EV-004, EV-005, EV-007, EV-009, XE-006, XE-007, XE-008, XE-009, XE-010. None names a review and no record was found. **Undecided** pending a search for lost records: GA-006, AP-001, AP-002, AP-003, EV-002, XE-001 to XE-005, XE-013, RR-001, RR-002, CI-001, CI-002, XE-018, XE-021. The first search found RR-001 and RR-002's release record in the vault's old review folder, review folders without a release record for GA-006, XE-013, CI-001 and CI-002, only a reconstruction for EV-002, and nothing for the rest.
 - 2026-09-29: XE-014 gains criterion 13, approved by Dorian after review 20260929-142318 round 2. The dispatcher reads CI only with a GitHub token and passed its whole environment to the reviewer, so criterion 11 couldn't be verified without handing Codex the app's token. The reviewer's environment now drops both token variables.
 - 2026-09-29 (third review round): The constraint no longer calls XE-015 `done`. GA-005 criteria 5 to 7 are explicitly superseded, because they described the bot comment as the instruction and put the app on the bypass list. B-a now applies the ruleset to `main`, exports the production ruleset as evidence and repeats three refused attempts on `main` with harmless pull requests. SM-004 separates `capture/`, `reviews/` and `publications/` into independently hashed, immutable directories. Publishing follows a twelve-step order where the owner confirms a content digest and gitleaks scans the final bytes. The `Stop`-hook check selects the prior turn and compares before redaction. Human examination is kept apart from publishing consent. B-c is narrowed to lifecycle facts.
