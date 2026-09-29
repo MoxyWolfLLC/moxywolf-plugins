@@ -947,7 +947,7 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 
 ### TB-002 — One enclosure for text the loop did not write
 
-**Status:** building.
+**Status:** done. Review 20260929-163026-becf08d-r7y5tqnk, `fixes_verified`, 5/5; merged as 6ca612b (PR #81), recorded `agent_merge_on_instruction`. Its limit, as criterion 4 asks: a speed bump on unverified evidence, not a control.
 
 **Links introduced:** the quotation link. Text pasted into a prompt is assumed by the reader to be data, and the model has no way to tell data from instruction unless the boundary is marked. The enclosure marks it. It does not enforce it.
 
