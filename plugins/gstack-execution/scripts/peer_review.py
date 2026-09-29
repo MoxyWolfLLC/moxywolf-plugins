@@ -1104,7 +1104,10 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
 def run_reviewer(tool, prompt, root, timeout, schema=None):
     """Returns (reviewer_output_text, model_that_ran)."""
     output_schema = schema or STRICT_SCHEMA
-    env = {**os.environ, RECURSION_ENV: "1"}
+    # XE-014.13: the reviewer never holds a GitHub token. The dispatcher may run under
+    # agent_token.py exec to read CI; the other tool gets a shell, so the token stops here.
+    env = {k: v for k, v in os.environ.items() if k not in {"GITHUB_TOKEN", "GH_TOKEN"}}
+    env[RECURSION_ENV] = "1"
     fake = os.environ.get("GSTACK_PEER_REVIEW_FAKE_CMD") if _SELFTEST else None  # selftest hook: any command that prints the JSON
     if fake:
         cmd, parse = ["sh", "-c", fake], lambda r: (r.stdout, "fake")

@@ -58,7 +58,7 @@ class GovernedReview(unittest.TestCase):
         # XE-008: the layout comes from peer_review, not a hardcoded spelling. A copy of the
         # format in a fixture is one of the four homes that let it drift twice in an hour.
         prefix = peer.surface_prefix(0, self.packet['repos'][0], 'changed')
-        reviewer.write_text('#!' + sys.executable + '\n' + f'PREFIX={prefix!r}\n' + "import os,sys,pathlib\nassert (pathlib.Path.cwd()/PREFIX/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\n")
+        reviewer.write_text('#!' + sys.executable + '\n' + f'PREFIX={prefix!r}\n' + "import os,sys,pathlib\nassert (pathlib.Path.cwd()/PREFIX/'value.txt').read_text() in ('after','fixed')\np=pathlib.Path(sys.argv[sys.argv.index('--output-last-message')+1]);p.write_text(os.environ['REVIEW_RESPONSE'])\nprint('model: gpt-6-astra',file=sys.stderr)\nout=os.environ.get('REVIEWER_ENV_OUT')\nif out: pathlib.Path(out).write_text(' '.join(sorted(os.environ)))\n")
         reviewer.chmod(0o755)
         self.env["PATH"] = str(binary) + os.pathsep + os.environ["PATH"]
 
@@ -213,6 +213,17 @@ class GovernedReview(unittest.TestCase):
         r = self.call("release", self.rid)
         self.assertIn("awaiting_human_release", r.stdout + r.stderr)
         self.assertEqual(r.stderr.splitlines()[0], "coverage: covered")
+
+    def test_the_reviewer_never_receives_a_github_token(self):
+        """XE-014.13: the dispatcher may hold the app token to read CI; the reviewer it starts may not."""
+        out = self.root / "reviewer-env.txt"
+        self.env.update(GITHUB_TOKEN="ghs_fixture", GH_TOKEN="gho_fixture", REVIEWER_ENV_OUT=str(out))
+        self.open(); self.response()
+        r, _ = self.round()
+        seen = out.read_text().split()
+        self.assertIn("REVIEWER_ENV_OUT", seen, r.stderr)   # the reviewer ran and recorded its env
+        self.assertNotIn("GITHUB_TOKEN", seen)
+        self.assertNotIn("GH_TOKEN", seen)
 
     def test_release_refuses_stale_revision(self):
         self.open(); self.response(); self.round()
