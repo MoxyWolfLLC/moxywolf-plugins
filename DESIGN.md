@@ -1031,7 +1031,7 @@ M-012 repeated M-007. XE-022 criterion 3 made a claim about the Release Owner's 
 
 ### XE-027 — A failed CI job reaches the reviewer as quotes the dispatcher checked
 
-**Status:** building.
+**Status:** done. Merged to `main` in `e0aec5c` (PR #70, head `5aafee7`) on 28 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260928-211336-491929a-_gf467f7` (codex/gpt-6-astra, `fixes_verified`, 2 rounds): round 1 found four blockers, fixed in `5aafee7` and verified resolved. F1: the full log was archived beside the surface the round deletes. F2: log bytes were decoded before hashing, so CRLF and invalid UTF-8 changed them. F3: the surface tests stubbed the GitHub functions instead of the HTTP boundary. F4: the contract didn't name `ci-log`. The `tests` workflow was green at the reviewed head and read by the dispatcher itself. Live on run 36097299621, `ci-log` turned a 36,724-byte log into a 1,474-byte receipt with 7 checked quotes.
 
 **Links introduced:** each failed job's log is archived at `ci-logs/<run_id>-<job_id>.log` in the review directory, and the round record ties that path to the log's sha256. A receipt, `evidence/ci-<run_id>-job-<job_id>.receipt.txt`, names that sha256, and the review assumes every quote in it came from that log. `GSTACK_REDUCER_MODEL` names the model that drafts receipts. The CLI gains a `ci-log` subcommand the builder has to name.
 
