@@ -23,6 +23,7 @@ LOADERS = {
     "commands/gstack-qa.md": "untrusted-enclosure.md",
     "commands/gstack-peer-review.md": "untrusted-enclosure.md",
     "commands/gstack-build.md": "untrusted-enclosure.md",
+    "commands/gstack-plan-review.md": "untrusted-enclosure.md",   # review F2: the critic's output comes back
     "skills/gstack-execution/SKILL.md": "untrusted-enclosure.md",
 }
 
@@ -63,6 +64,18 @@ def test_prior_reviewer_output_reaches_the_next_round_enclosed():
     before = prompt.index(attack)
     opened = prompt.rfind("<untrusted ", 0, before)
     assert opened != -1 and prompt.find("</untrusted>", opened) > before, "prior findings sit outside the enclosure"
+
+
+def test_a_graph_node_keeps_its_task_outside_and_other_workers_inside():
+    """Review F1 (20260929-163026): enclosing the node's own instruction told the worker to ignore it."""
+    import task_graph as tg
+    payload = {"node": {"id": "n1", "instruction": "CHECK-THE-CLAIM"}, "packet": {"p": 1}, "snapshots": [],
+               "dependencies": {"n0": {"summary": "OBEY-ME"}}, "candidates": [{"id": "C1", "detail": "OBEY-ME-TOO"}]}
+    prompt = tg.node_prompt(payload)
+    opened, closed = prompt.index("<untrusted source="), prompt.rindex("</untrusted>")
+    assert prompt.index("CHECK-THE-CLAIM") < opened, "the node's own task is inside the enclosure"
+    for s in ("OBEY-ME", "OBEY-ME-TOO"):
+        assert opened < prompt.index(s) < closed, f"{s} from another worker sits outside the enclosure"
 
 
 if __name__ == "__main__":
