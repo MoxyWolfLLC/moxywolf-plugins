@@ -161,6 +161,8 @@ Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or
 
 MIT — MoxyWolf LLC
 
+The Jev router's choice margin and the calibration figures it cites come from [wuyoscar/jev-skill](https://github.com/wuyoscar/jev-skill) (MIT). The idea and the measurement are credited here; no code was copied.
+
 ## Composio fallback
 
 For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.
