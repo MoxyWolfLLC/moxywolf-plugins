@@ -90,7 +90,8 @@ class SurfaceEvidenceTests(unittest.TestCase):
         self.assertTrue(rec["read"]); self.assertTrue(rec["head_matches"])
         self.assertEqual(rec["origin"], "gate_output")
         self.assertEqual(rec["jobs"][0]["steps"][0], {"name": "Run listing test", "conclusion": "success"})
-        self.assertEqual(stats["evidence"], {"requested": 1, "read": 1, "head_matched": 1})
+        self.assertEqual(stats["evidence"], {"requested": 1, "read": 1, "head_matched": 1,
+                                             "failed_jobs": 0, "logs_read": 0, "receipts_applied": 0})
         self.assertIn("run at the reviewed head, conclusion success", (surf / "SURFACE.md").read_text())
 
     def test_run_at_another_head_is_written_and_marked(self):
@@ -104,7 +105,8 @@ class SurfaceEvidenceTests(unittest.TestCase):
         surf, stats = self.run_with(self.fake_github(self.head, fail=True))
         rec = json.loads((surf / "evidence" / "ci-7.json").read_text())
         self.assertFalse(rec["read"]); self.assertIn("403", rec["error"])
-        self.assertEqual(stats["evidence"], {"requested": 1, "read": 0, "head_matched": 0})
+        self.assertEqual(stats["evidence"], {"requested": 1, "read": 0, "head_matched": 0,
+                                             "failed_jobs": 0, "logs_read": 0, "receipts_applied": 0})
         self.assertIn("could not be read", (surf / "SURFACE.md").read_text())
 
     def test_root_file_and_top_level_directory_are_carried(self):

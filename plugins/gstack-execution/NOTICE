@@ -3,6 +3,11 @@ gstack-execution
 
 Primary content adapted from Garry Tan's gstack (MIT).
 
+scripts/ci_log_receipt.py re-expresses, in new code, the evidence-preserving
+reducer idea from NVlabs/SoL-Pi (https://github.com/NVlabs/SoL-Pi,
+Copyright (c) 2026 NVIDIA Corporation & Affiliates, MIT License). No SoL-Pi
+code is copied.
+
 Additionally includes three commands merged and adapted from:
 
   ecc (Everything Claude Code) — https://github.com/affaan-m/ECC
