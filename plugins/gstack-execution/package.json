@@ -1,0 +1,8 @@
+{
+  "name": "gstack-execution-scorer",
+  "private": true,
+  "description": "XE-014: the one dependency of scripts/packet_coverage.mjs, declared so an installer can find it. Install with `npm ci` here.",
+  "dependencies": {
+    "ai": "^7.0.105"
+  }
+}

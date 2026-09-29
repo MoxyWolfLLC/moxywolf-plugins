@@ -32,6 +32,14 @@ def test_the_surface_carries_the_diff_and_the_changed_file():
         assert st["changed"] == 1, st
 
 
+def test_the_surface_leads_with_the_coverage_status():
+    """XE-014.12: the reviewer reads the coverage status before anything else on the surface."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root, coverage="broken: `ai` did not load")
+        assert (surf/"SURFACE.md").read_text().splitlines()[0] == "# What this review can see (coverage: broken: `ai` did not load)"
+
+
 def test_a_caller_of_the_changed_file_comes_with_it():
     """The whole reason this is not just 'ship the changed files': a regression in an untouched
     caller is where the substantive blockers come from."""

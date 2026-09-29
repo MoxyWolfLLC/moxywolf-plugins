@@ -8,8 +8,9 @@ name: tests
 
 on:
   pull_request:
+  # XE-014.11 / review F2: every push, not only main's, so a branch with no pull request still runs
+  # the scorer. A branch with one runs twice; that is the cost.
   push:
-    branches: [main]
 
 jobs:
   tests:
@@ -27,6 +28,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      # XE-014: the coverage scorer is Node. Its dependency is installed from the lockfile here, and
+      # test_packet_coverage_run.py FAILS when it is missing, so this job cannot go green with the
+      # scorer skipped. No key is set: one test serves a stub gateway through JEV_ENDPOINT.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the coverage scorer's dependency
+        working-directory: plugins/gstack-execution
+        run: npm ci --no-audit --no-fund
+
       - name: What this run will examine
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --list
 
@@ -36,6 +47,11 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # A push to a branch other than main diffs against where it left main, not against its
+          # previous push: a version moves once per merge, not once per fix commit.
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            BASE=$(git merge-base origin/main HEAD)
+          fi
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no base commit for this event; nothing to diff against"
             exit 0

@@ -13,9 +13,14 @@
 //
 // ponytail: one boolean question per declared criterion, batched one request per item because
 // several questions can share a state. 45 criteria cost $0.0005 and 19s.
-import { experimental_evaluate as evaluate } from 'ai';
+//
+// XE-014: `ai` is imported dynamically, after the packet is read, so a scorer that cannot load its
+// dependency writes `broken` into the packet instead of dying at a static import with nothing
+// recorded. That static import was the state every run was in from 2026-09-18 to 2026-09-29.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
 
@@ -50,6 +55,57 @@ function declaredCriteria(designPath) {
   return items;
 }
 
+// XE-014 criteria 3, 4, 7 and 8. The order is DR-010's: a set variable wins, then the file
+// GSTACK_AIGATEWAY_ENV names, then the vault's own path on a Mac. Every step tried is named in
+// `consulted`, so a record that says "no key" also says where nobody found one.
+const VAULT_TAIL = ['Shared drives', 'MoxyWolf Shared Files', 'MoxyWolf Vault', '_Shared Knowledge',
+                    'Agents and Plugins', 'aigateway.env'];
+
+export function keyFromEnvFile(text) {
+  // Split, never read line by line: aigateway.env has no trailing newline, and a POSIX
+  // `while read` loop reads zero lines from it (criterion 8).
+  for (const raw of text.split(/\r?\n/)) {
+    const m = raw.trim().match(/^(?:export\s+)?AI_GATEWAY_API_KEY\s*=\s*(.*)$/);
+    if (m) return m[1].trim().replace(/^(['"])(.*)\1$/, '$2') || null;
+  }
+  return null;
+}
+
+function vaultCandidates() {
+  const cloud = path.join(os.homedir(), 'Library', 'CloudStorage');
+  let dirs = [];
+  try { dirs = fs.readdirSync(cloud).filter(d => d.startsWith('GoogleDrive-')).sort(); } catch { /* no such dir */ }
+  return dirs.length ? dirs.map(d => path.join(cloud, d, ...VAULT_TAIL))
+                     : [path.join(cloud, 'GoogleDrive-*', ...VAULT_TAIL)];
+}
+
+export function resolveCredential(env = process.env) {
+  const consulted = ['env AI_GATEWAY_API_KEY'];
+  if (env.AI_GATEWAY_API_KEY) return { key: env.AI_GATEWAY_API_KEY, source: 'env AI_GATEWAY_API_KEY', consulted };
+
+  const fromFile = (file, source) => {
+    consulted.push(file);
+    let text;
+    try { text = fs.readFileSync(file, 'utf8'); } catch (e) {
+      return { status: 'unusable', why: `${source} names ${file}, which could not be read (${e.code})`, consulted };
+    }
+    const key = keyFromEnvFile(text);
+    return key ? { key, source: file, consulted }
+               : { status: 'unusable', why: `${file} sets no AI_GATEWAY_API_KEY`, consulted };
+  };
+
+  if (env.GSTACK_AIGATEWAY_ENV) {
+    consulted.push('env GSTACK_AIGATEWAY_ENV');
+    return fromFile(env.GSTACK_AIGATEWAY_ENV, 'GSTACK_AIGATEWAY_ENV');
+  }
+  consulted.push('env GSTACK_AIGATEWAY_ENV');
+  for (const file of vaultCandidates()) {
+    if (fs.existsSync(file)) return fromFile(file, 'the vault path');
+    consulted.push(file);
+  }
+  return { status: 'unavailable', why: 'no AI_GATEWAY_API_KEY on any path', consulted };
+}
+
 async function main() {
   const [packetPath, designPath] = process.argv.slice(2);
   if (!packetPath || !designPath) {
@@ -64,18 +120,34 @@ async function main() {
     process.exit(2);
   }
 
-  const key = process.env.AI_GATEWAY_API_KEY;
   const write = (report) => {
-    packet.coverage = report;
+    packet.coverage = { model: MODEL, checked_at: new Date().toISOString(), ...report };
     fs.writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n');
   };
-  if (!key) {
-    // unavailable is recorded, never silently treated as covered
-    write({ status: 'unavailable', why: 'AI_GATEWAY_API_KEY is not set', model: MODEL,
-            checked_at: new Date().toISOString() });
-    console.error('no AI_GATEWAY_API_KEY; recorded coverage as unavailable (the review may still open)');
-    process.exit(0);
+
+  let ai;
+  try {
+    ai = await import('ai');
+  } catch (e) {
+    write({ status: 'broken', why: `the scorer could not load its dependency \`ai\`: ${e.code ?? ''} ${e.message}`.trim(),
+            consulted: [`import 'ai', resolved upward from ${path.dirname(new URL(import.meta.url).pathname)}`] });
+    console.error("coverage broken: `ai` did not load. Run `npm ci` in plugins/gstack-execution.");
+    process.exit(3);
   }
+
+  const cred = resolveCredential();
+  if (!cred.key) {
+    write({ status: cred.status, why: cred.why, consulted: cred.consulted });
+    console.error(`coverage ${cred.status}: ${cred.why}\n  consulted: ${cred.consulted.join(' | ')}`);
+    // unavailable exits 0: `release` is what refuses it (XE-014 criterion 5), not the scorer
+    process.exit(cred.status === 'unavailable' ? 0 : 4);
+  }
+  // The AI SDK reads the variable itself; the key is never passed as an argument.
+  process.env.AI_GATEWAY_API_KEY = cred.key;
+  // JEV_ENDPOINT points the gateway at another base URL: a stub in CI (criterion 11).
+  const model = process.env.JEV_ENDPOINT
+    ? ai.createGateway({ baseURL: process.env.JEV_ENDPOINT }).evaluationModel(MODEL)
+    : MODEL;
 
   const items = declaredCriteria(designPath);
   const missing = claimed.filter(i => !items[i]);
@@ -98,11 +170,22 @@ async function main() {
         },
       };
     });
-    const r = await evaluate({
-      model: MODEL,
-      state: { packet_acceptance_criteria: packet.acceptance_criteria },
-      questions,
-    });
+    let r;
+    try {
+      r = await ai.experimental_evaluate({
+        model,
+        state: { packet_acceptance_criteria: packet.acceptance_criteria },
+        questions,
+        maxRetries: 1,
+      });
+    } catch (e) {
+      // ponytail: every failed call reads as unusable (bad key, gateway down, bad endpoint alike).
+      // Split them when a reader needs to tell a revoked key from an outage.
+      write({ status: 'unusable', why: `the gateway refused or failed the call: ${e.message}`,
+              credential_source: cred.source, consulted: cred.consulted });
+      console.error(`coverage unusable: ${e.message}`);
+      process.exit(4);
+    }
     inTok += r.usage?.inputTokens ?? 0;
     items[item].declared.forEach((c, i) => {
       scored.push({ item, criterion_no: i + 1, declared: c,
@@ -110,8 +193,7 @@ async function main() {
     });
   }
 
-  write({ status: 'checked', model: MODEL, checked_at: new Date().toISOString(),
-          input_tokens: inTok, criteria: scored });
+  write({ status: 'checked', credential_source: cred.source, input_tokens: inTok, criteria: scored });
 
   const low = scored.filter(c => (c.probability ?? 0) < 0.5);
   for (const c of scored) {
@@ -121,4 +203,5 @@ async function main() {
   process.exit(low.length ? 1 : 0);
 }
 
-await main();
+// Run only as a script, so tests can import the resolver without scoring anything.
+if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) await main();

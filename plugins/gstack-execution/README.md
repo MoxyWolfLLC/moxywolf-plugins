@@ -3,7 +3,7 @@
 **Author:** MoxyWolf LLC
 **Based on:** [gstack](https://github.com/garrytan/gstack) by Garry Tan (MIT License), with adversarial-review framing from OpenAI's [codex-plugin-cc](https://github.com/openai/codex-plugin-cc) (Apache-2.0)
 **Version:** see `.claude-plugin/plugin.json` — deliberately not restated here, because a version in prose has nothing keeping it true. This README sat at 0.5.0 through sixteen minor releases.
-**Requires:** Git. Optional but load-bearing: a reviewer CLI of a different model family than the builder (`codex`, `gemini`), Claude in Chrome for the browser commands, and Node with `ai@7.0.105+` plus an `AI_GATEWAY_API_KEY` for the packet coverage scorer.
+**Requires:** Git. Optional but load-bearing: a reviewer CLI of a different model family than the builder (`codex`, `gemini`), Claude in Chrome for the browser commands, and Node with the scorer's dependency installed (`npm ci` in this directory) and a gateway key (see XE-014 below) for the packet coverage scorer.
 
 ## What this is
 
@@ -89,6 +89,12 @@ Three properties of the gate matter more than the scorer behind it:
 - **A scorer that did not run is recorded as not run.** No key, no Node, no network: the record reads
   `not_run` or `unavailable`, never `coverage verified`. This was wrong once — an unavailable scorer
   set `coverage_checked` to true — and the fix is the only reason the field means anything.
+- **An unchecked review doesn't release** (XE-014). The record has four states besides `checked`:
+  `not_run` (no report), `unavailable` (no key on any path), `unusable` (a key that didn't work) and
+  `broken` (the scorer couldn't start). `release` refuses all four unless the Release Owner's words go
+  in `--coverage-exception`, and the handoff and `SURFACE.md` both lead with the status. The key is
+  read from `AI_GATEWAY_API_KEY`, then the file `GSTACK_AIGATEWAY_ENV` names, then the vault's
+  `aigateway.env` on a Mac. Install the scorer with `npm ci` in this directory.
 - **Scoring stays out of the dispatcher.** `coverage_verdict` reads a report and never produces one,
   so the gate can be audited, replayed and tested without a network call.
 
