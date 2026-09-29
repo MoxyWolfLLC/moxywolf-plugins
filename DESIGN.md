@@ -19,7 +19,7 @@ Make gstack’s execution graph conform to Governed Autonomy: enforce authority 
 - This repository has no Vercel project and no Playwright suite, so the Endform E2E gate does not apply to it.
 - The agent's GitHub identity is the `moxywolf-agent` GitHub App (App ID 5007349), created by Dorian on 2026-09-20 and made installable on any account the same day. Its key and `github-app.env` live in the vault's `_Shared Knowledge/Agents and Plugins`. No machine user. It has one installation per account, resolved per repository at mint time rather than pinned in configuration (GA-006); as of 2026-09-20, MoxyWolfLLC, OpenControls-AI and GRCSchema.
 - **The pre-merge gate is GitHub's, not the agent's** (Dorian, 2026-09-29). `main`'s ruleset requires a pull request, an approving review from code owners, the dismissal of stale approvals on push, approval of the most recent push, and the `tests` check, and it blocks force pushes. `CODEOWNERS` names Dorian for every path, itself included. Only Repository admin can bypass. The `moxywolf-agent` app is taken off the bypass list, so it can merge only a pull request that already meets every rule. This is the target. Dorian configures it as admin, because the agent can't read or change rulesets, and it isn't in force until B-a verifies it live. Until then the live ruleset is the 2026-09-20 one: pull request required, force pushes blocked, bypass for Repository admin and for the app on pull requests. Loosening the target is an amendment to this document.
-- **One release path, checked by code.** An item moves `planned` → `building` → `review` → `released` → `done`, and each move has one condition a script can check. `review` → `released` needs Dorian's GitHub approval at the merged head, which the ruleset enforces before the merge, and then `record-release` succeeding at that head with a passing review at that exact head. `released` → `done` needs the release record. A merge with no passing review at its head is `merged_unreviewed`. It carries the owner's exception in his words, and it stays `merged_unreviewed`. `released` and `merged_unreviewed` aren't in the status vocabulary yet, and `vocab_check.py` refuses them. They join it with the first fix B-a produces. Until then, an item merged without review reads `review`, with the words "Merged unreviewed" in its status line, as GA-005, XE-012, GA-007 and XE-015 do. A review of a later or different head never turns it into a release, because a review after the fact isn't permission given before it (Dorian, 2026-09-29). The doc's own history shows why. GA-005 (PR #27) and XE-012 (PR #25) merged without review at their heads. XE-015 (PR #42) merged without review, was reviewed afterwards at the same head, and is marked `done` with no release record. The review state of PR #24 (XE-011 and SM-002) was never established. The mark-done PRs #71 and #73 merged with no review and no recorded exception.
+- **One release path, checked by code.** An item moves `planned` → `building` → `review` → `released` → `done`, and each move has one condition a script can check. `review` → `released` needs Dorian's GitHub approval at the merged head, which the ruleset enforces before the merge, and then `record-release` succeeding at that head with a passing review at that exact head. `released` → `done` needs the release record. A merge with no passing review at its head is `merged_unreviewed`. It carries the owner's exception in his words, and it stays `merged_unreviewed`. `released` and `merged_unreviewed` aren't in the status vocabulary yet, and `vocab_check.py` refuses them. They join it with the first fix B-a produces. Until then, an item merged without review reads `review`, with the words "Merged unreviewed" in its status line, as GA-005, XE-012, GA-007 and XE-015 do. A review of a later or different head never turns it into a release, because a review after the fact isn't permission given before it (Dorian, 2026-09-29). The doc's own history shows why. GA-005 (PR #27) and XE-012 (PR #25) merged without review at their heads. XE-015 (PR #42) merged without review and was reviewed afterwards at the same head. It had been marked `done` with no release record, and on 2026-09-29 it was relabelled `review` and marked "Merged unreviewed", as was GA-007. The review state of PR #24 (XE-011 and SM-002) was never established. The mark-done PRs #71 and #73 merged with no review and no recorded exception.
 - **The approval ledger is attention, not containment** (XE-002.6). Containment is `ONE_SHOT_ONLY` and the protected-branch ruleset. No item may claim the ledger stops anything.
 - **Coverage is mandatory.** A review whose coverage status isn't `checked` can't reach `released` without a recorded human exception. `not_run`, `unavailable`, `unusable` and `broken` are all visible blocks, not passes (XE-014, amended 2026-09-29). This supersedes XE-010 criterion 5's non-blocking `unavailable`.
 - **Test the boundaries before adding item IDs** (Dorian, 2026-09-29). No new item is declared until the three boundary tests in *Boundary tests* below have run and their findings are recorded. Amending an existing item to fix what a test finds is allowed. Vocabulary, metrics and graph work doesn't grow until it shows value against those tests.
@@ -83,9 +83,9 @@ The GitHub half was done by hand on 2026-09-20 and checked through the API. A ru
 2. Minting runs where GitHub's `/app` endpoints answer. The cloud proxy refuses them (403, checked 2026-09-20), and the device shell reaches them, so pushes and pull requests run from the device shell. When minting fails, the script exits non-zero and names the endpoint and the status. It never falls back to another credential, and a test asserts no code path in `gstack-execution` reads `github-pat.env`.
 3. Commits pushed and pull requests opened by the loop name `moxywolf-agent[bot]`. Check: the first pull request the loop opens after this merges shows `user.login` = `moxywolf-agent[bot]` through the API.
 4. Every instruction that tells the agent to push or open pull requests with the vault PAT says the app instead. Repo homes: `gstack-execution/commands/gstack-build.md`, `commands/gstack-design-doc.md`, `GOVERNANCE.md` (the credential table), `scripts/docs.md`, `scripts/repo_gates.py`, `scripts/review_host.sh`, `README.md`, `project-init/skills/session-start/SKILL.md` and `project-init/skills/session-end/SKILL.md`. Changelogs are exempt because they record what was, and a test fixture that names the file is not an instruction. A test greps those files for push instructions naming the PAT and reports how many files it examined; zero examined is a failure, per EV-001. Vault and Taskade homes are changed by hand and the grep output goes in the review packet: `DR-011-github-pat-vault-file.md`, the team-shared INDEX commit rule, and this project's `cowork-project-instructions.md`.
-5. `record-release` tells the two kinds of merge apart. A merge by the named human is `human_merge_recorded`, as now. A merge by `moxywolf-agent[bot]` with an instruction recorded on the pull request (criterion 6) is `agent_merge_on_instruction`, and the record carries the instruction's text, its time and the comment URL. A bot merge with no recorded instruction is refused as `release_blocked` and named as an unrequested agent merge. `agent_merge_on_instruction` is a new vocabulary term, so the vocabulary goes to 1.1.0, which is an XE-012 break point. Tests cover all three. It reads the merge record with the app token over REST when `gh` is absent, since the device shell has no `gh` (checked 2026-09-20).
-6. Before it merges, the agent posts Dorian's instruction on the pull request as a comment: his words verbatim, the time, and the pull requests the agent read it as covering. An instruction like "merge whatever else we have" is listed back as the specific pull requests before any merge. Then it merges through the pull request as the bot and runs `record-release`. `gstack-build.md` and the `gstack-execution` skill say so in one place each.
-7. Dorian adds the `moxywolf-agent` app to the `main` ruleset's bypass list with mode **For pull requests only**. Check: a throwaway pull request merges as `moxywolf-agent[bot]`, a direct write to `main` by the bot is still refused (409), and the pull request and branch are removed afterwards.
+5. **Superseded 2026-09-29 by criterion 12**: `agent_merge_on_instruction` now requires Dorian's GitHub approval at the merged head, not a posted comment. `record-release` tells the two kinds of merge apart. A merge by the named human is `human_merge_recorded`, as now. A merge by `moxywolf-agent[bot]` with an instruction recorded on the pull request (criterion 6) is `agent_merge_on_instruction`, and the record carries the instruction's text, its time and the comment URL. A bot merge with no recorded instruction is refused as `release_blocked` and named as an unrequested agent merge. `agent_merge_on_instruction` is a new vocabulary term, so the vocabulary goes to 1.1.0, which is an XE-012 break point. Tests cover all three. It reads the merge record with the app token over REST when `gh` is absent, since the device shell has no `gh` (checked 2026-09-20).
+6. **Superseded 2026-09-29 by criteria 12 and 13**: the posted comment is a courtesy record, not the instruction. Don't follow this criterion's merge path. Before it merges, the agent posts Dorian's instruction on the pull request as a comment: his words verbatim, the time, and the pull requests the agent read it as covering. An instruction like "merge whatever else we have" is listed back as the specific pull requests before any merge. Then it merges through the pull request as the bot and runs `record-release`. `gstack-build.md` and the `gstack-execution` skill say so in one place each.
+7. **Superseded 2026-09-29 by the target ruleset in Constraints**: the app comes off the bypass list rather than onto it. Don't follow this criterion. Dorian adds the `moxywolf-agent` app to the `main` ruleset's bypass list with mode **For pull requests only**. Check: a throwaway pull request merges as `moxywolf-agent[bot]`, a direct write to `main` by the bot is still refused (409), and the pull request and branch are removed afterwards.
 8. Merges to `main` that the agent executed are listed in this item with merge commit, evidence and Dorian's answer. The draft list comes from merge subjects: #6, #7, #8, #11, #12, #22, #23 and #24 carry hand-written subjects ("Merge PR #N:" or "Merge pull request #N:" with no "from"), and #4, #5 and #9 carry GitHub's button format. A subject is a hint, not proof. Each row is `agent`, `human` or `unknown` as Dorian answers it, and `unknown` stays unknown. No release record or merge commit is rewritten.
 9. The PAT leaves the agent's reach: Dorian moves `github-pat.env` out of every connected folder. It also pushes to OpenControls-AI repos today, and the app is installed on MoxyWolfLLC only. So before it moves, Dorian decides the OpenControls-AI path: switch the app to installable on any account and install it there, or create a second app. Until the file is gone, this item's status is `review`, not `done`, and says why. Check: the vault folder listing shows no `github-pat.env`.
 10. After merge, the memory graph's node 14 is marked closed with the date and this item's merge commit, and the swimlane's merge step shows two paths: Dorian merges, or the agent merges as the bot on his recorded instruction.
@@ -766,7 +766,7 @@ A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs
 **Links introduced:**
 - **Session identity.** Each capture names the `session_id`, the transcript path, the source file's sha256 at capture and the last source line captured. A reader assumes the evidence came from that file, up to that line, and nothing else.
 - **Event identity.** Every event has an `event_id`: the sha256 of `session_id | source_line | source_block_index | event_type`. Tool results link to their calls by `tool_use_id`. Reviews, decisions, proposals and verification results cite events by `event_id`, never by output line number.
-- **Package identity.** `hashes.sha256` names every file in the published package except itself. Each review run has its own subdirectory and hash set, so a second review never replaces a first.
+- **Artifact identity.** The record is three kinds of directory under `session-records/<session-id>/`: one `capture/`, a `reviews/<review-run-id>/` per review, and a `publications/<publication-id>/` per publication. Each finalized directory has its own `hashes.sha256` covering every file in it except itself. A review records the capture hash it read. A publication records the capture and review hashes it released. A finalized directory is never appended to or replaced; a new review or publication is a new directory.
 - **Storage.** The manifest records the audience, the retention class, the location and the deletion date. Deletion is done by a person and isn't enforced by any process.
 - **Names.** The `/session-review` command and the `UserPromptExpansion` and `Stop` hooks in project-init are new names that people and the handoff will cite.
 
@@ -778,7 +778,7 @@ The target is the observable decision trajectory: messages, tool calls, results,
 
 1. A new stdlib-only `project-init/scripts/session_record.py` captures exactly one session, named by `--transcript` and `--session-id`, or by the `transcript_path` and `session_id` a Claude Code hook supplies. It never picks a governance record by modification time alone. A convenience flag, `--guess`, may propose the newest file, but the manifest then records `selection: heuristic`, and `/session-review` asks the human to confirm before it reads anything.
 2. `/session-review` gets its own session's identity from a `UserPromptExpansion` hook in project-init, matched on `command_name` `session-review`. The hook runs before the expanded prompt reaches the model and passes `session_id`, `transcript_path` and `prompt_id` to the script. The capture boundary excludes the `/session-review` turn itself, by `prompt_id` if B-c shows it's in the file, otherwise by the rule B-c establishes. It isn't assumed.
-3. **Finality.** The session file is written asynchronously, so the script polls until the file's size and modification time are unchanged for 2 seconds, giving up after 30. A `Stop` hook in project-init records the sha256 of each turn's `last_assistant_message`, keyed by `session_id` and `prompt_id`, in the private staging area; it stores the hash, not the text. The capture checks that the last captured assistant reply matches the latest recorded hash. The manifest records `captured_through_source_line`, the last timestamp, the file size and the sha256.
+3. **Finality.** The session file is written asynchronously, so the script polls until the file's size and modification time are unchanged for 2 seconds, giving up after 30. A `Stop` hook in project-init hashes the exact UTF-8 bytes of each turn's `last_assistant_message`, keyed by `session_id` and `prompt_id`, into private staging; it stores the hash, not the text. At `UserPromptExpansion`, capture selects the latest `Stop` record for the same `session_id` that precedes the expansion. That `Stop` record's `prompt_id` marks the final included turn. The expansion's own `prompt_id` marks the excluded `/session-review` turn, and the two aren't expected to match. Capture rebuilds that turn's assistant text from the source file, before any redaction, by the concatenation rule B-c establishes, hashes those bytes and compares. Redaction happens only after this check. The manifest records `captured_through_source_line`, the last timestamp, the file size and the sha256.
 4. **Completeness is never one word.** The manifest carries separate fields:
     - `capture_completeness` (`complete` or `partial`, with the reason);
     - `capture_boundary_checked` (true only when the `Stop` hash matched);
@@ -810,30 +810,27 @@ The target is the observable decision trajectory: messages, tool calls, results,
 
 **Package and publish**
 
-9. The package is built in this order, and each step is recorded in the manifest:
-    1. capture;
-    2. write `record.md`;
-    3. run the review and validate its outputs;
-    4. run the secondary secret scan;
-    5. show the owner the exact file list and the audience;
-    6. record the owner's confirmation;
-    7. finalize `manifest.json`;
-    8. write `hashes.sha256` over every file except itself;
-    9. publish atomically;
-    10. set the published files read-only.
+9. The capture is built and frozen first: `capture/` is written, `record.md` is written from it, then the directory's `hashes.sha256` is written and the directory is made read-only. A session with no user messages is refused before anything is written, with a nonzero exit.
+10. **Not readable outside the executing principal until the publish gate succeeds.** Everything is built in an owner-only staging folder (`0700`) outside every connected folder and every Git repository. Publishing follows these steps in order, each recorded:
+    1. freeze the capture;
+    2. produce and validate the review;
+    3. resolve external identifiers;
+    4. assemble the proposed payload;
+    5. compute a candidate-content digest over it;
+    6. show the owner the exact files, the audience, any binary exceptions and the digest;
+    7. record the owner's confirmation, bound to that digest;
+    8. add only bounded, machine-generated scan and confirmation attestations;
+    9. run gitleaks over the exact final publishable content;
+    10. write `hashes.sha256`;
+    11. copy to the Taskade destination atomically;
+    12. set the destination files read-only.
 
-    A session with no user messages is refused at step 1 with a nonzero exit, and nothing is written.
-10. **Not readable outside the executing principal until the publish gate succeeds.** Everything is written first to an owner-only staging folder (`0700`) outside every connected folder and every Git repository. `--publish` copies the package to its Taskade destination only when all of these hold:
-    - the secondary scan finds nothing;
-    - the owner has confirmed;
-    - the destination isn't inside a Git working tree.
-
-    The secondary scanner is **gitleaks**, a separate binary run as its own process over the finished package with its default ruleset at the version pinned in the manifest. If gitleaks isn't installed, publishing is refused. Without `--publish`, nothing leaves staging. This item commits nothing to Git. `publish-receipt.json` records what was published, where, when, and on whose confirmation.
+    Publishing is refused at any step that fails, if the digest changes after confirmation, or if the destination is inside a Git working tree. The scanner is **gitleaks**, a separate binary run as its own process, with its version and configuration sha256 pinned. If gitleaks isn't installed, publishing is refused. Raw scanner findings are never written to a publishable file; after a failure they stay only in private staging. `publish-receipt.json` records `candidate_content_sha256`, the confirmed files, the audience, the binary exceptions, `confirmed_by`, `confirmed_at`, and the scanner's name, version, configuration sha256 and result. Without publishing, nothing leaves staging, and this item commits nothing to Git.
 11. Binary content, including archives, is never published automatically. An archive is treated as a binary container, never as safe because its outer file passed a scan. A binary file is published only when the owner approves that one file by name, and the approval is recorded in `publish-receipt.json`.
 
 **Review**
 
-12. `/session-review` runs the capture, then writes the review into `reviews/<run-id>/`, reading only `manifest.json`, `evidence.jsonl` and `record.md`, never its memory of the conversation. `review.md` has ten sections, and each one with nothing to report says so:
+12. `/session-review` runs the capture, then writes a new `reviews/<review-run-id>/` directory, reading only `manifest.json`, `evidence.jsonl` and `record.md`, never its memory of the conversation. `review.md` has ten sections, and each one with nothing to report says so:
     1. objective and success criteria;
     2. outcome and deliverables;
     3. decisions, approvals, declines and redirects, quoting the user;
@@ -846,7 +843,7 @@ The target is the observable decision trajectory: messages, tool calls, results,
     10. evidence gaps and completeness.
 
     Every claim cites `event_id`s. A citation of an `event_id` not in `evidence.jsonl` fails validation.
-13. `review-run.json` records how the review was produced: `review_schema_version`, the reviewer tool, model and model family, the review prompt's version and sha256, the sha256 of the manifest and evidence it read, start and end times, `validation_status`, `origin: gate_output` and `examined_by` (`Dorian` or `unexamined`), per TB-001.
+13. `review-run.json` records how the review was produced: `review_schema_version`, the reviewer tool, model and model family, the review prompt's version and sha256, the capture hash it read, start and end times, `validation_status` and `origin: gate_output`, per TB-001. It also carries the human's judgment, kept apart from permission to store: `examined_by` (`unexamined` until an explicit review action), `review_disposition` (`pending`, `accepted`, `accepted_with_changes`, `rejected` or `no_action`) and `examined_at`. A publication's confirmation covers storage and audience only (`confirmation_scope: storage-and-audience`), and never sets `examined_by`. Because a finalized review directory is never changed, the human's examination is recorded in a new file beside it, `examination.json`, with its own hash.
 14. **Only code marks evidence verified.** The reviewer may identify a commit, PR, review ID, CI run or release, and it records each one as `observed_unverified`. A deterministic resolver in the same script then sets one status in `verification.jsonl`:
     - `verified`, `not_found` or `mismatch`;
     - `ambiguous`;
@@ -866,6 +863,8 @@ The target is the observable decision trajectory: messages, tool calls, results,
     - **Finality:**
       - a file still being written when capture starts;
       - a missing final assistant message fails the `Stop`-hash check;
+      - the latest `Stop` record before the expansion is selected, not the expansion's own `prompt_id`;
+      - the hash is compared before redaction, so a reply containing a secret still reconciles;
       - a partial final line;
       - each of these gives `capture_completeness: partial` with its reason.
     - **Parsing:**
@@ -895,8 +894,11 @@ The target is the observable decision trajectory: messages, tool calls, results,
       - an existing package isn't overwritten;
       - a symlink or `..` in a path is refused;
       - `--publish` into a Git working tree is refused;
-      - `hashes.sha256` covers every file but itself;
-      - a second review run gets its own subdirectory and leaves the first untouched;
+      - each directory's `hashes.sha256` covers every file in it but itself;
+      - a second review run gets its own directory and leaves the capture and the first review byte-identical;
+      - a change to the payload after confirmation changes the digest and publishing is refused;
+      - gitleaks findings never appear in a publishable file;
+      - publishing never sets `examined_by`;
       - published files are read-only.
     - **Review:**
       - prompt-injection text in a tool result comes back as a finding;
@@ -1250,7 +1252,8 @@ Declared 2026-09-29 on Dorian's review of this document: *“The doc is now bett
   7. edit or delete the ruleset;
   8. approve its own pull request.
 - **Pass.** Every attempt is refused by GitHub, and the refusal is quoted. One control merge, with his approval at the head and green checks, succeeds.
-- **After the test.** Dorian compares `main`'s live ruleset with gate-lab's, setting by setting, then deletes gate-lab.
+- **Then production.** Dorian applies the same ruleset to `main` and exports both rulesets as JSON into `docs/evidence/`, so the doc records the real production configuration, not the lab's. The agent then repeats attempts 1 to 3 against `main` with pull requests whose only change is a line in a file under `docs/evidence/`, so any merge that wrongly succeeds is harmless and is reverted at once. The gate is a proposed configuration until GitHub has refused a real merge on `main`.
+- **After the test.** gate-lab is deleted.
 - **The same run also:**
   - records how the agent-side checks behave on the same attempts (`release`, `record-release`, the merge-instruction step), so their role is stated as a second line, not the gate;
   - lists how each of the live states (`review`, `released`, `done`, `merged_unreviewed`) is decided today, and where two can be true at once;
@@ -1258,17 +1261,15 @@ Declared 2026-09-29 on Dorian's review of this document: *“The doc is now bett
 
 **B-b. The scorer runs in CI.** This is XE-014, built as amended. It passes when CI executes `packet_coverage.mjs` on every push, with one `checked` case against a stub gateway and each failure case. A review opened without a `checked` status must also be visibly blocked at release.
 
-**B-c. One messy real session through SM-004's hooks, staging and publish gate.** This uses throwaway code, kept outside this repository, run through the real hook route, not a parser alone. The session includes a sub-agent, an attachment, a tool output over 100 KB, a nested secret (a key inside JSON inside a tool result), a binary output, a secret inside a ZIP, and a compaction. The finding answers each of these:
-- whether `UserPromptExpansion` fires before or after the literal `/session-review` line is written to the session file;
-- whether `prompt_id` appears in the file and can mark the capture boundary;
-- whether the previous assistant reply is in the file when the expansion hook fires;
-- whether a `Stop` hook's hash of `last_assistant_message` reconciles with the captured text;
+**B-c. One messy real session through SM-004's hooks, staging and publish gate.** This uses throwaway code, kept outside this repository, run through the real hook route, not a parser alone. The session includes a sub-agent, an attachment, a tool output over 100 KB, a nested secret (a key inside JSON inside a tool result), a binary output, a secret inside a ZIP, and a compaction. The architecture is settled; B-c settles only these lifecycle facts:
+- whether the `/session-review` line is in the session file before `UserPromptExpansion` fires;
+- how `prompt_id` appears in session-file entries;
+- how several assistant text blocks combine into `last_assistant_message`, which is the concatenation rule criterion 3 needs;
 - whether compaction rewrites earlier lines or only appends;
-- how sub-agent session files are found;
-- whether attachment bytes are still readable at capture time;
-- whether binary or oversized output gets past either scanner;
-- whether a failed review leaves the private capture intact and publishes nothing;
-- whether the published package is byte-stable and stays unchanged afterwards.
+- whether the `Stop` hook finishes before the next expansion hook fires;
+- how `StopFailure` affects the last complete turn;
+- whether sub-agent session files and attachment bytes are still readable at capture time;
+- whether Claude Code or Cowork stops plugin hooks writing to the proposed staging folder.
 
 SM-004's criteria are revised from what B-c shows before SM-004 is built.
 
@@ -1281,6 +1282,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-29 (third review round): The constraint no longer calls XE-015 `done`. GA-005 criteria 5 to 7 are explicitly superseded, because they described the bot comment as the instruction and put the app on the bypass list. B-a now applies the ruleset to `main`, exports the production ruleset as evidence and repeats three refused attempts on `main` with harmless pull requests. SM-004 separates `capture/`, `reviews/` and `publications/` into independently hashed, immutable directories. Publishing follows a twelve-step order where the owner confirms a content digest and gitleaks scans the final bytes. The `Stop`-hook check selects the prior turn and compares before redaction. Human examination is kept apart from publishing consent. B-c is narrowed to lifecycle facts.
 
 - 2026-09-29 (second review round): The pre-merge gate moves to GitHub. `main`'s target ruleset requires Dorian's code-owner approval at the head, dismisses stale approvals and requires `tests`, and the app leaves the bypass list. His GitHub approval replaces the bot-posted comment as the instruction (GA-005 criteria 12 and 13). GA-007 and XE-015 are relabelled from `done` to `review`, marked "Merged unreviewed", on his ruling that the new rule wins now. The boundary tests are reordered. B-a is a bounded live test on a sacrificial repo, B-b is the scorer in CI, and B-c is the messy session through the real hooks. SM-004 now uses a `UserPromptExpansion` hook for identity and a `Stop`-hook hash for finality. It adds block-indexed event IDs, split completeness fields, `not-collected-by-policy` for reasoning, a ten-step package lifecycle with hashes excluding themselves, and quarantined binaries. It also adds gitleaks as the named second scanner, `review-run.json`, `proposals.jsonl`, `verification.jsonl` with seven states, and `publish-receipt.json`.
 
