@@ -750,6 +750,37 @@ A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs
 11. `project-init` moves from 0.30.1 and the top-level marketplace version moves, per CI-002. The analyzer rule edits in criterion 10 move `github-repo-analyzer` too.
 12. `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
 
+### SM-004 — A session leaves evidence a human can review, captured by code, not recalled
+
+**Status:** planned.
+
+**Links introduced:** each capture names the session file it came from and that file's sha256, and a reader assumes the evidence came from that file and nothing else. Evidence lives in `<project>/00 – Project Hub/session-records/<YYYY-MM-DD>-<session-id-prefix>/`, which holds `evidence.jsonl` (canonical), `record.md` (the review copy) and `review.md` (the analysis). `/session-end` can link to that path. The `/session-review` command is a new name that people and the handoff will cite.
+
+`/session-end` writes a handoff: prose about what landed, and a mistake ledger. Neither is the session itself. When Dorian wants to review how a session went, or check what was actually said before a merge, the only full record is the Claude Code session file (`~/.claude/projects/<dir>/<session>.jsonl`). It's JSON lines, mixed with system traffic, and the Cowork cloud container deletes it when the session ends. On 2026-09-28 one session held 33 user messages, 169 tool calls and 168 tool results in a 4.3 MB file. A prompt asking the agent to write the session up can't do this job. After context compaction the agent no longer holds the early turns, and it can't recover what the interface never exposed. So capture is deterministic code over the file, and review is a separate step that reads what the code wrote.
+
+The governance target is the observable decision trajectory: messages, tool calls, results, errors, corrections and approvals. It is not a claim that the model's internal computation was recovered. The chain is CAPTURE → REVIEW → PROPOSE → HUMAN APPROVE → TEST → PROMOTE → MONITOR. This item builds the first three. The rest already exist: approval is Dorian's decision, test and promote are `/gstack-build` with its review and merge, and monitor is SM-003's repeat escalation. Nothing a review proposes skips that chain. The shape comes from yussufs/export-md (MIT) and GunitBindal/claude-transcript-exporter; no code is copied. The chain and the JAZ comparison (arXiv 2609.26891) come from Dorian's research on 2026-09-29.
+
+1. **Capture.** A new stdlib-only `project-init/scripts/session_record.py` reads one session file: the path given with `--transcript`, else the most recently modified `~/.claude/projects/*/*.jsonl`. It writes `evidence.jsonl`: one line per conversation event, in order. The kinds are user message, assistant reply, tool call (name and full input) and tool result (full output and error flag), each with its timestamp and the source line number it came from.
+2. `evidence.jsonl` contains no model reasoning blocks, whatever the session file holds. System reminders, attachments, hook output and other non-conversation entries are also left out. A header line names each excluded kind and how many lines of it were excluded.
+3. Before anything is written, text matching a secret pattern (private keys, `ghp_`/`github_pat_`/`sk-`/`vck_`/`AKIA` tokens, and `password|secret|token|api_key` assignments) is replaced by `[redacted]`, and the header reports how many redactions were made. The raw session file is not copied anywhere.
+4. The header also names the session file, its sha256, the first and last timestamps, any sub-agent session files found beside it (named, not included), and a coverage line: user messages, assistant replies, tool calls, tool results and tool errors examined. A session file with no user messages is refused with a nonzero exit, and nothing is written.
+5. The same run writes `record.md` from `evidence.jsonl` alone: every user message and every assistant reply verbatim, each tool call on one line (the tool, its main target cut to 160 characters, and `ok` or `error`), and each error result in full, cut to 4 KB with the cut stated. `record.md` repeats the header.
+6. **Review.** A new `/session-review` command runs step 1, then writes `review.md` by reading `record.md` and `evidence.jsonl`, never from memory of the conversation. It has four sections. Decisions: each approval, decline or redirect, quoting the user and citing the evidence line. Evidence map: commits, PRs, review IDs and CI runs, each marked verified or not. Friction: retries, failures, corrections and reviewer catches, each citing its evidence line. Proposals: for each friction item, a check, a rule or `one_off`. Each section with nothing to report says so.
+7. **Propose, never promote.** `/session-review` changes no rule, skill, prompt, memory or policy. Proposals go to the human. An approved one enters the chain as a `/session-end` mistake-ledger entry (SM-003) or a design-doc amendment through `/gstack-build`. `review.md` says this in one line.
+8. The command says where the files go. In a cloud session, the script runs in the container and the three files are committed into the connected project folder. On a computer, they're written in place. Either way they land at the path in the Links line.
+9. `/session-end` links the evidence folder in the handoff when one exists for this session. It never restates it.
+10. A new `project-init/tests/test_session_record.py` builds a session file with each kind of entry. It checks:
+    - user text, assistant text and tool inputs and outputs come through verbatim in `evidence.jsonl`, with their source line numbers;
+    - reasoning blocks and system reminders are absent from both outputs and counted in the header;
+    - a planted secret is redacted in both outputs and counted;
+    - the header's sha256 matches the input;
+    - `record.md` shows a tool call as one line and an error result in full;
+    - a file with no user messages exits nonzero and writes nothing.
+11. project-init's README credits yussufs/export-md (MIT) and GunitBindal/claude-transcript-exporter for the shape. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.31.0, and the top-level marketplace version moves with it, per CI-002.
+12. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** capturing claude.ai chats (use agoramachina/claude-exporter, keeping its JSON as the canonical copy) or ChatGPT chats (use lrq3000/chatgpt-thread-exporter); including sub-agent sessions; and the npm `claude-exporter` package, whose provenance isn't established. Automatic changes to rules or skills from a record are also out. JAZ's meta-agent does that; this chain deliberately puts a human first.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -1076,6 +1107,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-29: Added SM-004 on Dorian's instruction ("Let's get the design doc done first"), revised with his research the same day. Code captures the session deterministically and a separate review step reads the capture. The chain runs capture, review, propose, human approve, test, promote, monitor. The capture holds no model reasoning.
 
 - 2026-09-28: Added XE-028 on Dorian's instruction ("build the council change"). It ports jev-skill's margin gate (MIT, idea only) into council's Jev router, and replaces the router's calibration claim with jev-skill's measured numbers.
 
