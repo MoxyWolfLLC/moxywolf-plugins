@@ -1050,6 +1050,25 @@ XE-018 put CI runs in front of the reviewer as job and step conclusions. When a 
 
 **Not in this item:** harness-level mechanisms, which live in Claude Code and Codex, not in a plugin: SoL-Pi's edit-then-run fusion, observation handles and compaction economics. Also not included is reducing logs of jobs that passed.
 
+### XE-028 — A router pick that nearly tied is not a pick
+
+**Status:** planned.
+
+**Links introduced:** a `needs_review` list in `jev_route.py`'s output, naming each choice field the router returned as null because Jev's pick didn't clear the bar. Step 3 of `smart-router/SKILL.md` has to read it and fill those fields from Step 1's heuristic extraction.
+
+`jev_route.py` takes Jev's `category` and `protocol` picks at face value. It never looks at the probabilities it already receives, so a 0.51 against 0.49 near-tie routes the same way as a 1.0. `category` then selects learned-router rules and model rankings. wuyoscar/jev-skill (MIT) accepts a choice only when the top probability is at least 0.8 and beats the runner-up by at least 0.15; anything less goes to review. Its published calibration test (`evals/CALIBRATION_RESULTS.md`, 160 BIG-Bench Hard items, 2026-09-20) also shows the router's docstring overclaims. Jev's `[.9,1]` bin stated 0.98 on average and was right 89% of the time; its `[.8,.9)` bin was right 71% of the time. This item ports the idea in our own words, and no code is copied. The fit note is `Taskade/Team Plugins/06 – Engineering/jev-skill-fit-2026-09-28.md`.
+
+1. For each choice field (`category`, `protocol`), `route()` accepts Jev's pick only when the pick is the highest-probability label, its probability is at least `CHOICE_MIN_PROBABILITY` (0.8), and it beats the next label by at least `CHOICE_MIN_MARGIN` (0.15). Otherwise the field is returned as `null` and named in `needs_review`. Probabilities that are missing, or don't name the pick, count as not clearing the bar.
+2. A field missing from the answer entirely still raises `JevUnavailable`, as today. A null from criterion 1 is not unavailability: `decision`, `confidence` and the other fields are returned as usual.
+3. `needs_review` is always present, empty when every pick cleared the bar.
+4. The offline selftest's canned answers carry choice probabilities. It adds three cases: a clear pick is used; a near-tie (0.52 against 0.48) returns `category: null` with `category` in `needs_review` while `decision` is unchanged; and a pick with no probabilities is treated as a near-tie.
+5. The docstring's claim that a 0.9 is "right about nine times in ten", and the matching sentence in `smart-router/SKILL.md` Step 3, are replaced by jev-skill's measured numbers with a link to their source. Step 3 says to fill a `needs_review` field from Step 1's heuristic extraction and to record that field's source as heuristic.
+6. council's README credits wuyoscar/jev-skill (MIT) for the idea and the measurement.
+7. `plugins/council/.claude-plugin/plugin.json` moves from 0.9.0, and the marketplace's council entry and top-level version move with it, per CI-002.
+8. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** the `deliberate` and `compound` booleans, which already have bands; `packet_coverage.mjs`; recalibrating with our own data.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -1057,6 +1076,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-28: Added XE-028 on Dorian's instruction ("build the council change"). It ports jev-skill's margin gate (MIT, idea only) into council's Jev router, and replaces the router's calibration claim with jev-skill's measured numbers.
 
 - 2026-09-28: Added XE-027 on Dorian's instruction ("Implement the one idea worth keeping"). It ports SoL-Pi's verified-receipt reducer, MIT, idea only, into the CI evidence XE-018 fetches, ahead of a measured need.
 
