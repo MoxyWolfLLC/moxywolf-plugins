@@ -1052,7 +1052,7 @@ XE-018 put CI runs in front of the reviewer as job and step conclusions. When a 
 
 ### XE-028 — A router pick that nearly tied is not a pick
 
-**Status:** building.
+**Status:** done. Merged to `main` in `799fbc1` (PR #72, head `3479b9a`) on 29 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260928-220019-fc33ac5-ywfrcyp5` (codex/gpt-6-astra, `fixes_verified`, 2 rounds): round 1 found F1, an answer with no protocol at all was treated as a low-confidence pick instead of raising `JevUnavailable`, fixed in `3479b9a` and verified resolved. The `tests` workflow was green at the reviewed head and read by the dispatcher itself. Live, a mixed-intent query kept `category` at 0.96 and returned `protocol` (0.68 against 0.32) as null in `needs_review`.
 
 **Links introduced:** a `needs_review` list in `jev_route.py`'s output, naming each choice field the router returned as null because Jev's pick didn't clear the bar. Step 3 of `smart-router/SKILL.md` has to read it and fill those fields from Step 1's heuristic extraction.
 
