@@ -9,9 +9,11 @@ roughly 100ms.
 
 Why this exists. The router's own confidence bands (>0.8 follow, 0.5-0.8 follow
 but flag, else explore) were written against keyword matching, where "confidence"
-was a number somebody picked. Jev is trained for calibrated decisions, so a 0.9
-means right about nine times in ten. The thresholds start meaning what the skill
-already claimed they meant.
+was a number somebody picked. Jev's probabilities are measured, not picked, though
+they run high at the top: on 160 BIG-Bench Hard items, answers stated at 0.9-1.0
+(mean 0.98) were right 89% of the time, and 0.8-0.9 answers 71% (wuyoscar/jev-skill,
+evals/CALIBRATION_RESULTS.md, 2026-09-20). So a choice is used only when it clears
+a floor AND a margin over the runner-up (XE-028); a near-tie is not a pick.
 
 Never fabricates. No key or no answer raises JevUnavailable and the caller falls
 back to the heuristic table, which is the behaviour that was there before.
@@ -42,6 +44,24 @@ CATEGORIES = {
     "factual_lookup": "A definition, syntax, or how-something-works question.",
     "other": "None of the above fits.",
 }
+
+
+# XE-028: the bar a choice answer clears before the router uses it. Idea from
+# wuyoscar/jev-skill (MIT); no code copied.
+CHOICE_MIN_PROBABILITY = 0.8
+CHOICE_MIN_MARGIN = 0.15
+
+
+def clears_bar(choice, probabilities):
+    """True when `choice` is the top label, at CHOICE_MIN_PROBABILITY or more, and leads
+    the next label by CHOICE_MIN_MARGIN or more. Missing probabilities never clear it."""
+    try:
+        ranked = sorted((float(v) for v in probabilities.values()), reverse=True)
+        p = float(probabilities[choice])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return False
+    runner_up = ranked[1] if len(ranked) > 1 else 0.0
+    return p == ranked[0] and p >= CHOICE_MIN_PROBABILITY and p - runner_up >= CHOICE_MIN_MARGIN
 
 
 class JevUnavailable(RuntimeError):
@@ -208,6 +228,13 @@ def route(query: str, budget=None, *, key=None):
     p_compound = a.get("compound", {}).get("probability")
     if p_delib is None or category is None:
         raise JevUnavailable("gateway answered without the fields the router needs")
+    # XE-028: a pick that didn't clear the bar is returned as null for Step 3 to fill
+    # from the heuristics. That is review, not unavailability: the rest still routes.
+    needs_review = []
+    if not clears_bar(category, cat_probs):
+        category = None; needs_review.append("category")
+    if not clears_bar(protocol, proto_probs):
+        protocol = None; needs_review.append("protocol")
 
     # Calibrated distance from the 0.5 boundary. An answer at 0.5 is a coin flip
     # and must read as one, which is what sends it to the exploration branch.
@@ -231,6 +258,7 @@ def route(query: str, budget=None, *, key=None):
         "exploration": exploration,
         "category": category,
         "estimated_protocol": protocol,
+        "needs_review": needs_review,
         "complexity_signals": {"is_compound": bool(p_compound and p_compound >= 0.5)},
         "routing_source": "jev",
         "model": out.get("model", MODEL),
@@ -252,15 +280,24 @@ CHECKS = [
 ]
 
 
+def _pick(label, p=0.97):
+    """A canned choice answer as the gateway sends it: the pick plus a probability per
+    label (measured live 2026-09-28). The rest of the mass goes to one other label."""
+    labels = list(CATEGORIES) if label in CATEGORIES else ["voting", "consensus"]
+    other = next(x for x in labels if x != label)
+    return {"choice": label, "probabilities": {x: (p if x == label else round(1 - p, 4) if x == other else 0)
+                                               for x in labels}}
+
+
 # Canned gateway answers, one per CHECKS entry and in the same order, plus the
 # band the confidence should land in. The offline selftest routes each CHECKS
 # query through them, so the table the live check uses is the one checked here.
 CANNED = [
-    ({"category": {"choice": "factual_lookup"}, "protocol": {"choice": "consensus"},
+    ({"category": _pick("factual_lookup"), "protocol": _pick("consensus"),
       "compound": {"probability": 0.05}, "deliberate": {"probability": 0.04}}, "follow"),
-    ({"category": {"choice": "architecture_decision"}, "protocol": {"choice": "voting"},
+    ({"category": _pick("architecture_decision"), "protocol": _pick("voting"),
       "compound": {"probability": 0.9}, "deliberate": {"probability": 0.97}}, "follow"),
-    ({"category": {"choice": "code_implementation"}, "protocol": {"choice": "consensus"},
+    ({"category": _pick("code_implementation"), "protocol": _pick("consensus"),
       "compound": {"probability": 0.1}, "deliberate": {"probability": 0.12}}, "flag"),
 ]
 
@@ -317,7 +354,23 @@ def selftest_offline():
                   and r["estimated_protocol"] == answers["protocol"]["choice"]
                   and r["complexity_signals"]["is_compound"]
                   == (answers["compound"]["probability"] >= 0.5)
-                  and r["model"] == MODEL and r["routing_source"] == "jev")
+                  and r["model"] == MODEL and r["routing_source"] == "jev"
+                  and r["needs_review"] == [])
+
+        # XE-028: a near-tie is not a pick, and doesn't stop the route.
+        reply = {"answers": dict(CANNED[1][0], category=_pick("architecture_decision", 0.52))}
+        r = route("q", key="stub")
+        check("0.52/0.48 category -> null, needs review, decision kept",
+              r["category"] is None and r["needs_review"] == ["category"]
+              and r["estimated_protocol"] == "voting" and r["decision"] == "deliberate")
+        reply = {"answers": dict(CANNED[0][0], protocol={"choice": "consensus"})}
+        r = route("q", key="stub")
+        check("a pick with no probabilities is not used",
+              r["estimated_protocol"] is None and r["needs_review"] == ["protocol"]
+              and r["category"] == "factual_lookup")
+        check("0.85 over 0.15 clears; 0.79 over 0.21 and 0.85 over a 0.75 runner-up don't",
+              clears_bar("a", {"a": 0.85, "b": 0.15}) and not clears_bar("a", {"a": 0.79, "b": 0.21})
+              and not clears_bar("a", {"a": 0.85, "b": 0.75}) and not clears_bar("b", {"a": 0.85, "b": 0.15}))
 
         # A coin flip deliberates on purpose, flagged as exploration.
         reply = {"answers": dict(CANNED[0][0], deliberate={"probability": 0.6})}

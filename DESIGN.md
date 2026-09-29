@@ -1052,7 +1052,7 @@ XE-018 put CI runs in front of the reviewer as job and step conclusions. When a 
 
 ### XE-028 — A router pick that nearly tied is not a pick
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** a `needs_review` list in `jev_route.py`'s output, naming each choice field the router returned as null because Jev's pick didn't clear the bar. Step 3 of `smart-router/SKILL.md` has to read it and fill those fields from Step 1's heuristic extraction.
 

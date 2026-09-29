@@ -106,15 +106,22 @@ calibrated probability behind each answer, and the token usage. Use it as the ro
 decision.
 
 The three confidence bands are applied inside the script, from Step 4b, but now over a
-calibrated probability rather than a hand-picked one. Jev is trained so that an answer
-given 0.9 is right about nine times in ten, which is what those bands always assumed
-and never had:
+measured probability rather than a hand-picked one. Measured is not the same as exact:
+on 160 BIG-Bench Hard items, Jev's answers stated at 0.9-1.0 (mean 0.98) were right 89%
+of the time and its 0.8-0.9 answers 71% ([jev-skill calibration test](https://github.com/wuyoscar/jev-skill/blob/main/evals/CALIBRATION_RESULTS.md),
+2026-09-20). The bands are routing policy, not a guarantee:
 
 | `confidence` | Behavior |
 |--------------|----------|
 | > 0.8 | Follow the decision. |
 | 0.5 – 0.8 | Follow it, `uncertain: true` is set, and the deliberation-engine notes it. |
 | < 0.5 | `decision` is forced to `deliberate` and `exploration: true` is set. An uncertain route that deliberates produces an outcome the learned router can train on; one that shortcuts produces nothing and may be wrong. |
+
+**A pick that nearly tied is not used.** `category` and `estimated_protocol` are kept only
+when Jev's pick has at least 0.8 probability and leads the runner-up by at least 0.15
+(XE-028). Otherwise the field comes back `null` and is named in `needs_review`. Fill each
+`needs_review` field from Step 1's heuristic extraction and record that field's source as
+heuristic; the rest of the Jev route stands.
 
 **When Jev cannot answer**, the script exits 2 with `routing_source: "jev_unavailable"`
 and a `why` naming every path it looked for the key in. No key, no network, or a
