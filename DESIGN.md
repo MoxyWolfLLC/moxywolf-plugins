@@ -947,7 +947,7 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 
 ### TB-002 — One enclosure for text the loop did not write
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the quotation link. Text pasted into a prompt is assumed by the reader to be data, and the model has no way to tell data from instruction unless the boundary is marked. The enclosure marks it. It does not enforce it.
 

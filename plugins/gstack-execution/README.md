@@ -108,3 +108,16 @@ The open refuses one more shape of packet (XE-025). A criterion about a place th
 ## Licence and provenance
 
 MIT, following gstack. Adversarial-review framing adapted from codex-plugin-cc (Apache-2.0). The verification discipline, the peer-review contract, the review surface and the gates are MoxyWolf's.
+
+## Text the loop didn't write (TB-002)
+
+Reviewer output, CI logs, pull request and issue bodies, fetched pages and retrieved memory go into
+prompts inside one enclosure, defined once in
+`skills/gstack-execution/references/untrusted-enclosure.md` and written by `scripts/enclosure.py`.
+`test_untrusted_enclosure.py` fails if the rule gets a second home or an ingesting place stops
+loading it.
+
+**What it's worth:** it marks the boundary, it doesn't enforce it. The one number available, from the
+external response's revised edition (2026-09-20), is executed adversarial actions falling from 60% to
+30% on a synthetic benchmark whose traces and harness weren't published. That's a speed bump on
+unverified evidence. TB-001 and TB-003 are the controls.
