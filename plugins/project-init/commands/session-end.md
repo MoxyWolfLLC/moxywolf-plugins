@@ -17,3 +17,5 @@ The skill assumes the project has a saved `cowork-project-instructions.md` in it
 9. Reports the handoff path, the top of next-session stack, README files refreshed, and what the vault update captured, so you can spot-check before signing off.
 
 Pairs with `/session-start`, which reads `cowork-session-handoff.md` and surfaces the open-work and suggested-opening-line in the session-start briefing.
+
+**Session record (SM-004).** If `/session-review` published a package for this session, link it in the handoff's `What landed` section by its folder path. Link it; never restate what it says.

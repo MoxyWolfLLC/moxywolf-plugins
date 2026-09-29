@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptExpansion": [
+      {"matcher": "project-init:session-review",
+       "hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_record.py\" hook-expansion", "timeout": 15}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_record.py\" hook-stop", "timeout": 15}]}
+    ],
+    "SubagentStop": [
+      {"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/session_record.py\" hook-stop", "timeout": 15}]}
+    ]
+  }
+}

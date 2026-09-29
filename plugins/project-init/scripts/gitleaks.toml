@@ -1,0 +1,3 @@
+# SM-004: gitleaks configuration for session-record publishing. Pinned by sha256 in every receipt.
+[extend]
+useDefault = true

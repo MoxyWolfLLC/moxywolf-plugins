@@ -109,3 +109,11 @@ If a specific project genuinely needs a different routing for its own knowledge,
 - **0.3.0** — `/init-project` now uses the native macOS Finder picker for selecting the active Taskade subfolder and each GitHub repo. No more typing folder names.
 - **0.2.0** — Standardized on three mounted roots (MoxyWolf Vault, GitHub, Taskade). Project Instructions now declare *which subfolder* of each is active, instead of asking for full paths each time.
 - **0.1.0** — Initial release with per-project primary working folder + full GitHub repo path collection.
+
+## Session records (SM-004)
+
+`/session-review` captures this session with code (`scripts/session_record.py`), reviews what the code wrote, and proposes changes for Dorian without promoting any. The capture is the observable trajectory: messages, tool calls, results, errors and approvals. Model reasoning is excluded by policy, never inspected or counted. Everything is built in owner-only staging (`~/.moxywolf/session-staging`) and leaves only through a confirmed publish.
+
+- **Hooks.** `hooks/hooks.json` adds a `UserPromptExpansion` hook matched on `project-init:session-review` (identity, and where the file ended), and `Stop` and `SubagentStop` hooks that store a hash of the last reply, never its text. A hook never fails the session.
+- **Publishing depends on gitleaks** (pinned to 8.30.1, configuration `scripts/gitleaks.toml`). Without it, publishing is refused. Install it with `brew install gitleaks`.
+- **Credit.** The shape of the export follows yussufs/export-md (MIT) and GunitBindal/claude-transcript-exporter. No code is copied.
