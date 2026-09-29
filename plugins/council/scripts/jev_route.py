@@ -226,7 +226,9 @@ def route(query: str, budget=None, *, key=None):
     protocol, proto_probs = pick("protocol")
     p_delib = a.get("deliberate", {}).get("probability")
     p_compound = a.get("compound", {}).get("probability")
-    if p_delib is None or category is None:
+    # A field absent from the answer is unavailability, not review (XE-028 F1: protocol
+    # was left out of this guard, so a missing one read as a low-confidence pick).
+    if p_delib is None or category is None or protocol is None:
         raise JevUnavailable("gateway answered without the fields the router needs")
     # XE-028: a pick that didn't clear the bar is returned as null for Step 3 to fill
     # from the heuristics. That is review, not unavailability: the rest still routes.
@@ -378,7 +380,7 @@ def selftest_offline():
         check("p=0.6 explores", r["decision"] == "deliberate" and _band(r) == "explore")
 
         # An answer missing a field the router needs is unavailable, not a guess.
-        for missing in ("deliberate", "category"):
+        for missing in ("deliberate", "category", "protocol"):
             reply = {"answers": {k: v for k, v in CANNED[0][0].items() if k != missing}}
             try:
                 route("q", key="stub")
