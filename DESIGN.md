@@ -173,7 +173,7 @@ this repository's own executor plus three false passes in its own completeness g
 
 ### EV-001 — No check reports a pass over input it did not examine
 
-**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** none; this item removes a false one (a verdict that implied
 coverage it never had).
@@ -212,7 +212,7 @@ the repository's current head.
 
 ### EV-003 — The undeclared-write sweep, in the direction nobody had
 
-**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** the declaration-to-behaviour link for every handler, checked at
 runtime rather than against other declarations.
@@ -230,7 +230,7 @@ runtime rather than against other declarations.
 
 ### EV-004 — The approver's reconstruction gets a field
 
-**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** each observation's claim-to-command-to-output link, re-runnable by
 `verify`.
@@ -243,7 +243,7 @@ runtime rather than against other declarations.
 
 ### EV-005 — Each item declares the links it introduces
 
-**Status:** done. Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged to `main` in `c747ab9` (PR #9, head `b746e22`) on 13 September 2026 by the Release Owner.
 
 **Links introduced:** none.
 
@@ -256,7 +256,7 @@ runtime rather than against other declarations.
 
 ### EV-009 — A review record outlives the session that produced it
 
-**Status:** done. Merged as `7b72605` (PR #10) on 2026-09-17 by the Release Owner. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `7b72605` (PR #10) on 2026-09-17 by the Release Owner. Review ID not carried here; see the pull request.
 
 **Links introduced:** the review ID to its record on disk, which is the link this item
 exists because it was already broken.
@@ -294,7 +294,7 @@ the records already lost.
 
 ### EV-007 — Reference identity and archive at citation time
 
-**Status:** done. Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Criterion 1 is met for identifiers whose canonical form is mechanical — arXiv, DOI and PubMed ids resolve to one work identity regardless of URL form, case or resolver, and the check reports which rule produced each identity. Linking a preprint to the DOI it later received needs a registry lookup, is not attempted, and the two remain separate works. Criterion 2 is met: cited URLs are archived at citation time to the Wayback Machine AND stored as a local copy beside the bibliography (Dorian, 2026-09-17, chose both), with the SHA-256 of the archived snapshot. The hash covers the SNAPSHOT, not the live page: hashing live HTML detects ad and timestamp rotation rather than drift, so this proves "this is the page I cited", not "the page has not changed". Persistently resolvable identifiers are skipped and recorded as skipped. An unreachable archive never blocks a citation; it is recorded with its reason, and the gate reports coverage from the record without touching the network. Criterion 3 is met: cited commits, test files and review identifiers resolve in the named repository, and a paper with no repository available returns SKIP rather than PASS. Merged as `8bd7fae` (PR #18) on 2026-09-17; criterion 2 archiving as `4c6e11a` (PR #19).
 
 **Links introduced:** the reference-to-work link (identifier to canonical work) and the
 citation-to-snapshot link.
@@ -391,7 +391,7 @@ The dispatcher hardcodes two tools and derives the reviewer as "the other one". 
 
 ### XE-006 — The repo runs its own checks, or it has no gate
 
-**Status:** done. Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -417,7 +417,7 @@ It was reading "the web gate does not apply" as "no gate applies."
 
 ### XE-007 — The reviewer gets the change and its callers, not the tree
 
-**Status:** done. Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `0abc472` (PR #16) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none. The surface is derived per round from the pinned commits; it stores nothing.
 
@@ -441,7 +441,7 @@ that a change breaks an untouched caller, which is where the substantive blocker
 
 ### XE-008 — A fact with two homes drifts; a format with one producer cannot
 
-**Status:** done. Merged as `dbbe5dd` (PR #17) on 2026-09-17. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `dbbe5dd` (PR #17) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -469,7 +469,7 @@ for coverage it does not have.
 
 ### XE-009 — A review that cannot finish is not a review
 
-**Status:** done. Merged as `2733a56` (PR #20) on 2026-09-17. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `2733a56` (PR #20) on 2026-09-17. Review ID not carried here; see the pull request.
 
 **Links introduced:** none.
 
@@ -494,7 +494,7 @@ error — criteria narrower than the item, so the review passes something unfini
 
 ### XE-010 — A packet narrower than the item it claims is not a review
 
-**Status:** done. Merged as `1cff7f5` (PR #22) on 2026-09-18. Review ID not carried here; see the pull request.
+**Status:** review. Merged unreviewed: relabelled from `done` on 2026-09-29 under the one release path, on Dorian's ruling. The item names no review, and no review or release record for it was found. Previously: Merged as `1cff7f5` (PR #22) on 2026-09-18. Review ID not carried here; see the pull request.
 
 **Links introduced:** the packet-to-declared-item link. A packet names the items it claims; the
 coverage report binds each declared criterion to a score against that packet.
@@ -1284,6 +1284,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-29: Status ruling by Dorian on the B-a list (`06 – Engineering/status-ruling-2026-09-29.md`). **Recorded exception:** XE-016, XE-017, SM-003, DS-001, XE-019, XE-020, XE-022, XE-023, XE-024, XE-025, XE-026, XE-027, XE-028 stay `done`. Each was cross-tool reviewed and has a release record from `record-release`; coverage was `not_run` for all of them because the scorer could not start until XE-014, and mandatory coverage postdates their release. **Relabelled** to `review`, merged unreviewed: EV-001, EV-003, EV-004, EV-005, EV-007, EV-009, XE-006, XE-007, XE-008, XE-009, XE-010. None names a review and no record was found. **Undecided** pending a search for lost records: GA-006, AP-001, AP-002, AP-003, EV-002, XE-001 to XE-005, XE-013, RR-001, RR-002, CI-001, CI-002, XE-018, XE-021. The first search found RR-001 and RR-002's release record in the vault's old review folder, review folders without a release record for GA-006, XE-013, CI-001 and CI-002, only a reconstruction for EV-002, and nothing for the rest.
 - 2026-09-29: XE-014 gains criterion 13, approved by Dorian after review 20260929-142318 round 2. The dispatcher reads CI only with a GitHub token and passed its whole environment to the reviewer, so criterion 11 couldn't be verified without handing Codex the app's token. The reviewer's environment now drops both token variables.
 - 2026-09-29 (third review round): The constraint no longer calls XE-015 `done`. GA-005 criteria 5 to 7 are explicitly superseded, because they described the bot comment as the instruction and put the app on the bypass list. B-a now applies the ruleset to `main`, exports the production ruleset as evidence and repeats three refused attempts on `main` with harmless pull requests. SM-004 separates `capture/`, `reviews/` and `publications/` into independently hashed, immutable directories. Publishing follows a twelve-step order where the owner confirms a content digest and gitleaks scans the final bytes. The `Stop`-hook check selects the prior turn and compares before redaction. Human examination is kept apart from publishing consent. B-c is narrowed to lifecycle facts.
 
