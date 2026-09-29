@@ -85,3 +85,7 @@ When implementation lands, `/gstack-verify` closes the pair: it checks the built
 ## Restraint layer (ponytail)
 
 A plan can be over-engineered before any code exists. The critic's first lens is the YAGNI ladder from the `ponytail` skill — does each planned piece need to exist at all — before it argues about how the pieces are built. Validation, error handling, security, and accessibility are never trimmed.
+
+## Untrusted text (TB-002)
+
+The critic's output and the log of earlier rounds weren't written by the arbitrating side. When either goes into a prompt, wrap it in the enclosure defined in [`untrusted-enclosure.md`](../skills/gstack-execution/references/untrusted-enclosure.md), which holds the rule. The plan itself and the round's review prompt stay outside it.

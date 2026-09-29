@@ -271,7 +271,8 @@ if '=== PACKET ===' in prompt:
  r={'verdict':'blocking_findings' if os.environ.get('GRAPH_BLOCK') else 'no_blocking_findings','acceptance':[{'criterion':c,'met':True,'evidence':'value:1'} for c in p['acceptance_criteria']],'findings':[],'blocker_resolutions':[],'regressions_from_fixes':[],'notes':''}
  if os.environ.get('GRAPH_BLOCK'):r['findings']=[{'id':'F1','severity':'blocking','file':'value','line':1,'what':'bad','evidence':'value:1','criterion':p['acceptance_criteria'][0],'fix':'fix'}]
 else:
- p=json.loads(prompt.splitlines()[1]);n=p['node']
+ # TB-002: the payload arrives inside the untrusted enclosure, on the line after its opening tag
+ lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));p={**json.loads(lines[i-1]),**json.loads(lines[i+1])};n=p['node']
  r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[],'summary':'checked'}
  if n.get('claim_id'):r['findings']=[{'id':n['claim_id'],'status':'BUILT','detail':'value exists','evidence':['value:1']}]
  if n['kind']=='checker':r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]
