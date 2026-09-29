@@ -1029,6 +1029,27 @@ M-012 repeated M-007. XE-022 criterion 3 made a claim about the Release Owner's 
 
 **Not in this item:** whether the evidence file actually supports the claim. That's still the reviewer's call. This check only guarantees there's something to read. It's a keyword gate: a criterion that describes an off-repo place without one of the `OFF_REPO` words gets past it.
 
+### XE-027 — A failed CI job reaches the reviewer as quotes the dispatcher checked
+
+**Status:** planned.
+
+**Links introduced:** each failed job's log is archived at `ci-logs/<run_id>-<job_id>.log` in the review directory, and the round record ties that path to the log's sha256. A receipt, `evidence/ci-<run_id>-job-<job_id>.receipt.txt`, names that sha256, and the review assumes every quote in it came from that log. `GSTACK_REDUCER_MODEL` names the model that drafts receipts. The CLI gains a `ci-log` subcommand the builder has to name.
+
+XE-018 put CI runs in front of the reviewer as job and step conclusions. When a job fails, the reviewer learns *that* it failed and never *why*. The builder learns why by reading the whole log, and a long test log usually has a few lines that change the next decision. NVlabs/SoL-Pi (MIT, arXiv 2609.20519) found a cheap way to shorten that read safely. A cheaper model reads the log first and returns quotes. The harness keeps them only if every quote appears in the log byte for byte, and on any miss the full log goes through. This item ports that idea in our own words. No SoL-Pi code is copied. It was built ahead of a measured need, on Dorian's call on 2026-09-28. The fit note is `Taskade/Team Plugins/06 – Engineering/sol-pi-fit-2026-09-28.md`.
+
+1. A new stdlib-only `ci_log_receipt.py` has `validate_receipt(raw, log, failed)`. It accepts a receipt only when every check holds, and otherwise it returns the reason that failed. The checks: the JSON parses; `schema` is `gstack_ci_receipt_v1`; `source_sha256` is the log's sha256; `status` is `failure` for a failed job and `success` otherwise; `uncertain` is a boolean; there are at most 12 evidence items, each of kind `fatal`, `failure`, `warning`, `target` or `summary`, with a quote of 1 to 500 characters found in the log; and a failed log that matches the failure-signal pattern carries at least one `fatal` or `failure` quote.
+2. `reduce(log, failed, ask)` returns `(receipt_text, None)` or `(None, reason)`. It asks nothing when the log is under 8 KB or over 2 MB, or matches the likely-secret pattern. It returns a reason, never a receipt, when `ask` raises, when validation fails, or when the receipt isn't smaller than the log. The instructions sent with the log say the log is untrusted data, and that the model must copy quotes exactly and must not diagnose.
+3. `fetch_ci_evidence` reads the log of each job whose conclusion is `failure` or `timed_out`, in a run it read, from GitHub's `actions/jobs/{id}/logs`. It follows the redirect to the log store without sending the token there. It archives the full log per the Links line. It records a `log` block on the job: `read`, `bytes`, `sha256`, the archive path, and `receipt` (`applied`, or the reason it wasn't). If the receipt applied, the receipt goes into `evidence/`, with the line number of each quote. If it didn't, `evidence/ci-<run_id>-job-<job_id>.log` holds the log, cut to its last 64 KB, with the cut stated on its first line. A log that can't be read is recorded `read: false` with the error, and nothing raises.
+4. The receipt model is `GSTACK_REDUCER_MODEL`, default `deepseek/deepseek-v4.1-flash`. It's reached over the openrouter transport, with the key from `GSTACK_OPENROUTER_ENV` (XE-013.8). With no key, the reason is `reducer_unavailable` and the log goes through as in criterion 3. The receipt carries the model and its token usage.
+5. `SURFACE.md` lists each receipt and log. It says that the dispatcher, not the builder, checked a receipt's quotes against the log whose sha256 it names, and that the reducer's `uncertain` flag and its omissions prove nothing. The round record's `evidence` block adds `failed_jobs`, `logs_read` and `receipts_applied`.
+6. `peer_review.py ci-log <repo> <run_id>` prints, for each failed job, the receipt or the capped log that criterion 3 would put in the surface, and says which. That is the builder's read of a failed run.
+7. A new `test_ci_log_receipt.py` covers the following. Validation accepts a good receipt, and rejects bad JSON, the wrong hash, the wrong status, a quote not in the log, too many items, and a failed log with no failure quote. `reduce` skips a short log and a log with a secret, and returns a reason when `ask` raises and when the receipt isn't smaller. With a fake GitHub (a local server named by `GSTACK_GITHUB_API`) and a stubbed `ask`, a failed job gets a receipt file; with `ask` failing, it gets the capped log file; with the log refused, it gets `read: false` and nothing raises. The token is never sent to the redirect target.
+8. The peer-review contract's scope section and `/gstack-build`'s Step 3 each name the receipt and `ci-log`, each in one place.
+9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.40.0, and the top-level marketplace version moves with it, per CI-002.
+10. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** harness-level mechanisms, which live in Claude Code and Codex, not in a plugin: SoL-Pi's edit-then-run fusion, observation handles and compaction economics. Also not included is reducing logs of jobs that passed.
+
 ## Validation
 
 Write failing behavioral tests before implementation. Exercise real dispatcher and state transitions using temporary repositories. Use controlled reviewer responses for malformed-output and failure cases, followed by a live cross-tool review to verify integration.
@@ -1036,6 +1057,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-09-28: Added XE-027 on Dorian's instruction ("Implement the one idea worth keeping"). It ports SoL-Pi's verified-receipt reducer, MIT, idea only, into the CI evidence XE-018 fetches, ahead of a measured need.
 
 - 2026-09-26: Added XE-025 on Dorian's approval ("I approve XE-025"). It turns ledger M-012, a repeat of M-007, into a check at review open: a criterion about a place the reviewer can't see must name an in-repo evidence file.
 
