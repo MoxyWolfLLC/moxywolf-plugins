@@ -68,6 +68,8 @@ Examples:
 - "Multi-axis classifier shipped end-to-end. 3,233/3,323 nouns now carry real entity_type values. Browse pages render the live distribution. PostgREST 1000-row cap workaround landed."
 - "Wrote the Strike Graph reseller v4 contract. Added MSA addendum for the 70/30 split. Filed both in 01 – Admin & Legal."
 
+If `/session-review` published a session record for this session (SM-004), link its folder here by path. Link it; never restate what it says.
+
 #### b. Open work, in priority order
 
 A numbered list. Each item gets:
