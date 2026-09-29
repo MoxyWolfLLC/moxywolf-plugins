@@ -166,3 +166,5 @@ The Jev router's choice margin and the calibration figures it cites come from [w
 ## Composio fallback
 
 For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.
+
+<!-- B-a probe: a plugin change with no version bump, to turn tests red. Never merged. -->
