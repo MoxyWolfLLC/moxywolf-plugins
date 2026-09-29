@@ -47,6 +47,11 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # A push to a branch other than main diffs against where it left main, not against its
+          # previous push: a version moves once per merge, not once per fix commit.
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            BASE=$(git merge-base origin/main HEAD)
+          fi
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no base commit for this event; nothing to diff against"
             exit 0
