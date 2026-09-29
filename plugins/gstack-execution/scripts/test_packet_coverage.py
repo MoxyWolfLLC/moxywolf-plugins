@@ -63,6 +63,15 @@ def test_a_broken_or_unusable_scorer_opens_and_is_not_checked():
         assert ok and status == f"{st}: w" and uncovered == []
 
 
+def test_scores_under_any_status_but_checked_are_not_coverage():
+    """Review F1 (20260929-142318): scores under `not_run`, or with no status, read as covered and
+    released without an exception. Only `checked` counts."""
+    for cov in ({"status": "not_run", "criteria": [{"probability": 0.9}]},
+                {"criteria": [{"probability": 0.9}]}):
+        ok, status, uncovered = pr.coverage_verdict(packet(cov))
+        assert ok and status not in {"covered", "uncovered"} and uncovered == [], status
+
+
 def test_the_floor_is_the_only_knob_and_it_bites():
     rep = packet(scored(0.55))
     assert pr.coverage_verdict(rep, floor=0.5)[0] is True

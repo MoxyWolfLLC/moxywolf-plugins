@@ -1664,8 +1664,11 @@ def coverage_verdict(packet, floor=COVERAGE_FLOOR):
     rep = packet.get("coverage")
     if not rep:
         return True, "not_run", []
-    if rep.get("status") in {"unavailable", "unusable", "broken"}:
-        return True, f"{rep['status']}: {rep.get('why', 'no reason given')}", []
+    if rep.get("status") != "checked":
+        # Review F1 (20260929-142318): only a report the scorer labelled `checked` counts. A report
+        # carrying scores under `not_run`, or no status at all, had read as covered and released
+        # without an exception. Anything else opens the review and stays unchecked.
+        return True, f"{rep.get('status') or 'unlabelled'}: {rep.get('why', 'not a scored report')}", []
     scores = rep.get("criteria") or []
     if not scores:
         # EV-001: a report that examined nothing is not a clean report

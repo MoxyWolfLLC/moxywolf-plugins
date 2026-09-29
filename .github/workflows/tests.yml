@@ -8,8 +8,9 @@ name: tests
 
 on:
   pull_request:
+  # XE-014.11 / review F2: every push, not only main's, so a branch with no pull request still runs
+  # the scorer. A branch with one runs twice; that is the cost.
   push:
-    branches: [main]
 
 jobs:
   tests:
