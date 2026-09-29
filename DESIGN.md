@@ -762,10 +762,10 @@ A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs
 
 ### SM-004 — A session leaves evidence a human can review, captured by code, not recalled
 
-**Status:** planned. Waits on boundary test B-c, whose findings revise these criteria before any code is written. Criterion 16 needs TB-002 built first.
+**Status:** planned. Criteria revised 2026-09-29 from boundary test B-c (`docs/evidence/boundary-c-2026-09-29.md`). Criterion 16 needs TB-002 built first.
 
 **Links introduced:**
-- **Session identity.** Each capture names the `session_id`, the transcript path, the source file's sha256 at capture and the last source line captured. A reader assumes the evidence came from that file, up to that line, and nothing else.
+- **Session identity.** Each capture names the `session_id`, the transcript path, the session folder beside it (`<session>/`, holding `subagents/` and `tool-results/`), the source file's sha256 at capture and the last source line captured. A reader assumes the evidence came from that file, up to that line, and nothing else.
 - **Event identity.** Every event has an `event_id`: the sha256 of `session_id | source_line | source_block_index | event_type`. Tool results link to their calls by `tool_use_id`. Reviews, decisions, proposals and verification results cite events by `event_id`, never by output line number.
 - **Artifact identity.** The record is three kinds of directory under `session-records/<session-id>/`: one `capture/`, a `reviews/<review-run-id>/` per review, and a `publications/<publication-id>/` per publication. Each finalized directory has its own `hashes.sha256` covering every file in it except itself. A review records the capture hash it read. A publication records the capture and review hashes it released. A finalized directory is never appended to or replaced; a new review or publication is a new directory.
 - **Storage.** The manifest records the audience, the retention class, the location and the deletion date. Deletion is done by a person and isn't enforced by any process.
@@ -778,8 +778,8 @@ The target is the observable decision trajectory: messages, tool calls, results,
 **Capture**
 
 1. A new stdlib-only `project-init/scripts/session_record.py` captures exactly one session, named by `--transcript` and `--session-id`, or by the `transcript_path` and `session_id` a Claude Code hook supplies. It never picks a governance record by modification time alone. A convenience flag, `--guess`, may propose the newest file, but the manifest then records `selection: heuristic`, and `/session-review` asks the human to confirm before it reads anything.
-2. `/session-review` gets its own session's identity from a `UserPromptExpansion` hook in project-init, matched on `command_name` `session-review`. The hook runs before the expanded prompt reaches the model and passes `session_id`, `transcript_path` and `prompt_id` to the script. The capture boundary excludes the `/session-review` turn itself, by `prompt_id` if B-c shows it's in the file, otherwise by the rule B-c establishes. It isn't assumed.
-3. **Finality.** The session file is written asynchronously, so the script polls until the file's size and modification time are unchanged for 2 seconds, giving up after 30. A `Stop` hook in project-init hashes the exact UTF-8 bytes of each turn's `last_assistant_message`, keyed by `session_id` and `prompt_id`, into private staging; it stores the hash, not the text. At `UserPromptExpansion`, capture selects the latest `Stop` record for the same `session_id` that precedes the expansion. That `Stop` record's `prompt_id` marks the final included turn. The expansion's own `prompt_id` marks the excluded `/session-review` turn, and the two aren't expected to match. Capture rebuilds that turn's assistant text from the source file, before any redaction, by the concatenation rule B-c establishes, hashes those bytes and compares. Redaction happens only after this check. The manifest records `captured_through_source_line`, the last timestamp, the file size and the sha256.
+2. `/session-review` gets its own session's identity from a `UserPromptExpansion` hook in project-init. A plugin command arrives namespaced, so the hook matches `command_name` `project-init:session-review`; B-c showed a bare `session-review` matcher never fires. The hook runs before the expanded prompt reaches the model and passes `session_id`, `transcript_path` and `prompt_id` to the script. **The boundary is the file as it stands when the hook fires.** B-c showed the command's own `user` line isn't written until after the hook, so capture records the byte length at that moment and reads nothing past it. Inside that range, two kinds of line are about reviews, not the work: the `queue-operation` line naming the command, and any earlier `/session-review` turn (its `user` line carries `<command-name>/project-init:session-review</command-name>`, and its turn runs to the next prompt). Both are kept as `event_type: review_command` events with their sha256, never as content, and counted in the manifest.
+3. **Finality.** The session file is written asynchronously, so the script polls until the file's size and modification time are unchanged for 2 seconds, giving up after 30. A `Stop` hook in project-init hashes the exact UTF-8 bytes of each turn's `last_assistant_message`, keyed by `session_id` and `prompt_id`, into private staging; it stores the hash, not the text. At `UserPromptExpansion`, capture selects the latest `Stop` record for the same `session_id` that precedes the expansion. That `Stop` record's `prompt_id` marks the final included turn. The expansion's own `prompt_id` marks the excluded `/session-review` turn, and the two aren't expected to match. Capture rebuilds that turn's assistant text from the source file, before any redaction, and hashes those bytes to compare. B-c established the rule: `last_assistant_message` is the text of the turn's **last assistant line**, not the turn's text joined. Every assistant line in B-c held one text block; if a line ever holds several, they're compared as written and a mismatch is `partial`, never guessed. B-c also showed that `Stop` fires before that last line is in the file (seven turns out of seven), so capture waits for a line whose text hashes to the `Stop` record, within the 30-second limit, before it compares. Redaction happens only after this check. The manifest records `captured_through_source_line`, the last timestamp, the file size and the sha256.
 4. **Completeness is never one word.** The manifest carries separate fields:
     - `capture_completeness` (`complete` or `partial`, with the reason);
     - `capture_boundary_checked` (true only when the `Stop` hash matched);
@@ -795,10 +795,11 @@ The target is the observable decision trajectory: messages, tool calls, results,
     | User and assistant text | included; wording preserved after declared redactions |
     | Tool calls and results | included, linked by `tool_use_id`; an unlinked result is kept and flagged |
     | Model reasoning | excluded by policy: `{"treatment": "excluded-by-policy", "content_inspected": false, "count": "not-collected-by-policy"}` |
-    | Attachments | name, type, size and sha256 kept; content not kept |
+    | Attachments | name, type, size and sha256 kept; content not kept. A dragged-in image is an inline base64 `image` block on the `user` line (B-c), so it's hashed where it sits; Claude Code's copy in `~/.claude/image-cache/<session>/` isn't read |
+    | `attachment` lines | Claude Code's own context entries (`skill_listing`, `deferred_tools_delta` and the like): kind and sha256 kept, content not kept |
     | System reminders and hook output | kind, source and sha256 kept; content kept only when it changed a permission, an execution or completion |
-    | Sub-agent sessions | named and counted as linked children; their content not included |
-    | Textual tool results over 64 KB | redacted first, then stored as a sha256-named blob under `artifacts/` and referenced from the event |
+    | Sub-agent sessions | named and counted as linked children from `<session>/subagents/`; their content not included. A `SubagentStop` naming a file that was never written (B-c saw four of five, all with an empty `agent_type`, one of them the compaction agent) is recorded as `not_written` and is expected, not a loss |
+    | Textual tool results over 64 KB | Claude Code already moves these to `<session>/tool-results/` and leaves a preview in the line (B-c: a 132 KB output). Capture reads the stored file, redacts it, stores it as a sha256-named blob under `artifacts/` and references it from the event. A missing stored file makes the capture `partial` |
     | Binary output, including archives | metadata, MIME type, byte count and source sha256 kept. Content is quarantined in private staging and never published automatically (criterion 11) |
     | Unknown entry types | kept as `parse_status: unknown` with their sha256, and counted |
 
@@ -860,11 +861,13 @@ The target is the observable decision trajectory: messages, tool calls, results,
 
 18. A new `project-init/tests/test_session_record.py` works over fixture session files and fixture hook payloads. It covers:
     - **Selection:** two session files modified concurrently; an explicitly selected older file; `--guess` marked heuristic.
-    - **Hooks:** a `UserPromptExpansion` payload for `session-review` passes identity; a non-matching command doesn't fire the capture.
+    - **Hooks:** a `UserPromptExpansion` payload for `project-init:session-review` passes identity; a non-matching command doesn't fire the capture.
+    - **Boundary (from B-c):** the byte length at the hook is the end of the capture; a `queue-operation` line naming the command and an earlier `/session-review` turn become `review_command` events, not content.
     - **Finality:**
       - a file still being written when capture starts;
       - a missing final assistant message fails the `Stop`-hash check;
       - the latest `Stop` record before the expansion is selected, not the expansion's own `prompt_id`;
+      - the turn's last assistant line arriving after `Stop`, within the wait, reconciles; arriving too late is `partial`;
       - the hash is compared before redaction, so a reply containing a secret still reconciles;
       - a partial final line;
       - each of these gives `capture_completeness: partial` with its reason.
@@ -874,8 +877,9 @@ The target is the observable decision trajectory: messages, tool calls, results,
       - several content blocks in one line giving distinct `event_id`s;
       - linked and unlinked tool results;
       - duplicate and missing timestamps;
-      - sub-agent discovery;
-      - attachment metadata;
+      - sub-agent discovery, including a `SubagentStop` whose file was never written;
+      - attachment metadata, including an inline base64 image;
+      - a large result read from `<session>/tool-results/`, and one whose stored file is missing;
       - a textual result over 64 KB redacted before it becomes a blob;
       - invalid Unicode.
     - **Exclusion:** reasoning blocks absent from every output file; the manifest reports `not-collected-by-policy`, never a number.
@@ -1262,7 +1266,7 @@ Declared 2026-09-29 on Dorian's review of this document: *“The doc is now bett
 
 **B-b. The scorer runs in CI.** This is XE-014, built as amended. It passes when CI executes `packet_coverage.mjs` on every push, with one `checked` case against a stub gateway and each failure case. A review opened without a `checked` status must also be visibly blocked at release.
 
-**B-c. One messy real session through SM-004's hooks, staging and publish gate.** This uses throwaway code, kept outside this repository, run through the real hook route, not a parser alone. The session includes a sub-agent, an attachment, a tool output over 100 KB, a nested secret (a key inside JSON inside a tool result), a binary output, a secret inside a ZIP, and a compaction. The architecture is settled; B-c settles only these lifecycle facts:
+**B-c. One messy real session through SM-004's hooks, staging and publish gate.** Run 2026-09-29, headless and then interactively by Dorian; results in `docs/evidence/boundary-c-2026-09-29.md`, and SM-004 is revised from them. Not observed: `StopFailure`, and Cowork rather than the Claude Code CLI. This uses throwaway code, kept outside this repository, run through the real hook route, not a parser alone. The session includes a sub-agent, an attachment, a tool output over 100 KB, a nested secret (a key inside JSON inside a tool result), a binary output, a secret inside a ZIP, and a compaction. The architecture is settled; B-c settles only these lifecycle facts:
 - whether the `/session-review` line is in the session file before `UserPromptExpansion` fires;
 - how `prompt_id` appears in session-file entries;
 - how several assistant text blocks combine into `last_assistant_message`, which is the concatenation rule criterion 3 needs;
@@ -1284,6 +1288,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-29: SM-004 revised from boundary test B-c, drafted by Claude and approved by Dorian. The hook matches the namespaced `project-init:session-review`; the capture ends at the file's length when the hook fires and turns queued-command lines and earlier review turns into `review_command` events; `last_assistant_message` is the last assistant line's text, and capture waits for that line because `Stop` fires before it's written; sub-agent files and large tool results are read from the session folder, and an unwritten sub-agent file is expected; inline images are hashed where they sit. `StopFailure` and Cowork remain unobserved.
 - 2026-09-29: Second status ruling by Dorian, closing the B-a list. RR-001 and RR-002 join the recorded exception: their review and release record (`release-MoxyWolfLLC-moxywolf-plugins-32.json`) were found in the vault's old review folder. The other 15 are relabelled to `review`, merged unreviewed: AP-001, AP-002, AP-003, CI-001, CI-002, EV-002, GA-006, XE-001, XE-002, XE-003, XE-004, XE-005, XE-013, XE-018, XE-021.
 - 2026-09-29: Status ruling by Dorian on the B-a list (`06 – Engineering/status-ruling-2026-09-29.md`). **Recorded exception:** XE-016, XE-017, SM-003, DS-001, XE-019, XE-020, XE-022, XE-023, XE-024, XE-025, XE-026, XE-027, XE-028 stay `done`. Each was cross-tool reviewed and has a release record from `record-release`; coverage was `not_run` for all of them because the scorer could not start until XE-014, and mandatory coverage postdates their release. **Relabelled** to `review`, merged unreviewed: EV-001, EV-003, EV-004, EV-005, EV-007, EV-009, XE-006, XE-007, XE-008, XE-009, XE-010. None names a review and no record was found. **Undecided** pending a search for lost records: GA-006, AP-001, AP-002, AP-003, EV-002, XE-001 to XE-005, XE-013, RR-001, RR-002, CI-001, CI-002, XE-018, XE-021. The first search found RR-001 and RR-002's release record in the vault's old review folder, review folders without a release record for GA-006, XE-013, CI-001 and CI-002, only a reconstruction for EV-002, and nothing for the rest.
 - 2026-09-29: XE-014 gains criterion 13, approved by Dorian after review 20260929-142318 round 2. The dispatcher reads CI only with a GitHub token and passed its whole environment to the reviewer, so criterion 11 couldn't be verified without handing Codex the app's token. The reviewer's environment now drops both token variables.
