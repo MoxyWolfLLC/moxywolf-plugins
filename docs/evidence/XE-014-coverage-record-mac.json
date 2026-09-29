@@ -1,0 +1,101 @@
+{
+  "note": "XE-014 criterion 4, run on the Release Owner's Mac with AI_GATEWAY_API_KEY and GSTACK_AIGATEWAY_ENV both unset: the key resolved from the vault's native Google Drive path.",
+  "items": [
+    "XE-014"
+  ],
+  "acceptance_criteria": [
+    "The scorer's dependency is declared where a reader and an installer can both find it. A `package.json` names `ai` at the floor the README already states, with a lockfile. An import that resolves on one machine and nowhere else is not a dependency, it is a local accident.",
+    "Something installs it before the scorer runs, and the workflow that runs this repository's checks either is that something or explicitly is not. A gate whose producer no runner installs is a gate that exists only in review.",
+    "The credential is resolved from a file, as `peer_review.py` and `agent_token.py` do, and is placed into `process.env.AI_GATEWAY_API_KEY` rather than passed as an argument, because the AI SDK reads the variable itself and the script's `key` is only a guard. `GSTACK_AIGATEWAY_ENV` names the file. A set `AI_GATEWAY_API_KEY` still wins, so this is additive, per DR-010's own precedent.",
+    "When neither is set, the native macOS Google Drive vault path DR-010 specifies is tried. gstack runs from a Mac shell, and a convention satisfied only by an export nobody has made is the state this item exists to leave behind.",
+    "Four outcomes, distinguishable in the packet, where today there are two the script can reach and one it cannot. `checked` carries the scores. `unavailable` means no credential is configured on any path. `unusable` means a credential is configured and does not work. `broken` means the scorer could not start at all, which is the state every run has been in and the one no status existed for. **Amended 2026-09-29:** coverage is mandatory. Every status other than `checked`, and the absence of any status (`not_run`), blocks `release` unless the Release Owner's exception is recorded in his words with `--coverage-exception`. This supersedes XE-010 criterion 5, which kept `unavailable` non-blocking. The scorer still exits 0 on `unavailable`; it's `release` that refuses.",
+    "A `coverage_checked: false` state is surfaced where the Release Owner decides, not only recorded in the state file. The record was correct for four days across three merges and nobody read it, which is the failure this item is actually repairing.",
+    "Every non-`checked` record names what was consulted: the variables read and the paths tried, in order, the way `openrouter_key()`'s refusal names its file.",
+    "The reader handles a final line with no terminating newline. `aigateway.env` has none, so `wc -l` reports 0 and a POSIX `while IFS= read -r` loop reads zero lines from a 79-byte file that plainly contains the key. A loader that mistakes that file for an empty one reproduces this defect under a new name.",
+    "The tree is clean when this lands, per DR-102. `aigateway.env` gets its trailing newline, and the item ships with one real `checked` coverage record produced against an actual packet and this DESIGN.md, so the fix arrives with evidence rather than with a claim that it would work.",
+    "Tests: at least one test EXECUTES `packet_coverage.mjs` as a subprocess rather than testing `coverage_verdict` alone, because a suite green over a producer that has never run is the defect and not the coverage of it; a missing `ai` package records `broken` and exits non-zero; no credential on any path records `unavailable` and exits 0, which is criterion 5 as a test; a `GSTACK_AIGATEWAY_ENV` naming a nonexistent path records `unusable`; a file setting no key records `unusable`; a file whose only line lacks a trailing newline yields the key, against a fixture byte-identical to the real one; a set `AI_GATEWAY_API_KEY` beats a file setting a different value; and every non-`checked` record is asserted to name at least one consulted path.",
+    "**CI runs the scorer** (added 2026-09-29). `tests.yml` sets up Node, installs from the lockfile and runs the scorer tests on every push, with no key. One test serves a stub gateway on localhost through `JEV_ENDPOINT` so a `checked` record is produced in CI. The failure cases of criterion 10 run in the same job. A CI run where the scorer tests were skipped fails.",
+    "**The block is visible and testable** (added 2026-09-29). A test opens a review with no coverage record and runs `release`: it refuses, naming the missing status. The same review with `--coverage-exception \"<words>\"` releases, and the release record carries the exception verbatim with its time. `SURFACE.md` and the handoff each show the coverage status in their first line."
+  ],
+  "coverage": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-09-29T21:21:09.473Z",
+    "status": "checked",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 3594,
+    "criteria": [
+      {
+        "item": "XE-014",
+        "criterion_no": 1,
+        "declared": "The scorer's dependency is declared where a reader and an installer can both find it. A `package.json` names `ai` at the floor the README already states, with a lockfile. An import that resolves on one machine and nowhere else is not a dependency, it is a local accident.",
+        "probability": 0.78
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 2,
+        "declared": "Something installs it before the scorer runs, and the workflow that runs this repository's checks either is that something or explicitly is not. A gate whose producer no runner installs is a gate that exists only in review.",
+        "probability": 0.84
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 3,
+        "declared": "The credential is resolved from a file, as `peer_review.py` and `agent_token.py` do, and is placed into `process.env.AI_GATEWAY_API_KEY` rather than passed as an argument, because the AI SDK reads the variable itself and the script's `key` is only a guard. `GSTACK_AIGATEWAY_ENV` names the file. A set `AI_GATEWAY_API_KEY` still wins, so this is additive, per DR-010's own precedent.",
+        "probability": 0.9
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 4,
+        "declared": "When neither is set, the native macOS Google Drive vault path DR-010 specifies is tried. gstack runs from a Mac shell, and a convention satisfied only by an export nobody has made is the state this item exists to leave behind.",
+        "probability": 0.3
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 5,
+        "declared": "Four outcomes, distinguishable in the packet, where today there are two the script can reach and one it cannot. `checked` carries the scores. `unavailable` means no credential is configured on any path. `unusable` means a credential is configured and does not work. `broken` means the scorer could not start at all, which is the state every run has been in and the one no status existed for. **Amended 2026-09-29:** coverage is mandatory. Every status other than `checked`, and the absence of any status (`not_run`), blocks `release` unless the Release Owner's exception is recorded in his words with `--coverage-exception`. This supersedes XE-010 criterion 5, which kept `unavailable` non-blocking. The scorer still exits 0 on `unavailable`; it's `release` that refuses.",
+        "probability": 0.93
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 6,
+        "declared": "A `coverage_checked: false` state is surfaced where the Release Owner decides, not only recorded in the state file. The record was correct for four days across three merges and nobody read it, which is the failure this item is actually repairing.",
+        "probability": 0.64
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 7,
+        "declared": "Every non-`checked` record names what was consulted: the variables read and the paths tried, in order, the way `openrouter_key()`'s refusal names its file.",
+        "probability": 0.94
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 8,
+        "declared": "The reader handles a final line with no terminating newline. `aigateway.env` has none, so `wc -l` reports 0 and a POSIX `while IFS= read -r` loop reads zero lines from a 79-byte file that plainly contains the key. A loader that mistakes that file for an empty one reproduces this defect under a new name.",
+        "probability": 0.96
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 9,
+        "declared": "The tree is clean when this lands, per DR-102. `aigateway.env` gets its trailing newline, and the item ships with one real `checked` coverage record produced against an actual packet and this DESIGN.md, so the fix arrives with evidence rather than with a claim that it would work.",
+        "probability": 0.53
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 10,
+        "declared": "Tests: at least one test EXECUTES `packet_coverage.mjs` as a subprocess rather than testing `coverage_verdict` alone, because a suite green over a producer that has never run is the defect and not the coverage of it; a missing `ai` package records `broken` and exits non-zero; no credential on any path records `unavailable` and exits 0, which is criterion 5 as a test; a `GSTACK_AIGATEWAY_ENV` naming a nonexistent path records `unusable`; a file setting no key records `unusable`; a file whose only line lacks a trailing newline yields the key, against a fixture byte-identical to the real one; a set `AI_GATEWAY_API_KEY` beats a file setting a different value; and every non-`checked` record is asserted to name at least one consulted path.",
+        "probability": 0.81
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 11,
+        "declared": "**CI runs the scorer** (added 2026-09-29). `tests.yml` sets up Node, installs from the lockfile and runs the scorer tests on every push, with no key. One test serves a stub gateway on localhost through `JEV_ENDPOINT` so a `checked` record is produced in CI. The failure cases of criterion 10 run in the same job. A CI run where the scorer tests were skipped fails.",
+        "probability": 0.75
+      },
+      {
+        "item": "XE-014",
+        "criterion_no": 12,
+        "declared": "**The block is visible and testable** (added 2026-09-29). A test opens a review with no coverage record and runs `release`: it refuses, naming the missing status. The same review with `--coverage-exception \"<words>\"` releases, and the release record carries the exception verbatim with its time. `SURFACE.md` and the handoff each show the coverage status in their first line.",
+        "probability": 0.87
+      }
+    ]
+  }
+}
