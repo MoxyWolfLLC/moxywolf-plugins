@@ -15,6 +15,7 @@ round limits, dispositions, explicit outcomes. The contract file carries the wor
 """
 import argparse
 from governance import data_permission
+import ci_log_receipt as clr
 import hashlib
 import shlex
 from datetime import datetime, timezone
@@ -588,6 +589,92 @@ def resolve_ci_runs(packet):
     return packet
 
 
+FAILED_CONCLUSIONS = ("failure", "timed_out")
+REDUCER_MODEL = os.environ.get("GSTACK_REDUCER_MODEL", "deepseek/deepseek-v4.1-flash")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def github_job_log(name, job_id):
+    """XE-027.3: a job's raw log. GitHub answers with a redirect to its log store; the token is sent
+    to GitHub only, and the redirect is followed without it."""
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        r = subprocess.run(["gh", "api", f"repos/{name}/actions/jobs/{int(job_id)}/logs"],
+                           capture_output=True, text=True, timeout=120)
+        if r.returncode:
+            raise ReviewError("release_unavailable", f"job log could not be read: {r.stderr.strip()[:200]}")
+        return r.stdout
+    api = os.environ.get("GSTACK_GITHUB_API", "https://api.github.com").rstrip("/")
+    req = urllib.request.Request(f"{api}/repos/{name}/actions/jobs/{int(job_id)}/logs", headers={
+        "Authorization": "token " + token, "Accept": "application/vnd.github+json", "User-Agent": "gstack-ci-log"})
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(req, timeout=60) as resp:
+            return resp.read().decode(errors="replace")
+    except urllib.error.HTTPError as e:
+        if e.code not in (301, 302, 303, 307, 308) or not e.headers.get("Location"):
+            raise
+        with urllib.request.urlopen(urllib.request.Request(e.headers["Location"],
+                                    headers={"User-Agent": "gstack-ci-log"}), timeout=120) as resp:
+            return resp.read().decode(errors="replace")
+
+
+def reducer_ask(instructions, request):
+    """XE-027.4: the receipt model, over the openrouter transport. Any failure raises, and reduce()
+    records it as reducer_unavailable and sends the log instead."""
+    try:
+        key = openrouter_key()
+        body = {"model": REDUCER_MODEL, "max_tokens": 4000,
+                "messages": [{"role": "system", "content": instructions}, {"role": "user", "content": request}],
+                "response_format": {"type": "json_object"}}
+        req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
+                                     headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            env_ = json.loads(r.read().decode())
+        out = ((env_.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        if not out.strip():
+            raise ValueError("empty content")
+        return out, env_.get("model") or REDUCER_MODEL, (env_.get("usage") or {}).get("total_tokens", "not_reported")
+    except Exception as e:
+        raise RuntimeError(str(e)[:300])   # a reason for ci_log_receipt.reduce, not a review outcome
+
+
+def ci_job_log(name, run_id, job, archive_dir, evidence_dir, ask=None):
+    """XE-027.3: archive a failed job's full log, then put a checked receipt of it in the surface,
+    or the log's last 64 KB when no receipt applies. Never raises: an unread log is a recorded fact."""
+    block = {"read": False}
+    try:
+        log = github_job_log(name, job["id"])
+    except Exception as e:
+        block["error"] = str(e)[:300]
+        return block
+    archive_dir.mkdir(parents=True, exist_ok=True); evidence_dir.mkdir(parents=True, exist_ok=True)
+    archive = archive_dir / f"{run_id}-{job['id']}.log"
+    archive.write_text(log)
+    errors = []
+    def asked(instructions, request):   # keep why the reducer failed; reduce() only says that it did
+        try:
+            return (ask or reducer_ask)(instructions, request)
+        except Exception as e:
+            errors.append(str(e)[:300]); raise
+    receipt, why = clr.reduce(log, job["conclusion"] in FAILED_CONCLUSIONS, asked, archive=str(archive))
+    if errors:
+        block["reducer_error"] = errors[0]
+    stem = f"ci-{run_id}-job-{job['id']}"
+    if receipt:
+        (evidence_dir / f"{stem}.receipt.txt").write_text(receipt)
+        shown = f"{EVIDENCE_DIR}/{stem}.receipt.txt"
+    else:
+        (evidence_dir / f"{stem}.log").write_text(clr.tail(log))
+        shown = f"{EVIDENCE_DIR}/{stem}.log"
+    block.update(read=True, bytes=len(log.encode()), sha256=clr.sha256(log), archive=str(archive),
+                 receipt="applied" if receipt else why, shown=shown)
+    return block
+
+
 def fetch_ci_evidence(repos, ci_runs, surf):
     """XE-018.3-4: read each named GitHub Actions run and write what it says into the surface.
     A run at another head is written and marked; a run that cannot be read is written as unread.
@@ -618,10 +705,13 @@ def fetch_ci_evidence(repos, ci_runs, surf):
                        head_sha=run.get("head_sha"), reviewed_head=repo["head"],
                        head_matches=run.get("head_sha") == repo["head"],
                        status=run.get("status"), conclusion=run.get("conclusion"),
-                       jobs=[{"name": j.get("name"), "conclusion": j.get("conclusion"),
+                       jobs=[{"id": j.get("id"), "name": j.get("name"), "conclusion": j.get("conclusion"),
                               "steps": [{"name": st.get("name"), "conclusion": st.get("conclusion")}
                                         for st in j.get("steps") or []]}
                              for j in jobs])
+            for job in rec["jobs"]:   # XE-027: a failed job reaches the reviewer with its log, or a checked receipt of it
+                if job["conclusion"] in FAILED_CONCLUSIONS:
+                    job["log"] = ci_job_log(name, run_id, job, surf.parent / "ci-logs", surf / EVIDENCE_DIR)
         except Exception as e:
             rec["error"] = str(e)
         (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
@@ -681,8 +771,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
              "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())]),
              "dependencies": len(deps), "dependencies_withheld": deps_dropped}
     ci = fetch_ci_evidence(repos, ci_runs, surf)
+    failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     stats["evidence"] = {"requested": len(ci), "read": sum(1 for c in ci if c["read"]),
-                         "head_matched": sum(1 for c in ci if c.get("head_matches"))}
+                         "head_matched": sum(1 for c in ci if c.get("head_matches")),
+                         "failed_jobs": len(failed), "logs_read": sum(1 for j in failed if j["log"]["read"]),
+                         "receipts_applied": sum(1 for j in failed if j["log"].get("receipt") == "applied")}
     # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
     # what to do with them, routes the second-home check to the party whose job is finding the
     # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
@@ -694,6 +787,13 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
            else f"run at {str(c.get('head_sha'))[:12]}, NOT the reviewed head, so not evidence for it") if c["read"]
         else f"  - `{EVIDENCE_DIR}/ci-{c['run_id']}.json`: could not be read ({c.get('error')})"
         for c in ci) or "  (no CI runs named in the packet)"
+    log_list = "\n".join(
+        f"  - job `{j['name']}` ({j['conclusion']}): "
+        + (f"`{j['log']['shown']}`, " + ("a receipt of checked quotes" if j["log"]["receipt"] == "applied"
+                                           else f"the log itself (no receipt: {j['log']['receipt']})")
+           + f", log sha256 {j['log']['sha256'][:16]}" if j["log"]["read"]
+           else f"log could not be read ({j['log'].get('error')})")
+        for c in ci for j in c.get("jobs") or () if "log" in j) or "  (no failed jobs)"
     caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
@@ -719,6 +819,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         "Each file under `evidence/` was read from GitHub Actions by the dispatcher. A step with "
         "conclusion `success` in a run whose `head_matches` is true ran and passed at the reviewed "
         "head.\n\n"
+        "## Failed jobs\n\n"
+        f"{log_list}\n\n"
+        "A receipt's quotes were checked byte for byte by the dispatcher, not the builder, against the "
+        "log whose sha256 it names; the full log is kept in the review record. What a receipt leaves out, "
+        "and its `uncertain` flag, prove nothing.\n\n"
         "## Limits\n\n"
         "The repository tree is NOT here. This is deliberate: a reviewer given the whole tree spends "
         "its budget reading it. If a judgement needs a file that is not present, do not guess — "
@@ -825,7 +930,8 @@ def build_prompt(packet, round_no, prior_round, dispositions):
         "that reference them, `dependencies/` holds files the change or an acceptance criterion "
         "names, and `evidence/` holds CI runs the dispatcher read from GitHub Actions itself; the "
         "builder did not write them. A step with conclusion `success` in a run whose `head_matches` "
-        "is true is evidence that the step ran and passed at the reviewed head. "
+        "is true is evidence that the step ran and passed at the reviewed head. A failed job carries "
+        "its log, or a receipt whose quotes the dispatcher checked against that log (see `SURFACE.md`). "
         "`SURFACE.md` states what is present and what was withheld. The "
         "repository tree is not here; if a judgement needs a file the surface does not carry, report "
         "that as a finding with severity `separate` naming the file, rather than guessing.",
@@ -1997,6 +2103,33 @@ def parse_merge_instruction(body):
     return p if ok else None
 
 
+def cmd_ci_log(a):
+    """XE-027.6: the builder's read of a failed run. Prints, per failed job, what the surface would carry."""
+    name = github_name(str(Path(a.repo).resolve()))
+    if not name:
+        raise ReviewError("malformed_packet", f"{a.repo} has no github.com origin")
+    jobs, page = [], 1
+    while True:
+        got = github_get(name, f"actions/runs/{a.run_id}/jobs?per_page=100&page={page}")
+        batch = got.get("jobs") or []; jobs += batch
+        if len(batch) < 100 or len(jobs) >= int(got.get("total_count") or 0):
+            break
+        page += 1
+    failed = [{"id": j.get("id"), "name": j.get("name"), "conclusion": j.get("conclusion")}
+              for j in jobs if j.get("conclusion") in FAILED_CONCLUSIONS]
+    out = Path(tempfile.mkdtemp(prefix=f"ci-log-{a.run_id}-"))
+    print(f"run {a.run_id}: {len(jobs)} jobs examined, {len(failed)} failed; full logs kept under {out / 'ci-logs'}")
+    for j in failed:
+        b = ci_job_log(name, a.run_id, j, out / "ci-logs", out / EVIDENCE_DIR)
+        print(f"\n=== job {j['name']} ({j['conclusion']}): "
+              + (("receipt" if b["receipt"] == "applied" else f"log, no receipt: {b['receipt']}") if b["read"]
+                 else f"log not read: {b.get('error')}")
+              + (f" ({b['reducer_error']})" if b.get("reducer_error") else "") + " ===")
+        if b["read"]:
+            print((out / b["shown"]).read_text())
+    return {"examined": len(jobs), "failed": len(failed)}
+
+
 def cmd_merge_instruction(a):
     covers = [int(n.strip().lstrip("#")) for n in a.covers.split(",") if n.strip()]
     if not covers or not a.text.strip():
@@ -2189,6 +2322,8 @@ def main():
     mi = sub.add_parser("merge-instruction"); mi.add_argument("--covers", required=True, help="PR numbers, comma-separated")
     mi.add_argument("--text", required=True, help="the owner's words, verbatim"); mi.add_argument("--given-at", required=True)
     mi.add_argument("--owner", required=True, help="the Release Owner's GitHub login")
+    cl = sub.add_parser("ci-log", help="XE-027.6: read a run's failed jobs as the reviewer would")
+    cl.add_argument("repo"); cl.add_argument("run_id", type=int)
     record = sub.add_parser("record-release"); record.add_argument("review_id"); record.add_argument("--repo", required=True); record.add_argument("--pr", required=True, type=int)
     a = ap.parse_args()
     if a.selftest:
@@ -2202,7 +2337,7 @@ def main():
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
                   "release": cmd_release, "record-release": cmd_record_release,
-                  "merge-instruction": cmd_merge_instruction}[a.cmd](a)
+                  "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
         if a.cmd == "collect":

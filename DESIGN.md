@@ -1031,7 +1031,7 @@ M-012 repeated M-007. XE-022 criterion 3 made a claim about the Release Owner's 
 
 ### XE-027 — A failed CI job reaches the reviewer as quotes the dispatcher checked
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** each failed job's log is archived at `ci-logs/<run_id>-<job_id>.log` in the review directory, and the round record ties that path to the log's sha256. A receipt, `evidence/ci-<run_id>-job-<job_id>.receipt.txt`, names that sha256, and the review assumes every quote in it came from that log. `GSTACK_REDUCER_MODEL` names the model that drafts receipts. The CLI gains a `ci-log` subcommand the builder has to name.
 
