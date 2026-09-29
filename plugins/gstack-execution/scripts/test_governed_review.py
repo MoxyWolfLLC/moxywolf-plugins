@@ -42,6 +42,8 @@ class GovernedReview(unittest.TestCase):
                        "changed_behavior": "new value", "exclusions": [],
                        "tests": {"commands": ["read value.txt"], "results": "after", "environment": "fixture"},
                        "release_owner": "dorianatmoxywolf"}
+        # XE-014: release refuses an unchecked review, so a fixture meant to release carries a scored report
+        self.packet["coverage"] = {"status": "checked", "criteria": [{"item": "FX-001", "criterion_no": 1, "declared": "fixture", "probability": 0.9}]}
         self.packet["data_use"] = {"owner":"dorianatmoxywolf", "classification":"test", "allow_repository":True, "allow_history":True, "allowed_tools":["claude","codex"]}
         self.packet_file = self.root / "input.json"
         self.env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), PYTHONDONTWRITEBYTECODE="1")
@@ -187,6 +189,30 @@ class GovernedReview(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("human", (r.stdout+r.stderr).lower())
         self.assertEqual(before, self.git("rev-parse", "HEAD"))
+
+    def test_release_without_checked_coverage_is_refused_unless_the_owner_excepts_it(self):
+        """XE-014.12: an open review with no coverage record releases only on an exception in the
+        Release Owner's words, kept verbatim with its time, and the handoff leads with the status."""
+        del self.packet["coverage"]
+        self.open(); self.response(); self.round()
+        r = self.call("release", self.rid)
+        self.assertIn("release_blocked", r.stderr)
+        self.assertIn("status: not_run", r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+        words = "Scorer is down today; ship it. \u2014 D"
+        r = self.call("release", self.rid, "--coverage-exception", words)
+        self.assertIn("awaiting_human_release", r.stdout + r.stderr)
+        self.assertEqual(r.stderr.splitlines()[0], f"coverage: not_run (exception: {words})")
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual(rec["coverage"]["exception"]["words"], words)
+        self.assertRegex(rec["coverage"]["exception"]["recorded_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(next(iter(rec)), "coverage")
+
+    def test_a_checked_review_releases_and_says_so_first(self):
+        self.open(); self.response(); self.round()
+        r = self.call("release", self.rid)
+        self.assertIn("awaiting_human_release", r.stdout + r.stderr)
+        self.assertEqual(r.stderr.splitlines()[0], "coverage: covered")
 
     def test_release_refuses_stale_revision(self):
         self.open(); self.response(); self.round()

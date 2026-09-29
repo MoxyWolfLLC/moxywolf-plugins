@@ -55,6 +55,14 @@ def test_an_unavailable_scorer_opens_and_says_why():
     assert ok and status.startswith("unavailable") and "AI_GATEWAY_API_KEY" in status
 
 
+def test_a_broken_or_unusable_scorer_opens_and_is_not_checked():
+    """XE-014.5: the two new statuses open a review, say why, and never read as a scored report;
+    release is where they are refused."""
+    for st in ("broken", "unusable"):
+        ok, status, uncovered = pr.coverage_verdict(packet({"status": st, "why": "w"}))
+        assert ok and status == f"{st}: w" and uncovered == []
+
+
 def test_the_floor_is_the_only_knob_and_it_bites():
     rep = packet(scored(0.55))
     assert pr.coverage_verdict(rep, floor=0.5)[0] is True

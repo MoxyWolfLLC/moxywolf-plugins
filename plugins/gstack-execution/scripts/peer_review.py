@@ -722,7 +722,8 @@ def fetch_ci_evidence(repos, ci_runs, surf, archive_dir=None):
     return out
 
 
-def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None):
+def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None,
+                  coverage="not_run"):
     """Write the review surface. Returns (path, stats).
 
     prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
@@ -803,7 +804,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
-        "# What this review can see\n\n"
+        f"# What this review can see (coverage: {coverage})\n\n"
         f"- `CHANGE.diff` — the full diff under review\n"
         f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
         f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
@@ -1651,9 +1652,10 @@ def human_observations(packet, extra):
 # and this only reads it.
 #
 # When no report is present the review still opens, and the state records coverage_checked: false.
-# Not running this authorises nothing -- the review and the human merge still happen -- so blocking
-# every review on a paid third-party service would trade a real gate for a theoretical one. What it
-# must never do is let a later reader believe coverage was checked when it was not.
+# XE-014 (amended 2026-09-29): coverage is mandatory at RELEASE. Any status but a scored report
+# (not_run, unavailable, unusable, broken) makes `release` refuse unless the Release Owner's
+# exception is recorded in his words. The record was honest for four days across three merges and
+# nobody read it, so the refusal is put where the release is decided.
 COVERAGE_FLOOR = 0.5
 
 
@@ -1662,8 +1664,8 @@ def coverage_verdict(packet, floor=COVERAGE_FLOOR):
     rep = packet.get("coverage")
     if not rep:
         return True, "not_run", []
-    if rep.get("status") == "unavailable":
-        return True, f"unavailable: {rep.get('why', 'no reason given')}", []
+    if rep.get("status") in {"unavailable", "unusable", "broken"}:
+        return True, f"{rep['status']}: {rep.get('why', 'no reason given')}", []
     scores = rep.get("criteria") or []
     if not scores:
         # EV-001: a report that examined nothing is not a clean report
@@ -1761,7 +1763,7 @@ def cmd_open(a):
              # The record then claimed coverage was verified when nothing had run -- the precise
              # false green this item exists to remove, inside the item's own gate. Only a report
              # that actually scored criteria counts as checked.
-             "coverage_checked": cov_status not in {"not_run"} and not cov_status.startswith("unavailable"),
+             "coverage_checked": cov_status in {"covered", "uncovered"},
              "coverage_status": cov_status,
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "off_repo_evidence": evidenced,
@@ -1827,7 +1829,7 @@ def cmd_round(a):
         # F3 (reviewer): snapshot() copied the whole tree to disk every round and nothing reads it
         # now that the reviewer gets a surface. Shipping the tree to disk while the item is about
         # not shipping the tree is the joke writing itself.
-        surf, surf_stats = build_surface(packet["repos"], root,
+        surf, surf_stats = build_surface(packet["repos"], root, coverage=state.get("coverage_status") or "not_run",
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
                                          ci_runs=(packet.get("tests") or {}).get("ci_runs"),
@@ -2035,6 +2037,20 @@ def passing_review(d):
     return state, packet
 
 
+def coverage_line(state, exception):
+    """XE-014.5/12: a release without a scored coverage report is refused, naming the status, unless
+    the Release Owner's exception is given; the exception is kept verbatim with its time."""
+    status = state.get("coverage_status") or "not_run"
+    if state.get("coverage_checked"):
+        return {"status": status}
+    if not (exception or "").strip():
+        raise ReviewError("release_blocked",
+                          f"coverage was not checked (status: {status}). Run packet_coverage.mjs and open a new "
+                          "review, or pass --coverage-exception \"<the Release Owner's words>\".")
+    return {"status": status, "exception": {"words": exception,
+            "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}}
+
+
 def cmd_release(a):
     """Prepare a revision-bound handoff; deliberately has no merge operation."""
     d = rdir(a.review_id)
@@ -2054,18 +2070,23 @@ def cmd_release(a):
     missing = [c["link"] for c in links["checks"] if not c["ok"] and c["kind"] == "record"]
     if missing:
         raise ReviewError("incomplete_record", f"{len(missing)} required record entr(ies) missing: {missing[:5]}")
-    record = {"review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
+    coverage = coverage_line(state, getattr(a, "coverage_exception", None))
+    record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
               "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"]},
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
               "instruction": "The named human merges the exact reviewed head in GitHub. This command never merges or accepts an approval flag."}
     previous = load(d, "release.json")
-    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target")):
+    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
     else:
         save(d, "release.json", record, "gate_output")
+    # XE-014.12: the handoff's first line is the coverage status, before anything else is read
+    print(f"coverage: {record['coverage']['status']}"
+          + (f" (exception: {record['coverage']['exception']['words']})" if record["coverage"].get("exception") else ""),
+          file=sys.stderr)
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
     raise ReviewError("awaiting_human_release", "human merge required; no release executed")
@@ -2325,6 +2346,7 @@ def main():
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
+    release.add_argument("--coverage-exception", help="the Release Owner's words, verbatim, for releasing without a checked coverage report")
     release.add_argument("--observation", action="append", default=[], metavar="CLAIM :: COMMAND",
                          help="what the approver checked and the command that supports it; re-run by `verify`")
     mi = sub.add_parser("merge-instruction"); mi.add_argument("--covers", required=True, help="PR numbers, comma-separated")

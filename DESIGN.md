@@ -599,7 +599,7 @@ OpenRouter is a transport, not a reviewer. Adding it as a single entry named for
 
 ### XE-014 — A scorer that cannot start is a gate that is not there
 
-**Status:** planned. Amended 2026-09-29 as boundary test B-b: every review in the session of 2026-09-28 (XE-027 and XE-028) opened with `coverage_status: not_run`, and both were reported clean without saying so.
+**Status:** building. Amended 2026-09-29 as boundary test B-b: every review in the session of 2026-09-28 (XE-027 and XE-028) opened with `coverage_status: not_run`, and both were reported clean without saying so.
 
 **Links introduced:** none. The coverage record gains a `credential_source` field naming where the key resolved from, which is a label for a later reader rather than a link that has to re-resolve.
 

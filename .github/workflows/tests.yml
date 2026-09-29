@@ -27,6 +27,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      # XE-014: the coverage scorer is Node. Its dependency is installed from the lockfile here, and
+      # test_packet_coverage_run.py FAILS when it is missing, so this job cannot go green with the
+      # scorer skipped. No key is set: one test serves a stub gateway through JEV_ENDPOINT.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the coverage scorer's dependency
+        working-directory: plugins/gstack-execution
+        run: npm ci --no-audit --no-fund
+
       - name: What this run will examine
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --list
 

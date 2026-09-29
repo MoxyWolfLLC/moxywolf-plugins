@@ -39,6 +39,8 @@ class LinkTests(unittest.TestCase):
             "tests": {"commands": [], "results": "", "environment": "test"}, "release_owner": "fixture-human",
             "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
                          "allow_history": True, "allowed_tools": ["codex", "claude"]},
+            # XE-014: release refuses an unchecked review, so a fixture meant to release carries a scored report
+            "coverage": {"status": "checked", "criteria": [{"item": "FX-001", "criterion_no": 1, "declared": "fixture", "probability": 0.9}]},
         }
         self.pfile = self.tmp / "packet.json"; self.pfile.write_text(json.dumps(self.packet))
         pr.REVIEW_DIR = self.tmp / "reviews"
