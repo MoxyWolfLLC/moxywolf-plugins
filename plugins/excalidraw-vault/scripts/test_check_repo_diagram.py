@@ -71,6 +71,13 @@ def test_a_row_for_an_absent_element_fails():
     assert f == ["row ghost: no such claim element in the drawing"], f
 
 
+def test_a_row_named_element_is_checked_like_any_other():
+    r, h = repo()
+    f = fails(note(h, GOOD + [("element", "nonexistent component", "missing.py:1-1")]), r)
+    assert "row element: no such claim element in the drawing" in f, f
+    assert any("missing.py does not exist" in x for x in f), f
+
+
 def test_two_rows_for_one_element_fail():
     r, h = repo()
     f = fails(note(h, GOOD + [("api", "again", "src/app.py:2-3")]), r)

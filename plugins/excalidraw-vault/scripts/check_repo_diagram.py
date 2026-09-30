@@ -60,14 +60,18 @@ def claim_ids(doc):
 def source_rows(text):
     """[(element, claim, source)] from the '## Sources' table."""
     m = re.search(r"^## Sources\s*\n(.*?)(?=^#|\Z)", text, re.S | re.M)
-    rows = []
+    rows, header = [], True
     for line in (m.group(1).splitlines() if m else []):
         line = line.strip()
         if not line.startswith("|"):
             continue
-        cells = [c.strip().strip("`").strip() for c in line.strip("|").split("|")]
-        if len(cells) < 3 or set("".join(cells)) <= set("-: ") or cells[0].lower() == "element":
+        if header:  # the table's first row is its header, whatever it says
+            header = False
             continue
+        cells = [c.strip().strip("`").strip() for c in line.strip("|").split("|")]
+        if set("".join(cells)) <= set("-: "):
+            continue
+        cells += [""] * (3 - len(cells))
         rows.append((cells[0], cells[1], cells[2]))
     return rows
 
