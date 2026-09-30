@@ -78,6 +78,12 @@ Vault root resolves from `$MW_VAULT_PATH` if set, otherwise the canonical Google
 
 [`excalidraw-vault-core`](skills/excalidraw-vault-core) — single source of truth for the file format, element schema, and routing. Future plugins that need to emit diagrams (board-deck, saas-frontend-designer, github-repo-analyzer) should delegate here.
 
+## Repo-backed diagrams
+
+When the thing being drawn is code, the diagram pins the commit it was drawn from (`repo_head`). Every box and arrow cites the lines that prove it in a `## Sources` table. `scripts/check_repo_diagram.py <note> --repo <path>` re-checks every citation at that commit and reports drift since then separately. See *Repo-backed mode* in the skill.
+
+**Credit:** the rules come from [Archify](https://github.com/tt-a1i/archify) by tt-a1i (MIT), read at `d5a1333`. We re-expressed the ideas in our own words and copied no code. We didn't take its typed JSON IR and schemas, its interactive viewer, or its PNG, video and share-card export.
+
 ## Why not the headless Excalidraw MCP?
 
 The official Excalidraw MCP (`mcp.excalidraw.com`) and community Docker MCPs (e.g. `yctimlin/mcp_excalidraw-canvas`) generate diagrams in their own canvas — they **do not** write to the Obsidian Excalidraw plugin's vault format. For MoxyWolf's "everything in the vault" pattern, those diagrams would live outside the knowledge graph. This plugin closes that gap.

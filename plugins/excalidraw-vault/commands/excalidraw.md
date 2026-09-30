@@ -11,6 +11,8 @@ Generate an Excalidraw diagram from a natural-language description and write it 
 
 2. **Read the runner protocol** at `${CLAUDE_PLUGIN_ROOT}/skills/excalidraw-vault-core/SKILL.md`, especially *Obsidian wrapping format*, *Element schema*, and *Routing*.
 
+   **If the description names a path inside a git repository, this is a repo-backed diagram:** follow the skill's *Repo-backed mode* in full (pin `repo_head`, read only that commit, one Sources row per claim element) and run `check_repo_diagram.py` before reporting.
+
 3. **Plan the diagram** before generating JSON:
    - Identify the concepts, relationships, and hierarchy in the description.
    - Pick a diagram type if not given: architecture (boxes + arrows + groups), flow (sequential steps), mindmap (radial), sequence (lanes), relationship (entities + labeled edges).

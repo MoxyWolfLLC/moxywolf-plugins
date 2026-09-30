@@ -9,6 +9,8 @@ Same as `/excalidraw`, but uses the **current document context** as the source m
 
 1. **Determine source context**: read the current document the user is working in (active editor, last attached file, or the file most recently discussed in the conversation). If ambiguous, ask the user to confirm the source path.
 
+   **If the source is a path inside a git repository, this is a repo-backed diagram:** follow the skill's *Repo-backed mode* in full and run `check_repo_diagram.py` before reporting.
+
 2. **Determine destination**: place the diagram in the same folder as the source note, or in a sibling `diagrams/` subfolder if many diagrams are expected. Confirm the path with the user before writing.
 
 3. **Parse `$ARGUMENTS`**: optional `--name` (defaults to a slug derived from the source note's title); optional `--type` (see `/excalidraw` for options).

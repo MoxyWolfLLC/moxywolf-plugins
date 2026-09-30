@@ -147,6 +147,57 @@ Once written, any note can embed the diagram as a rendered image:
 
 Obsidian resolves `.excalidraw` from the basename (ignoring `.md`) and renders the diagram as a PNG. To embed a specific size: `![[uber-brain-architecture.excalidraw|600]]`.
 
+## Repo-backed mode
+
+Use this mode whenever the thing being drawn is code: the source `/excalidraw` or `/excalidraw-here` is given is a path inside a git repository. The drawing then makes claims about that code, and every claim has to point at the lines that prove it. The rules come from Archify (`tt-a1i/archify` at `d5a1333`, MIT). We took the ideas and wrote them in our own words. No code was copied. We didn't take its typed JSON IR and schemas, its interactive viewer, or its PNG, video and share-card export.
+
+**1. Pin the commit before you read anything.** Add three keys to the note's frontmatter, under `tags`:
+
+```yaml
+repo_head: <git rev-parse HEAD, all 40 characters>
+repo_origin: <git remote get-url origin, with any user:password@ or token removed>
+repo_dirty: [<paths from git status --short>]   # [] when clean; information only
+```
+
+**2. Read only the pinned commit.** Evidence counts at `repo_head` and nowhere else. Read every cited file with `git show <repo_head>:<path>`, whether it's dirty or clean. Never cite working-tree bytes.
+
+**3. Trace to where the work happens.** Read a small connected slice. Follow calls from the entry point until the behavior you're drawing reaches its real input, output or side effect.
+- A connection to a store names the code that actually reads or writes it. A sentence saying a module "maintains" something doesn't prove I/O.
+- Code that's configured or exported but never called on the normal path is optional. Label it that way, not as a runtime edge.
+- Stop when the responsibilities you were asked to draw are covered. There's no node or arrow count to hit.
+
+**4. Every claim gets exactly one Sources row.** Put a `## Sources` table after the warning banner and before `# Excalidraw Data`:
+
+```markdown
+## Sources
+
+| element | claim | source |
+|---|---|---|
+| `api` | serves /orders | `src/api/orders.py:12-48` |
+| `e-api-db` | api writes orders | `src/api/orders.py:40-44` |
+| `cache` | eviction policy | `unknown` |
+```
+
+- `element` is the Excalidraw element `id`.
+- Every non-deleted rectangle, ellipse, diamond, arrow and line is a claim and needs exactly one row. Titles, legends and frames opt out with `"customData": {"claim": false}`.
+- `source` is `path:start-end` at `repo_head`, or `unknown`. An `unknown` element is drawn with `"strokeStyle": "dashed"` and its claim says what is unresolved.
+
+**5. Check it before you report it.**
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/check_repo_diagram.py <note> --repo <repo path>
+```
+
+It fails on:
+- a claim element with no row, a row for an element that isn't in the drawing, or two rows for one element;
+- a path missing at `repo_head`, or a line range outside the file;
+- a bad or missing `repo_head`;
+- an origin that carries credentials or doesn't match `--repo`'s;
+- a compressed drawing;
+- having nothing to examine.
+
+It validates the note as history, not freshness. When the repo has moved past `repo_head`, it prints the cited files that changed as drift. Drift doesn't change the exit code. Report both lines to the user, along with what the check didn't cover: whether the cited lines actually prove each claim is a judgment the check doesn't make.
+
 ## What NOT to do
 
 - Don't use `compressed-json` fences — we keep diagrams readable and diffable.
