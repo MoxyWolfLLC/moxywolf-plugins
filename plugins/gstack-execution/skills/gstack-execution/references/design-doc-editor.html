@@ -42,6 +42,8 @@
   .toast.show { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
   .help { padding: 0 20px 8px; color: var(--ink-2); font-size: 13px; max-width: 72ch; }
+  .review { margin: 0 20px 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 13px; max-width: 90ch; }
+  .review code { font-family: var(--mono); font-size: 12px; }
 </style>
 
 <header>
@@ -53,6 +55,7 @@
   <button id="approve-btn">Mark approved</button>
 </header>
 <p class="help">Edit the Markdown on the left; the preview updates as you type. <strong>Save version</strong> stores your edits on this page. <strong>Mark approved</strong> saves and tells Claude to write this text to the repo and the Taskade folder, commit it, push, and pull back.</p>
+<div class="review" id="review" hidden></div>
 <main>
   <section><h2>Markdown (canonical)</h2><textarea id="md" spellcheck="false" aria-label="DESIGN.md source"></textarea></section>
   <section><h2>Preview</h2><div id="preview"></div></section>
@@ -99,6 +102,17 @@
   md.addEventListener("input", render);
   saveBtn.addEventListener("click", () => publish(state.approved));
   approveBtn.addEventListener("click", () => publish(true));
+  // XE-031: the design review's outcome, shown above the markdown. It informs; approving stays a person's act.
+  const rv = state.review, box = document.getElementById("review");
+  if (rv && rv.outcome) {
+    const label = { converged: "Reviewers converged at round " + rv.round, cap_reached: "Cap reached at round " + rv.round + ": dissent is in the doc",
+                    stalled: "Stalled at round " + rv.round + ": dissent is in the doc", incomplete: "Incomplete at round " + rv.round + ": a reviewer failed" }[rv.outcome] || rv.outcome;
+    const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+    let html = "<strong>Design review:</strong> " + esc(label) + ". Log: <code>" + esc(rv.log || "") + "</code>";
+    if (rv.failure) html += "<br>Failure: " + esc(rv.failure.why || "");
+    (rv.policy_proposals || []).forEach(p => { html += "<br>Policy proposal for you, not argued in the loop: <code>" + esc(p.id) + "</code> " + esc(p.text); });
+    box.innerHTML = html; box.hidden = false;
+  }
   render(); paint();
   if (window.claude && typeof window.claude.use === "function") {
     window.claude.use("artifact").then(ns => { artifact = ns; if (!ns) { saveBtn.hidden = approveBtn.hidden = true; } });

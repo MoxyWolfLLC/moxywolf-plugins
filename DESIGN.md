@@ -1310,7 +1310,7 @@ SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code 
 
 ### XE-031 — A design doc is argued by two reviewers in turn before a human reads it
 
-**Status:** planned. Asked for by Dorian on 2026-09-30: one model writes the design doc, reviewer 1 reviews it and hands it to reviewer 2, reviewer 2 builds on that and hands it back to the writer, who revises and records what changed, round after round, until all three agree or 20 rounds pass and the doc is written with the dissent that remains.
+**Status:** building. Asked for by Dorian on 2026-09-30: one model writes the design doc, reviewer 1 reviews it and hands it to reviewer 2, reviewer 2 builds on that and hands it back to the writer, who revises and records what changed, round after round, until all three agree or 20 rounds pass and the doc is written with the dissent that remains.
 
 **Links introduced:** each round record names the SHA-256 of the exact text reviewed, so an approval binds to one revision. Each finding gets an ID when it’s first raised (`R<round>-<reviewer>-<n>`) and keeps it for life; every later round, reviewer 2’s stance and the writer’s disposition cite that ID, and the loop’s finding state is keyed by it. The `## Dissent` block names finding IDs that must exist in the log. The design-doc editor names the log’s path.
 
@@ -1332,7 +1332,7 @@ SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code 
 
 ### XE-032 — A plugin name that contains a place word is not the place
 
-**Status:** planned. Declared on Dorian's instruction of 2026-09-30 ("do all three in the order you choose"), after DG-001's review open was refused on its own version criterion.
+**Status:** building. Declared on Dorian's instruction of 2026-09-30 ("do all three in the order you choose"), after DG-001's review open was refused on its own version criterion.
 
 **Links introduced:** none. The pattern is a constant; nothing new is stored.
 

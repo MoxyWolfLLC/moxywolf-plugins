@@ -102,6 +102,26 @@ def test_the_override_opens_and_records_itself():
     assert st["off_repo_overridden"] == [XE022_C3] and st["off_repo_evidence"] == []
 
 
+# XE-032: DG-001 criterion 9, verbatim. It names the plugin, not the vault.
+DG001_C9 = ("`excalidraw-vault` moves 0.1.0 to 0.2.0 in `plugin.json` and its `marketplace.json` entry, and the "
+            "top-level marketplace version moves (CI-002). Versions change by surgical text replace; the diff on "
+            "both JSON files shows version lines only.")
+
+
+def test_a_place_word_inside_a_name_is_not_the_place():
+    for text in ("excalidraw-vault", "vault/x", "mac_os_x", "mac.py", "notes-locally-cached"):
+        assert not pr.OFF_REPO.search(f"the plugin {text} changes"), text
+
+
+def test_a_place_word_standing_alone_is_still_the_place():
+    for text in ("the vault", "the vault.", "the vault's folder", "run locally, then", "on the Release Owner's Mac"):
+        assert pr.OFF_REPO.search(f"{text} holds it"), text
+
+
+def test_dg001_criterion_9_opens_without_the_override():
+    assert refused([DG001_C9]) is None
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

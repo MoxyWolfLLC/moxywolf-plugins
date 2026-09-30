@@ -42,6 +42,7 @@ command -> frozen packet + workflow -> executor -> worker evidence
 ### Things to Know
 
 - [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) rejects blocking deferral and evidence-free disproof. A deferred blocker requires an approved design amendment and a new review under the [contract](/plugins/gstack-execution/skills/gstack-execution/references/peer-review-contract.md).
+- [design_review.py](/plugins/gstack-execution/scripts/design_review.py) is the state machine for `/gstack-plan-review critics=2 target=design` (XE-031). It picks two reviewers from two families other than the writer's, keeps each finding's ID and open state across rounds, lets only the raising reviewer close a material finding, and reports `converged`, `cap_reached`, `stalled` or `incomplete`. It writes the round log and an XE-012 run note.
 - [GOVERNANCE.md](/plugins/gstack-execution/GOVERNANCE.md) separates authorized branch work from human merge authority. Local records are writable and are not signatures; external branch protection and withholding human merge credentials from agents establish the operational boundary.
 
 Created and maintained by Nori.
