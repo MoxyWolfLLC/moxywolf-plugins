@@ -931,7 +931,9 @@ def resolve(obs, repos):
 
 
 def cmd_review_finalize(a):
-    cap, draft = staged(a.capture), safe_path(Path(a.draft))
+    cap, draft = staged(a.capture), staged(a.draft)     # the reviewer's draft is written in staging too
+    for name in ("review.md", "decisions.jsonl", "proposals.jsonl", "observed.jsonl"):
+        safe_path(draft / name)                         # checked before anything reads it
     prov_file = cap.parent / "reviews" / ".prompts" / f"{a.prompt_sha256}.json"
     if not re.fullmatch(r"[0-9a-f]{64}", a.prompt_sha256 or "") or not prov_file.exists():
         raise Refused("no review prompt with that sha256 was built for this capture; run review-prompt first")
@@ -1052,6 +1054,8 @@ def cmd_publish_prepare(a):
     for spec in a.allow_binary:
         h, _, name = spec.partition(":")
         src = cap.parent / "quarantine" / h
+        if src.is_symlink():
+            raise Refused(f"quarantined file {h} is a symlink; publishing it is refused")
         if not re.fullmatch(r"[0-9a-f]{64}", h) or not src.is_file() or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", name):
             raise Refused(f"--allow-binary needs <sha256>:<file name> of a quarantined file; got {spec}")
         private_dir(cand / "binary")

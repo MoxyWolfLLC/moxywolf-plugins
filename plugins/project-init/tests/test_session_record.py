@@ -506,8 +506,8 @@ class PublishBase(Base):
                                "--confirmed-by", "dorianatmoxywolf", "--dest", str(dest or self.dest)])
 
     def draft(self, **over):
-        d = self.tmp / "draft"
-        d.mkdir(exist_ok=True)
+        d = self.staging / "drafts" / "d1"
+        d.mkdir(parents=True, exist_ok=True)
         ev = self.events()[0]["event_id"]
         body = "\n\n".join(f"## {i}. {s}\n\nNothing to report. ev:{ev[:12]}" for i, s in enumerate(sr.SECTIONS, 1))
         (d / "review.md").write_text(over.get("review", body))
@@ -645,7 +645,7 @@ class Package(PublishBase):
         first = Path(json.loads(out)["review"])
         snap = {p: p.read_bytes() for d in (self.cap_dir(), first) for p in d.rglob("*") if p.is_file()}
         time.sleep(1.1)
-        rc, out, err = self.finalize_review(self.draft(review=(self.tmp / "draft" / "review.md").read_text() + "\nsecond\n"))
+        rc, out, err = self.finalize_review(self.draft(review=(self.staging / "drafts" / "d1" / "review.md").read_text() + "\nsecond\n"))
         self.assertEqual(rc, 0, err)
         self.assertNotEqual(Path(json.loads(out)["review"]), first)
         self.assertEqual({p: p.read_bytes() for p in snap}, snap)
@@ -1047,6 +1047,31 @@ class FreshReview(PublishBase):
             rc, _, err = self.publish(pub, prep["approval_digest"])
             self.assertEqual(rc, 2, planted); self.assertFalse(target.exists(), planted)
             self.assertFalse(self.dest.exists() and any(self.dest.iterdir()), planted)
+
+    def test_a_draft_outside_staging_or_through_a_symlink_is_refused(self):
+        """Pre-review sweep: the draft is the reviewer's, so it lives in staging and pulls in no outside file."""
+        self.captured()
+        secret = self.tmp / "secret.txt"; secret.write_text("outside")
+        d = self.draft(); (d / "observed.jsonl").unlink(); (d / "observed.jsonl").symlink_to(secret)
+        rc, _, err = self.finalize_review(d)
+        self.assertEqual(rc, 2); self.assertIn("symlink", err)
+        out = self.tmp / "draft-outside"; shutil.copytree(self.draft(), out, symlinks=True); (out / "observed.jsonl").unlink()
+        rc, _, err = self.finalize_review(out)
+        self.assertEqual(rc, 2); self.assertIn("outside", err)
+        self.assertFalse((self.cap_dir().parent / "reviews").exists() and
+                         [p for p in (self.cap_dir().parent / "reviews").iterdir() if p.name != ".prompts"])
+
+    def test_a_symlinked_quarantine_file_is_never_published(self):
+        """Pre-review sweep: --allow-binary copies only a real quarantined file."""
+        self.captured(asst(tool_use("t1", command="cat b")), result("t1", "\x00\x01 opaque"))
+        q = self.cap_dir().parent / "quarantine"
+        h = next(q.iterdir()).name
+        secret = self.tmp / "secret.bin"; secret.write_bytes(b"outside")
+        os.chmod(q, 0o700); (q / h).unlink(); (q / h).symlink_to(secret)
+        rv = self.a_review()
+        rc, _, err = quiet(sr.main, ["publish-prepare", "--capture", str(self.cap_dir()), "--review", str(rv),
+                                     "--audience", "Dorian", f"--allow-binary={h}:x.bin"])
+        self.assertEqual(rc, 2); self.assertIn("symlink", err)
 
     def test_a_hooked_capture_reads_nothing_past_the_boundary(self):
         """F5."""
