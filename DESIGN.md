@@ -924,7 +924,7 @@ The target is the observable decision trajectory: messages, tool calls, results,
 
 ### SM-005 — A session that quotes the capture script is still captured whole
 
-**Status:** building. From proposal P1 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
+**Status:** done. Merged to `main` in `c816ed0` (PR #85, head `fbde1b2`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260930-100453-fbde1b2-1xfzuint` (`no_blocking_findings`, 14/14 across SM-005 and XE-029), with the `tests` workflow green at the reviewed head and read by the dispatcher itself. From proposal P1 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
 
 **Links introduced:** none.
 
@@ -1257,7 +1257,7 @@ XE-018 put CI runs in front of the reviewer as job and step conclusions. When a 
 
 ### XE-029 — A fix round sees what round one saw, and an unmet criterion is not a malformed reply
 
-**Status:** building. From proposals P2 to P7 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
+**Status:** done. Merged to `main` in `c816ed0` (PR #85, head `fbde1b2`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260930-100453-fbde1b2-1xfzuint` (`no_blocking_findings`, 14/14 across SM-005 and XE-029), with the `tests` workflow green at the reviewed head and read by the dispatcher itself. From proposals P2 to P7 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
 
 **Links introduced:** `review_base` in a review's stored packet: each repository's base as it was at `open`, kept when a fix round moves `base` to the previous head.
 
