@@ -251,7 +251,7 @@ class Finality(Base):
         quiet(sr.main, ["capture", "--from-hook", SID])
         self.assertEqual(self.manifest()["captured_bytes"], size)
         self.assertFalse(self.manifest()["capture_boundary_checked"])
-        self.assertIn("landed after the boundary", self.reasons())
+        self.assertIn("isn't inside the boundary", self.reasons())
 
     def test_a_matching_reply_from_an_earlier_turn_proves_nothing(self):
         """Review F2: the same words in another turn don't make this turn final."""
@@ -606,9 +606,13 @@ class Package(PublishBase):
         self.assertEqual([p.name for p in root.iterdir() if p.name != "quarantine"], [])
         self.assertEqual(self.capture()[0], 0)
         before = (self.cap_dir() / "evidence.jsonl").read_bytes()
-        rc, _, err = self.capture()
-        self.assertEqual(rc, 2); self.assertIn("never replaced", err)
+        self.write(user("work"), asst("ok"), user("more", pid="p2"), asst("changed"))
+        rc, out, err = self.capture()                       # review F3: reused, never rebuilt
+        self.assertEqual(rc, 0, err); self.assertTrue(json.loads(out)["reused"])
         self.assertEqual((self.cap_dir() / "evidence.jsonl").read_bytes(), before)
+        with self.assertRaises(sr.Refused) as e:
+            sr.finalize(Path(tempfile.mkdtemp(dir=self.tmp)), self.cap_dir())
+        self.assertIn("never replaced", str(e.exception))
 
     def test_a_symlink_or_dotdot_in_a_path_is_refused(self):
         self.captured()
@@ -952,6 +956,104 @@ class RoundThree(PublishBase):
         subprocess.run(["git", "-C", str(a2), "remote", "remove", "origin"], check=True)
         shutil.rmtree(self.tmp / "reviews")
         self.assertEqual(self.pinned_review([a2], [ha])("alice/tool", ha[:10]), "resolver_unavailable")
+
+
+class FreshReview(PublishBase):
+    """Review 20260929-175128, round 1."""
+
+    def test_publications_and_reviews_never_leave_staging_through_a_symlink(self):
+        """F1."""
+        self.captured()
+        rv = self.a_review()
+        outside = self.tmp / "outside"; outside.mkdir()
+        (self.cap_dir().parent / "publications").symlink_to(outside)
+        rc, _, err = quiet(sr.main, ["publish-prepare", "--capture", str(self.cap_dir()), "--review", str(rv), "--audience", "Dorian"])
+        self.assertEqual(rc, 2); self.assertIn("symlink", err); self.assertEqual(list(outside.iterdir()), [])
+        (self.cap_dir().parent / "publications").unlink()
+        shutil.move(str(self.cap_dir().parent / "reviews"), str(self.tmp / "moved"))
+        (self.cap_dir().parent / "reviews").symlink_to(outside)
+        rc, _, err = quiet(sr.main, ["review-prompt", "--capture", str(self.cap_dir())])
+        self.assertEqual(rc, 2); self.assertIn("symlink", err); self.assertEqual(list(outside.iterdir()), [])
+
+    def test_a_nested_git_tree_or_an_outside_capture_is_refused(self):
+        """F1."""
+        self.captured()
+        rc, _, err = quiet(sr.main, ["review-prompt", "--capture", str(self.cap_dir())])
+        psha = err.split("prompt_sha256=")[1].split()[0]
+        (self.cap_dir().parent / "reviews" / ".git").mkdir()
+        rc, _, err = quiet(sr.main, ["review-finalize", "--capture", str(self.cap_dir()), "--draft", str(self.draft()),
+                                     "--prompt-sha256", psha, "--tool", "claude", "--model", "m", "--family", "anthropic"])
+        self.assertEqual(rc, 2); self.assertIn("Git", err)
+        self.assertEqual({p.name for p in (self.cap_dir().parent / "reviews").iterdir()}, {".prompts", ".git"})   # no review written
+        copy = self.tmp / "elsewhere"; shutil.copytree(self.cap_dir(), copy)
+        rc, _, err = quiet(sr.main, ["review-prompt", "--capture", str(copy)])
+        self.assertEqual(rc, 2); self.assertIn("outside", err)
+        (self.cap_dir().parent / "reviews" / ".git").rmdir()
+        rv = self.a_review(); rcopy = self.tmp / "rv-elsewhere" / rv.name; shutil.copytree(rv, rcopy)
+        rc, _, err = quiet(sr.main, ["examine", "--review", str(rcopy), "--by", "dorianatmoxywolf", "--disposition", "accepted"])
+        self.assertEqual(rc, 2); self.assertIn("outside", err)
+        self.assertEqual(sorted(p.name for p in rcopy.parent.iterdir()), [rv.name])
+
+    def test_a_later_turn_without_its_stop_record_is_partial(self):
+        """F2: an earlier turn's valid Stop doesn't make a later included turn final."""
+        self.write(user("one", pid="p1"), asst("done"), user("two", pid="p2"), asst("later work"))
+        self.stop("done", pid="p1")
+        t = time.time(); self.capture()
+        self.assertLess(time.time() - t, 10)
+        m = self.manifest()
+        self.assertFalse(m["capture_boundary_checked"])
+        self.assertEqual(m["capture_completeness"]["status"], "partial")
+        self.assertIn("turn p2", " ".join(m["capture_completeness"]["reasons"]))
+
+    def test_a_second_session_review_reviews_the_same_capture_again(self):
+        """F3: the whole command flow twice; the capture and the first review stay byte-identical."""
+        self.write(user("work", pid="p1"), asst("done"))
+        self.stop("done", pid="p1"); self.expand("p9")
+        rc, _, err = quiet(sr.main, ["capture", "--from-hook", SID]); self.assertEqual(rc, 0, err)
+        first = self.a_review()
+        snap = lambda d: {str(p.relative_to(d)): p.read_bytes() for p in d.rglob("*") if p.is_file()}
+        cap0, rv0 = snap(self.cap_dir()), snap(first)
+        with open(self.tr, "ab") as f:
+            f.write(review_line("p9") + asst("reviewed") + user("more", pid="p10") + asst("more done"))
+        self.stop("more done", pid="p10"); self.expand("p11")
+        rc, out, err = quiet(sr.main, ["capture", "--from-hook", SID])
+        self.assertEqual(rc, 0, err); self.assertTrue(json.loads(out)["reused"]); self.assertIn("source line", json.loads(out)["note"])
+        time.sleep(1.1)
+        second = self.a_review()
+        self.assertNotEqual(second, first)
+        self.assertEqual((snap(self.cap_dir()), snap(first)), (cap0, rv0))
+
+    def test_nested_hash_files_are_covered_by_the_publication_inventory(self):
+        """F4."""
+        self.captured()
+        pub, prep = self.prepare()
+        rc, out, err = self.publish(pub, prep["approval_digest"]); self.assertEqual(rc, 0, err)
+        published = Path(json.loads(out)["published"])
+        names = {l.split("  ", 1)[1] for l in (published / "hashes.sha256").read_text().splitlines()}
+        self.assertTrue({"capture/hashes.sha256", "review/hashes.sha256"} <= names)
+        nested = published / "capture" / "hashes.sha256"
+        os.chmod(nested.parent, 0o755); os.chmod(nested, 0o644)
+        nested.write_text(nested.read_text() + "0" * 64 + "  forged\n")
+        with self.assertRaises(sr.Refused):
+            sr.verify_hashes(published)
+
+    def test_a_hooked_capture_reads_nothing_past_the_boundary(self):
+        """F5."""
+        self.write(user("work", pid="p1"), asst("done"))
+        self.stop("done", pid="p1"); self.expand("p9")
+        size = self.tr.stat().st_size
+        with open(self.tr, "ab") as f:
+            f.write(review_line("p9") + asst("AFTER-BOUNDARY"))
+        seen, orig = [], sr.read_upto
+        sr.read_upto = lambda path, limit=None: (seen.append(limit), orig(path, limit))[1]
+        try:
+            rc, _, err = quiet(sr.main, ["capture", "--from-hook", SID])
+        finally:
+            sr.read_upto = orig
+        self.assertEqual(rc, 0, err)
+        self.assertTrue(seen); self.assertEqual(set(seen), {size})
+        self.assertNotIn("file_sha256_at_capture", self.manifest())
+        self.assertTrue(self.manifest()["capture_boundary_checked"])
 
 
 class Determinism(Base):

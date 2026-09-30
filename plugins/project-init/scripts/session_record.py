@@ -217,8 +217,14 @@ def assistant_text(line):
     return "".join(b.get("text", "") for b in live(blocks(line)) if b.get("type") == "text")
 
 
-def wait_until_settled(path, deadline=None):
-    """Criterion 3: the file is written asynchronously. (settled, bytes)."""
+def read_upto(path, limit=None):
+    """Review F5: with a hook boundary, not one byte past it is read."""
+    with open(path, "rb") as f:
+        return f.read() if limit is None else f.read(limit)
+
+
+def wait_until_settled(path, deadline=None, limit=None):
+    """Criterion 3: the file is written asynchronously; only stat is polled. (settled, bytes up to limit)."""
     deadline = deadline or time.time() + WAIT
     last = None
     stable_since = time.time()
@@ -228,9 +234,9 @@ def wait_until_settled(path, deadline=None):
         if cur != last:
             last, stable_since = cur, time.time()
         if time.time() - stable_since >= SETTLE:
-            return True, Path(path).read_bytes()
+            return True, read_upto(path, limit)
         if time.time() >= deadline:
-            return False, Path(path).read_bytes()
+            return False, read_upto(path, limit)
         time.sleep(min(0.1, SETTLE / 4 or 0.05))
 
 
@@ -247,6 +253,15 @@ def private_dir(d, root=None):
         raise Refused(f"{d} is inside a Git working tree")
     os.chmod(d, 0o700)
     return d
+
+
+def staged(p):
+    """Review F1 (20260929-175128): a capture, review or publication named on the command line lives
+    in staging, reached through no symlink, in no Git tree."""
+    p = contained(Path(p).absolute(), staging_root())
+    if in_git_tree(p):
+        raise Refused(f"{p} is inside a Git working tree")
+    return p
 
 
 def hook_dir(kind):
@@ -494,7 +509,8 @@ def record_root(sid):
 
 
 def write_hashes(d):
-    files = sorted(p for p in Path(d).rglob("*") if p.is_file() and p.name != "hashes.sha256")
+    top = Path(d) / "hashes.sha256"          # review F4: only this directory's own manifest is left out
+    files = sorted(p for p in Path(d).rglob("*") if p.is_file() and p != top)
     (Path(d) / "hashes.sha256").write_text("".join(f"{sha(p.read_bytes())}  {p.relative_to(d)}\n" for p in files))
 
 
@@ -526,6 +542,12 @@ def guess_transcript(projects):
 
 
 def reconcile(raw, boundary, stop, hooked):
+    """(checked, reason, worth_waiting)."""
+    c, why = _reconcile(raw, boundary, stop, hooked)
+    return c, why, not (why or "").startswith("turn ")
+
+
+def _reconcile(raw, boundary, stop, hooked):
     """Criterion 3 and review F1, F2. (checked, reason). The boundary never moves. The Stop record
     names a prompt; that prompt's turn runs from its prompt line to the next one, and the turn's
     last assistant line with text must hash to the record (B-c: last_assistant_message is that
@@ -536,6 +558,10 @@ def reconcile(raw, boundary, stop, hooked):
     start = next((k for k, l in enumerate(lines) if l and is_prompt(l) and l.get("promptId") == stop.get("prompt_id")), None)
     if start is None:
         return False, f"the Stop record's prompt {stop.get('prompt_id')} has no prompt line inside the capture"
+    final = [l for l in lines if l and is_prompt(l)][-1]
+    if final.get("promptId") != stop.get("prompt_id"):     # review F2: the Stop must be the final included turn's
+        return False, (f"turn {final.get('promptId')} comes after the Stop record's prompt {stop.get('prompt_id')} "
+                       f"and has no Stop record, so its finality is unproven")
     last = None
     for l in lines[start + 1:]:
         if l and is_prompt(l):
@@ -544,9 +570,9 @@ def reconcile(raw, boundary, stop, hooked):
             last = l
     if last is not None and sha(assistant_text(last).encode("utf-8")) == stop["sha256"]:
         return True, None
-    if hooked and any(sha(assistant_text(l).encode("utf-8")) == stop["sha256"]
-                      for l in (parse_line(b)[0] for b in raw[boundary:].split(b"\n")) if l and l.get("type") == "assistant"):
-        return False, f"the final assistant line for prompt {stop.get('prompt_id')} landed after the boundary and isn't captured"
+    if hooked:       # review F5: nothing past the boundary is read, so this is all that can be said
+        return False, (f"the final assistant line for prompt {stop.get('prompt_id')} isn't inside the boundary; "
+                       f"it may have landed after it, and nothing past the boundary is read")
     return False, f"the final assistant line for prompt {stop.get('prompt_id')} doesn't match its Stop hash"
 
 
@@ -568,18 +594,28 @@ def cmd_capture(a):
     safe_path(transcript)
     if not transcript.is_file():
         raise Refused(f"no session file at {transcript}")
+    existing = contained(staging_root() / "session-records" / safe_id(sid) / "capture", staging_root())
+    if existing.exists():               # review F3: a second /session-review reviews the frozen capture again
+        verify_hashes(existing)
+        m = json.loads((existing / "manifest.json").read_text())
+        print(json.dumps({"capture": str(existing), "reused": True, "completeness": m["capture_completeness"],
+                          "boundary_checked": m["capture_boundary_checked"],
+                          "captured_through_source_line": m["captured_through_source_line"],
+                          "note": f"this session's capture already exists and is never replaced; it ends at source line "
+                                  f"{m['captured_through_source_line']}, and nothing after that is in this review"}, indent=2))
+        return existing
     deadline = time.time() + WAIT       # review F3: one deadline for settling and for the Stop line
     stops = [s for s in stop_records(sid) if s.get("event", "Stop") == "Stop"
              and (not pending or s["at"] <= pending["at"])]
     stop = stops[-1] if stops else None
     while True:                          # review F17: every pass re-proves 2 s of stability
-        settled, raw = wait_until_settled(transcript, deadline)
-        boundary = pending["boundary_bytes"] if pending else len(raw)
-        checked, why = reconcile(raw, boundary, stop, bool(pending))
-        if checked or pending or not stop or time.time() >= deadline:
+        settled, raw = wait_until_settled(transcript, deadline, pending["boundary_bytes"] if pending else None)
+        boundary = len(raw)
+        checked, why, wait = reconcile(raw, boundary, stop, bool(pending))
+        if checked or pending or not stop or not wait or time.time() >= deadline:
             break
         time.sleep(0.1)
-    if not pending and transcript.read_bytes() != raw:
+    if not pending and read_upto(transcript) != raw:
         settled = False
     reasons = [] if settled else [f"the file was still changing after {WAIT:.0f}s"]
     if why:
@@ -612,7 +648,7 @@ def cmd_capture(a):
         manifest = {
             "schema_version": SCHEMA, "session_id": sid, "transcript_path": str(transcript),
             "session_folder": str(session_dir), "selection": selection,
-            "source_sha256": sha(raw[:boundary]), "file_sha256_at_capture": sha(raw), "file_size": len(raw),
+            "source_sha256": sha(raw[:boundary]), "file_size": transcript.stat().st_size,
             "captured_bytes": boundary, "captured_through_source_line": len(lines),
             "last_timestamp": max(ts) if ts else None,
             "capture_completeness": {"status": "partial" if reasons else "complete", "reasons": reasons},
@@ -713,7 +749,7 @@ def enclose(source, text):
 
 
 def cmd_review_prompt(a):
-    cap = Path(a.capture)
+    cap = staged(a.capture)
     m = json.loads((cap / "manifest.json").read_text())
     if m["selection"] == "heuristic" and not a.confirmed:
         raise Refused("this capture picked its session file by guess; confirm it with the person, then pass --confirmed")
@@ -733,8 +769,7 @@ def cmd_review_prompt(a):
         enclose("record.md", (cap / "record.md").read_text()),
     ])
     psha = sha(prompt.encode("utf-8"))
-    prov = safe_path(cap.parent / "reviews" / ".prompts")
-    prov.mkdir(parents=True, exist_ok=True)
+    prov = private_dir(cap.parent / "reviews" / ".prompts")
     write_private(prov / f"{psha}.json", json.dumps({"prompt_sha256": psha, "prompt_version": PROMPT_VERSION,
                                                     "started_at": now(), "capture_hashes_sha256": sha((cap / "hashes.sha256").read_bytes())}))
     print(prompt)
@@ -896,7 +931,7 @@ def resolve(obs, repos):
 
 
 def cmd_review_finalize(a):
-    cap, draft = Path(a.capture), Path(a.draft)
+    cap, draft = staged(a.capture), safe_path(Path(a.draft))
     prov_file = cap.parent / "reviews" / ".prompts" / f"{a.prompt_sha256}.json"
     if not re.fullmatch(r"[0-9a-f]{64}", a.prompt_sha256 or "") or not prov_file.exists():
         raise Refused("no review prompt with that sha256 was built for this capture; run review-prompt first")
@@ -905,8 +940,7 @@ def cmd_review_finalize(a):
         raise Refused("that review prompt was built from a different capture")
     errors = validate_review(cap, draft)
     status = "valid" if not errors else "invalid"
-    root = cap.parent / "reviews"
-    root.mkdir(exist_ok=True)
+    root = private_dir(cap.parent / "reviews")
     run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + sha(draft.joinpath("review.md").read_bytes())[:8] + "-" + os.urandom(3).hex()
     tmp = Path(tempfile.mkdtemp(prefix=".review-", dir=root))
     try:
@@ -940,7 +974,7 @@ def cmd_review_finalize(a):
 
 def cmd_examine(a):
     """Criterion 13: the human's examination lives beside the frozen review, with its own hash."""
-    rv = Path(a.review)
+    rv = staged(a.review)
     out = rv.parent / f"{rv.name}.examination.json"
     if out.exists():
         raise Refused(f"{out} exists; examinations are never replaced")
@@ -948,8 +982,8 @@ def cmd_examine(a):
         raise Refused(f"disposition must be one of {sorted(DISPOSITIONS - {'pending'})}")
     body = json.dumps({"review": rv.name, "examined_by": a.by, "review_disposition": a.disposition,
                        "examined_at": now(), "review_hashes_sha256": sha((rv / "hashes.sha256").read_bytes())}, indent=2) + "\n"
-    out.write_text(body)
-    Path(str(out) + ".sha256").write_text(f"{sha(body.encode())}  {out.name}\n")
+    write_private(out, body)
+    write_private(Path(str(out) + ".sha256"), f"{sha(body.encode())}  {out.name}\n")
     for p in (out, Path(str(out) + ".sha256")):
         os.chmod(p, 0o444)
     return out
@@ -974,7 +1008,7 @@ def verify_hashes(d):
     for l in (Path(d) / "hashes.sha256").read_text().splitlines():
         h, _, name = l.partition("  ")
         listed[name] = h
-    actual = {str(p.relative_to(d)): sha(p.read_bytes()) for p in Path(d).rglob("*") if p.is_file() and p.name != "hashes.sha256"}
+    actual = {str(p.relative_to(d)): sha(p.read_bytes()) for p in Path(d).rglob("*") if p.is_file() and p != Path(d) / "hashes.sha256"}
     if listed != actual:
         raise Refused(f"{d} no longer matches its hashes.sha256")
 
@@ -992,11 +1026,11 @@ LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$")
 def cmd_publish_prepare(a):
     """Steps 1 to 6. Refuses without a frozen capture and a frozen, valid review of that capture
     (review F4); shows the owner exactly what would leave staging, and the digest to confirm."""
-    cap = Path(a.capture)
+    cap = staged(a.capture)
     verify_hashes(cap)
     if not a.review:
         raise Refused("publishing needs a finalized review of this capture (steps 2 and 3); run /session-review first")
-    rv = Path(a.review)
+    rv = staged(a.review)
     if rv.parent.resolve() != (cap.parent / "reviews").resolve():
         raise Refused(f"{rv} isn't a review of {cap}")
     verify_hashes(rv)
@@ -1008,10 +1042,9 @@ def cmd_publish_prepare(a):
     if not BOUNDED.match(a.audience or ""):
         raise Refused("audience must be a short plain name (letters, digits, spaces, . _ @ ' -)")
     exe, version = gitleaks()
-    pubs = cap.parent / "publications"
-    pubs.mkdir(exist_ok=True)
+    pubs = private_dir(cap.parent / "publications")
     pid = time.strftime("%Y%m%d-%H%M%S") + "-" + sha(os.urandom(8))[:6]
-    pub = pubs / pid
+    pub = private_dir(pubs / pid)
     cand = pub / "candidate"
     shutil.copytree(cap, cand / "capture")
     shutil.copytree(rv, cand / "review")
@@ -1021,7 +1054,7 @@ def cmd_publish_prepare(a):
         src = cap.parent / "quarantine" / h
         if not re.fullmatch(r"[0-9a-f]{64}", h) or not src.is_file() or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", name):
             raise Refused(f"--allow-binary needs <sha256>:<file name> of a quarantined file; got {spec}")
-        (cand / "binary").mkdir(exist_ok=True)
+        private_dir(cand / "binary")
         shutil.copyfile(src, cand / "binary" / name)
         exceptions.append({"sha256": h, "name": name, "approved_by_owner": True})
     for p in cand.rglob("*"):
@@ -1031,7 +1064,7 @@ def cmd_publish_prepare(a):
            "binary_exceptions": exceptions, "scanner": {"name": "gitleaks", "version": version, "config_sha256": GITLEAKS_CONFIG_SHA256},
            "prepared_at": now()}
     env["approval_digest"] = approval_digest(env)
-    (pub / "prepare.json").write_text(json.dumps(env, indent=2) + "\n")
+    write_private(pub / "prepare.json", json.dumps(env, indent=2) + "\n")
     print(json.dumps(env, indent=2))
     return pub
 
@@ -1051,7 +1084,7 @@ def gitleaks():
 def cmd_publish(a):
     """Steps 7 to 12. The receipt is assembled before the scan so gitleaks covers it (review F6);
     only hashes.sha256 is added after, and the copy is checked against what was scanned."""
-    pub = Path(a.publication)
+    pub = staged(a.publication)
     env = json.loads((pub / "prepare.json").read_text())
     if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(env.get("publication_id"))) or env["publication_id"] != pub.name:
         raise Refused("the publication id isn't the one prepare generated")      # review F6
@@ -1077,8 +1110,7 @@ def cmd_publish(a):
                            "note": "written before the scan; this package exists only because the scan passed"},
                "publication_id": env["publication_id"]}
     (cand / "publish-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    private = pub / "private"
-    private.mkdir(mode=0o700, exist_ok=True)
+    private = private_dir(pub / "private")
     r = subprocess.run([exe, "dir", str(cand), "--config", str(GITLEAKS_CONFIG), "--no-banner", "--redact",
                         "--report-format", "json", "--report-path", str(private / "gitleaks-report.json"),
                         "--exit-code", "1"], capture_output=True, text=True)
