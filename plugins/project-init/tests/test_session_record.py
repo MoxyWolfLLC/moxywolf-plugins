@@ -147,7 +147,29 @@ class Hooks(Base):
         self.write(user("work"))
         self.hook("hook-expansion", command_name="session-review", session_id=SID, prompt_id="p9", transcript_path=str(self.tr))
         self.hook("hook-expansion", command_name="other:thing", session_id=SID, prompt_id="p9", transcript_path=str(self.tr))
+        self.hook("hook-expansion", command_name="session-end", session_id=SID, prompt_id="p9", transcript_path=str(self.tr))
         self.assertFalse((self.staging / "hooks" / "expansion" / f"{SID}.json").exists())
+
+    def test_session_end_fires_the_capture_too(self):
+        """SM-006: /session-end runs the review, so its expansion records identity and the boundary."""
+        self.write(user("work", pid="p1"), asst("done"))
+        self.stop("done", pid="p1")
+        size = self.tr.stat().st_size
+        self.hook("hook-expansion", command_name="project-init:session-end", session_id=SID, prompt_id="p9",
+                  transcript_path=str(self.tr))
+        rec = json.loads((self.staging / "hooks" / "expansion" / f"{SID}.json").read_text())
+        self.assertEqual((rec["prompt_id"], rec["boundary_bytes"]), ("p9", size))
+        with open(self.tr, "ab") as f:
+            f.write(user("<command-name>/project-init:session-end</command-name>", pid="p9"))
+        rc, out, err = quiet(sr.main, ["capture", "--from-hook", SID])
+        self.assertEqual(rc, 0, err)
+        m = self.manifest()
+        self.assertEqual((m["captured_bytes"], m["capture_boundary_checked"]), (size, True))
+
+    def test_hooks_json_wires_both_commands_to_the_expansion_hook(self):
+        hooks = json.loads((Path(sr.__file__).resolve().parent.parent / "hooks" / "hooks.json").read_text())["hooks"]
+        wired = {e["matcher"] for e in hooks["UserPromptExpansion"] if any("hook-expansion" in h["command"] for h in e["hooks"])}
+        self.assertEqual(wired, sr.HOOKED)
 
     def test_a_hook_never_fails_the_session_even_when_it_cannot_write(self):
         os.environ["SESSION_RECORD_STAGING"] = str(self.tmp / "repo" / "staging")

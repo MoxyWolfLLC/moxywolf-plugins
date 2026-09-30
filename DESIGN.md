@@ -936,6 +936,21 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 4. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.32.0, and the top-level marketplace version moves with it, per CI-002.
 5. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
 
+### SM-006 — `/session-end` reviews the session before it writes the handoff
+
+**Status:** building. Asked for by Dorian on 2026-09-30 ("do it", on `/session-end` running the session review).
+
+**Links introduced:** the handoff links the session review by its folder path.
+
+`/session-end` writes the handoff and runs `/obsidian-update`, but it never runs `/session-review`. It only linked a session record the person had published by hand, so in practice no session got reviewed unless someone remembered a second command and a publish step.
+
+1. The `UserPromptExpansion` hook also fires on `project-init:session-end`, recording identity and the boundary exactly as it does for `project-init:session-review`, so a capture made during `/session-end` ends where `/session-end` was typed.
+2. `/session-end` gains a step before it composes the handoff that runs the session review as `/session-review` steps 1 to 4 describe (capture, review prompt, draft, finalize), with no prompt from the person. It never runs `publish-prepare` or `publish`.
+3. The handoff links the review by its folder path, and the final report names its validation status and lists its proposals. A review that can't run is reported in one line with its reason and never blocks the handoff.
+4. Tests: a `project-init:session-end` expansion writes the hook record and a capture from it ends at that boundary; `hooks.json` wires exactly the commands the script accepts; an unrelated command still doesn't fire.
+5. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.33.0, and the top-level marketplace version moves with it, per CI-002.
+6. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -1340,6 +1355,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: SM-006 added on Dorian's instruction: `/session-end` runs the session review before the handoff.
 - 2026-09-30: TB-003 moves to building on Dorian's instruction, scoped to the grant model and task-graph node destinations; the dispatcher's own GitHub and OpenRouter calls are named as not in this item.
 - 2026-09-30: XE-030 added on Dorian's instruction to build the coverage scorer: a declared criterion carried verbatim in the packet is covered without a model call.
 - 2026-09-30: SM-005 and XE-029 added from session review `20260930-095045-8bb8d311-109fbe` (the first live `/session-review`), whose seven proposals Dorian approved. P7's rule takes the narrow reading: only words telling the agent to merge count.
