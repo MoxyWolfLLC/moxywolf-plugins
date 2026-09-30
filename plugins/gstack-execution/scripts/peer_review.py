@@ -70,22 +70,22 @@ REVIEWERS = {
                "model": os.environ.get("GSTACK_OPENROUTER_GPT_MODEL", "openai/gpt-6-astra"),
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher",
-               "sends": ["CHANGE.diff", "changed", "callers"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers"]},
     "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher",
-               "sends": ["CHANGE.diff", "changed", "callers"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers"]},
     "openrouter-claude": {"family": "claude", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-5"),
                "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
                "floor_name": "Opus 5 or higher",
-               "sends": ["CHANGE.diff", "changed", "callers"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers"]},
     "openrouter-deepseek": {"family": "deepseek", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_DEEPSEEK_MODEL", "deepseek/deepseek-v4.1-flash"),
                "floor": r"^deepseek-v([4-9]|\d{2,})\b",
                "floor_name": "DeepSeek v4 or higher",
-               "sends": ["CHANGE.diff", "changed", "callers"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers"]},
 }
 TRANSPORTS = {"cli", "openrouter"}
 # XE-013.2: refused at the table, not at run time. An entry named for its transport would span
@@ -732,6 +732,14 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     Found by the repo gate on XE-007's own change.
     """
     surf = root / "surface"; surf.mkdir(parents=True, exist_ok=True)
+    # XE-029.1: a fix round moves base to the previous head; the surface still covers the whole
+    # change from the review's own base, and the round's delta travels beside it as ROUND.diff.
+    rounds = [r for r in repos if r.get("review_base") and r["review_base"] != r["base"]]
+    if rounds:
+        (surf / "ROUND.diff").write_text("\n\n".join(
+            f"=== {Path(r['path']).name}: {r['base'][:12]}..{r['head'][:12]} ===\n"
+            + git(r["path"], "diff", f"{r['base']}..{r['head']}") for r in rounds))
+    repos = [dict(r, base=r.get("review_base") or r["base"]) for r in repos]
     diffs = []
     for r in repos:
         diffs.append(f"=== {Path(r['path']).name}: {r['base'][:12]}..{r['head'][:12]} ===\n"
@@ -805,7 +813,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
         f"# What this review can see (coverage: {coverage})\n\n"
-        f"- `CHANGE.diff` — the full diff under review\n"
+        f"- `CHANGE.diff` — the full diff under review, from the review's base\n"
+        + ("- `ROUND.diff` — only what changed since the previous round\n" if rounds else "") +
         f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
         f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
         f"- `{SURFACE_KINDS[2]}/` — {len(deps)} files the change or a criterion names\n"
@@ -1250,7 +1259,10 @@ def validate(raw, packet, prior=None, dispositions=None):
             raise ReviewError("malformed_output", f"duplicate finding id {f['id']}")
         ids.add(f["id"])
     has_block = any(f["severity"] == "blocking" for f in out["findings"])
-    if has_block != (out["verdict"] == "blocking_findings"):
+    unmet = any(not row["met"] for row in out["acceptance"])
+    # XE-029.2: an unmet criterion blocks on its own, so a blocking verdict with no blocking finding
+    # is the honest reply when a criterion isn't met. Only the two real contradictions remain.
+    if has_block != (out["verdict"] == "blocking_findings") and not (out["verdict"] == "blocking_findings" and unmet):
         raise ReviewError("malformed_output", "verdict disagrees with finding severities")
     prior_findings = (prior or {}).get("findings", [])
     prior_ids = {f["id"] for f in prior_findings if f["severity"] == "blocking"}
@@ -1780,6 +1792,8 @@ def cmd_open(a):
              "off_repo_overridden": [u["criterion"] for u in unevidenced],
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
+    for r in packet["repos"]:
+        r["review_base"] = r["base"]                # XE-029.1: fix rounds still see the whole change
     save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
     print(json.dumps(state, indent=2))
     return state
@@ -1909,7 +1923,8 @@ def cmd_round(a):
         # Bind each finding to the content at the reviewed head, not merely to a name.
         record["subjects"] = bind_subjects(out["findings"], packet["repos"])
         blockers = [f for f in out["findings"] if f["severity"] == "blocking"]
-        if not blockers and not out["regressions_from_fixes"]:
+        record["unmet_acceptance"] = [row["criterion"] for row in out["acceptance"] if not row["met"]]
+        if not blockers and not out["regressions_from_fixes"] and not record["unmet_acceptance"]:  # XE-029.3
             outcome = "no_blocking_findings" if round_no == 1 else "fixes_verified"
         elif round_no >= state["max_rounds"]:
             outcome = "rounds_exhausted"
@@ -1974,6 +1989,20 @@ def _alive(pid):
     return True
 
 
+def require_ci_reader(packet, ci_specs):
+    """XE-029.4: a round that names a CI run and can't read it judges criteria without the evidence
+    it was promised. Refused before anything starts, not discovered in the round record."""
+    if not (ci_specs or (packet.get("tests") or {}).get("ci_runs")) or os.environ.get("GITHUB_TOKEN"):
+        return
+    try:
+        ok = subprocess.run(["gh", "auth", "status"], capture_output=True, timeout=30).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        ok = False
+    if not ok:
+        sys.exit("refused: this round names a CI run, and neither GITHUB_TOKEN nor an authenticated gh can read it; "
+                 "run it as `agent_token.py exec -- peer_review.py dispatch ...`")
+
+
 def cmd_dispatch(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -1982,6 +2011,7 @@ def cmd_dispatch(a):
     prior = load(d, "dispatch.json")
     if prior and _alive(prior.get("pid")) and load(d, "state.json")["rounds_used"] <= prior.get("rounds_at_dispatch", -1):
         sys.exit(f"a review is already in flight for {a.review_id} (pid {prior['pid']}); collect it first")
+    require_ci_reader(load(d, "packet.json") or {}, getattr(a, "ci_run", []) or [])
     log = d / "dispatch.log"
     argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
     # the round runs with cwd = the review directory, so a relative path is resolved here, against
@@ -2174,6 +2204,8 @@ def cmd_merge_instruction(a):
     if not covers or not a.text.strip():
         raise ReviewError("release_blocked", "an instruction needs the words and the pull requests it covers")
     print(json.dumps({"body": merge_instruction_body(a.text, a.given_at, covers, a.owner)}))
+    print("merge-instruction printed the comment; it did not post it. Post it with: "      # XE-029.5
+          "| agent_token.py api POST repos/<owner>/<repo>/issues/<n>/comments --data -", file=sys.stderr)
 
 
 def github_get(name, path):
@@ -2327,6 +2359,14 @@ def selftest():
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{clean}'"
     assert cmd_round(ns(review_id=rid, head=[f"{repo}={head2}"])) == "fixes_verified"
     st = load(REVIEW_DIR / rid, "state.json"); assert st["rounds_used"] == 2 and st["heads"][-1] == [head2]
+    # XE-029.2-3: an unmet criterion with no blocking finding blocks; it is neither malformed nor clean
+    unmet = json.dumps({"verdict": "blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": False, "evidence": "not shown"}],
+                        "findings": [], "blocker_resolutions": []})
+    os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{unmet}'"
+    rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))["review_id"]
+    assert load(REVIEW_DIR / rid, "packet.json")["repos"][0]["review_base"] == base
+    assert cmd_round(ns(review_id=rid, head=[])) == "blocking_findings"
+    assert load(REVIEW_DIR / rid, "round-1.json")["unmet_acceptance"] == ["f(1) == 2"]
     # exhausted: blocker persists through the last allowed round -> escalation, never approval
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
     rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=1, timeout=30))["review_id"]

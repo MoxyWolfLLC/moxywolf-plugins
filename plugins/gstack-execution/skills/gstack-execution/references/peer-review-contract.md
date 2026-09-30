@@ -109,7 +109,7 @@ Return JSON only, matching this schema (the dispatcher rejects anything else as 
 }
 ```
 
-Acceptance must contain exactly one entry for every packet criterion, using the exact criterion text, a boolean `met`, and nonblank evidence. Unknown, duplicate, or missing criteria are rejected. A clean verdict requires all criteria met and no blocking findings.
+Acceptance must contain exactly one entry for every packet criterion, using the exact criterion text, a boolean `met`, and nonblank evidence. Unknown, duplicate, or missing criteria are rejected. A clean verdict requires all criteria met and no blocking findings. A blocking verdict needs a blocking finding or an unmet criterion; an unmet criterion blocks on its own, with no finding needed. In a fix round, `CHANGE.diff` covers the whole change from the review's base and `ROUND.diff` only what changed since the previous round.
 
 `blocker_resolutions` is empty in the initial round. In fix rounds it covers every previous blocking finding exactly once with a boolean `resolved` and nonblank evidence. A resolved entry requires a `fixed` or `disproved` builder disposition and cannot also remain blocking. An unresolved entry must retain its blocking finding. Non-blocking prior findings get no entry; one given is ignored.
 

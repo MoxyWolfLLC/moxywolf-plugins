@@ -1166,6 +1166,32 @@ class FreshReview(PublishBase):
         self.assertTrue(self.manifest()["capture_boundary_checked"])
 
 
+class Persisted(Base):
+    """SM-005: only a result that opens with <persisted-output> is a stored one."""
+
+    def test_a_result_quoting_the_markers_is_kept_as_text(self):
+        quoted = 'm = PERSISTED.search(text) if "<persisted-output>" in text\nFull output saved to: {n}\n\nPreview: x'
+        self.write(user("work"), asst(tool_use("t1", command="cat session_record.py")), result("t1", quoted), asst("ok"))
+        self.capture()
+        c = [e for e in self.events() if e["event_type"] == "tool_result"][0]["content"]
+        self.assertIn("PERSISTED.search", c["text"])
+        self.assertNotIn("persisted_file", c)
+        self.assertFalse(any("stored tool result" in r for r in self.manifest()["capture_completeness"]["reasons"]))
+
+    def test_a_real_block_is_read_and_a_missing_one_is_partial(self):
+        (self.sdir / "tool-results").mkdir(parents=True)
+        (self.sdir / "tool-results" / "big.txt").write_text("FULL-CONTENT\n" * 10)
+        real = f"  <persisted-output>\nFull output saved to: {self.sdir}/tool-results/big.txt\n\nPreview: row\n</persisted-output>"
+        gone = f"<persisted-output>\nFull output saved to: {self.sdir}/tool-results/gone.txt\n</persisted-output>"
+        self.write(user("work"), asst(tool_use("t1", command="a")), result("t1", real),
+                   asst(tool_use("t2", command="b")), result("t2", gone), asst("ok"))
+        self.capture()
+        res = [e["content"] for e in self.events() if e["event_type"] == "tool_result"]
+        self.assertEqual(res[0]["persisted_file"], "big.txt"); self.assertEqual(res[0]["source_bytes"], len("FULL-CONTENT\n" * 10))
+        self.assertFalse(res[1]["present"])
+        self.assertTrue(any("gone.txt" in r for r in self.manifest()["capture_completeness"]["reasons"]))
+
+
 class Determinism(Base):
     def test_the_same_source_gives_byte_identical_evidence(self):
         self.write(user("work"), asst("one", tool_use("t1", command="ls")), result("t1", "a"), asst("done"))
