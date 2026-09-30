@@ -973,7 +973,7 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 
 ### TB-003 — Egress is granted, not filtered
 
-**Status:** building. Asked for by Dorian on 2026-09-30.
+**Status:** done. Merged to `main` in `b134ca3` (PR #89, head `ded5df5`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260930-110719-f03345a-nz0o2zq3` (`fixes_verified`, 4/4, 2 rounds): round 1 found F1, a string-valued `data_use.destinations` iterated into a `*` grant, and F2, task-graph runs unable to pass a ledger; both fixed in `ded5df5`. Opened with coverage `covered` and no override; the `tests` workflow was green at the reviewed head and read by the dispatcher itself. Asked for by Dorian on 2026-09-30.
 
 **Links introduced:** the destination-to-grant link. A tool call carrying a destination is assumed to be going somewhere the owner allowed. Today the grant covers tools and output roots, not destinations.
 
