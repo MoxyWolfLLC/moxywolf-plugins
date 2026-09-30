@@ -168,5 +168,40 @@ class ScorerRuns(unittest.TestCase):
         self.assertNamesWhatItConsulted(cov)
 
 
+    # XE-030: a declared criterion the packet carries word for word is covered with no model call.
+    def use_criteria(self, crits):
+        self.packet.write_text(json.dumps({"items": ["FX-001"], "acceptance_criteria": crits}))
+
+    def test_an_all_verbatim_packet_needs_no_credential_and_no_request(self):
+        self.use_criteria(["The value is after.", "The   old value\nis gone."])
+        r, cov = self.run_scorer(JEV_ENDPOINT=self.endpoint)       # no key anywhere
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(cov["status"], "checked")
+        self.assertEqual((cov["verbatim"], cov["model_scored"], cov["input_tokens"]), (2, 0, 0))
+        self.assertIsNone(cov["credential_source"])
+        self.assertEqual({c["match"] for c in cov["criteria"]}, {"verbatim"})
+        self.assertEqual(Stub.seen, [])
+
+    def test_only_the_criterion_that_is_not_verbatim_reaches_the_model(self):
+        self.use_criteria(["The value is after. It is read back from value.txt.", "value.txt no longer says before"])
+        r, cov = self.run_scorer(AI_GATEWAY_API_KEY="k", JEV_ENDPOINT=self.endpoint)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([sorted(q["body"]["questions"]) for q in Stub.seen], [["c2"]])
+        self.assertEqual([(c["criterion_no"], c["match"]) for c in cov["criteria"]], [(1, "verbatim"), (2, "model")])
+        self.assertEqual(cov["criteria"][0]["probability"], 1)
+
+    def test_a_paraphrase_is_not_verbatim(self):
+        self.use_criteria(["The value reads after.", "The old value is removed."])
+        r, cov = self.run_scorer(AI_GATEWAY_API_KEY="k", JEV_ENDPOINT=self.endpoint)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(sorted(Stub.seen[0]["body"]["questions"]), ["c1", "c2"])
+        self.assertEqual(cov["verbatim"], 0)
+
+    def test_a_verbatim_packet_still_needs_the_model_when_one_criterion_is_missing(self):
+        self.use_criteria(["The value is after."])
+        r, cov = self.run_scorer()                                    # no key: the model is needed
+        self.assertEqual(cov["status"], "unavailable")
+
+
 if __name__ == "__main__":
     unittest.main()
