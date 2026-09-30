@@ -68,7 +68,7 @@ Examples:
 - "Multi-axis classifier shipped end-to-end. 3,233/3,323 nouns now carry real entity_type values. Browse pages render the live distribution. PostgREST 1000-row cap workaround landed."
 - "Wrote the Strike Graph reseller v4 contract. Added MSA addendum for the 70/30 split. Filed both in 01 – Admin & Legal."
 
-If `/session-review` published a session record for this session (SM-004), link its folder here by path. Link it; never restate what it says.
+Link the session review from Step 3.7 by its folder path, and a published session record too if one exists (SM-004, SM-006). Link them; never restate what they say.
 
 #### b. Open work, in priority order
 
@@ -175,6 +175,14 @@ A lesson written down is not a lesson applied: a rule read once at session start
 | id | date | what | caught_by | evidence | disposition | target | repeats |
 |---|---|---|---|---|---|---|---|
 ```
+
+### Step 3.7: Review this session with code (SM-006)
+
+Run the session review exactly as `commands/session-review.md` steps 1 to 4 describe, with no prompt from the person: `session_record.py capture --from-hook <session_id>` (the capture hook fired when `/session-end` was typed, so the record ends there), then `review-prompt`, then the review draft in staging, then `review-finalize`. Never run `publish-prepare` or `publish` here; publishing stays a separate step on the person's word.
+
+- Keep the review folder path and its `validation_status` for the handoff and the Step 8 report.
+- If the session was already captured, the capture is reused and says the line it ends at; say that the review covers the session only up to that line.
+- If the capture or finalize refuses (no hook record, no user messages, a validation failure), put its reason in one line in the Step 8 report and carry on. The handoff is still written; a failed review never blocks it.
 
 ### Step 4: Compose the handoff document
 
@@ -418,6 +426,10 @@ README updates written + committed:
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
+
+## Session reviewed
+
+[The Step 3.7 review folder, its validation status, and its proposals listed by id and one line each for Dorian. Nothing was promoted or published. Or the one-line reason the review didn't run.]
 
 ## Vault updated via /obsidian-update
 

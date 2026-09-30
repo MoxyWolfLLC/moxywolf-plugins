@@ -1,5 +1,5 @@
 ---
-description: End a Cowork session — write the project handoff that /session-start will read tomorrow, refresh each writable GitHub repo's README.md, then run /obsidian-update to capture durable knowledge into the MoxyWolf vault.
+description: End a Cowork session — review the session from its captured record, write the project handoff that /session-start will read tomorrow, refresh each writable GitHub repo's README.md, then run /obsidian-update to capture durable knowledge into the MoxyWolf vault.
 ---
 
 Run the session-end skill to wrap a Cowork session and persist a handoff for next time. Then automatically run `/obsidian-update` to capture durable knowledge into the MoxyWolf Obsidian vault.
@@ -8,7 +8,8 @@ The skill assumes the project has a saved `cowork-project-instructions.md` in it
 
 1. Resolves which project — uses the argument after `/session-end` if provided, otherwise infers from currently-mounted folders, or lists candidates and asks.
 2. Scans the current Cowork conversation to extract: what shipped this session, what's still open in priority order, the commit/push state of the active repo(s) — Claude commits and pushes directly during the session via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005), so this is normally a list of commits that landed this session — production-data state changes, procedural reminders.
-3. Composes a handoff document in the canonical structure (frontmatter + `What landed` + `Open work` + `Commit & push state` + `Procedural reminders` + `Suggested opening line`).
+3. **Reviews the session with code (SM-006)**: captures it, writes a review from the captured record, validates and freezes it in staging, exactly as `/session-review` does, and never publishes. A review that can't run is reported in one line and doesn't block the handoff.
+3a. Composes a handoff document in the canonical structure (frontmatter + `What landed` + `Open work` + `Commit & push state` + `Procedural reminders` + `Suggested opening line`).
 4. Writes it to **`[project]/00 – Project Hub/cowork-session-handoff.md`** — single canonical filename, overwritten each session, Drive versioning preserves history.
 5. (Optional) `--archive` flag also writes a dated archive copy to `00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md`.
 6. **Refreshes each writable GitHub repo's `README.md`** (Step 5c) against the canonical 16-section structure — Header + badges, TOC, Environments, Quick Start, Architecture (Mermaid), Database Schema (ERD), Data Initialization, Key Features, API / Server Actions, Common Workflows, Troubleshooting, Security, Technology Stack (per the vault's current TECH-STACK reference), Project Structure, Deployment, License. Read-only repos are skipped. The README refresh is committed directly as its own atomic commit and listed in the handoff's commit/push state.
@@ -18,4 +19,4 @@ The skill assumes the project has a saved `cowork-project-instructions.md` in it
 
 Pairs with `/session-start`, which reads `cowork-session-handoff.md` and surfaces the open-work and suggested-opening-line in the session-start briefing.
 
-**Session record (SM-004).** If `/session-review` published a package for this session, link it in the handoff's `What landed` section by its folder path. Link it; never restate what it says.
+**Session record (SM-004, SM-006).** The handoff's `What landed` section links the review from step 3 by its folder path, and a published package too if one exists. Link them; never restate what they say.

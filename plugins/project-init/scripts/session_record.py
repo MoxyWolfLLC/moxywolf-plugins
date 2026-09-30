@@ -14,6 +14,7 @@ from pathlib import Path
 
 SCHEMA = "sm004.v1"
 COMMAND = "project-init:session-review"
+HOOKED = {COMMAND, "project-init:session-end"}   # SM-006: /session-end runs the review too
 REASONING = {"thinking", "redacted_thinking"}
 META_TYPES = {"queue-operation", "attachment", "atis-latch", "last-prompt", "ai-title", "mode",
               "permission-mode", "system", "file-history-snapshot", "cost-state", "summary"}
@@ -280,8 +281,8 @@ def write_private(path, data, append=False):
 
 
 def cmd_hook_expansion(payload):
-    """UserPromptExpansion for project-init:session-review: identity and the boundary, nothing else."""
-    if payload.get("command_name") != COMMAND:
+    """UserPromptExpansion for /session-review and /session-end: identity and the boundary, nothing else."""
+    if payload.get("command_name") not in HOOKED:
         return None
     tp = payload.get("transcript_path")
     size = Path(tp).stat().st_size if tp and Path(tp).exists() else 0
