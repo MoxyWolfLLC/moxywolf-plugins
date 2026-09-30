@@ -187,6 +187,35 @@ def test_a_same_family_reviewer_is_never_chosen_and_each_rejection_says_why():
     assert len({pr.family(r1), pr.family(r2), "claude"}) == 3
 
 
+def test_readiness_is_a_real_call_and_a_failure_is_the_reason():
+    real = pr.run_reviewer
+    def fake(tool, prompt, root, timeout, schema=None):
+        if tool == "codex":
+            return '{"ok": true}', "gpt-6-astra"
+        raise pr.ReviewError("review_unavailable", f"{tool} exited 1: not authenticated")
+    pr.run_reviewer = fake
+    try:
+        assert d.ready("codex") == (True, "answered as gpt-6-astra")
+        ok, why = d.ready("gemini")
+        assert not ok and why == "review_unavailable: gemini exited 1: not authenticated", why
+        try:
+            d.choose("claude")
+            raise AssertionError("only codex answered; the loop must not start")
+        except SystemExit as e:
+            assert "gemini (gemini): review_unavailable: gemini exited 1: not authenticated" in str(e), str(e)
+    finally:
+        pr.run_reviewer = real
+
+
+def test_a_status_or_stance_without_a_reason_is_malformed():
+    L = Loop()
+    L.rev("r1", reply(new=[("material", "finding", "x")]))
+    bare = json.dumps({"verdict": "REVISE", "open_findings": [{"id": "R1-r1-1", "status": "still_open"}],
+                       "stances": [{"id": "R1-r1-1", "stance": "disagree"}], "new_findings": []})
+    s = L.rev("r2", bare, bare)
+    assert s["outcome"] == "incomplete" and "reason" in s["failure"]["why"], s["failure"]
+
+
 def test_a_constraint_violation_is_kept_and_a_policy_proposal_set_aside():
     L = Loop()
     s = L.rev("r1", reply(new=[("material", "finding", "violates the no-n8n constraint"),

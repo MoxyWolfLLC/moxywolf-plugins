@@ -66,30 +66,24 @@ def log(s, text):
         f.write(text.rstrip("\n") + "\n\n")
 
 
+PING = {"type": "object", "additionalProperties": False, "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}
+
+
 def ready(tool):
-    """(ok, why). Cheap checks that need no model call. codex: its own login status; an OpenRouter
-    entry: the key authenticates against /key. claude and gemini: the binary is present; their
-    auth isn't probed here, so an auth failure surfaces on the first call as `incomplete`.
-    ponytail: presence-only for two CLIs; add a probe if one fails mid-loop in practice."""
-    cfg = pr.REVIEWERS[tool]
-    if cfg["transport"] == "openrouter":
-        try:
-            key = pr.openrouter_key()
-        except pr.ReviewError as e:
-            return False, f"no OpenRouter key ({e.detail})"
-        import urllib.request
-        req = urllib.request.Request(pr.OPENROUTER_URL.rsplit("/chat/", 1)[0] + "/key", headers={"Authorization": f"Bearer {key}"})
-        try:
-            urllib.request.urlopen(req, timeout=20).read()
-            return True, "key accepted"
-        except Exception as e:  # any refusal here is a reason, never a pass
-            return False, f"OpenRouter refused the key or wasn't reachable: {e}"
-    if not pr.shutil.which(tool):
-        return False, f"{tool} CLI not on PATH"
-    if tool == "codex":
-        r = pr.subprocess.run(["codex", "login", "status"], capture_output=True, text=True, stdin=pr.subprocess.DEVNULL)
-        return (r.returncode == 0, "logged in" if r.returncode == 0 else f"codex login status exited {r.returncode}: {(r.stdout + r.stderr).strip()[-200:]}")
-    return True, "binary present; auth not probed"
+    """(ok, why). One tiny real call through the same path a review uses, so a candidate is ready only
+    if its CLI or key, its auth, its configured model and the model floor all answer (criterion 4).
+    A failure's own words become the reason."""
+    import tempfile
+    try:
+        text, model = pr.run_reviewer(tool, 'Readiness check. Reply with {"ok": true} and nothing else.',
+                                      Path(tempfile.mkdtemp()), 300, PING)
+        if json.loads(text).get("ok") is True:
+            return True, f"answered as {model}"
+        return False, f"answered, but not with ok: true ({text[:80]!r})"
+    except pr.ReviewError as e:
+        return False, f"{e.outcome}: {e.detail}"
+    except (ValueError, AttributeError) as e:
+        return False, f"unreadable readiness reply: {e}"
 
 
 def choose(writer, probe=ready):
@@ -133,8 +127,9 @@ def validate(s, slot, reply, new_r1):
     for k in ("open_findings", "stances", "new_findings"):
         if not isinstance(reply.get(k), list) or not all(isinstance(x, dict) for x in reply[k]):
             raise Malformed(f"{k} must be a list of objects")
-        if k != "new_findings" and not all(isinstance(x.get("id"), str) for x in reply[k]):
-            raise Malformed(f"every {k} entry needs a string id")
+        if k != "new_findings" and not all(isinstance(x.get("id"), str) and isinstance(x.get("reason"), str)
+                                           and x["reason"].strip() for x in reply[k]):
+            raise Malformed(f"every {k} entry needs a string id and a reason")
     must = set(open_ids(s))   # reviewer 2 included: reviewer 1's new findings are open too
     seen = {o["id"] for o in reply["open_findings"]}
     if must - seen:
