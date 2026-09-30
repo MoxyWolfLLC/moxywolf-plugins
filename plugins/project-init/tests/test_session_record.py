@@ -227,7 +227,7 @@ class Finality(Base):
         self.stop("something else entirely")
         self.capture()
         self.assertFalse(self.manifest()["capture_boundary_checked"])
-        self.assertIn("matching the Stop hash was not found", self.reasons())
+        self.assertIn("doesn't match its Stop hash", self.reasons())
 
     def test_the_latest_stop_before_the_expansion_is_used_not_the_expansions_own(self):
         self.write(user("work", pid="p1"), asst("reply one"))
@@ -240,25 +240,45 @@ class Finality(Base):
         self.assertTrue(m["capture_boundary_checked"])
         self.assertEqual(m["stop_record"]["prompt_id"], "p1")
 
-    def test_a_last_line_landing_after_the_hook_reconciles_and_one_after_the_review_turn_is_partial(self):
+    def test_a_last_line_landing_after_the_hook_is_not_captured_and_the_capture_says_so(self):
+        """Review F1: the hook's boundary never moves, even for the line the Stop record names."""
         self.write(user("work", pid="p1"))
         self.stop("final words")
         self.expand()
+        size = self.tr.stat().st_size
         with open(self.tr, "ab") as f:
             f.write(asst("final words") + review_line())
         quiet(sr.main, ["capture", "--from-hook", SID])
+        self.assertEqual(self.manifest()["captured_bytes"], size)
+        self.assertFalse(self.manifest()["capture_boundary_checked"])
+        self.assertIn("landed after the boundary", self.reasons())
+
+    def test_a_matching_reply_from_an_earlier_turn_proves_nothing(self):
+        """Review F2: the same words in another turn don't make this turn final."""
+        self.write(user("one", pid="p1"), asst("ok"), user("two", pid="p2"), asst("ok"), asst(tool_use("t9", command="ls")))
+        self.stop("ok", pid="p2")
+        self.write(user("one", pid="p1"), asst("ok"), user("two", pid="p2"), asst("working"), asst("still going"))
+        self.capture()
+        self.assertFalse(self.manifest()["capture_boundary_checked"])
+        self.assertIn("doesn't match its Stop hash", self.reasons())
+
+    def test_an_explicit_capture_waits_for_the_stop_line_within_one_deadline(self):
+        """Review F3: stability alone doesn't end the wait while the Stop line is missing."""
+        self.write(user("work", pid="p1"))
+        self.stop("late reply")
+        def writer(delay):
+            time.sleep(delay)
+            with open(self.tr, "ab") as f:
+                f.write(asst("late reply"))
+        t = threading.Thread(target=writer, args=(0.4,)); t.start()
+        self.capture(); t.join()
         self.assertTrue(self.manifest()["capture_boundary_checked"])
-        self.assertIn("final words", [e["content"].get("text") for e in self.events()])
-        # too late: the line lands after the review turn has started
         self.cleanup(); self.setUp()
         self.write(user("work", pid="p1"))
-        self.stop("final words")
-        self.expand()
-        with open(self.tr, "ab") as f:
-            f.write(review_line() + asst("final words"))
-        quiet(sr.main, ["capture", "--from-hook", SID])
+        self.stop("late reply")
+        t = threading.Thread(target=writer, args=(1.6,)); t.start()
+        self.capture(); t.join()
         self.assertFalse(self.manifest()["capture_boundary_checked"])
-        self.assertIn("not found", self.reasons())
 
     def test_the_hash_is_compared_before_redaction(self):
         reply = f"here is the key {FAKE_GH}"
@@ -357,6 +377,52 @@ class Parsing(Base):
         self.assertEqual(self.by_type("message")[1]["parse_status"], "invalid_unicode")
 
 
+class Hardening(Base):
+    def test_an_unsafe_session_id_writes_nothing_outside_staging(self):
+        """Review F8."""
+        self.write(user("work"), asst("ok"))
+        rc, _, err = self.capture(sid="../../escape")
+        self.assertEqual(rc, 2); self.assertIn("safe session identifier", err)
+        self.hook("hook-stop", hook_event_name="Stop", session_id="/tmp/abs", prompt_id="p", last_assistant_message="x")
+        self.assertFalse(Path("/tmp/abs.jsonl").exists())
+        self.assertFalse((self.tmp / "escape").exists())
+
+    def test_a_base64_document_is_measured_on_its_decoded_bytes(self):
+        """Review F9."""
+        pdf = b"%PDF-1.4 fake body"
+        doc = {"type": "document", "title": "spec.pdf", "source": {"type": "base64", "media_type": "application/pdf",
+                                                                    "data": base64.b64encode(pdf).decode()}}
+        self.write(L(type="user", promptId="p1", message={"role": "user", "content": [{"type": "text", "text": "read"}, doc]}))
+        self.capture()
+        att = [e for e in self.events() if e["event_type"] == "attachment"][0]["content"]
+        self.assertEqual((att["bytes"], att["sha256"], att["name"]), (len(pdf), sr.sha(pdf), "spec.pdf"))
+
+    def test_a_block_after_an_excluded_reasoning_block_keeps_its_source_index(self):
+        """Review F10."""
+        self.write(user("work"), asst({"type": "thinking", "thinking": "x"}, "answer"))
+        self.capture()
+        msg = [e for e in self.events() if e["content"].get("text") == "answer"][0]
+        self.assertEqual(msg["source_block_index"], 1)
+
+    def test_redactions_in_kept_system_content_are_recorded(self):
+        """Review F11."""
+        self.write(user("work"), L(type="system", subtype="permission_denied", level="error", content=f"denied with {FAKE_GH}"))
+        self.capture()
+        ev = [e for e in self.events() if e["event_type"] == "system_entry"][0]
+        self.assertNotIn(FAKE_GH, json.dumps(ev)); self.assertTrue(ev["redactions"])
+        self.assertEqual(self.manifest()["redaction"]["count"], 1)
+
+    def test_an_error_result_renders_from_its_own_event_fields(self):
+        """Review F12: excerpt, full byte count and full hash come from the event, not the source line."""
+        err = "boom: " + ("e" * 5000) + f" {FAKE_GH}"
+        self.write(user("work"), asst(tool_use("t1", command="make")), result("t1", err, error=True))
+        self.capture()
+        ev = [e for e in self.events() if e["event_type"] == "tool_result"][0]["content"]
+        self.assertEqual((ev["source_bytes"], ev["sha256"], ev["truncated"]), (len(err), sr.sha(err.encode()), True))
+        md = (self.cap_dir() / "record.md").read_text()
+        self.assertIn("boom:", md); self.assertIn(ev["sha256"][:16], md); self.assertNotIn(FAKE_GH, md)
+
+
 class Exclusion(Base):
     def test_reasoning_is_absent_from_every_output_and_never_counted(self):
         self.write(user("work"), asst({"type": "thinking", "thinking": "PRIVATE-REASONING-7"},
@@ -421,13 +487,18 @@ class PublishBase(Base):
         self.assertEqual(rc, 0, err)
         return self.cap_dir()
 
+    def a_review(self):
+        rc, out, err = self.finalize_review(self.draft())
+        self.assertEqual(rc, 0, err)
+        return Path(json.loads(out)["review"])
+
     def prepare(self, *extra, review=None):
-        args = ["publish-prepare", "--capture", str(self.cap_dir()), "--audience", "Dorian", *extra]
-        if review:
-            args += ["--review", str(review)]
+        review = review or self.a_review()
+        args = ["publish-prepare", "--capture", str(self.cap_dir()), "--audience", "Dorian", "--review", str(review), *extra]
         rc, out, err = quiet(sr.main, args)
         self.assertEqual(rc, 0, err)
         prep = json.loads(out)
+        prep["candidate_content_sha256"] = prep["approval_digest"]      # what the owner confirms
         return self.cap_dir().parent / "publications" / prep["publication_id"], prep
 
     def publish(self, pub, digest, dest=None):
@@ -440,13 +511,16 @@ class PublishBase(Base):
         ev = self.events()[0]["event_id"]
         body = "\n\n".join(f"## {i}. {s}\n\nNothing to report. ev:{ev[:12]}" for i, s in enumerate(sr.SECTIONS, 1))
         (d / "review.md").write_text(over.get("review", body))
-        (d / "proposals.jsonl").write_text(json.dumps({"proposal_id": "P1", "evidence_event_ids": [f"ev:{ev[:12]}"],
-                                                       "classification": "check", "scope": "x"}) + "\n")
+        (d / "proposals.jsonl").write_text(over.get("proposals", json.dumps({"proposal_id": "P1", "evidence_event_ids": [f"ev:{ev[:12]}"],
+                                                       "classification": "check", "scope": "x", "expected_benefit": "b",
+                                                       "risk": "low", "reversibility": "easy", "owner": "Dorian"}) + "\n"))
         (d / "observed.jsonl").write_text(over.get("observed", ""))
         return d
 
     def finalize_review(self, d, *extra):
-        return quiet(sr.main, ["review-finalize", "--capture", str(self.cap_dir()), "--draft", str(d),
+        rc, _, err = quiet(sr.main, ["review-prompt", "--capture", str(self.cap_dir())])
+        psha = err.split("prompt_sha256=")[1].split()[0]
+        return quiet(sr.main, ["review-finalize", "--capture", str(self.cap_dir()), "--draft", str(d), "--prompt-sha256", psha,
                                "--tool", "claude", "--model", "m", "--family", "anthropic", *extra])
 
 
@@ -614,6 +688,89 @@ class Review(PublishBase):
         self.assertEqual(sr.resolve({"kind": "pr", "identifier": "2", "repository": "o/r"}, {})["status"], "not_found")
         os.environ.pop("GITHUB_TOKEN")
         self.assertEqual(sr.resolve({"kind": "pr", "identifier": "2", "repository": "o/r"}, {})["status"], "resolver_unavailable")
+
+
+class ReviewRules(PublishBase):
+    def test_empty_uncited_and_incomplete_reviews_fail_validation(self):
+        """Review F13."""
+        self.captured()
+        ev = self.events()[0]["event_id"][:12]
+        secs = [f"## {i}. {t}\n\nNothing to report." for i, t in enumerate(sr.SECTIONS, 1)]
+        empty = list(secs); empty[2] = f"## 3. {sr.SECTIONS[2]}\n\n"
+        uncited = list(secs); uncited[1] = f"## 2. {sr.SECTIONS[1]}\n\nWe shipped the gate."
+        for body, want in (("\n\n".join(empty), "section 3 is empty"), ("\n\n".join(uncited), "section 2 makes claims")):
+            rc, _, err = self.finalize_review(self.draft(review=body))
+            self.assertEqual(rc, 2); self.assertIn(want, err)
+        rc, _, err = self.finalize_review(self.draft(proposals=json.dumps({"proposal_id": "P1", "evidence_event_ids": [f"ev:{ev}"],
+                                                                           "classification": "check"}) + "\n"))
+        self.assertEqual(rc, 2); self.assertIn("missing", err)
+
+    def test_code_adds_the_no_promotion_line_and_binds_the_prompt(self):
+        """Criterion 15 and review F14."""
+        self.captured()
+        rv = self.a_review()
+        self.assertIn(sr.NO_PROMOTION, (rv / "review.md").read_text())
+        run = json.loads((rv / "review-run.json").read_text())
+        self.assertRegex(run["prompt_sha256"], r"^[0-9a-f]{64}$"); self.assertTrue(run["started_at"])
+        rc, _, err = quiet(sr.main, ["review-finalize", "--capture", str(self.cap_dir()), "--draft", str(self.draft()),
+                                     "--prompt-sha256", "0" * 64, "--tool", "t", "--model", "m", "--family", "f"])
+        self.assertEqual(rc, 2); self.assertIn("run review-prompt first", err)
+
+    def test_revision_mismatches_are_mismatch_not_verified(self):
+        """Review F15: a CI run at another head, and a review of another head."""
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = json.dumps({"id": 7, "head_sha": "bbbb"}).encode()
+                self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+            def log_message(self, *a):
+                pass
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        os.environ.update(GITHUB_TOKEN="t", SESSION_RECORD_GITHUB_API=f"http://127.0.0.1:{srv.server_address[1]}")
+        self.addCleanup(lambda: [os.environ.pop(k, None) for k in ("GITHUB_TOKEN", "SESSION_RECORD_GITHUB_API")])
+        self.assertEqual(sr.resolve({"kind": "ci_run", "identifier": "7", "repository": "o/r", "expected_revision": "aaaa"}, {})["status"], "mismatch")
+        self.assertEqual(sr.resolve({"kind": "ci_run", "identifier": "7", "repository": "o/r", "expected_revision": "bbbb"}, {})["status"], "verified")
+        rd = self.tmp / "reviews" / "20260929-000000-abc-x"
+        rd.mkdir(parents=True)
+        (rd / "state.json").write_text(json.dumps({"review_id": rd.name, "outcome": "fixes_verified", "heads": [["cccc"]]}))
+        os.environ["GSTACK_PEER_REVIEW_DIR"] = str(self.tmp / "reviews")
+        self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
+        self.assertEqual(sr.resolve({"kind": "review_id", "identifier": rd.name, "expected_revision": "dddd"}, {})["status"], "mismatch")
+        self.assertEqual(sr.resolve({"kind": "review_id", "identifier": rd.name, "expected_revision": "cccc"}, {})["status"], "verified")
+
+    def test_publishing_needs_a_valid_review_of_this_capture(self):
+        """Review F4."""
+        self.captured()
+        rc, _, err = quiet(sr.main, ["publish-prepare", "--capture", str(self.cap_dir()), "--audience", "Dorian"])
+        self.assertEqual(rc, 2); self.assertIn("needs a finalized review", err)
+
+    def test_the_confirmation_binds_the_audience_and_the_scanner_config(self):
+        """Review F5 and F7."""
+        self.captured()
+        pub, prep = self.prepare()
+        pj = pub / "prepare.json"
+        env = json.loads(pj.read_text()); env["audience"] = "Everyone"; pj.write_text(json.dumps(env))
+        rc, _, err = self.publish(pub, prep["approval_digest"])
+        self.assertEqual(rc, 2); self.assertIn("isn't the one prepare showed", err)
+        old = sr.GITLEAKS_CONFIG_SHA256
+        sr.GITLEAKS_CONFIG_SHA256 = "0" * 64
+        try:
+            rc, _, err = quiet(sr.main, ["publish-prepare", "--capture", str(self.cap_dir()), "--audience", "Dorian",
+                                         "--review", str(self.a_review())])
+        finally:
+            sr.GITLEAKS_CONFIG_SHA256 = old
+        self.assertEqual(rc, 2); self.assertIn("pinned sha256", err)
+
+    def test_the_receipt_is_scanned_and_the_package_matches_its_hashes(self):
+        """Review F6: everything published but hashes.sha256 was in the scanned candidate."""
+        self.captured()
+        pub, prep = self.prepare()
+        rc, out, err = self.publish(pub, prep["approval_digest"])
+        self.assertEqual(rc, 0, err)
+        published = Path(json.loads(out)["published"])
+        sr.verify_hashes(published)
+        self.assertTrue((published / "publish-receipt.json").exists())
 
 
 class Determinism(Base):

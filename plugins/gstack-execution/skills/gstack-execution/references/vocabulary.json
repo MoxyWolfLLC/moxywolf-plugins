@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -487,6 +487,13 @@
       "group": "mistake_disposition",
       "skos:prefLabel": "One-off",
       "skos:definition": "recorded in the handoff only; not expected to recur"
+    },
+    {
+      "id": "evaluation_case",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "mistake_disposition",
+      "skos:prefLabel": "Became an evaluation case",
+      "skos:definition": "a repeated failure became a regression case that fails on a recurrence; the entry names the case by path (SM-004 criterion 15)"
     }
   ]
 }
