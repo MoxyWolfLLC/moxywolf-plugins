@@ -1330,6 +1330,19 @@ SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code 
 12. `gstack-execution` moves a minor version in `plugin.json` and its `marketplace.json` entry, and the top-level marketplace version moves (CI-002), by surgical text replace.
 13. In CI, `run_all_tests.py` reports a nonzero count of what it examined, names the new test among the suites it ran, and reports no failures.
 
+### XE-032 — A plugin name that contains a place word is not the place
+
+**Status:** planned. Declared on Dorian's instruction of 2026-09-30 ("do all three in the order you choose"), after DG-001's review open was refused on its own version criterion.
+
+**Links introduced:** none. The pattern is a constant; nothing new is stored.
+
+XE-025's `OFF_REPO` matches `vault` with `\b`, and a hyphen is a word boundary. So DG-001 criterion 9, which names the `excalidraw-vault` plugin's own `plugin.json`, was refused as a claim about the vault, and the review opened only with `--accept-off-repo-criterion`. An override that fires on a correct criterion teaches the builder to reach for it, which is how the gate stops meaning anything.
+
+1. `OFF_REPO` matches a place word only when it stands alone: not joined to other word characters by a hyphen, slash, underscore or a dot followed by more word characters. `excalidraw-vault`, `vault/x`, `mac_os_x` and `mac.py` don't match. `the vault`, `the vault.`, `the vault's`, `locally,` and `on the Release Owner's Mac` still do.
+2. `test_off_repo_criterion.py` gains cases for every example in criterion 1, including DG-001 criterion 9's exact text opening without the override, and XE-025's existing five cases still pass.
+3. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a version with XE-031's change, and the top-level marketplace version moves (CI-002).
+4. In CI, `run_all_tests.py` reports a nonzero count of what it examined and no failures.
+
 ## Tenth objective: external intake
 
 Opened 2026-09-30. Dorian passed four outside links to `/session-start` and asked where they fit. Each got a fit note in `Taskade/Team Plugins/06 – Engineering/` (`archify-`, `prompt-master-`, `coderabbit-` and `timesfm-fit-2026-09-30.md`), written from the source, not the README. Two carry an idea worth porting. Two don’t belong in this marketplace, and this objective records why so a later session doesn’t reopen them.
@@ -1343,7 +1356,7 @@ The rules are the ones earlier intakes set. A native runtime behind a thin skill
 
 ### DG-001 — A diagram of a repository cites the code that proves it
 
-**Status:** building.
+**Status:** done. Merged to `main` in `92eeb51` (PR #92, head `95c560c`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260930-154626-456d216-_n3mdllw` (codex/gpt-6-astra, `fixes_verified`, 2 rounds, 10/10, coverage `covered`): round 1 found the Sources parser skipping any row named `element`, fixed in `95c560c`. An earlier review, `20260930-153702-ccb6e26-6a23tvw8`, found three blockers (directory citations, drift for spaced paths, the skill's missing not-taken list), all fixed in `456d216` and verified; it opened without a coverage report, so it isn't the release record.
 
 **Links introduced:** the diagram note’s frontmatter names a commit (`repo_head`), and each row of its `## Sources` table names `path:start-end` at that commit. Both re-resolve on demand with `check_repo_diagram.py`, which reads the pinned commit, never the working tree. That validates the citations as history, not freshness: a row that resolved at `repo_head` always will. Drift against current code is a separate, informational report (criterion 6), never a failed citation.
 
@@ -1428,6 +1441,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: XE-032 declared on Dorian's instruction ("do all three in the order you choose"), which Claude read as covering PG-001, XE-031 and this fix, and said so before starting. It narrows XE-025's `OFF_REPO` so a plugin named `excalidraw-vault` isn't read as the vault. DG-001 marked done in the same commit, per the one-approval-per-change rule.
 - 2026-09-30: XE-031 revised from round 2 of Dorian’s hand-run review. Finding IDs persist and every reply accounts for every open finding; only the raising reviewer closes a material finding; stalls compare finding state; a mid-loop reviewer failure ends `incomplete` with no substitute; a finding that the draft violates a settled constraint is kept, and only a proposal to change one is set aside for Dorian. Both reviewers asked for nothing more on DG-001 or PG-001.
 - 2026-09-30: Revised by Claude from Dorian’s two-reviewer pass on the draft, run by hand. Accepted: DG-001 checks element-to-row completeness, origin against `--repo`, reads only `repo_head`, and reports drift apart from failures; SM-006 back to `review` until its release record is cited; B-a and B-b results recorded under *Boundary tests* with the stale “not in force until B-a” sentence replaced; merge authority stated as two required signals. Log: `06 – Engineering/DESIGN-REVIEW-LOG-2026-09-30.md`.
 - 2026-09-30: XE-031 drafted by Claude on Dorian's request for a two-reviewer round-robin over design docs, pending his approval. It extends `/gstack-plan-review` rather than adding a second loop. Criterion 6, ending early after two stalled rounds, is Claude's addition and is Dorian's to keep or strike.
