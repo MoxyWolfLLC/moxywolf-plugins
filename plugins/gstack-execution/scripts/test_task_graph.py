@@ -53,10 +53,11 @@ print(json.dumps(r))
         return dict(id=id,depends_on=deps,inputs=deps+['packet'],outputs=[id+'.json'],effects=['local_report'] if kind=='report' else ['external_review'],on_failure='block',kind=kind,checks=[id],command=self.command,**extra)
     def call(self,*args):
         return subprocess.run([sys.executable,str(SCRIPT),*args],text=True,capture_output=True)
-    def execute(self,cap=2,audit=False):
+    def execute(self,cap=2,audit=False,grants=None):
         self.pfile.write_text(json.dumps(self.packet));self.wfile.write_text(json.dumps(self.graph))
         args=['run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs',str(cap)]
         if audit:args.append('--audit-writes')
+        if grants:args+=['--grants',str(grants)]
         return self.call(*args)
 
     def test_audit_fails_a_node_writing_outside_its_declared_outputs(self):
@@ -207,6 +208,18 @@ print(json.dumps(r))
         self.ok(self.execute())
         self.assertEqual(json.loads((self.run/'state.json').read_text())['egress']['examined'],1)
         self.assertTrue((self.run/'prepare.json').exists(),'a granted run writes the file the refused one did not')
+    def test_a_ledger_grant_covers_a_node_destination(self):
+        """Review F2: a net.connect grant in the ledger passes the run; one for another host does not."""
+        sys.path.insert(0,str(SCRIPT.parent)); import governance
+        self.graph['nodes'][0]['destinations']=['https://example.org/api']
+        ledger=self.root/'grants.jsonl'
+        governance.grant(ledger,'net.connect','other.example',granted_by='dorianatmoxywolf')
+        r=self.execute(grants=ledger);self.assertNotEqual(r.returncode,0)
+        self.assertIn('NetConnectGrant(host=example.org) required',r.stderr)
+        self.assertFalse((self.run/'prepare.json').exists(),'no worker ran')
+        governance.grant(ledger,'net.connect','example.org',granted_by='dorianatmoxywolf')
+        self.ok(self.execute(grants=ledger))
+        self.assertTrue((self.run/'prepare.json').exists())
     def test_oversight_is_separate_from_machine_results(self):
         self.ok(self.execute())
         evidence=self.root/'decision.txt';evidence.write_text('Human stopped publication.')

@@ -43,6 +43,18 @@ def test_refusal_is_the_default_with_no_policy_at_all():
             pass
 
 
+def test_a_policy_that_is_not_a_list_of_patterns_is_refused():
+    """Review F1: a scalar "*.example.org" must not become a '*' that grants every host."""
+    for bad in ("*.example.org", ["ok.example", ""], [None], {"host": "*"}):
+        try:
+            g.check_egress({"data_use": {"destinations": bad}}, ["https://unrelated.example"])
+            raise AssertionError(f"{bad!r} authorized an unrelated host")
+        except g.MissingGrantError:
+            raise AssertionError(f"{bad!r} should be refused as a malformed policy, not as a missing grant")
+        except ValueError as e:
+            assert "must be a list" in str(e)
+
+
 def test_the_check_reports_what_it_examined():
     r = g.check_egress(PACKET, ["https://api.github.com/a", "https://API.GITHUB.COM/b", "x.openrouter.ai"])
     assert (r["examined"], r["granted"], r["hosts"]) == (3, 3, ["api.github.com", "x.openrouter.ai"])

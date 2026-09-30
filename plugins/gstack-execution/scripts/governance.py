@@ -127,7 +127,11 @@ def destination_host(destination):
 
 def check_egress(packet, destinations, ledger=None, session=None):
     """Every destination must be granted. Returns what it examined; raises on the first refusal."""
-    patterns = [str(p).lower() for p in packet.get('data_use', {}).get('destinations', [])]
+    declared = packet.get('data_use', {}).get('destinations', [])
+    # Review F1: a string here would be read one character at a time, and its '*' would grant everything.
+    if not isinstance(declared, list) or not all(isinstance(p, str) and p.strip() for p in declared):
+        raise ValueError('data_use.destinations must be a list of non-empty host patterns')
+    patterns = [p.strip().lower() for p in declared]
     examined = []
     for dest in destinations:
         host = destination_host(dest)

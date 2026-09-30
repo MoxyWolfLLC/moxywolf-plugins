@@ -366,7 +366,7 @@ def undeclared_writes(before,after,node):
     return sorted(rel for rel,h in after.items() if before.get(rel)!=h and rel not in declared)
 
 
-def execute(graph,packet,root,jobs,audit=False):
+def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
     if audit:jobs=1  # a write cannot be attributed to a node while another node is writing
     if not 1<=jobs<=16:raise ValueError('concurrency cap must be 1..16')
     permission(packet,output=root)
@@ -374,7 +374,7 @@ def execute(graph,packet,root,jobs,audit=False):
     for n in graph['nodes']:
         if n['kind']!='report':permission(packet,tool=None if n.get('command') or n['kind']=='proof' else (peer.OTHER_TOOL[packet['builder']] if n['kind'] in {'checker','peer'} else packet['builder']),command=n.get('command',n.get('argv')))
     # TB-003: a node's declared network destinations are granted, or the run never starts.
-    egress=check_egress(packet,[d for n in graph['nodes'] for d in n.get('destinations',[])])
+    egress=check_egress(packet,[d for n in graph['nodes'] for d in n.get('destinations',[])],ledger=grants,session=session)
     root.mkdir(parents=True,exist_ok=True)
     with lock(root/'run.lock'):
         state=read(root/'state.json') if (root/'state.json').exists() else {'nodes':{}}
@@ -488,6 +488,8 @@ def main():
         if name=='run':
             a.add_argument('--run-dir',required=True);a.add_argument('--jobs',type=int,default=3)
             a.add_argument('--audit-writes',action='store_true',help='serial run that fails a node writing outside its declared outputs')
+            a.add_argument('--grants',help='grant ledger (governance.grant) whose net.connect grants cover node destinations')
+            a.add_argument('--session',help='session id for session-scoped grants')
     a=sub.add_parser('export');a.add_argument('--run-dir',required=True);a.add_argument('--output',required=True)
     a=sub.add_parser('observe');a.add_argument('--run-dir',required=True);a.add_argument('--decision',required=True,choices=['signed','stopped','overridden','edited']);a.add_argument('--evidence',required=True);a.add_argument('--action',required=True);a.add_argument('--requested-at',default='');a.add_argument('--gate-log')
     a=sub.add_parser('oversight');a.add_argument('--run-dir',required=True)
@@ -497,7 +499,7 @@ def main():
         if a.cmd in {'plan','run'}:
             packet=packet_from(a.packet);graph=compile_graph(a.workflow,packet)
             if a.cmd=='plan':print(json.dumps(graph,indent=2));return 0
-            return execute(graph,packet,Path(a.run_dir).resolve(),a.jobs,getattr(a,'audit_writes',False))
+            return execute(graph,packet,Path(a.run_dir).resolve(),a.jobs,getattr(a,'audit_writes',False),getattr(a,'grants',None),getattr(a,'session',None))
         root=Path(a.run_dir).resolve()
         if a.cmd=='export':export(root,a.output)
         elif a.cmd=='observe':observe(root,a.decision,a.evidence,a.action,a.requested_at,a.gate_log)
