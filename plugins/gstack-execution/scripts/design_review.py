@@ -69,31 +69,38 @@ def log(s, text):
 PING = {"type": "object", "additionalProperties": False, "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}
 
 
-def ready(tool):
+def ready(tool, calls=None):
     """(ok, why). One tiny real call through the same path a review uses, so a candidate is ready only
     if its CLI or key, its auth, its configured model and the model floor all answer (criterion 4).
     A failure's own words become the reason."""
     import tempfile
+    model, result = None, None
+    pr.LAST_REVIEWER_USAGE = "not_reported"
     try:
         text, model = pr.run_reviewer(tool, 'Readiness check. Reply with {"ok": true} and nothing else.',
                                       Path(tempfile.mkdtemp()), 300, PING)
-        if json.loads(text).get("ok") is True:
-            return True, f"answered as {model}"
-        return False, f"answered, but not with ok: true ({text[:80]!r})"
+        result = (True, f"answered as {model}") if json.loads(text).get("ok") is True \
+            else (False, f"answered, but not with ok: true ({text[:80]!r})")
     except pr.ReviewError as e:
-        return False, f"{e.outcome}: {e.detail}"
+        result = (False, f"{e.outcome}: {e.detail}")
     except (ValueError, AttributeError) as e:
-        return False, f"unreadable readiness reply: {e}"
+        result = (False, f"unreadable readiness reply: {e}")
+    finally:   # review F8: a readiness call is a model call, so it is counted like any other
+        if calls is not None:
+            calls.append({"round": 0, "slot": "ready", "tool": tool, "model": model,
+                          "usage": getattr(pr, "LAST_REVIEWER_USAGE", "not_reported"),
+                          "error": None if result and result[0] else (result[1] if result else "no result")})
+    return result
 
 
-def choose(writer, probe=ready):
+def choose(writer, probe=ready, calls=None):
     """(r1, r2): two ready reviewers from two families, neither the writer's (criterion 4)."""
     wf, tried, picked = pr.family(writer), [], []
     for t in pr.REVIEWER_ORDER:
         fam = pr.REVIEWERS[t]["family"]
         if fam == wf or fam in {pr.family(p) for p in picked}:
             continue
-        ok, why = probe(t)
+        ok, why = probe(t, calls)
         if not ok:
             tried.append(f"{t} ({fam}): {why}")
             continue
@@ -106,10 +113,11 @@ def choose(writer, probe=ready):
 
 
 def init(state, writer, draft, logpath, cap=DEFAULT_CAP, probe=ready):
-    r1, r2 = choose(writer, probe)
+    calls = []
+    r1, r2 = choose(writer, probe, calls)
     s = {"writer": writer, "reviewers": {"r1": r1, "r2": r2}, "cap": cap, "round": 0, "log": str(logpath),
          "hash": sha(draft), "findings": {}, "policy_proposals": [], "rounds": [], "stalls": 0,
-         "outcome": None, "failure": None, "calls": []}
+         "outcome": None, "failure": None, "calls": calls}
     save(state, s)
     log(s, f"# Design review log\n\nWriter `{writer}`; reviewer 1 `{r1}` ({pr.family(r1)}); "
            f"reviewer 2 `{r2}` ({pr.family(r2)}); cap {cap} rounds.")

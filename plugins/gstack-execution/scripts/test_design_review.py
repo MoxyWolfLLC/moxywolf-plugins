@@ -7,7 +7,7 @@ import design_review as d
 import peer_review as pr
 
 READY = ("codex", "openrouter-gemini")
-PROBE = lambda t: (t in READY, "ready" if t in READY else f"{t} stub: not ready")
+PROBE = lambda t, calls=None: (t in READY, "ready" if t in READY else f"{t} stub: not ready")
 
 
 def reply(verdict="REVISE", open_=(), stances=(), new=()):
@@ -177,7 +177,7 @@ def test_reviewer_2_failing_after_reviewer_1_ends_incomplete_with_no_retry_or_su
 
 
 def test_a_same_family_reviewer_is_never_chosen_and_each_rejection_says_why():
-    probe = lambda t: (t in ("codex", "claude", "openrouter-claude"), f"{t}: key refused")
+    probe = lambda t, calls=None: (t in ("codex", "claude", "openrouter-claude"), f"{t}: key refused")
     try:
         d.choose("claude", probe=probe)
         raise AssertionError("only one non-claude family is ready; the loop must not start")
@@ -205,6 +205,23 @@ def test_readiness_is_a_real_call_and_a_failure_is_the_reason():
             assert "gemini (gemini): review_unavailable: gemini exited 1: not authenticated" in str(e), str(e)
     finally:
         pr.run_reviewer = real
+
+
+def test_readiness_calls_are_counted_in_the_run_note():
+    real = pr.run_reviewer
+    def fake(tool, prompt, root, timeout, schema=None):
+        pr.LAST_REVIEWER_USAGE = {"total": 7}
+        return '{"ok": true}', "m"
+    pr.run_reviewer = fake
+    try:
+        tmp = Path(tempfile.mkdtemp()); draft = tmp / "D.md"; draft.write_text("v0\n")
+        s = d.init(tmp / "state.json", "claude", draft, tmp / "log.md")
+    finally:
+        pr.run_reviewer = real
+    ready_calls = [c for c in s["calls"] if c["slot"] == "ready"]
+    assert len(ready_calls) == 2 and all(c["usage"] == {"total": 7} for c in ready_calls), s["calls"]
+    text = d.finish(tmp / "state.json", tmp / "runs").read_text()
+    assert "reviewer_calls: 2" in text and "reviewer_tokens: 14" in text, text
 
 
 def test_a_status_or_stance_without_a_reason_is_malformed():
