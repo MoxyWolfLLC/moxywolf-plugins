@@ -66,15 +66,42 @@ def log(s, text):
         f.write(text.rstrip("\n") + "\n\n")
 
 
-def choose(writer, installed=pr.installed):
-    """(r1, r2): two reachable reviewers from two families, neither the writer's (criterion 4)."""
+def ready(tool):
+    """(ok, why). Cheap checks that need no model call. codex: its own login status; an OpenRouter
+    entry: the key authenticates against /key. claude and gemini: the binary is present; their
+    auth isn't probed here, so an auth failure surfaces on the first call as `incomplete`.
+    ponytail: presence-only for two CLIs; add a probe if one fails mid-loop in practice."""
+    cfg = pr.REVIEWERS[tool]
+    if cfg["transport"] == "openrouter":
+        try:
+            key = pr.openrouter_key()
+        except pr.ReviewError as e:
+            return False, f"no OpenRouter key ({e.detail})"
+        import urllib.request
+        req = urllib.request.Request(pr.OPENROUTER_URL.rsplit("/chat/", 1)[0] + "/key", headers={"Authorization": f"Bearer {key}"})
+        try:
+            urllib.request.urlopen(req, timeout=20).read()
+            return True, "key accepted"
+        except Exception as e:  # any refusal here is a reason, never a pass
+            return False, f"OpenRouter refused the key or wasn't reachable: {e}"
+    if not pr.shutil.which(tool):
+        return False, f"{tool} CLI not on PATH"
+    if tool == "codex":
+        r = pr.subprocess.run(["codex", "login", "status"], capture_output=True, text=True, stdin=pr.subprocess.DEVNULL)
+        return (r.returncode == 0, "logged in" if r.returncode == 0 else f"codex login status exited {r.returncode}: {(r.stdout + r.stderr).strip()[-200:]}")
+    return True, "binary present; auth not probed"
+
+
+def choose(writer, probe=ready):
+    """(r1, r2): two ready reviewers from two families, neither the writer's (criterion 4)."""
     wf, tried, picked = pr.family(writer), [], []
     for t in pr.REVIEWER_ORDER:
         fam = pr.REVIEWERS[t]["family"]
         if fam == wf or fam in {pr.family(p) for p in picked}:
             continue
-        if not installed(t):
-            tried.append(f"{t} ({fam}): not reachable here")
+        ok, why = probe(t)
+        if not ok:
+            tried.append(f"{t} ({fam}): {why}")
             continue
         picked.append(t)
         if len(picked) == 2:
@@ -84,8 +111,8 @@ def choose(writer, installed=pr.installed):
                      + ". No same-family stand-in is used.")
 
 
-def init(state, writer, draft, logpath, cap=DEFAULT_CAP, installed=pr.installed):
-    r1, r2 = choose(writer, installed)
+def init(state, writer, draft, logpath, cap=DEFAULT_CAP, probe=ready):
+    r1, r2 = choose(writer, probe)
     s = {"writer": writer, "reviewers": {"r1": r1, "r2": r2}, "cap": cap, "round": 0, "log": str(logpath),
          "hash": sha(draft), "findings": {}, "policy_proposals": [], "rounds": [], "stalls": 0,
          "outcome": None, "failure": None, "calls": []}
@@ -104,10 +131,12 @@ def validate(s, slot, reply, new_r1):
     if not isinstance(reply, dict) or reply.get("verdict") not in ("APPROVED", "REVISE"):
         raise Malformed("verdict must be APPROVED or REVISE")
     for k in ("open_findings", "stances", "new_findings"):
-        if not isinstance(reply.get(k), list):
-            raise Malformed(f"{k} must be a list")
-    must = set(open_ids(s)) - set(new_r1)
-    seen = {o.get("id") for o in reply["open_findings"]}
+        if not isinstance(reply.get(k), list) or not all(isinstance(x, dict) for x in reply[k]):
+            raise Malformed(f"{k} must be a list of objects")
+        if k != "new_findings" and not all(isinstance(x.get("id"), str) for x in reply[k]):
+            raise Malformed(f"every {k} entry needs a string id")
+    must = set(open_ids(s))   # reviewer 2 included: reviewer 1's new findings are open too
+    seen = {o["id"] for o in reply["open_findings"]}
     if must - seen:
         raise Malformed(f"reply omits open finding(s) {sorted(must - seen)}")
     if any(o.get("status") not in ("resolved", "still_open") for o in reply["open_findings"]):
@@ -119,7 +148,7 @@ def validate(s, slot, reply, new_r1):
         if any(x.get("stance") not in STANCES for x in reply["stances"]):
             raise Malformed("stance must be agree, disagree or extend")
     for n in reply["new_findings"]:
-        if n.get("severity") not in SEVERITIES or n.get("kind") not in KINDS or not str(n.get("text", "")).strip():
+        if n.get("severity") not in SEVERITIES or n.get("kind") not in KINDS or not isinstance(n.get("text"), str) or not n["text"].strip():
             raise Malformed("each new finding needs severity, kind and text")
 
 
@@ -141,16 +170,24 @@ def review(state, slot, draft, prompt, runner=None, root="."):
     runner = runner or (lambda t, p: pr.run_reviewer(t, p, Path(root), 1800, SCHEMA))
     new_r1 = rnd.get("r1", {}).get("new", []) if slot == "r2" else []
     reply, why = None, None
-    for attempt in (1, 2):
+    for attempt in (1, 2):   # criterion 8: one retry, and only for a malformed reply
+        model, err = None, None
+        pr.LAST_REVIEWER_USAGE = "not_reported"
         try:
             text, model = runner(tool, Path(prompt).read_text())
-            s["calls"].append({"round": s["round"], "slot": slot, "tool": tool, "model": model,
-                               "usage": getattr(pr, "LAST_REVIEWER_USAGE", "not_reported")})
             reply = json.loads(text)
             validate(s, slot, reply, new_r1)
+        except pr.ReviewError as e:          # timeout, quota, transport: the loop ends, no retry
+            err, reply = f"{e.outcome}: {e.detail}", None
+            why = f"attempt {attempt}: {err}"
+        except (Malformed, ValueError, TypeError, AttributeError) as e:
+            err, reply = f"malformed: {e}", None
+            why = f"attempt {attempt}: {err}"
+        finally:
+            s["calls"].append({"round": s["round"], "slot": slot, "tool": tool, "model": model,
+                               "usage": getattr(pr, "LAST_REVIEWER_USAGE", "not_reported"), "error": err})
+        if reply is not None or not err.startswith("malformed"):
             break
-        except (pr.ReviewError, Malformed, ValueError) as e:
-            why, reply = f"attempt {attempt}: {type(e).__name__}: {e}", None
     if reply is None:
         s["outcome"], s["failure"] = "incomplete", {"round": s["round"], "slot": slot, "tool": tool, "why": why}
         save(state, s)
@@ -185,8 +222,7 @@ def settle_after_reviews(s):
     material_open = [i for i in open_ids(s) if s["findings"][i]["severity"] == "material"]
     if rnd["r1"]["verdict"] == rnd["r2"]["verdict"] == "APPROVED" and not material_open:
         s["outcome"] = "converged"            # criterion 5: both approve this revision hash
-    elif s["round"] >= s["cap"]:
-        s["outcome"] = "cap_reached"          # criterion 6
+    # criterion 6: the cap is decided in writer(), after this round's findings are disposed of
 
 
 def writer(state, dispositions, draft):
@@ -221,13 +257,18 @@ def writer(state, dispositions, draft):
         if f["severity"] == "minor":
             f["open"] = False                            # a minor finding closes on the writer's disposition
             f["closed_by"] = f"writer {value}"
-    key = [rnd["hash"], open_ids(s)]
+    s["hash"] = sha(draft)
+    # criterion 7. The key is the revision handed to the next round plus every finding and whether it
+    # is open. A finding merged as a duplicate is left out, so a reissue can't reset the count.
+    state_now = sorted([i, f["open"]] for i, f in s["findings"].items() if not str(f.get("disposition") or "").startswith("duplicate of "))
+    key = [s["hash"], state_now]
     prev = s["rounds"][-2].get("key") if len(s["rounds"]) > 1 else None
     rnd["key"] = key
     s["stalls"] = s["stalls"] + 1 if key == prev else 0
     if s["stalls"] >= 2:
-        s["outcome"] = "stalled"                         # criterion 7
-    s["hash"] = sha(draft)
+        s["outcome"] = "stalled"
+    elif s["round"] >= s["cap"]:
+        s["outcome"] = "cap_reached"
     log(s, f"## Round {s['round']}: writer\n\n" + "\n".join(
         f"- `{fid}`: {d.get('disposition')}" + (f" ({d['reason']})" if d.get("reason") else "") for fid, d in dispositions.items())
         + f"\n\nOpen after round {s['round']}: {', '.join(open_ids(s)) or 'none'}. Next revision `{s['hash'][:12]}`.")
