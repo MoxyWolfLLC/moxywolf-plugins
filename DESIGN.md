@@ -922,6 +922,20 @@ The target is the observable decision trajectory: messages, tool calls, results,
 - **An automated deletion janitor.**
 - **Automatic changes to rules or skills from a record.** JAZ's meta-agent does that; this chain deliberately puts a human first.
 
+### SM-005 — A session that quotes the capture script is still captured whole
+
+**Status:** building. From proposal P1 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
+
+**Links introduced:** none.
+
+The first live `/session-review` ran on the session that built SM-004, and its capture came back `partial` for three reasons that weren't true. `text_result` treats any tool result containing `<persisted-output>` and `Full output saved to:` anywhere as a stored result. Three results in that session were reads of `session_record.py` and its tests, which contain both strings as source text. The capture looked for files named `(\S+)")`, `{n}` and `err.txt`, found none, marked each result missing, and kept only its hash and size. So the defect cost record content, not just a wrong label.
+
+1. A tool result is a persisted result only when its text, after leading whitespace, starts with `<persisted-output>` and the `Full output saved to:` line is inside that block. Anything else is an ordinary result and is kept as one.
+2. A persisted result whose named file is missing, or outside the session folder, is still `partial` with its reason, as today.
+3. Tests: a result that quotes both strings mid-text is captured as text, with no partial reason; a real persisted block still reads the stored file; a persisted block naming a missing file is still partial.
+4. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.32.0, and the top-level marketplace version moves with it, per CI-002.
+5. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -1241,6 +1255,24 @@ XE-018 put CI runs in front of the reviewer as job and step conclusions. When a 
 
 **Not in this item:** the `deliberate` and `compound` booleans, which already have bands; `packet_coverage.mjs`; recalibrating with our own data.
 
+### XE-029 — A fix round sees what round one saw, and an unmet criterion is not a malformed reply
+
+**Status:** building. From proposals P2 to P7 of session review `20260930-095045-8bb8d311-109fbe`, approved by Dorian on 2026-09-30.
+
+**Links introduced:** `review_base` in a review's stored packet: each repository's base as it was at `open`, kept when a fix round moves `base` to the previous head.
+
+SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code fix and still couldn't pass. A fix round moves each repository's `base` to the previous head, and the surface is built from that delta, so the round-3 reviewer saw two changed files and none of the hooks, commands, README or marketplace entries the criteria name. It marked 8 criteria unmet for missing evidence alone. It then called the verdict blocking with only a `separate` finding. `validate` rejects that as "verdict disagrees with finding severities", and it rejects the other reading too: a clean verdict with unmet acceptance is "clean verdict contradicts unmet acceptance". A round whose only problem is unmet criteria has no valid reply, so it ends `malformed_output`, and the review lost its last round. Round 2 of the same review ran without the app token, so it couldn't read the named CI run and judged criteria without it. The same session showed `merge-instruction` printing a comment the builder forgot to post, a test count reported from arithmetic, and a general permission ("full permission to move forward") read as a merge instruction.
+
+1. `open` stores each repository's base as `review_base`. A fix round's surface is built from `review_base` to the new head: `CHANGE.diff`, `changed/`, callers and dependencies cover the whole change under review. The round's own delta, from the previous head, is written as `ROUND.diff`, and `SURFACE.md` says what each diff is. A packet stored before this item has no `review_base` and keeps today's behaviour.
+2. A reply whose verdict is `blocking_findings`, with no blocking finding and at least one unmet acceptance row, is valid. The round's outcome is `blocking_findings`, or `rounds_exhausted` on the last round, and the round record names the unmet criteria. A clean verdict with a blocking finding, and a blocking verdict with no blocking finding and every criterion met, are still `malformed_output`.
+3. A round is clean only when there is no blocking finding, no regression, and every acceptance row is met.
+4. `dispatch` refuses, before starting anything, when the packet or `--ci-run` names a CI run and neither `GITHUB_TOKEN` is set nor `gh auth status` succeeds. The refusal names `agent_token.py exec` as the way to run it.
+5. `merge-instruction` says on stderr that it printed the comment and did not post it, and gives the `agent_token.py api POST` command that posts it.
+6. `/gstack-build` says that test counts in commits, packets and reports are quoted from the run's own output, never computed. Its release step says that only words telling the agent to merge count as an instruction; a general permission ("move forward", "full permission") does not.
+7. Tests: a fix round's surface carries a file changed only before round 2; a blocking verdict with an unmet criterion and only a `separate` finding passes validation with outcome `blocking_findings`; the two real contradictions are still `malformed_output`; `dispatch` refuses with a named CI run and no token and no `gh`; `merge-instruction` warns on stderr.
+8. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.44.0, and the top-level marketplace version moves, per CI-002.
+9. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -1288,6 +1320,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: SM-005 and XE-029 added from session review `20260930-095045-8bb8d311-109fbe` (the first live `/session-review`), whose seven proposals Dorian approved. P7's rule takes the narrow reading: only words telling the agent to merge count.
 - 2026-09-29: SM-004 revised from boundary test B-c, drafted by Claude and approved by Dorian. The hook matches the namespaced `project-init:session-review`; the capture ends at the file's length when the hook fires and turns queued-command lines and earlier review turns into `review_command` events; `last_assistant_message` is the last assistant line's text, and capture waits for that line because `Stop` fires before it's written; sub-agent files and large tool results are read from the session folder, and an unwritten sub-agent file is expected; inline images are hashed where they sit. `StopFailure` and Cowork remain unobserved.
 - 2026-09-29: Second status ruling by Dorian, closing the B-a list. RR-001 and RR-002 join the recorded exception: their review and release record (`release-MoxyWolfLLC-moxywolf-plugins-32.json`) were found in the vault's old review folder. The other 15 are relabelled to `review`, merged unreviewed: AP-001, AP-002, AP-003, CI-001, CI-002, EV-002, GA-006, XE-001, XE-002, XE-003, XE-004, XE-005, XE-013, XE-018, XE-021.
 - 2026-09-29: Status ruling by Dorian on the B-a list (`06 – Engineering/status-ruling-2026-09-29.md`). **Recorded exception:** XE-016, XE-017, SM-003, DS-001, XE-019, XE-020, XE-022, XE-023, XE-024, XE-025, XE-026, XE-027, XE-028 stay `done`. Each was cross-tool reviewed and has a release record from `record-release`; coverage was `not_run` for all of them because the scorer could not start until XE-014, and mandatory coverage postdates their release. **Relabelled** to `review`, merged unreviewed: EV-001, EV-003, EV-004, EV-005, EV-007, EV-009, XE-006, XE-007, XE-008, XE-009, XE-010. None names a review and no record was found. **Undecided** pending a search for lost records: GA-006, AP-001, AP-002, AP-003, EV-002, XE-001 to XE-005, XE-013, RR-001, RR-002, CI-001, CI-002, XE-018, XE-021. The first search found RR-001 and RR-002's release record in the vault's old review folder, review folders without a release record for GA-006, XE-013, CI-001 and CI-002, only a reconstruction for EV-002, and nothing for the rest.

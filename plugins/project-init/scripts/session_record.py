@@ -315,6 +315,16 @@ def stop_records(session_id):
 PERSISTED = re.compile(r"Full output saved to: (\S+)")
 
 
+def persisted(text):
+    """SM-005: a stored result is one whose text opens with the <persisted-output> block and names
+    its file inside it. A result that merely quotes those strings (a read of this script) is text."""
+    body = text.lstrip()
+    if not body.startswith("<persisted-output>"):
+        return None
+    end = body.find("</persisted-output>")
+    return PERSISTED.search(body[:end] if end != -1 else body)
+
+
 class Builder:
     def __init__(self, session_id, session_dir, out_dir, quarantine):
         self.sid, self.session_dir, self.out, self.quarantine = session_id, Path(session_dir), Path(out_dir), Path(quarantine)
@@ -358,7 +368,7 @@ class Builder:
     def text_result(self, text, line_no, idx):
         """(content, redactions, full_text, binary). full_text is the actual result: the stored
         file for a persisted one, not its preview (review F12); None when it isn't text."""
-        m = PERSISTED.search(text) if "<persisted-output>" in text else None
+        m = persisted(text)
         if m:
             p = Path(m.group(1))
             ok = p.is_file() and self.session_dir.resolve() in p.resolve().parents

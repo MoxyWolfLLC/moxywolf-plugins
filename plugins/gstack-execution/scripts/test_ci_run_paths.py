@@ -76,7 +76,8 @@ class CiRunPaths(unittest.TestCase):
         with mock.patch.object(pr, "rdir", return_value=review), \
              mock.patch.object(pr, "load", side_effect=lambda d, n: {"rounds_used": 0} if n == "state.json" else None), \
              mock.patch.object(pr, "save"), mock.patch.object(pr.subprocess, "Popen", popen), \
-             mock.patch("builtins.print"):
+             mock.patch.dict(os.environ, {"GITHUB_TOKEN": "t"}), \
+             mock.patch("builtins.print"):   # XE-029.4: a named run needs a reader; this test is about paths
             pr.cmd_dispatch(a)
         real = str(self.real.resolve())
         self.assertEqual(seen["cwd"], str(review))
