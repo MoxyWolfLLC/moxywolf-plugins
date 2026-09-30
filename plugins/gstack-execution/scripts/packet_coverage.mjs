@@ -125,6 +125,41 @@ async function main() {
     fs.writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n');
   };
 
+  const items = declaredCriteria(designPath);
+  const missing = claimed.filter(i => !items[i]);
+  if (missing.length) {
+    console.error(`DESIGN.md declares no criteria for: ${missing.join(', ')}`);
+    process.exit(2);
+  }
+
+  // XE-030: a declared criterion whose whole text the packet carries is covered, and no model is
+  // asked. Every low score from 2026-09-29 to 2026-09-30 (17 of 104) was on such a criterion.
+  const norm = (t) => String(t).replace(/\s+/g, ' ').trim();
+  const packetCrits = (packet.acceptance_criteria ?? []).map(norm);
+  const scored = [];
+  const toModel = {};
+  for (const item of claimed) {
+    items[item].declared.forEach((c, i) => {
+      if (packetCrits.some(pc => pc.includes(norm(c)))) {
+        scored.push({ item, criterion_no: i + 1, declared: c, probability: 1, match: 'verbatim' });
+      } else {
+        (toModel[item] ??= []).push(i);
+      }
+    });
+  }
+  const report = (extra) => {
+    const verbatim = scored.filter(c => c.match === 'verbatim').length;
+    scored.sort((a, b) => claimed.indexOf(a.item) - claimed.indexOf(b.item) || a.criterion_no - b.criterion_no);
+    write({ status: 'checked', ...extra, verbatim, model_scored: scored.length - verbatim, criteria: scored });
+    const low = scored.filter(c => (c.probability ?? 0) < 0.5);
+    for (const c of scored) {
+      console.log(`  ${c.item} #${c.criterion_no}  ${c.match === 'verbatim' ? 'verbatim' : `p=${c.probability}`}${(c.probability ?? 0) < 0.5 ? '  <-- not covered' : ''}`);
+    }
+    console.log(`\n${scored.length} declared criteria scored, ${verbatim} verbatim, ${low.length} below 0.5, ${extra.input_tokens} input tokens`);
+    process.exit(low.length ? 1 : 0);
+  };
+  if (!Object.keys(toModel).length) report({ credential_source: null, input_tokens: 0 });
+
   let ai;
   try {
     ai = await import('ai');
@@ -149,18 +184,11 @@ async function main() {
     ? ai.createGateway({ baseURL: process.env.JEV_ENDPOINT }).evaluationModel(MODEL)
     : MODEL;
 
-  const items = declaredCriteria(designPath);
-  const missing = claimed.filter(i => !items[i]);
-  if (missing.length) {
-    console.error(`DESIGN.md declares no criteria for: ${missing.join(', ')}`);
-    process.exit(2);
-  }
-
-  const scored = [];
   let inTok = 0;
-  for (const item of claimed) {
+  for (const item of Object.keys(toModel)) {
     const questions = {};
-    items[item].declared.forEach((c, i) => {
+    toModel[item].forEach((i) => {
+      const c = items[item].declared[i];
       questions[`c${i + 1}`] = {
         type: 'boolean',
         instructions: `Does at least one of the packet acceptance criteria actually test this declared requirement? Judge substance, not wording. DECLARED REQUIREMENT: ${c}`,
@@ -187,20 +215,12 @@ async function main() {
       process.exit(4);
     }
     inTok += r.usage?.inputTokens ?? 0;
-    items[item].declared.forEach((c, i) => {
-      scored.push({ item, criterion_no: i + 1, declared: c,
-                    probability: r.answers[`c${i + 1}`]?.probability });
+    toModel[item].forEach((i) => {
+      scored.push({ item, criterion_no: i + 1, declared: items[item].declared[i],
+                    probability: r.answers[`c${i + 1}`]?.probability, match: 'model' });
     });
   }
-
-  write({ status: 'checked', credential_source: cred.source, input_tokens: inTok, criteria: scored });
-
-  const low = scored.filter(c => (c.probability ?? 0) < 0.5);
-  for (const c of scored) {
-    console.log(`  ${c.item} #${c.criterion_no}  p=${c.probability}${(c.probability ?? 0) < 0.5 ? '  <-- not covered' : ''}`);
-  }
-  console.log(`\n${scored.length} declared criteria scored, ${low.length} below 0.5, ${inTok} input tokens`);
-  process.exit(low.length ? 1 : 0);
+  report({ credential_source: cred.source, input_tokens: inTok });
 }
 
 // Run only as a script, so tests can import the resolver without scoring anything.

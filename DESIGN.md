@@ -1273,6 +1273,24 @@ SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code 
 8. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.44.0, and the top-level marketplace version moves, per CI-002.
 9. `peer_review.py --selftest` passes, and `scripts/run_all_tests.py` reports what it examined with a nonzero count and no failures.
 
+### XE-030 — A criterion the packet carries word for word is covered without asking a model
+
+**Status:** building. Asked for by Dorian on 2026-09-30 ("Build the coverage scorer").
+
+**Links introduced:** none. Each scored criterion gains a `match` field, `verbatim` or `model`, inside the packet's existing `coverage` block.
+
+`packet_coverage.mjs` asks the evaluation model, for every declared criterion, whether some packet criterion "actually tests" it, and it asks even when the packet carries that criterion's exact words. On 2026-09-30 the review folder held 7 reviews with a `checked` coverage record: 104 declared criteria scored, 17 below 0.5. In all 17, the declared criterion's whole text is inside a packet criterion. Eleven match exactly after collapsing whitespace. The other six (SM-004 #8 and #17, in three reviews) are the declared text followed by a bold sub-heading the packet's own extractor kept. The low scores fell on criteria about versions, credits, wording and CI, which a model reads as untestable. Every review since XE-014 has been opened with `--accept-narrow-packet` over those false alarms, so the override that exists for a real narrowing has become routine.
+
+1. Before any model call, each declared criterion is compared with the packet's acceptance criteria after whitespace is collapsed on both sides. A declared criterion whose whole text appears inside one packet criterion is scored `probability: 1` with `match: "verbatim"`, and it is not sent to the model. Every other criterion is scored by the model as today, with `match: "model"`.
+2. When every declared criterion matches verbatim, the scorer makes no model call and needs no credential: the report is `checked`, with `input_tokens: 0` and `credential_source: null`.
+3. When any criterion needs the model, a missing `ai` package, a missing credential and a refused call are still `broken`, `unavailable` and `unusable`, as XE-014 defines them.
+4. The report counts how many criteria matched verbatim and how many the model scored, and the printed list marks each verbatim match.
+5. Tests in `test_packet_coverage_run.py` run the script as a subprocess: a packet carrying every declared criterion is `checked` with no credential and no request reaching the stub gateway; in a mixed packet the stub is asked only about the criterion that isn't verbatim; a declared criterion with extra words after it in the packet criterion is verbatim; and a paraphrase is not.
+6. `plugins/gstack-execution/.claude-plugin/plugin.json` moves from 0.45.0, and the top-level marketplace version moves, per CI-002.
+7. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+**Not in this item:** changing the question the model is asked about criteria that aren't verbatim.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -1320,6 +1338,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: XE-030 added on Dorian's instruction to build the coverage scorer: a declared criterion carried verbatim in the packet is covered without a model call.
 - 2026-09-30: SM-005 and XE-029 added from session review `20260930-095045-8bb8d311-109fbe` (the first live `/session-review`), whose seven proposals Dorian approved. P7's rule takes the narrow reading: only words telling the agent to merge count.
 - 2026-09-29: SM-004 revised from boundary test B-c, drafted by Claude and approved by Dorian. The hook matches the namespaced `project-init:session-review`; the capture ends at the file's length when the hook fires and turns queued-command lines and earlier review turns into `review_command` events; `last_assistant_message` is the last assistant line's text, and capture waits for that line because `Stop` fires before it's written; sub-agent files and large tool results are read from the session folder, and an unwritten sub-agent file is expected; inline images are hashed where they sit. `StopFailure` and Cowork remain unobserved.
 - 2026-09-29: Second status ruling by Dorian, closing the B-a list. RR-001 and RR-002 join the recorded exception: their review and release record (`release-MoxyWolfLLC-moxywolf-plugins-32.json`) were found in the vault's old review folder. The other 15 are relabelled to `review`, merged unreviewed: AP-001, AP-002, AP-003, CI-001, CI-002, EV-002, GA-006, XE-001, XE-002, XE-003, XE-004, XE-005, XE-013, XE-018, XE-021.
