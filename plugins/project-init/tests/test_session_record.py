@@ -1037,6 +1037,17 @@ class FreshReview(PublishBase):
         with self.assertRaises(sr.Refused):
             sr.verify_hashes(published)
 
+    def test_no_publish_output_follows_a_planted_symlink(self):
+        """F1, round 2: dangling symlinks at the attestation, receipt and scanner-report paths."""
+        self.captured()
+        for planted in ("candidate/confirmation-attestation.json", "candidate/publish-receipt.json", "private/gitleaks-report.json"):
+            pub, prep = self.prepare()
+            target = self.tmp / "outside" / planted.replace("/", "-"); target.parent.mkdir(exist_ok=True)
+            link = pub / planted; link.parent.mkdir(exist_ok=True); link.symlink_to(target)
+            rc, _, err = self.publish(pub, prep["approval_digest"])
+            self.assertEqual(rc, 2, planted); self.assertFalse(target.exists(), planted)
+            self.assertFalse(self.dest.exists() and any(self.dest.iterdir()), planted)
+
     def test_a_hooked_capture_reads_nothing_past_the_boundary(self):
         """F5."""
         self.write(user("work", pid="p1"), asst("done"))

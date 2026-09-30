@@ -1088,7 +1088,9 @@ def cmd_publish(a):
     env = json.loads((pub / "prepare.json").read_text())
     if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(env.get("publication_id"))) or env["publication_id"] != pub.name:
         raise Refused("the publication id isn't the one prepare generated")      # review F6
-    cand = pub / "candidate"
+    cand = contained(pub / "candidate", pub)
+    if any(p.is_symlink() for p in cand.rglob("*")):      # review F1: a dangling one escapes the digest
+        raise Refused(f"{cand} contains a symlink; publishing is refused")
     dest = safe_path(Path(a.dest))
     if in_git_tree(dest):
         raise Refused(f"{dest} is inside a Git working tree; publishing there is refused")
@@ -1103,16 +1105,19 @@ def cmd_publish(a):
         raise Refused("the scanner isn't the one the owner confirmed")
     confirmed = {"confirmed_by": a.confirmed_by, "confirmed_at": now(), "confirmation_scope": "storage-and-audience",
                  "candidate_content_sha256": env["content_sha256"], "approval_digest": a.confirm, "audience": env["audience"]}
-    (cand / "confirmation-attestation.json").write_text(json.dumps(confirmed, indent=2) + "\n")
-    (cand / "scan-attestation.json").write_text(json.dumps(env["scanner"], indent=2) + "\n")
+    write_private(cand / "confirmation-attestation.json", json.dumps(confirmed, indent=2) + "\n")
+    write_private(cand / "scan-attestation.json", json.dumps(env["scanner"], indent=2) + "\n")
     receipt = {**confirmed, "confirmed_files": env["files"], "binary_exceptions": env["binary_exceptions"],
                "scanner": {**env["scanner"], "result": "pass",
                            "note": "written before the scan; this package exists only because the scan passed"},
                "publication_id": env["publication_id"]}
-    (cand / "publish-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    write_private(cand / "publish-receipt.json", json.dumps(receipt, indent=2) + "\n")
     private = private_dir(pub / "private")
+    report = safe_path(private / "gitleaks-report.json")
+    if report.exists() or report.is_symlink():            # review F1: gitleaks writes it; nothing may be there first
+        raise Refused(f"{report} already exists; publishing is refused")
     r = subprocess.run([exe, "dir", str(cand), "--config", str(GITLEAKS_CONFIG), "--no-banner", "--redact",
-                        "--report-format", "json", "--report-path", str(private / "gitleaks-report.json"),
+                        "--report-format", "json", "--report-path", str(report),
                         "--exit-code", "1"], capture_output=True, text=True)
     if r.returncode != 0:
         raise Refused(f"gitleaks found {'secrets' if r.returncode == 1 else 'an error'} in the candidate; "
