@@ -1343,7 +1343,7 @@ The rules are the ones earlier intakes set. A native runtime behind a thin skill
 
 ### DG-001 — A diagram of a repository cites the code that proves it
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the diagram note’s frontmatter names a commit (`repo_head`), and each row of its `## Sources` table names `path:start-end` at that commit. Both re-resolve on demand with `check_repo_diagram.py`, which reads the pinned commit, never the working tree. That validates the citations as history, not freshness: a row that resolved at `repo_head` always will. Drift against current code is a separate, informational report (criterion 6), never a failed citation.
 
