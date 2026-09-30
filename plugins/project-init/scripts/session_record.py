@@ -236,22 +236,32 @@ def wait_until_settled(path, deadline=None):
 
 # ---------------------------------------------------------------- hooks (criteria 2 and 3)
 
-def hook_dir(kind):
-    root = staging_root()
-    d = contained(root / "hooks" / kind, root)
+def private_dir(d, root=None):
+    """Review F8: every folder derived from staging is contained, symlink-free and in no Git tree,
+    a nested one included; checked again after mkdir."""
+    root = root or staging_root()
+    d = contained(d, root)
     d.mkdir(parents=True, exist_ok=True)
-    contained(d, root)                      # re-checked after mkdir: no symlink slipped in
+    contained(d, root)
+    if in_git_tree(d):
+        raise Refused(f"{d} is inside a Git working tree")
     os.chmod(d, 0o700)
     return d
 
 
-def write_private(path, text, append=False):
-    """Review F8: a staging file is never written through a symlink."""
+def hook_dir(kind):
+    root = staging_root()
+    return private_dir(root / "hooks" / kind, root)
+
+
+def write_private(path, data, append=False):
+    """Review F8: a staging file, text or bytes, is never written through a symlink."""
     safe_path(path)
     flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | (os.O_APPEND if append else os.O_TRUNC)
     fd = os.open(path, flags, 0o600)
-    with os.fdopen(fd, "a" if append else "w") as f:
-        f.write(text)
+    mode = ("a" if append else "w") + ("b" if isinstance(data, bytes) else "")
+    with os.fdopen(fd, mode) as f:
+        f.write(data)
 
 
 def cmd_hook_expansion(payload):
@@ -312,24 +322,22 @@ class Builder:
         self.count(event_type)
         return eid
 
-    def blob(self, text, label):
+    def blob(self, text, label, source=None):
         """Criterion 5: textual results over 64 KB are redacted first, then stored by hash."""
         log = []
         red = redact(text, label, log)
         data = red.encode("utf-8", "surrogateescape")
-        d = self.out / "artifacts"
-        d.mkdir(exist_ok=True)
+        d = private_dir(self.out / "artifacts")
         name = sha(data)
-        (d / name).write_bytes(data)
-        return {"blob": f"artifacts/{name}", "bytes": len(data), "source_bytes": len(text.encode("utf-8", "surrogateescape"))}, log
+        write_private(d / name, data)
+        src = source if source is not None else text.encode("utf-8", "surrogateescape")
+        return {"blob": f"artifacts/{name}", "bytes": len(data), "source_bytes": len(src), "sha256": sha(src)}, log
 
     def quarantine_bytes(self, data, mime):
         """Criterion 11: binary content never goes into the capture. It waits in private staging."""
-        safe_path(self.quarantine)
-        self.quarantine.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.quarantine, 0o700)
+        private_dir(self.quarantine)
         h = sha(data)
-        (self.quarantine / h).write_bytes(data)
+        write_private(self.quarantine / h, data)
         return {"mime": mime, "bytes": len(data), "sha256": h, "quarantined": True}
 
     def text_result(self, text, line_no, idx):
@@ -346,7 +354,7 @@ class Builder:
             if looks_binary(full):
                 return {"persisted_file": p.name, **self.quarantine_bytes(full, "application/octet-stream")}, [], full, True
             ftext = full.decode("utf-8", "replace")
-            info, log = self.blob(ftext, f"line{line_no}.block{idx}.persisted")
+            info, log = self.blob(ftext, f"line{line_no}.block{idx}.persisted", source=full)
             return {"persisted_file": p.name, **info}, log, ftext, False
         tb = text.encode("utf-8", "surrogateescape")
         if looks_binary(tb):
@@ -437,8 +445,9 @@ def walk(builder, lines):
                     content, log, full, binary = builder.text_result(text, i, j)
                     tid = b.get("tool_use_id")
                     fb = full if isinstance(full, bytes) else (full if full is not None else text).encode("utf-8", "surrogateescape")
-                    content.update({"is_error": bool(b.get("is_error")), "linked": tid in builder.calls,
-                                    "source_bytes": len(fb), "sha256": sha(fb)})
+                    content.update({"is_error": bool(b.get("is_error")), "linked": tid in builder.calls})
+                    content.setdefault("source_bytes", len(fb))    # F12: a stored file was already measured as bytes
+                    content.setdefault("sha256", sha(fb))
                     text = full if isinstance(full, str) else text
                     if b.get("is_error") and not binary and full is not None:   # F12; F18: never an excerpt of binary
                         elog = []
@@ -481,10 +490,7 @@ def walk(builder, lines):
 
 def record_root(sid):
     root = staging_root()
-    d = contained(root / "session-records" / safe_id(sid), root)
-    d.mkdir(parents=True, exist_ok=True)
-    os.chmod(d, 0o700)
-    return d
+    return private_dir(root / "session-records" / safe_id(sid), root)
 
 
 def write_hashes(d):
@@ -759,7 +765,7 @@ def validate_review(cap, draft):
         if re.fullmatch(r"nothing to report\.?", b, re.I):
             continue
         # review F13: each paragraph or list item is a claim unit, and each one cites an event
-        units = [u.strip() for u in re.split(r"\n\s*\n|\n(?=\s*(?:[-*]|\d+\.)\s)", b) if u.strip()]
+        units = [u.strip() for u in re.split(r"\n\s*\n|\n(?=\s*(?:[-*+]|\d+[.)])\s)", b) if u.strip()]
         uncited = [u for u in units if not EVENT_REF.search(u)]
         if uncited:
             errors.append(f"section {h} makes claims without citing an event: {uncited[0][:80]!r}")
@@ -799,23 +805,38 @@ def github_status(path):
         return "resolver_error", str(e)
 
 
+GITHUB_URL = re.compile(r"^(?:https://(?:[^@/]+@)?github\.com/|git@github\.com:|ssh://git@github\.com/)"
+                        r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$")
+
+
+def repo_identity(path):
+    """Review F15: OWNER/NAME from the clone's origin URL, lower-cased; None when it isn't a GitHub origin."""
+    url = subprocess.run(["git", "-C", path or "/nonexistent", "remote", "get-url", "origin"],
+                         capture_output=True, text=True).stdout.strip()
+    m = GITHUB_URL.match(url)
+    return f"{m.group(1)}/{m.group(2)}".lower() if m else None
+
+
 def review_heads(folder, state, repository):
-    """The heads a review pinned for one repository, by the packet's own repo order. None when the
-    review doesn't cover that repository; every head when no repository was named."""
+    """(status, heads): the heads a review pinned for one repository, matched by exact OWNER/NAME
+    from each packet repo's origin, never by basename (review F15). status is ok, not_covered,
+    ambiguous or unavailable; every head when no repository was named."""
     rounds = state.get("heads", [])
     if not repository:
-        return [h for r in rounds for h in r]
+        return "ok", [h for r in rounds for h in r]
     try:
         packet = json.loads((folder / "packet.json").read_text())
     except (OSError, ValueError):
-        return None
-    name = repository.rstrip("/").split("/")[-1]
-    for k, r in enumerate(packet.get("repos", [])):
-        url = subprocess.run(["git", "-C", r.get("path", "/nonexistent"), "remote", "get-url", "origin"],
-                             capture_output=True, text=True).stdout.strip()
-        if repository in url or Path(r.get("path", "")).name == name:
-            return [rh[k] for rh in rounds if len(rh) > k] + [r.get("head", "")]
-    return None
+        return "unavailable", None
+    repos = packet.get("repos", [])
+    ids = [repo_identity(r.get("path")) for r in repos]
+    hits = [k for k, i in enumerate(ids) if i == repository.strip("/").lower()]
+    if len(hits) > 1:
+        return "ambiguous", None
+    if not hits:
+        return ("unavailable" if None in ids else "not_covered"), None
+    k = hits[0]
+    return "ok", [rh[k] for rh in rounds if len(rh) > k] + [repos[k].get("head", "")]
 
 
 def resolve(obs, repos):
@@ -858,10 +879,14 @@ def resolve(obs, repos):
                 if st.get("review_id") != hits[0].name:           # review F15: the state is this review's
                     status, seen = "mismatch", {"review_id": st.get("review_id"), "folder": hits[0].name}
                 else:
-                    heads = review_heads(hits[0], st, repo)
+                    why, heads = review_heads(hits[0], st, repo)
                     seen = {"review_id": st.get("review_id"), "outcome": st.get("outcome"), "repository": repo, "heads": (heads or [])[-3:]}
-                    if heads is None:
+                    if why == "not_covered":
                         status = "mismatch"; seen["why"] = f"the review covers no repository named {repo}"
+                    elif why == "ambiguous":
+                        status = "ambiguous"; seen["why"] = f"more than one packet repository is {repo}"
+                    elif why == "unavailable":
+                        status = "resolver_unavailable"; seen["why"] = "a packet repository has no GitHub origin, so identity can't be established"
                     elif rec["expected_revision"] and not any(h.startswith(rec["expected_revision"]) for h in heads):
                         status = "mismatch"
             return {**rec, "status": status, "resolver": "state file", "returned": seen}

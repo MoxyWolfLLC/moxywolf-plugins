@@ -523,6 +523,21 @@ class PublishBase(Base):
         return quiet(sr.main, ["review-finalize", "--capture", str(self.cap_dir()), "--draft", str(d), "--prompt-sha256", psha,
                                "--tool", "claude", "--model", "m", "--family", "anthropic", *extra])
 
+    def clone(self, owner_name, where="a"):
+        repo = self.tmp / where / owner_name.split("/")[1]; repo.mkdir(parents=True)
+        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, check=True).stdout.strip()
+        g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t")
+        g("remote", "add", "origin", f"https://github.com/{owner_name}.git")
+        (repo / "f").write_text(owner_name); g("add", "."); g("commit", "-qm", "one")
+        return repo, g("rev-parse", "HEAD")
+
+    def pinned_review(self, repos, heads):
+        base = self.tmp / "reviews"; d = base / "20260929-000003-ccc-z"; d.mkdir(parents=True)
+        (d / "state.json").write_text(json.dumps({"review_id": d.name, "heads": [heads]}))
+        (d / "packet.json").write_text(json.dumps({"repos": [{"path": str(r), "head": h} for r, h in zip(repos, heads)]}))
+        os.environ["GSTACK_PEER_REVIEW_DIR"] = str(base); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
+        return lambda repo_, rev: sr.resolve({"kind": "review_id", "identifier": d.name, "repository": repo_, "expected_revision": rev}, {})["status"]
+
 
 class Publishing(PublishBase):
     def test_a_secret_the_redactor_misses_is_caught_by_gitleaks_and_publishing_is_refused(self):
@@ -834,11 +849,8 @@ class RoundTwo(PublishBase):
 
     def test_commit_and_review_identity_mismatches(self):
         """F15: a commit at another revision; a state from another review; a repository the review didn't cover."""
-        repo = self.tmp / "clone"; repo.mkdir()
-        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, check=True).stdout.strip()
-        g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t")
-        (repo / "f").write_text("1"); g("add", "."); g("commit", "-qm", "one")
-        head = g("rev-parse", "HEAD")
+        repo, head = self.clone("o/clone")
+        other, _ = self.clone("o/other", where="b")
         repos = {"o/clone": str(repo)}
         self.assertEqual(sr.resolve({"kind": "commit", "identifier": head, "repository": "o/clone", "expected_revision": head[:12]}, repos)["status"], "verified")
         self.assertEqual(sr.resolve({"kind": "commit", "identifier": head, "repository": "o/clone", "expected_revision": "deadbeef"}, repos)["status"], "mismatch")
@@ -847,14 +859,13 @@ class RoundTwo(PublishBase):
         for d, rid in ((good, good.name), (bad, "someone-else")):
             d.mkdir(parents=True)
             (d / "state.json").write_text(json.dumps({"review_id": rid, "heads": [[head, "ffff"]]}))
-            (d / "packet.json").write_text(json.dumps({"repos": [{"path": str(repo), "head": head}, {"path": "/x/other", "head": "ffff"}]}))
+            (d / "packet.json").write_text(json.dumps({"repos": [{"path": str(repo), "head": head}, {"path": str(other), "head": "ffff"}]}))
         os.environ["GSTACK_PEER_REVIEW_DIR"] = str(base); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
         r = lambda ident, repo_, rev: sr.resolve({"kind": "review_id", "identifier": ident, "repository": repo_, "expected_revision": rev}, {})["status"]
         self.assertEqual(r(good.name, "o/clone", head[:10]), "verified")
         self.assertEqual(r(good.name, "o/clone", "ffff"), "mismatch")        # that head belongs to the other repository
         self.assertEqual(r(good.name, "o/nowhere", head[:10]), "mismatch")
         self.assertEqual(r(bad.name, "o/clone", head[:10]), "mismatch")      # state names another review
-
     def test_a_late_reply_followed_by_more_writing_waits_for_stability(self):
         """F17."""
         self.write(user("work", pid="p1"))
@@ -876,6 +887,71 @@ class RoundTwo(PublishBase):
         self.assertTrue(m["capture_boundary_checked"])
         self.assertEqual(m["captured_through_source_line"], 3)
         self.assertEqual(m["capture_completeness"]["status"], "complete")
+
+
+
+class RoundThree(PublishBase):
+    """Review 20260929-165606, round 3: the four findings left open."""
+
+    def test_a_quarantined_file_is_never_written_through_a_symlink(self):
+        """F8."""
+        outside = self.tmp / "victim.bin"; outside.write_bytes(b"untouched")
+        data = "\x00\x01 opaque"
+        q = self.staging / "session-records" / SID / "quarantine"; q.mkdir(parents=True)
+        (q / sr.sha(data.encode())).symlink_to(outside)
+        self.write(user("work"), asst(tool_use("t1", command="cat b")), result("t1", data))
+        rc, _, err = self.capture()
+        self.assertEqual(rc, 2); self.assertEqual(outside.read_bytes(), b"untouched")
+
+    def test_a_git_repository_nested_in_staging_is_refused(self):
+        """F8: a derived hook folder inside a nested repository."""
+        (self.staging / "hooks" / ".git").mkdir(parents=True)
+        rc, _, err = self.stop("x")
+        self.assertEqual(rc, 0); self.assertIn("Git", err)
+        self.assertFalse((self.staging / "hooks" / "stop").exists() and any((self.staging / "hooks" / "stop").iterdir()))
+        (self.staging / "hooks" / ".git").rmdir()
+        (self.staging / "session-records" / SID / ".git").mkdir(parents=True)
+        self.write(user("work"))
+        rc, _, err = self.capture()
+        self.assertEqual(rc, 2); self.assertIn("Git", err)
+
+    def test_a_persisted_error_that_is_not_utf8_is_measured_as_stored(self):
+        """F12: bytes and hash come from the file, not from its replacement-decoded text."""
+        (self.sdir / "tool-results").mkdir(parents=True)
+        raw = b"ERR bad byte \xff\xfe here\n" * 4000
+        (self.sdir / "tool-results" / "err.bin").write_bytes(raw)
+        preview = f"<persisted-output>\nFull output saved to: {self.sdir}/tool-results/err.bin\n\nPreview: x\n</persisted-output>"
+        self.write(user("work"), asst(tool_use("t1", command="make")), result("t1", preview, error=True))
+        self.capture()
+        c = [e for e in self.events() if e["event_type"] == "tool_result"][0]["content"]
+        self.assertEqual((c["source_bytes"], c["sha256"]), (len(raw), sr.sha(raw)))
+
+    def test_adjacent_plus_items_are_separate_claims(self):
+        """F13."""
+        self.captured()
+        ev = self.events()[0]["event_id"][:12]
+        secs = [f"## {i}. {t}\n\nNothing to report." for i, t in enumerate(sr.SECTIONS, 1)]
+        secs[2] = f"## 3. {sr.SECTIONS[2]}\n\n+ It passed. ev:{ev}\n+ It was fast."
+        rc, _, err = self.finalize_review(self.draft(review="\n\n".join(secs)))
+        self.assertEqual(rc, 2); self.assertIn("without citing an event", err)
+
+    def test_same_basename_different_owner_is_told_apart(self):
+        """F15: exact OWNER/NAME from the origin, never the folder name."""
+        a, ha = self.clone("alice/tool", where="x")
+        b, hb = self.clone("bob/tool", where="y")
+        r = self.pinned_review([a, b], [ha, hb])
+        self.assertEqual(r("bob/tool", hb[:10]), "verified")
+        self.assertEqual(r("bob/tool", ha[:10]), "mismatch")
+        self.assertEqual(r("carol/tool", hb[:10]), "mismatch")
+
+    def test_identity_that_cannot_be_established_is_not_a_match(self):
+        """F15: the same origin twice is ambiguous; a repo with no GitHub origin makes it unavailable."""
+        a, ha = self.clone("alice/tool", where="x")
+        a2, _ = self.clone("alice/tool", where="z")
+        self.assertEqual(self.pinned_review([a, a2], [ha, ha])("alice/tool", ha[:10]), "ambiguous")
+        subprocess.run(["git", "-C", str(a2), "remote", "remove", "origin"], check=True)
+        shutil.rmtree(self.tmp / "reviews")
+        self.assertEqual(self.pinned_review([a2], [ha])("alice/tool", ha[:10]), "resolver_unavailable")
 
 
 class Determinism(Base):
