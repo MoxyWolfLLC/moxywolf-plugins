@@ -122,10 +122,13 @@ def check(note, repo):
         if not ok_head:
             continue
         if path not in lines_at:
-            rc, body = git(repo, "show", f"{head}:{path}")
-            lines_at[path] = len(body.splitlines()) if rc == 0 else None
-        n = lines_at[path]
-        if n is None:
+            kind = git(repo, "cat-file", "-t", f"{head}:{path}")[1].strip()
+            rc, body = git(repo, "show", f"{head}:{path}") if kind == "blob" else (1, "")
+            lines_at[path] = (len(body.splitlines()) if rc == 0 else None, kind)
+        n, kind = lines_at[path]
+        if kind and kind != "blob":
+            fails.append(f"row {el}: {path} is a {kind} at {head[:7]}, not a file")
+        elif n is None:
             fails.append(f"row {el}: {path} does not exist at {head[:7]}")
         elif not 1 <= start <= end <= n:
             fails.append(f"row {el}: lines {start}-{end} outside {path} (1-{n} at {head[:7]})")
@@ -134,7 +137,7 @@ def check(note, repo):
         cur = git(repo, "rev-parse", "HEAD")[1].strip()
         info.append(f"current HEAD {cur[:7]}" + ("" if cur == head else f", repo_head {head[:7]}"))
         if cur and cur != head:
-            changed = set(git(repo, "diff", "--name-only", head, cur)[1].split())
+            changed = set(git(repo, "diff", "--name-only", "-z", head, cur)[1].split("\0")) - {""}
             cited = {SOURCE.match(s).group(1) for _, _, s in rows if SOURCE.match(s)}
             for p in sorted(cited & changed):
                 info.append(f"drift (not a failure): {p} changed since {head[:7]}")

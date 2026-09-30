@@ -83,6 +83,25 @@ def test_a_path_missing_at_repo_head_fails():
     assert any("src/nope.py does not exist" in x for x in f), f
 
 
+def test_a_directory_citation_fails():
+    r, h = repo()
+    f = fails(note(h, [("api", "x", "src:1-1")] + GOOD[1:]), r)
+    assert f == [f"row api: src is a tree at {h[:7]}, not a file"], f
+
+
+def test_drift_is_reported_for_a_path_with_a_space():
+    r, h = repo()
+    (r / "src" / "my store.py").write_text("a\n")
+    sh(r, "add", "."); sh(r, "commit", "-qm", "spaced")
+    h = sh(r, "rev-parse", "HEAD")
+    rows = [GOOD[0], ("db", "the store", "src/my store.py:1-1"), GOOD[2]]
+    (r / "src" / "my store.py").write_text("a\nb\n")
+    sh(r, "commit", "-qam", "later")
+    f, info, _ = c.check(note(h, rows), r)
+    assert f == [], f
+    assert f"drift (not a failure): src/my store.py changed since {h[:7]}" in info, info
+
+
 def test_a_line_range_past_the_end_fails():
     r, h = repo()
     f = fails(note(h, [("api", "x", "src/app.py:5-11")] + GOOD[1:]), r)

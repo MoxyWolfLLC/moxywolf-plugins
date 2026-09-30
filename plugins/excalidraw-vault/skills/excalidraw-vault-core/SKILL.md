@@ -149,7 +149,7 @@ Obsidian resolves `.excalidraw` from the basename (ignoring `.md`) and renders t
 
 ## Repo-backed mode
 
-Use this mode whenever the thing being drawn is code: the source `/excalidraw` or `/excalidraw-here` is given is a path inside a git repository. The drawing then makes claims about that code, and every claim has to point at the lines that prove it. The rules come from Archify (`tt-a1i/archify` at `d5a1333`, MIT). We took the ideas and wrote them in our own words. No code was copied.
+Use this mode whenever the thing being drawn is code: the source `/excalidraw` or `/excalidraw-here` is given is a path inside a git repository. The drawing then makes claims about that code, and every claim has to point at the lines that prove it. The rules come from Archify (`tt-a1i/archify` at `d5a1333`, MIT). We took the ideas and wrote them in our own words. No code was copied. We didn't take its typed JSON IR and schemas, its interactive viewer, or its PNG, video and share-card export.
 
 **1. Pin the commit before you read anything.** Add three keys to the note's frontmatter, under `tags`:
 
