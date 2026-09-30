@@ -237,10 +237,21 @@ def wait_until_settled(path, deadline=None):
 # ---------------------------------------------------------------- hooks (criteria 2 and 3)
 
 def hook_dir(kind):
-    d = staging_root() / "hooks" / kind
+    root = staging_root()
+    d = contained(root / "hooks" / kind, root)
     d.mkdir(parents=True, exist_ok=True)
+    contained(d, root)                      # re-checked after mkdir: no symlink slipped in
     os.chmod(d, 0o700)
     return d
+
+
+def write_private(path, text, append=False):
+    """Review F8: a staging file is never written through a symlink."""
+    safe_path(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | (os.O_APPEND if append else os.O_TRUNC)
+    fd = os.open(path, flags, 0o600)
+    with os.fdopen(fd, "a" if append else "w") as f:
+        f.write(text)
 
 
 def cmd_hook_expansion(payload):
@@ -252,7 +263,7 @@ def cmd_hook_expansion(payload):
     rec = {"session_id": payload.get("session_id"), "transcript_path": tp, "prompt_id": payload.get("prompt_id"),
            "boundary_bytes": size, "at": time.time()}
     p = hook_dir("expansion") / f"{safe_id(payload.get('session_id'))}.json"
-    p.write_text(json.dumps(rec))
+    write_private(p, json.dumps(rec))
     return rec
 
 
@@ -265,13 +276,12 @@ def cmd_hook_stop(payload):
     if payload.get("agent_transcript_path"):
         rec["agent_transcript_path"] = payload["agent_transcript_path"]
         rec["agent_type"] = payload.get("agent_type")
-    with open(hook_dir("stop") / f"{safe_id(payload.get('session_id'))}.jsonl", "a") as f:
-        f.write(json.dumps(rec) + "\n")
+    write_private(hook_dir("stop") / f"{safe_id(payload.get('session_id'))}.jsonl", json.dumps(rec) + "\n", append=True)
     return rec
 
 
 def stop_records(session_id):
-    p = hook_dir("stop") / f"{safe_id(session_id)}.jsonl"
+    p = safe_path(hook_dir("stop") / f"{safe_id(session_id)}.jsonl")
     return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
 
 
@@ -315,6 +325,7 @@ class Builder:
 
     def quarantine_bytes(self, data, mime):
         """Criterion 11: binary content never goes into the capture. It waits in private staging."""
+        safe_path(self.quarantine)
         self.quarantine.mkdir(parents=True, exist_ok=True)
         os.chmod(self.quarantine, 0o700)
         h = sha(data)
@@ -322,24 +333,29 @@ class Builder:
         return {"mime": mime, "bytes": len(data), "sha256": h, "quarantined": True}
 
     def text_result(self, text, line_no, idx):
+        """(content, redactions, full_text, binary). full_text is the actual result: the stored
+        file for a persisted one, not its preview (review F12); None when it isn't text."""
         m = PERSISTED.search(text) if "<persisted-output>" in text else None
         if m:
             p = Path(m.group(1))
             ok = p.is_file() and self.session_dir.resolve() in p.resolve().parents
             if not ok:
                 self.partial.append(f"stored tool result missing or outside the session folder: {p.name} (line {line_no})")
-                return {"persisted_file": p.name, "present": False}, []
+                return {"persisted_file": p.name, "present": False}, [], None, False
             full = p.read_bytes()
             if looks_binary(full):
-                return {"persisted_file": p.name, **self.quarantine_bytes(full, "application/octet-stream")}, []
-            info, log = self.blob(full.decode("utf-8", "replace"), f"line{line_no}.block{idx}.persisted")
-            return {"persisted_file": p.name, **info}, log
-        if looks_binary(text.encode("utf-8", "surrogateescape")):
-            return self.quarantine_bytes(text.encode("utf-8", "surrogateescape"), "application/octet-stream"), []
-        if len(text.encode("utf-8", "surrogateescape")) > BLOB_LIMIT:
-            return self.blob(text, f"line{line_no}.block{idx}")
+                return {"persisted_file": p.name, **self.quarantine_bytes(full, "application/octet-stream")}, [], full, True
+            ftext = full.decode("utf-8", "replace")
+            info, log = self.blob(ftext, f"line{line_no}.block{idx}.persisted")
+            return {"persisted_file": p.name, **info}, log, ftext, False
+        tb = text.encode("utf-8", "surrogateescape")
+        if looks_binary(tb):
+            return self.quarantine_bytes(tb, "application/octet-stream"), [], tb, True
+        if len(tb) > BLOB_LIMIT:
+            info, log = self.blob(text, f"line{line_no}.block{idx}")
+            return info, log, text, False
         log = []
-        return {"text": redact(text, f"line{line_no}.block{idx}", log)}, log
+        return {"text": redact(text, f"line{line_no}.block{idx}", log)}, log, text, False
 
 
 def looks_binary(data):
@@ -418,12 +434,13 @@ def walk(builder, lines):
                     builder.calls[b.get("id")] = eid
                 elif bt == "tool_result":
                     text, images = result_text(b.get("content"))
-                    content, log = builder.text_result(text, i, j)
+                    content, log, full, binary = builder.text_result(text, i, j)
                     tid = b.get("tool_use_id")
-                    tb = text.encode("utf-8", "surrogateescape")
+                    fb = full if isinstance(full, bytes) else (full if full is not None else text).encode("utf-8", "surrogateescape")
                     content.update({"is_error": bool(b.get("is_error")), "linked": tid in builder.calls,
-                                    "source_bytes": len(tb), "sha256": sha(tb)})
-                    if b.get("is_error"):      # criterion 8, review F12: the record renders from these alone
+                                    "source_bytes": len(fb), "sha256": sha(fb)})
+                    text = full if isinstance(full, str) else text
+                    if b.get("is_error") and not binary and full is not None:   # F12; F18: never an excerpt of binary
                         elog = []
                         red = redact(text, f"line{i}.block{j}.excerpt", elog)
                         cut = red.encode("utf-8", "surrogateescape")[:ERROR_LIMIT].decode("utf-8", "ignore")
@@ -530,7 +547,7 @@ def reconcile(raw, boundary, stop, hooked):
 def cmd_capture(a):
     pending = None
     if a.from_hook:
-        p = hook_dir("expansion") / f"{safe_id(a.from_hook)}.json"
+        p = safe_path(hook_dir("expansion") / f"{safe_id(a.from_hook)}.json")
         if not p.exists():
             raise Refused(f"no expansion record for session {a.from_hook}; run /session-review so the hook fires")
         pending = json.loads(p.read_text())
@@ -546,18 +563,17 @@ def cmd_capture(a):
     if not transcript.is_file():
         raise Refused(f"no session file at {transcript}")
     deadline = time.time() + WAIT       # review F3: one deadline for settling and for the Stop line
-    settled, raw = wait_until_settled(transcript, deadline)
     stops = [s for s in stop_records(sid) if s.get("event", "Stop") == "Stop"
              and (not pending or s["at"] <= pending["at"])]
     stop = stops[-1] if stops else None
-    while True:
+    while True:                          # review F17: every pass re-proves 2 s of stability
+        settled, raw = wait_until_settled(transcript, deadline)
         boundary = pending["boundary_bytes"] if pending else len(raw)
         checked, why = reconcile(raw, boundary, stop, bool(pending))
         if checked or pending or not stop or time.time() >= deadline:
             break
         time.sleep(0.1)
-        raw = transcript.read_bytes()
-    if raw != transcript.read_bytes() and not pending:
+    if not pending and transcript.read_bytes() != raw:
         settled = False
     reasons = [] if settled else [f"the file was still changing after {WAIT:.0f}s"]
     if why:
@@ -652,8 +668,10 @@ def render_record(m, events):
             status = "error" if r and r["content"].get("is_error") else ("ok" if r else "no result")
             out.append(f"- tool `{c['tool']}` {main_target(c['input'])[:160]} -> {status} `{e['event_id'][:12]}`")
         elif t == "tool_result" and c.get("is_error"):
-            out += ["", f"Error result `{e['event_id'][:12]}`: {c['source_bytes']} bytes, sha256 {c['sha256'][:16]}"
-                    + (", truncated to 4 KB" if c.get("truncated") else ""), "", "```", c.get("excerpt", ""), "```", ""]
+            out += ["", f"Error result `{e['event_id'][:12]}`: {c['source_bytes']} bytes, sha256 {c['sha256']}"
+                    + (", truncated to 4 KB" if c.get("truncated") else "")
+                    + ("" if "excerpt" in c else ", content not shown (binary, quarantined, or missing)"),
+                    "", "```", c.get("excerpt", ""), "```", ""]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -709,9 +727,9 @@ def cmd_review_prompt(a):
         enclose("record.md", (cap / "record.md").read_text()),
     ])
     psha = sha(prompt.encode("utf-8"))
-    prov = cap.parent / "reviews" / ".prompts"
+    prov = safe_path(cap.parent / "reviews" / ".prompts")
     prov.mkdir(parents=True, exist_ok=True)
-    (prov / f"{psha}.json").write_text(json.dumps({"prompt_sha256": psha, "prompt_version": PROMPT_VERSION,
+    write_private(prov / f"{psha}.json", json.dumps({"prompt_sha256": psha, "prompt_version": PROMPT_VERSION,
                                                     "started_at": now(), "capture_hashes_sha256": sha((cap / "hashes.sha256").read_bytes())}))
     print(prompt)
     print(f"prompt_sha256={psha}", file=sys.stderr)
@@ -737,8 +755,14 @@ def validate_review(cap, draft):
         b = body.replace(NO_PROMOTION, "").strip()
         if not b:
             errors.append(f"section {h} is empty")
-        elif not EVENT_REF.search(b) and not re.search(r"nothing to report", b, re.I):
-            errors.append(f"section {h} makes claims without citing an event")
+            continue
+        if re.fullmatch(r"nothing to report\.?", b, re.I):
+            continue
+        # review F13: each paragraph or list item is a claim unit, and each one cites an event
+        units = [u.strip() for u in re.split(r"\n\s*\n|\n(?=\s*(?:[-*]|\d+\.)\s)", b) if u.strip()]
+        uncited = [u for u in units if not EVENT_REF.search(u)]
+        if uncited:
+            errors.append(f"section {h} makes claims without citing an event: {uncited[0][:80]!r}")
     cited = EVENT_REF.findall(text)
     for d, need in (("decisions.jsonl", ("evidence_event_ids",)), ("proposals.jsonl", PROPOSAL_FIELDS), ("observed.jsonl", ("kind", "identifier"))):
         for n, r in enumerate(read_jsonl(draft / d), 1):
@@ -775,6 +799,25 @@ def github_status(path):
         return "resolver_error", str(e)
 
 
+def review_heads(folder, state, repository):
+    """The heads a review pinned for one repository, by the packet's own repo order. None when the
+    review doesn't cover that repository; every head when no repository was named."""
+    rounds = state.get("heads", [])
+    if not repository:
+        return [h for r in rounds for h in r]
+    try:
+        packet = json.loads((folder / "packet.json").read_text())
+    except (OSError, ValueError):
+        return None
+    name = repository.rstrip("/").split("/")[-1]
+    for k, r in enumerate(packet.get("repos", [])):
+        url = subprocess.run(["git", "-C", r.get("path", "/nonexistent"), "remote", "get-url", "origin"],
+                             capture_output=True, text=True).stdout.strip()
+        if repository in url or Path(r.get("path", "")).name == name:
+            return [rh[k] for rh in rounds if len(rh) > k] + [r.get("head", "")]
+    return None
+
+
 def resolve(obs, repos):
     """Criterion 14: only code marks evidence verified."""
     kind, ident, repo = obs.get("kind"), str(obs.get("identifier", "")), obs.get("repository")
@@ -786,7 +829,11 @@ def resolve(obs, repos):
             if not path:
                 return {**rec, "status": "resolver_unavailable", "resolver": "git cat-file -e", "returned": "no local clone named"}
             r = subprocess.run(["git", "-C", path, "cat-file", "-e", f"{ident}^{{commit}}"], capture_output=True, text=True, timeout=15)
-            return {**rec, "status": "verified" if r.returncode == 0 else "not_found", "resolver": "git cat-file -e", "returned": r.returncode}
+            if r.returncode:
+                return {**rec, "status": "not_found", "resolver": "git cat-file -e", "returned": r.returncode}
+            full = subprocess.run(["git", "-C", path, "rev-parse", f"{ident}^{{commit}}"], capture_output=True, text=True, timeout=15).stdout.strip()
+            ok = not rec["expected_revision"] or full.startswith(rec["expected_revision"])
+            return {**rec, "status": "verified" if ok else "mismatch", "resolver": "git cat-file -e", "returned": {"revision": full}}
         if kind in ("pr", "ci_run", "release"):
             path = {"pr": f"/repos/{repo}/pulls/{ident}", "ci_run": f"/repos/{repo}/actions/runs/{ident}",
                     "release": f"/repos/{repo}/releases/tags/{ident}"}[kind]
@@ -808,10 +855,15 @@ def resolve(obs, repos):
             seen = [p.name for p in hits]
             if status == "verified":
                 st = json.loads((hits[0] / "state.json").read_text())
-                heads = [h for round_heads in st.get("heads", []) for h in round_heads]
-                seen = {"review_id": st.get("review_id"), "outcome": st.get("outcome"), "heads": heads[-3:]}
-                if rec["expected_revision"] and not any(h.startswith(rec["expected_revision"]) for h in heads):
-                    status = "mismatch"
+                if st.get("review_id") != hits[0].name:           # review F15: the state is this review's
+                    status, seen = "mismatch", {"review_id": st.get("review_id"), "folder": hits[0].name}
+                else:
+                    heads = review_heads(hits[0], st, repo)
+                    seen = {"review_id": st.get("review_id"), "outcome": st.get("outcome"), "repository": repo, "heads": (heads or [])[-3:]}
+                    if heads is None:
+                        status = "mismatch"; seen["why"] = f"the review covers no repository named {repo}"
+                    elif rec["expected_revision"] and not any(h.startswith(rec["expected_revision"]) for h in heads):
+                        status = "mismatch"
             return {**rec, "status": status, "resolver": "state file", "returned": seen}
     except (subprocess.SubprocessError, OSError) as e:
         return {**rec, "status": "resolver_error", "resolver": kind, "returned": str(e)}
@@ -904,7 +956,7 @@ def verify_hashes(d):
 
 def approval_digest(env):
     """Review F5: the owner confirms content AND audience, exceptions, files and scanner in one digest."""
-    return sha(json.dumps({k: env[k] for k in ("content_sha256", "files", "audience", "binary_exceptions", "scanner")},
+    return sha(json.dumps({k: env[k] for k in ("publication_id", "content_sha256", "files", "audience", "binary_exceptions", "scanner")},
                           sort_keys=True, separators=(",", ":")))
 
 
@@ -976,6 +1028,8 @@ def cmd_publish(a):
     only hashes.sha256 is added after, and the copy is checked against what was scanned."""
     pub = Path(a.publication)
     env = json.loads((pub / "prepare.json").read_text())
+    if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(env.get("publication_id"))) or env["publication_id"] != pub.name:
+        raise Refused("the publication id isn't the one prepare generated")      # review F6
     cand = pub / "candidate"
     dest = safe_path(Path(a.dest))
     if in_git_tree(dest):
@@ -1010,9 +1064,12 @@ def cmd_publish(a):
     write_hashes(cand)
     sid = safe_id(json.loads((cand / "capture" / "manifest.json").read_text())["session_id"])
     target = dest / f"{sid}-{env['publication_id']}"
-    if target.exists():
+    if target.exists() or target.is_symlink():
         raise Refused(f"{target} exists and is never replaced")
     dest.mkdir(parents=True, exist_ok=True)
+    contained(target, dest)
+    if in_git_tree(target):
+        raise Refused(f"{target} is inside a Git working tree")
     tmp = Path(tempfile.mkdtemp(prefix=".publishing-", dir=dest))
     try:
         shutil.copytree(cand, tmp / "p")

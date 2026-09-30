@@ -773,6 +773,111 @@ class ReviewRules(PublishBase):
         self.assertTrue((published / "publish-receipt.json").exists())
 
 
+class RoundTwo(PublishBase):
+    """Review 20260929-165606, round 2."""
+
+    def test_a_changed_publication_id_is_refused(self):
+        """F6."""
+        self.captured()
+        pub, prep = self.prepare()
+        pj = pub / "prepare.json"
+        env = json.loads(pj.read_text()); env["publication_id"] = "../../../escape"; pj.write_text(json.dumps(env))
+        rc, _, err = self.publish(pub, prep["approval_digest"])
+        self.assertEqual(rc, 2); self.assertIn("publication id", err)
+        self.assertFalse((self.tmp / "escape").exists())
+
+    def test_hooks_never_write_through_a_symlink(self):
+        """F8: a symlinked hooks folder, and a symlinked hook file."""
+        outside = self.tmp / "outside"; outside.mkdir()
+        (self.staging / "hooks").mkdir(parents=True)
+        (self.staging / "hooks" / "stop").symlink_to(outside)
+        rc, _, err = self.stop("x")
+        self.assertEqual(rc, 0); self.assertIn("symlink", err)
+        self.assertEqual(list(outside.iterdir()), [])
+        (self.staging / "hooks" / "stop").unlink(); (self.staging / "hooks" / "stop").mkdir()
+        target = outside / "victim.txt"; target.write_text("untouched")
+        (self.staging / "hooks" / "stop" / f"{SID}.jsonl").symlink_to(target)
+        rc, _, err = self.stop("x")
+        self.assertEqual(rc, 0); self.assertEqual(target.read_text(), "untouched")
+
+    def test_a_persisted_error_is_measured_and_excerpted_from_the_stored_file(self):
+        """F12: not from its preview."""
+        (self.sdir / "tool-results").mkdir(parents=True)
+        full = "REAL-ERROR-START\n" + "trace line\n" * 9000
+        (self.sdir / "tool-results" / "err.txt").write_text(full)
+        preview = f"<persisted-output>\nFull output saved to: {self.sdir}/tool-results/err.txt\n\nPreview: PREVIEW-ONLY\n</persisted-output>"
+        self.write(user("work"), asst(tool_use("t1", command="make")), result("t1", preview, error=True))
+        self.capture()
+        c = [e for e in self.events() if e["event_type"] == "tool_result"][0]["content"]
+        self.assertEqual((c["source_bytes"], c["sha256"]), (len(full.encode()), sr.sha(full.encode())))
+        self.assertTrue(c["excerpt"].startswith("REAL-ERROR-START")); self.assertNotIn("PREVIEW-ONLY", c["excerpt"])
+        self.assertIn(c["sha256"], (self.cap_dir() / "record.md").read_text())
+
+    def test_a_binary_error_result_gets_no_excerpt(self):
+        """F18: a ZIP and an opaque binary, both errors, leave nothing publishable."""
+        self.captured(asst(tool_use("t1", command="cat x.zip")), result("t1", "PK\x03\x04 AKIAFAKEBCSPIKE00002", error=True),
+                      asst(tool_use("t2", command="cat b")), result("t2", "\x00\x01 AKIAFAKEBCSPIKE00003", error=True))
+        res = [e["content"] for e in self.events() if e["event_type"] == "tool_result"]
+        self.assertTrue(all("excerpt" not in c and c["quarantined"] for c in res))
+        self.assertNotIn(b"AKIAFAKE", b"".join(p.read_bytes() for p in self.cap_dir().rglob("*") if p.is_file()))
+
+    def test_every_claim_unit_cites_an_event(self):
+        """F13: mixed cited and uncited paragraphs, and 'nothing to report' plus a claim."""
+        self.captured()
+        ev = self.events()[0]["event_id"][:12]
+        secs = [f"## {i}. {t}\n\nNothing to report." for i, t in enumerate(sr.SECTIONS, 1)]
+        mixed = list(secs); mixed[1] = f"## 2. {sr.SECTIONS[1]}\n\nWe shipped it. ev:{ev}\n\nAnd it was perfect."
+        padded = list(secs); padded[4] = f"## 5. {sr.SECTIONS[4]}\n\nNothing to report.\n\n- The deploy failed twice."
+        for body in (mixed, padded):
+            rc, _, err = self.finalize_review(self.draft(review="\n\n".join(body)))
+            self.assertEqual(rc, 2); self.assertIn("without citing an event", err)
+
+    def test_commit_and_review_identity_mismatches(self):
+        """F15: a commit at another revision; a state from another review; a repository the review didn't cover."""
+        repo = self.tmp / "clone"; repo.mkdir()
+        g = lambda *a: subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, check=True).stdout.strip()
+        g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t")
+        (repo / "f").write_text("1"); g("add", "."); g("commit", "-qm", "one")
+        head = g("rev-parse", "HEAD")
+        repos = {"o/clone": str(repo)}
+        self.assertEqual(sr.resolve({"kind": "commit", "identifier": head, "repository": "o/clone", "expected_revision": head[:12]}, repos)["status"], "verified")
+        self.assertEqual(sr.resolve({"kind": "commit", "identifier": head, "repository": "o/clone", "expected_revision": "deadbeef"}, repos)["status"], "mismatch")
+        base = self.tmp / "reviews"
+        good = base / "20260929-000001-aaa-x"; bad = base / "20260929-000002-bbb-y"
+        for d, rid in ((good, good.name), (bad, "someone-else")):
+            d.mkdir(parents=True)
+            (d / "state.json").write_text(json.dumps({"review_id": rid, "heads": [[head, "ffff"]]}))
+            (d / "packet.json").write_text(json.dumps({"repos": [{"path": str(repo), "head": head}, {"path": "/x/other", "head": "ffff"}]}))
+        os.environ["GSTACK_PEER_REVIEW_DIR"] = str(base); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
+        r = lambda ident, repo_, rev: sr.resolve({"kind": "review_id", "identifier": ident, "repository": repo_, "expected_revision": rev}, {})["status"]
+        self.assertEqual(r(good.name, "o/clone", head[:10]), "verified")
+        self.assertEqual(r(good.name, "o/clone", "ffff"), "mismatch")        # that head belongs to the other repository
+        self.assertEqual(r(good.name, "o/nowhere", head[:10]), "mismatch")
+        self.assertEqual(r(bad.name, "o/clone", head[:10]), "mismatch")      # state names another review
+
+    def test_a_late_reply_followed_by_more_writing_waits_for_stability(self):
+        """F17."""
+        self.write(user("work", pid="p1"))
+        self.stop("late reply")
+        def writer():
+            time.sleep(0.5)                   # after the first settle has already returned
+            with open(self.tr, "ab") as f:
+                f.write(asst("late reply"))
+            time.sleep(0.15)                  # inside the settle window: the capture must wait for it
+            with open(self.tr, "ab") as f:
+                f.write(L(type="last-prompt", lastPrompt="x"))
+        old = (sr.SETTLE, sr.WAIT); sr.SETTLE, sr.WAIT = 0.3, 3
+        t = threading.Thread(target=writer); t.start()
+        try:
+            self.capture()
+        finally:
+            t.join(); sr.SETTLE, sr.WAIT = old
+        m = self.manifest()
+        self.assertTrue(m["capture_boundary_checked"])
+        self.assertEqual(m["captured_through_source_line"], 3)
+        self.assertEqual(m["capture_completeness"]["status"], "complete")
+
+
 class Determinism(Base):
     def test_the_same_source_gives_byte_identical_evidence(self):
         self.write(user("work"), asst("one", tool_use("t1", command="ls")), result("t1", "a"), asst("done"))
