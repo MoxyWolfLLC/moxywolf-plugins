@@ -62,7 +62,7 @@ def validate(rows, caught_by, dispositions):
             failures.append(f"{rid}: caught_by {r['caught_by']!r} is not one of {sorted(caught_by)}")
         if r.get("disposition") and r["disposition"] not in dispositions:
             failures.append(f"{rid}: disposition {r['disposition']!r} is not one of {sorted(dispositions)}")
-        if r.get("disposition") in ("became_check", "became_rule") and not r.get("target"):
+        if r.get("disposition") in ("became_check", "became_rule", "evaluation_case") and not r.get("target"):
             failures.append(f"{rid}: {r['disposition']} names no target")
         if rid in by_id:
             failures.append(f"{rid}: duplicate id")

@@ -20,7 +20,7 @@ def check(text):
 class MistakeLedger(unittest.TestCase):
     def test_vocabulary_carries_both_groups(self):
         self.assertEqual(CAUGHT, {"user", "reviewer", "test", "ci", "self"})
-        self.assertEqual(DISP, {"became_check", "became_rule", "one_off"})
+        self.assertEqual(DISP, {"became_check", "became_rule", "one_off", "evaluation_case"})   # SM-004.15
 
     def test_valid_ledger_passes(self):
         self.assertEqual(check(HEAD + M1 + M2), [])
@@ -48,6 +48,10 @@ class MistakeLedger(unittest.TestCase):
     def test_check_or_rule_needs_a_target(self):
         f = check(HEAD + "| M-003 | 2026-09-24 | x | user | q | became_check | | |\n")
         self.assertIn("M-003: became_check names no target", f)
+
+    def test_an_evaluation_case_needs_a_target_too(self):
+        f = check(HEAD + "| M-003 | 2026-09-24 | x | user | q | evaluation_case | | |\n")
+        self.assertIn("M-003: evaluation_case names no target", f)
 
     def test_repeat_of_unknown_entry_fails(self):
         f = check(HEAD + M1 + "| M-003 | 2026-09-25 | x | user | q | became_check | XE-020 | M-009 |\n")

@@ -762,14 +762,14 @@ A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs
 
 ### SM-004 — A session leaves evidence a human can review, captured by code, not recalled
 
-**Status:** planned. Criteria revised 2026-09-29 from boundary test B-c (`docs/evidence/boundary-c-2026-09-29.md`). Criterion 16 needs TB-002 built first.
+**Status:** building. Criteria revised 2026-09-29 from boundary test B-c (`docs/evidence/boundary-c-2026-09-29.md`). Criterion 16 needs TB-002 built first.
 
 **Links introduced:**
 - **Session identity.** Each capture names the `session_id`, the transcript path, the session folder beside it (`<session>/`, holding `subagents/` and `tool-results/`), the source file's sha256 at capture and the last source line captured. A reader assumes the evidence came from that file, up to that line, and nothing else.
 - **Event identity.** Every event has an `event_id`: the sha256 of `session_id | source_line | source_block_index | event_type`. Tool results link to their calls by `tool_use_id`. Reviews, decisions, proposals and verification results cite events by `event_id`, never by output line number.
 - **Artifact identity.** The record is three kinds of directory under `session-records/<session-id>/`: one `capture/`, a `reviews/<review-run-id>/` per review, and a `publications/<publication-id>/` per publication. Each finalized directory has its own `hashes.sha256` covering every file in it except itself. A review records the capture hash it read. A publication records the capture and review hashes it released. A finalized directory is never appended to or replaced; a new review or publication is a new directory.
 - **Storage.** The manifest records the audience, the retention class, the location and the deletion date. Deletion is done by a person and isn't enforced by any process.
-- **Names.** The `/session-review` command and the `UserPromptExpansion` and `Stop` hooks in project-init are new names that people and the handoff will cite.
+- **Names.** The `/session-review` command and the `UserPromptExpansion`, `Stop` and `SubagentStop` hooks in project-init are new names that people and the handoff will cite. (`SubagentStop` is what criterion 5's `not_written` sub-agent record reads.)
 
 `/session-end` writes a handoff: prose about what landed, and a mistake ledger. Neither is the session itself. When Dorian wants to review how a session went, or check what was actually said before a merge, the only full record is the Claude Code session file (`~/.claude/projects/<dir>/<session>.jsonl`). It's JSON lines, mixed with system traffic, and the Cowork cloud container deletes it when the session ends. On 2026-09-28 one session held 33 user messages, 169 tool calls and 168 tool results in a 4.3 MB file. A prompt asking the agent to write the session up can't do this job. After context compaction the agent no longer holds the early turns, and it can't recover what the interface never exposed. So capture is deterministic code over the file, and review is a separate step that reads only what the code wrote.
 
