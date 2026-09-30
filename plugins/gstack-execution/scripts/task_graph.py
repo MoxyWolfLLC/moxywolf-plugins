@@ -29,7 +29,7 @@ def node_prompt(payload):
     return ('Read-only gstack task graph node. Never modify source, dispatch another agent, or release anything.\n'
             + RULE + '\n' + json.dumps(own) + '\n'
             + enclose('results of other graph nodes: dependencies and candidates', json.dumps(outside)))
-from governance import data_permission as permission, gate_record
+from governance import check_egress, data_permission as permission, gate_record
 
 HERE = Path(__file__).resolve().parent
 WORKFLOWS = HERE.parent / 'workflows'
@@ -373,12 +373,14 @@ def execute(graph,packet,root,jobs,audit=False):
     # Validate every destination before the first worker can receive repository data.
     for n in graph['nodes']:
         if n['kind']!='report':permission(packet,tool=None if n.get('command') or n['kind']=='proof' else (peer.OTHER_TOOL[packet['builder']] if n['kind'] in {'checker','peer'} else packet['builder']),command=n.get('command',n.get('argv')))
+    # TB-003: a node's declared network destinations are granted, or the run never starts.
+    egress=check_egress(packet,[d for n in graph['nodes'] for d in n.get('destinations',[])])
     root.mkdir(parents=True,exist_ok=True)
     with lock(root/'run.lock'):
         state=read(root/'state.json') if (root/'state.json').exists() else {'nodes':{}}
         write(root/'packet.json',packet);write(root/'graph.json',graph)
         state['nodes']={id:e for id,e in state['nodes'].items() if id in {n['id'] for n in graph['nodes']}}
-        state.update(outcome='running',packet_hash=digest(packet))
+        state.update(outcome='running',packet_hash=digest(packet),egress=egress)
         write(root/'state.json',state)
         pending={n['id']:n for n in graph['nodes']};done={};active={};failed=set();pre={}
         with ThreadPoolExecutor(max_workers=jobs) as pool:

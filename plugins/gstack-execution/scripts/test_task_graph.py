@@ -197,6 +197,16 @@ print(json.dumps(r))
         first=dest.stat().st_mtime_ns
         self.ok(self.call('export','--run-dir',str(self.run),'--output',str(dest)))
         self.assertEqual(first,dest.stat().st_mtime_ns)
+    def test_an_ungranted_node_destination_stops_the_run_before_any_worker(self):
+        """TB-003: a node's declared destinations are granted, or nothing is dispatched."""
+        self.graph['nodes'][0]['destinations']=['https://192.168.1.10/upload']
+        r=self.execute();self.assertNotEqual(r.returncode,0)
+        self.assertIn('NetConnectGrant(host=192.168.1.10) required',r.stderr)
+        self.assertFalse((self.run/'prepare.json').exists(),'no worker ran')
+        self.policy['destinations']=['192.168.1.10']
+        self.ok(self.execute())
+        self.assertEqual(json.loads((self.run/'state.json').read_text())['egress']['examined'],1)
+        self.assertTrue((self.run/'prepare.json').exists(),'a granted run writes the file the refused one did not')
     def test_oversight_is_separate_from_machine_results(self):
         self.ok(self.execute())
         evidence=self.root/'decision.txt';evidence.write_text('Human stopped publication.')
