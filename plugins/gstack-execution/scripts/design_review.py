@@ -45,6 +45,10 @@ SCHEMA = {"type": "object", "additionalProperties": False,
                          "new_findings": {"type": "array", "items": _NEW}}}
 
 
+# The transport outcomes that mean "the reply came back but wasn't usable" (peer_review.py).
+MALFORMED_OUTCOMES = {"malformed_output"}
+
+
 class Malformed(Exception):
     pass
 
@@ -114,7 +118,13 @@ def choose(writer, probe=ready, calls=None):
 
 def init(state, writer, draft, logpath, cap=DEFAULT_CAP, probe=ready):
     calls = []
-    r1, r2 = choose(writer, probe, calls)
+    try:
+        r1, r2 = choose(writer, probe, calls)
+    except SystemExit as e:   # review F4: the probes were model calls; keep them for finish()
+        save(state, {"writer": writer, "reviewers": {}, "cap": cap, "round": 0, "log": str(logpath), "hash": sha(draft),
+                     "findings": {}, "policy_proposals": [], "rounds": [], "stalls": 0, "outcome": "not_started",
+                     "failure": {"why": str(e)}, "calls": calls})
+        raise
     s = {"writer": writer, "reviewers": {"r1": r1, "r2": r2}, "cap": cap, "round": 0, "log": str(logpath),
          "hash": sha(draft), "findings": {}, "policy_proposals": [], "rounds": [], "stalls": 0,
          "outcome": None, "failure": None, "calls": calls}
@@ -163,33 +173,36 @@ def review(state, slot, draft, prompt, runner=None, root="."):
     h = sha(draft)
     if h != s["hash"]:
         raise SystemExit(f"draft hash {h[:12]} is not the revision under review ({s['hash'][:12]})")
+    last = s["rounds"][-1] if s["rounds"] else None
     if slot == "r1":
+        if last and not last.get("closed"):
+            raise SystemExit("reviewer 1 opens a round only after the writer closed the last one")
         s["round"] += 1
         s["rounds"].append({"n": s["round"], "hash": h})
+    elif not last or "r1" not in last or "r2" in last or last.get("closed") or last["hash"] != h:
+        raise SystemExit("reviewer 2 runs once per round, after reviewer 1, on the revision reviewer 1 reviewed")
     rnd = s["rounds"][-1]
-    if slot == "r2" and "r1" not in rnd:
-        raise SystemExit("reviewer 2 runs after reviewer 1 in the same round")
     tool = s["reviewers"][slot]
     runner = runner or (lambda t, p: pr.run_reviewer(t, p, Path(root), 1800, SCHEMA))
     new_r1 = rnd.get("r1", {}).get("new", []) if slot == "r2" else []
     reply, why = None, None
     for attempt in (1, 2):   # criterion 8: one retry, and only for a malformed reply
-        model, err = None, None
+        model, err, malformed = None, None, False
         pr.LAST_REVIEWER_USAGE = "not_reported"
         try:
             text, model = runner(tool, Path(prompt).read_text())
             reply = json.loads(text)
             validate(s, slot, reply, new_r1)
-        except pr.ReviewError as e:          # timeout, quota, transport: the loop ends, no retry
-            err, reply = f"{e.outcome}: {e.detail}", None
+        except pr.ReviewError as e:   # timeout, quota, transport end the loop; a malformed reply is retried
+            err, reply, malformed = f"{e.outcome}: {e.detail}", None, e.outcome in MALFORMED_OUTCOMES
             why = f"attempt {attempt}: {err}"
         except (Malformed, ValueError, TypeError, AttributeError) as e:
-            err, reply = f"malformed: {e}", None
+            err, reply, malformed = f"malformed: {e}", None, True
             why = f"attempt {attempt}: {err}"
         finally:
             s["calls"].append({"round": s["round"], "slot": slot, "tool": tool, "model": model,
                                "usage": getattr(pr, "LAST_REVIEWER_USAGE", "not_reported"), "error": err})
-        if reply is not None or not err.startswith("malformed"):
+        if reply is not None or not malformed:
             break
     if reply is None:
         s["outcome"], s["failure"] = "incomplete", {"round": s["round"], "slot": slot, "tool": tool, "why": why}
@@ -220,11 +233,17 @@ def review(state, slot, draft, prompt, runner=None, root="."):
     return s
 
 
+def approved(s, rnd):
+    material_open = [i for i in open_ids(s) if s["findings"][i]["severity"] == "material"]
+    return rnd["r1"]["verdict"] == rnd["r2"]["verdict"] == "APPROVED" and not material_open
+
+
 def settle_after_reviews(s):
     rnd = s["rounds"][-1]
-    material_open = [i for i in open_ids(s) if s["findings"][i]["severity"] == "material"]
-    if rnd["r1"]["verdict"] == rnd["r2"]["verdict"] == "APPROVED" and not material_open:
+    if approved(s, rnd) and not rnd["r1"]["new"] and not rnd["r2"]["new"]:
         s["outcome"] = "converged"            # criterion 5: both approve this revision hash
+        rnd["closed"] = True
+    # with new findings, the writer disposes of them first; writer() converges if the text doesn't move
     # criterion 6: the cap is decided in writer(), after this round's findings are disposed of
 
 
@@ -261,6 +280,9 @@ def writer(state, dispositions, draft):
             f["open"] = False                            # a minor finding closes on the writer's disposition
             f["closed_by"] = f"writer {value}"
     s["hash"] = sha(draft)
+    rnd["closed"] = True
+    if approved(s, rnd) and s["hash"] == rnd["hash"]:
+        s["outcome"] = "converged"   # both approved this exact text, and the writer handed it on unchanged
     # criterion 7. The key is the revision handed to the next round plus every finding and whether it
     # is open. A finding merged as a duplicate is left out, so a reissue can't reset the count.
     state_now = sorted([i, f["open"]] for i, f in s["findings"].items() if not str(f.get("disposition") or "").startswith("duplicate of "))
@@ -268,7 +290,9 @@ def writer(state, dispositions, draft):
     prev = s["rounds"][-2].get("key") if len(s["rounds"]) > 1 else None
     rnd["key"] = key
     s["stalls"] = s["stalls"] + 1 if key == prev else 0
-    if s["stalls"] >= 2:
+    if s["outcome"]:
+        pass
+    elif s["stalls"] >= 2:
         s["outcome"] = "stalled"
     elif s["round"] >= s["cap"]:
         s["outcome"] = "cap_reached"

@@ -224,6 +224,59 @@ def test_readiness_calls_are_counted_in_the_run_note():
     assert "reviewer_calls: 2" in text and "reviewer_tokens: 14" in text, text
 
 
+def test_reviewer_2_cannot_rerun_after_the_writer_revised():
+    L = Loop()
+    L.rev("r1", reply("APPROVED")); L.rev("r2", reply())
+    L.write({})
+    try:
+        L.rev("r2", reply("APPROVED"))
+        raise AssertionError("reviewer 2 must not approve a revision reviewer 1 never saw")
+    except SystemExit as e:
+        assert "once per round" in str(e)
+
+
+def test_new_minor_findings_in_an_approved_round_are_disposed_before_convergence():
+    L = Loop()
+    s = L.rev("r1", reply("APPROVED")); s = L.rev("r2", reply("APPROVED", new=[("minor", "finding", "nit")]))
+    assert s["outcome"] is None, "the writer still owes a disposition"
+    s = L.write({"R1-r2-1": {"disposition": "rejected", "reason": "fine"}}, change=False)
+    assert s["outcome"] == "converged" and s["findings"]["R1-r2-1"]["disposition"] == "rejected", s["outcome"]
+    L2 = Loop()
+    L2.rev("r1", reply("APPROVED")); L2.rev("r2", reply("APPROVED", new=[("minor", "finding", "nit")]))
+    s = L2.write({"R1-r2-1": {"disposition": "accepted"}}, change=True)
+    assert s["outcome"] is None, "changed text needs a fresh round"
+
+
+def test_a_transport_malformed_reply_is_retried_and_a_timeout_is_not():
+    L = Loop()
+    s = L.rev("r1", pr.ReviewError("malformed_output", "empty content"), reply("APPROVED"))
+    assert s["outcome"] is None and s["rounds"][-1]["r1"]["verdict"] == "APPROVED", s["failure"]
+    L2 = Loop()
+    s = L2.rev("r1", pr.ReviewError("timeout", "exceeded"), reply("APPROVED"))
+    assert s["outcome"] == "incomplete" and len(s["calls"]) == 1, s["calls"]
+
+
+def test_a_loop_that_cannot_start_still_records_its_readiness_calls():
+    real = pr.run_reviewer
+    def fake(tool, prompt, root, timeout, schema=None):
+        pr.LAST_REVIEWER_USAGE = {"total": 5}
+        if tool == "codex":
+            return '{"ok": true}', "m"
+        raise pr.ReviewError("review_unavailable", "no auth")
+    pr.run_reviewer = fake
+    tmp = Path(tempfile.mkdtemp()); draft = tmp / "D.md"; draft.write_text("v0\n")
+    try:
+        d.init(tmp / "state.json", "claude", draft, tmp / "log.md")
+        raise AssertionError("one ready family must not start the loop")
+    except SystemExit:
+        pass
+    finally:
+        pr.run_reviewer = real
+    s = d.load(tmp / "state.json")
+    assert s["outcome"] == "not_started" and s["calls"] and s["calls"][0]["tool"] == "codex", s
+    assert "reviewer_calls: %d" % len(s["calls"]) in d.finish(tmp / "state.json", tmp / "runs").read_text()
+
+
 def test_a_status_or_stance_without_a_reason_is_malformed():
     L = Loop()
     L.rev("r1", reply(new=[("material", "finding", "x")]))
