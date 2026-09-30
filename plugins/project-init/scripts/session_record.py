@@ -1053,13 +1053,13 @@ def cmd_publish_prepare(a):
     exceptions = []
     for spec in a.allow_binary:
         h, _, name = spec.partition(":")
-        src = cap.parent / "quarantine" / h
-        if src.is_symlink():
-            raise Refused(f"quarantined file {h} is a symlink; publishing it is refused")
-        if not re.fullmatch(r"[0-9a-f]{64}", h) or not src.is_file() or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", name):
+        if not re.fullmatch(r"[0-9a-f]{64}", h) or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", name):
             raise Refused(f"--allow-binary needs <sha256>:<file name> of a quarantined file; got {spec}")
-        private_dir(cand / "binary")
-        shutil.copyfile(src, cand / "binary" / name)
+        src = staged(cap.parent / "quarantine" / h)      # review F2: the whole path, not just the leaf
+        data = src.read_bytes() if src.is_file() else None
+        if data is None or sha(data) != h:                # the bytes are what the owner approves, not the name
+            raise Refused(f"quarantined file {h} is missing or its bytes don't hash to its name")
+        write_private(private_dir(cand / "binary") / name, data)
         exceptions.append({"sha256": h, "name": name, "approved_by_owner": True})
     for p in cand.rglob("*"):
         os.chmod(p, 0o600 if p.is_file() else 0o700)
@@ -1116,6 +1116,10 @@ def cmd_publish(a):
                            "note": "written before the scan; this package exists only because the scan passed"},
                "publication_id": env["publication_id"]}
     write_private(cand / "publish-receipt.json", json.dumps(receipt, indent=2) + "\n")
+    generated = ("confirmation-attestation.json", "scan-attestation.json", "publish-receipt.json")
+    if digest(cand, skip=generated)[0] != env["content_sha256"]:       # review F1: still what the owner confirmed
+        raise Refused("the payload changed after confirmation; publishing is refused")
+    scanned = digest(cand)[0]                                           # retained: what gitleaks is about to scan
     private = private_dir(pub / "private")
     report = safe_path(private / "gitleaks-report.json")
     if report.exists() or report.is_symlink():            # review F1: gitleaks writes it; nothing may be there first
@@ -1126,7 +1130,8 @@ def cmd_publish(a):
     if r.returncode != 0:
         raise Refused(f"gitleaks found {'secrets' if r.returncode == 1 else 'an error'} in the candidate; "
                       f"publishing is refused. Findings stay in {private}")
-    scanned = digest(cand)[0]
+    if digest(cand)[0] != scanned:                     # review F1: nothing changed while the scanner ran
+        raise Refused("the candidate changed while it was being scanned; publishing is refused")
     write_hashes(cand)
     sid = safe_id(json.loads((cand / "capture" / "manifest.json").read_text())["session_id"])
     target = dest / f"{sid}-{env['publication_id']}"

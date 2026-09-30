@@ -1073,6 +1073,42 @@ class FreshReview(PublishBase):
                                      "--audience", "Dorian", f"--allow-binary={h}:x.bin"])
         self.assertEqual(rc, 2); self.assertIn("symlink", err)
 
+    def test_a_change_during_the_scan_is_refused(self):
+        """Review 20260929-222650 F1: a file changed or added while gitleaks runs never reaches the destination."""
+        self.captured()
+        for change in ("modify", "add"):
+            pub, prep = self.prepare()
+            real = subprocess.run
+            def scanning(cmd, *a, **k):
+                r = real(cmd, *a, **k)
+                if cmd[1:2] == ["dir"]:
+                    cand = pub / "candidate"
+                    if change == "modify":
+                        f = cand / "capture" / "record.md"; os.chmod(f, 0o600); f.write_text("changed mid-scan")
+                    else:
+                        (cand / "late.bin").write_bytes(b"\x00late")
+                return r
+            sr.subprocess.run = scanning
+            try:
+                rc, _, err = self.publish(pub, prep["approval_digest"])
+            finally:
+                sr.subprocess.run = real
+            self.assertEqual(rc, 2, change); self.assertIn("while it was being scanned", err)
+            self.assertFalse(self.dest.exists() and any(self.dest.iterdir()), change)
+
+    def test_a_binary_exception_is_bound_to_real_quarantined_bytes(self):
+        """Review 20260929-222650 F2: a symlinked quarantine folder, and a file whose bytes don't match its name."""
+        self.captured(asst(tool_use("t1", command="cat b")), result("t1", "\x00\x01 opaque"))
+        q = self.cap_dir().parent / "quarantine"; h = next(q.iterdir()).name
+        rv = self.a_review()
+        prep = lambda: quiet(sr.main, ["publish-prepare", "--capture", str(self.cap_dir()), "--review", str(rv),
+                                       "--audience", "Dorian", f"--allow-binary={h}:x.bin"])
+        os.chmod(q / h, 0o600); (q / h).write_bytes(b"swapped bytes")
+        rc, _, err = prep(); self.assertEqual(rc, 2); self.assertIn("hash to its name", err)
+        outside = self.tmp / "outq"; outside.mkdir(); (outside / h).write_bytes(b"outside bytes")
+        q.rename(self.tmp / "realq"); q.symlink_to(outside)
+        rc, _, err = prep(); self.assertEqual(rc, 2); self.assertIn("symlink", err)
+
     def test_a_hooked_capture_reads_nothing_past_the_boundary(self):
         """F5."""
         self.write(user("work", pid="p1"), asst("done"))
