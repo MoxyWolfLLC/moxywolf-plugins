@@ -762,7 +762,7 @@ A lesson written down is not a lesson applied. On 2026-09-24 the macOS `/tmp` vs
 
 ### SM-004 — A session leaves evidence a human can review, captured by code, not recalled
 
-**Status:** building. Criteria revised 2026-09-29 from boundary test B-c (`docs/evidence/boundary-c-2026-09-29.md`). Criterion 16 needs TB-002 built first.
+**Status:** done. Merged to `main` in `e17bd77` (PR #83, head `89d3651`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Reviews: `20260929-165606-233069b-01ndgg5a` (`rounds_exhausted`, four open, fixed after), `20260929-175128-1572879-z51xtubv` (F1 to F5 fixed; last round `malformed_output` on a verdict over one separate surface finding), and `20260929-222650-306ae68-dea4uphl` (`fixes_verified`, 20/20), with the `tests` workflow green on the merged head. Criteria revised 2026-09-29 from boundary test B-c (`docs/evidence/boundary-c-2026-09-29.md`).
 
 **Links introduced:**
 - **Session identity.** Each capture names the `session_id`, the transcript path, the session folder beside it (`<session>/`, holding `subagents/` and `tool-results/`), the source file's sha256 at capture and the last source line captured. A reader assumes the evidence came from that file, up to that line, and nothing else.
