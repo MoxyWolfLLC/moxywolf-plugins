@@ -1275,7 +1275,7 @@ SM-004's second review, `20260929-175128-1572879-z51xtubv`, verified every code 
 
 ### XE-030 — A criterion the packet carries word for word is covered without asking a model
 
-**Status:** building. Asked for by Dorian on 2026-09-30 ("Build the coverage scorer").
+**Status:** done. Merged to `main` in `44fa797` (PR #87, head `847b639`) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's instruction, recorded by `record-release` as `agent_merge_on_instruction`. Review `20260930-103118-847b639-hs_67rl5` (`no_blocking_findings`, 7/7), opened with coverage `covered` and no override, with the `tests` workflow green at the reviewed head and read by the dispatcher itself. Asked for by Dorian on 2026-09-30 ("Build the coverage scorer").
 
 **Links introduced:** none. Each scored criterion gains a `match` field, `verbatim` or `model`, inside the packet's existing `coverage` block.
 
