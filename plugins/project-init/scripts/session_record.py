@@ -998,10 +998,18 @@ GITLEAKS_CONFIG = Path(__file__).with_name("gitleaks.toml")
 GITLEAKS_CONFIG_SHA256 = "f943f98c86b22d52dcf0c36393a1f93b2feba47206e7b394dfa671c422c8d123"   # review F7: pinned; a changed config refuses publishing
 
 
+def inventory(d):
+    """(name, sha256) for every file, read once."""
+    return [(str(p.relative_to(d)), sha(p.read_bytes())) for p in sorted(Path(d).rglob("*")) if p.is_file()]
+
+
+def listing_sha(inv, skip=()):
+    return sha("".join(f"{h}  {n}\n" for n, h in inv if n not in skip))
+
+
 def digest(d, skip=()):
-    files = sorted(p for p in Path(d).rglob("*") if p.is_file() and str(p.relative_to(d)) not in skip)
-    listing = "".join(f"{sha(p.read_bytes())}  {p.relative_to(d)}\n" for p in files)
-    return sha(listing), [str(p.relative_to(d)) for p in files]
+    inv = inventory(d)
+    return listing_sha(inv, skip), [n for n, _ in inv if n not in skip]
 
 
 def verify_hashes(d):
@@ -1116,24 +1124,31 @@ def cmd_publish(a):
                            "note": "written before the scan; this package exists only because the scan passed"},
                "publication_id": env["publication_id"]}
     write_private(cand / "publish-receipt.json", json.dumps(receipt, indent=2) + "\n")
-    generated = ("confirmation-attestation.json", "scan-attestation.json", "publish-receipt.json")
-    if digest(cand, skip=generated)[0] != env["content_sha256"]:       # review F1: still what the owner confirmed
-        raise Refused("the payload changed after confirmation; publishing is refused")
-    scanned = digest(cand)[0]                                           # retained: what gitleaks is about to scan
+    # Review 20260929-222650 F1: one read-only snapshot is confirmed, scanned and published; both digests
+    # come from one inventory of it, so no interval lets unconfirmed bytes in. ponytail: staging is 0700,
+    # so the only other writer is the owner's own process; a chmod back and a revert mid-scan is out of scope.
     private = private_dir(pub / "private")
+    snap = safe_path(private / "scan-input")
     report = safe_path(private / "gitleaks-report.json")
-    if report.exists() or report.is_symlink():            # review F1: gitleaks writes it; nothing may be there first
-        raise Refused(f"{report} already exists; publishing is refused")
-    r = subprocess.run([exe, "dir", str(cand), "--config", str(GITLEAKS_CONFIG), "--no-banner", "--redact",
+    for p in (snap, report):
+        if p.exists() or p.is_symlink():                  # gitleaks and this step write them; nothing may be there first
+            raise Refused(f"{p} already exists; publishing is refused")
+    shutil.copytree(cand, snap)
+    freeze(snap)
+    generated = ("confirmation-attestation.json", "scan-attestation.json", "publish-receipt.json")
+    inv = inventory(snap)
+    if listing_sha(inv, skip=generated) != env["content_sha256"]:      # still what the owner confirmed
+        raise Refused("the payload changed after confirmation; publishing is refused")
+    scanned = listing_sha(inv)                                          # retained: what gitleaks is about to scan
+    r = subprocess.run([exe, "dir", str(snap), "--config", str(GITLEAKS_CONFIG), "--no-banner", "--redact",
                         "--report-format", "json", "--report-path", str(report),
                         "--exit-code", "1"], capture_output=True, text=True)
     if r.returncode != 0:
         raise Refused(f"gitleaks found {'secrets' if r.returncode == 1 else 'an error'} in the candidate; "
                       f"publishing is refused. Findings stay in {private}")
-    if digest(cand)[0] != scanned:                     # review F1: nothing changed while the scanner ran
+    if digest(snap)[0] != scanned:                     # nothing changed while the scanner ran
         raise Refused("the candidate changed while it was being scanned; publishing is refused")
-    write_hashes(cand)
-    sid = safe_id(json.loads((cand / "capture" / "manifest.json").read_text())["session_id"])
+    sid = safe_id(json.loads((snap / "capture" / "manifest.json").read_text())["session_id"])
     target = dest / f"{sid}-{env['publication_id']}"
     if target.exists() or target.is_symlink():
         raise Refused(f"{target} exists and is never replaced")
@@ -1143,9 +1158,11 @@ def cmd_publish(a):
         raise Refused(f"{target} is inside a Git working tree")
     tmp = Path(tempfile.mkdtemp(prefix=".publishing-", dir=dest))
     try:
-        shutil.copytree(cand, tmp / "p")
-        if digest(tmp / "p", skip=("hashes.sha256",))[0] != scanned:
+        shutil.copytree(snap, tmp / "p")
+        os.chmod(tmp / "p", 0o700)
+        if digest(tmp / "p")[0] != scanned:
             raise Refused("the copy doesn't match what gitleaks scanned")
+        write_hashes(tmp / "p")                        # the one file added after the scan, from verified bytes
         os.rename(tmp / "p", target)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

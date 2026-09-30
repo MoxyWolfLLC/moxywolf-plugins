@@ -1082,11 +1082,12 @@ class FreshReview(PublishBase):
             def scanning(cmd, *a, **k):
                 r = real(cmd, *a, **k)
                 if cmd[1:2] == ["dir"]:
-                    cand = pub / "candidate"
+                    snap = Path(cmd[2]); self.assertEqual(snap, pub / "private" / "scan-input")
+                    os.chmod(snap, 0o700); os.chmod(snap / "capture", 0o700)      # a writer that defeats the freeze
                     if change == "modify":
-                        f = cand / "capture" / "record.md"; os.chmod(f, 0o600); f.write_text("changed mid-scan")
+                        f = snap / "capture" / "record.md"; os.chmod(f, 0o600); f.write_text("changed mid-scan")
                     else:
-                        (cand / "late.bin").write_bytes(b"\x00late")
+                        (snap / "late.bin").write_bytes(b"\x00late")
                 return r
             sr.subprocess.run = scanning
             try:
@@ -1095,6 +1096,43 @@ class FreshReview(PublishBase):
                 sr.subprocess.run = real
             self.assertEqual(rc, 2, change); self.assertIn("while it was being scanned", err)
             self.assertFalse(self.dest.exists() and any(self.dest.iterdir()), change)
+
+    def test_the_confirmed_check_and_the_scan_baseline_are_one_read_of_one_snapshot(self):
+        """Review 20260929-222650 F1, round 2: a candidate changed after the snapshot never reaches the scan or
+        the destination, and a snapshot that differs from what was confirmed is refused before the scan."""
+        self.captured()
+        pub, prep = self.prepare()
+        real, calls = sr.inventory, []
+        def changing(d):
+            if Path(d).name == "scan-input" and "scan-input" not in calls:
+                f = pub / "candidate" / "capture" / "record.md"; os.chmod(f, 0o600); f.write_text("after snapshot")
+            calls.append(Path(d).name)
+            return real(d)
+        sr.inventory = changing
+        try:
+            rc, out, err = self.publish(pub, prep["approval_digest"])
+        finally:
+            sr.inventory = real
+        self.assertEqual(rc, 0, err)
+        published = Path(json.loads(out)["published"])
+        self.assertIn("scan-input", calls)
+        self.assertEqual((pub / "candidate" / "capture" / "record.md").read_text(), "after snapshot")
+        self.assertNotIn("after snapshot", (published / "capture" / "record.md").read_text())
+        pub2, prep2 = self.prepare()
+        def tampered(d):
+            if Path(d).name == "scan-input":
+                os.chmod(Path(d), 0o700); (Path(d) / "extra.txt").write_text("unconfirmed")
+            return real(d)
+        sr.inventory = tampered
+        scans = []
+        realrun = subprocess.run
+        sr.subprocess.run = lambda cmd, *a, **k: (scans.append(cmd[1:2]), realrun(cmd, *a, **k))[1]
+        try:
+            rc, _, err = self.publish(pub2, prep2["approval_digest"])
+        finally:
+            sr.inventory = real; sr.subprocess.run = realrun
+        self.assertEqual(rc, 2); self.assertIn("changed after confirmation", err)
+        self.assertNotIn(["dir"], scans)
 
     def test_a_binary_exception_is_bound_to_real_quarantined_bytes(self):
         """Review 20260929-222650 F2: a symlinked quarantine folder, and a file whose bytes don't match its name."""
