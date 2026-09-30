@@ -973,7 +973,7 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 
 ### TB-003 — Egress is granted, not filtered
 
-**Status:** planned.
+**Status:** building. Asked for by Dorian on 2026-09-30.
 
 **Links introduced:** the destination-to-grant link. A tool call carrying a destination is assumed to be going somewhere the owner allowed. Today the grant covers tools and output roots, not destinations.
 
@@ -981,6 +981,8 @@ Scope is the write path, not the model. These items don't claim to make a prompt
 2. Refusal is the default. There is no pattern list of bad destinations, because a denylist reports a pass over whatever it hasn't thought of. DR-099 has the worked example.
 3. The refusal is a typed error naming the exact missing grant and its value, for example `MissingGrantError: NetConnectGrant(host=192.168.1.10) required`, so an honest call is one approval away rather than a mystery. Grants are typed by what they cover: network destinations first, with database and executable grants as a later item. This shape comes from the external response's third round and is better than the plain message this item first carried.
 4. Tests: an ungranted destination is refused; a granted one passes; the check reports how many calls it examined; a test asserts no denylist of destination patterns exists in the source.
+
+**Not in this item:** the dispatcher's own GitHub and OpenRouter calls in `peer_review.py`. They are the review machinery, not a task's egress, and refusing them by default would stop every review until each packet granted those hosts; they need their own item. The destinations checked here are the ones a task graph node declares, checked before any worker starts, as its tools and outputs already are.
 
 
 ## Seventh objective: retrieval review
@@ -1338,6 +1340,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: TB-003 moves to building on Dorian's instruction, scoped to the grant model and task-graph node destinations; the dispatcher's own GitHub and OpenRouter calls are named as not in this item.
 - 2026-09-30: XE-030 added on Dorian's instruction to build the coverage scorer: a declared criterion carried verbatim in the packet is covered without a model call.
 - 2026-09-30: SM-005 and XE-029 added from session review `20260930-095045-8bb8d311-109fbe` (the first live `/session-review`), whose seven proposals Dorian approved. P7's rule takes the narrow reading: only words telling the agent to merge count.
 - 2026-09-29: SM-004 revised from boundary test B-c, drafted by Claude and approved by Dorian. The hook matches the namespaced `project-init:session-review`; the capture ends at the file's length when the hook fires and turns queued-command lines and earlier review turns into `review_command` events; `last_assistant_message` is the last assistant line's text, and capture waits for that line because `Stop` fires before it's written; sub-agent files and large tool results are read from the session folder, and an unwritten sub-agent file is expected; inline images are hashed where they sit. `StopFailure` and Cowork remain unobserved.

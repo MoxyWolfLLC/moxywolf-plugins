@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from dataclasses import dataclass
 from fnmatch import fnmatch
+from urllib.parse import urlsplit
 
 
 # --- XE-002: a grant binds to a scope and re-resolves -------------------------
@@ -23,6 +25,7 @@ GRANT_CLASSES = {
     'review.send_code', 'external.model_call',
     'secret.read', 'thirdparty.configure',
     'prod.data_write', 'mail.send',
+    'net.connect',
 }
 # No grant satisfies these in advance, at any scope, however the human words it.
 ONE_SHOT_ONLY = {'merge', 'prod.data_write', 'mail.send', 'pr.bypass_review'}
@@ -93,7 +96,53 @@ def _matches(row, resource):
     return fnmatch(resource, row['resource'])
 
 
-def data_permission(packet,tool=None,command=None,output=None,ledger=None,session=None):
+# --- TB-003: egress is granted, not filtered ------------------------------------
+#
+# A destination is allowed only by a grant: a host pattern in the packet's data_use.destinations,
+# or a 'net.connect' grant in the ledger. Nothing here lists hosts to refuse; whatever no grant
+# names is refused, so a destination nobody thought about is refused rather than passed.
+
+@dataclass(frozen=True)
+class NetConnectGrant:
+    host: str
+
+    def __str__(self):
+        return f'NetConnectGrant(host={self.host})'
+
+
+class MissingGrantError(ValueError):
+    """The exact grant a refused call needs, so an honest call is one approval away."""
+
+    def __init__(self, grant, destination):
+        self.grant, self.destination = grant, destination
+        super().__init__(f"MissingGrantError: {grant} required for {destination}; add '{grant.host}' to the "
+                         f"packet's data_use.destinations, or grant(ledger, 'net.connect', '{grant.host}')")
+
+
+def destination_host(destination):
+    d = str(destination or '').strip()
+    host = urlsplit(d if '://' in d else '//' + d).hostname
+    return (host or d).lower()
+
+
+def check_egress(packet, destinations, ledger=None, session=None):
+    """Every destination must be granted. Returns what it examined; raises on the first refusal."""
+    declared = packet.get('data_use', {}).get('destinations', [])
+    # Review F1: a string here would be read one character at a time, and its '*' would grant everything.
+    if not isinstance(declared, list) or not all(isinstance(p, str) and p.strip() for p in declared):
+        raise ValueError('data_use.destinations must be a list of non-empty host patterns')
+    patterns = [p.strip().lower() for p in declared]
+    examined = []
+    for dest in destinations:
+        host = destination_host(dest)
+        examined.append(host)
+        if not host or not (any(fnmatch(host, p) for p in patterns)
+                            or (ledger and resolve(ledger, 'net.connect', host, session=session))):
+            raise MissingGrantError(NetConnectGrant(host=host or '<none>'), dest)
+    return {'examined': len(examined), 'granted': len(examined), 'hosts': sorted(set(examined))}
+
+
+def data_permission(packet,tool=None,command=None,output=None,ledger=None,session=None,destination=None):
     policy=packet.get('data_use',{})
     owner=packet.get('owner',packet.get('release_owner'))
     if (policy.get('owner')!=owner or not policy.get('classification') or
@@ -107,6 +156,8 @@ def data_permission(packet,tool=None,command=None,output=None,ledger=None,sessio
     if command and command not in policy.get('allowed_commands',[]):raise ValueError('data_use: command not authorized')
     if output and not any(Path(output).resolve().is_relative_to(Path(p).resolve()) for p in policy.get('output_roots',[])):
         raise ValueError('data_use: output destination denied')
+    if destination is not None:
+        check_egress(packet, [destination], ledger=ledger, session=session)
 
 
 def gate_record(log,owner,decision,action,revision,evidence,requested_at='',outcome='observed; not release authorization'):
