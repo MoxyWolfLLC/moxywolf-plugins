@@ -152,6 +152,7 @@ GA-005 criterion 1 mints from the single installation id in `github-app.env`, an
 4. `release`'s message and instruction, `/gstack-build`, `/gstack-ship`, `/gstack-peer-review` and the peer-review contract describe the agent merging under DR-113, with a `CODEOWNERS` path held for the owner's approval. The `awaiting_human_release` outcome name is unchanged, because tests and records key on it.
 5. `test_governed_review.py` covers criteria 1 to 3, and each new case is shown to fail alone against a copy with its fix removed.
 6. `gstack-execution` moves a minor version in `plugin.json` and its `marketplace.json` entry, and the top-level marketplace version moves (CI-002).
+7. `agent_merge_autonomous` joins the vocabulary as a review outcome, so `test_vocabulary.py` finds every emitted outcome there, and the vocabulary moves to 1.5.0.
 
 ## Second objective: academic-pipeline integrity
 
