@@ -48,6 +48,22 @@ The point of a second model is that it didn't write the plan. Without Codex, app
 
 `PLAN-REVIEW-LOG.md` is the deliverable — the argument transcript. Per round: the critic's full critique, then the builder's response (what changed, what was rejected, why). On deadlock: the final side-by-side of unresolved positions and the human's ruling. A plan whose contested decisions have a written argument behind them is a different asset than a plan that was merely written.
 
+## Two critics over a design doc (XE-031)
+
+`/gstack-plan-review critics=2 target=design`, run by `/gstack-design-doc` before it publishes the editor. The writer is this session. `scripts/design_review.py` is the state machine, and nothing here restates what it enforces.
+
+1. `design_review.py init <state> --writer claude --draft <DESIGN.md> --log <Taskade 06>/DESIGN-REVIEW-LOG-<date>.md`. It picks two reachable reviewers from two model families, neither the writer's, from `peer_review.py`'s `REVIEWERS` table. Readiness is one tiny real call per candidate through the same path a review uses, so the CLI or key, its auth, the configured model and the model floor all have to answer. If two families aren't ready, the loop doesn't start, it names each candidate it rejected and why, and no same-family stand-in is used. A reviewer that fails mid-loop ends it `incomplete`. Only a malformed reply gets one retry, with the same reviewer and model.
+2. Each round:
+   - **Reviewer 1** gets the review prompt below: the changed sections, Goal and Constraints, and every open finding with its ID. Then run `design_review.py review <state> --slot r1 --draft <DESIGN.md> --prompt <file>`.
+   - **Reviewer 2** gets the same, plus reviewer 1's reply inside the TB-002 enclosure. It marks each of reviewer 1's new findings agree, disagree or extend, then adds its own. Run `--slot r2`.
+   - **The writer** revises the draft and writes a disposition for every new finding: `accepted`, `rejected` with a reason, `deferred` with a reason, or `duplicate of <ID>`. Then run `design_review.py writer <state> --dispositions <json> --draft <DESIGN.md>`.
+3. Each reviewer runs once per round, in order, on the revision the round opened with. When both approve but a reviewer raised new findings, the writer still disposes of them. The loop converges then only if the text is handed on unchanged. A loop that can't find two ready families is saved as `not_started`, so its readiness calls still reach the run note. Stop when `design_review.py status` reports an outcome. On `cap_reached` or `stalled`, append `design_review.py dissent <state>` to the draft. On `incomplete`, keep the draft and the findings and report the failure; don't swap in another reviewer.
+4. `design_review.py finish <state> --measure-dir <vault measurements/gstack-runs>` records every reviewer call to the XE-012 run notes.
+
+The review prompt, both slots:
+
+> You are reviewing the changed sections of a design document. Report every finding you have, each with a severity (`material` would change what gets built; `minor` is worth noting) and a kind. Constraints are settled: a finding that the draft violates or can't satisfy a constraint is an ordinary `finding`; a finding that argues a constraint itself should change is a `policy_proposal`, which the loop logs for the human and doesn't argue. For every open finding listed below, say `resolved` or `still_open` with a reason, citing its ID. Only the reviewer who raised a material finding can resolve it. Return `APPROVED` only if nothing material remains open. Answer in the JSON schema given.
+
 ## Hard rules
 
 - The critic never writes a file — either engine, any round.

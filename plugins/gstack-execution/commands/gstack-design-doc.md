@@ -31,9 +31,13 @@ Write the document to the template. Rules that make it usable by `/gstack-build`
 - The Amendments log gets a first line: created, by whom, pending approval.
 - Refreshing an existing doc: keep every existing line unless the repo contradicts it; put what changed in the Amendments log.
 
+## Step 3b: Two reviewers argue the draft (XE-031)
+
+Before the editor is published, run `/gstack-plan-review critics=2 target=design` on the draft. It reviews the sections this draft adds or changes, with Goal and Constraints for context, and ends `converged`, `cap_reached`, `stalled` or `incomplete`. On `cap_reached` or `stalled`, `design_review.py dissent` gives the `## Dissent` section; add it to the draft before publishing. Put `design_review.py status`'s JSON into the editor state as `review`, so the page shows the outcome, any policy proposals and the log path. The loop never approves anything. **Mark approved** stays the human's.
+
 ## Step 4: Publish the editor
 
-Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath","markdown","approved":false,"savedAt":null}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
+Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath","markdown","approved":false,"savedAt":null,"review":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
 
 Tell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.
 

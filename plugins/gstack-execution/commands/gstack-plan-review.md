@@ -1,7 +1,7 @@
 ---
 description: Pre-code plan-hardening loop — a bounded cross-model argument over PLAN.md before any code exists; real Codex when available, Claude adversarial fallback
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Agent, AskUserQuestion
-argument-hint: [rounds=N] [plan=<path>] [task description ...]
+argument-hint: [rounds=N] [plan=<path>] [critics=2 target=design] [task description ...]
 ---
 
 Run an **iterative adversarial review of an implementation plan** before a single line of code is written. Where `/gstack-codex-review` challenges the commit you just made, this command challenges the plan you're *about* to build — the cheapest point in the whole pipeline to catch a wrong approach.
@@ -29,6 +29,10 @@ Parse `$ARGUMENTS`:
 - Remaining text is the task being planned. No task and no existing plan → ask one question to get the task, then proceed.
 
 `LOG_FILE` is `PLAN-REVIEW-LOG.md` next to the plan. Echo the resolved values in one line before starting.
+
+## Two critics over a design doc (`critics=2 target=design`, XE-031)
+
+When `critics=2 target=design` is given, run the two-critic mode in `references/plan-review-protocol.md` instead of Steps 1 to 4. `scripts/design_review.py` holds the state: it picks the two reviewers, keeps every finding's ID and whether it's open, and decides the outcome. You write the prompts and the revisions; never decide an outcome the script didn't report. The cap defaults to 20 rounds in this mode.
 
 ## Step 1: Claude drafts the plan (builder role)
 

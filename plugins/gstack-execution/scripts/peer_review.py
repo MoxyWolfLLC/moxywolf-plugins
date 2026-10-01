@@ -1704,8 +1704,11 @@ def coverage_verdict(packet, floor=COVERAGE_FLOOR):
 # so it is a check here, at the point of action. Like XE-010 it can only refuse to open a review.
 # ponytail: a keyword gate. A criterion that names an off-repo place without one of these words
 # passes; widen OFF_REPO when a miss is found.
-OFF_REPO = re.compile(r"\b(?:macOS|Mac|locally|vault|(?:Release Owner|builder|caller)['\u2019]s (?:Mac|machine))\b",
-                      re.IGNORECASE)
+# XE-032: a place word only counts standing alone. `\b` treats a hyphen as a boundary, so the plugin
+# name `excalidraw-vault` read as the vault and refused DG-001's own version criterion. A word joined to
+# others by -, /, _ or a mid-name dot is a name, not a place; a sentence-ending period still counts.
+OFF_REPO = re.compile(r"(?<![\w/.-])(?:macOS|Mac|locally|vault|(?:Release Owner|builder|caller)['\u2019]s (?:Mac|machine))"
+                      r"(?![\w/-]|\.\w)", re.IGNORECASE)
 # A bare path starts at a word boundary, so `/abs/x` or `../x` is never read as the relative `abs/x`.
 _PATHLIKE = re.compile(r"`([^`\s]+)`|(?<![\w./~-])((?:\.{1,2}/)?[\w.-]+(?:/[\w.-]+)+)")
 
