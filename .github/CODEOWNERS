@@ -1,2 +1,17 @@
-# Every path needs Dorian's review, this file included (DESIGN.md, Constraints: the pre-merge gate is GitHub's).
-* @dorianatmoxywolf
+# GA-008: Dorian reviews the gate, not every change (DR-113, DESIGN.md Constraints).
+# Everything not listed here merges on a clean cross-vendor review and green `tests`.
+# A path listed here needs his approving review: the ruleset requires code-owner review.
+# .github/test_codeowners.py fails if a gate path drops out of this file or a catch-all returns.
+
+/.github/ @dorianatmoxywolf
+**/hooks/ @dorianatmoxywolf
+/plugins/gstack-execution/package.json @dorianatmoxywolf
+/plugins/gstack-execution/package-lock.json @dorianatmoxywolf
+/plugins/gstack-execution/scripts/agent_token.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/peer_review.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/governance.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/packet_coverage.mjs @dorianatmoxywolf
+/plugins/gstack-execution/scripts/repo_gates.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/run_all_tests.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/version_bump.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/vocab_check.py @dorianatmoxywolf
