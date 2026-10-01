@@ -18,7 +18,7 @@ commit → push → verify ls-remote → pull back into the local clone
    ↓
 /gstack-peer-review (the other tool) → fix → push → pull back → re-verify   (bounded)
    ↓ clean
-prepare revision-bound handoff → named human merges, or tells the agent to → record-release verifies merge
+prepare revision-bound handoff → the agent merges the reviewed head (DR-113; a CODEOWNERS path also waits for the owner's GitHub approval) → record-release verifies merge
    ↓
 mark done through a separate authorized branch/PR → mirror to Taskade
    ↓
@@ -152,7 +152,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- python3 "${CLAUDE
 
 It lists the check-runs the protected branch actually produced and what it requires. **Exit 3 means required checks are not available on this repository's plan at all** - a private repository on a free plan cannot have them, GitHub says so in the message rather than the status, and no credential changes it. On such a repository say so in the handoff and say what follows: the merge is unprotected, GitHub will not refuse a red head, and the only gate is this loop's own refusal - so do not report `ready_for_human_release` while any suite is red or has examined nothing. Never call a suite a gate on a repository that cannot require it. **Reading branch protection needs admin rights the agent token is deliberately not given** (GOVERNANCE.md), so expect `UNREADABLE (HTTP 403)`, and report that as what it is: not evidence that nothing is required, and not evidence that anything is. Include the observed check names in the handoff so the Release Owner can confirm in Settings > Branches which of them gate. Configuring them is their act, not the agent's; `repo_gates.py ensure --require "<context>"` exists for when an admin token is supplied, preserves every other protection setting, and never removes a context or relaxes protection. Never present a suite as a gate on the strength of a green run alone.
 
-This revalidates the review and requires clean local HEADs matching the reviewed commits. It writes `release.json` and intentionally exits nonzero as `awaiting_human_release`; it never merges or accepts approval flags. Report `ready_for_human_release` with the PR URL, review ID, exact heads, and named Release Owner. The item stays `review`.
+This revalidates the review and requires clean local HEADs matching the reviewed commits. It writes `release.json` and intentionally exits nonzero as `awaiting_human_release`; it never merges or accepts approval flags. Then merge the exact reviewed head through the pull request (DR-113: no merge words needed; GitHub holds a `CODEOWNERS` path for the owner's approval) and run `record-release`, which records `agent_merge_autonomous`. The item stays `review` until the record exists.
 
 The named human releases the exact reviewed head in one of two ways. They merge it in GitHub under their own login, or they tell the agent to merge it. Asked to merge, the agent merges, and the record says it did (GA-005):
 

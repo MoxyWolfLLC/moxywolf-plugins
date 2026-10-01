@@ -112,7 +112,7 @@ Verified:   {what the reviewer opened and what tests the builder ran, through wh
 Unverified: {what was not, and why}
 ```
 
-A passing review is not release authorization. Follow the [release handoff contract](../skills/gstack-execution/references/peer-review-contract.md#release-boundary): `release` prepares evidence and stops; the named human merges in GitHub; `record-release` reads that merge record.
+A passing review is not release authorization. Follow the [release handoff contract](../skills/gstack-execution/references/peer-review-contract.md#release-boundary): `release` prepares evidence and stops; the agent merges the reviewed head under DR-113 (a `CODEOWNERS` path also needs the Release Owner's approval); `record-release` reads that merge record.
 
 Artifacts live under `$GSTACK_PEER_REVIEW_DIR/<review-id>/`. That variable is required and has no default: point it at a directory that outlives the session, inside the repository or a connected folder. A review opened against a session-local home leaves no record, and its review ID then resolves to nothing. Contents: `packet.json`, `round-N.json`, `round-N-prompt.txt`, `dispositions.json`, `state.json`.
 
