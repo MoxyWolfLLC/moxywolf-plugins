@@ -1,4 +1,5 @@
 # GA-008: Dorian reviews the gate, not every change (DR-113, DESIGN.md Constraints).
+# B-d probe: this line exists only to test that a .github change waits for Dorian.
 # Everything not listed here merges on a clean cross-vendor review and green `tests`.
 # A path listed here needs his approving review: the ruleset requires code-owner review.
 # .github/test_codeowners.py fails if a gate path drops out of this file or a catch-all returns.
