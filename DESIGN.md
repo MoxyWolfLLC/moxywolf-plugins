@@ -138,7 +138,7 @@ GA-005 criterion 1 mints from the single installation id in `github-app.env`, an
 
 1. `.github/CODEOWNERS` names Dorian for the gate paths in *Constraints* and for nothing else. No catch-all.
 2. `.github/test_codeowners.py` runs in CI and fails when a gate path is unowned, when a gate path no longer exists, when any file under a `hooks/` directory is unowned, when a non-gate path (`README.md`, `DESIGN.md`) is owned, or when a catch-all returns. It reports how many paths it examined, and examining none fails. Its selftest checks the matcher on anchored files, `dir/`, and a one-segment `*` that must not match two segments.
-3. Live, after Dorian turns code-owner review back on in `main-gate` with zero required approvals: a bot pull request touching only `docs/evidence/` merges with no approval, and one touching a file in `.github/` is refused until his approving review exists. Both results go in `docs/evidence/`.
+**After merge, not a criterion (boundary test B-d).** Once Dorian turns code-owner review back on in `main-gate`, with zero required approvals, the agent opens two bot pull requests: one touching only `docs/evidence/`, which should merge with no approval, and one touching a file in `.github/`, which should be refused until his approving review exists. Both results go in `docs/evidence/`. The *Links introduced* claim holds only after B-d passes.
 
 ## Second objective: academic-pipeline integrity
 
