@@ -4,8 +4,7 @@
 # .github/test_codeowners.py fails if a gate path drops out of this file or a catch-all returns.
 
 /.github/ @dorianatmoxywolf
-/hooks/ @dorianatmoxywolf
-/plugins/*/hooks/ @dorianatmoxywolf
+**/hooks/ @dorianatmoxywolf
 /plugins/gstack-execution/package.json @dorianatmoxywolf
 /plugins/gstack-execution/package-lock.json @dorianatmoxywolf
 /plugins/gstack-execution/scripts/agent_token.py @dorianatmoxywolf

@@ -5,6 +5,7 @@ silently unown it), if a hooks file anywhere is unowned, or if a catch-all comes
 Reports what it examined; examining nothing is a failure.
 """
 import fnmatch
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,6 +42,8 @@ def rules(text):
 def matches(pattern, path):
     # ponytail: the subset of CODEOWNERS syntax this file uses (anchored paths, dir/, one-segment *).
     p = pattern.lstrip("/")
+    if p.startswith("**/") and p.endswith("/"):  # a directory with this name at any depth
+        return p[3:-1] in path.split("/")[:-1]
     if p.endswith("/"):
         n = p.count("/")
         return path.count("/") >= n and fnmatch.fnmatchcase("/".join(path.split("/")[:n]) + "/", p)
@@ -59,8 +62,10 @@ def check(rs, root):
     errors = []
     if any(p in ("*", "/*", "**", "/**") for p, _ in rs):
         errors.append("catch-all rule present: every change would need manual approval again")
-    hooks = sorted(str(p.relative_to(root)) for p in root.glob("plugins/*/hooks/**/*") if p.is_file())
-    hooks += sorted(str(p.relative_to(root)) for p in root.glob("hooks/**/*") if p.is_file())
+    # Tracked files only: node_modules and other untracked trees aren't the repository.
+    tracked = subprocess.run(["git", "-C", str(root), "ls-files"], capture_output=True,
+                             text=True, check=True).stdout.splitlines()
+    hooks = [p for p in tracked if "hooks" in p.split("/")[:-1]]
     for path in GATE + hooks:
         if not (root / path).exists():
             errors.append(f"gate path missing (renamed?): {path}")
@@ -73,10 +78,13 @@ def check(rs, root):
 
 
 def selftest():
-    rs = rules("/.github/ @a\n/plugins/*/hooks/ @a\n/x/y.py @a")
+    rs = rules("/.github/ @a\n/plugins/*/hooks/ @a\n**/hooks/ @b\n/x/y.py @a")
     assert owners(rs, ".github/workflows/tests.yml") == ["@a"]
-    assert owners(rs, "plugins/p/hooks/h.json") == ["@a"]
-    assert owners(rs, "plugins/p/q/hooks/h.json") == []
+    assert owners(rs, "plugins/p/hooks/h.json") == ["@b"]  # last match wins
+    assert owners(rs, "plugins/p/q/hooks/h.json") == ["@b"]  # **/ reaches any depth
+    assert owners(rs, "hooks/x.sh") == ["@b"]
+    assert owners(rs, "plugins/p/hooks.md") == []  # a file named hooks isn't a hooks directory
+    assert owners(rules("/plugins/*/hooks/ @a"), "plugins/p/q/hooks/h.json") == []  # one-segment *
     assert owners(rs, "x/y.py") == ["@a"] and owners(rs, "x/y.pyc") == []
     assert owners(rs, "README.md") == []
 
