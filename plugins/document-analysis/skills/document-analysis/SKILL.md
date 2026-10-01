@@ -52,7 +52,7 @@ Notes the setup command surfaces:
 
 `scripts/convert.py` takes **explicit absolute `--input` and `--out` paths**, and the *command* resolves the correct sandbox mount at runtime — never hardcode a session path inside the script.
 
-- The document-analysis repo on the host is `~/Documents/GitHub/document-analysis`. In the sandbox it appears under `/sessions/<session>/mnt/GitHub/document-analysis`. Discover it at runtime: `ls -d /sessions/*/mnt/GitHub/document-analysis`.
+- The document-analysis repo on the host is `~/GitHub/document-analysis`. In the sandbox it appears under `/sessions/<session>/mnt/GitHub/document-analysis`. Discover it at runtime: `ls -d /sessions/*/mnt/GitHub/document-analysis`.
 - Default output target is a `sources-md/` tree inside that repo, with the manifest (`.markitdown-manifest.json`) alongside.
 - Uploaded files the user wants converted live under the session `uploads/` mount; resolve that the same way.
 

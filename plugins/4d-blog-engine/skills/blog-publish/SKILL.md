@@ -712,7 +712,7 @@ Predicted live URL: <computed URL or "(check your hosting dashboard for the actu
 ## Degradation behaviors
 
 - **`git` not available in the sandbox:** halt with a clear message. Rare.
-- **Repo is on iCloud / Google Drive / Dropbox synced filesystem:** publish may work but expect lockfile races. Strongly recommend the writer move the repo to a non-synced local path (`~/Documents/GitHub/`). Don't refuse; flag it once and proceed.
+- **Repo is on iCloud / Google Drive / Dropbox synced filesystem:** publish may work but expect lockfile races. Strongly recommend the writer move the repo to a non-synced local path (`~/GitHub/`, outside iCloud Desktop & Documents). Don't refuse; flag it once and proceed.
 - **Default branch detection fails** (no `origin/HEAD`): ask the writer whether to push to `main` or `master`. Don't assume.
 - **smart_quotes.py exits with code 3 (malformed frontmatter):** halt and tell the writer their source post needs the frontmatter fixed before publish — show them the line.
 - **Images folder doesn't exist and writer's site uses on-demand hero**: skip the hero copy if the IMAGES_SUBFOLDER detection found nothing AND no hero reference exists in frontmatter. Log it.

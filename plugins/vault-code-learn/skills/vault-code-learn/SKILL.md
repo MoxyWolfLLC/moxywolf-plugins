@@ -1,6 +1,6 @@
 ---
 name: vault-code-learn
-description: This skill should be used when Dorian says "learn this code", "code-learn", "/code-learn", "read the repo", "extract code patterns", "study our code", "what's the code style here", or any request to inspect a MoxyWolf repo and durably persist what was learned into the MoxyWolf Vault's Code Patterns folder. Also triggered automatically by /session-start for the active project's GitHub repos. Reads source files in `~/Documents/GitHub/<repo>/`, extracts a durable pattern digest (tech stack, naming, error handling, tests, lint/type rules, file layout, frequent imports), and writes one digest per repo to `MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md`. Incremental — only re-reads files modified since the digest's `last-learned:` frontmatter timestamp.
+description: This skill should be used when Dorian says "learn this code", "code-learn", "/code-learn", "read the repo", "extract code patterns", "study our code", "what's the code style here", or any request to inspect a MoxyWolf repo and durably persist what was learned into the MoxyWolf Vault's Code Patterns folder. Also triggered automatically by /session-start for the active project's GitHub repos. Reads source files in `~/GitHub/<repo>/`, extracts a durable pattern digest (tech stack, naming, error handling, tests, lint/type rules, file layout, frequent imports), and writes one digest per repo to `MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md`. Incremental — only re-reads files modified since the digest's `last-learned:` frontmatter timestamp.
 ---
 
 # vault-code-learn — Code Patterns Extraction into the MoxyWolf Vault
@@ -16,7 +16,7 @@ The digest is small, opinionated, and human-readable. It is not a code dump.
 Use the same resolution rules as `obsidian-update` and `session-start`:
 
 1. `${VAULT}` — first directory under `/sessions/*/mnt/` containing `CLAUDE.md` with MoxyWolf Vault markers, or fall through to `/sessions/*/mnt/*MoxyWolf Vault/`, or to the Google Drive REST helper. Standard path on the user's Mac is `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`.
-2. `${GH_ROOT}` — `~/Documents/GitHub/` on the Mac. In sandboxed Cowork sessions, the `GitHub` root is mounted under `/sessions/*/mnt/GitHub/`.
+2. `${GH_ROOT}` — `~/GitHub/` on the Mac. In sandboxed Cowork sessions, the `GitHub` root is mounted under `/sessions/*/mnt/GitHub/`.
 
 Ensure `${VAULT}/_Shared Knowledge/Code Patterns/` exists; create it if missing. Read `${VAULT}/CLAUDE.md` once so the digest's frontmatter and tags conform to the vault's conventions.
 
@@ -85,7 +85,7 @@ Write `${VAULT}/_Shared Knowledge/Code Patterns/<repo>.md` (overwriting any exis
 title: "Code Patterns — <repo>"
 type: code-patterns
 repo: <repo>
-repo-root: ~/Documents/GitHub/<repo>
+repo-root: ~/GitHub/<repo>
 last-learned: <ISO 8601 timestamp in America/Los_Angeles>
 learned-from-commits:
   - <SHA-1 of HEAD at extraction time>
