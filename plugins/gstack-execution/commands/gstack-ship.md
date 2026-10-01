@@ -75,7 +75,7 @@ The branch is now a completed implementation checkpoint. Run `/gstack-peer-revie
 
 ## Step 5: Prepare PR
 
-**Gate:** Never auto-push to a protected branch and never auto-merge. A named human owns the merge; the pipeline prepares the PR and stops.
+**Gate:** Never auto-push to a protected branch. A named human owns the outcome; under DR-113 the agent merges the reviewed head once the review passes and `tests` is green, and GitHub holds a `CODEOWNERS` path for that human's approval.
 
 Routine feature-branch commits and pushes remain authorized. After a passing peer review, use `peer_review.py release <review-id>` for the revision-bound handoff. Its `awaiting_human_release` nonzero exit is intentional: no merge occurred. The agent then merges the reviewed head (DR-113), or the Release Owner does; `record-release <review-id> --repo <path> --pr <number>` subsequently checks and records that merge. Follow the [release boundary](../skills/gstack-execution/references/peer-review-contract.md#release-boundary), including external branch protection and withholding human merge credentials from agents.
 

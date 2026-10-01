@@ -138,7 +138,7 @@ Exit only on `no_blocking_findings` or `fixes_verified`, and, for a Vercel-deplo
 
 ## Step 6: Human release handoff, then record completion
 
-Routine feature-branch commits, pushes, and PR preparation remain authorized. Never auto-merge or push to a protected branch. After Step 5 passes, run:
+Routine feature-branch commits, pushes, and PR preparation remain authorized. Never push to a protected branch. The merge itself comes after the handoff below (DR-113). After Step 5 passes, run:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" release <review-id>
@@ -154,15 +154,15 @@ It lists the check-runs the protected branch actually produced and what it requi
 
 This revalidates the review and requires clean local HEADs matching the reviewed commits. It writes `release.json` and intentionally exits nonzero as `awaiting_human_release`; it never merges or accepts approval flags. Then merge the exact reviewed head through the pull request (DR-113: no merge words needed; GitHub holds a `CODEOWNERS` path for the owner's approval) and run `record-release`, which records `agent_merge_autonomous`. The item stays `review` until the record exists.
 
-The named human releases the exact reviewed head in one of two ways. They merge it in GitHub under their own login, or they tell the agent to merge it. Asked to merge, the agent merges, and the record says it did (GA-005):
+The exact reviewed head is merged in one of three ways. Under DR-113 (Dorian, 2026-09-30) the agent merges on its own once the review passes at that head and `tests` is green; a change to a `CODEOWNERS` path also needs the Release Owner's approving review, which GitHub enforces, so the merge waits for it. The Release Owner can still merge under their own login, or tell the agent to merge, in which case the agent records the instruction first (GA-005):
 
-1. Post the instruction on the pull request first: the owner's words verbatim, the time, and the pull requests the agent reads it as covering. "Merge whatever else we have" is listed back as specific pull requests before any merge.
+1. When the Release Owner gives an instruction, post it on the pull request first: the owner's words verbatim, the time, and the pull requests the agent reads it as covering. "Merge whatever else we have" is listed back as specific pull requests before any merge.
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" merge-instruction --covers <n>[,<n>…] --text "<their words>" --given-at <UTC time> --owner <login> \
      | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api POST repos/<owner>/<repo>/issues/<n>/comments --data -
    ```
-2. Merge through the pull request as the app: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api PUT repos/<owner>/<repo>/pulls/<n>/merge --data '{"sha":"<reviewed head>"}'`. The `sha` pins the merge to the reviewed head.
-3. Never merge without an instruction, and never under the owner's credential. An instruction is words telling the agent to merge ("merge #83"); a general permission ("move forward", "full permission") is not one (XE-029).
+2. In every case, merge through the pull request as the app, after `release` has written the handoff: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api PUT repos/<owner>/<repo>/pulls/<n>/merge --data '{"sha":"<reviewed head>"}'`. The `sha` pins the merge to the reviewed head.
+3. Never merge without a passing review at the exact head and a handoff written first, and never under the owner's credential. An instruction is words telling the agent to merge ("merge #83"); a general permission ("move forward", "full permission") is not one (XE-029), and under DR-113 none is needed.
 
 Either way, record each repository's GitHub merge:
 
@@ -170,7 +170,7 @@ Either way, record each repository's GitHub merge:
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" record-release <review-id> --repo <path> --pr <number>
 ```
 
-The recorder requires the exact reviewed head. A merge by the named human's GitHub `User` identity is `human_merge_recorded`. A merge by the app with a matching instruction posted before it is `agent_merge_on_instruction`, carrying the words and the comment link. A merge by the app with no such instruction is refused as an unrequested agent merge. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review and human merge, never a direct main push. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
+The recorder requires the exact reviewed head. A merge by the named human's GitHub `User` identity is `human_merge_recorded`. A merge by the app with a matching instruction posted before it is `agent_merge_on_instruction`, carrying the words and the comment link. A merge by `moxywolf-agent[bot]` with no such instruction is `agent_merge_autonomous`, citing DR-113 (GA-009). A merge by any other bot with no instruction is refused as an unrequested agent merge. A merge before the handoff is refused either way. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review, never a direct main push; under the one-approval-per-change rule it usually rides with the next change. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
 
 These are governance controls, not an OS security sandbox: local review files are agent-writable, and the instruction comment is written by the agent quoting the owner, so it records what the agent acted on rather than proving the owner said it. Personal credentials stay outside agent authority, and the protected-branch ruleset is configured externally. See [GOVERNANCE.md](../GOVERNANCE.md).
 

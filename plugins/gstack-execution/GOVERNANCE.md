@@ -12,20 +12,22 @@ for the full standard. Every skill/command passes each of the five tests that ap
 
 Risk tiers: `read-only` | `generate` | `side-effectful-gated` | `high-stakes`.
 
-The code-write paths (`gstack-build` and `gstack-ship`) carry the no-auto-merge rule: **never auto-push to a
-protected branch and never auto-merge — a named human owns the merge; the pipeline prepares the
-PR and stops.**
+The code-write paths (`gstack-build` and `gstack-ship`) carry the merge rule: **never push to a protected
+branch; merge only the exact reviewed head, through the pull request, after a passing review and a
+written handoff.** Under DR-113 (Dorian, 2026-09-30) the agent merges on its own once that holds and
+`tests` is green; GitHub holds any `CODEOWNERS` path for the named human's approval. The named human
+owns the outcome either way, including the merges they never read.
 
 | Skill / command | risk_tier | gate / note |
 |---|---|---|
-| `gstack-build` | side-effectful-gated | Authorized feature-branch edits/commits/pushes and PR preparation; passing review prepares a handoff, human GitHub merge is recorded before done. No protected push or agent merge. |
+| `gstack-build` | side-effectful-gated | Authorized feature-branch edits/commits/pushes and PR preparation; passing review prepares a handoff, the merge (the agent's under DR-113, or the human's) is recorded before done. No protected push. |
 | `gstack-design-doc` | generate | Human approval precedes writing design changes; authorized feature-branch commits/pushes only. |
 | `gstack-plan-review` | read-only | Bounded plan review; decisions remain with the human. |
 | `gstack-peer-review` | side-effectful-gated | Read-only other-tool reviewer; builder fixes in scope and records dispositions. Named Release Owner, exact acceptance and blocker coverage required. |
 | `gstack-verify` | read-only | Advisory claim verification; never a shipping gate. |
-| `peer_review.py release` | side-effectful-gated | Writes local revision-bound handoff; always stops awaiting human release. Never merges. |
+| `peer_review.py release` | side-effectful-gated | Writes local revision-bound handoff and stops; the merge is a separate step. Never merges. |
 | `peer_review.py record-release` | side-effectful-gated | Reads GitHub merge identity/head and writes local decision; no remote mutation. |
-| `gstack-ship` | side-effectful-gated | Prepares PR only. No auto-push to protected branch, no auto-merge; a named human owns the merge (Tests 1, 5). Stops on blocking test/CRITICAL review findings. |
+| `gstack-ship` | side-effectful-gated | Prepares PR. No auto-push to protected branch; merges only under DR-113 after the handoff (Tests 1, 5). Stops on blocking test/CRITICAL review findings. |
 | `gstack-review` | read-only | Pre-landing structural review; reports findings, no writes. |
 | `gstack-codex-review` | read-only | Adversarial review of just-committed code; reports only. |
 | `gstack-cso` | read-only | Security audit (OWASP, STRIDE, supply chain, secrets); reports only. |
@@ -125,7 +127,7 @@ reading protection needs rights the push token does not have. That is reported a
 nothing is required nor that anything is. The observed names go into the handoff for the Release Owner
 to confirm.
 
-Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. Personal credentials must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's merge actor for the exact reviewed head: the named `User` as `human_merge_recorded`, or the agent's app as `agent_merge_on_instruction` with the instruction it posted before merging. Neither is a claim of substantive human review, and the instruction comment is the agent's own record of what it acted on. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
+Local review records are not tamperproof, and this dispatcher is not an OS security sandbox. Personal credentials must not be delegated to agents; branch protection is enforced externally. `record-release` records GitHub's merge actor for the exact reviewed head: the named `User` as `human_merge_recorded`, the agent's app as `agent_merge_on_instruction` with the instruction it posted before merging, or `moxywolf-agent[bot]` with no instruction as `agent_merge_autonomous` citing DR-113. None is a claim of substantive human review, and the instruction comment is the agent's own record of what it acted on. The [task graph contract](skills/gstack-execution/references/task-graph-contract.md) defines data-use checks and shared gate-log observations. The packet records permission; it does not authenticate its author or establish OS isolation.
 
 ## Governed task graphs
 

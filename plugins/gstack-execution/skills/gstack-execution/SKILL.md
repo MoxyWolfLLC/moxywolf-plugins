@@ -167,7 +167,7 @@ Adapted from gstack's communication philosophy:
 
 ## Who acts on GitHub, and who merges
 
-The agent acts on GitHub as the `moxywolf-agent` app, never under a person's login: `scripts/agent_token.py exec -- <command>` for git, `agent_token.py api` for REST (GA-005). When the Release Owner tells the agent to merge, it merges. First it posts their words on the pull request (`peer_review.py merge-instruction`), naming the pull requests it reads them as covering, then it merges through the pull request as the app, pinned to the reviewed head, and `record-release` records `agent_merge_on_instruction`. It never merges without an instruction. The steps are in `/gstack-build` Step 6.
+The agent acts on GitHub as the `moxywolf-agent` app, never under a person's login: `scripts/agent_token.py exec -- <command>` for git, `agent_token.py api` for REST (GA-005). Under DR-113 the agent merges on its own once a cross-vendor review passes at the exact head, the handoff is written and `tests` is green, and `record-release` records `agent_merge_autonomous`. A change to a `CODEOWNERS` path also waits for the Release Owner's approving review, which GitHub enforces. When the Release Owner tells the agent to merge, it first posts their words on the pull request (`peer_review.py merge-instruction`) and the record is `agent_merge_on_instruction`. Either way it merges through the pull request as the app, pinned to the reviewed head. The steps are in `/gstack-build` Step 6.
 
 ## What This Plugin Does NOT Do
 
