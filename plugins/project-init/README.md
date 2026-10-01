@@ -92,6 +92,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.34.1**: The GitHub root moved out of iCloud: `~/Documents/GitHub` is now `~/GitHub` (2026-10-01, loader-stub directive D4).
 - **0.31.0**: `/session-end` Step 3.6 (SM-003): mistakes are gathered from evidence (review rounds, failed runs, user corrections), each becomes a check or a rule at the point of action or is marked one-off, a repeat escalates, and `scripts/mistake_ledger.py` validates the per-project ledger.
 - **0.30.0**: Session start and end push as the `moxywolf-agent` GitHub App (GA-005), through `gstack-execution/scripts/agent_token.py`, never with a person's token. A repo the app isn't installed on is reported as a gap.
 - **0.29.0**: The board label is declared, never derived (SM-002). `/session-start` queries MOXY with the exact label(s) on the instructions' `Jira label(s):` line and prints the label and count; with no label declared it skips the board and says so rather than guessing. `/init-project` asks for the exact label. The `project-<slug>` mapping is removed, because MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm`.

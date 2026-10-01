@@ -54,7 +54,7 @@ The one case this skill legitimately handles for an existing project is the user
 Every MoxyWolf Cowork project assumes these three roots are mounted in Cowork → Folders. The skill does not ask about them — they're constants:
 
 1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. **GitHub** — `/Users/doriancougias/Documents/GitHub`
+2. **GitHub** — `/Users/doriancougias/GitHub`
 3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
 
 If the user mentions that one of these isn't mounted yet, auto-mount it before proceeding — see **Folder access** below; don't just remind them to add it manually.
@@ -103,7 +103,7 @@ Ask via AskUserQuestion: how many local GitHub repos under `GitHub/` does this p
 
 If repo count >= 1, do **not** ask the user to type repo names. For each repo:
 
-a. Identify the repo folder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** to open the native picker; prompt the user first: "Pick repo 1 of N — navigate into `~/Documents/GitHub/` and select the repo folder." *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `GitHub/` root (or `ls` it offline) and present its repo subfolders via `AskUserQuestion` chips for the user to pick (one repo per question).
+a. Identify the repo folder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** to open the native picker; prompt the user first: "Pick repo 1 of N — navigate into `~/GitHub/` and select the repo folder." *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `GitHub/` root (or `ls` it offline) and present its repo subfolders via `AskUserQuestion` chips for the user to pick (one repo per question).
 
 b. When the pick returns, take the basename of the resolved path as that repo's `[REPO_SUBFOLDER]`. Confirm back: "Got it — `GitHub/<basename>`."
 

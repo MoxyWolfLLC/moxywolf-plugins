@@ -25,7 +25,7 @@ The skill assumes the project has already been initialized via `/init-project` a
 Every MoxyWolf Cowork project assumes these three roots:
 
 1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. **GitHub** — `/Users/doriancougias/Documents/GitHub`
+2. **GitHub** — `/Users/doriancougias/GitHub`
 3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
 
 The skill mounts these three constants every time. The Project Instructions assume them.

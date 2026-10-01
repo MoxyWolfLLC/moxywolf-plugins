@@ -70,7 +70,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- git push origin b
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- git ls-remote origin refs/heads/build/<item-id>-<slug>   # must equal git rev-parse HEAD
 ```
 
-On the first push of the branch, open the pull request (`gh pr create --base main --title … --body …` when `gh` is installed; otherwise `agent_token.py api POST repos/{owner}/{repo}/pulls --data -` with the JSON on stdin) so the Endform check has somewhere to report. Then pull back into the user's local clone (`~/Documents/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
+On the first push of the branch, open the pull request (`gh pr create --base main --title … --body …` when `gh` is installed; otherwise `agent_token.py api POST repos/{owner}/{repo}/pulls --data -` with the JSON on stdin) so the Endform check has somewhere to report. Then pull back into the user's local clone (`~/GitHub/<repo>`): if the work happened there, `git status -sb` shows level; if it happened in a sandbox clone, `git fetch origin && git checkout build/<item-id>-<slug> && git pull --ff-only` there via Desktop Commander. Report the SHA on remote and local. A push that is not verified and pulled back is not done.
 
 ## Step 5: Review loop until clean
 

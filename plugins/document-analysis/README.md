@@ -29,7 +29,7 @@ MarkItDown converts PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, and EPub i
 
 ## Default output
 
-`~/Documents/GitHub/document-analysis/sources-md/` (mirrored input tree), with `.markitdown-manifest.json` in the output root. Override with `--out`.
+`~/GitHub/document-analysis/sources-md/` (mirrored input tree), with `.markitdown-manifest.json` in the output root. Override with `--out`.
 
 ## Supported formats
 
@@ -57,6 +57,7 @@ Wraps [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft, MIT Li
 
 ## Version History
 
+- **0.1.6** — The GitHub root moved out of iCloud: `~/Documents/GitHub` is now `~/GitHub` (2026-10-01, loader-stub directive D4).
 - **0.1.4** — `/extract-terms` note corrected: the repo's LLM prose lane is now wired (document-analysis repo v0.2.0), so prose definition sections extract when `OPENROUTER_API_KEY` is set (no longer a stub).
 - **0.1.3** — Added the `/extract-terms` command: a thin wrapper over the `document-analysis` repo's glossary extractor (`docanalysis` package) that turns converted Markdown into a lexicon `/glossary-promote` package for lexicon-workbench's importer. The extraction logic lives in the repo (so GitHub Actions runs the same code); this command is the interactive entry point. See DR-003.
 - **0.1.2** — Added `references/azure-document-intelligence.md`: a research-backed adoption reference for layout-faithful Azure Document Intelligence extraction (provisioning, verified markitdown mechanics, current pricing, data-handling posture, proposed `--docintel` wiring, open decisions). Documentation only — the code path is not yet wired.
