@@ -2119,7 +2119,7 @@ def cmd_release(a):
               "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"]},
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
-              "instruction": "The named human merges the exact reviewed head in GitHub. This command never merges or accepts an approval flag."}
+              "instruction": "Merge the exact reviewed head through the pull request, then run record-release. Under DR-113 the agent merges on its own; a change to a CODEOWNERS path also needs the Release Owner's approving review, which GitHub enforces. This command never merges or accepts an approval flag."}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
@@ -2132,7 +2132,7 @@ def cmd_release(a):
           file=sys.stderr)
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
-    raise ReviewError("awaiting_human_release", "human merge required; no release executed")
+    raise ReviewError("awaiting_human_release", "handoff written; no merge executed. Merge the reviewed head, then run record-release")
 
 
 def record_measurement(review_id):
@@ -2233,6 +2233,11 @@ def github_get(name, path):
         raise ReviewError("release_unavailable", f"GitHub merge record could not be read: {e}")
 
 
+# GA-009: the decision that lets the agent merge on a clean review without a per-PR instruction.
+AUTONOMOUS_MERGE_AUTHORITY = "DR-113: Dorian's standing authorization of 2026-09-30"
+AGENT_LOGIN = "moxywolf-agent[bot]"  # the only bot DR-113 authorizes; any other bot still needs an instruction
+
+
 def cmd_record_release(a):
     """Read GitHub's merge record, never create an approval or perform a merge."""
     d = rdir(a.review_id)
@@ -2279,15 +2284,22 @@ def cmd_record_release(a):
                     and str(p.get("instructed_by", "")).casefold() == state["release_owner"].casefold()
                     and c.get("created_at", "~") <= pr["merged_at"]):
                 found = (p, c)
-        if not found:
-            raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr} and no merge "
-                              f"instruction from {state['release_owner']} on it covers this pull request")
-        p, c = found
-        decision.update({"merged_by": merger.get("login"), "instructed_by": state["release_owner"],
-                         "instruction": p["instruction"], "instruction_given_at": p["given_at"],
-                         "instruction_comment": c.get("html_url"), "outcome": "agent_merge_on_instruction"})
-    # An agent merge stands on a quoted human instruction, so the record carries that origin and
-    # names where the quote came from. A human merge is read from the repository's own record.
+        if found:
+            p, c = found
+            decision.update({"merged_by": merger.get("login"), "instructed_by": state["release_owner"],
+                             "instruction": p["instruction"], "instruction_given_at": p["given_at"],
+                             "instruction_comment": c.get("html_url"), "outcome": "agent_merge_on_instruction"})
+        elif merger.get("login") != AGENT_LOGIN:
+            raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr}, isn't "
+                              f"{AGENT_LOGIN}, and no merge instruction from {state['release_owner']} on it covers this pull request")
+        else:
+            # GA-009: with no instruction on the pull request, the agent's own merge stands on the owner's
+            # standing authorization (DR-113). Everything above still held: a passing review at this exact
+            # head, and a handoff written before the merge.
+            decision.update({"merged_by": merger.get("login"), "authorized_by": state["release_owner"],
+                             "authority": AUTONOMOUS_MERGE_AUTHORITY, "outcome": "agent_merge_autonomous"})
+    # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
+    # origin. A human merge is read from the repository's own record.
     save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
          "human_instruction" if agent else "repository_artifact",
          examined_by=None)

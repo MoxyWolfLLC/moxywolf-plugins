@@ -296,7 +296,7 @@ class GovernedReview(unittest.TestCase):
         self.assertEqual(rec["instruction"], "merge it")
         self.assertEqual(rec["instruction_comment"], "https://github.com/example/project/pull/1#c1")
 
-    def test_agent_merge_without_a_matching_instruction_is_refused_by_name(self):
+    def test_agent_merge_without_a_matching_instruction_is_recorded_as_autonomous(self):
         cases = {"no comment": [],
                  "covers another PR": [self.instruction_comment(covers=(2,))],
                  "another owner": [self.instruction_comment(owner="someone-else")],
@@ -307,9 +307,21 @@ class GovernedReview(unittest.TestCase):
             with self.subTest(name):
                 self.setUp()
                 r = self.bot_merge(comments)
-                self.assertNotEqual(r.returncode, 0)
-                self.assertIn("release_blocked", r.stderr)
-                self.assertIn("unrequested agent merge", r.stderr)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                rec = json.loads(r.stdout)
+                self.assertEqual(rec["outcome"], "agent_merge_autonomous")
+                self.assertEqual(rec["authorized_by"], "dorianatmoxywolf")
+                self.assertIn("DR-113", rec["authority"])
+                self.assertNotIn("instruction", rec)
+
+    def test_an_autonomous_merge_before_the_handoff_is_still_refused(self):
+        # GA-009: DR-113 removes the instruction, not the review or the handoff.
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)
+        self.install_github_response(merged_by=self.BOT, merged_at="2000-01-01T00:00:00Z")
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("merge predates the release handoff", r.stderr)
 
     def test_the_instruction_the_producer_writes_is_the_one_the_recorder_reads(self):
         pr = load_pr()
@@ -376,7 +388,8 @@ class GovernedReview(unittest.TestCase):
         baseline = json.loads(self.env["GITHUB_RESPONSE"])
         for change in [{"base":{"ref":"other", "repo":{"full_name":"example/project"}}}, {"merged_at":"2000-01-01T00:00:00Z"}, {"merged":False}, {"head":{"sha":"b"*40}},
                        {"merged_by":{"login":"other-human","type":"User"}},
-                       {"merged_by":{"login":"dorianatmoxywolf","type":"Bot"}}]:
+                       {"merged_by":{"login":"dorianatmoxywolf","type":"Bot"}},
+                       {"merged_by":{"login":"some-other-app[bot]","type":"Bot"}}]:
             with self.subTest(change=change):
                 self.env["GITHUB_RESPONSE"] = json.dumps(dict(baseline, **change))
                 r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")

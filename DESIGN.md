@@ -132,13 +132,27 @@ GA-005 criterion 1 mints from the single installation id in `github-app.env`, an
 
 ### GA-008 — Dorian reviews the gate, not every change
 
-**Status:** review. Declared on Dorian's instruction of 2026-09-30 ("let's go"), from his proposal that manual approval of every PR isn't needed under the risk tiers of *Governed Autonomy* (Taskade `06 – Engineering/risk-tiered-merge-proposal-2026-09-30.md`, DR-113). He chose the gate floor and the size axis; this item builds the floor. The size axis needs nothing here, because every change outside the gate already merges without him.
+**Status:** review. Merged to `main` in `1c4a046` (PR #95) on 30 September 2026 by `moxywolf-agent[bot]` on Dorian's "approved", after review `20260930-183444-985cedb-ixaz_fen` (codex/gpt-6-astra, `fixes_verified`, 2 rounds, coverage `covered`) at head `8563184` with CI green. No release record: the agent merged before running `release`, so `record-release` refused with "merge predates the release handoff". B-d passed the same night. Declared on Dorian's instruction of 2026-09-30 ("let's go"), from his proposal that manual approval of every PR isn't needed under the risk tiers of *Governed Autonomy* (Taskade `06 – Engineering/risk-tiered-merge-proposal-2026-09-30.md`, DR-113). He chose the gate floor and the size axis; this item builds the floor. The size axis needs nothing here, because every change outside the gate already merges without him.
 
 **Links introduced:** the path-to-owner link. A reader of `CODEOWNERS` assumes a path listed there can't reach `main` without Dorian's approval. That holds only while `main-gate` requires code-owner review, which criterion 3 checks live.
 
 1. `.github/CODEOWNERS` names Dorian for the gate paths in *Constraints* and for nothing else. No catch-all.
 2. `.github/test_codeowners.py` runs in CI and fails when a gate path is unowned, when a gate path no longer exists, when any file under a `hooks/` directory is unowned, when a non-gate path (`README.md`, `DESIGN.md`) is owned, or when a catch-all returns. It reports how many paths it examined, and examining none fails. Its selftest checks the matcher on anchored files, `dir/`, and a one-segment `*` that must not match two segments.
-**After merge, not a criterion (boundary test B-d).** Once Dorian turns code-owner review back on in `main-gate`, with zero required approvals, the agent opens two bot pull requests: one touching only `docs/evidence/`, which should merge with no approval, and one touching a file in `.github/`, which should be refused until his approving review exists. Both results go in `docs/evidence/`. The *Links introduced* claim holds only after B-d passes.
+**After merge, not a criterion (boundary test B-d).** Once Dorian turns code-owner review back on in `main-gate`, with zero required approvals, the agent opens two bot pull requests: one touching only `docs/evidence/`, which should merge with no approval, and one touching a file in `.github/`, which should be refused until his approving review exists. Both results go in `docs/evidence/`. **Result, 2026-09-30: pass.** PR #96, a one-line change to `.github/CODEOWNERS`, was refused with "Waiting on code owner review from dorianatmoxywolf" and closed; PR #97, docs only, merged as `cb37521` with no approval (`docs/evidence/boundary-d-2026-09-30.md`).
+
+### GA-009 — An agent merge under DR-113 is recorded, not refused
+
+**Status:** building. Declared on Dorian's instruction of 2026-09-30 ("fix everything and merge to production"). `record-release` refused every agent merge without a per-PR instruction comment ("unrequested agent merge"), so under DR-113 no autonomous merge could ever get a release record, and the release step still told the reader a human merges.
+
+**Links introduced:** the merge-to-authority link. An `agent_merge_autonomous` record names DR-113 as its authority, and a reader assumes that decision covered this merge. It holds while DR-113 stands; a change to the decision is an amendment here.
+
+1. `record-release` records a merge by `moxywolf-agent[bot]` with no matching instruction on the pull request as `agent_merge_autonomous`, with `authorized_by` (the packet's Release Owner) and `authority` naming DR-113, and no `instruction` field.
+2. A merge by any other bot with no matching instruction is still refused as an unrequested agent merge. A merge with a matching instruction is still recorded as `agent_merge_on_instruction`.
+3. Nothing else loosens: an autonomous merge still needs a passing review at the exact head and a handoff written before the merge, and one before the handoff is refused.
+4. `release`'s message and instruction, `/gstack-build`, `/gstack-ship`, `/gstack-peer-review`, the peer-review contract, `GOVERNANCE.md` and the skill's `SKILL.md` describe the agent merging under DR-113, with a `CODEOWNERS` path held for the owner's approval. The `awaiting_human_release` outcome name is unchanged, because tests and records key on it.
+5. `test_governed_review.py` covers criteria 1 to 3, and each new case is shown to fail alone against a copy with its fix removed.
+6. `gstack-execution` moves a minor version in `plugin.json` and its `marketplace.json` entry, and the top-level marketplace version moves (CI-002).
+7. `agent_merge_autonomous` joins the vocabulary as a review outcome, so `test_vocabulary.py` finds every emitted outcome there, and the vocabulary moves to 1.5.0.
 
 ## Second objective: academic-pipeline integrity
 
@@ -1451,6 +1465,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-09-30: GA-009 declared on Dorian's instruction ("fix everything and merge to production"): `record-release` records an autonomous agent merge under DR-113. GA-008's status records its merge without a release record and B-d's pass.
 - 2026-09-30: GA-008 declared and the merge constraints amended on Dorian's instruction (DR-113). The pre-merge gate is sized to the stakes: `CODEOWNERS` covers the gate only, and the agent merges on a clean cross-vendor review with `tests` green, with no merge words. XE-031, XE-032 and PG-001 marked done in the same change, per the one-approval-per-change rule.
 - 2026-09-30: XE-032 declared on Dorian's instruction ("do all three in the order you choose"), which Claude read as covering PG-001, XE-031 and this fix, and said so before starting. It narrows XE-025's `OFF_REPO` so a plugin named `excalidraw-vault` isn't read as the vault. DG-001 marked done in the same commit, per the one-approval-per-change rule.
 - 2026-09-30: XE-031 revised from round 2 of Dorian’s hand-run review. Finding IDs persist and every reply accounts for every open finding; only the raising reviewer closes a material finding; stalls compare finding state; a mid-loop reviewer failure ends `incomplete` with no substitute; a finding that the draft violates a settled constraint is kept, and only a proposal to change one is set aside for Dorian. Both reviewers asked for nothing more on DG-001 or PG-001.
