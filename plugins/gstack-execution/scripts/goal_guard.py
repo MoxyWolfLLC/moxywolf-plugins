@@ -32,8 +32,6 @@ CHECK_ENVS = {"goal-holdout"}
 # too, which refuses on the safe side; a real parse is the upgrade if that ever bites.
 EVENTS = re.compile(r"\b(push|pull_request_target|pull_request|workflow_run|merge_group)\b")
 ENV_USE = re.compile(r"^\s*environment:\s*(?:\n\s*name:\s*)?['\"]?([\w.-]+)", re.M)
-INLINE_BRANCHES = re.compile(r"branches:\s*\[([^\]]*)\]")
-BLOCK_BRANCHES = re.compile(r"branches:\s*\n((?:[ \t]*-[^\n]*\n?)+)")
 # Hosts each reviewer reaches: OpenRouter for the openrouter transport, the vendor for a CLI.
 CLI_HOSTS = {"gpt": ["api.openai.com", "chatgpt.com"], "claude": ["api.anthropic.com"],
              "gemini": ["generativelanguage.googleapis.com"]}
@@ -93,9 +91,21 @@ def granted(path, klass, resource, spent):
     return row
 
 
-def merge_allowed(branch, target, head, review):
+MERGE_CHECKS = ("tests", "goal-envelope", "goal-tests")
+
+
+def latest_checks(check_runs):
+    """{name: conclusion} from GitHub's check runs for one commit, the newest run of each name."""
+    out = {}
+    for run in sorted(check_runs, key=lambda r: r["id"]):
+        out[run["name"]] = run.get("conclusion") if run.get("status") == "completed" else run.get("status")
+    return out
+
+
+def merge_allowed(branch, target, head, review, checks):
     """DR-113 for an item: into the goal branch only, pinned to head, after a clean cross-vendor
-    review at that head with coverage checked. `review` is the review's state.json."""
+    review at that head with coverage checked and the checks green at that head. `review` is the
+    review's state.json; `checks` is latest_checks for head."""
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
                       f"request's, with Dorian's approval (GO-003.7)")
@@ -106,6 +116,8 @@ def merge_allowed(branch, target, head, review):
          and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
         (any(head in hs for hs in (review.get("heads") or [])[-1:]), f"the review's last head isn't {head[:12]}"),
     ] if not ok]
+    problems += [f"{c} at {head[:12]} is {checks.get(c) or 'missing'}, not success" for c in MERGE_CHECKS
+                 if checks.get(c) != "success"]
     if problems:
         raise Refused("; ".join(problems))
 
@@ -119,11 +131,25 @@ def workflows(repo, ref):
     return {n: ge.at(repo, ref, f".github/workflows/{n}") or "" for n in out if n.endswith((".yml", ".yaml"))}
 
 
+MAIN_ONLY = ([["push:", "branches: [main]"]] + [["push:", f"branches: [{q}main{q}]"] for q in "'\""]
+             + [["push:", "branches:", f"- {q}main{q}"] for q in ("", "'", '"')])
+
+
 def main_only(text, events):
-    """A workflow that runs only on a push to main: its deploy is the goal pull request's merge."""
-    names = [b.strip().strip("'\"") for m in INLINE_BRANCHES.findall(text) for b in m.split(",")]
-    names += [ln.strip()[1:].strip().strip("'\"") for m in BLOCK_BRANCHES.findall(text) for ln in m.splitlines() if ln.strip()]
-    return events == {"push"} and bool(names) and set(names) == {"main"}
+    """A workflow that runs only on a push to main: its deploy is the goal pull request's merge.
+    Read from the top-level on: block with comments and blank lines dropped, which must be exactly
+    `push:` with `branches: [main]`; any other shape isn't main-only, so it's refused."""
+    block, inside = [], False
+    for ln in text.splitlines():
+        if inside and ln[:1] not in ("", " ", "\t", "#"):
+            break                                        # the next top-level key
+        if inside:
+            body = ln.split(" #", 1)[0].strip()
+            if body and not body.startswith("#"):
+                block.append(body)
+        elif ln.rstrip() == "on:":
+            inside = True
+    return events == {"push"} and block in MAIN_ONLY
 
 
 def assess(repo, ref, brief, environments):

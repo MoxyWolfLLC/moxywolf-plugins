@@ -215,7 +215,7 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
-def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None):
+def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None):
     """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
     first rechecks what it would set off and stops the run if that changed since the start; then the
     ledger (or, for an item merge, DR-113's conditions) must allow it, or it's Dorian's."""
@@ -230,9 +230,9 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
                 + (": " + "; ".join(problems) if problems else ""))
             raise Refused(f"the run stopped: the workflows or deployment environments changed since the start")
     if klass == "merge":
-        if head is None or review is None:
-            raise Refused("an item merge names its head and its review")
-        gguard.merge_allowed(state["branch"], resource, head, review)
+        if head is None or review is None or checks is None:
+            raise Refused("an item merge names its head, its review and the checks at that head")
+        gguard.merge_allowed(state["branch"], resource, head, review, checks)
         return {"allowed": klass, "resource": resource, "by": "DR-113"}
     row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
     if row and row["scope"] == "once":
@@ -570,9 +570,12 @@ def main(argv, repo=gb.ROOT):
                     raise Refused(f"no review record {opts['--review']} under GSTACK_PEER_REVIEW_DIR")
                 review = json.loads(f.read_text())
             ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
-            print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"],
-                                 environments_of(gb.github(token), opts.get("--repo", REPO)),
-                                 head=opts.get("--head"), review=review)))
+            get, name = gb.github(token), opts.get("--repo", REPO)
+            checks = None
+            if opts["--action"] == "merge" and "--head" in opts:
+                checks = gguard.latest_checks(get(f"repos/{name}/commits/{opts['--head']}/check-runs?per_page=100")["check_runs"])
+            print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
+                                 head=opts.get("--head"), review=review, checks=checks)))
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))

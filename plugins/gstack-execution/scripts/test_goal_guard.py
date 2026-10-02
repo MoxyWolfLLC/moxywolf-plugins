@@ -10,6 +10,7 @@ import goal_run as gr  # noqa: E402
 import test_goal_run as tgr  # noqa: E402  its runner fixture
 
 DEPLOY = "jobs:\n  d:\n    runs-on: ubuntu-latest\n    environment: production\n    steps:\n      - run: ./deploy\n"
+GREEN = {"tests": "success", "goal-envelope": "success", "goal-tests": "success"}
 CLEAN = {"outcome": "fixes_verified", "coverage_checked": True, "coverage_status": "covered", "heads": [["a" * 40], ["b" * 40]]}
 
 
@@ -81,6 +82,22 @@ class Triggers(tgr.RunnerFixture):
         self.named_in_stops()
         self.assertIn("deploy.yml", self.refused_start("on: push\n" + DEPLOY))
 
+    def test_branches_outside_the_on_block_dont_make_a_deploy_main_only(self):
+        self.named_in_stops()
+        for wf in ("# branches: [main]\non: push\n" + DEPLOY,
+                   "on:\n  push:\n  # branches: [main]\n" + DEPLOY,
+                   "on: push\njobs:\n  d:\n    strategy:\n      matrix:\n        branches: [main]\n    environment: production\n",
+                   "on:\n  push:\n    branches: [main, dev]\n" + DEPLOY,
+                   "on:\n  push:\n    branches: ['**']\n" + DEPLOY):
+            with self.subTest(wf=wf[:40]):
+                self.assertIn("deploy.yml", self.refused_start(wf))
+
+    def test_each_main_only_shape_starts_when_named(self):
+        for on in ("on:\n  push:\n    branches: [main]  # deploys the merge\n",
+                   "on:\n  push:\n    branches:\n      - 'main'\n"):
+            with self.subTest(on=on):
+                self.assertTrue(gguard.main_only(on + DEPLOY, {"push"}))
+
     def test_a_deploy_added_after_the_start_stops_the_next_push(self):
         self.start()
         self.assertEqual(gr.act(self.repo, "g1", "vcs.push", "build/GX-1-a", self.envs, base="main")["allowed"], "vcs.push")
@@ -113,15 +130,31 @@ class Ledger(tgr.RunnerFixture):
 
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):
         self.start()
-        self.assertEqual(self.act("merge", "goal/g1", head="b" * 40, review=CLEAN)["by"], "DR-113")
+        self.assertEqual(self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=GREEN)["by"], "DR-113")
         with self.assertRaisesRegex(gr.Refused, "not main"):
-            self.act("merge", "main", head="b" * 40, review=CLEAN)
+            self.act("merge", "main", head="b" * 40, review=CLEAN, checks=GREEN)
         for review, why in ((dict(CLEAN, outcome="rounds_exhausted"), "not clean"),
                             (dict(CLEAN, coverage_status="uncovered"), "coverage"),
                             (dict(CLEAN, coverage_overridden=True), "coverage"),
                             (CLEAN, "last head")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
-                self.act("merge", "goal/g1", head=("a" * 40 if why == "last head" else "b" * 40), review=review)
+                self.act("merge", "goal/g1", head=("a" * 40 if why == "last head" else "b" * 40), review=review, checks=GREEN)
+
+    def test_a_clean_review_alone_doesnt_merge_an_item(self):
+        self.start()
+        for checks, why in (({**GREEN, "goal-tests": "failure"}, "goal-tests at bbbbbbbbbbbb is failure"),
+                            ({k: v for k, v in GREEN.items() if k != "goal-envelope"}, "goal-envelope at bbbbbbbbbbbb is missing"),
+                            ({**GREEN, "tests": "in_progress"}, "tests at bbbbbbbbbbbb is in_progress")):
+            with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
+                self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=checks)
+        with self.assertRaisesRegex(gr.Refused, "checks at that head"):
+            self.act("merge", "goal/g1", head="b" * 40, review=CLEAN)
+
+    def test_the_newest_check_run_of_each_name_counts(self):
+        runs = [{"id": 1, "name": "goal-tests", "status": "completed", "conclusion": "failure"},
+                {"id": 2, "name": "goal-tests", "status": "completed", "conclusion": "success"},
+                {"id": 3, "name": "tests", "status": "queued", "conclusion": None}]
+        self.assertEqual(gguard.latest_checks(runs), {"goal-tests": "success", "tests": "queued"})
 
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()
