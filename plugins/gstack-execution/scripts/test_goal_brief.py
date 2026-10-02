@@ -17,7 +17,7 @@ GOOD = {
     "Outcome": "A review made in a cloud session can be read after the session ends.",
     "Non-goals": "- publishing reviews",
     "Scenarios": "- Given a cloud session that ran a review, then its record is in the vault after the session ends\n- A review record that exists only in the session must never happen",
-    "Goal tests": "- `tests/test_survives.py::test_record_in_vault` (outcome)\n- `tests/test_survives.py::test_no_session_only_record` (invariant)",
+    "Goal tests": "- `tests/test_survives.py::Survives.test_record_in_vault` (outcome)\n- `tests/test_survives.py::Survives.test_no_session_only_record` (invariant)",
     "Allowed paths": "- plugins/project-init/skills/session-end/*.md\n- plugins/project-init/scripts/*.py",
     "Spend cap": "$5",
     "Provider budgets": "- openrouter: $3\n- gemini: $2",
@@ -27,6 +27,23 @@ GOOD = {
     "Stop conditions": "- any goal test regresses",
     "Pre-mortem": "- the test checks the path exists, not that the record is readable",
 }
+
+
+TESTFILE = """# drafted-by: gpt/gpt-6-astra
+import unittest
+
+
+class Survives(unittest.TestCase):
+    def test_record_in_vault(self):
+        \"\"\"Scenario: Given a cloud session that ran a review, then its record is in the vault after the session ends\"\"\"
+        import goalmod
+        self.assertTrue(goalmod.done)
+
+    def test_no_session_only_record(self):
+        \"\"\"Scenario: A review record that exists only in the session must never happen\"\"\"
+        import goalmod
+        self.assertFalse(goalmod.session_only)
+"""
 
 
 def brief(**over):
@@ -54,7 +71,7 @@ class Check(unittest.TestCase):
             (g / "holdout.sha256").write_text(holdout + "\n")
         if tests:
             (g / "tests").mkdir()
-            (g / "tests" / "test_survives.py").write_text("")
+            (g / "tests" / "test_survives.py").write_text(tests if isinstance(tests, str) else TESTFILE)
         return g
 
     def errs(self, g, design=DESIGN, co=CO):
@@ -137,6 +154,64 @@ class Check(unittest.TestCase):
     def test_empty_codeowners_is_refused(self):  # F4: no rules is not "nothing protected"
         self.refused(self.make(), "CODEOWNERS on main has no rules", co="")
 
+    # GO-002.1 and .4: tests exist, name their scenario, and one family drafted them
+    def test_goal_test_id_must_name_an_existing_test(self):
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_missing` (outcome)"})), "is not a unittest TestCase method")
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/nope.py::Survives.test_record_in_vault` (outcome)"})), "is not a unittest TestCase method")
+
+    def test_goal_test_must_carry_a_brief_scenario(self):
+        self.refused(self.make(tests=TESTFILE.replace("Scenario: Given a cloud", "Scenario: Given a laptop")), "needs a 'Scenario:' docstring line")
+        self.refused(self.make(tests=TESTFILE.replace("Scenario: A review", "No scenario. A review")), "needs a 'Scenario:' docstring line")
+
+    def test_malformed_goal_test_lines_are_refused(self):  # round 1 F3
+        self.refused(self.make(brief(**{"Goal tests": "tests/test_survives.py::Survives.test_record_in_vault (outcome)"})), "not a '- ' bullet")
+        self.refused(self.make(brief(**{"Goal tests": GOOD["Goal tests"] + "\n- just words"})), "Goal tests: expected")
+
+    def test_nested_test_files_are_refused(self):  # round 1 F4
+        g = self.make()
+        (g / "tests" / "sub").mkdir()
+        (g / "tests" / "sub" / "test_x.py").write_text("import unittest\n")
+        self.refused(g, "not in a subfolder")
+
+    def test_a_plain_class_method_is_not_a_test(self):  # round 1 F5
+        self.refused(self.make(tests=TESTFILE.replace("class Survives(unittest.TestCase):", "class Survives:")), "is not a unittest TestCase method")
+
+    def test_inherited_testcase_is_accepted(self):
+        t = TESTFILE.replace("class Survives(unittest.TestCase):", "class Base(unittest.TestCase):\n    pass\n\n\nclass Survives(Base):")
+        self.assertEqual(self.errs(self.make(tests=t)), [])
+
+    def test_unlisted_test_method_is_refused(self):  # round 1 F7
+        t = TESTFILE + "\n    def test_extra(self):\n        pass\n"
+        self.refused(self.make(tests=t), "is not listed in Goal tests")
+
+    def test_a_local_class_named_testcase_is_not_unittest(self):  # round 2 F5
+        t = TESTFILE.replace("class Survives(unittest.TestCase):", "class TestCase:\n    pass\n\n\nclass Survives(TestCase):")
+        self.refused(self.make(tests=t), "is not a unittest TestCase method")
+
+    def test_an_inherited_mixin_test_must_be_listed(self):  # round 2 F7
+        t = TESTFILE.replace("class Survives(unittest.TestCase):",
+                             "class Extra:\n    def test_extra(self):\n        pass\n\n\nclass Survives(Extra, unittest.TestCase):")
+        self.refused(self.make(tests=t), "Survives.test_extra is not listed in Goal tests")
+
+    def test_module_scope_repository_imports_load_against_main(self):  # round 3 F9
+        t = TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)
+        repo = Path(self.tmp.name, "main"); repo.mkdir()
+        (repo / "goalmod.py").write_text("done = False\nsession_only = False\n")
+        g = self.make(tests=t)
+        self.assertEqual(gb.check(g, DESIGN, CO, repo)[0], [])
+        self.assertEqual(gb.baseline(g, repo), ([], 2))
+        self.refused(g, "does not load against main")             # not on main: refused, as baseline would
+        e = gb.check(self.make(tests=t.replace("class Survives(unittest.TestCase):", "class Survives:")), DESIGN, CO, repo)[0]
+        self.assertTrue(e and all("is not a unittest TestCase method" in x for x in e), e)
+
+    def test_goal_tests_name_their_drafter(self):
+        self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
+
+    def test_goal_tests_have_one_drafting_family(self):
+        g = self.make()
+        (g / "tests" / "test_more.py").write_text("# drafted-by: gemini/gemini-3.8-flash\nimport unittest\n")
+        self.refused(g, "drafted by one model family")
+
     # bounds
     def test_max_items_bounds(self):
         for v in ("0", "11"):
@@ -165,6 +240,93 @@ class Check(unittest.TestCase):
         self.assertEqual(self.errs(self.make(brief(**{"Provider budgets": "- openrouter: $2.99\n- gemini: $2.01"}))), [])
 
 
+class Baseline(unittest.TestCase):  # GO-002.2
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name, "repo"); self.repo.mkdir()
+        self.goal = Path(self.tmp.name, "goal"); (self.goal / "tests").mkdir(parents=True)
+        (self.goal / "tests" / "test_survives.py").write_text(TESTFILE)
+        (self.goal / "GOAL.md").write_text(brief())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def main_is(self, done, session_only):
+        (self.repo / "goalmod.py").write_text(f"done = {done}\nsession_only = {session_only}\n")
+        return gb.baseline(self.goal, self.repo)
+
+    def test_outcome_fails_and_invariant_holds_on_main_passes(self):
+        self.assertEqual(self.main_is(False, False), ([], 2))
+
+    def test_outcome_already_passing_on_main_is_refused(self):
+        e, _ = self.main_is(True, False)
+        self.assertTrue(any("already passes on main" in x for x in e), e)
+
+    def test_invariant_failing_on_main_is_refused(self):
+        e, _ = self.main_is(False, True)
+        self.assertTrue(any("fails on main" in x for x in e), e)
+
+    def test_relative_goal_path_runs_from_the_goal_folder(self):  # round 1 F1
+        import os
+        (self.repo / "goalmod.py").write_text("done = False\nsession_only = False\n")
+        cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        try:
+            self.assertEqual(gb.baseline(Path("goal"), self.repo), ([], 2))
+        finally:
+            os.chdir(cwd)
+
+    def test_a_test_that_cannot_run_is_not_a_failure(self):  # round 1 F2
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- `tests/missing.py::Survives.test_record_in_vault` (outcome)"}))
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertTrue(any("could not be run against main" in x for x in e), e)
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_gone` (outcome)"}))
+        e, n = self.main_is(False, False)
+        self.assertTrue(any("could not be run against main" in x for x in e), e)
+
+    def test_a_test_whose_class_setup_fails_did_not_run(self):  # round 2 F2
+        t = TESTFILE.replace("class Survives(unittest.TestCase):",
+                             "class Survives(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n        raise RuntimeError('no')\n")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
+
+    def test_module_fixtures_run_as_unittest_runs_them(self):  # review 2 F1
+        t = TESTFILE.replace("import unittest\n", "import unittest\nready = False\n\n\ndef setUpModule():\n    global ready\n    ready = True\n", 1)
+        t = t.replace("        import goalmod\n        self.assertTrue(goalmod.done)", "        self.assertTrue(ready)")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, _ = self.main_is(False, False)
+        self.assertTrue(any("test_record_in_vault already passes on main" in x for x in e), e)
+
+    def test_a_failing_module_fixture_ran_nothing(self):  # review 2 F1
+        t = TESTFILE.replace("import unittest\n", "import unittest\n\n\ndef setUpModule():\n    raise RuntimeError('no')\n", 1)
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
+
+    def test_a_skipped_test_did_not_run(self):  # round 2 F2
+        t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 1)
+        self.assertTrue(any("test_no_session_only_record could not be run" in x for x in e), e)
+
+    def test_baseline_leaves_the_goal_folder_as_check_saw_it(self):  # round 2 F8
+        before = gb.check(self.goal, DESIGN, CO)[0]
+        self.assertEqual(self.main_is(False, False), ([], 2))
+        self.assertEqual(gb.check(self.goal, DESIGN, CO)[0], before)
+        self.assertFalse(any(self.goal.rglob("__pycache__")))
+
+    def test_baseline_over_no_tests_fails(self):
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- nothing here"}))
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertIn("baseline examined no goal tests", e)
+
+
 class Main(unittest.TestCase):
     def test_check_reads_main_and_fails_closed_without_it(self):  # F4
         with self.assertRaises(SystemExit) as c:
@@ -185,11 +347,28 @@ class Main(unittest.TestCase):
 HEAD, OLD, BASE, TREE = "a" * 40, "b" * 40, "e" * 40, "c" * 40
 
 
-def fake(pages, merged=True, base_ref="main", main_tree=TREE, head_tree=TREE, base_tree=None):
+READING = ("## Plain-English reading\n"
+           "- tests/test_survives.py::Survives.test_record_in_vault checks the record is in the vault.\n"
+           "- tests/test_survives.py::Survives.test_no_session_only_record checks no record lives only in the session.\n"
+           "Read by: claude/claude-sonnet-5.5\n")
+
+
+def b64(text):
+    import base64
+    return {"content": base64.b64encode(text.encode()).decode()}
+
+
+def fake(pages, merged=True, base_ref="main", main_tree=TREE, head_tree=TREE, base_tree=None, body=READING):
     trees = {HEAD: head_tree, "main": main_tree, BASE: base_tree}
     def get(path):
         if path.endswith("/pulls/7"):
-            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": base_ref, "sha": BASE}}
+            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": base_ref, "sha": BASE}, "body": body}
+        if "/goals/g1/GOAL.md" in path:
+            return b64(brief())
+        if "/goals/g1/tests?" in path:
+            return [{"name": "test_survives.py", "path": "goals/g1/tests/test_survives.py"}]
+        if "/goals/g1/tests/test_survives.py" in path:
+            return b64(TESTFILE)
         if "/reviews" in path:
             page = int(path.rsplit("page=", 1)[1])
             return pages[page - 1] if page <= len(pages) else []
@@ -243,6 +422,23 @@ class Verify(unittest.TestCase):
 
     def test_pr_that_changed_an_existing_goal_is_refused(self):  # round 2 F8: adds, not changes
         self.refused(fake([[review()]], base_tree="f" * 40), "already existed before")
+
+    def test_pr_without_a_plain_english_reading_is_refused(self):  # GO-002.4
+        self.refused(fake([[review()]], body="no reading"), "no '## Plain-English reading' section")
+
+    def test_reading_must_cover_every_goal_test(self):
+        body = READING.replace("- tests/test_survives.py::Survives.test_no_session_only_record checks no record lives only in the session.\n", "")
+        self.refused(fake([[review()]], body=body), "doesn't cover")
+
+    def test_a_prefix_id_does_not_cover_a_shorter_one(self):  # round 1 F6
+        body = READING.replace("Survives.test_record_in_vault checks", "Survives.test_record_in_vault_later checks")
+        self.refused(fake([[review()]], body=body), "doesn't cover")
+
+    def test_reading_needs_a_reader(self):
+        self.refused(fake([[review()]], body=READING.replace("Read by: claude/claude-sonnet-5.5\n", "")), "Read by")
+
+    def test_reader_must_not_be_the_drafting_family(self):
+        self.refused(fake([[review()]], body=READING.replace("claude/claude-sonnet-5.5", "gpt/gpt-6.1-sol")), "family that drafted")
 
     def test_unmerged_pr_is_refused(self):
         self.refused(fake([[review()]], merged=False), "not merged")
