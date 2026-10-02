@@ -133,6 +133,27 @@ class LinkTests(unittest.TestCase):
         broken = [c for c in report["checks"] if not c["ok"]]
         self.assertTrue(any("no longer describes the code" in c["detail"] for c in broken), broken)
 
+    def deferred(self):
+        """A round whose one finding is a follow-up, disposed deferred."""
+        rid = self.open_review()
+        f = dict(BLOCKING["findings"][0], severity="follow_up")
+        self.fake_round(rid, dict(BLOCKING, verdict="no_blocking_findings", findings=[f]))
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=deferred"]))
+        return rid, pr.rdir(rid)
+
+    def test_unchanged_lines_that_moved_are_not_stale(self):
+        """EV-002.3: lines added above a deferred finding move its lines without changing them."""
+        rid, d = self.deferred()
+        self.write("import os\n\n\ndef g():\n    pass\n\n\ndef f(x):\n    return x + 2\n"); self.sh("commit", "-qam", "lines above")
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "links_verified", [c for c in report["checks"] if not c["ok"]])
+        self.assertTrue(any("moved to line 9" in c["detail"] for c in report["checks"]), report["checks"])
+
+    def test_lines_that_moved_and_changed_are_stale(self):
+        rid, d = self.deferred()
+        self.write("import os\n\n\ndef f(x):\n    return x + 3\n"); self.sh("commit", "-qam", "moved and changed")
+        self.assertEqual(pr.verify_links(d)["outcome"], "stale_link")
+
     def test_expected_drift_under_a_fixed_finding_is_not_stale(self):
         """A finding disposed `fixed` SHOULD read differently now. Treating that as
         drift would make the check cry wolf on every successful repair."""
