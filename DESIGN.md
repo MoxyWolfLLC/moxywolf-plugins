@@ -227,12 +227,14 @@ the repository's current head.
 2. `verify` re-resolves the packet's commits, every finding subject, every disposition,
    and every recorded observation, and names each link it examined.
 3. Drift expected from a repair is not reported as staleness; drift under any other
-   disposition is.
+   disposition is. A finding's recorded lines found unchanged elsewhere in the same file at
+   the current head have moved, not drifted, and aren't stale.
 4. A missing entry and a link that resolved to the wrong thing do not share an outcome
    name, and a record that cannot be re-resolved is a third answer.
 5. `release` refuses on `stale_link` and `incomplete_record`.
 6. Tests: content changing under an undisposed finding is stale; the same change under a
-   `fixed` finding is not; a hand-edited span is detected; a snapshot-prefixed path and a
+   `fixed` finding is not; unchanged lines moved under a `deferred` finding are not, and
+   moved lines that also changed are; a hand-edited span is detected; a snapshot-prefixed path and a
    repo-relative path bind to one subject.
 
 ### EV-003 — The undeclared-write sweep, in the direction nobody had
@@ -1562,6 +1564,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-02: EV-002 criteria 3 and 6 amended on Dorian's decision. PR #108's review passed, and `release` then refused it: a deferred follow-up cited a line that an unrelated fix had moved six lines down, unchanged. `verify` now finds a finding's recorded lines wherever they sit in the same file; a change inside them is still drift.
 
 - 2026-10-02: GO-003 marked done (PRs #104 to #106, and Dorian's repository settings). GO-005 builds in two changes, criteria 1 to 3 first.
 
