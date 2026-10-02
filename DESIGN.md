@@ -1457,7 +1457,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-003 — `/gstack-goal` runs the plan onto a goal branch, and `main` moves once
 
-**Status:** building. Criteria 1, 3, 4 and 8 are built in `plugins/gstack-execution/scripts/goal_run.py` and `/gstack-goal`, with the stub-build tests from criterion 9 that cover them. Criteria 2, 5, 6 and 7 (the goal-branch ruleset, the three goal workflows, the holdout and the finish) are next; the ruleset and the `goal-holdout` environment are settings only Dorian can change.
+**Status:** building. Criteria 1, 3, 4 and 8 are done (PR #104, `e297a22`: `goal_run.py` and `/gstack-goal`). Criterion 5 is built: `goal-envelope.yml` and `goal-tests.yml` run `goal_checks.py` from main's copy on `pull_request_target`, run candidate code only in a container with no network, environment or capabilities, and publish their verdict as a check run on the head with the workflow's own token; a pull request that isn't a goal's passes, so `main`'s ruleset can require them of every pull request. Into `goal/<id>`, `goal-tests` requires the invariants (the runner tracks outcomes, criterion 4); into `main`, every goal test. `agent_token.py --goal-run` mints the contents-and-pull_requests token and `goal_run.py start` requires it. Criteria 2, 6 and 7 (the ruleset, the holdout and the finish) are next; the ruleset and the `goal-holdout` environment are settings only Dorian can change.
 
 **Links introduced:** the goal-branch-to-main link. A reader of `main` assumes a goal's changes arrived together, reviewed as a whole, after its goal tests and holdout passed at one head. That holds because the goal branch reaches `main` only through a pull request with its own cross-vendor review and required checks.
 
@@ -1562,6 +1562,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-02: GO-003 criterion 5 built with one reading recorded in its status: on an item pull request into `goal/<id>`, `goal-tests` gates on the invariants, because the outcomes are expected to fail until the plan's later items land and criterion 4's runner already stops on an outcome that regresses.
 
 - 2026-10-02: GO-004 marked done (PRs #102, #103). GO-003 builds in two changes: the runner first, then the workflows, ruleset and finish, because the second needs repository settings Dorian makes.
 

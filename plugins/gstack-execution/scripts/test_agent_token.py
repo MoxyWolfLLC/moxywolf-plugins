@@ -17,6 +17,7 @@ TOKEN = "ghs_FIXTURE_TOKEN_0123456789abcdef"
 
 class Stub(http.server.BaseHTTPRequestHandler):
     seen = []
+    granted = None   # GO-003.5: what the stub claims to grant a restricted token; None echoes the request
 
     def do_GET(self):
         Stub.seen.append((self.path, self.headers.get("Authorization", "")))
@@ -35,8 +36,12 @@ class Stub(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         Stub.seen.append((self.path, self.headers.get("Authorization", "")))
+        sent = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
+        Stub.body = sent
         if self.path in ("/app/installations/42/access_tokens", "/app/installations/77/access_tokens"):
             body, code = {"token": TOKEN, "expires_at": "2099-01-01T00:00:00Z"}, 201
+            if sent and "permissions" in sent:
+                body["permissions"] = Stub.granted or dict(sent["permissions"], metadata="read")
         else:
             body, code = {"message": "Bad credentials"}, 401
         raw = json.dumps(body).encode()
@@ -103,6 +108,28 @@ class AgentToken(unittest.TestCase):
         self.assertEqual(path, "/app/installations/42/access_tokens")
         self.assertEqual(auth.split()[0], "Bearer")
         self.assertEqual(len(auth.split()[1].split(".")), 3, "authenticated with a JWT")
+
+    def test_a_goal_run_token_holds_contents_and_pull_requests_only(self):  # GO-003.5
+        probe = self.tmp / "goal.json"
+        child = f"import json,os;json.dump(os.environ.get('GSTACK_GOAL_RUN_TOKEN'),open({str(probe)!r},'w'))"
+        r = self.run_script("exec", "--goal-run", "--", sys.executable, "-c", child)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(Stub.body, {"permissions": {"contents": "write", "pull_requests": "write"}})
+        self.assertEqual(json.loads(probe.read_text()), "1")
+        r = self.run_script("exec", "--", sys.executable, "-c", child)          # an ordinary token
+        self.assertEqual(Stub.body, None)
+        self.assertIsNone(json.loads(probe.read_text()))
+
+    def test_a_goal_run_token_granted_more_than_asked_is_not_used(self):  # GO-003.5
+        Stub.granted = {"contents": "write", "pull_requests": "write", "metadata": "read", "workflows": "write"}
+        try:
+            probe = self.tmp / "ran"
+            r = self.run_script("exec", "--goal-run", "--", sys.executable, "-c", f"open({str(probe)!r},'w')")
+        finally:
+            Stub.granted = None
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not used", r.stderr)
+        self.assertFalse(probe.exists())
 
     def test_a_failed_mint_names_the_endpoint_and_status_and_runs_nothing(self):
         self.write_env(99)

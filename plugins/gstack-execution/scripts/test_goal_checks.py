@@ -1,0 +1,191 @@
+"""GO-003.5: the goal checks' decisions, the sandbox they run candidate code in, and the workflows
+that call them. The container test runs wherever Docker runs; CI must have it (a CI run without
+Docker fails rather than skips), and a laptop without a daemon reports the test as skipped."""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
+sys.path.insert(0, str(HERE))
+import goal_checks as gc  # noqa: E402
+
+CO = "/.github/ @dorianatmoxywolf\n/goals/ @dorianatmoxywolf\n/goal-runs/ @dorianatmoxywolf\n"
+BRIEF = "## Allowed paths\n- `src/**`\n\n## Goal tests\n- `tests/test_g.py::G.test_done` (outcome)\n- `tests/test_g.py::G.test_safe` (invariant)\n"
+
+
+def pr(base="goal/g1", head="build/item-1", number=5, head_sha="a" * 40, base_sha="b" * 40):
+    return {"number": number, "base": {"ref": base, "sha": base_sha}, "head": {"ref": head, "sha": head_sha}}
+
+
+class Decisions(unittest.TestCase):
+    def test_classify(self):
+        self.assertEqual(gc.classify(pr()), ("item", "g1"))
+        self.assertEqual(gc.classify(pr(base="main", head="goal/g1")), ("goal", "g1"))
+        self.assertEqual(gc.classify(pr(base="main", head="build/x")), ("none", None))
+        self.assertEqual(gc.classify(pr(base="release", head="goal/g1")), ("none", None))
+
+    def fake_run(self, results, rc=0):
+        def run(cmd, **kw):
+            self.cmd = cmd
+            return subprocess.CompletedProcess(cmd, rc, json.dumps(results) + "\n", "")
+        return run
+
+    def goal_repo(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        (d / "goals" / "g1").mkdir(parents=True); (d / "goals" / "g1" / "GOAL.md").write_text(BRIEF)
+        return d
+
+    def test_an_item_needs_its_invariants_and_the_goal_pr_needs_every_test(self):
+        res = {"tests/test_g.py::G.test_done": {"kind": "outcome", "result": "failed"},
+               "tests/test_g.py::G.test_safe": {"kind": "invariant", "result": "passed"}}
+        repo = self.goal_repo()
+        self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", self.fake_run(res))["conclusion"], "success")
+        v = gc.tests(pr(base="main", head="goal/g1"), repo, "m" * 40, "/c", self.fake_run(res))
+        self.assertEqual(v["conclusion"], "failure")
+        self.assertIn("every goal test must pass", v["summary"])
+        res["tests/test_g.py::G.test_safe"]["result"] = "not_run"
+        self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", self.fake_run(res))["conclusion"], "failure")
+
+    def test_tests_that_report_nothing_or_no_goal_fail(self):
+        repo = self.goal_repo()
+        self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", self.fake_run({}))["title"], "examined no goal tests")
+        bad = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, "", "Traceback")
+        self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", bad)["title"], "the goal tests did not report")
+        self.assertIn("not on main", gc.tests(pr(base="goal/g9"), repo, "m" * 40, "/c", bad)["title"])
+
+    def test_a_pull_request_that_isnt_a_goals_passes_both_checks(self):
+        p = pr(base="main", head="build/x")
+        self.assertEqual(gc.tests(p, "/nowhere", "m", "/c")["conclusion"], "success")
+        self.assertEqual(gc.envelope(p, "/nowhere", "m", "none")["conclusion"], "success")
+
+    def test_the_sandbox_has_no_network_no_environment_and_reads_only(self):
+        cmd = gc.sandbox_cmd("/m", "/c", "g1")
+        joined = " ".join(cmd)
+        for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 65534:65534"):
+            self.assertIn(flag, joined)
+        self.assertIn("/m:/main:ro", joined); self.assertIn("/c:/candidate:ro", joined)
+        envs = [cmd[i + 1] for i, a in enumerate(cmd) if a in ("-e", "--env")]
+        self.assertEqual(envs, ["HOME=/tmp"])
+        self.assertNotIn("--env-file", cmd)
+
+    def test_publish_posts_on_the_head_or_nothing_when_it_moved(self):
+        v = {"pr": 5, "head": "a" * 40, "base": "b" * 40, "conclusion": "success", "title": "t", "summary": "s"}
+        calls = []
+
+        def call(m, p, d=None, live=pr()):
+            calls.append((m, p, d))
+            return live
+        self.assertIn("published goal-tests: success", gc.publish("goal-tests", v, "o/r", call))
+        self.assertEqual(calls[-1][0:2], ("POST", "repos/o/r/check-runs"))
+        self.assertEqual((calls[-1][2]["name"], calls[-1][2]["head_sha"]), ("goal-tests", "a" * 40))
+        for moved in (pr(head_sha="c" * 40), pr(base_sha="d" * 40)):
+            calls.clear()
+            self.assertIn("published nothing", gc.publish("goal-tests", v, "o/r", lambda m, p, d=None, live=moved: calls.append(m) or live))
+            self.assertEqual(calls, ["GET"])
+
+
+class Envelope(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name)
+        self.git("init", "-q", "-b", "main")
+        self.git("config", "user.email", "t@t"); self.git("config", "user.name", "t")
+        self.commit({".github/CODEOWNERS": CO, "goals/g1/GOAL.md": BRIEF, "src/a.py": "a\n"})
+        self.main = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "-c", "goal/g1")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def git(self, *a):
+        return subprocess.run(["git", "-C", str(self.repo), *a], check=True, capture_output=True, text=True).stdout.strip()
+
+    def commit(self, files):
+        for k, v in files.items():
+            (self.repo / k).parent.mkdir(parents=True, exist_ok=True); (self.repo / k).write_text(v)
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "c")
+        return self.git("rev-parse", "HEAD")
+
+    def test_the_envelope_verdict_names_files_and_counts_commits(self):
+        ok = self.commit({"src/b.py": "b\n"})
+        v = gc.envelope(pr(), self.repo, self.main, ok)
+        self.assertEqual(v["conclusion"], "success")
+        self.assertIn("Examined 1 goal-authored commits", v["summary"])
+        bad = self.commit({".github/workflows/x.yml": "on: push\n"})
+        v = gc.envelope(pr(), self.repo, self.main, bad)
+        self.assertEqual(v["conclusion"], "failure")
+        self.assertIn(".github/workflows/x.yml, a CODEOWNERS path", v["summary"])
+
+    def test_a_sync_whose_candidate_is_main_passes(self):
+        self.assertEqual(gc.envelope(pr(), self.repo, self.main, self.main)["conclusion"], "success")
+
+    def test_an_unreadable_main_fails(self):
+        self.assertEqual(gc.envelope(pr(), self.repo, "f" * 40, self.main)["title"], "envelope could not be read")
+
+
+class Workflows(unittest.TestCase):
+    def test_each_goal_workflow_runs_mains_copy_and_keeps_tokens_out_of_candidate_steps(self):
+        for name in ("goal-envelope", "goal-tests"):
+            with self.subTest(name=name):
+                text = (ROOT / ".github" / "workflows" / f"{name}.yml").read_text()
+                self.assertIn("pull_request_target:", text)
+                self.assertIn("\npermissions: {}\n", text)
+                self.assertIn("ref: ${{ steps.r.outputs.main }}", text)
+                self.assertIn("persist-credentials: false", text)
+                self.assertIn(f"publish --name {name} ", text)
+                self.assertNotIn("github.event.pull_request.head.ref", text)    # never checked out by name
+                steps = text.split("      - ")
+                judge = [s for s in steps if s.startswith("name: Run the goal tests") or s.startswith("name: Judge the envelope")]
+                self.assertEqual(len(judge), 1)
+                self.assertNotIn("env:", judge[0])                               # no token where candidate is read or run
+                self.assertNotIn("secrets.", text)
+
+
+class Sandbox(unittest.TestCase):
+    """The container itself: candidate code can't reach the network or the job's environment."""
+
+    def setUp(self):
+        ok = shutil.which("docker") and subprocess.run(["docker", "info"], capture_output=True).returncode == 0
+        if not ok:
+            if os.environ.get("CI"):
+                self.fail("CI must run the goal-test sandbox; Docker isn't available")
+            self.skipTest("no Docker daemon here; CI runs this test")
+
+    def test_candidate_code_sees_no_network_and_no_token(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "candidate"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text(
+            "## Goal tests\n- `tests/test_s.py::S.test_code_runs` (invariant)\n"
+            "- `tests/test_s.py::S.test_network` (invariant)\n- `tests/test_s.py::S.test_token` (invariant)\n")
+        (main / "goals" / "g1" / "tests" / "test_s.py").write_text(
+            "import unittest\n\n\nclass S(unittest.TestCase):\n"
+            "    def test_code_runs(self):\n        import goalmod\n        self.assertTrue(goalmod.ok)\n\n"
+            "    def test_network(self):\n        import goalmod\n        goalmod.reach()\n\n"
+            "    def test_token(self):\n        import goalmod\n        self.assertEqual(goalmod.token(), 'leaked-secret')\n")
+        cand.mkdir()
+        (cand / "goalmod.py").write_text(
+            "import os, socket\nok = True\n\n\ndef reach():\n    socket.create_connection(('1.1.1.1', 53), 3).close()\n\n\n"
+            "def token():\n    return os.environ.get('GITHUB_TOKEN')\n")
+        saved, os.environ["GITHUB_TOKEN"] = os.environ.get("GITHUB_TOKEN"), "leaked-secret"
+        try:
+            r = subprocess.run(gc.sandbox_cmd(main, cand, "g1"), capture_output=True, text=True, timeout=600)
+        finally:
+            os.environ.pop("GITHUB_TOKEN") if saved is None else os.environ.__setitem__("GITHUB_TOKEN", saved)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()},
+                         {"test_code_runs": "passed", "test_network": "failed", "test_token": "failed"})
+
+
+if __name__ == "__main__":
+    unittest.main()

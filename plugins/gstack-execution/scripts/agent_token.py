@@ -6,6 +6,10 @@
   agent_token.py permissions [--repo owner/name]        what the installation actually grants
   agent_token.py --selftest
 
+`--goal-run`, before `--`, mints the token with contents and pull_requests write only (GO-003.5): no
+workflows permission, so GitHub refuses a push that adds or changes a workflow, and no secrets. The
+command it runs sees GSTACK_GOAL_RUN_TOKEN=1, which goal_run.py start requires.
+
 Settings come from the file GSTACK_AGENT_APP_ENV names (github-app.env in the vault):
 GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and GITHUB_APP_KEY_FILE, the key's path relative to that
 file. A token is minted per invocation and lasts an hour. It never reaches argv, stdout, stderr or a
@@ -136,7 +140,10 @@ def installation_for(repo, app_id, key):
              f"token returns the same 404.")
 
 
-def mint(repo=None):
+GOAL_RUN_PERMISSIONS = {"contents": "write", "pull_requests": "write"}
+
+
+def mint(repo=None, permissions=None):
     app_id, inst, key = settings()
     if repo:
         inst = installation_for(repo, app_id, key)
@@ -144,11 +151,14 @@ def mint(repo=None):
         print("no repository determined (tried --repo, the api path and origin); minting from the "
               f"configured installation {inst}", file=sys.stderr)
     path = f"/app/installations/{inst}/access_tokens"
-    status, body = request("POST", path, "Bearer " + jwt(app_id, key))
+    status, body = request("POST", path, "Bearer " + jwt(app_id, key),
+                           None if permissions is None else {"permissions": permissions})
     if status != 201 or not isinstance(body, dict) or not body.get("token"):
         msg = (body or {}).get("message", "") if isinstance(body, dict) else ""
         sys.exit(f"agent token not minted: POST {API}{path} returned {status or 'no response'}"
                  f"{': ' + msg if msg else ''}. No other credential is tried.")
+    if permissions is not None and body.get("permissions", {}) != dict(permissions, metadata="read"):
+        sys.exit(f"agent token minted with {body.get('permissions')}, not the {permissions} asked for; not used")
     return body["token"]
 
 
@@ -161,10 +171,14 @@ def token_env(token, base=None):
     return env
 
 
-def cmd_exec(cmd, repo=None):
+def cmd_exec(cmd, repo=None, goal_run=False):
     if not cmd:
-        sys.exit("usage: agent_token.py exec [--repo owner/name] -- <command...>")
-    return subprocess.run(cmd, env=token_env(mint(repo or repo_from_origin()))).returncode
+        sys.exit("usage: agent_token.py exec [--repo owner/name] [--goal-run] -- <command...>")
+    env = token_env(mint(repo or repo_from_origin(), GOAL_RUN_PERMISSIONS if goal_run else None))
+    env.pop("GSTACK_GOAL_RUN_TOKEN", None)
+    if goal_run:
+        env["GSTACK_GOAL_RUN_TOKEN"] = "1"
+    return subprocess.run(cmd, env=env).returncode
 
 
 def cmd_api(method, path, data, repo=None):
@@ -197,7 +211,7 @@ def selftest():
     return 0
 
 
-def cmd_permissions(repo=None):
+def cmd_permissions(repo=None, goal_run=False):
     """What this installation ACTUALLY grants, which is not what the app declares.
 
     Changing a GitHub App's permissions raises a REQUEST. Until the installation
@@ -218,7 +232,7 @@ def cmd_permissions(repo=None):
     if repo:
         inst = installation_for(repo, app_id, key)
     status, body = request("POST", f"/app/installations/{inst}/access_tokens",
-                           "Bearer " + jwt(app_id, key))
+                           "Bearer " + jwt(app_id, key), {"permissions": GOAL_RUN_PERMISSIONS} if goal_run else None)
     if status != 201 or not isinstance(body, dict):
         msg = (body or {}).get("message", "") if isinstance(body, dict) else ""
         sys.exit(f"could not read the installation: POST {API}/app/installations/{inst}"
@@ -247,11 +261,15 @@ def main(argv):
         if i < sep and i + 1 < len(argv):
             repo = argv[i + 1]
             argv = argv[:i] + argv[i + 2:]
+    sep = argv.index("--") if "--" in argv else len(argv)
+    goal_run = "--goal-run" in argv[:sep]
+    if goal_run:
+        argv = [a for i, a in enumerate(argv) if not (a == "--goal-run" and i < sep)]
     if argv[:1] == ["exec"]:
         rest = argv[1:]
-        return cmd_exec(rest[1:] if rest[:1] == ["--"] else rest, repo)
+        return cmd_exec(rest[1:] if rest[:1] == ["--"] else rest, repo, goal_run)
     if argv[:1] == ["permissions"]:
-        return cmd_permissions(repo)
+        return cmd_permissions(repo, goal_run)
     if argv[:1] == ["api"] and len(argv) >= 3:
         data = argv[argv.index("--data") + 1] if "--data" in argv else None
         return cmd_api(argv[1], argv[2], data, repo)
