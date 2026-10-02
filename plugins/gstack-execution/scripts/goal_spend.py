@@ -40,6 +40,13 @@ def record(provider, cost, transport):
         raise LedgerError(f"cannot record a model call in {path}: {e}")
 
 
+def reported_cost(reply):
+    """usage.cost from an OpenRouter reply, or None when the reply never arrived, didn't decode,
+    or carried no cost: an attempt that can't be priced still counts against Max calls."""
+    usage = reply.get("usage") if isinstance(reply, dict) else None
+    return usage.get("cost") if isinstance(usage, dict) else None
+
+
 def limits(brief_text):
     """({provider: budget}, cap, max_calls) from a goal brief that goal_brief.py check accepted."""
     # imported here, not at the top: peer_review imports this module for record(), and goal_brief

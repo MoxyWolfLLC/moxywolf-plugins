@@ -634,9 +634,12 @@ def reducer_ask(instructions, request):
                 "response_format": {"type": "json_object"}, "usage": {"include": True}}
         req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            env_ = json.loads(r.read().decode())
-        goal_spend.record("openrouter", (env_.get("usage") or {}).get("cost"), "openrouter")   # GO-004.2
+        env_ = None
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                env_ = json.loads(r.read().decode())
+        finally:   # GO-004.2: every attempt, answered or not, is counted once
+            goal_spend.record("openrouter", goal_spend.reported_cost(env_), "openrouter")
         out = ((env_.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
         if not out.strip():
             raise ValueError("empty content")
@@ -1088,6 +1091,7 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
             "usage": {"include": True}}
     req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    env_ = None
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             env_ = json.loads(r.read().decode())
@@ -1097,8 +1101,9 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
         raise ReviewError("timeout" if isinstance(e.reason, TimeoutError) else "review_unavailable", f"{tool}: {e.reason}")
     except TimeoutError:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
+    finally:   # GO-004.2: every attempt, answered or not, is counted once, before any refusal
+        goal_spend.record("openrouter", goal_spend.reported_cost(env_), "openrouter")
     u = env_.get("usage") or {}
-    goal_spend.record("openrouter", u.get("cost"), "openrouter")      # GO-004.2: before any refusal of the reply
     if env_.get("error"):
         raise ReviewError("review_unavailable", f"{tool}: {str(env_['error'])[:400]}")
     if u:   # XE-013.4 / XE-012.3: one shape from the provider, not a per-CLI parse
@@ -1187,10 +1192,10 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
         raise ReviewError("review_unavailable", f"unknown tool {tool}")
     global LAST_REVIEWER_USAGE
     LAST_REVIEWER_USAGE = "not_reported"
+    started = True
     try:
         # stdin closed: codex exec otherwise blocks on "Reading additional input from stdin..."
         r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
-        goal_spend.record(tool, None, "subscription")                    # GO-004.2: counts against Max calls
         try:
             LAST_REVIEWER_USAGE = reviewer_usage("fake" if fake else tool, r.stdout, r.stderr)
         except Exception:   # XE-016.2: counting the cost must never throw away the round it counted
@@ -1198,7 +1203,11 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     except subprocess.TimeoutExpired:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
     except FileNotFoundError as e:
+        started = False   # the CLI never ran, so no call was made
         raise ReviewError("review_unavailable", str(e))
+    finally:   # GO-004.2: a run that started counts against Max calls, timed out or not
+        if started:
+            goal_spend.record(tool, None, "subscription")
     if r.returncode != 0:
         raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
     text, model = parse(r)

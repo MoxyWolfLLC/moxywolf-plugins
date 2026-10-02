@@ -7,7 +7,8 @@ import sys
 import tempfile
 import threading
 import unittest
-from http.server import HTTPServer
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -87,10 +88,27 @@ class Status(unittest.TestCase):
         self.assertEqual(run(str(self.ledger), str(brief) + ".missing").returncode, 1)
 
 
+MODE = {"delay": 0, "raw": None}
+
+
+class Slow(tot.Stub):
+    """The stub, able to stall after reading the request or answer with bytes that aren't JSON."""
+    def do_POST(self):
+        if MODE["raw"] is None and not MODE["delay"]:
+            return super().do_POST()
+        self.rfile.read(int(self.headers["Content-Length"]))
+        time.sleep(MODE["delay"])
+        try:
+            self.send_response(200); self.end_headers()
+            self.wfile.write(MODE["raw"] or b"{}")
+        except OSError:
+            pass
+
+
 class Recording(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.srv = HTTPServer(("127.0.0.1", 0), tot.Stub)
+        cls.srv = HTTPServer(("127.0.0.1", 0), Slow)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
         cls.tmp = tempfile.TemporaryDirectory()
         key = Path(cls.tmp.name, "key.env"); key.write_text('OPENROUTER_API_KEY="sk-test-not-a-real-key"\n')
@@ -109,6 +127,7 @@ class Recording(unittest.TestCase):
     def setUp(self):
         self.ledger = Path(self.tmp.name, f"{self.id()}.jsonl")
         os.environ[gs.LEDGER_ENV] = str(self.ledger)
+        MODE.update(delay=0, raw=None)
 
     def surface(self):
         d = Path(tempfile.mkdtemp(dir=self.tmp.name))
@@ -151,6 +170,31 @@ class Recording(unittest.TestCase):
                 pr.run_reviewer("codex", "p", self.surface(), 30)
             except pr.ReviewError:
                 pass
+        finally:
+            pr._SELFTEST = saved
+            os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD")
+        self.assertEqual(self.lines(), [{"provider": "codex", "cost": None, "transport": "subscription"}])
+
+    def test_a_review_call_that_times_out_still_counts(self):  # review F1
+        MODE.update(delay=3)
+        with self.assertRaises(pr.ReviewError):
+            pr.run_openrouter("openrouter-deepseek", "p", self.surface(), 1, {"type": "object"})
+        self.assertEqual(self.lines(), [{"provider": "openrouter", "cost": None, "transport": "openrouter"}])
+
+    def test_a_reply_that_doesnt_decode_still_counts(self):  # review F1
+        MODE.update(raw=b"<html>gateway error</html>")
+        with self.assertRaises(ValueError):
+            pr.run_openrouter("openrouter-deepseek", "p", self.surface(), 30, {"type": "object"})
+        with self.assertRaises(RuntimeError):
+            pr.reducer_ask("i", "r")
+        self.assertEqual([x["cost"] for x in self.lines()], [None, None])
+
+    def test_a_cli_reviewer_that_times_out_still_counts(self):  # review F1
+        saved, pr._SELFTEST = pr._SELFTEST, True
+        os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "sleep 5"
+        try:
+            with self.assertRaises(pr.ReviewError):
+                pr.run_reviewer("codex", "p", self.surface(), 1)
         finally:
             pr._SELFTEST = saved
             os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD")
