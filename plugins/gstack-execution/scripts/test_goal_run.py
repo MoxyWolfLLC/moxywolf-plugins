@@ -59,7 +59,9 @@ class G(unittest.TestCase):
 '''
 
 
-class Runner(unittest.TestCase):
+class RunnerFixture(unittest.TestCase):
+    """A goal on main, a run folder, and helpers; no tests of its own (test_goal_calls reuses it)."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.repo = Path(self.tmp.name, "repo")
@@ -128,6 +130,8 @@ class Runner(unittest.TestCase):
     def next(self):
         return gr.next_step(self.repo, "g1", base="main")
 
+
+class Runner(RunnerFixture):
     def test_a_plan_runs_in_order_to_complete(self):
         st = self.start()
         self.assertEqual(self.branches, [("goal/g1", self.git("rev-parse", "main"))])
