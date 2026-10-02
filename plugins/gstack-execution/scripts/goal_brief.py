@@ -127,8 +127,10 @@ TEST_REF = re.compile(r"tests/[\w.-]+\.py::\w+\.\w+")
 
 _LIST = """import importlib.util, json, re, sys, unittest
 sys.dont_write_bytecode = True
+if sys.argv[1]:
+    sys.path.insert(0, sys.argv[1])   # main's checkout, as baseline imports it
 out = {}
-for path in sys.argv[1:]:
+for path in sys.argv[2:]:
     name = path.rsplit("/", 1)[-1]
     try:
         spec = importlib.util.spec_from_file_location("goal_" + name[:-3], path)
@@ -150,10 +152,11 @@ print(json.dumps(out))
 """
 
 
-def test_inventory(goal_dir, errors):
+def test_inventory(goal_dir, errors, repo_root=None):
     """Every test unittest itself would run under tests/ (inheritance included), as
     {'tests/<file>.py::<Class>.<method>': scenario or ''}. Each file is loaded in an isolated
-    interpreter with no repository on its path, so a goal test file must load on its own.
+    interpreter whose only import path beyond the stdlib is repo_root (main's checkout, the same code
+    baseline runs against), so a file that won't load against main is refused here as baseline would.
     Goal tests live directly in tests/; a nested file is refused so check, baseline and verify see one set."""
     inv, tests = {}, Path(goal_dir, "tests").resolve()
     if not tests.is_dir():
@@ -166,7 +169,7 @@ def test_inventory(goal_dir, errors):
         return inv
     env = {"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"}
     try:
-        r = subprocess.run([sys.executable, "-I", "-c", _LIST, *files], cwd=tests, env=env,
+        r = subprocess.run([sys.executable, "-I", "-c", _LIST, str(repo_root or ""), *files], cwd=tests, env=env,
                            capture_output=True, text=True, timeout=120)
         found = json.loads(r.stdout.strip().splitlines()[-1])
     except (subprocess.TimeoutExpired, ValueError, IndexError) as e:
@@ -174,7 +177,7 @@ def test_inventory(goal_dir, errors):
         return inv
     for k, v in sorted(found.items()):
         if k.startswith("error:"):
-            errors.append(f"tests/{k[6:]} does not load on its own ({v}); move repository imports into the test methods")
+            errors.append(f"tests/{k[6:]} does not load against main ({v})")
         else:
             inv[k] = v
     return inv
@@ -188,7 +191,7 @@ def drafter(goal_dir):
         fams.add(m.group(1).lower() if m else None)
     return fams
 
-def check(goal_dir, design_text, codeowners_text):
+def check(goal_dir, design_text, codeowners_text, repo_root=None):
     goal_dir = Path(goal_dir)
     errors, examined = [], 0
     for f in FILES:
@@ -227,7 +230,7 @@ def check(goal_dir, design_text, codeowners_text):
         listed = goal_tests(brief["Goal tests"], errors)                  # F3: malformed lines are errors
         if not listed:
             errors.append("Goal tests lists no test IDs")
-        inv = test_inventory(goal_dir, errors)
+        inv = test_inventory(goal_dir, errors, repo_root)
         scen = set(bullet_lines("Scenarios", brief.get("Scenarios", ""), []))
         for tid, _ in listed:                                             # GO-002.1 and .4
             if tid not in inv:
@@ -451,7 +454,11 @@ def main(argv):
     if argv[:1] == ["--selftest"]:
         return selftest()
     if argv[:1] == ["check"] and len(argv) == 2:
-        errors, examined = check(argv[1], from_main("DESIGN.md"), from_main(".github/CODEOWNERS"))
+        wt = main_checkout()
+        try:
+            errors, examined = check(argv[1], from_main("DESIGN.md"), from_main(".github/CODEOWNERS"), wt)
+        finally:
+            subprocess.run(["git", "-C", str(ROOT), "worktree", "remove", "--force", wt], capture_output=True)
         print(f"examined {examined} sections and files in {argv[1]}")
         if examined == 0:
             errors.append("examined nothing")

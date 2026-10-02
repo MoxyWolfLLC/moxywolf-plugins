@@ -193,9 +193,16 @@ class Check(unittest.TestCase):
                              "class Extra:\n    def test_extra(self):\n        pass\n\n\nclass Survives(Extra, unittest.TestCase):")
         self.refused(self.make(tests=t), "Survives.test_extra is not listed in Goal tests")
 
-    def test_a_test_file_that_needs_the_repository_to_load_is_refused(self):
-        self.refused(self.make(tests=TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)),
-                     "does not load on its own")
+    def test_module_scope_repository_imports_load_against_main(self):  # round 3 F9
+        t = TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)
+        repo = Path(self.tmp.name, "main"); repo.mkdir()
+        (repo / "goalmod.py").write_text("done = False\nsession_only = False\n")
+        g = self.make(tests=t)
+        self.assertEqual(gb.check(g, DESIGN, CO, repo)[0], [])
+        self.assertEqual(gb.baseline(g, repo), ([], 2))
+        self.refused(g, "does not load against main")             # not on main: refused, as baseline would
+        e = gb.check(self.make(tests=t.replace("class Survives(unittest.TestCase):", "class Survives:")), DESIGN, CO, repo)[0]
+        self.assertTrue(e and all("is not a unittest TestCase method" in x for x in e), e)
 
     def test_goal_tests_name_their_drafter(self):
         self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
