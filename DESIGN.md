@@ -1457,7 +1457,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-003 — `/gstack-goal` runs the plan onto a goal branch, and `main` moves once
 
-**Status:** planned.
+**Status:** building. Criteria 1, 3, 4 and 8 are built in `plugins/gstack-execution/scripts/goal_run.py` and `/gstack-goal`, with the stub-build tests from criterion 9 that cover them. Criteria 2, 5, 6 and 7 (the goal-branch ruleset, the three goal workflows, the holdout and the finish) are next; the ruleset and the `goal-holdout` environment are settings only Dorian can change.
 
 **Links introduced:** the goal-branch-to-main link. A reader of `main` assumes a goal's changes arrived together, reviewed as a whole, after its goal tests and holdout passed at one head. That holds because the goal branch reaches `main` only through a pull request with its own cross-vendor review and required checks.
 
@@ -1473,7 +1473,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-004 — The envelope is enforced outside the agent, and the runner stops spend near the cap
 
-**Status:** building. Criteria 1, 3 and 4 are done (PR #102, `goal_envelope.py`). Criterion 2 is built in `goal_spend.py` and the dispatcher's two OpenRouter calls and its CLI reviewer call; the runner's read before each step lands with GO-003.
+**Status:** done. Criteria 1, 3 and 4 merged in PR #102 (`d3147ef`) and criterion 2, as rewritten on Dorian's decision, in PR #103 (`df0bb1c`), each by `moxywolf-agent[bot]` after his approving review at the head, recorded by `record-release` as `agent_merge_autonomous`. Reviews `20261001-210512-a89e96e-ngr7o8bw` and `20261001-214159-92f8389-40wbjpfc` (codex), both `fixes_verified` in 2 rounds. The runner's read of the ledger before each step is GO-003's `goal_run.py next`.
 
 1. `goal_envelope.py` runs as a required check on every pull request into a `goal/` branch and on the goal pull request into `main`. It fails when any changed file is outside the brief's Allowed paths or matches a `CODEOWNERS` path, and names each file. It reads the brief from `main`, never from the branch, and examines only the files changed by commits on the head that aren't on `main`, so commits that arrive from `main` aren't the goal's changes. Keeping `goal/<id>` up to date is a pull request into it from a branch at `main`'s tip, which carries no goal-authored commits and so passes; a conflict in that merge stops the run. A sync pull request merges under DR-113's authority once the envelope check finds no goal-authored commits and `goal-tests` is green, without a new cross-vendor review, because every commit it carries was already reviewed into `main`. A sync pull request with any goal-authored commit is an item pull request and follows GO-005.4.
 2. The runner counts every model call in a goal run. The dispatcher appends one line per call to the run's spend ledger, the file `GSTACK_GOAL_LEDGER` names: the provider, the cost the provider reported for that call, and the transport. A transport with no metered key (a subscription CLI), and a metered call whose provider reports no cost, count against Max calls. Before each step the runner reads the ledger with `goal_spend.py status` and stops at 80% of any provider's entry in Provider budgets, of the Spend cap, or of Max calls, and escalates (GO-006). A charge to a provider with no budget, a ledger it can't read, or a ledger write that fails stops the run. The run record shows the totals. The provider's own credit limit on the team key stays the backstop outside the agent.
@@ -1562,6 +1562,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-02: GO-004 marked done (PRs #102, #103). GO-003 builds in two changes: the runner first, then the workflows, ruleset and finish, because the second needs repository settings Dorian makes.
 
 - 2026-10-01: GO-004 criterion 2 rewritten on Dorian's decision. Per-goal capped provider keys needed an OpenRouter management key; he chose instead: “Count spend itself and stop near the cap,” noting the team key's own credit limit is why we have a cap. The runner now counts each call in a ledger and stops at 80%; the provider's limit on the team key is the backstop outside the agent. The objective's title says so. The tests in criterion 5 gain the cases this way of counting needs.
 

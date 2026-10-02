@@ -429,6 +429,7 @@ def verify(goal_id, pr, repo, get):
         if at_head != at_main:
             errors.append(f"goals/{goal_id}/ on main ({(at_main or 'missing')[:7]}) differs from the approved tree ({at_head[:7]})")
     body = p.get("body") or ""                                       # GO-002.4
+    drafted, reader = set(), None
     reading = body.split("## Plain-English reading", 1)
     listing = get(f"repos/{repo}/contents/goals/{goal_id}/GOAL.md?ref={head}") or {}
     ids = [t for t, _ in goal_tests(sections(_decode(listing)).get("Goal tests", ""), [])] if listing else []
@@ -441,12 +442,13 @@ def verify(goal_id, pr, repo, get):
             errors.append(f"the plain-English reading doesn't cover {missing}")
         m = READ_BY.search(rd)
         drafted = {d.group(1).lower() for d in DRAFTED.finditer(_tests_text(get, repo, goal_id, head))}
+        reader = m.group(1).lower() if m else None
         if not m:
             errors.append("the plain-English reading needs a 'Read by: <family>/<model>' line")
         elif m.group(1).lower() in drafted:
             errors.append(f"the reading is by {m.group(1)}, the family that drafted the tests; it must be another family")
     record = {"goal": goal_id, "pr": pr, "review_id": last["id"] if last else None,
-              "head": head, "tree": at_head}
+              "head": head, "tree": at_head, "drafted_by": sorted(drafted), "read_by": reader}
     return record, errors
 
 
