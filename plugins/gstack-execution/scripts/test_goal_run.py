@@ -117,10 +117,10 @@ class Runner(unittest.TestCase):
         ok, step = self.next()
         self.assertEqual((ok, step["step"], step["item"]["n"], step["item"]["title"]), (True, "build", 1, "scaffold"))
         self.assertEqual(step["base_branch"], "goal/g1")
-        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nx = 1\n"))
+        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nx = 1\n"), 1)
         self.assertEqual(out["results"], {"tests/test_g.py::G.test_done": "failed", "tests/test_g.py::G.test_safe": "passed"})
         self.assertEqual(self.next()[1]["item"]["n"], 2)
-        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 2)
         self.assertEqual(self.next(), (True, self.next()[1]))
         self.assertEqual(self.next()[1]["step"], "finish")
         self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
@@ -145,24 +145,46 @@ class Runner(unittest.TestCase):
             self.git("switch", "-q", "main")
             return head
 
-        gr.merged(self.repo, "g1", item_branch("build/item-1", {"helper.py": "value = True\n"}))
+        gr.merged(self.repo, "g1", item_branch("build/item-1", {"helper.py": "value = True\n"}), 1)
         self.assertEqual(self.next()[1]["item"]["n"], 2)
         out = gr.merged(self.repo, "g1", item_branch("build/item-2", {
-            "goalmod.py": "import helper\ndone = helper.value\nsafe = True\n"}))
+            "goalmod.py": "import helper\ndone = helper.value\nsafe = True\n"}), 2)
         self.assertEqual(out["results"]["tests/test_g.py::G.test_done"], "passed")   # item 2 used item 1's module
         self.assertEqual(self.next()[1]["step"], "finish")
 
+    def test_an_item_that_ends_without_a_merge_stops_the_run(self):  # review 2 F1
+        self.start()
+        self.assertEqual(self.next()[1]["item"]["n"], 1)
+        out = gr.failed("g1", 1, "rounds_exhausted after 2 rounds")
+        self.assertEqual(out["outcome"], "stopped")
+        self.assertIn("item 1 ended without a merge: rounds_exhausted", out["reason"])
+        self.assertEqual(self.next(), (False, out))                       # stays ended
+        self.assertIn("- Outcome: stopped", gr.record("g1"))
+        with self.assertRaisesRegex(gr.Refused, "already ended"):
+            gr.failed("g1", 1, "again")
+
+    def test_one_merge_advances_one_item(self):  # review 2 F2
+        self.start()
+        head = self.item("done = False\nsafe = True\nx = 1\n")
+        gr.merged(self.repo, "g1", head, 1)
+        with self.assertRaisesRegex(gr.Refused, "already recorded"):
+            gr.merged(self.repo, "g1", head, 2)
+        with self.assertRaisesRegex(gr.Refused, "isn't the item in progress"):
+            gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nx = 2\n"), 3)
+        self.assertEqual(gr.load("g1")["done"], [1])
+        self.assertEqual(self.next()[1]["item"]["n"], 2)
+
     def test_a_regressed_outcome_stops_the_run(self):
         self.start()
-        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
-        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\n"))
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\n"), 2)
         self.assertEqual(out["outcome"], "stopped")
         self.assertIn("passed before and is now failed", out["reason"])
         self.assertEqual(self.next(), (False, out))
 
     def test_a_failing_invariant_stops_the_run(self):
         self.start()
-        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = False\n"))
+        out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = False\n"), 1)
         self.assertEqual(out["outcome"], "stopped")
         self.assertIn("invariant tests/test_g.py::G.test_safe failed", out["reason"])
 
@@ -170,7 +192,7 @@ class Runner(unittest.TestCase):
         self.start()
         for i in range(3):
             self.assertTrue(self.next()[0])
-            gr.merged(self.repo, "g1", self.item(f"done = False\nsafe = True\nn = {i}\n"))
+            gr.merged(self.repo, "g1", self.item(f"done = False\nsafe = True\nn = {i}\n"), i + 1)
         ok, out = self.next()
         self.assertEqual((ok, out["outcome"]), (False, "exhausted"))
         self.assertIn("test_done", out["reason"])
@@ -225,7 +247,7 @@ class Runner(unittest.TestCase):
 
     def test_complete_needs_githubs_word_that_the_goal_merged(self):  # review F2
         self.start()
-        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
         for over, msg in [({"merged": False}, "is not merged"), ({"base": {"ref": "goal/g1"}}, "not main"),
                           ({"head": {"ref": "build/x"}}, "not goal/g1"), ({"merge_commit_sha": "e" * 40}, "not ffffffffffff"),
                           ({"head": {"sha": "d" * 40}}, "where the goal tests passed")]:

@@ -10,9 +10,13 @@
         with {"step": "finish"} when every goal test passes; exit 1 with the outcome when the run
         has ended (stopped or exhausted). Checks, in order: HALT on main (GO-004.3), the goal folder
         unchanged on main (GO-002.5), the spend ledger (GO-004.2), Max items.
-  goal_run.py merged <id> --head <sha>
-        after an item's pull request merged into goal/<id>: runs the goal tests at that head and
-        stops the run on a failing invariant or an outcome test that passed and now fails (GO-003.4)
+  goal_run.py merged <id> --item N --head <sha>
+        after item N's pull request merged into goal/<id> as <sha>: runs the goal tests at that head
+        and stops the run on a failing invariant or an outcome test that passed and now fails
+        (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded.
+  goal_run.py failed <id> --item N --reason <text>
+        item N's build ended without a merge (rounds_exhausted, review_unavailable, ...): the run
+        stops with that reason
   goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
         records `complete` once GitHub shows the goal pull request from goal/<id> merged into main as
         <sha> at the head whose goal tests passed (GO-003.8)
@@ -168,14 +172,30 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
-def merged(repo, goal_id, head):
-    """Run the goal tests at head; stop on a failing invariant or a regressed outcome."""
-    state = load(goal_id)
+def current_item(state, item):
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
     remaining = [i for i in state["items"] if i["n"] not in state["done"]]
     if not remaining:
         raise Refused("no item is in progress")
+    if item != remaining[0]["n"]:
+        raise Refused(f"item {item} isn't the item in progress; that's item {remaining[0]['n']}")
+    return remaining
+
+
+def failed(goal_id, item, reason):
+    """An item build that ended without a merge ends the run."""
+    state = load(goal_id)
+    current_item(state, item)
+    return end(state, "stopped", f"item {item} ended without a merge: {reason}")
+
+
+def merged(repo, goal_id, head, item):
+    """Run the goal tests at head; stop on a failing invariant or a regressed outcome."""
+    state = load(goal_id)
+    remaining = current_item(state, item)
+    if head in {r["head"] for r in state["results"]}:
+        raise Refused(f"{head[:12]} was already recorded; one merge advances one item")
     goal = run_dir(goal_id) / "goal"
     wt = tempfile.mkdtemp(prefix="goal-head-")
     ge.git(repo, "worktree", "add", "--detach", wt, head)
@@ -268,10 +288,13 @@ def main(argv, repo=gb.ROOT):
             ok, out = next_step(repo, goal_id)
             print(json.dumps(out))
             return 0 if ok else 1
-        if cmd == "merged" and goal_id and set(opts) == {"--head"}:
-            out = merged(repo, goal_id, opts["--head"])
+        if cmd == "merged" and goal_id and set(opts) == {"--head", "--item"}:
+            out = merged(repo, goal_id, opts["--head"], int(opts["--item"]))
             print(json.dumps(out))
             return 1 if out.get("outcome") else 0
+        if cmd == "failed" and goal_id and set(opts) == {"--item", "--reason"}:
+            print(json.dumps(failed(goal_id, int(opts["--item"]), opts["--reason"])))
+            return 1
         if cmd == "complete" and goal_id and {"--pr", "--merge"} <= set(opts) <= {"--pr", "--merge", "--repo"}:
             token = os.environ.get("GITHUB_TOKEN")
             if not token:
