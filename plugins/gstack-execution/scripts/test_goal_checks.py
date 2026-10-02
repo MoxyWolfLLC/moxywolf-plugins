@@ -311,7 +311,7 @@ class Sandbox(unittest.TestCase):
             "def reach():\n    try:\n        socket.create_connection(('1.1.1.1', 53), 3).close()\n        return True\n"
             "    except OSError:\n        return False\n\n\n"
             "def files():\n    return [f for f in glob.glob('/tmp/**', recursive=True) + glob.glob('/candidate/**', recursive=True)"
-            " if os.path.isfile(f) and 'test_no_holdout_file' in open(f, errors='replace').read()]\n")
+            " if os.path.isfile(f) and 'test_no_' + 'holdout_file' in open(f, errors='replace').read()]\n")   # split: not in this file
         saved, os.environ["GOAL_HOLDOUT"] = os.environ.get("GOAL_HOLDOUT"), src
         try:
             v = gc.holdout(pr(base="main", head="goal/g1"), main, "m" * 40, cand, src)
