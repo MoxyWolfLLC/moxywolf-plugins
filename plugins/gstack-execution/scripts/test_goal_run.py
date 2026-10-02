@@ -79,7 +79,19 @@ class Runner(unittest.TestCase):
         return self.git("rev-parse", "HEAD")
 
     def verify(self, errors=(), drafted=("gpt",), reader="gemini"):
-        return lambda g, p, n: ({"head": "h" * 40, "tree": self.tree, "drafted_by": list(drafted), "read_by": reader}, list(errors))
+        return lambda g, p, n: ({"head": "h" * 40, "tree": self.tree, "review_id": 4242, "drafted_by": list(drafted),
+                                 "read_by": reader}, list(errors))
+
+    def merged_pr(self, **over):
+        st = gr.load("g1")
+        pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": st["results"][-1]["head"]},
+              "merged": True, "merge_commit_sha": "f" * 40}
+        for k, v in over.items():
+            if isinstance(v, dict):
+                pr[k] = dict(pr[k], **v)
+            else:
+                pr[k] = v
+        return lambda path: pr
 
     def create(self, ref, sha):
         self.branches.append((ref, sha))
@@ -111,9 +123,11 @@ class Runner(unittest.TestCase):
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
         self.assertEqual(self.next(), (True, self.next()[1]))
         self.assertEqual(self.next()[1]["step"], "finish")
-        self.assertEqual(gr.complete("g1", "f" * 40)["outcome"], "complete")
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
         rec = gr.record("g1")
         self.assertIn("- Outcome: complete", rec)
+        self.assertIn("by review 4242", rec)                                 # review F3
+        self.assertIn("drafted by gpt, read by gemini", rec)
         self.assertIn("git revert -m 1 --no-edit " + "f" * 40, rec)
         self.assertIn("3. polish - not built", rec)
 
@@ -186,7 +200,27 @@ class Runner(unittest.TestCase):
         with self.assertRaisesRegex(gr.Refused, "already has a run"):
             self.start()
         with self.assertRaisesRegex(gr.Refused, "every goal test passing"):
-            gr.complete("g1", "f" * 40)
+            gr.complete("g1", 9, "f" * 40, lambda path: {})
+
+    def test_complete_needs_githubs_word_that_the_goal_merged(self):  # review F2
+        self.start()
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
+        for over, msg in [({"merged": False}, "is not merged"), ({"base": {"ref": "goal/g1"}}, "not main"),
+                          ({"head": {"ref": "build/x"}}, "not goal/g1"), ({"merge_commit_sha": "e" * 40}, "not ffffffffffff"),
+                          ({"head": {"sha": "d" * 40}}, "where the goal tests passed")]:
+            with self.subTest(over=over):
+                with self.assertRaisesRegex(gr.Refused, msg):
+                    gr.complete("g1", 9, "f" * 40, self.merged_pr(**over))
+                self.assertIsNone(gr.load("g1")["outcome"])
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
+
+    def test_an_installed_plugin_copy_refuses_to_run(self):  # review F1
+        import shutil
+        copy = Path(self.tmp.name, "plugin", "scripts")
+        shutil.copytree(Path(gr.__file__).parent, copy, ignore=shutil.ignore_patterns("__pycache__"))
+        r = subprocess.run([sys.executable, str(copy / "goal_run.py"), "next", "g1"], capture_output=True, text=True)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("runs from a checkout of the repository", r.stderr)
 
     def test_no_run_folder_no_run(self):
         os.environ.pop("GSTACK_GOAL_RUN_DIR")

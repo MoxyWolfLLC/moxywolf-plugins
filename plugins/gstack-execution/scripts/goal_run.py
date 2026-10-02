@@ -13,12 +13,14 @@
   goal_run.py merged <id> --head <sha>
         after an item's pull request merged into goal/<id>: runs the goal tests at that head and
         stops the run on a failing invariant or an outcome test that passed and now fails (GO-003.4)
-  goal_run.py complete <id> --merge <sha>
-        records `complete` after the goal pull request merged into main (GO-003.8)
+  goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
+        records `complete` once GitHub shows the goal pull request from goal/<id> merged into main as
+        <sha> at the head whose goal tests passed (GO-003.8)
   goal_run.py record <id>
         prints the run record, goal-runs/<id>/RESULT.md
 
-State lives in GSTACK_GOAL_RUN_DIR/<id>/ (a durable folder, like the review records): state.json,
+Run it from a checkout of the repository it governs; an installed plugin copy has no main,
+CODEOWNERS or goal folder to read and refuses. State lives in GSTACK_GOAL_RUN_DIR/<id>/ (a durable folder, like the review records): state.json,
 the frozen copy of the approved goal folder, and the spend ledger. Every exit but 0 means stop.
 """
 import json
@@ -31,6 +33,11 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+if not (Path(__file__).resolve().parents[3] / ".github" / "CODEOWNERS").is_file():
+    # an installed plugin copy has no repository around it: the runner reads main, CODEOWNERS and
+    # the goal folder from the checkout it lives in, so it runs only from inside one
+    sys.exit("goal_run.py runs from a checkout of the repository it governs "
+             "(plugins/gstack-execution/scripts/goal_run.py there), not from an installed plugin copy")
 import goal_brief as gb  # noqa: E402
 import goal_envelope as ge  # noqa: E402
 import goal_spend as gs  # noqa: E402
@@ -116,6 +123,7 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     budgets, cap, max_calls = gs.limits(brief)
     secs = gb.sections(brief)
     state = {"goal": goal_id, "pr": pr, "builder": builder, "tree": record["tree"], "approved_head": record["head"],
+             "review_id": record["review_id"], "drafted_by": record["drafted_by"], "read_by": record["read_by"],
              "branch": f"goal/{goal_id}", "main_at_start": main_sha,
              "items": [{"n": i + 1, "title": t, "criteria": c} for i, (t, c) in enumerate(plan_items((goal / "PLAN.md").read_text()))],
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
@@ -187,15 +195,28 @@ def merged(repo, goal_id, head):
     return {"item": remaining[0]["n"], "results": results}
 
 
-def complete(goal_id, merge_sha):
+def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
+    """Record `complete` only on GitHub's word that this goal's pull request merged into main as
+    merge_sha, from goal/<id> at the head whose goal tests last passed."""
     state = load(goal_id)
     ids = [t for t, _ in state["tests"]]
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
     if not ids or not set(ids) <= set(state["passing"]):
         raise Refused("complete needs every goal test passing at the last merged head")
-    state["merge"] = merge_sha
-    return end(state, "complete", f"merged to main in {merge_sha[:12]}")
+    p = get(f"repos/{repo_name}/pulls/{pr}")
+    tested = state["results"][-1]["head"]
+    problems = [m for ok, m in [
+        (p["base"]["ref"] == "main", f"PR #{pr} targets {p['base']['ref']}, not main"),
+        (p["head"]["ref"] == state["branch"], f"PR #{pr} is from {p['head']['ref']}, not {state['branch']}"),
+        (p.get("merged") is True, f"PR #{pr} is not merged"),
+        (p.get("merge_commit_sha") == merge_sha, f"PR #{pr} merged as {(p.get('merge_commit_sha') or 'nothing')[:12]}, not {merge_sha[:12]}"),
+        (p["head"]["sha"] == tested, f"PR #{pr} merged head {p['head']['sha'][:12]}, not {tested[:12]} where the goal tests passed"),
+    ] if not ok]
+    if problems:
+        raise Refused("; ".join(problems))
+    state["merge"], state["final_pr"] = merge_sha, pr
+    return end(state, "complete", f"PR #{pr} merged to main in {merge_sha[:12]}")
 
 
 def record(goal_id):
@@ -203,7 +224,8 @@ def record(goal_id):
     _, _, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
     lines = [f"# Goal run: {goal_id}", "",
              f"- Outcome: {state['outcome'] or 'running'}" + (f" ({state['reason']})" if state["reason"] else ""),
-             f"- Approved in PR #{state['pr']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}",
+             f"- Approved in PR #{state['pr']} by review {state['review_id']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}",
+             f"- Goal tests drafted by {', '.join(state['drafted_by'])}, read by {state['read_by']}",
              f"- Builder: {state['builder']}", f"- Goal branch: {state['branch']} from {state['main_at_start'][:12]}",
              f"- Spend: ${totals.get('total', '?')} across {json.dumps(totals.get('spent', {}))}; {totals.get('calls', '?')} counted calls",
              "", "## Items", ""]
@@ -249,8 +271,12 @@ def main(argv, repo=gb.ROOT):
             out = merged(repo, goal_id, opts["--head"])
             print(json.dumps(out))
             return 1 if out.get("outcome") else 0
-        if cmd == "complete" and goal_id and set(opts) == {"--merge"}:
-            print(json.dumps(complete(goal_id, opts["--merge"])))
+        if cmd == "complete" and goal_id and {"--pr", "--merge"} <= set(opts) <= {"--pr", "--merge", "--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token:
+                raise Refused("complete needs GITHUB_TOKEN: run it under agent_token.py exec --")
+            print(json.dumps(complete(goal_id, int(opts["--pr"]), opts["--merge"], gb.github(token),
+                                      opts.get("--repo", REPO))))
             return 0
         if cmd == "record" and goal_id and not opts:
             print(record(goal_id), end="")
