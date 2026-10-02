@@ -30,6 +30,12 @@
   goal_run.py propose <id> [--repo owner/name]
         the finalize pull request merged: opens the goal pull request from goal/<id> into main, which
         the goal checks, the holdout, a fresh cross-vendor review and Dorian's approval gate
+  goal_run.py may <id> --action <class> --resource <r> [--head <sha> --review <review-id>] [--repo owner/name]
+        before every push, pull request, merge or outside call the agent makes in a run (GO-005.4, .5):
+        exit 0 if the goal ledger grants it (an item merge: into goal/<id>, after a clean review at
+        <sha>); exit 1 if it's Dorian's, or if what a push, pull request or merge sets off changed
+        since the start, which stops the run. Resources: vcs.push <branch>; pr.open <base><-<head>;
+        merge <target>; net.connect <host>; review.send_code <tool>; external.model_call <model>
   goal_run.py resync <id> --head <sha>
         the goal pull request's head moved because a sync from main merged into goal/<id>
         (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
@@ -65,13 +71,13 @@ import goal_brief as gb  # noqa: E402
 import goal_envelope as ge  # noqa: E402
 import goal_spend as gs  # noqa: E402
 import goal_calls as gcalls  # noqa: E402
+import goal_guard as gguard  # noqa: E402
 
 OUTCOMES = ("complete", "stopped", "exhausted")
 REPO = "MoxyWolfLLC/moxywolf-plugins"
 
 
-class Refused(Exception):
-    pass
+Refused = gguard.Refused
 
 
 def run_dir(goal_id):
@@ -121,7 +127,7 @@ def tree_on(repo, ref, goal_id):
     return r.stdout.strip() or None
 
 
-def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="origin/main", repo_name=REPO):
+def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="origin/main", repo_name=REPO, *, environments):
     d = run_dir(goal_id)
     if (d / "state.json").is_file() and load(goal_id).get("outcome") is None:
         raise Refused(f"{goal_id} already has a run in progress")
@@ -145,6 +151,11 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     archive = subprocess.run(["git", "-C", str(repo), "archive", record["tree"]], capture_output=True, check=True).stdout
     subprocess.run(["tar", "-x", "-C", str(goal)], input=archive, check=True)
     brief = (goal / "GOAL.md").read_text()
+    problems, triggers = gguard.assess(repo, base, brief, environments())    # GO-005.5
+    if problems:
+        raise Refused("a goal push, pull request or merge would set off more than the checks: " + "; ".join(problems))
+    gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
+    gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
     create_branch(f"goal/{goal_id}", main_sha)
     budgets, cap, max_calls = gs.limits(brief)
     secs = gb.sections(brief)
@@ -154,7 +165,7 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "items": [{"n": i + 1, "title": t, "criteria": c} for i, (t, c) in enumerate(plan_items((goal / "PLAN.md").read_text()))],
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
-             "outcome": None, "reason": None, "merge": None, "calls": []}
+             "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
     (d / "spend.jsonl").touch()
     save(state)
     return state
@@ -196,6 +207,32 @@ def next_step(repo, goal_id, base="origin/main"):
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
                   "max_rounds": state["max_rounds"],
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
+
+
+def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None):
+    """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
+    first rechecks what it would set off and stops the run if that changed since the start; then the
+    ledger (or, for an item merge, DR-113's conditions) must allow it, or it's Dorian's."""
+    state = load(goal_id)
+    if state["outcome"]:
+        raise Refused(f"the run already ended: {state['outcome']}")
+    if klass in ("vcs.push", "pr.open", "merge"):
+        brief = (run_dir(goal_id) / "goal" / "GOAL.md").read_text()
+        problems, now = gguard.assess(repo, base, brief, environments())
+        if now != state.get("triggers"):
+            end(state, "stopped", f"what a {klass} sets off changed since the run started"
+                + (": " + "; ".join(problems) if problems else ""))
+            raise Refused(f"the run stopped: the workflows or deployment environments changed since the start")
+    if klass == "merge":
+        if head is None or review is None:
+            raise Refused("an item merge names its head and its review")
+        gguard.merge_allowed(state["branch"], resource, head, review)
+        return {"allowed": klass, "resource": resource, "by": "DR-113"}
+    row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
+    if row and row["scope"] == "once":
+        state["spent"].append(row["id"])
+        save(state)
+    return {"allowed": klass, "resource": resource, "by": row and row["id"]}
 
 
 def current_item(state, item):
@@ -252,7 +289,7 @@ def finishing(goal_id):
     return state
 
 
-def finalize(repo, goal_id, post, repo_name=REPO):
+def finalize(repo, goal_id, post, repo_name=REPO, *, environments, base="origin/main"):
     """Commit RESULT.md alone on goal-finalize/<id> from goal/<id>'s head and open its pull request."""
     state = finishing(goal_id)
     if state.get("finalize_pr"):
@@ -262,6 +299,8 @@ def finalize(repo, goal_id, post, repo_name=REPO):
     head = ge.git(repo, "rev-parse", f"origin/{state['branch']}").strip()
     if head != state["results"][-1]["head"]:
         raise Refused(f"{state['branch']} is at {head[:12]}, not {state['results'][-1]['head'][:12]} where the goal tests passed")
+    act(repo, goal_id, "vcs.push", branch, environments, base)
+    act(repo, goal_id, "pr.open", f"{state['branch']}<-{branch}", environments, base)
     wt = tempfile.mkdtemp(prefix="goal-finalize-")
     ge.git(repo, "worktree", "add", "-b", branch, wt, head)
     try:
@@ -279,7 +318,7 @@ def finalize(repo, goal_id, post, repo_name=REPO):
     return {"finalize_pr": pr["number"], "branch": branch}
 
 
-def propose(goal_id, get, post, repo_name=REPO):
+def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="origin/main"):
     """Open the goal pull request into main once the finalize pull request has merged into goal/<id>."""
     state = finishing(goal_id)
     if not state.get("finalize_pr"):
@@ -293,6 +332,8 @@ def propose(goal_id, get, post, repo_name=REPO):
     files = [x["filename"] for x in (get(f"repos/{repo_name}/compare/{tested}...{final}") or {}).get("files", [])]
     if files != [f"goal-runs/{goal_id}/RESULT.md"]:
         raise Refused(f"between the tested head and {final[:12]}, {state['branch']} changed {files}, not only the run record")
+    act(repo, goal_id, "pr.open", f"main<-{state['branch']}", environments, base)
+    state = load(goal_id)
     state["finalized_head"] = final
     pr = post(f"repos/{repo_name}/pulls", {
         "title": f"Goal {goal_id}", "head": state["branch"], "base": "main",
@@ -444,6 +485,15 @@ def _api(token, method, path, data):
         return json.load(r)
 
 
+def environments_of(get, name):
+    """Every deployment environment GitHub reports for the repository: its environments and the
+    environments its deployments name. A read that fails stops the caller; it never reads as none."""
+    def read():
+        envs = {e["name"] for e in get(f"repos/{name}/environments")["environments"]}
+        return sorted(envs | {x["environment"] for x in get(f"repos/{name}/deployments?per_page=100")})
+    return read
+
+
 def main(argv, repo=gb.ROOT):
     cmd, goal_id = (argv + [None, None])[:2]
     opts = dict(zip(argv[2::2], argv[3::2]))
@@ -464,7 +514,8 @@ def main(argv, repo=gb.ROOT):
                 ge.git(repo, "push", "origin", f"{sha}:refs/heads/{ref}")
 
             start(repo, goal_id, int(opts["--pr"]), opts["--builder"],
-                  lambda g, p, n: gb.verify(g, p, n, get), granted, create_branch, repo_name=name)
+                  lambda g, p, n: gb.verify(g, p, n, get), granted, create_branch, repo_name=name,
+                  environments=environments_of(get, name))
             print(json.dumps({"started": goal_id}))
             return 0
         if cmd == "next" and goal_id and not opts:
@@ -494,8 +545,28 @@ def main(argv, repo=gb.ROOT):
                 raise Refused(f"{cmd} needs a goal-run token: run it under agent_token.py exec --goal-run --")
             name = opts.get("--repo", REPO)
             post = lambda path, data: _api(token, "POST", path, data)
-            out = finalize(repo, goal_id, post, name) if cmd == "finalize" else propose(goal_id, gb.github(token), post, name)
+            get = gb.github(token)
+            envs = environments_of(get, name)
+            ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
+            out = (finalize(repo, goal_id, post, name, environments=envs) if cmd == "finalize"
+                   else propose(goal_id, get, post, name, repo=repo, environments=envs))
             print(json.dumps(out))
+            return 0
+        if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token:
+                raise Refused("may needs GITHUB_TOKEN to read the deployment environments: run it under agent_token.py exec --")
+            review = None
+            if "--review" in opts:
+                rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+                f = Path(rdir or "", opts["--review"], "state.json")
+                if not rdir or not f.is_file():
+                    raise Refused(f"no review record {opts['--review']} under GSTACK_PEER_REVIEW_DIR")
+                review = json.loads(f.read_text())
+            ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
+            print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"],
+                                 environments_of(gb.github(token), opts.get("--repo", REPO)),
+                                 head=opts.get("--head"), review=review)))
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))

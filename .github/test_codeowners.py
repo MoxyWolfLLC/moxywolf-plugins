@@ -31,6 +31,7 @@ GATE = [
     "plugins/gstack-execution/scripts/goal_run.py",
     "plugins/gstack-execution/scripts/goal_checks.py",
     "plugins/gstack-execution/scripts/goal_calls.py",
+    "plugins/gstack-execution/scripts/goal_guard.py",
     "goals/README.md",
     "goal-runs/README.md",
 ]
