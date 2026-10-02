@@ -244,6 +244,17 @@ def outbox(goal_id):
     return out
 
 
+def held(state):
+    """Open escalations that hold the run; progress refuses while there are any."""
+    return [m for m in state.get("messages", []) if m["kind"] == "escalation" and m["status"] == "open"]
+
+
+def refuse_if_held(state):
+    h = held(state)
+    if h:
+        raise Refused(f"escalation {h[0]['n']} ({h[0]['trigger']}) holds the run until Dorian acknowledges it")
+
+
 def acknowledge(goal_id, n, words):
     """Dorian's acknowledgement, in his words, of an escalation that holds the run."""
     state = load(goal_id)
@@ -274,11 +285,11 @@ def next_step(repo, goal_id, base="origin/main"):
         escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))
         return False, end(state, "stopped", "; ".join(reasons))
     pending = gcalls.waiting(state.get("calls", []))
-    held = [m for m in state.get("messages", []) if m["kind"] == "escalation" and m["status"] == "open"]
-    if pending or held:                               # GO-005.3, GO-006.2: the run waits for Dorian, it doesn't end
+    holds = held(state)
+    if pending or holds:                               # GO-005.3, GO-006.2: the run waits for Dorian, it doesn't end
         return None, {"waiting": [{k: c[k] for k in ("n", "question", "options", "type", "type_reasons", "dissent")}
                                   for c in pending],
-                      "escalations": [{k: m[k] for k in ("n", "trigger", "text")} for m in held]}
+                      "escalations": [{k: m[k] for k in ("n", "trigger", "text")} for m in holds]}
     ids = [t for t, _ in state["tests"]]
     if ids and set(ids) <= set(state["passing"]):
         return True, {"step": "finish", "branch": state["branch"], "spend": totals}
@@ -299,6 +310,13 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
+    refuse_if_held(state)
+    d = run_dir(goal_id)
+    stop, reasons, _ = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
+    if stop:                                          # GO-006.2: at once, not at the next item
+        escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))
+        end(state, "stopped", "; ".join(reasons))
+        raise Refused("the run stopped: " + "; ".join(reasons))
     if klass in ("vcs.push", "pr.open", "merge"):
         brief = (run_dir(goal_id) / "goal" / "GOAL.md").read_text()
         problems, now = gguard.assess(repo, base, brief, environments())
@@ -311,7 +329,12 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
         gguard.merge_allowed(state["branch"], resource, head, review, checks, pr)
         return {"allowed": klass, "resource": resource, "by": "DR-113"}
-    row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
+    try:
+        row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
+    except Refused as e:
+        escalate(state, "dorian_call", f"The goal ledger refused {klass} on {resource}: {e}", waits=True)
+        save(state)
+        raise
     if row and row["scope"] == "once":
         state["spent"].append(row["id"])
         save(state)
@@ -360,6 +383,7 @@ def merged(repo, goal_id, head, item, unsure="", review_files=()):
             if kinds[t] == "outcome" and t in state["passing"] and r != "passed"]
     state["passing"] = sorted(t for t, r in results.items() if r == "passed")
     if bad:
+        digest(state, item=remaining[0]["n"], unsure=unsure)
         escalate(state, "regression", f"Goal tests regressed at {head[:12]} after item {remaining[0]['n']}: " + "; ".join(bad))
         return end(state, "stopped", "regression at " + head[:12] + ": " + "; ".join(bad))
     digest(state, item=remaining[0]["n"], unsure=unsure)
@@ -441,6 +465,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
 def resync(repo, goal_id, head, base="origin/main"):
     """Rebind the goal pull request to a head that only a sync from main moved."""
     state = finishing(goal_id)
+    refuse_if_held(state)
     if not (state.get("final_pr") and state.get("finalized_head")):
         raise Refused("resync applies only after propose")
     parents = ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()
@@ -454,7 +479,7 @@ def resync(repo, goal_id, head, base="origin/main"):
     errors, _ = ge.check(repo, goal_id, head, base)
     if errors:
         escalate(state, "outside_envelope", f"The goal branch moved to {head[:12]} with changes outside the envelope: "
-                 + "; ".join(errors))
+                 + "; ".join(errors), waits=True)
         save(state)
         raise Refused("the envelope check refuses the new head: " + "; ".join(errors))
     state.setdefault("resyncs", []).append({"from": state["finalized_head"], "to": head})

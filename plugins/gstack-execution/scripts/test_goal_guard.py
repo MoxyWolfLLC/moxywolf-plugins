@@ -128,6 +128,10 @@ class Pins(unittest.TestCase):
 
 class Ledger(tgr.RunnerFixture):
     def act(self, klass, resource, **kw):
+        """Each attempt comes after Dorian has acknowledged the escalation the last refusal raised
+        (GO-006.2 holds the run until he does; test_goal_digest covers the hold itself)."""
+        for m in gr.held(gr.load("g1")):
+            gr.acknowledge("g1", m["n"], "seen")
         return gr.act(self.repo, "g1", klass, resource, self.envs, base="main", **kw)
 
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):

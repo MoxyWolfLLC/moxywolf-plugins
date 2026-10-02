@@ -112,6 +112,52 @@ class Digests(tgr.RunnerFixture):
         gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\n# an item\n"), 2, unsure="y")
         self.assertEqual(self.escalations(), ["regression"])
         self.assertIn("passed before and is now failed", self.msgs("escalation")[0]["text"])
+        heads = [m["text"].splitlines()[0] for m in self.msgs("digest")]
+        self.assertEqual(heads, ["Item 1 merged", "Item 2 merged", "Run stopped"])   # the item that regressed has its digest
+
+    def test_spend_crossing_its_stop_inside_an_item_escalates_at_the_next_action(self):
+        self.start()
+        self.assertEqual(gr.act(self.repo, "g1", "review.send_code", "codex", self.envs, base="main")["allowed"], "review.send_code")
+        Path(os.environ["GSTACK_GOAL_RUN_DIR"], "g1", "spend.jsonl").write_text(
+            json.dumps({"provider": "openrouter", "cost": "2.40", "transport": "openrouter"}) + "\n")
+        with self.assertRaisesRegex(gr.Refused, "the run stopped"):
+            gr.act(self.repo, "g1", "external.model_call", "openai/gpt-6-astra", self.envs, base="main")
+        self.assertEqual((self.escalations(), gr.load("g1")["outcome"]), (["spend"], "stopped"))
+
+    def test_a_ledger_refusal_thats_dorians_escalates_and_holds(self):
+        self.start()
+        with self.assertRaisesRegex(gr.Refused, "Dorian's call"):
+            gr.act(self.repo, "g1", "net.connect", "api.unknown.example", self.envs, base="main")
+        self.assertEqual(self.escalations(), ["dorian_call"])
+        n = self.msgs("escalation")[0]["n"]
+        self.assertIsNone(self.next()[0])
+        with self.assertRaisesRegex(gr.Refused, "holds the run"):
+            gr.act(self.repo, "g1", "vcs.push", "build/GX-1-a", self.envs, base="main")
+        gr.acknowledge("g1", n, "not that host; carry on")
+        self.assertEqual(gr.act(self.repo, "g1", "vcs.push", "build/GX-1-a", self.envs, base="main")["allowed"], "vcs.push")
+        self.assertTrue(self.next()[0])
+
+    def test_a_resync_outside_the_envelope_escalates_and_holds(self):
+        self.start()
+        self.origin()
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1, unsure="x")
+        self.git("switch", "-q", "goal/g1")
+        final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n"})
+        self.git("switch", "-q", "main")
+        st = gr.load("g1"); st.update(finalize_pr=8, final_pr=9, finalized_head=final); gr.save(st)
+        m = self.commit("main moves", {"other/m.py": "m = 1\n"})
+        self.git("switch", "-q", "goal/g1")
+        self.git("merge", "-q", "--no-ff", "--no-commit", m)
+        (self.repo / "lib").mkdir(); (self.repo / "lib/x.py").write_text("x = 1\n")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "sync main")
+        head = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "main")
+        with self.assertRaisesRegex(gr.Refused, "envelope check refuses"):
+            gr.resync(self.repo, "g1", head, base="main")
+        e = self.msgs("escalation")[-1]
+        self.assertEqual((e["trigger"], e["status"]), ("outside_envelope", "open"))
+        with self.assertRaisesRegex(gr.Refused, "holds the run"):
+            gr.resync(self.repo, "g1", head, base="main")
 
     def test_a_holdout_failure_escalates(self):
         self.start()
