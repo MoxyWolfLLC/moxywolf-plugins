@@ -94,18 +94,27 @@ def granted(path, klass, resource, spent):
 MERGE_CHECKS = ("tests", "goal-envelope", "goal-tests")
 
 
+GOAL_CHECKS = ("goal-envelope", "goal-tests")
+
+
 def latest_checks(check_runs):
-    """{name: conclusion} from GitHub's check runs for one commit, the newest run of each name."""
+    """{name: (conclusion, external_id)} from GitHub's check runs for one commit, the newest run of
+    each name; a run still going reads as its status."""
     out = {}
     for run in sorted(check_runs, key=lambda r: r["id"]):
-        out[run["name"]] = run.get("conclusion") if run.get("status") == "completed" else run.get("status")
+        state = run.get("conclusion") if run.get("status") == "completed" else run.get("status")
+        out[run["name"]] = (state, run.get("external_id"))
     return out
 
 
-def merge_allowed(branch, target, head, review, checks):
+def merge_allowed(branch, target, head, review, checks, pr):
     """DR-113 for an item: into the goal branch only, pinned to head, after a clean cross-vendor
     review at that head with coverage checked and the checks green at that head. `review` is the
-    review's state.json; `checks` is latest_checks for head."""
+    review's state.json; `checks` is latest_checks for head; `pr` is the pull request as GitHub has
+    it now ({number, head, base_ref, base}). The goal checks count only when their newest run was
+    reached for this pull request into the goal branch at its current base, so a 'not a goal pull
+    request' pass, another pull request's pass or one from before a retarget doesn't."""
+    import goal_checks
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
                       f"request's, with Dorian's approval (GO-003.7)")
@@ -116,8 +125,14 @@ def merge_allowed(branch, target, head, review, checks):
          and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
         (any(head in hs for hs in (review.get("heads") or [])[-1:]), f"the review's last head isn't {head[:12]}"),
     ] if not ok]
-    problems += [f"{c} at {head[:12]} is {checks.get(c) or 'missing'}, not success" for c in MERGE_CHECKS
-                 if checks.get(c) != "success"]
+    if (pr.get("head"), pr.get("base_ref")) != (head, target):
+        problems.append(f"PR #{pr.get('number')} is at {str(pr.get('head'))[:12]} into {pr.get('base_ref')}, "
+                        f"not {head[:12]} into {target}")
+    problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
+                 for c in MERGE_CHECKS if (checks.get(c) or (None,))[0] != "success"]
+    bound = goal_checks.provenance({"pr": pr.get("number"), "base_ref": target, "base": pr.get("base")})
+    problems += [f"{c} at {head[:12]} was reached for {(checks.get(c) or (None, None))[1] or 'nothing named'}, not {bound}"
+                 for c in GOAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
     if problems:
         raise Refused("; ".join(problems))
 

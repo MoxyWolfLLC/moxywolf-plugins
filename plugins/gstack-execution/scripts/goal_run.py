@@ -30,7 +30,7 @@
   goal_run.py propose <id> [--repo owner/name]
         the finalize pull request merged: opens the goal pull request from goal/<id> into main, which
         the goal checks, the holdout, a fresh cross-vendor review and Dorian's approval gate
-  goal_run.py may <id> --action <class> --resource <r> [--head <sha> --review <review-id>] [--repo owner/name]
+  goal_run.py may <id> --action <class> --resource <r> [--head <sha> --review <review-id> --pr <n>] [--repo owner/name]
         before every push, pull request, merge or outside call the agent makes in a run (GO-005.4, .5):
         exit 0 if the goal ledger grants it (an item merge: into goal/<id>, after a clean review at
         <sha>); exit 1 if it's Dorian's, or if what a push, pull request or merge sets off changed
@@ -215,7 +215,7 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
-def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None):
+def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None, pr=None):
     """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
     first rechecks what it would set off and stops the run if that changed since the start; then the
     ledger (or, for an item merge, DR-113's conditions) must allow it, or it's Dorian's."""
@@ -230,9 +230,9 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
                 + (": " + "; ".join(problems) if problems else ""))
             raise Refused(f"the run stopped: the workflows or deployment environments changed since the start")
     if klass == "merge":
-        if head is None or review is None or checks is None:
-            raise Refused("an item merge names its head, its review and the checks at that head")
-        gguard.merge_allowed(state["branch"], resource, head, review, checks)
+        if head is None or review is None or checks is None or pr is None:
+            raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
+        gguard.merge_allowed(state["branch"], resource, head, review, checks, pr)
         return {"allowed": klass, "resource": resource, "by": "DR-113"}
     row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
     if row and row["scope"] == "once":
@@ -558,7 +558,7 @@ def main(argv, repo=gb.ROOT):
                    else propose(goal_id, get, post, name, repo=repo, environments=envs))
             print(json.dumps(out))
             return 0
-        if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--repo"}:
+        if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--pr", "--repo"}:
             token = os.environ.get("GITHUB_TOKEN")
             if not token:
                 raise Refused("may needs GITHUB_TOKEN to read the deployment environments: run it under agent_token.py exec --")
@@ -571,11 +571,13 @@ def main(argv, repo=gb.ROOT):
                 review = json.loads(f.read_text())
             ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
             get, name = gb.github(token), opts.get("--repo", REPO)
-            checks = None
-            if opts["--action"] == "merge" and "--head" in opts:
+            checks = pr = None
+            if opts["--action"] == "merge" and "--head" in opts and "--pr" in opts:
                 checks = gguard.latest_checks(get(f"repos/{name}/commits/{opts['--head']}/check-runs?per_page=100")["check_runs"])
+                p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
+                pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
-                                 head=opts.get("--head"), review=review, checks=checks)))
+                                 head=opts.get("--head"), review=review, checks=checks, pr=pr)))
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))

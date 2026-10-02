@@ -10,7 +10,9 @@ import goal_run as gr  # noqa: E402
 import test_goal_run as tgr  # noqa: E402  its runner fixture
 
 DEPLOY = "jobs:\n  d:\n    runs-on: ubuntu-latest\n    environment: production\n    steps:\n      - run: ./deploy\n"
-GREEN = {"tests": "success", "goal-envelope": "success", "goal-tests": "success"}
+PR = {"number": 31, "head": "b" * 40, "base_ref": "goal/g1", "base": "c" * 40}
+BOUND = f"pr=31;base_ref=goal/g1;base={'c' * 40}"
+GREEN = {"tests": ("success", None), "goal-envelope": ("success", BOUND), "goal-tests": ("success", BOUND)}
 CLEAN = {"outcome": "fixes_verified", "coverage_checked": True, "coverage_status": "covered", "heads": [["a" * 40], ["b" * 40]]}
 
 
@@ -130,23 +132,31 @@ class Ledger(tgr.RunnerFixture):
 
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):
         self.start()
-        self.assertEqual(self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=GREEN)["by"], "DR-113")
+        self.assertEqual(self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=GREEN, pr=PR)["by"], "DR-113")
         with self.assertRaisesRegex(gr.Refused, "not main"):
-            self.act("merge", "main", head="b" * 40, review=CLEAN, checks=GREEN)
+            self.act("merge", "main", head="b" * 40, review=CLEAN, checks=GREEN, pr=PR)
         for review, why in ((dict(CLEAN, outcome="rounds_exhausted"), "not clean"),
                             (dict(CLEAN, coverage_status="uncovered"), "coverage"),
                             (dict(CLEAN, coverage_overridden=True), "coverage"),
                             (CLEAN, "last head")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
-                self.act("merge", "goal/g1", head=("a" * 40 if why == "last head" else "b" * 40), review=review, checks=GREEN)
+                self.act("merge", "goal/g1", head=("a" * 40 if why == "last head" else "b" * 40), review=review, checks=GREEN, pr=PR)
 
     def test_a_clean_review_alone_doesnt_merge_an_item(self):
         self.start()
-        for checks, why in (({**GREEN, "goal-tests": "failure"}, "goal-tests at bbbbbbbbbbbb is failure"),
-                            ({k: v for k, v in GREEN.items() if k != "goal-envelope"}, "goal-envelope at bbbbbbbbbbbb is missing"),
-                            ({**GREEN, "tests": "in_progress"}, "tests at bbbbbbbbbbbb is in_progress")):
+        other = f"pr=30;base_ref=goal/g1;base={'c' * 40}"
+        for checks, pr, why in (
+                ({**GREEN, "goal-tests": ("failure", BOUND)}, PR, "goal-tests at bbbbbbbbbbbb is failure"),
+                ({k: v for k, v in GREEN.items() if k != "goal-envelope"}, PR, "goal-envelope at bbbbbbbbbbbb is missing"),
+                ({**GREEN, "tests": ("in_progress", None)}, PR, "tests at bbbbbbbbbbbb is in_progress"),
+                ({**GREEN, "goal-tests": ("success", "pr=31;base_ref=main;base=" + "c" * 40)}, PR, "reached for pr=31;base_ref=main"),
+                ({**GREEN, "goal-envelope": ("success", None)}, PR, "reached for nothing named"),       # a run from before provenance
+                ({**GREEN, "goal-tests": ("success", other)}, PR, "reached for pr=30"),               # another pull request's pass
+                (GREEN, {**PR, "base": "d" * 40}, "reached for pr=31;base_ref=goal/g1;base=cccc"),      # the base moved since
+                (GREEN, {**PR, "base_ref": "main"}, "into main, not"),                                 # retargeted
+                (GREEN, {**PR, "head": "e" * 40}, "PR #31 is at eeeeeeeeeeee")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
-                self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=checks)
+                self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=checks, pr=pr)
         with self.assertRaisesRegex(gr.Refused, "checks at that head"):
             self.act("merge", "goal/g1", head="b" * 40, review=CLEAN)
 
@@ -154,7 +164,7 @@ class Ledger(tgr.RunnerFixture):
         runs = [{"id": 1, "name": "goal-tests", "status": "completed", "conclusion": "failure"},
                 {"id": 2, "name": "goal-tests", "status": "completed", "conclusion": "success"},
                 {"id": 3, "name": "tests", "status": "queued", "conclusion": None}]
-        self.assertEqual(gguard.latest_checks(runs), {"goal-tests": "success", "tests": "queued"})
+        self.assertEqual(gguard.latest_checks(runs), {"goal-tests": ("success", None), "tests": ("queued", None)})
 
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()

@@ -156,6 +156,12 @@ def api(token, method, path, data=None):
         return json.load(r)
 
 
+def provenance(v):
+    """What a published verdict was reached for, in its check run's external_id, so a reader can
+    refuse a success reached for another pull request, another base or none at all (GO-005.4)."""
+    return f"pr={v['pr']};base_ref={v['base_ref']};base={v['base']}"
+
+
 def publish(name, v, repo_name, call):
     """Post the verdict on the head it was reached for, or nothing if the PR moved."""
     pr = call("GET", f"repos/{repo_name}/pulls/{v['pr']}")
@@ -164,6 +170,7 @@ def publish(name, v, repo_name, call):
                 f"{pr['base']['sha'][:12]}); published nothing")
     call("POST", f"repos/{repo_name}/check-runs",
          {"name": name, "head_sha": v["head"], "status": "completed", "conclusion": v["conclusion"],
+          "external_id": provenance(v),
           "output": {"title": v["title"][:255], "summary": v["summary"][:60000]}})
     return f"published {name}: {v['conclusion']} on {v['head'][:12]}"
 

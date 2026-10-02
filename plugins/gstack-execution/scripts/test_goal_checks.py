@@ -84,6 +84,7 @@ class Decisions(unittest.TestCase):
             return live
         self.assertIn("published goal-tests: success", gc.publish("goal-tests", v, "o/r", call))
         self.assertEqual(calls[-1][0:2], ("POST", "repos/o/r/check-runs"))
+        self.assertEqual(calls[-1][2]["external_id"], f"pr={v['pr']};base_ref={v['base_ref']};base={v['base']}")
         self.assertEqual((calls[-1][2]["name"], calls[-1][2]["head_sha"]), ("goal-tests", "a" * 40))
         for moved in (pr(head_sha="c" * 40), pr(base_sha="d" * 40), pr(base="main")):   # a retarget at the same SHA too
             calls.clear()
