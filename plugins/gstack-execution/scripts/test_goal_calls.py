@@ -59,6 +59,10 @@ class Typing(unittest.TestCase):
             ({"src/run.sh": "curl $DEPLOY_HOOK\n"}, "external"),
             ({"src/cfg.yml": "host: service.internal\n"}, "external"),
             ({"src/cfg.yml": "host: 10.0.0.5\n"}, "external"),
+            ({"src/cfg.yml": "host: service.fr\n"}, "external"),                # a suffix not in any list
+            ({"src/cfg.yml": "api_endpoint: 'edge.service.fr'\n"}, "external"),
+            ({"src/b.py": "H = 'api.service.fr'\n"}, "external"),
+            ({"src/b.py": "H = \"api.known.com:443\"\n"}, "in_envelope_code"),  # the base already uses it
             ({"src/b.py": "u = 'https://API.KNOWN.COM/v3'\n"}, "in_envelope_code"),  # hostnames aren't
             ({"src/b.py": "u = 'https://api.newhost.io/x'\n"}, "external"),
             ({"src/b.py": "import os\nk = os.getenv('BRAND_NEW_TOKEN')\n"}, "external"),
@@ -72,6 +76,13 @@ class Typing(unittest.TestCase):
                 kind, reasons = self.typed(files)
                 self.assertEqual(kind, want, reasons)
                 self.assertTrue(reasons)
+
+    def test_only_env_and_shell_files_vouch_for_a_bare_name(self):
+        self.commit({"src/c.py": "NEW_TOKEN=1\n", "src/.env.example": "OLD_TOKEN=1\n", "src/run.sh": "echo $SH_TOKEN\n"})
+        for name, want in (("NEW_TOKEN", "external"), ("OLD_TOKEN", "in_envelope_code"), ("SH_TOKEN", "in_envelope_code")):
+            with self.subTest(name=name):
+                kind, reasons = self.typed({"src/b.py": f"import os\nk = os.getenv('{name}')\n"})
+                self.assertEqual(kind, want, reasons)
 
     def test_reasons_name_what_was_new(self):
         kind, reasons = self.typed({"src/b.py": "u = 'https://api.newhost.io/x'\nimport os\nk = os.getenv('BRAND_NEW_TOKEN')\n"})

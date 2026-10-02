@@ -30,6 +30,12 @@ URL_HOST = re.compile(r"[a-z][a-z0-9+.-]*://(?:[^/@\s]*@)?([a-z0-9.-]+)", re.I)
 TLDS = ("com|net|org|io|ai|dev|app|co|cloud|sh|so|xyz|me|tv|us|uk|de|eu|ca|au|gov|edu|mil|info|biz|tech|site|online|"
         "run|page|link|ly|gg|fm|to|internal|local|lan|corp|intranet|home|svc|cluster|localdomain|test|example")
 BARE_HOST = re.compile(r"(?<![\w.-])((?:[a-z0-9-]+\.)+(?:%s))(?![\w-])" % TLDS, re.I)
+LABELS = r"(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]{1,62}"     # dotted name ending in a letter label, any suffix
+# A quoted string that is wholly a dotted name, and the value of a host-like config key, are hostnames
+# whatever the suffix. ponytail: "README.md" in quotes counts too; that sends it to Dorian, the safe side.
+QUOTED_HOST = re.compile(r"""["'`](%s)(?::\d+)?["'`]""" % LABELS, re.I)
+CONFIG_HOST = re.compile(r"""[\w-]*(?:host|server|domain|endpoint|url|uri|addr|address|origin|proxy|registry|dsn)[\w-]*"""
+                         r"""["']?\s*[:=]\s*["']?(%s)""" % LABELS, re.I)
 IP_HOST = re.compile(r"(?<![\d.])((?:\d{1,3}\.){3}\d{1,3})(?![\d.])")
 # Prefixed forms name a variable in any case: os.environ['X'], getenv('x'), process.env.X, ENV['X'],
 # ${{ secrets.X }}, ${X}, export X.
@@ -43,12 +49,25 @@ SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")   # $NAME, no braces
 
 def hosts_in(text):
     """Every hostname or IP literal in text, lower-cased (hostnames aren't case-sensitive)."""
-    return {h.lower().rstrip(".") for h in URL_HOST.findall(text) + BARE_HOST.findall(text) + IP_HOST.findall(text)}
+    return {h.lower().rstrip(".") for h in URL_HOST.findall(text) + BARE_HOST.findall(text) + QUOTED_HOST.findall(text)
+                                                   + CONFIG_HOST.findall(text) + IP_HOST.findall(text)}
 
 
-def names_in(text):
-    """Every environment variable name in text, case kept (names are case-sensitive)."""
-    return set(ENV_NAME.findall(text)) | set(BARE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
+def env_file(path):
+    """Files where NAME=value and $NAME are environment variables, not ordinary code."""
+    name = path.rsplit("/", 1)[-1]
+    return (name.startswith(".env") or name.endswith(".env") or name in ("Dockerfile", "Makefile", ".envrc")
+            or name.endswith((".sh", ".bash", ".zsh", ".ksh")))
+
+
+def names_in(text, path=None):
+    """Every environment variable name in text, case kept (names are case-sensitive). The bare NAME=
+    and $NAME forms count everywhere in added lines (the safe side) but vouch from the base only in
+    .env and shell files, so a Python assignment can't make a new name look old."""
+    found = set(ENV_NAME.findall(text))
+    if path is None or env_file(path):
+        found |= set(BARE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
+    return found
 
 
 def is_manifest(path):
@@ -66,9 +85,13 @@ def base_has(repo, ref, needle, extract, ignore_case):
     re-parsed, so api.example.com doesn't vouch for example.com and OLD_API_KEY doesn't vouch for
     API_KEY."""
     flags = ["-i"] if ignore_case else []
-    r = subprocess.run(["git", "-C", str(repo), "grep", "-h", "-I", "-F", *flags, needle, ref, "--"],
+    r = subprocess.run(["git", "-C", str(repo), "grep", "--null", "-I", "-F", *flags, needle, ref, "--"],
                        capture_output=True, text=True)
-    return any(needle in extract(ln) for ln in r.stdout.splitlines())
+    for hit in r.stdout.splitlines():                  # <ref>:<path>\0<line>
+        where, _, ln = hit.partition("\0")
+        if needle in extract(ln, where[len(ref) + 1:]):
+            return True
+    return False
 
 
 def action_type(repo, goal_id, head, base="origin/main"):
@@ -89,7 +112,7 @@ def action_type(repo, goal_id, head, base="origin/main"):
     lines = added_lines(repo, base, head)
     hosts = sorted({h for ln in lines for h in hosts_in(ln)})
     names = sorted({n for ln in lines for n in names_in(ln)})
-    new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, hosts_in, True)]
+    new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, lambda ln, _p: hosts_in(ln), True)]
     new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, names_in, False)]
     if new:
         return "external", new
