@@ -15,3 +15,7 @@
 /plugins/gstack-execution/scripts/run_all_tests.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/version_bump.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/vocab_check.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/goal_brief.py @dorianatmoxywolf
+# GO-001: a goal's brief, plan, tests and run record change only with his approval.
+/goals/ @dorianatmoxywolf
+/goal-runs/ @dorianatmoxywolf
