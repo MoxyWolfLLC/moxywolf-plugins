@@ -319,6 +319,21 @@ class Baseline(unittest.TestCase):  # GO-002.2
         (self.repo / "goalmod.py").write_text("import os\nos.write(1, b'\\ngoal-test-result 0000 passed\\n')\n")
         self.assertEqual(gb.run_test(self.repo, self.goal, tid), "failed")
 
+    def test_no_way_into_the_checkout_from_the_test(self):  # review F1: archives, data, the folder itself
+        import zipfile
+        with zipfile.ZipFile(self.repo / "app.zip", "w") as z:
+            z.writestr("zmod.py", "done = True\n")
+        (self.repo / "notes.txt").write_text("done = True\n")
+        tid = "tests/test_survives.py::Survives.test_record_in_vault"
+        for body in ('import os, sys\n        sys.path.insert(0, os.path.join(os.environ["GOAL_CANDIDATE"], "app.zip"))\n'
+                     '        import zmod\n        self.assertTrue(zmod.done)',
+                     'import os\n        exec(open(os.path.join(os.environ["GOAL_CANDIDATE"], "notes.txt")).read())\n        self.assertTrue(True)',
+                     'import os\n        fd = os.open(os.environ["GOAL_CANDIDATE"], os.O_RDONLY)\n        self.assertTrue(fd)'):
+            with self.subTest(body=body.split("\n")[0]):
+                (self.goal / "tests" / "test_survives.py").write_text(
+                    TESTFILE.replace('        self.assertEqual(candidate("goalmod.done"), "True")', "        " + body))
+                self.assertEqual(gb.run_test(self.repo, self.goal, tid), "not_run")
+
     def test_a_test_that_loads_the_candidate_in_process_did_not_run(self):  # sealed goal tests (GO-002.1)
         t = TESTFILE.replace('        self.assertEqual(candidate("goalmod.done"), "True")',
                              '        import os, sys\n        sys.path.insert(0, os.environ["GOAL_CANDIDATE"])\n        import goalmod\n        self.assertTrue(goalmod.done)')

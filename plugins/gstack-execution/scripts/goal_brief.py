@@ -306,7 +306,8 @@ def check(goal_dir, design_text, codeowners_text):
 _HARNESS = """import sys
 def _harness(nonce, out, path, name, root):
     import os, importlib.util, unittest
-    root = os.path.realpath(root) + os.sep
+    top = os.path.realpath(root)
+    root = top + os.sep
     hits, busy = [], []
     def guard(event, args):
         if busy or not args or event not in ("open", "ctypes.dlopen") or not isinstance(args[0], (str, bytes)):
@@ -316,9 +317,9 @@ def _harness(nonce, out, path, name, root):
             p = os.path.realpath(os.fsdecode(args[0]))
         finally:
             busy.pop()
-        if p.startswith(root) and (event == "ctypes.dlopen" or p.endswith((".py", ".pyc", ".pyo", ".so", ".pyd", ".pth"))):
+        if p == top or p.startswith(root):   # any file, archive or the folder itself: no suffix list to slip past
             hits.append(p)
-            raise PermissionError("a goal test runs the candidate as a program and never imports it: " + p)
+            raise PermissionError("a goal test runs the candidate as a program and reads nothing in its checkout: " + p)
     sys.addaudithook(guard)
     try:
         s = importlib.util.spec_from_file_location("goal_test", path); m = importlib.util.module_from_spec(s)
@@ -349,8 +350,9 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
 
     The candidate never runs in the test's interpreter (GO-002.1, Dorian's decision of 2026-10-02):
     the test runs isolated (-I), from an empty folder, with GOAL_CANDIDATE naming the candidate's
-    checkout and an audit hook that refuses to open the candidate's code, so the only way to reach the
-    candidate is to run it as a separate program. The verdict is the harness's line carrying a nonce
+    checkout and an audit hook that refuses to open anything in that checkout (code, archives, data,
+    the folder itself), so the only way to reach the candidate is to run it as a separate program and
+    judge what it prints or writes outside its checkout. The verdict is the harness's line carrying a nonce
     read from stdin before the test loads; the exit code decides nothing, and a candidate process,
     which never sees the nonce, can't write a line that counts."""
     path, _, name = test_id.partition("::")
