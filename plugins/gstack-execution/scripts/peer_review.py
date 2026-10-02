@@ -1379,6 +1379,21 @@ def _span(repo, head, rel, line, ctx=2):
             "span_lines": [lo + 1, hi], "file_lines": len(lines), "line_exists": 0 < line <= len(lines)}
 
 
+def _moved_to(repo, head, rel, s):
+    """The line a finding's recorded lines sit at now, when they're unchanged but somewhere else in
+    the same file (EV-002.3: moved, not drifted), or None. The whole recorded window has to match,
+    so a change inside it is still drift."""
+    if "span_lines" not in s or not _has_path(repo, head, rel):
+        return None
+    lines = subprocess.run(["git", "-C", str(repo), "show", f"{head}:{rel}"], capture_output=True, text=True).stdout.splitlines()
+    lo, hi = s["span_lines"]
+    width, offset = hi - lo + 1, s["line"] - lo
+    for i in range(len(lines) - width + 1):
+        if hashlib.sha256("\n".join(lines[i:i + width]).encode()).hexdigest()[:16] == s["span"]:
+            return i + 1 + offset
+    return None
+
+
 def bind_subjects(findings, repos):
     """One content-bound subject per finding, computed by the dispatcher.
 
@@ -1527,6 +1542,8 @@ def verify_links(d):
                 record(tag, True, f"content unchanged at {current[:7]}")
             elif disposition == "fixed":
                 record(tag, True, f"content changed at {current[:7]}, expected for a fixed finding")
+            elif (moved := _moved_to(s["repo"], current, s["path"], s)):
+                record(tag, True, f"content unchanged at {current[:7]}, moved to line {moved}")
             else:
                 record(tag, False, f"content changed at {current[:7]} and the disposition is {disposition or 'none'}; "
                                    "the finding's evidence no longer describes the code")
