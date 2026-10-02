@@ -163,7 +163,8 @@ def next_step(repo, goal_id, base="origin/main"):
         failing = sorted(set(ids) - set(state["passing"]))
         return False, end(state, "exhausted", f"the plan ran out with goal tests still failing: {failing}")
     item = remaining[0]
-    return True, {"step": "build", "item": item, "base_branch": state["branch"], "max_rounds": state["max_rounds"],
+    return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
+                  "max_rounds": state["max_rounds"],
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 

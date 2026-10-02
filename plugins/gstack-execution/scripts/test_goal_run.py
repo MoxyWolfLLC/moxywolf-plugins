@@ -131,6 +131,27 @@ class Runner(unittest.TestCase):
         self.assertIn("git revert -m 1 --no-edit " + "f" * 40, rec)
         self.assertIn("3. polish - not built", rec)
 
+    def test_dependent_items_on_their_own_branches_build_on_each_other(self):  # review F5
+        self.start()
+        step = self.next()[1]
+        self.assertEqual((step["branch_from"], step["base_branch"]), ("origin/goal/g1", "goal/g1"))
+
+        def item_branch(name, files):
+            self.git("switch", "-q", "-c", name, "goal/g1")          # branched from the goal head, not main
+            self.commit(name, files)
+            self.git("switch", "-q", "goal/g1")
+            self.git("merge", "-q", "--no-ff", "--no-edit", name)    # the item PR merges into goal/g1
+            head = self.git("rev-parse", "HEAD")
+            self.git("switch", "-q", "main")
+            return head
+
+        gr.merged(self.repo, "g1", item_branch("build/item-1", {"helper.py": "value = True\n"}))
+        self.assertEqual(self.next()[1]["item"]["n"], 2)
+        out = gr.merged(self.repo, "g1", item_branch("build/item-2", {
+            "goalmod.py": "import helper\ndone = helper.value\nsafe = True\n"}))
+        self.assertEqual(out["results"]["tests/test_g.py::G.test_done"], "passed")   # item 2 used item 1's module
+        self.assertEqual(self.next()[1]["step"], "finish")
+
     def test_a_regressed_outcome_stops_the_run(self):
         self.start()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"))
