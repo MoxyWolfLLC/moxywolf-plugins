@@ -26,10 +26,29 @@ MANIFESTS = {"package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-l
              "pyproject.toml", "poetry.lock", "Pipfile", "Pipfile.lock", "setup.py", "setup.cfg", "uv.lock",
              "go.mod", "go.sum", "Cargo.toml", "Cargo.lock", "Gemfile", "Gemfile.lock", "composer.json",
              "composer.lock", "build.gradle", "pom.xml", "deno.json", "deno.lock"}
-URL_HOST = re.compile(r"[a-z][a-z0-9+.-]*://([a-z0-9.-]+)", re.I)
-BARE_HOST = re.compile(r"\b((?:[a-z0-9-]+\.)+(?:com|net|org|io|ai|dev|app|co|cloud|sh|so|xyz))\b", re.I)
+URL_HOST = re.compile(r"[a-z][a-z0-9+.-]*://(?:[^/@\s]*@)?([a-z0-9.-]+)", re.I)
+TLDS = ("com|net|org|io|ai|dev|app|co|cloud|sh|so|xyz|me|tv|us|uk|de|eu|ca|au|gov|edu|mil|info|biz|tech|site|online|"
+        "run|page|link|ly|gg|fm|to|internal|local|lan|corp|intranet|home|svc|cluster|localdomain|test|example")
+BARE_HOST = re.compile(r"(?<![\w.-])((?:[a-z0-9-]+\.)+(?:%s))(?![\w-])" % TLDS, re.I)
+IP_HOST = re.compile(r"(?<![\d.])((?:\d{1,3}\.){3}\d{1,3})(?![\d.])")
+# Prefixed forms name a variable in any case: os.environ['X'], getenv('x'), process.env.X, ENV['X'],
+# ${{ secrets.X }}, ${X}, export X.
 ENV_NAME = re.compile(r"""(?:environ(?:\.get)?\s*[\[(]\s*["']|getenv\s*\(\s*["']|process\.env\.|process\.env\[\s*["']|"""
-                      r"""ENV\[\s*["']|\$\{\{\s*(?:secrets|env|vars)\.)([A-Z][A-Z0-9_]*)""")
+                      r"""ENV\[\s*["']|\$\{\{\s*(?:secrets|env|vars)\.|\$\{|\bexport\s+)([A-Za-z_][A-Za-z0-9_]*)""")
+# The bare form is a .env or shell assignment: NAME=value at line start, no space before '='.
+# ponytail: a Python line written KEY=x also matches; harmless on the added side (more waits on Dorian).
+BARE_NAME = re.compile(r"^\s*([A-Z_][A-Z0-9_]*)=(?!=)", re.M)
+SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")   # $NAME, no braces
+
+
+def hosts_in(text):
+    """Every hostname or IP literal in text, lower-cased (hostnames aren't case-sensitive)."""
+    return {h.lower().rstrip(".") for h in URL_HOST.findall(text) + BARE_HOST.findall(text) + IP_HOST.findall(text)}
+
+
+def names_in(text):
+    """Every environment variable name in text, case kept (names are case-sensitive)."""
+    return set(ENV_NAME.findall(text)) | set(BARE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
 
 
 def is_manifest(path):
@@ -42,9 +61,14 @@ def added_lines(repo, base, head):
     return [ln[1:] for ln in out.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
 
 
-def in_tree(repo, ref, needle):
-    r = subprocess.run(["git", "-C", str(repo), "grep", "-q", "-F", "-i", needle, ref, "--"], capture_output=True)
-    return r.returncode == 0
+def base_has(repo, ref, needle, extract, ignore_case):
+    """Does the base tree already use exactly this identifier? Lines that contain the text are
+    re-parsed, so api.example.com doesn't vouch for example.com and OLD_API_KEY doesn't vouch for
+    API_KEY."""
+    flags = ["-i"] if ignore_case else []
+    r = subprocess.run(["git", "-C", str(repo), "grep", "-h", "-I", "-F", *flags, needle, ref, "--"],
+                       capture_output=True, text=True)
+    return any(needle in extract(ln) for ln in r.stdout.splitlines())
 
 
 def action_type(repo, goal_id, head, base="origin/main"):
@@ -63,10 +87,10 @@ def action_type(repo, goal_id, head, base="origin/main"):
     if deps:
         return "dependency", [f"changes {f}" for f in deps]
     lines = added_lines(repo, base, head)
-    hosts = sorted({h.lower().rstrip(".") for ln in lines for h in URL_HOST.findall(ln) + BARE_HOST.findall(ln)})
-    names = sorted({n for ln in lines for n in ENV_NAME.findall(ln)})
-    new = [f"new hostname {h}" for h in hosts if not in_tree(repo, base, h)]
-    new += [f"new environment variable {n}" for n in names if not in_tree(repo, base, n)]
+    hosts = sorted({h for ln in lines for h in hosts_in(ln)})
+    names = sorted({n for ln in lines for n in names_in(ln)})
+    new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, hosts_in, True)]
+    new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, names_in, False)]
     if new:
         return "external", new
     outside = [f for f in files if ge.owners(rs, f) or not any(ge.path_in(g, f) for g in allowed)]

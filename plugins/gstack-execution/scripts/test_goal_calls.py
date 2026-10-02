@@ -49,6 +49,17 @@ class Typing(unittest.TestCase):
             ({"src/b.py": "u = 'https://api.known.com/v2'\nimport os\nk = os.environ.get('KNOWN_KEY')\n"}, "in_envelope_code"),
             ({"src/package.json": "{}\n"}, "dependency"),
             ({"src/requirements-dev.txt": "requests\n"}, "dependency"),
+            ({"src/package-lock.json": "{}\n"}, "dependency"),
+            ({"src/b.py": "u = 'https://known.com/x'\n"}, "external"),               # a suffix of api.known.com
+            ({"src/b.py": "import os\nk = os.getenv('KEY')\n"}, "external"),         # a suffix of KNOWN_KEY
+            ({"src/b.py": "import os\nk = os.getenv('known_key')\n"}, "external"),   # names are case-sensitive
+            ({"src/run.sh": "echo ${NEW_TOKEN}\n"}, "external"),
+            ({"src/run.sh": "export NEW_TOKEN=abc\n"}, "external"),
+            ({"src/.env.example": "SERVICE_SECRET=x\n"}, "external"),
+            ({"src/run.sh": "curl $DEPLOY_HOOK\n"}, "external"),
+            ({"src/cfg.yml": "host: service.internal\n"}, "external"),
+            ({"src/cfg.yml": "host: 10.0.0.5\n"}, "external"),
+            ({"src/b.py": "u = 'https://API.KNOWN.COM/v3'\n"}, "in_envelope_code"),  # hostnames aren't
             ({"src/b.py": "u = 'https://api.newhost.io/x'\n"}, "external"),
             ({"src/b.py": "import os\nk = os.getenv('BRAND_NEW_TOKEN')\n"}, "external"),
             ({"src/b.js": "const k = process.env.ANOTHER_NEW_NAME\n"}, "external"),
@@ -135,6 +146,36 @@ class Runner(tgr.RunnerFixture):
         rec = gr.record("g1")
         self.assertIn("1. Add a dependency? (dependency, decided by dorian): no", rec)
         self.assertIn("no new dependencies in this goal", rec)
+
+    def item_call(self, files, question="Which?", options=("a", "b")):
+        self.git("switch", "-q", "-C", "build/item-1", "goal/g1")
+        head = self.commit("change", files)
+        self.git("switch", "-q", "main")
+        return gr.open_call(self.repo, "g1", question, list(options), "claude/opus", "gpt/gpt-6", head, base="main")
+
+    def test_a_lockfile_and_an_unclassified_change_each_wait_for_dorian(self):  # review F4
+        self.start()
+        for files, kind in (({"package-lock.json": "{}\n"}, "dependency"), ({"docs/notes.md": "n\n"}, "unclassified")):
+            with self.subTest(kind=kind):
+                c = self.item_call(files)
+                self.assertEqual((c["type"], c["decider"]), (kind, "dorian"))
+                self.assertIsNone(self.next()[0])
+                gr.dorian_answers("g1", c["n"], "a", "fine, take a")
+                self.assertEqual(self.next()[1]["step"], "build")
+
+    def test_a_unanimous_council_is_kept_with_its_evidence(self):  # review F1, F4
+        self.start()
+        c = self.item_call({"goalmod.py": "done = False\nsafe = True\ny = 1\n"}, "Which shape?")
+        gr.council_votes("g1", 1, [VOTE("gpt/gpt-6", "for", "a"), VOTE("gemini/g3", "against", "a")])
+        st = gr.load("g1")                                              # survives a reload
+        self.assertEqual((st["calls"][0]["status"], st["calls"][0]["choice"]), ("decided", "a"))
+        self.assertEqual(self.next()[1]["step"], "build")
+        rec = gr.record("g1")
+        for line in ("1. Which shape? (in_envelope_code, decided by council): a",
+                     "options: a, b; proposed by claude/opus, framed by gpt/gpt-6",
+                     "type by code: 1 files, all inside Allowed paths", f"commits: {c['commits'][0][:12]}",
+                     "vote: gpt/gpt-6 (for): a - because", "vote: gemini/g3 (against): a - because"):
+            self.assertIn(line, rec)
 
     def test_a_split_council_waits_and_shows_its_dissent(self):  # GO-005.3
         self.start()

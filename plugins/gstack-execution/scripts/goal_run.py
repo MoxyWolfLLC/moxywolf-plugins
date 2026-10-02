@@ -425,6 +425,10 @@ def record(goal_id):
         for c in state["calls"]:
             lines.append(f"{c['n']}. {c['question']} ({c['type']}, decided by {c['decider']}): "
                          f"{c['choice'] or c['status']}" + (f"; Dorian: \u201c{c['words']}\u201d" if c["words"] else ""))
+            lines.append(f"   - options: {', '.join(c['options'])}; proposed by {c['proposed_by']}, framed by {c['framed_by']}")
+            lines.append(f"   - type by code: {'; '.join(c['type_reasons'])}")
+            lines.append(f"   - commits: {', '.join(x[:12] for x in c['commits']) or 'none'}")
+            lines += [f"   - vote: {v['model']} ({v['role']}): {v['choice']} - {v.get('reason', '')}" for v in c["votes"]]
             lines += [f"   - dissent: {x}" for x in c["dissent"]]
     if state["merge"]:
         lines += ["", "## Rolling back", "", "```", ge.revert_commands(state["merge"]), "```"]
