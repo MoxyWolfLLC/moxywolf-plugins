@@ -88,6 +88,22 @@ class Typing(unittest.TestCase):
                 kind, reasons = self.typed({"src/b.py": f"import os\nk = os.getenv('{name}')\n"})
                 self.assertEqual(kind, want, reasons)
 
+    def test_a_reference_split_across_lines_is_one_reference(self):
+        kind, reasons = self.typed({"src/b.py": "import os\ntoken = os.getenv(\n    \"BRAND_NEW_TOKEN\"\n)\n"})
+        self.assertEqual((kind, reasons), ("external", ["new environment variable BRAND_NEW_TOKEN"]))
+        self.commit({"src/m.py": "import os\nk = os.environ.get(\n    'MULTI_KEY'\n)\n"})
+        self.assertEqual(self.typed({"src/m.py": "import os\nk = os.environ.get(\n    'MULTI_KEY'\n)\nx = 1\n"})[0],
+                         "in_envelope_code")                    # the base's multiline reference vouches
+        kind, reasons = self.typed({"src/m.py": "import os\nk = os.environ.get(\n    'OTHER_KEY'\n)\n"})
+        self.assertEqual((kind, reasons), ("external", ["new environment variable OTHER_KEY"]))  # argument-only edit
+
+    def test_a_binary_file_goes_to_dorian(self):
+        self.git("switch", "-q", "-C", "item", "main")
+        (self.repo / "src/logo.bin").write_bytes(b"\x89PNG\xff\xfe\x00host: service.fr")
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "c")
+        head = self.git("rev-parse", "HEAD"); self.git("switch", "-q", "main")
+        self.assertEqual(gcalls.action_type(self.repo, "g1", head, base="main"), ("unclassified", ["src/logo.bin is binary"]))
+
     def test_reasons_name_what_was_new(self):
         kind, reasons = self.typed({"src/b.py": "u = 'https://api.newhost.io/x'\nimport os\nk = os.getenv('BRAND_NEW_TOKEN')\n"})
         self.assertEqual(sorted(reasons), ["new environment variable BRAND_NEW_TOKEN", "new hostname api.newhost.io"])
@@ -112,6 +128,31 @@ class Council(unittest.TestCase):
         self.assertEqual((c["status"], c["decider"], c["choice"]), ("escalated", "dorian", None))
         self.assertEqual(len(c["dissent"]), 2)
         self.assertEqual(gcalls.waiting([c]), [c])
+
+    def test_families_are_canonical(self):
+        for model, fam in (("claude/opus", "claude"), ("anthropic/claude-opus-5", "claude"), ("claude-opus-5", "claude"),
+                           ("openai/gpt-6-astra", "gpt"), ("gpt/gpt-6", "gpt"), ("openrouter/openai/gpt-6", "gpt"),
+                           ("google/gemini-3.1-pro-preview", "gemini"), ("deepseek/deepseek-v4.1-flash", "deepseek")):
+            self.assertEqual(gcalls.family(model), fam, model)
+        for bad in ("", "acme/x", "acme/gpt-6", "openai/claude-opus-5", "mystery-model"):
+            with self.assertRaises(ValueError, msg=bad):
+                gcalls.family(bad)
+
+    def test_every_configured_reviewer_resolves_to_its_family(self):
+        import peer_review
+        for name, cfg in peer_review.REVIEWERS.items():
+            if "/" in cfg["model"]:
+                self.assertEqual(gcalls.family(cfg["model"]), cfg["family"], name)
+
+    def test_a_provider_alias_is_not_a_second_family(self):
+        with self.assertRaisesRegex(ValueError, "builder's family"):
+            gcalls.council(call(proposed="claude/opus", framed="openai/gpt-6"),
+                           [VOTE("anthropic/claude-opus-5", "for", "custom"), VOTE("openai/gpt-6", "against", "custom")],
+                           "claude/claude-opus-5")
+        with self.assertRaisesRegex(ValueError, "framed by the proposer's own family"):
+            gcalls.council(call(proposed="claude/opus", framed="anthropic/claude-opus-5"),
+                           [VOTE("openai/gpt-6", "for", "custom"), VOTE("google/gemini-3", "against", "custom")],
+                           "claude/opus")
 
     def test_the_council_is_shaped_by_code(self):
         bad = {

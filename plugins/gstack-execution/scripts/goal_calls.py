@@ -85,27 +85,16 @@ def is_manifest(path):
     return name in MANIFESTS or re.fullmatch(r"requirements[\w.-]*\.(txt|in)", name) is not None
 
 
-def added_lines(repo, base, head):
-    """(path, line) for every line the change adds."""
-    out, path = [], ""
-    for ln in ge.git(repo, "diff", "--unified=0", "--no-color", "--no-prefix", f"{base}...{head}").splitlines():
-        if ln.startswith("+++ "):
-            path = ln[4:]
-        elif ln.startswith("+"):
-            out.append((path, ln[1:]))
-    return out
-
-
 def base_has(repo, ref, needle, extract, ignore_case):
-    """Does the base tree already use exactly this identifier? Lines that contain the text are
-    re-parsed, so api.example.com doesn't vouch for example.com and OLD_API_KEY doesn't vouch for
-    API_KEY."""
+    """Does the base tree already use exactly this identifier? Each file that contains the text is
+    re-parsed whole, so a reference split across lines still counts, api.example.com doesn't vouch
+    for example.com, and OLD_API_KEY doesn't vouch for API_KEY."""
     flags = ["-i"] if ignore_case else []
-    r = subprocess.run(["git", "-C", str(repo), "grep", "--null", "-I", "-F", *flags, needle, ref, "--"],
+    r = subprocess.run(["git", "-C", str(repo), "grep", "-l", "--null", "-I", "-F", *flags, needle, ref, "--"],
                        capture_output=True, text=True)
-    for hit in r.stdout.splitlines():                  # <ref>:<path>\0<line>
-        where, _, ln = hit.partition("\0")
-        if needle in extract(ln, where[len(ref) + 1:]):
+    for where in filter(None, r.stdout.split("\0")):   # <ref>:<path>
+        path = where[len(ref) + 1:]
+        if needle in extract(ge.at(repo, ref, path) or "", path):
             return True
     return False
 
@@ -125,9 +114,16 @@ def action_type(repo, goal_id, head, base="origin/main"):
     deps = [f for f in files if is_manifest(f)]
     if deps:
         return "dependency", [f"changes {f}" for f in deps]
-    lines = added_lines(repo, base, head)
-    hosts = sorted({h for f, ln in lines for h in hosts_in(ln, f)})
-    names = sorted({n for _, ln in lines for n in names_in(ln)})
+    # Whole changed files, not added lines: a getenv( on one line and its name on the next is still
+    # one reference. Unchanged references in those files are vouched for by the same file in the base.
+    texts = {}
+    for f in files:
+        try:
+            texts[f] = ge.at(repo, head, f) or ""
+        except UnicodeDecodeError:                      # code can't read it, so code can't type it
+            return "unclassified", [f"{f} is binary"]
+    hosts = sorted({h for f, t in texts.items() for h in hosts_in(t, f)})
+    names = sorted({n for t in texts.values() for n in names_in(t)})
     new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, hosts_in, True)]
     new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, vouching_names, False)]
     if new:
@@ -149,8 +145,33 @@ def new_call(n, question, options, proposed_by, framed_by, kind, reasons, commit
             "status": "open", "choice": None, "dissent": [], "words": None}
 
 
+PROVIDERS = {"claude": "claude", "anthropic": "claude", "gpt": "gpt", "openai": "gpt",
+             "gemini": "gemini", "google": "gemini", "deepseek": "deepseek"}
+TRANSPORT_PREFIXES = {"openrouter"}
+MODEL_FAMILY = re.compile(r"^(?:(claude)-|(gpt)-|(gemini)-|(deepseek)-)")
+
+
 def family(model):
-    return str(model).split("/", 1)[0].lower()
+    """The canonical family of a model id in family/model, provider/model or bare-model form
+    (anthropic/claude-opus-5 and claude/opus are both claude). Unknown or contradictory ids are refused."""
+    parts = [x for x in str(model).lower().split("/") if x]
+    if not parts:
+        raise ValueError(f"no model id in {model!r}")
+    named = set()
+    for x in parts[:-1]:
+        if x in TRANSPORT_PREFIXES:
+            continue
+        if x not in PROVIDERS:
+            raise ValueError(f"unknown provider {x!r} in {model!r}")
+        named.add(PROVIDERS[x])
+    m = MODEL_FAMILY.match(parts[-1])
+    if m:
+        named.add(next(g for g in m.groups() if g))
+    elif len(parts) == 1 and parts[0] in PROVIDERS:
+        named.add(PROVIDERS[parts[0]])
+    if len(named) != 1:
+        raise ValueError(f"can't tell one family from {model!r}" + (f" ({sorted(named)})" if named else ""))
+    return named.pop()
 
 
 def council(call, votes, builder):
