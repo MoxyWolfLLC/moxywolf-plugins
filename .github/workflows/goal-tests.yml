@@ -1,0 +1,77 @@
+# GO-003.5 / GO-003.7: the goal tests from main's copy of goals/<id>/, run against the pull
+# request's merge candidate. pull_request_target runs this file from the base branch and the job
+# checks out main by SHA, so a pull request can't change the tests or the runner. The candidate's
+# code runs only inside goal_checks.py's container: no network, no environment, no capabilities,
+# read-only mounts. The verdict is a check run named goal-tests on the head, posted with this
+# workflow's own token after the container has exited.
+name: goal-tests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, 'goal/**']
+
+permissions: {}
+
+concurrency:
+  group: goal-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - name: Resolve main and the merge candidate
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          gh api "repos/$REPO/pulls/$PR" > "$RUNNER_TEMP/pr.json"
+          jq -r '"head=\(.head.sha)\nbase=\(.base.sha)"' "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.r.outputs.main }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: main
+
+      - name: Is this a goal pull request?
+        id: k
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py classify --pr "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the candidate into its own tree
+        if: steps.k.outputs.kind != 'none'
+        working-directory: main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ steps.r.outputs.head }}
+          BASE: ${{ steps.r.outputs.base }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" fetch --no-tags origin "+refs/pull/$PR/merge:refs/candidate" "+refs/pull/$PR/head:refs/prhead"
+          test "$(git rev-parse refs/prhead)" = "$HEAD" || { echo "the head moved; a fresh run follows"; exit 1; }
+          parents=$(git rev-list --parents -n 1 refs/candidate | cut -d' ' -f2-)
+          test "$parents" = "$BASE $HEAD" || { echo "the merge candidate is stale ($parents); rerun when GitHub has rebuilt it"; exit 1; }
+          git worktree add --detach ../candidate refs/candidate
+          docker pull --quiet python:3.11-slim
+
+      - name: Run the goal tests in the sandbox
+        run: >
+          python3 main/plugins/gstack-execution/scripts/goal_checks.py tests
+          --pr "$RUNNER_TEMP/pr.json" --repo main --main "${{ steps.r.outputs.main }}"
+          --candidate-dir candidate --out verdict.json
+
+      - name: Publish goal-tests on the head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py publish --name goal-tests --verdict verdict.json --repo "${{ github.repository }}"

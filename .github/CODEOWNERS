@@ -19,6 +19,7 @@
 /plugins/gstack-execution/scripts/goal_envelope.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_spend.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_run.py @dorianatmoxywolf
+/plugins/gstack-execution/scripts/goal_checks.py @dorianatmoxywolf
 # GO-001: a goal's brief, plan, tests and run record change only with his approval.
 /goals/ @dorianatmoxywolf
 /goal-runs/ @dorianatmoxywolf

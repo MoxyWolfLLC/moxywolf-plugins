@@ -89,9 +89,10 @@ def plan_items(text):
     return items
 
 
-def granted_secrets(granted):
-    """Permission names that reach secrets. The runner refuses a token that holds any of them."""
-    return sorted(k for k in granted if "secret" in k.lower())
+def granted_beyond(granted):
+    """Permissions a goal run's token must not hold: anything reaching secrets (GO-003.3) and the
+    workflows permission (GO-003.5), so no workflow of the agent's runs before a merge-time check."""
+    return sorted(k for k in granted if "secret" in k.lower() or k == "workflows")
 
 
 def tree_on(repo, ref, goal_id):
@@ -111,8 +112,9 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     if family in record["drafted_by"] or family == record["read_by"]:
         raise Refused(f"the builder's family {family} drafted or read the goal tests "
                       f"(drafted by {sorted(record['drafted_by'])}, read by {record['read_by']})")
-    if granted_secrets(granted):
-        raise Refused(f"the token holds {granted_secrets(granted)}; a goal run's token never reaches secrets")
+    if granted_beyond(granted):
+        raise Refused(f"the token holds {granted_beyond(granted)}; a goal run's token holds contents and "
+                      f"pull_requests only")
     if tree_on(repo, base, goal_id) != record["tree"]:
         raise Refused(f"goals/{goal_id}/ on {base} isn't the tree Dorian approved; fetch main")
     main_sha = ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip()
@@ -267,12 +269,12 @@ def main(argv, repo=gb.ROOT):
     try:
         if cmd == "start" and goal_id and {"--pr", "--builder"} <= set(opts) <= {"--pr", "--builder", "--repo"}:
             token = os.environ.get("GITHUB_TOKEN")
-            if not token:
-                raise Refused("start needs GITHUB_TOKEN: run it under agent_token.py exec --")
+            if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":
+                raise Refused("start needs a goal-run token: run it under agent_token.py exec --goal-run --")
             name = opts.get("--repo", REPO)
             get = gb.github(token)
             perms = subprocess.run([sys.executable, str(Path(__file__).with_name("agent_token.py")), "permissions",
-                                    "--repo", name], capture_output=True, text=True)
+                                    "--goal-run", "--repo", name], capture_output=True, text=True)
             if perms.returncode:
                 raise Refused(f"can't read the token's permissions: {perms.stderr.strip()[-300:]}")
             granted = dict(re.findall(r"^\s{2}(\w+)\s+(\w+)\s*$", perms.stdout, re.M))

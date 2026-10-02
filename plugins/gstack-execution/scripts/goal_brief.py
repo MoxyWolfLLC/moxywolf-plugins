@@ -18,6 +18,7 @@ goals/README.md.
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -127,10 +128,8 @@ TEST_REF = re.compile(r"tests/[\w.-]+\.py::\w+\.\w+")
 
 _LIST = """import importlib.util, json, re, sys, unittest
 sys.dont_write_bytecode = True
-if sys.argv[1]:
-    sys.path.insert(0, sys.argv[1])   # main's checkout, as baseline imports it
 out = {}
-for path in sys.argv[2:]:
+for path in sys.argv[1:]:
     name = path.rsplit("/", 1)[-1]
     try:
         spec = importlib.util.spec_from_file_location("goal_" + name[:-3], path)
@@ -152,12 +151,13 @@ print(json.dumps(out))
 """
 
 
-def test_inventory(goal_dir, errors, repo_root=None):
+def test_inventory(goal_dir, errors):
     """Every test unittest itself would run under tests/ (inheritance included), as
     {'tests/<file>.py::<Class>.<method>': scenario or ''}. Each file is loaded in an isolated
-    interpreter whose only import path beyond the stdlib is repo_root (main's checkout, the same code
-    baseline runs against), so a file that won't load against main is refused here as baseline would.
-    Goal tests live directly in tests/; a nested file is refused so check, baseline and verify see one set."""
+    interpreter with nothing but the stdlib on its path: a goal test drives the candidate as a
+    separate program through GOAL_CANDIDATE and never imports it, so a file that needs the
+    repository to load is refused. Goal tests live directly in tests/; a nested file is refused so
+    check, baseline and verify see one set."""
     inv, tests = {}, Path(goal_dir, "tests").resolve()
     if not tests.is_dir():
         return inv
@@ -169,7 +169,7 @@ def test_inventory(goal_dir, errors, repo_root=None):
         return inv
     env = {"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"}
     try:
-        r = subprocess.run([sys.executable, "-I", "-c", _LIST, str(repo_root or ""), *files], cwd=tests, env=env,
+        r = subprocess.run([sys.executable, "-I", "-c", _LIST, *files], cwd=tests, env=env,
                            capture_output=True, text=True, timeout=120)
         found = json.loads(r.stdout.strip().splitlines()[-1])
     except (subprocess.TimeoutExpired, ValueError, IndexError) as e:
@@ -177,7 +177,8 @@ def test_inventory(goal_dir, errors, repo_root=None):
         return inv
     for k, v in sorted(found.items()):
         if k.startswith("error:"):
-            errors.append(f"tests/{k[6:]} does not load against main ({v})")
+            errors.append(f"tests/{k[6:]} does not load on its own ({v}); a goal test runs the candidate "
+                          f"through GOAL_CANDIDATE and never imports it")
         else:
             inv[k] = v
     return inv
@@ -191,7 +192,7 @@ def drafter(goal_dir):
         fams.add(m.group(1).lower() if m else None)
     return fams
 
-def check(goal_dir, design_text, codeowners_text, repo_root=None):
+def check(goal_dir, design_text, codeowners_text):
     goal_dir = Path(goal_dir)
     errors, examined = [], 0
     for f in FILES:
@@ -230,7 +231,7 @@ def check(goal_dir, design_text, codeowners_text, repo_root=None):
         listed = goal_tests(brief["Goal tests"], errors)                  # F3: malformed lines are errors
         if not listed:
             errors.append("Goal tests lists no test IDs")
-        inv = test_inventory(goal_dir, errors, repo_root)
+        inv = test_inventory(goal_dir, errors)
         scen = set(bullet_lines("Scenarios", brief.get("Scenarios", ""), []))
         for tid, _ in listed:                                             # GO-002.1 and .4
             if tid not in inv:
@@ -302,34 +303,73 @@ def check(goal_dir, design_text, codeowners_text, repo_root=None):
     return errors, examined
 
 
+_HARNESS = """import sys
+def _harness(nonce, out, path, name, root):
+    import os, importlib.util, unittest
+    top = os.path.realpath(root)
+    root = top + os.sep
+    hits, busy = [], []
+    def guard(event, args):
+        if busy or not args or event not in ("open", "ctypes.dlopen") or not isinstance(args[0], (str, bytes)):
+            return
+        busy.append(1)
+        try:
+            p = os.path.realpath(os.fsdecode(args[0]))
+        finally:
+            busy.pop()
+        if p == top or p.startswith(root):   # any file, archive or the folder itself: no suffix list to slip past
+            hits.append(p)
+            raise PermissionError("a goal test runs the candidate as a program and reads nothing in its checkout: " + p)
+    sys.addaudithook(guard)
+    try:
+        s = importlib.util.spec_from_file_location("goal_test", path); m = importlib.util.module_from_spec(s)
+        sys.modules["goal_test"] = m; s.loader.exec_module(m)
+        c, f = name.split(".", 1); getattr(getattr(m, c), f)
+        suite = unittest.defaultTestLoader.loadTestsFromName(name, m)
+    except Exception as e:
+        print("not_run:", e); sys.exit(3)
+    if suite.countTestCases() != 1:
+        print("not_run: found", suite.countTestCases()); sys.exit(3)
+    r = unittest.TextTestRunner(verbosity=0).run(suite)
+    if hits:
+        print("not_run: the test loaded candidate code into its own interpreter:", hits[0]); sys.exit(3)
+    if r.testsRun - len(r.skipped) != 1:
+        print("not_run: ran", r.testsRun - len(r.skipped)); sys.exit(3)
+    out.write("\\ngoal-test-result %s %s\\n" % (nonce, "passed" if r.wasSuccessful() else "failed")); out.flush()
+_h = _harness
+del _harness
+_h(sys.stdin.readline().strip(), sys.__stdout__, sys.argv[1], sys.argv[2], sys.argv[3])
+"""
+
+
 def run_test(repo_root, goal_dir, test_id, timeout=300):
-    """Run one goal unittest against the code in repo_root: 'passed', 'failed', or 'not_run' when the
-    named test couldn't be loaded or didn't run exactly once (missing file or name, import of the test
-    file itself failing, timeout). A not_run test examined nothing."""
+    """Run one goal unittest against the candidate in repo_root: 'passed', 'failed', or 'not_run' when
+    the named test couldn't be loaded or didn't run exactly once (missing file or name, a file that
+    won't load on its own, a timeout), or when the test loaded candidate code into its own interpreter.
+    A not_run test examined nothing.
+
+    The candidate never runs in the test's interpreter (GO-002.1, Dorian's decision of 2026-10-02):
+    the test runs isolated (-I), from an empty folder, with GOAL_CANDIDATE naming the candidate's
+    checkout and an audit hook that refuses to open anything in that checkout (code, archives, data,
+    the folder itself), so the only way to reach the candidate is to run it as a separate program and
+    judge what it prints or writes outside its checkout. The verdict is the harness's line carrying a nonce
+    read from stdin before the test loads; the exit code decides nothing, and a candidate process,
+    which never sees the nonce, can't write a line that counts."""
     path, _, name = test_id.partition("::")
     test_file = Path(goal_dir, path).resolve()          # F1: the goal folder isn't in the main checkout
-    code = ("import importlib.util,sys,unittest\nsys.dont_write_bytecode=True\n"
-            "try:\n"
-            "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); sys.modules['goal_test']=m; s.loader.exec_module(m)\n"
-            "    c, f = sys.argv[2].split('.', 1); getattr(getattr(m, c), f)\n"
-            "    suite=unittest.defaultTestLoader.loadTestsFromName(sys.argv[2], m)\n"
-            "except Exception as e:\n"
-            "    print('not_run:', e); sys.exit(3)\n"
-            "if suite.countTestCases() != 1:\n"
-            "    print('not_run: found', suite.countTestCases()); sys.exit(3)\n"
-            "r=unittest.TextTestRunner(verbosity=0).run(suite)\n"
-            "if r.testsRun - len(r.skipped) != 1:\n"            # setUpClass failure or a skip ran nothing
-            "    print('not_run: ran', r.testsRun - len(r.skipped)); sys.exit(3)\n"
-            "sys.exit(0 if r.wasSuccessful() else 1)\n")
     if not test_file.is_file():
         return "not_run"
-    env = dict(os.environ, PYTHONPATH=str(repo_root), PYTHONDONTWRITEBYTECODE="1")
-    try:
-        r = subprocess.run([sys.executable, "-c", code, str(test_file), name], cwd=repo_root,
-                           env=env, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return "not_run"
-    return {0: "passed", 1: "failed"}.get(r.returncode, "not_run")
+    nonce, root = secrets.token_hex(16), str(Path(repo_root).resolve())
+    with tempfile.TemporaryDirectory(prefix="goal-test-") as cwd:
+        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1"}
+        try:
+            r = subprocess.run([sys.executable, "-I", "-B", "-c", _HARNESS, str(test_file), name, root], cwd=cwd,
+                               input=nonce + "\n", env=env, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return "not_run"
+    mine = [ln.split()[2] for ln in r.stdout.splitlines()
+            if ln.startswith("goal-test-result ") and len(ln.split()) == 3 and ln.split()[1] == nonce]
+    return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
 
 def baseline(goal_dir, repo_root):
     """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass."""
@@ -456,11 +496,7 @@ def main(argv):
     if argv[:1] == ["--selftest"]:
         return selftest()
     if argv[:1] == ["check"] and len(argv) == 2:
-        wt = main_checkout()
-        try:
-            errors, examined = check(argv[1], from_main("DESIGN.md"), from_main(".github/CODEOWNERS"), wt)
-        finally:
-            subprocess.run(["git", "-C", str(ROOT), "worktree", "remove", "--force", wt], capture_output=True)
+        errors, examined = check(argv[1], from_main("DESIGN.md"), from_main(".github/CODEOWNERS"))
         print(f"examined {examined} sections and files in {argv[1]}")
         if examined == 0:
             errors.append("examined nothing")

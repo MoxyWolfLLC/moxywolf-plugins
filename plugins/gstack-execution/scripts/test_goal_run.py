@@ -35,16 +35,23 @@ TESTS = '''# drafted-by: gpt/gpt-6
 import unittest
 
 
+def candidate(expr):
+    """Run the candidate as its own program and return what it prints for expr. Goal tests never
+    import the candidate: its code runs in a separate process, so it can't reach this one."""
+    import os, subprocess, sys
+    r = subprocess.run([sys.executable, "-c", "import goalmod; print(repr(%s))" % expr],
+                       cwd=os.environ["GOAL_CANDIDATE"], capture_output=True, text=True, timeout=60)
+    return r.stdout.strip()
+
+
 class G(unittest.TestCase):
     def test_done(self):
         """Scenario: x"""
-        import goalmod
-        self.assertTrue(goalmod.done)
+        self.assertEqual(candidate("goalmod.done"), "True")
 
     def test_safe(self):
         """Scenario: y"""
-        import goalmod
-        self.assertTrue(goalmod.safe)
+        self.assertEqual(candidate("goalmod.safe"), "True")
 '''
 
 
@@ -224,9 +231,21 @@ class Runner(unittest.TestCase):
             self.start(builder="gemini/gemini-3")
         self.assertEqual(self.branches, [])
 
-    def test_a_token_that_reaches_secrets_is_refused(self):
-        with self.assertRaisesRegex(gr.Refused, "secrets"):
-            self.start(granted={"contents": "write", "secrets": "read"})
+    def test_a_token_that_reaches_secrets_or_workflows_is_refused(self):
+        for extra in ({"secrets": "read"}, {"workflows": "write"}):
+            with self.subTest(extra=extra):
+                with self.assertRaisesRegex(gr.Refused, "contents and pull_requests only"):
+                    self.start(granted=dict({"contents": "write"}, **extra))
+        self.assertEqual(self.branches, [])
+
+    def test_cli_start_needs_a_goal_run_token(self):  # GO-003.5
+        saved = {k: os.environ.pop(k, None) for k in ("GITHUB_TOKEN", "GSTACK_GOAL_RUN_TOKEN")}
+        os.environ["GITHUB_TOKEN"] = "x"
+        try:
+            self.assertEqual(gr.main(["start", "g1", "--pr", "7", "--builder", "claude/x"], self.repo), 1)
+        finally:
+            for k, v in saved.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
         self.assertEqual(self.branches, [])
 
     def test_an_unverified_goal_is_refused(self):

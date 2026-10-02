@@ -1,0 +1,76 @@
+# GO-003.5 / GO-004.1: every changed file in a goal's pull request is inside the brief's Allowed
+# paths and outside CODEOWNERS. pull_request_target runs this file from the base branch, and the job
+# checks out main by SHA, so a pull request can't change the check that judges it. It never runs the
+# candidate's code. The verdict is a check run named goal-envelope on the pull request's head,
+# posted with this workflow's own token, so its source is GitHub Actions.
+name: goal-envelope
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main, 'goal/**']
+
+permissions: {}
+
+concurrency:
+  group: goal-envelope-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - name: Resolve main and the merge candidate
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          gh api "repos/$REPO/pulls/$PR" > "$RUNNER_TEMP/pr.json"
+          jq -r '"head=\(.head.sha)\nbase=\(.base.sha)"' "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.r.outputs.main }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: main
+
+      - name: Is this a goal pull request?
+        id: k
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py classify --pr "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the candidate (never run here)
+        if: steps.k.outputs.kind != 'none'
+        id: c
+        working-directory: main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ steps.r.outputs.head }}
+          BASE: ${{ steps.r.outputs.base }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" fetch --no-tags origin "+refs/pull/$PR/merge:refs/candidate" "+refs/pull/$PR/head:refs/prhead"
+          test "$(git rev-parse refs/prhead)" = "$HEAD" || { echo "the head moved; a fresh run follows"; exit 1; }
+          parents=$(git rev-list --parents -n 1 refs/candidate | cut -d' ' -f2-)
+          test "$parents" = "$BASE $HEAD" || { echo "the merge candidate is stale ($parents); rerun when GitHub has rebuilt it"; exit 1; }
+          echo "candidate=$(git rev-parse refs/candidate)" >> "$GITHUB_OUTPUT"
+
+      - name: Judge the envelope from main's copy
+        run: >
+          python3 main/plugins/gstack-execution/scripts/goal_checks.py envelope
+          --pr "$RUNNER_TEMP/pr.json" --repo main --main "${{ steps.r.outputs.main }}"
+          --candidate "${{ steps.c.outputs.candidate || 'none' }}" --out verdict.json
+
+      - name: Publish goal-envelope on the head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py publish --name goal-envelope --verdict verdict.json --repo "${{ github.repository }}"
