@@ -180,11 +180,15 @@ def check(goal_dir, design_text, codeowners_text):
     if (goal_dir / "PLAN.md").is_file():
         items, cur = [], None
         for line in (goal_dir / "PLAN.md").read_text().splitlines():
-            if re.match(r"^\d+\.\s+\S", line):
+            if not line.strip() or (not items and line.startswith("# ")):
+                continue                                   # blank lines and one leading title
+            if re.match(r"^\d+\.\s+\S", line):           # an item starts at column 0
                 cur = [line, 0]
                 items.append(cur)
-            elif cur and re.match(r"^\s+[-*]\s+\S", line):
+            elif cur and re.match(r"^\s+[-*]\s+\S", line):  # its indented acceptance criteria
                 cur[1] += 1
+            else:                                          # anything else is refused, never skipped
+                errors.append(f"PLAN.md: line is neither a '1. ' item at column 0 nor an indented '- ' criterion under one: {line.strip()}")
         if not items:
             errors.append("PLAN.md lists no numbered items")
         for head, n in items:
@@ -249,8 +253,8 @@ def verify(goal_id, pr, repo, get):
     if at_head is None:
         errors.append(f"goals/{goal_id}/ does not exist at the head")
     else:
-        if at_head == at_base:
-            errors.append(f"PR #{pr} did not add or change goals/{goal_id}/; an approval of another PR isn't this goal's")
+        if at_base is not None:   # goals are immutable: a changed goal is a new goal folder with its own approval
+            errors.append(f"goals/{goal_id}/ already existed before PR #{pr}; the approval must be of the PR that adds it")
         if at_head != at_main:
             errors.append(f"goals/{goal_id}/ on main ({(at_main or 'missing')[:7]}) differs from the approved tree ({at_head[:7]})")
     record = {"goal": goal_id, "pr": pr, "review_id": last["id"] if last else None,

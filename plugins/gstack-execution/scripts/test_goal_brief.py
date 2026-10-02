@@ -113,7 +113,16 @@ class Check(unittest.TestCase):
 
     def test_plan_items_need_acceptance_criteria(self):
         self.refused(self.make(plan="1. one\n2. two\n"), "no indented acceptance criteria")
-        self.refused(self.make(plan="nothing numbered\n"), "lists no numbered items")
+        self.refused(self.make(plan="# Plan\n\n"), "lists no numbered items")
+
+    def test_plan_lines_that_are_not_items_or_criteria_are_refused(self):  # round 2 F1
+        indented = "1. First\n   - first passes\n 2. Second\n   - second passes\n"
+        self.refused(self.make(plan=indented), "neither a '1. ' item")
+        self.refused(self.make(plan="1. First\n   - ok\nsome prose\n"), "neither a '1. ' item")
+        self.refused(self.make(plan="1) First\n   - ok\n"), "neither a '1. ' item")
+
+    def test_plan_with_a_title_and_blank_lines_passes(self):
+        self.assertEqual(self.errs(self.make(plan="# Plan\n\n" + PLAN + "\n")), [])
 
     # F2: rules, not sampled files
     def test_allowed_path_reaching_codeowners_is_refused(self):
@@ -229,8 +238,11 @@ class Verify(unittest.TestCase):
     def test_pr_not_targeting_main_is_refused(self):  # F5
         self.refused(fake([[review()]], base_ref="feature"), "not main")
 
-    def test_pr_that_did_not_add_or_change_the_goal_is_refused(self):  # F8
-        self.refused(fake([[review()]], base_tree=TREE), "did not add or change")
+    def test_pr_that_did_not_add_the_goal_is_refused(self):  # F8
+        self.refused(fake([[review()]], base_tree=TREE), "already existed before")
+
+    def test_pr_that_changed_an_existing_goal_is_refused(self):  # round 2 F8: adds, not changes
+        self.refused(fake([[review()]], base_tree="f" * 40), "already existed before")
 
     def test_unmerged_pr_is_refused(self):
         self.refused(fake([[review()]], merged=False), "not merged")
