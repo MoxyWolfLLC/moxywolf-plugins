@@ -23,6 +23,10 @@
   goal_run.py propose <id> [--repo owner/name]
         the finalize pull request merged: opens the goal pull request from goal/<id> into main, which
         the goal checks, the holdout, a fresh cross-vendor review and Dorian's approval gate
+  goal_run.py resync <id> --head <sha>
+        the goal pull request's head moved because a sync from main merged into goal/<id>
+        (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
+        keeps the run record and passes the envelope check
   goal_run.py stop <id> --reason <text>
         ends a run that hasn't ended, e.g. when goal-holdout fails (a possible reward hack, GO-003.6)
   goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
@@ -287,6 +291,28 @@ def propose(goal_id, get, post, repo_name=REPO):
     return {"final_pr": pr["number"]}
 
 
+def resync(repo, goal_id, head, base="origin/main"):
+    """Rebind the goal pull request to a head that only a sync from main moved."""
+    state = finishing(goal_id)
+    if not (state.get("final_pr") and state.get("finalized_head")):
+        raise Refused("resync applies only after propose")
+    parents = ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()
+    record_path = f"goal-runs/{goal_id}/RESULT.md"
+    if len(parents) != 3 or parents[1] != state["finalized_head"]:
+        raise Refused(f"{head[:12]} isn't a merge onto the recorded head {state['finalized_head'][:12]}")
+    if subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", parents[2], base]).returncode:
+        raise Refused(f"{head[:12]} merges {parents[2][:12]}, which isn't on main")
+    if ge.git(repo, "diff", "--name-only", state["finalized_head"], head, "--", record_path).strip():
+        raise Refused(f"{head[:12]} changes the run record")
+    errors, _ = ge.check(repo, goal_id, head, base)
+    if errors:
+        raise Refused("the envelope check refuses the new head: " + "; ".join(errors))
+    state.setdefault("resyncs", []).append({"from": state["finalized_head"], "to": head})
+    state["finalized_head"] = head
+    save(state)
+    return {"finalized_head": head}
+
+
 def stop(goal_id, reason):
     state = load(goal_id)
     if state["outcome"]:
@@ -303,7 +329,9 @@ def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
         raise Refused(f"the run already ended: {state['outcome']}")
     if not ids or not set(ids) <= set(state["passing"]):
         raise Refused("complete needs every goal test passing at the last merged head")
-    if state.get("final_pr") and pr != state["final_pr"]:
+    if not (state.get("finalize_pr") and state.get("final_pr") and state.get("finalized_head")):
+        raise Refused("complete needs the finish: finalize, then propose, then the goal pull request's merge")
+    if pr != state["final_pr"]:
         raise Refused(f"the goal pull request is #{state['final_pr']}, not #{pr}")
     p = get(f"repos/{repo_name}/pulls/{pr}")
     tested = state["results"][-1]["head"]
@@ -312,8 +340,8 @@ def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
         (p["head"]["ref"] == state["branch"], f"PR #{pr} is from {p['head']['ref']}, not {state['branch']}"),
         (p.get("merged") is True, f"PR #{pr} is not merged"),
         (p.get("merge_commit_sha") == merge_sha, f"PR #{pr} merged as {(p.get('merge_commit_sha') or 'nothing')[:12]}, not {merge_sha[:12]}"),
-        (p["head"]["sha"] == state.get("finalized_head", tested),
-         f"PR #{pr} merged head {p['head']['sha'][:12]}, not {state.get('finalized_head', tested)[:12]}, the tested head plus the run record"),
+        (p["head"]["sha"] == state["finalized_head"],
+         f"PR #{pr} merged head {p['head']['sha'][:12]}, not {state['finalized_head'][:12]}, the tested head plus the run record"),
     ] if not ok]
     if problems:
         raise Refused("; ".join(problems))
@@ -393,6 +421,9 @@ def main(argv, repo=gb.ROOT):
             post = lambda path, data: _api(token, "POST", path, data)
             out = finalize(repo, goal_id, post, name) if cmd == "finalize" else propose(goal_id, gb.github(token), post, name)
             print(json.dumps(out))
+            return 0
+        if cmd == "resync" and goal_id and set(opts) == {"--head"}:
+            print(json.dumps(resync(repo, goal_id, opts["--head"])))
             return 0
         if cmd == "stop" and goal_id and set(opts) == {"--reason"}:
             print(json.dumps(stop(goal_id, opts["--reason"])))

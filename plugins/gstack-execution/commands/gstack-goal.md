@@ -15,6 +15,7 @@ A goal is a brief Dorian approved (`goals/<id>/`, GO-001). This command runs it.
      1. `goal_run.py finalize <id>` commits the run record alone and opens its pull request into `goal/<id>`. When `goal-envelope` is green, merge it as the bot (it changes only `goal-runs/<id>/RESULT.md`).
      2. `goal_run.py propose <id>` opens the goal pull request from `goal/<id>` into `main`.
      3. Run `/gstack-peer-review` on that pull request's whole diff (a fresh cross-vendor review, coverage `checked`). `goal-envelope`, `goal-tests`, `goal-holdout` and `tests` must be green, and Dorian approves at the head; GitHub enforces all of it.
+     If `main` moves while the goal pull request is open, bring `goal/<id>` up to date only through a sync pull request from a branch at `main`'s tip (GO-004.1), then `goal_run.py resync <id> --head <the new goal/<id> head>`; the checks rerun on the new head.
      4. If `goal-holdout` fails, run `goal_run.py stop <id> --reason "goal-holdout failed: possible reward hack"` and report it to Dorian. Don't touch the holdout or the tests.
    - exit 1: the run has ended, `stopped` or `exhausted`, with its reason. Stop and report it to Dorian.
 3. **After the goal pull request merges into `main`:** `goal_run.py complete <id> --pr <its number> --merge <merge sha>`. It records `complete` only when GitHub shows that pull request from `goal/<id>` merged into `main` as that commit, at the head whose goal tests passed. Then `goal_run.py record <id>` for the run record.

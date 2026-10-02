@@ -29,6 +29,10 @@ $5
 
 ## Max review rounds per item
 2
+
+## Allowed paths
+- `goalmod.py`
+- `helper.py`
 """
 PLAN = "1. scaffold\n   - a\n2. make it done\n   - b\n3. polish\n   - c\n"
 TESTS = '''# drafted-by: gpt/gpt-6
@@ -66,7 +70,8 @@ class Runner(unittest.TestCase):
         self.git("config", "user.email", "t@t"); self.git("config", "user.name", "t")
         self.commit("goal approved", {"goals/g1/GOAL.md": BRIEF, "goals/g1/PLAN.md": PLAN,
                                       "goals/g1/tests/test_g.py": TESTS, "goals/g1/holdout.sha256": "a" * 64 + "\n",
-                                      "goalmod.py": "done = False\nsafe = True\n"})
+                                      "goalmod.py": "done = False\nsafe = True\n",
+                                      ".github/CODEOWNERS": "/.github/ @d\n/goals/ @d\n/goal-runs/ @d\n"})
         self.tree = self.git("rev-parse", "main:goals/g1")
         self.branches = []
 
@@ -89,9 +94,15 @@ class Runner(unittest.TestCase):
         return lambda g, p, n: ({"head": "h" * 40, "tree": self.tree, "review_id": 4242, "drafted_by": list(drafted),
                                  "read_by": reader}, list(errors))
 
+    def as_proposed(self, final_pr=9):
+        """The state finalize and propose leave, without the git and API calls (tested in the finish test)."""
+        st = gr.load("g1")
+        st.update(finalize_pr=8, final_pr=final_pr, finalized_head=st["results"][-1]["head"])
+        gr.save(st)
+
     def merged_pr(self, **over):
         st = gr.load("g1")
-        pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": st["results"][-1]["head"]},
+        pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": st.get("finalized_head") or st["results"][-1]["head"]},
               "merged": True, "merge_commit_sha": "f" * 40}
         for k, v in over.items():
             if isinstance(v, dict):
@@ -130,6 +141,9 @@ class Runner(unittest.TestCase):
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 2)
         self.assertEqual(self.next(), (True, self.next()[1]))
         self.assertEqual(self.next()[1]["step"], "finish")
+        with self.assertRaisesRegex(gr.Refused, "needs the finish"):          # review F1: no skipping the record
+            gr.complete("g1", 9, "f" * 40, self.merged_pr())
+        self.as_proposed()
         self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
         rec = gr.record("g1")
         self.assertIn("- Outcome: complete", rec)
@@ -267,6 +281,7 @@ class Runner(unittest.TestCase):
     def test_complete_needs_githubs_word_that_the_goal_merged(self):  # review F2
         self.start()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        self.as_proposed()
         for over, msg in [({"merged": False}, "is not merged"), ({"base": {"ref": "goal/g1"}}, "not main"),
                           ({"head": {"ref": "build/x"}}, "not goal/g1"), ({"merge_commit_sha": "e" * 40}, "not ffffffffffff"),
                           ({"head": {"sha": "d" * 40}}, "the tested head plus the run record")]:
@@ -320,6 +335,39 @@ class Runner(unittest.TestCase):
         with self.assertRaisesRegex(gr.Refused, "is #12, not #13"):
             gr.complete("g1", 13, "f" * 40, lambda path: merged_pr)
         self.assertEqual(gr.complete("g1", 12, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
+
+    def test_a_sync_after_propose_is_accepted_and_anything_else_is_not(self):  # review F2
+        self.start()
+        self.origin()
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        self.git("switch", "-q", "goal/g1")
+        final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n"})     # what the finalize merge leaves
+        self.git("switch", "-q", "main")
+        st = gr.load("g1"); st.update(finalize_pr=8, final_pr=9, finalized_head=final); gr.save(st)
+
+        moves = []
+
+        def sync(files):
+            self.git("switch", "-q", "main")
+            moves.append(1)
+            m = self.commit("main moves", {"other/m.py": "m = %d\n" % len(moves)})
+            self.git("switch", "-q", "goal/g1")
+            self.git("merge", "-q", "--no-ff", "--no-commit", m)
+            for k, v in files.items():
+                (self.repo / k).write_text(v)
+            self.git("add", "-A"); self.git("commit", "-q", "-m", "sync main")
+            head = self.git("rev-parse", "HEAD")
+            self.git("switch", "-q", "main")
+            return head
+
+        moved = sync({})
+        self.assertEqual(gr.resync(self.repo, "g1", moved, base="main"), {"finalized_head": moved})
+        merged_pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": moved}, "merged": True, "merge_commit_sha": "f" * 40}
+        with self.assertRaisesRegex(gr.Refused, "changes the run record"):
+            gr.resync(self.repo, "g1", sync({"goal-runs/g1/RESULT.md": "forged\n"}), base="main")
+        with self.assertRaisesRegex(gr.Refused, "isn't a merge onto the recorded head"):
+            gr.resync(self.repo, "g1", final, base="main")
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
 
     def test_finalize_needs_the_goal_branch_where_the_tests_passed(self):  # GO-003.7
         self.start()
