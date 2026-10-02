@@ -27,6 +27,7 @@ GATE = [
     "plugins/gstack-execution/scripts/vocab_check.py",
     "plugins/gstack-execution/scripts/goal_brief.py",
     "plugins/gstack-execution/scripts/goal_envelope.py",
+    "plugins/gstack-execution/scripts/goal_spend.py",
     "goals/README.md",
     "goal-runs/README.md",
 ]

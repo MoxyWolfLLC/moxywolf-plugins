@@ -3,9 +3,9 @@
 
   goal_envelope.py check <id> --head <sha> [--base <ref>]   GO-004.1: every file a goal-authored
                         commit changes is inside the brief's Allowed paths and outside CODEOWNERS
-  goal_envelope.py halted <id> [--base <ref>]               GO-004.3: exit 1 only when main was
-                        read and has no goals/<id>/HALT (continue); 0 when it has one, 3 when main
-                        can't be read (both stop)
+  goal_envelope.py halted <id> [--base <ref>]               GO-004.3: exit 0 only when main was
+                        read and has no goals/<id>/HALT (continue); 1 when it has one, 3 when main
+                        can't be read, and a crash's 1: every exit but 0 stops
   goal_envelope.py revert <merge sha> [--repo owner/name]   GO-004.4: the commands that open the
                         revert pull request of a goal's merge commit
 
@@ -157,7 +157,7 @@ def main(argv, repo=ROOT):
             print(f"STOP: {e}")
             return 3
         print(f"goals/{argv[1]}/HALT {'is' if stop else 'is not'} on {base}")
-        return 0 if stop else 1
+        return 1 if stop else 0
     if argv[:1] == ["revert"] and len(argv) >= 2 and set(opts) <= {"--repo"}:
         print(revert_commands(argv[1], opts.get("--repo", "MoxyWolfLLC/moxywolf-plugins")))
         return 0
