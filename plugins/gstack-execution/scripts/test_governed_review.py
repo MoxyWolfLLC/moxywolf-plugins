@@ -314,6 +314,23 @@ class GovernedReview(unittest.TestCase):
                 self.assertIn("DR-113", rec["authority"])
                 self.assertNotIn("instruction", rec)
 
+    def test_a_goal_item_released_to_its_goal_branch_records_that_merge(self):  # GO-003 review F6
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid, "--target", "goal/g1")
+        self.install_github_response(merged_by=self.BOT, base={"ref": "goal/g1", "repo": {"full_name": "example/project"}})
+        self.env["GITHUB_COMMENTS"] = "[]"
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["outcome"], "agent_merge_autonomous")
+
+    def test_a_goal_item_released_to_main_cannot_record_a_goal_branch_merge(self):  # GO-003 review F6
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)                                           # target defaults to main
+        self.install_github_response(merged_by=self.BOT, base={"ref": "goal/g1", "repo": {"full_name": "example/project"}})
+        self.env["GITHUB_COMMENTS"] = "[]"
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertNotEqual(r.returncode, 0)
+
     def test_an_autonomous_merge_before_the_handoff_is_still_refused(self):
         # GA-009: DR-113 removes the instruction, not the review or the handoff.
         self.open(); self.response(); self.round()
