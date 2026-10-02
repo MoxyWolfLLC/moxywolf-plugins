@@ -64,10 +64,9 @@ def hosts_in(text, path=""):
     return {h.lower().rstrip(".") for h in found}
 
 
-def names_in(text):
-    """Every name in added text that may be an environment variable, case kept."""
-    return (set(ENV_NAME.findall(text)) | set(BRACE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
-            | set(BARE_NAME.findall(text)))
+def maybe_names(text):
+    """Names that may be environment variables or ordinary ones ($X, ${X}, NAME=), case kept."""
+    return set(BRACE_NAME.findall(text)) | set(SHELL_NAME.findall(text)) | set(BARE_NAME.findall(text))
 
 
 def vouching_names(text, path):
@@ -83,6 +82,13 @@ def vouching_names(text, path):
 def is_manifest(path):
     name = path.rsplit("/", 1)[-1]
     return name in MANIFESTS or re.fullmatch(r"requirements[\w.-]*\.(txt|in)", name) is not None
+
+
+def added_text(repo, base, head):
+    """The lines the change adds, joined. Ambiguous name forms are read only from these, so an
+    unchanged NAME=1 beside an edit isn't a new environment variable."""
+    out = ge.git(repo, "diff", "--unified=0", "--no-color", f"{base}...{head}")
+    return "\n".join(ln[1:] for ln in out.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
 
 
 def base_has(repo, ref, needle, extract, ignore_case):
@@ -123,7 +129,7 @@ def action_type(repo, goal_id, head, base="origin/main"):
         except UnicodeDecodeError:                      # code can't read it, so code can't type it
             return "unclassified", [f"{f} is binary"]
     hosts = sorted({h for f, t in texts.items() for h in hosts_in(t, f)})
-    names = sorted({n for t in texts.values() for n in names_in(t)})
+    names = sorted({n for t in texts.values() for n in ENV_NAME.findall(t)} | maybe_names(added_text(repo, base, head)))
     new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, hosts_in, True)]
     new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, vouching_names, False)]
     if new:

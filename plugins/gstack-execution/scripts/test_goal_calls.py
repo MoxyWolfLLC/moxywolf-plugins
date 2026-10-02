@@ -97,6 +97,15 @@ class Typing(unittest.TestCase):
         kind, reasons = self.typed({"src/m.py": "import os\nk = os.environ.get(\n    'OTHER_KEY'\n)\n"})
         self.assertEqual((kind, reasons), ("external", ["new environment variable OTHER_KEY"]))  # argument-only edit
 
+    def test_an_edit_beside_unchanged_ambiguous_names_stays_in_the_envelope(self):
+        self.commit({"src/c.py": "NEW_TOKEN=1\n", "src/run.sh": "echo $SH_TOKEN ${BR_TOKEN}\n"})
+        for f, text in (("src/c.py", "NEW_TOKEN=1\nx = 2\n"), ("src/run.sh", "echo $SH_TOKEN ${BR_TOKEN}\necho hi\n")):
+            with self.subTest(f=f):
+                kind, reasons = self.typed({f: text})
+                self.assertEqual(kind, "in_envelope_code", reasons)
+        kind, reasons = self.typed({"src/c.py": "NEW_TOKEN=1\nOTHER=2\n"})   # a new one beside it still counts
+        self.assertEqual((kind, reasons), ("external", ["new environment variable OTHER"]))
+
     def test_a_binary_file_goes_to_dorian(self):
         self.git("switch", "-q", "-C", "item", "main")
         (self.repo / "src/logo.bin").write_bytes(b"\x89PNG\xff\xfe\x00host: service.fr")
