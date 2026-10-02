@@ -317,6 +317,10 @@ class Baseline(unittest.TestCase):  # GO-002.2
                 e, n = gb.baseline(self.goal, self.repo)
                 self.assertTrue(any("test_record_in_vault could not be run" in x for x in e), e)
 
+    def test_candidate_code_cant_call_the_harness_reporter(self):  # GO-003 review 2 F3
+        (self.repo / "goalmod.py").write_text("import __main__, os\n__main__.report('passed')\nos._exit(0)\n")
+        self.assertNotEqual(gb.run_test(self.repo, self.goal, "tests/test_survives.py::Survives.test_record_in_vault"), "passed")
+
     def test_a_skipped_test_did_not_run(self):  # round 2 F2
         t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
         (self.goal / "tests" / "test_survives.py").write_text(t)
