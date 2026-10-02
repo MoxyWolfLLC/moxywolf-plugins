@@ -92,6 +92,26 @@ class Envelope(unittest.TestCase):
         e, _ = self.check()
         self.assertTrue(any("lib/sneak.py, outside Allowed paths" in x for x in e), e)
 
+    def test_a_merge_that_discards_a_main_change_is_seen(self):  # review F1
+        self.commit("item", {"src/b": "b\n"})
+        self.git("switch", "-q", "main")
+        self.commit("owner change on main", {".github/CODEOWNERS": CO + "/ops/ @dorianatmoxywolf\n"})
+        self.git("switch", "-q", "goal/g1")
+        self.git("merge", "-q", "--no-edit", "-s", "ours", "main")       # keeps the old CODEOWNERS
+        e, _ = self.check()
+        self.assertTrue(any(".github/CODEOWNERS, a CODEOWNERS path" in x for x in e), e)
+
+    def test_a_changed_path_is_literal_never_a_pattern(self):  # review F2
+        for name in ("docs/*.md", "docs/?otes.md", "docs/[n]otes.md"):
+            with self.subTest(name=name):
+                self.git("switch", "-q", "-C", "goal/g1", "main")
+                self.commit("item", {name: "x\n"})
+                e, _ = self.check()
+                self.assertTrue(any(f"{name}, outside Allowed paths" in x for x in e), e)
+        self.git("switch", "-q", "-C", "goal/g1", "main")
+        self.commit("item", {"src/[x]*.py": "x\n"})                      # literal, under src/**
+        self.assertEqual(self.check()[0], [])
+
     def test_the_run_record_is_allowed_only_alone(self):
         self.commit("item", {"src/b": "b\n"})
         self.commit("finalize", {"goal-runs/g1/RESULT.md": "complete\n"})
@@ -119,12 +139,25 @@ class Envelope(unittest.TestCase):
         self.commit("halt", {"goals/g1/HALT": "stop\n"})
         self.assertTrue(ge.halted(self.repo, "g1", "main"))
 
-    def test_revert_is_a_pull_request_never_a_reset(self):
+    def test_revert_is_a_pull_request_never_a_reset(self):  # review F3
+        import json, shlex
         cmd = ge.revert_commands("a" * 40)
         self.assertIn("git revert -m 1 --no-edit " + "a" * 40, cmd)
-        self.assertNotIn("reset --", cmd)
+        self.assertNotIn("reset", cmd)
+        self.assertNotIn("#", cmd)
+        words = shlex.split(cmd)
+        self.assertIn("revert/aaaaaaaaaaaa", words)
+        self.assertEqual(words[words.index("POST") + 1], "/repos/MoxyWolfLLC/moxywolf-plugins/pulls")
+        pr = json.loads(words[words.index("--data") + 1])
+        self.assertEqual((pr["head"], pr["base"]), ("revert/aaaaaaaaaaaa", "main"))
         with self.assertRaises(SystemExit):
             ge.revert_commands("abc123")
+
+    def test_an_unreadable_main_is_a_stop_not_a_continue(self):  # review F4
+        self.assertEqual(ge.main(["halted", "g1", "--base", "main"], self.repo), 1)
+        self.assertEqual(ge.main(["halted", "g1", "--base", "origin/main"], self.repo), 3)   # never fetched
+        with self.assertRaises(SystemExit):
+            ge.check(self.repo, "g1", self.git("rev-parse", "HEAD"), base="no-such-ref")
 
     def test_cli_passes_a_sync_and_fails_a_breach(self):
         self.assertEqual(ge.main(["check", "g1", "--head", self.git("rev-parse", "main"), "--base", "main"], self.repo), 0)

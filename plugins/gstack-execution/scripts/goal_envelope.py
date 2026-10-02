@@ -3,24 +3,30 @@
 
   goal_envelope.py check <id> --head <sha> [--base <ref>]   GO-004.1: every file a goal-authored
                         commit changes is inside the brief's Allowed paths and outside CODEOWNERS
-  goal_envelope.py halted <id> [--base <ref>]               GO-004.3: exit 0 when goals/<id>/HALT
-                        is on main (stop), 1 when it isn't
-  goal_envelope.py revert <merge sha>                       GO-004.4: the commands that open the
+  goal_envelope.py halted <id> [--base <ref>]               GO-004.3: exit 1 only when main was
+                        read and has no goals/<id>/HALT (continue); 0 when it has one, 3 when main
+                        can't be read (both stop)
+  goal_envelope.py revert <merge sha> [--repo owner/name]   GO-004.4: the commands that open the
                         revert pull request of a goal's merge commit
 
 The brief and CODEOWNERS are read from main (default origin/main), never from the branch under
 check. A goal-authored commit is one on the head that isn't on main, so commits a sync brings in
-from main aren't the goal's changes. Merge commits are read as a dense combined diff, so a change
-hidden in a merge resolution is still seen. The one CODEOWNERS file a goal may write is its run
-record, goal-runs/<id>/RESULT.md, and only in a commit that changes nothing else (GO-003.7).
+from main aren't the goal's changes. A merge commit's changes are those that differ from every
+parent (a resolution) plus any change a parent brought that the merge didn't keep (a discarded
+main change), so neither hides in a merge. Allowed paths are globs; a changed path is always
+literal. The one CODEOWNERS file a goal may write is its run record, goal-runs/<id>/RESULT.md,
+and only in a commit that changes nothing else (GO-003.7).
 """
+import json
 import re
+import shlex
 import subprocess
 import sys
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from goal_brief import ROOT, bullet_lines, globs_overlap, sections  # noqa: E402
+from goal_brief import ROOT, bullet_lines, sections  # noqa: E402
 sys.path.insert(0, str(ROOT / ".github"))
 from test_codeowners import owners, rules  # noqa: E402
 
@@ -35,16 +41,50 @@ def git(repo, *args):
 
 
 def at(repo, ref, path):
-    r = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:{path}"], capture_output=True, text=True)
-    return r.stdout if r.returncode == 0 else None
+    """The file's text at ref, or None when ref has no such path. A ref that can't be read is an
+    error, never an absence: a stop control that can't be read must not read as 'no stop'."""
+    commit = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                            capture_output=True, text=True).stdout.strip()
+    if not commit:
+        raise SystemExit(f"cannot read {ref}; fetch main first")
+    if not git(repo, "ls-tree", "--name-only", commit, "--", path).strip():
+        return None
+    return git(repo, "show", f"{commit}:{path}")
+
+
+def path_in(glob, path):
+    """Does the literal path match the glob? Only the glob's segments are patterns; '**' spans
+    any number of segments."""
+    def go(g, p):
+        if not g:
+            return not p
+        if g[0] == "**":
+            return go(g[1:], p) or (bool(p) and go(g, p[1:]))
+        return bool(p) and fnmatchcase(p[0], g[0]) and go(g[1:], p[1:])
+    return go(glob.strip("/").split("/"), path.split("/"))
+
+
+def merge_files(repo, sha, parents):
+    """Files a merge commit changes on its own: a resolution that differs from every parent, and a
+    change one parent brought since the merge base that the merge didn't keep."""
+    files = set(git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "--cc", sha).split("\n"))
+    mb = git(repo, "merge-base", "--octopus", *parents).strip()
+    for p in parents:
+        brought = set(git(repo, "diff", "--name-only", mb, p).split("\n"))
+        files |= brought & set(git(repo, "diff", "--name-only", p, sha).split("\n"))
+    return sorted(f for f in files if f)
 
 
 def goal_commits(repo, base, head):
     """[(sha, [files])] for each commit on head that isn't on base, merges as dense combined diffs."""
     out = []
-    for sha in git(repo, "rev-list", "--reverse", f"{base}..{head}").split():
-        files = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "--cc", sha).split("\n")
-        out.append((sha, [f for f in files if f]))
+    for line in git(repo, "rev-list", "--reverse", "--parents", f"{base}..{head}").splitlines():
+        sha, *parents = line.split()
+        if len(parents) > 1:
+            out.append((sha, merge_files(repo, sha, parents)))
+        else:
+            files = git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", sha).split("\n")
+            out.append((sha, [f for f in files if f]))
     return out
 
 
@@ -70,7 +110,7 @@ def check(repo, goal_id, head, base="origin/main"):
         for f in files:
             if owners(rs, f):
                 errors.append(f"{sha[:12]} changes {f}, a CODEOWNERS path")
-            elif not any(globs_overlap(g, f) for g in allowed):
+            elif not any(path_in(g, f) for g in allowed):
                 errors.append(f"{sha[:12]} changes {f}, outside Allowed paths")
     return errors, len(commits)
 
@@ -79,12 +119,19 @@ def halted(repo, goal_id, base="origin/main"):
     return at(repo, base, f"goals/{goal_id}/HALT") is not None
 
 
-def revert_commands(merge_sha):
+def revert_commands(merge_sha, repo_name="MoxyWolfLLC/moxywolf-plugins"):
+    """One shell line, run from the repository root, that opens the revert pull request into main
+    as the agent. Never a reset of main."""
     if not re.fullmatch(r"[0-9a-f]{40}", merge_sha):
         raise SystemExit("revert needs the goal's full 40-character merge commit SHA")
-    b = f"revert/{merge_sha[:12]}"
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", repo_name):
+        raise SystemExit(f"--repo must be owner/name, got: {repo_name}")
+    b, tok = f"revert/{merge_sha[:12]}", "python3 plugins/gstack-execution/scripts/agent_token.py"
+    pr = json.dumps({"title": f"Revert goal merge {merge_sha[:12]}", "head": b, "base": "main",
+                     "body": f"Reverts goal merge commit {merge_sha} through the gated path (GO-004.4)."})
     return (f"git fetch origin main && git switch -c {b} origin/main && git revert -m 1 --no-edit {merge_sha}"
-            f" && git push origin {b}   # then open the pull request {b} -> main; never reset main")
+            f" && {tok} exec --repo {repo_name} -- git push origin {b}"
+            f" && {tok} api POST /repos/{repo_name}/pulls --repo {repo_name} --data {shlex.quote(pr)}")
 
 
 def main(argv, repo=ROOT):
@@ -104,11 +151,15 @@ def main(argv, repo=ROOT):
             print("FAIL:", e)
         return 1 if errors else 0
     if argv[:1] == ["halted"] and len(argv) >= 2 and not opts:
-        stop = halted(repo, argv[1], base)
+        try:
+            stop = halted(repo, argv[1], base)
+        except SystemExit as e:
+            print(f"STOP: {e}")
+            return 3
         print(f"goals/{argv[1]}/HALT {'is' if stop else 'is not'} on {base}")
         return 0 if stop else 1
-    if argv[:1] == ["revert"] and len(argv) == 2:
-        print(revert_commands(argv[1]))
+    if argv[:1] == ["revert"] and len(argv) >= 2 and set(opts) <= {"--repo"}:
+        print(revert_commands(argv[1], opts.get("--repo", "MoxyWolfLLC/moxywolf-plugins")))
         return 0
     print(__doc__)
     return 2
