@@ -15,7 +15,8 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(HERE))
 import goal_checks as gc  # noqa: E402
 
-CO = "/.github/ @dorianatmoxywolf\n/goals/ @dorianatmoxywolf\n/goal-runs/ @dorianatmoxywolf\n"
+CO = ("/.github/ @dorianatmoxywolf\n/goals/ @dorianatmoxywolf\n/goal-runs/ @dorianatmoxywolf\n"
+      "/plugins/gstack-execution/scripts/goal_envelope.py @dorianatmoxywolf\n")
 BRIEF = "## Allowed paths\n- `src/**`\n\n## Goal tests\n- `tests/test_g.py::G.test_done` (outcome)\n- `tests/test_g.py::G.test_safe` (invariant)\n"
 
 
@@ -75,7 +76,7 @@ class Decisions(unittest.TestCase):
         self.assertNotIn("--env-file", cmd)
 
     def test_publish_posts_on_the_head_or_nothing_when_it_moved(self):
-        v = {"pr": 5, "head": "a" * 40, "base": "b" * 40, "conclusion": "success", "title": "t", "summary": "s"}
+        v = {"pr": 5, "head": "a" * 40, "base": "b" * 40, "base_ref": "goal/g1", "conclusion": "success", "title": "t", "summary": "s"}
         calls = []
 
         def call(m, p, d=None, live=pr()):
@@ -84,7 +85,7 @@ class Decisions(unittest.TestCase):
         self.assertIn("published goal-tests: success", gc.publish("goal-tests", v, "o/r", call))
         self.assertEqual(calls[-1][0:2], ("POST", "repos/o/r/check-runs"))
         self.assertEqual((calls[-1][2]["name"], calls[-1][2]["head_sha"]), ("goal-tests", "a" * 40))
-        for moved in (pr(head_sha="c" * 40), pr(base_sha="d" * 40)):
+        for moved in (pr(head_sha="c" * 40), pr(base_sha="d" * 40), pr(base="main")):   # a retarget at the same SHA too
             calls.clear()
             self.assertIn("published nothing", gc.publish("goal-tests", v, "o/r", lambda m, p, d=None, live=moved: calls.append(m) or live))
             self.assertEqual(calls, ["GET"])
@@ -122,11 +123,37 @@ class Envelope(unittest.TestCase):
         self.assertEqual(v["conclusion"], "failure")
         self.assertIn(".github/workflows/x.yml, a CODEOWNERS path", v["summary"])
 
+    def test_a_candidate_that_replaces_the_enforcement_still_fails_mains_check(self):  # review F4
+        cand = self.commit({"plugins/gstack-execution/scripts/goal_envelope.py": "def check(*a, **k):\n    return [], 1\n",
+                            ".github/workflows/goal-envelope.yml": "on: pull_request_target\njobs: {}\n",
+                            "src/c.py": "c\n"})
+        out = Path(self.tmp.name, "verdict.json")
+        prf = Path(self.tmp.name, "pr.json"); prf.write_text(json.dumps(pr()))
+        r = subprocess.run([sys.executable, str(HERE / "goal_checks.py"), "envelope", "--pr", str(prf), "--repo", str(self.repo),
+                            "--main", self.main, "--candidate", cand, "--out", str(out)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        v = json.loads(out.read_text())
+        self.assertEqual(v["conclusion"], "failure")
+        self.assertIn("plugins/gstack-execution/scripts/goal_envelope.py, a CODEOWNERS path", v["summary"])
+        self.assertIn(".github/workflows/goal-envelope.yml, a CODEOWNERS path", v["summary"])
+
     def test_a_sync_whose_candidate_is_main_passes(self):
         self.assertEqual(gc.envelope(pr(), self.repo, self.main, self.main)["conclusion"], "success")
 
     def test_an_unreadable_main_fails(self):
         self.assertEqual(gc.envelope(pr(), self.repo, "f" * 40, self.main)["title"], "envelope could not be read")
+
+
+class Harness(unittest.TestCase):
+    def test_candidate_code_that_exits_zero_is_not_a_pass(self):  # review F3, outside the container too
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        goal, cand = t / "goal", t / "cand"
+        (goal / "tests").mkdir(parents=True); cand.mkdir()
+        (goal / "GOAL.md").write_text("## Goal tests\n- `tests/test_e.py::E.test_x` (invariant)\n")
+        (goal / "tests" / "test_e.py").write_text("import unittest\n\n\nclass E(unittest.TestCase):\n"
+                                                  "    def test_x(self):\n        import goalmod\n        self.fail('never')\n")
+        (cand / "goalmod.py").write_text("import os\nos._exit(0)\n")
+        self.assertEqual(gc.sandbox_run("g", goal, cand), {"tests/test_e.py::E.test_x": {"kind": "invariant", "result": "not_run"}})
 
 
 class Workflows(unittest.TestCase):
@@ -135,6 +162,8 @@ class Workflows(unittest.TestCase):
             with self.subTest(name=name):
                 text = (ROOT / ".github" / "workflows" / f"{name}.yml").read_text()
                 self.assertIn("pull_request_target:", text)
+                self.assertIn("types: [opened, synchronize, reopened, edited]", text)      # a retarget is an edit
+                self.assertNotIn("github.event.pull_request.base", text)                 # the PR is read at job start
                 self.assertIn("\npermissions: {}\n", text)
                 self.assertIn("ref: ${{ steps.r.outputs.main }}", text)
                 self.assertIn("persist-credentials: false", text)

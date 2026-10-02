@@ -7,7 +7,7 @@ name: goal-envelope
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
     branches: [main, 'goal/**']
 
 permissions: {}
@@ -30,7 +30,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          gh api "repos/$REPO/pulls/$PR" > "$RUNNER_TEMP/pr.json"
+          jq -r '"head=\(.head.sha)\nbase=\(.base.sha)"' "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         with:
@@ -41,7 +45,7 @@ jobs:
 
       - name: Is this a goal pull request?
         id: k
-        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py classify --event "$GITHUB_EVENT_PATH" >> "$GITHUB_OUTPUT"
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py classify --pr "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
 
       - name: Fetch the candidate (never run here)
         if: steps.k.outputs.kind != 'none'
@@ -50,8 +54,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ steps.r.outputs.head }}
+          BASE: ${{ steps.r.outputs.base }}
         run: |
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.extraheader="$auth" fetch --no-tags origin "+refs/pull/$PR/merge:refs/candidate" "+refs/pull/$PR/head:refs/prhead"
@@ -63,7 +67,7 @@ jobs:
       - name: Judge the envelope from main's copy
         run: >
           python3 main/plugins/gstack-execution/scripts/goal_checks.py envelope
-          --event "$GITHUB_EVENT_PATH" --repo main --main "${{ steps.r.outputs.main }}"
+          --pr "$RUNNER_TEMP/pr.json" --repo main --main "${{ steps.r.outputs.main }}"
           --candidate "${{ steps.c.outputs.candidate || 'none' }}" --out verdict.json
 
       - name: Publish goal-envelope on the head

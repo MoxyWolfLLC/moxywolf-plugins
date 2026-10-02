@@ -307,6 +307,16 @@ class Baseline(unittest.TestCase):  # GO-002.2
         self.assertEqual(n, 0)
         self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
 
+    def test_candidate_code_that_exits_zero_early_did_not_run(self):  # GO-003 review F3
+        for where in ("import", "test"):
+            with self.subTest(where=where):
+                (self.repo / "goalmod.py").write_text(
+                    "import os\nos._exit(0)\n" if where == "import" else          # exits while being imported
+                    "import os, sys\nclass M:\n    @property\n    def done(self):\n        os._exit(0)\n"
+                    "    session_only = False\nsys.modules[__name__] = M()\n")      # exits inside the test
+                e, n = gb.baseline(self.goal, self.repo)
+                self.assertTrue(any("test_record_in_vault could not be run" in x for x in e), e)
+
     def test_a_skipped_test_did_not_run(self):  # round 2 F2
         t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
         (self.goal / "tests" / "test_survives.py").write_text(t)

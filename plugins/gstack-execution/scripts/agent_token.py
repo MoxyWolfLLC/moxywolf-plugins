@@ -171,20 +171,26 @@ def token_env(token, base=None):
     return env
 
 
+def in_goal_run(asked):
+    """A goal run stays restricted all the way down: a command run under --goal-run that calls this
+    script again gets the restricted token whether or not it asks."""
+    return asked or os.environ.get("GSTACK_GOAL_RUN_TOKEN") == "1"
+
+
 def cmd_exec(cmd, repo=None, goal_run=False):
     if not cmd:
         sys.exit("usage: agent_token.py exec [--repo owner/name] [--goal-run] -- <command...>")
+    goal_run = in_goal_run(goal_run)
     env = token_env(mint(repo or repo_from_origin(), GOAL_RUN_PERMISSIONS if goal_run else None))
-    env.pop("GSTACK_GOAL_RUN_TOKEN", None)
     if goal_run:
         env["GSTACK_GOAL_RUN_TOKEN"] = "1"
     return subprocess.run(cmd, env=env).returncode
 
 
-def cmd_api(method, path, data, repo=None):
+def cmd_api(method, path, data, repo=None, goal_run=False):
     if data == "-":
         data = sys.stdin.read()
-    token = mint(repo or repo_from_path(path))
+    token = mint(repo or repo_from_path(path), GOAL_RUN_PERMISSIONS if in_goal_run(goal_run) else None)
     status, body = request(method.upper(), path, "token " + token, None if data is None else json.loads(data))
     print(json.dumps(body, indent=2))
     if status is None or status >= 300:
@@ -272,7 +278,7 @@ def main(argv):
         return cmd_permissions(repo, goal_run)
     if argv[:1] == ["api"] and len(argv) >= 3:
         data = argv[argv.index("--data") + 1] if "--data" in argv else None
-        return cmd_api(argv[1], argv[2], data, repo)
+        return cmd_api(argv[1], argv[2], data, repo, goal_run)
     print(__doc__)
     return 2
 

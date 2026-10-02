@@ -2,14 +2,16 @@
 """GO-003.5: what the goal checks decide. `.github/workflows/goal-envelope.yml` and `goal-tests.yml`
 run this from main's copy, never the pull request's, on `pull_request_target`.
 
-  goal_checks.py classify --event <event.json>          prints kind=item|goal|none for $GITHUB_OUTPUT
-  goal_checks.py envelope --event <event.json> --repo <main checkout> --main <sha> --candidate <sha> --out <verdict.json>
-  goal_checks.py tests --event <event.json> --repo <main checkout> --main <sha> --candidate-dir <dir> --out <verdict.json>
+  goal_checks.py classify --pr <pr.json>                prints kind=item|goal|none for $GITHUB_OUTPUT
+  goal_checks.py envelope --pr <event.json> --repo <main checkout> --main <sha> --candidate <sha> --out <verdict.json>
+  goal_checks.py tests --pr <pr.json> --repo <main checkout> --main <sha> --candidate-dir <dir> --out <verdict.json>
   goal_checks.py publish --name <check> --verdict <verdict.json> --repo owner/name     needs GITHUB_TOKEN
   goal_checks.py sandbox-run <id> --goal <dir> --candidate <dir>      inside the sandbox only
 
 A pull request into goal/<id> is an item (or a sync); one from goal/<id> into main is the goal pull
-request; anything else isn't a goal pull request and passes, so `main`'s ruleset can require these
+request; anything else isn't a goal pull request and passes. The pull request is read from the API when
+the job starts (a retarget is an `edited` event that starts a fresh run), and a verdict is bound to
+its head, base SHA and base branch, so `main`'s ruleset can require these
 checks of every pull request. The goal tests run in a container with no network, no environment,
 no capabilities and the candidate mounted read-only: candidate code never sees a token. Into
 goal/<id>, the invariants must pass (the runner tracks outcomes); into main, every goal test must
@@ -41,7 +43,7 @@ def classify(pr):
 
 
 def verdict(pr, conclusion, title, summary):
-    return {"pr": pr["number"], "head": pr["head"]["sha"], "base": pr["base"]["sha"],
+    return {"pr": pr["number"], "head": pr["head"]["sha"], "base": pr["base"]["sha"], "base_ref": pr["base"]["ref"],
             "conclusion": conclusion, "title": title, "summary": summary}
 
 
@@ -114,8 +116,9 @@ def api(token, method, path, data=None):
 def publish(name, v, repo_name, call):
     """Post the verdict on the head it was reached for, or nothing if the PR moved."""
     pr = call("GET", f"repos/{repo_name}/pulls/{v['pr']}")
-    if pr["head"]["sha"] != v["head"] or pr["base"]["sha"] != v["base"]:
-        return f"PR #{v['pr']} moved (head {pr['head']['sha'][:12]}, base {pr['base']['sha'][:12]}); published nothing"
+    if (pr["head"]["sha"], pr["base"]["sha"], pr["base"]["ref"]) != (v["head"], v["base"], v["base_ref"]):
+        return (f"PR #{v['pr']} moved (head {pr['head']['sha'][:12]}, base {pr['base']['ref']} at "
+                f"{pr['base']['sha'][:12]}); published nothing")
     call("POST", f"repos/{repo_name}/check-runs",
          {"name": name, "head_sha": v["head"], "status": "completed", "conclusion": v["conclusion"],
           "output": {"title": v["title"][:255], "summary": v["summary"][:60000]}})
@@ -129,11 +132,11 @@ def main(argv):
         print(json.dumps(sandbox_run(argv[1], o["--goal"], o["--candidate"])))
         return 0
     o = dict(zip(argv[1::2], argv[2::2]))
-    if cmd == "classify" and set(o) == {"--event"}:
-        print("kind=" + classify(json.loads(Path(o["--event"]).read_text())["pull_request"])[0])
+    if cmd == "classify" and set(o) == {"--pr"}:
+        print("kind=" + classify(json.loads(Path(o["--pr"]).read_text()))[0])
         return 0
-    if cmd in ("envelope", "tests") and "--event" in o:
-        pr = json.loads(Path(o["--event"]).read_text())["pull_request"]
+    if cmd in ("envelope", "tests") and "--pr" in o:
+        pr = json.loads(Path(o["--pr"]).read_text())   # the pull request as the job found it, not the event
         v = (envelope(pr, o["--repo"], o["--main"], o["--candidate"]) if cmd == "envelope"
              else tests(pr, o["--repo"], o["--main"], o["--candidate-dir"]))
         Path(o["--out"]).write_text(json.dumps(v))

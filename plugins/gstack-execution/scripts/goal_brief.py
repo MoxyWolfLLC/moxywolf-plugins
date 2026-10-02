@@ -18,6 +18,7 @@ goals/README.md.
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -305,10 +306,19 @@ def check(goal_dir, design_text, codeowners_text, repo_root=None):
 def run_test(repo_root, goal_dir, test_id, timeout=300):
     """Run one goal unittest against the code in repo_root: 'passed', 'failed', or 'not_run' when the
     named test couldn't be loaded or didn't run exactly once (missing file or name, import of the test
-    file itself failing, timeout). A not_run test examined nothing."""
+    file itself failing, timeout). A not_run test examined nothing.
+
+    The verdict is the harness's own last line, carrying a nonce the child reads from stdin before
+    any test or candidate code loads; the exit code decides nothing, so candidate code that exits 0
+    early is not_run (GO-003 review F3). ponytail: in-process code can still dig the nonce out of
+    the harness's frames; the holdout and the cross-vendor review are the backstop past this bar."""
     path, _, name = test_id.partition("::")
     test_file = Path(goal_dir, path).resolve()          # F1: the goal folder isn't in the main checkout
+    nonce = secrets.token_hex(16)
     code = ("import importlib.util,sys,unittest\nsys.dont_write_bytecode=True\n"
+            "def report(_n=sys.stdin.readline().strip(), _out=sys.__stdout__):\n"
+            "    return lambda verdict: (_out.write('\\ngoal-test-result %s %s\\n' % (_n, verdict)), _out.flush())\n"
+            "report = report()\n"
             "try:\n"
             "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); sys.modules['goal_test']=m; s.loader.exec_module(m)\n"
             "    c, f = sys.argv[2].split('.', 1); getattr(getattr(m, c), f)\n"
@@ -320,16 +330,19 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
             "r=unittest.TextTestRunner(verbosity=0).run(suite)\n"
             "if r.testsRun - len(r.skipped) != 1:\n"            # setUpClass failure or a skip ran nothing
             "    print('not_run: ran', r.testsRun - len(r.skipped)); sys.exit(3)\n"
-            "sys.exit(0 if r.wasSuccessful() else 1)\n")
+            "report('passed' if r.wasSuccessful() else 'failed')\n")
     if not test_file.is_file():
         return "not_run"
     env = dict(os.environ, PYTHONPATH=str(repo_root), PYTHONDONTWRITEBYTECODE="1")
     try:
-        r = subprocess.run([sys.executable, "-c", code, str(test_file), name], cwd=repo_root,
+        r = subprocess.run([sys.executable, "-c", code, str(test_file), name], cwd=repo_root, input=nonce + "\n",
                            env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return "not_run"
-    return {0: "passed", 1: "failed"}.get(r.returncode, "not_run")
+    last = [ln.split() for ln in r.stdout.splitlines() if ln.startswith("goal-test-result ")]
+    if not last or len(last[-1]) != 3 or last[-1][1] != nonce or last[-1][2] not in ("passed", "failed"):
+        return "not_run"
+    return last[-1][2]
 
 def baseline(goal_dir, repo_root):
     """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass."""

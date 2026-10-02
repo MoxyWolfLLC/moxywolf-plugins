@@ -120,6 +120,18 @@ class AgentToken(unittest.TestCase):
         self.assertEqual(Stub.body, None)
         self.assertIsNone(json.loads(probe.read_text()))
 
+    def test_api_and_nested_calls_in_a_goal_run_are_restricted(self):  # GO-003 review F1
+        restricted = {"permissions": {"contents": "write", "pull_requests": "write"}}
+        self.run_script("api", "--goal-run", "GET", "repos/owner/known/pulls", "--repo", "owner/known")
+        self.assertEqual(Stub.body, restricted)
+        inner = [sys.executable, str(SCRIPT), "exec", "--", sys.executable, "-c", "pass"]
+        r = self.run_script("exec", "--goal-run", "--", *inner)              # nested, without asking
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(Stub.body, restricted)
+        api = [sys.executable, str(SCRIPT), "api", "GET", "repos/owner/known/pulls"]
+        r = self.run_script("exec", "--goal-run", "--", *api)
+        self.assertEqual(Stub.body, restricted)
+
     def test_a_goal_run_token_granted_more_than_asked_is_not_used(self):  # GO-003.5
         Stub.granted = {"contents": "write", "pull_requests": "write", "metadata": "read", "workflows": "write"}
         try:
