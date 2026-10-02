@@ -31,42 +31,52 @@ TLDS = ("com|net|org|io|ai|dev|app|co|cloud|sh|so|xyz|me|tv|us|uk|de|eu|ca|au|go
         "run|page|link|ly|gg|fm|to|internal|local|lan|corp|intranet|home|svc|cluster|localdomain|test|example")
 BARE_HOST = re.compile(r"(?<![\w.-])((?:[a-z0-9-]+\.)+(?:%s))(?![\w-])" % TLDS, re.I)
 LABELS = r"(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]{1,62}"     # dotted name ending in a letter label, any suffix
-# A quoted string that is wholly a dotted name, and the value of a host-like config key, are hostnames
-# whatever the suffix. ponytail: "README.md" in quotes counts too; that sends it to Dorian, the safe side.
+# In code, a quoted string that is wholly a dotted name and the value of a host-like key are hostnames
+# whatever the suffix; in a config file every dotted name is. ponytail: "README.md" counts too, which
+# sends it to Dorian, the safe side.
 QUOTED_HOST = re.compile(r"""["'`](%s)(?::\d+)?["'`]""" % LABELS, re.I)
 CONFIG_HOST = re.compile(r"""[\w-]*(?:host|server|domain|endpoint|url|uri|addr|address|origin|proxy|registry|dsn)[\w-]*"""
                          r"""["']?\s*[:=]\s*["']?(%s)""" % LABELS, re.I)
+ANY_HOST = re.compile(r"(?<![\w.-])(%s)(?![\w-])" % LABELS, re.I)
+CONFIG_EXT = (".yml", ".yaml", ".json", ".toml", ".ini", ".cfg", ".conf", ".properties", ".xml", ".tf", ".tfvars",
+              ".hcl", ".plist", ".env")
 IP_HOST = re.compile(r"(?<![\d.])((?:\d{1,3}\.){3}\d{1,3})(?![\d.])")
-# Prefixed forms name a variable in any case: os.environ['X'], getenv('x'), process.env.X, ENV['X'],
-# ${{ secrets.X }}, ${X}, export X.
+# Forms that set or read the process environment, in any case: os.environ['X'], getenv('x'),
+# process.env.X, ENV['X'], ${{ secrets.X }}, export X. Only these vouch for a name from the base.
 ENV_NAME = re.compile(r"""(?:environ(?:\.get)?\s*[\[(]\s*["']|getenv\s*\(\s*["']|process\.env\.|process\.env\[\s*["']|"""
-                      r"""ENV\[\s*["']|\$\{\{\s*(?:secrets|env|vars)\.|\$\{|\bexport\s+)([A-Za-z_][A-Za-z0-9_]*)""")
-# The bare form is a .env or shell assignment: NAME=value at line start, no space before '='.
-# ponytail: a Python line written KEY=x also matches; harmless on the added side (more waits on Dorian).
+                      r"""ENV\[\s*["']|\$\{\{\s*(?:secrets|env|vars)\.|\bexport\s+)([A-Za-z_][A-Za-z0-9_]*)""")
+# Forms that may be an environment variable or an ordinary one: ${X}, $X, NAME=value at line start.
+# They count in added lines (the safe side); NAME= vouches from the base only in a .env file.
+BRACE_NAME = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)")
+SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 BARE_NAME = re.compile(r"^\s*([A-Z_][A-Z0-9_]*)=(?!=)", re.M)
-SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")   # $NAME, no braces
 
 
-def hosts_in(text):
-    """Every hostname or IP literal in text, lower-cased (hostnames aren't case-sensitive)."""
-    return {h.lower().rstrip(".") for h in URL_HOST.findall(text) + BARE_HOST.findall(text) + QUOTED_HOST.findall(text)
-                                                   + CONFIG_HOST.findall(text) + IP_HOST.findall(text)}
-
-
-def env_file(path):
-    """Files where NAME=value and $NAME are environment variables, not ordinary code."""
+def is_config(path):
     name = path.rsplit("/", 1)[-1]
-    return (name.startswith(".env") or name.endswith(".env") or name in ("Dockerfile", "Makefile", ".envrc")
-            or name.endswith((".sh", ".bash", ".zsh", ".ksh")))
+    return name.startswith(".env") or name.endswith(CONFIG_EXT)
 
 
-def names_in(text, path=None):
-    """Every environment variable name in text, case kept (names are case-sensitive). The bare NAME=
-    and $NAME forms count everywhere in added lines (the safe side) but vouch from the base only in
-    .env and shell files, so a Python assignment can't make a new name look old."""
+def hosts_in(text, path=""):
+    """Every hostname or IP literal in text, lower-cased (hostnames aren't case-sensitive)."""
+    found = (URL_HOST.findall(text) + BARE_HOST.findall(text) + QUOTED_HOST.findall(text)
+             + CONFIG_HOST.findall(text) + IP_HOST.findall(text) + (ANY_HOST.findall(text) if is_config(path) else []))
+    return {h.lower().rstrip(".") for h in found}
+
+
+def names_in(text):
+    """Every name in added text that may be an environment variable, case kept."""
+    return (set(ENV_NAME.findall(text)) | set(BRACE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
+            | set(BARE_NAME.findall(text)))
+
+
+def vouching_names(text, path):
+    """Names the base text proves are environment variables: the env forms anywhere, NAME= in .env
+    files. A Python, shell or Makefile assignment, or a $X read, proves nothing."""
+    name = path.rsplit("/", 1)[-1]
     found = set(ENV_NAME.findall(text))
-    if path is None or env_file(path):
-        found |= set(BARE_NAME.findall(text)) | set(SHELL_NAME.findall(text))
+    if name.startswith(".env") or name.endswith(".env"):
+        found |= set(BARE_NAME.findall(text))
     return found
 
 
@@ -76,8 +86,14 @@ def is_manifest(path):
 
 
 def added_lines(repo, base, head):
-    out = ge.git(repo, "diff", "--unified=0", "--no-color", f"{base}...{head}")
-    return [ln[1:] for ln in out.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+    """(path, line) for every line the change adds."""
+    out, path = [], ""
+    for ln in ge.git(repo, "diff", "--unified=0", "--no-color", "--no-prefix", f"{base}...{head}").splitlines():
+        if ln.startswith("+++ "):
+            path = ln[4:]
+        elif ln.startswith("+"):
+            out.append((path, ln[1:]))
+    return out
 
 
 def base_has(repo, ref, needle, extract, ignore_case):
@@ -110,10 +126,10 @@ def action_type(repo, goal_id, head, base="origin/main"):
     if deps:
         return "dependency", [f"changes {f}" for f in deps]
     lines = added_lines(repo, base, head)
-    hosts = sorted({h for ln in lines for h in hosts_in(ln)})
-    names = sorted({n for ln in lines for n in names_in(ln)})
-    new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, lambda ln, _p: hosts_in(ln), True)]
-    new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, names_in, False)]
+    hosts = sorted({h for f, ln in lines for h in hosts_in(ln, f)})
+    names = sorted({n for _, ln in lines for n in names_in(ln)})
+    new = [f"new hostname {h}" for h in hosts if not base_has(repo, base, h, hosts_in, True)]
+    new += [f"new environment variable {n}" for n in names if not base_has(repo, base, n, vouching_names, False)]
     if new:
         return "external", new
     outside = [f for f in files if ge.owners(rs, f) or not any(ge.path_in(g, f) for g in allowed)]
