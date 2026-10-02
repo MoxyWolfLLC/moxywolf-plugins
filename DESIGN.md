@@ -1444,7 +1444,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-002 — Goal tests are written by someone other than the builder, and the holdout stays out of the builder's reach
 
-**Status:** building. Criteria 3, 5 and 6 were re-homed on 2026-10-01: the holdout job's sandbox, the mid-run stop and the builder-family refusal are run-time behaviour of the runner and the `goal-holdout` workflow, so they're built and tested in GO-003 (criteria 3, 5 and 9 there), not claimed here.
+**Status:** done. Merged to `main` in `3141db2` (PR #101, head `8457636`) on 1 October 2026 by `moxywolf-agent[bot]` after Dorian's approving review at the head, recorded by `record-release` as `agent_merge_autonomous` (authority DR-113). Review `20261001-193056-c8710c6-jw8onu03` (codex) ended `rounds_exhausted` on one finding, the inventory refusing module-scope repository imports; it was fixed as the reviewer proposed and, on Dorian's approval, a fresh review `20261001-200338-6fd82a0-iq8pcghi` found one more (module fixtures skipped by baseline) and ended `fixes_verified` in 2 rounds. Criteria 3, 5 and 6 were re-homed on 2026-10-01: the holdout job's sandbox, the mid-run stop and the builder-family refusal are run-time behaviour of the runner and the `goal-holdout` workflow, so they're built and tested in GO-003 (criteria 3, 5 and 9 there), not claimed here.
 
 **Links introduced:** the test-to-intent link. A reader assumes a passing goal test means the brief's scenario happened. That holds only as far as the test encodes the scenario, which is why each test names its scenario and a different model translates it back to plain English for Dorian.
 
@@ -1473,7 +1473,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-004 — The envelope and the spend cap are enforced outside the agent
 
-**Status:** planned.
+**Status:** building. Criteria 1, 3 and 4 are built in `plugins/gstack-execution/scripts/goal_envelope.py` with their tests from criterion 5. Criterion 2, the per-goal provider keys and Max calls, is next; it needs a provider key that can mint capped keys.
 
 1. `goal_envelope.py` runs as a required check on every pull request into a `goal/` branch and on the goal pull request into `main`. It fails when any changed file is outside the brief's Allowed paths or matches a `CODEOWNERS` path, and names each file. It reads the brief from `main`, never from the branch, and examines only the files changed by commits on the head that aren't on `main`, so commits that arrive from `main` aren't the goal's changes. Keeping `goal/<id>` up to date is a pull request into it from a branch at `main`'s tip, which carries no goal-authored commits and so passes; a conflict in that merge stops the run. A sync pull request merges under DR-113's authority once the envelope check finds no goal-authored commits and `goal-tests` is green, without a new cross-vendor review, because every commit it carries was already reviewed into `main`. A sync pull request with any goal-authored commit is an item pull request and follows GO-005.4.
 2. Every metered model call in a goal run goes through a provider key made for that goal, with the provider's own credit limit set to that provider's entry in Provider budgets. The budgets sum to no more than the Spend cap (GO-001.2), so the providers together refuse spend past it, and a provider with no budget gets no key. A transport with no metered key (a subscription CLI) is counted by the runner against Max calls and stops there. The run record shows both, and the runner stops at 80% of either and escalates (GO-006).
@@ -1562,6 +1562,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-01: GO-002 marked done (PR #101). GO-004 moved to building ahead of GO-003, because GO-003's goal-branch ruleset requires the envelope check GO-004.1 defines; the order of build changes, not the criteria.
 
 - 2026-10-01: GO-001 marked done. GO-002's run-time criteria (the holdout job's sandbox, the mid-run stop, the builder-family refusal) moved to GO-003 where that code lives; GO-002 now states what `check`, `baseline` and `verify` enforce. Rides with GO-002's change.
 - 2026-10-01: Eleventh objective, goal mode (GO-001 to GO-006), and boundary test B-e declared on Dorian's approval of the council-reviewed proposal ("Yes, as proposed"; council record `d_20261001_001`). The goal-delegation constraint added. GA-009 marked done in the same change, per the one-approval-per-change rule. First real goal chosen: cloud session reviews survive the session. On approval Dorian asked how the project charter relates to goals; the per-goal file is a goal brief (`GOAL.md`), each goal names the objective it serves, and a goal only narrows the charter (his “yes, fold it in”). Design review log: `Taskade/Team Plugins/06 – Engineering/DESIGN-REVIEW-LOG-2026-10-01.md`.
