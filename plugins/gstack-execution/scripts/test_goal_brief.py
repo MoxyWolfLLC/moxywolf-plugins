@@ -1,4 +1,5 @@
-"""GO-001 criterion 6: goal_brief.py check and verify refuse what the item says they refuse."""
+"""GO-001 criterion 6, plus the round-1 review findings F1 to F8: goal_brief.py refuses what it says."""
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -8,122 +9,184 @@ sys.path.insert(0, str(Path(__file__).parent))
 import goal_brief as gb  # noqa: E402
 
 DESIGN = "## Goal\nx\n## Items and acceptance criteria\n## Eleventh objective: goal mode\ny\n## Boundary tests\n## Amendments log\n"
-CO = "/.github/ @d\n/plugins/gstack-execution/scripts/peer_review.py @d\n/goals/ @d\n/goal-runs/ @d\n"
-TRACKED = ["plugins/gstack-execution/scripts/peer_review.py", "plugins/foo/a.py", ".github/CODEOWNERS"]
+CO = ("/.github/ @d\n**/hooks/ @d\n/plugins/gstack-execution/scripts/peer_review.py @d\n"
+      "/goals/ @d\n/goal-runs/ @d\n")
+PLAN = "1. Write the thing\n   - it exists\n2. Test the thing\n   - the test fails without it\n"
+GOOD = {
+    "Serves": "Eleventh objective: goal mode",
+    "Outcome": "A review made in a cloud session can be read after the session ends.",
+    "Non-goals": "- publishing reviews",
+    "Scenarios": "- Given a cloud session that ran a review, then its record is in the vault after the session ends\n- A review record that exists only in the session must never happen",
+    "Goal tests": "- `tests/test_survives.py::test_record_in_vault` (outcome)\n- `tests/test_survives.py::test_no_session_only_record` (invariant)",
+    "Allowed paths": "- plugins/project-init/skills/session-end/*.md\n- plugins/project-init/scripts/*.py",
+    "Spend cap": "$5",
+    "Provider budgets": "- openrouter: $3\n- gemini: $2",
+    "Max calls": "40",
+    "Max items": "3",
+    "Max review rounds per item": "3",
+    "Stop conditions": "- any goal test regresses",
+    "Pre-mortem": "- the test checks the path exists, not that the record is readable",
+}
 
 
 def brief(**over):
-    body = {s: "1" for s in gb.SECTIONS}
-    body.update({"Serves": "Eleventh objective: goal mode", "Allowed paths": "- plugins/foo/**",
-                 "Provider budgets": "- openrouter: 3\n- gemini: 2", "Spend cap": "$5",
-                 "Max items": "3", "Max review rounds per item": "3", "Max calls": "40"})
-    body.update(over)
+    body = dict(GOOD, **over)
     return "".join(f"## {k}\n{v}\n\n" for k, v in body.items() if v is not None)
 
 
 class Check(unittest.TestCase):
-    def make(self, goal=None, plan="1. one\n2. two\n", files=("holdout.sha256",), tests=True):
-        g = Path(self.tmp.name, "g")
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.n = 0
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def make(self, goal=None, plan=PLAN, holdout="a" * 64, tests=True):
+        self.n += 1
+        g = Path(self.tmp.name, f"g{self.n}")
         g.mkdir()
         if goal is not False:
             (g / "GOAL.md").write_text(goal or brief())
         if plan is not None:
             (g / "PLAN.md").write_text(plan)
-        for f in files:
-            (g / f).write_text("0" * 64)
+        if holdout is not None:
+            (g / "holdout.sha256").write_text(holdout + "\n")
         if tests:
             (g / "tests").mkdir()
-            (g / "tests" / "test_goal.py").write_text("")
+            (g / "tests" / "test_survives.py").write_text("")
         return g
 
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+    def errs(self, g, design=DESIGN, co=CO):
+        return gb.check(g, design, co)[0]
 
-    def tearDown(self):
-        self.tmp.cleanup()
-
-    def run_check(self, g):
-        return gb.check(g, DESIGN, CO, TRACKED)
+    def refused(self, g, fragment, **kw):
+        e = self.errs(g, **kw)
+        self.assertTrue(any(fragment in x for x in e), e)
 
     def test_valid_folder_passes_and_reports_coverage(self):
-        errs, n = self.run_check(self.make())
-        self.assertEqual(errs, [])
+        e, n = gb.check(self.make(), DESIGN, CO)
+        self.assertEqual(e, [])
         self.assertEqual(n, len(gb.FILES) + 1 + len(gb.SECTIONS))
+
+    def test_examining_nothing_reports_zero(self):
+        g = Path(self.tmp.name, "empty"); g.mkdir()
+        self.assertEqual(gb.check(g, DESIGN, CO)[1], 0)
 
     def test_each_missing_section_is_named(self):
         for s in gb.SECTIONS:
             with self.subTest(section=s):
-                self.tmp.cleanup(); self.tmp = tempfile.TemporaryDirectory()
-                errs, _ = self.run_check(self.make(brief(**{s: None})))
-                self.assertIn(f"missing or empty section: {s}", errs)
+                self.assertIn(f"missing or empty section: {s}", self.errs(self.make(brief(**{s: None}))))
 
     def test_each_missing_file_is_named(self):
-        for missing in ("GOAL.md", "PLAN.md", "holdout.sha256", "tests/"):
-            with self.subTest(missing=missing):
-                self.tmp.cleanup(); self.tmp = tempfile.TemporaryDirectory()
-                g = self.make(goal=False if missing == "GOAL.md" else None,
-                              plan=None if missing == "PLAN.md" else "1. one\n",
-                              files=() if missing == "holdout.sha256" else ("holdout.sha256",),
-                              tests=missing != "tests/")
-                errs, _ = self.run_check(g)
-                self.assertTrue(any(missing.rstrip("/") in e for e in errs), errs)
-
-    def test_examining_nothing_reports_zero(self):
-        g = Path(self.tmp.name, "empty"); g.mkdir()
-        _, n = self.run_check(g)
-        self.assertEqual(n, 0)
+        cases = {"GOAL.md": dict(goal=False), "PLAN.md": dict(plan=None),
+                 "holdout.sha256": dict(holdout=None), "tests/": dict(tests=False)}
+        for name, kw in cases.items():
+            with self.subTest(missing=name):
+                self.refused(self.make(**kw), name.rstrip("/"))
 
     def test_serves_naming_no_objective_is_refused(self):
-        errs, _ = self.run_check(self.make(brief(Serves="Twelfth objective: nothing")))
-        self.assertTrue(any("Serves names no objective" in e for e in errs), errs)
+        self.refused(self.make(brief(Serves="Twelfth objective: nothing")), "Serves must be")
 
     def test_serves_naming_a_non_objective_heading_is_refused(self):
-        errs, _ = self.run_check(self.make(brief(Serves="Boundary tests")))
-        self.assertTrue(any("Serves names no objective" in e for e in errs), errs)
+        self.refused(self.make(brief(Serves="Boundary tests")), "Serves must be")
 
+    def test_serves_is_checked_against_the_design_text_given(self):  # F4: main's text, not the branch's
+        self.refused(self.make(), "Serves must be", design=DESIGN.replace("Eleventh", "Tenth"))
+
+    # F1: structure, not just non-empty
+    def test_scenarios_need_given_then_and_must_never_happen(self):
+        self.refused(self.make(brief(Scenarios="- 1")), "given ... then")
+        self.refused(self.make(brief(Scenarios="- Given x, then y")), "must never happen")
+
+    def test_goal_tests_need_ids_marked_outcome_or_invariant(self):
+        self.refused(self.make(brief(**{"Goal tests": "- 1"})), "Goal tests: expected")
+        self.refused(self.make(brief(**{"Goal tests": "- test_a (sometimes)"})), "Goal tests: expected")
+
+    def test_unbulleted_lines_are_refused_not_dropped(self):
+        self.refused(self.make(brief(**{"Provider budgets": "openrouter: $500"})), "not a '- ' bullet")
+        self.refused(self.make(brief(**{"Allowed paths": ".github/**"})), "not a '- ' bullet")
+
+    def test_holdout_must_be_a_sha256(self):
+        self.refused(self.make(holdout="0" * 63), "holdout.sha256")
+        self.refused(self.make(holdout="hello"), "holdout.sha256")
+
+    def test_plan_items_need_acceptance_criteria(self):
+        self.refused(self.make(plan="1. one\n2. two\n"), "no indented acceptance criteria")
+        self.refused(self.make(plan="nothing numbered\n"), "lists no numbered items")
+
+    # F2: rules, not sampled files
     def test_allowed_path_reaching_codeowners_is_refused(self):
-        for g in ("plugins/gstack-execution/scripts/*", ".github/**", "goals/**", "**"):
+        for g in ("plugins/gstack-execution/scripts/*", ".github/**", ".github/new-gate/**",
+                  "goals/**", "goal-runs/x/*", "plugins/new-plugin/hooks/*", "plugins/foo/**", "**"):
             with self.subTest(glob=g):
-                self.tmp.cleanup(); self.tmp = tempfile.TemporaryDirectory()
-                errs, _ = self.run_check(self.make(brief(**{"Allowed paths": f"- {g}"})))
-                self.assertTrue(any("reaches a CODEOWNERS path" in e for e in errs), errs)
+                self.refused(self.make(brief(**{"Allowed paths": f"- {g}"})), "can reach CODEOWNERS path")
 
+    def test_a_file_named_hooks_is_not_a_hooks_folder(self):
+        self.assertEqual(self.errs(self.make(brief(**{"Allowed paths": "- plugins/foo/hooks.md"}))), [])
+
+    def test_empty_codeowners_is_refused(self):  # F4: no rules is not "nothing protected"
+        self.refused(self.make(), "CODEOWNERS on main has no rules", co="")
+
+    # bounds
     def test_max_items_bounds(self):
         for v in ("0", "11"):
             with self.subTest(max_items=v):
-                self.tmp.cleanup(); self.tmp = tempfile.TemporaryDirectory()
-                errs, _ = self.run_check(self.make(brief(**{"Max items": v})))
-                self.assertTrue(any(e.startswith("Max items must be") for e in errs), errs)
+                self.refused(self.make(brief(**{"Max items": v})), "Max items must be")
 
     def test_plan_longer_than_max_items_is_refused(self):
-        errs, _ = self.run_check(self.make(brief(**{"Max items": "1"})))
-        self.assertTrue(any("more than Max items" in e for e in errs), errs)
+        self.refused(self.make(brief(**{"Max items": "1"})), "more than Max items")
 
     def test_max_review_rounds_four_is_refused(self):
-        errs, _ = self.run_check(self.make(brief(**{"Max review rounds per item": "4"})))
-        self.assertTrue(any(e.startswith("Max review rounds per item must be") for e in errs), errs)
+        self.refused(self.make(brief(**{"Max review rounds per item": "4"})), "Max review rounds per item must be")
 
-    def test_budgets_past_the_cap_are_refused(self):
-        errs, _ = self.run_check(self.make(brief(**{"Provider budgets": "- openrouter: 4\n- gemini: 2"})))
-        self.assertTrue(any("more than the Spend cap" in e for e in errs), errs)
+    # F3: the whole value, exactly
+    def test_numbers_must_be_written_plainly(self):
+        self.refused(self.make(brief(**{"Max review rounds per item": "1e2"})), "Max review rounds per item must be")
+        self.refused(self.make(brief(**{"Spend cap": "5 dollars"})), "Spend cap must be")
+        self.refused(self.make(brief(**{"Max items": "3 items"})), "Max items must be")
 
-    def test_negative_budget_cannot_offset(self):
-        errs, _ = self.run_check(self.make(brief(**{"Provider budgets": "- openrouter: 9\n- gemini: -6"})))
-        self.assertTrue(any("finite positive" in e for e in errs), errs)
+    def test_budget_notation_tricks_are_refused(self):
+        for line in ("- openrouter: 1e3", "- openrouter: -$2", "- openrouter: $0", "- : $1", "- openrouter: $1.005"):
+            with self.subTest(line=line):
+                self.refused(self.make(brief(**{"Provider budgets": line})), "Provider budget must read")
+
+    def test_budgets_past_the_cap_are_refused_exactly(self):
+        self.refused(self.make(brief(**{"Provider budgets": "- openrouter: $3.01\n- gemini: $2"})), "more than the Spend cap")
+        self.assertEqual(self.errs(self.make(brief(**{"Provider budgets": "- openrouter: $2.99\n- gemini: $2.01"}))), [])
 
 
-HEAD, OLD, TREE = "a" * 40, "b" * 40, "c" * 40
+class Main(unittest.TestCase):
+    def test_check_reads_main_and_fails_closed_without_it(self):  # F4
+        with self.assertRaises(SystemExit) as c:
+            gb.from_main("DESIGN.md", ref="refs/heads/no-such-branch-xyz")
+        self.assertIn("Refusing to check against the working tree", str(c.exception))
+
+    def test_cli_check_takes_no_policy_overrides(self):  # F4
+        r = subprocess.run([sys.executable, gb.__file__, "check", "x", "--design", "y"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2)
+
+    def test_cli_verify_refuses_an_owner_override(self):  # F6
+        r = subprocess.run([sys.executable, gb.__file__, "verify", "g1", "--pr", "7", "--owner", "someone"],
+                           capture_output=True, text=True, env={"GITHUB_TOKEN": "x", "PATH": "/usr/bin:/bin"})
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("--owner", r.stdout)
 
 
-def fake(reviews, merged=True, main_tree=TREE, head_tree=TREE):
+HEAD, OLD, BASE, TREE = "a" * 40, "b" * 40, "e" * 40, "c" * 40
+
+
+def fake(pages, merged=True, base_ref="main", main_tree=TREE, head_tree=TREE, base_tree=None):
+    trees = {HEAD: head_tree, "main": main_tree, BASE: base_tree}
     def get(path):
         if path.endswith("/pulls/7"):
-            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": "main"}}
+            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": base_ref, "sha": BASE}}
         if "/reviews" in path:
-            return reviews
-        if f"ref={HEAD}" in path:
-            return [{"name": "g1", "type": "dir", "sha": head_tree}]
-        return [{"name": "g1", "type": "dir", "sha": main_tree}] if main_tree else []
+            page = int(path.rsplit("page=", 1)[1])
+            return pages[page - 1] if page <= len(pages) else []
+        ref = path.rsplit("ref=", 1)[1]
+        t = trees.get(ref)
+        return [{"name": "g1", "type": "dir", "sha": t}] if t else []
     return get
 
 
@@ -133,36 +196,44 @@ def review(login="dorianatmoxywolf", state="APPROVED", commit=HEAD, rid=1):
 
 class Verify(unittest.TestCase):
     def go(self, get):
-        return gb.verify("g1", 7, "o/r", "dorianatmoxywolf", get)
+        return gb.verify("g1", 7, "o/r", get)
+
+    def refused(self, get, fragment):
+        _, e = self.go(get)
+        self.assertTrue(any(fragment in x for x in e), e)
 
     def test_approved_at_head_with_matching_tree_passes(self):
-        rec, errs = self.go(fake([review()]))
-        self.assertEqual(errs, [])
+        rec, e = self.go(fake([[review()]]))
+        self.assertEqual(e, [])
         self.assertEqual(rec, {"goal": "g1", "pr": 7, "review_id": 1, "head": HEAD, "tree": TREE})
 
     def test_review_by_someone_else_is_refused(self):
-        _, errs = self.go(fake([review(login="someone")]))
-        self.assertTrue(any("no standing APPROVED review" in e for e in errs), errs)
+        self.refused(fake([[review(login="someone")]]), "no standing APPROVED review")
 
     def test_commented_review_is_refused(self):
-        _, errs = self.go(fake([review(state="COMMENTED")]))
-        self.assertTrue(any("no standing APPROVED review" in e for e in errs), errs)
+        self.refused(fake([[review(state="COMMENTED")]]), "no standing APPROVED review")
 
     def test_approval_at_older_commit_is_refused(self):
-        _, errs = self.go(fake([review(commit=OLD)]))
-        self.assertTrue(any("not the head" in e for e in errs), errs)
+        self.refused(fake([[review(commit=OLD)]]), "not the head")
 
     def test_later_dismissal_undoes_approval(self):
-        _, errs = self.go(fake([review(), review(state="DISMISSED", rid=2)]))
-        self.assertTrue(any("no standing APPROVED review" in e for e in errs), errs)
+        self.refused(fake([[review(), review(state="DISMISSED", rid=2)]]), "no standing APPROVED review")
+
+    def test_a_decision_on_a_later_page_counts(self):  # F7
+        page1 = [review(login=f"bot{i}", state="COMMENTED", rid=10 + i) for i in range(99)] + [review()]
+        self.refused(fake([page1, [review(state="CHANGES_REQUESTED", rid=200)]]), "no standing APPROVED review")
 
     def test_main_tree_differing_is_refused(self):
-        _, errs = self.go(fake([review()], main_tree="d" * 40))
-        self.assertTrue(any("differs from the approved tree" in e for e in errs), errs)
+        self.refused(fake([[review()]], main_tree="d" * 40), "differs from the approved tree")
+
+    def test_pr_not_targeting_main_is_refused(self):  # F5
+        self.refused(fake([[review()]], base_ref="feature"), "not main")
+
+    def test_pr_that_did_not_add_or_change_the_goal_is_refused(self):  # F8
+        self.refused(fake([[review()]], base_tree=TREE), "did not add or change")
 
     def test_unmerged_pr_is_refused(self):
-        _, errs = self.go(fake([review()], merged=False))
-        self.assertTrue(any("not merged" in e for e in errs), errs)
+        self.refused(fake([[review()]], merged=False), "not merged")
 
 
 if __name__ == "__main__":
