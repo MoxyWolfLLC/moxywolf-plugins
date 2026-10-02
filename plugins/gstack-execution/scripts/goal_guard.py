@@ -17,7 +17,16 @@ import goal_brief as gb
 import goal_envelope as ge
 import governance as gov
 
-CHECKS = {"tests.yml", "goal-envelope.yml", "goal-tests.yml", "goal-holdout.yml"}   # the repo's checks and the goal checks
+# The repository's checks and the goal checks, pinned to the content reviewed as checks and nothing
+# else. A file name proves nothing about what a workflow does; a changed check is a new workflow
+# until this pin moves with it, in a change Dorian approves (this file is a CODEOWNERS path), and
+# test_goal_guard fails CI while a pin and its workflow disagree.
+CHECKS = {
+    "tests.yml": "3d665e3dca8e37afacf7775e278eef9692f5d67896c29946b90eb73191a256b2",
+    "goal-envelope.yml": "03c4d6e7e6ee8a5aca467cbea7899b22f1a00b1cae72d36b0d65bbfe412823d5",
+    "goal-tests.yml": "27bfd7ad9b61ee9cb491ee5abee6b9b8899af7a616ea851da7c92004900460a5",
+    "goal-holdout.yml": "76ab3029baef7a5b42911dcd9eb0071992260c79fe71a328ba926a2e1192f21b",
+}
 CHECK_ENVS = {"goal-holdout"}
 # Any of these anywhere in a workflow counts as a trigger. ponytail: `git push` in a step counts
 # too, which refuses on the safe side; a real parse is the upgrade if that ever bites.
@@ -130,13 +139,14 @@ def assess(repo, ref, brief, environments):
             continue                                     # schedule or manual only
         seen[name] = hashlib.sha256(text.encode()).hexdigest()
         envs = sorted(set(ENV_USE.findall(text)) - CHECK_ENVS)
-        if name in CHECKS and not envs:
+        if CHECKS.get(name) == seen[name]:
             continue
         if main_only(text, events) and name in stops:
             continue
         problems.append(f".github/workflows/{name} runs on {', '.join(sorted(events))}"
                         + (f" with environment {', '.join(envs)}" if envs else "")
-                        + " and isn't one of the repository's checks")
+                        + (" and its content isn't the check pinned in goal_guard.CHECKS" if name in CHECKS
+                           else " and isn't one of the repository's checks"))
     for env in sorted(set(environments) - CHECK_ENVS):
         if env not in stops:
             problems.append(f"deployment environment {env} isn't named in the brief's Stop conditions")

@@ -1,4 +1,5 @@
 """GO-005 criteria 4 to 6: the goal ledger, and what a goal run's pushes, pull requests and merges set off."""
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -36,6 +37,28 @@ class Triggers(tgr.RunnerFixture):
             self.start()
         return str(e.exception)
 
+    def test_a_check_named_workflow_that_deploys_without_an_environment_isnt_a_check(self):
+        self.commit("wf", {".github/workflows/tests.yml": "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n"
+                                                          "    steps:\n      - run: python3 run_all_tests.py\n      - run: ./deploy\n"})
+        with self.assertRaises(gr.Refused) as e:
+            self.start()
+        self.assertIn("tests.yml runs on push and its content isn't the check pinned", str(e.exception))
+
+    def test_start_reads_current_main_not_a_stale_copy(self):
+        bare = Path(self.tmp.name, "remote.git")
+        subprocess.run(["git", "clone", "-q", "--bare", str(self.repo), str(bare)], check=True)
+        self.git("remote", "add", "origin", str(bare)); self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "-c", "elsewhere")
+        self.commit("deploy on main", {".github/workflows/deploy.yml": "on: push\n" + DEPLOY})
+        stale = self.git("rev-parse", "origin/main")
+        self.git("push", "-q", "origin", "elsewhere:main")
+        self.git("update-ref", "refs/remotes/origin/main", stale)       # main moved; origin/main here didn't
+        self.git("switch", "-q", "main"); self.git("branch", "-q", "-D", "elsewhere")
+        with self.assertRaisesRegex(gr.Refused, "deploy.yml"):
+            gr.start(self.repo, "g1", 7, "claude/claude-opus", self.verify(), {"contents": "write"}, self.create,
+                     base="origin/main", environments=self.envs)
+        self.assertEqual(self.branches, [])
+
     def test_a_deploy_on_a_push_to_any_branch_stops_the_start(self):
         msg = self.refused_start("on: push\n" + DEPLOY)
         self.assertIn(".github/workflows/deploy.yml runs on push with environment production", msg)
@@ -72,6 +95,16 @@ class Triggers(tgr.RunnerFixture):
         with self.assertRaises(gr.Refused):
             gr.act(self.repo, "g1", "pr.open", "goal/g1<-build/GX-1-a", lambda: ["goal-holdout", "staging"], base="main")
         self.assertEqual(gr.load("g1")["outcome"], "stopped")
+
+
+class Pins(unittest.TestCase):
+    def test_every_pinned_check_is_the_workflow_in_this_repository(self):
+        import hashlib
+        root = Path(__file__).resolve().parents[3] / ".github" / "workflows"
+        for name, pin in gguard.CHECKS.items():
+            with self.subTest(name=name):
+                self.assertEqual(hashlib.sha256((root / name).read_bytes()).hexdigest(), pin,
+                                 f"{name} changed: re-review it as a check and move its pin in goal_guard.CHECKS")
 
 
 class Ledger(tgr.RunnerFixture):

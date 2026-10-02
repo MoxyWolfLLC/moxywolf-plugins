@@ -131,6 +131,12 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     d = run_dir(goal_id)
     if (d / "state.json").is_file() and load(goal_id).get("outcome") is None:
         raise Refused(f"{goal_id} already has a run in progress")
+    if base.startswith("origin/"):                     # GO-005.5 assesses current main, so fetch it first
+        b = base.split("/", 1)[1]
+        try:
+            ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/heads/{b}:refs/remotes/{base}")
+        except SystemExit as e:
+            raise Refused(f"can't fetch {b} to check what the run would set off: {e}")
     record, errors = verify(goal_id, pr, repo_name)
     if errors:
         raise Refused("verify refused the goal: " + "; ".join(errors))
