@@ -119,7 +119,8 @@ class RunnerFixture(unittest.TestCase):
 
     def start(self, builder="claude/claude-opus", granted=None, **kw):
         return gr.start(self.repo, "g1", 7, builder, kw.get("verify") or self.verify(),
-                        granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main")
+                        granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main",
+                        environments=kw.get("environments", lambda: ["goal-holdout"]))
 
     def item(self, goalmod, msg="item"):
         self.git("switch", "-q", "goal/g1")
@@ -129,6 +130,8 @@ class RunnerFixture(unittest.TestCase):
 
     def next(self):
         return gr.next_step(self.repo, "g1", base="main")
+
+    envs = staticmethod(lambda: ["goal-holdout"])
 
 
 class Runner(RunnerFixture):
@@ -310,7 +313,7 @@ class Runner(RunnerFixture):
         tested = self.git("rev-parse", "goal/g1")
         posts = []
         post = lambda path, data: posts.append((path, data)) or {"number": 11 if len(posts) == 1 else 12}
-        out = gr.finalize(self.repo, "g1", post)
+        out = gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
         self.assertEqual(out, {"finalize_pr": 11, "branch": "goal-finalize/g1"})
         self.assertEqual((posts[0][1]["head"], posts[0][1]["base"]), ("goal-finalize/g1", "goal/g1"))
         g = lambda *a: subprocess.run(["git", "--git-dir", str(bare), *a], check=True, capture_output=True, text=True).stdout.strip()
@@ -318,20 +321,20 @@ class Runner(RunnerFixture):
         self.assertEqual(g("diff", "--name-only", tested, "goal-finalize/g1"), "goal-runs/g1/RESULT.md")
         self.assertIn("# Goal run: g1", g("show", "goal-finalize/g1:goal-runs/g1/RESULT.md"))
         with self.assertRaisesRegex(gr.Refused, "already #11"):
-            gr.finalize(self.repo, "g1", post)
+            gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
 
         final = "9" * 40
         prs = {"pulls/11": {"merged": False, "base": {"ref": "goal/g1"}}}
         compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}]}
         get = lambda path: prs.get(path.split("/", 3)[-1]) if "/pulls/" in path else compare
         with self.assertRaisesRegex(gr.Refused, "hasn't merged"):
-            gr.propose("g1", get, post)
+            gr.propose("g1", get, post, repo=self.repo, environments=self.envs, base="main")
         prs["pulls/11"] = {"merged": True, "base": {"ref": "goal/g1"}, "merge_commit_sha": final}
         compare["files"].append({"filename": "src/sneak.py"})
         with self.assertRaisesRegex(gr.Refused, "not only the run record"):
-            gr.propose("g1", get, post)
+            gr.propose("g1", get, post, repo=self.repo, environments=self.envs, base="main")
         compare["files"].pop()
-        self.assertEqual(gr.propose("g1", get, post), {"final_pr": 12})
+        self.assertEqual(gr.propose("g1", get, post, repo=self.repo, environments=self.envs, base="main"), {"final_pr": 12})
         self.assertEqual((posts[-1][1]["head"], posts[-1][1]["base"]), ("goal/g1", "main"))
         self.assertIn("Dorian's approving review", posts[-1][1]["body"])
 
@@ -378,7 +381,7 @@ class Runner(RunnerFixture):
         self.origin()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)   # not pushed: origin is behind
         with self.assertRaisesRegex(gr.Refused, "where the goal tests passed"):
-            gr.finalize(self.repo, "g1", lambda p, d: {"number": 1})
+            gr.finalize(self.repo, "g1", lambda p, d: {"number": 1}, environments=self.envs, base="main")
 
     def test_a_failed_holdout_stops_the_run(self):  # GO-003.6
         self.start()

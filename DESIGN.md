@@ -1485,7 +1485,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-005 — A judgment call is a record, and code decides who makes it
 
-**Status:** building. Criteria 1 to 3 are built in `plugins/gstack-execution/scripts/goal_calls.py` and `goal_run.py`'s `call`, `council` and `answer`, with their tests from criterion 6. Criteria 4 and 5 (the goal ledger through `governance.py`, and the deployment check before a run and before every push, pull request and merge) are next.
+**Status:** review; human merge pending. Criteria 1 to 3 are in `plugins/gstack-execution/scripts/goal_calls.py` and `goal_run.py`'s `call`, `council` and `answer` (PR #107). Criteria 4 and 5 are in `goal_guard.py` and `goal_run.py`'s `act` and `may`, with criterion 6's tests in `test_goal_guard.py`. Readings recorded: item branches are `build/*`, the names `/gstack-build` gives them; “deployment integrations the repository reports” are the environments GitHub lists and the environments its deployments name, so an app that deploys on a push without reporting an environment isn't seen; a workflow counts as triggering when any of `push`, `pull_request`, `pull_request_target`, `workflow_run` or `merge_group` appears in it, which refuses on the safe side; the repository's own checks are `tests.yml` and the three goal workflows at the content pinned in `goal_guard.CHECKS`, which moves only in a change Dorian approves, and a test fails CI while a pin and its workflow disagree; the brief's Stop conditions can name only a workflow whose top-level `on:` block is exactly `push` with `branches: [main]`, comments aside, or an environment; an item merge also needs `tests`, `goal-envelope` and `goal-tests` green at its head, read from GitHub's check runs, and the goal checks count only when their newest run names, in its `external_id`, this pull request, the goal branch and its current base; the recheck reads the workflows on `main`, because the envelope keeps `.github/` out of every goal change; an item merge reads its review record from `GSTACK_PEER_REVIEW_DIR`. On a private repository the goal-run token can't list environments, which needs Actions read, so `start` refuses there until the app and the goal-run token carry it (review F3, deferred; this repository is public).
 
 **Links introduced:** the decision-to-rule link. A reader of a decision record assumes the action type it names is what the change does. That holds as far as the code detectors in criterion 2 reach, and anything they can't place goes to Dorian.
 
@@ -1564,6 +1564,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-02: GO-005 criteria 4 to 6 built: the goal ledger, the trigger check at the start and before every push, pull request and merge, and their tests. The readings it rests on are in GO-005's status.
 
 - 2026-10-02: EV-002 criteria 3 and 6 amended on Dorian's decision. PR #108's review passed, and `release` then refused it: a deferred follow-up cited a line that an unrelated fix had moved six lines down, unchanged. `verify` now finds a finding's recorded lines wherever they sit in the same file; a change inside them is still drift.
 
