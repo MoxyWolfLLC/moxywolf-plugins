@@ -25,6 +25,9 @@ GATE = [
     "plugins/gstack-execution/scripts/run_all_tests.py",
     "plugins/gstack-execution/scripts/version_bump.py",
     "plugins/gstack-execution/scripts/vocab_check.py",
+    "plugins/gstack-execution/scripts/goal_brief.py",
+    "goals/README.md",
+    "goal-runs/README.md",
 ]
 UNOWNED = ["README.md", "DESIGN.md", "docs/evidence/gate-relaxed-2026-09-30.md"]
 
