@@ -5,8 +5,11 @@ run this from main's copy, never the pull request's, on `pull_request_target`.
   goal_checks.py classify --pr <pr.json>                prints kind=item|goal|none for $GITHUB_OUTPUT
   goal_checks.py envelope --pr <event.json> --repo <main checkout> --main <sha> --candidate <sha> --out <verdict.json>
   goal_checks.py tests --pr <pr.json> --repo <main checkout> --main <sha> --candidate-dir <dir> --out <verdict.json>
+  goal_checks.py holdout --pr <pr.json> --repo <main checkout> --main <sha> --candidate-dir <dir> --out <verdict.json>
+                        reads the holdout from GOAL_HOLDOUT (the goal-holdout environment's secret)
   goal_checks.py publish --name <check> --verdict <verdict.json> --repo owner/name     needs GITHUB_TOKEN
   goal_checks.py sandbox-run <id> --goal <dir> --candidate <dir>      inside the sandbox only
+  goal_checks.py holdout-run --candidate <dir>                       inside the sandbox only; source on stdin
 
 A pull request into goal/<id> is an item (or a sync); one from goal/<id> into main is the goal pull
 request; anything else isn't a goal pull request and passes. The pull request is read from the API when
@@ -18,6 +21,7 @@ goal/<id>, the invariants must pass (the runner tracks outcomes); into main, eve
 pass. `publish` re-reads the pull request and posts nothing if its head or base moved, because the
 push that moved it starts a fresh run; otherwise it posts the verdict as a check run on the head.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -104,6 +108,45 @@ def tests(pr, repo, main_sha, candidate_dir, run=subprocess.run):
                    f"Main {main_sha[:12]}, goals/{gid}/; {rule}.\n\n" + "\n".join(lines))
 
 
+def secret_name(gid):
+    return "GOAL_%s_HOLDOUT" % gid.upper().replace("-", "_")
+
+
+def holdout_cmd(main_dir, candidate_dir):
+    """The holdout's container: the goal-tests sandbox, with the holdout on stdin (-i) and nowhere
+    else: not in its environment, not on any disk the candidate can reach."""
+    cmd = sandbox_cmd(main_dir, candidate_dir, "x")
+    image = cmd.index(IMAGE)
+    return cmd[:2] + ["-i"] + cmd[2:image + 1] + [
+        "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "holdout-run", "--candidate", "/candidate"]
+
+
+def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
+    """GO-003.6: the holdout, checked against main's holdout.sha256, run against the merge candidate."""
+    kind, gid = classify(pr)
+    if kind != "goal":
+        return verdict(pr, "success", "not a goal pull request into main", "The holdout runs only on a goal's pull request into main.")
+    want = Path(repo, "goals", gid, "holdout.sha256")
+    if not ge.GOAL_ID.match(gid) or not want.is_file():
+        return verdict(pr, "failure", f"goals/{gid}/holdout.sha256 is not on main", "Only an approved goal has a holdout.")
+    if not source:
+        return verdict(pr, "failure", f"no {secret_name(gid)} secret in the goal-holdout environment",
+                       "Dorian stores the holdout there; without it the goal can't reach main.")
+    expected = want.read_text().strip()
+    if expected not in {hashlib.sha256(s.encode()).hexdigest() for s in (source, source + "\n", source.rstrip("\n"))}:
+        return verdict(pr, "failure", "the holdout doesn't match holdout.sha256",
+                       "The stored secret isn't the holdout Dorian approved; nothing was run.")
+    r = run(holdout_cmd(repo, candidate_dir), input=source, capture_output=True, text=True, timeout=3600)
+    try:
+        result = json.loads(r.stdout.strip().splitlines()[-1])["result"]
+    except (ValueError, IndexError, KeyError, TypeError):
+        return verdict(pr, "failure", "the holdout did not report", (r.stderr or r.stdout)[-2000:])
+    if result == "passed":
+        return verdict(pr, "success", "the holdout passed", f"Every holdout test passed against the merge candidate; main {main_sha[:12]}.")
+    return verdict(pr, "failure", f"the holdout {result}: possible reward hack",
+                   "The goal tests pass but the holdout, which the builder never saw, does not. The run stops (GO-003.6).")
+
+
 def api(token, method, path, data=None):
     req = urllib.request.Request("https://api.github.com/" + path, method=method,
                                  data=None if data is None else json.dumps(data).encode(),
@@ -127,18 +170,26 @@ def publish(name, v, repo_name, call):
 
 def main(argv):
     cmd = argv[0] if argv else None
+    if cmd == "holdout-run" and argv[1:2] == ["--candidate"] and len(argv) == 3:
+        import goal_brief as gb
+        print(json.dumps({"result": gb.run_holdout(argv[2], sys.stdin.read())}))
+        return 0
     if cmd == "sandbox-run" and len(argv) == 6:
         o = dict(zip(argv[2::2], argv[3::2]))
         print(json.dumps(sandbox_run(argv[1], o["--goal"], o["--candidate"])))
         return 0
     o = dict(zip(argv[1::2], argv[2::2]))
     if cmd == "classify" and set(o) == {"--pr"}:
-        print("kind=" + classify(json.loads(Path(o["--pr"]).read_text()))[0])
+        kind, gid = classify(json.loads(Path(o["--pr"]).read_text()))
+        print("kind=" + kind)
+        if kind == "goal" and ge.GOAL_ID.match(gid):
+            print("secret=" + secret_name(gid))
         return 0
-    if cmd in ("envelope", "tests") and "--pr" in o:
+    if cmd in ("envelope", "tests", "holdout") and "--pr" in o:
         pr = json.loads(Path(o["--pr"]).read_text())   # the pull request as the job found it, not the event
         v = (envelope(pr, o["--repo"], o["--main"], o["--candidate"]) if cmd == "envelope"
-             else tests(pr, o["--repo"], o["--main"], o["--candidate-dir"]))
+             else tests(pr, o["--repo"], o["--main"], o["--candidate-dir"]) if cmd == "tests"
+             else holdout(pr, o["--repo"], o["--main"], o.get("--candidate-dir", ""), os.environ.get("GOAL_HOLDOUT", "")))
         Path(o["--out"]).write_text(json.dumps(v))
         print(f"{v['conclusion']}: {v['title']}\n{v['summary']}")
         return 0

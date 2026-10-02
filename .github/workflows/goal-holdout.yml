@@ -1,0 +1,116 @@
+# GO-003.6: a goal's holdout, the test the builder never saw, run against the goal pull request's
+# merge candidate before it can reach main. pull_request_target runs this file from main and the
+# job checks out main by SHA. The holdout lives only in the goal-holdout environment's secret
+# GOAL_<ID>_HOLDOUT; it is checked against main's goals/<id>/holdout.sha256, reaches the sandbox on
+# stdin and is never written to disk or passed into the candidate's environment. A pull request
+# into main that isn't a goal's passes, so main's ruleset can require this check of every one.
+name: goal-holdout
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: goal-holdout-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    outputs:
+      kind: ${{ steps.k.outputs.kind }}
+      secret: ${{ steps.k.outputs.secret }}
+    steps:
+      - name: Resolve main and the pull request
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          gh api "repos/$REPO/pulls/$PR" > "$RUNNER_TEMP/pr.json"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.r.outputs.main }}
+          persist-credentials: false
+          path: main
+
+      - name: Is this a goal pull request?
+        id: k
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py classify --pr "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - name: Not a goal's pull request, so the holdout passes
+        if: steps.k.outputs.kind != 'goal'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 main/plugins/gstack-execution/scripts/goal_checks.py holdout --pr "$RUNNER_TEMP/pr.json" --repo main --main "${{ steps.r.outputs.main }}" --out verdict.json
+          python3 main/plugins/gstack-execution/scripts/goal_checks.py publish --name goal-holdout --verdict verdict.json --repo "${{ github.repository }}"
+
+  holdout:
+    needs: classify
+    if: needs.classify.outputs.kind == 'goal'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment: goal-holdout
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - name: Resolve main, the pull request and the merge candidate
+        id: r
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          echo "main=$(gh api "repos/$REPO/commits/main" --jq .sha)" >> "$GITHUB_OUTPUT"
+          gh api "repos/$REPO/pulls/$PR" > "$RUNNER_TEMP/pr.json"
+          jq -r '"head=\(.head.sha)\nbase=\(.base.sha)"' "$RUNNER_TEMP/pr.json" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.r.outputs.main }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: main
+
+      - name: Fetch the candidate into its own tree
+        working-directory: main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD: ${{ steps.r.outputs.head }}
+          BASE: ${{ steps.r.outputs.base }}
+        run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" fetch --no-tags origin "+refs/pull/$PR/merge:refs/candidate" "+refs/pull/$PR/head:refs/prhead"
+          test "$(git rev-parse refs/prhead)" = "$HEAD" || { echo "the head moved; a fresh run follows"; exit 1; }
+          parents=$(git rev-list --parents -n 1 refs/candidate | cut -d' ' -f2-)
+          test "$parents" = "$BASE $HEAD" || { echo "the merge candidate is stale ($parents); rerun when GitHub has rebuilt it"; exit 1; }
+          git worktree add --detach ../candidate refs/candidate
+          docker pull --quiet python:3.11-slim
+
+      - name: Run the holdout in the sandbox
+        env:
+          GOAL_HOLDOUT: ${{ secrets[needs.classify.outputs.secret] }}
+        run: >
+          python3 main/plugins/gstack-execution/scripts/goal_checks.py holdout
+          --pr "$RUNNER_TEMP/pr.json" --repo main --main "${{ steps.r.outputs.main }}"
+          --candidate-dir candidate --out verdict.json
+
+      - name: Publish goal-holdout on the head
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 main/plugins/gstack-execution/scripts/goal_checks.py publish --name goal-holdout --verdict verdict.json --repo "${{ github.repository }}"

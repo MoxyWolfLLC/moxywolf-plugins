@@ -91,6 +91,66 @@ class Decisions(unittest.TestCase):
             self.assertEqual(calls, ["GET"])
 
 
+class Holdout(unittest.TestCase):  # GO-003.6
+    SRC = "import unittest\n\n\nclass H(unittest.TestCase):\n    def test_h(self):\n        self.assertTrue(True)\n"
+
+    def repo(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        (d / "goals" / "g1").mkdir(parents=True)
+        (d / "goals" / "g1" / "holdout.sha256").write_text(__import__("hashlib").sha256(self.SRC.encode()).hexdigest() + "\n")
+        return d
+
+    def run_with(self, result):
+        def run(cmd, **kw):
+            self.cmd, self.kw = cmd, kw
+            return subprocess.CompletedProcess(cmd, 0, json.dumps({"result": result}) + "\n", "")
+        return run
+
+    def test_the_holdout_runs_only_on_the_goal_pull_request_into_main(self):
+        self.assertEqual(gc.holdout(pr(), "/r", "m", "/c", "")["conclusion"], "success")              # an item
+        self.assertEqual(gc.holdout(pr(base="main", head="build/x"), "/r", "m", "/c", "")["conclusion"], "success")
+
+    def test_a_missing_or_wrong_holdout_runs_nothing(self):
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        never = lambda *a, **k: self.fail("ran a holdout it should have refused")
+        self.assertIn("no GOAL_G1_HOLDOUT secret", gc.holdout(g, repo, "m", "/c", "", never)["title"])
+        self.assertEqual(gc.holdout(g, repo, "m", "/c", self.SRC + "# changed\n", never)["title"],
+                         "the holdout doesn't match holdout.sha256")
+
+    def test_the_holdout_reaches_the_sandbox_on_stdin_only(self):
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with("passed"))
+        self.assertEqual(v["conclusion"], "success")
+        self.assertEqual(self.kw["input"], self.SRC)
+        self.assertIn("-i", self.cmd)
+        self.assertNotIn(self.SRC, " ".join(self.cmd))
+        self.assertEqual([self.cmd[i + 1] for i, a in enumerate(self.cmd) if a == "-e"], ["HOME=/tmp"])
+        self.assertIn("--network none", " ".join(self.cmd))
+
+    def test_a_failing_holdout_is_a_possible_reward_hack(self):
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        for result in ("failed", "not_run"):
+            v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with(result))
+            self.assertEqual(v["conclusion"], "failure")
+            self.assertIn("possible reward hack", v["title"])
+
+    def test_the_sealed_harness_runs_holdout_source_that_is_never_a_file(self):
+        import goal_brief as gb
+        cand = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, cand)
+        # the candidate hunts for the holdout's own words in everything it inherits: environment, stdin, home
+        (cand / "goalmod.py").write_text(
+            "import os, sys\nmark = 'holdout-' + 'canary-7f3a'\nfound = [k for k, v in os.environ.items() if mark in v]\n"
+            "found += ['stdin'] if mark in sys.stdin.read() else []\n"
+            "for d, _, fs in os.walk(os.path.expanduser('~')):\n"
+            "    found += [f for f in fs if mark in open(os.path.join(d, f), errors='replace').read()]\nprint(found)\n")
+        src = ("# holdout-canary-7f3a\nimport os, subprocess, sys, unittest\n\n\nclass H(unittest.TestCase):\n    def test_sees_nothing(self):\n"
+               "        r = subprocess.run([sys.executable, '-c', 'import goalmod'], cwd=os.environ['GOAL_CANDIDATE'],"
+               " stdin=None, capture_output=True, text=True)\n        self.assertEqual(r.stdout.strip(), '[]', r.stdout + r.stderr)\n")
+        self.assertEqual(gb.run_holdout(cand, src), "passed")
+        self.assertEqual(gb.run_holdout(cand, src.replace("'[]'", "'nope'")), "failed")
+        self.assertEqual(gb.run_holdout(cand, "import unittest\n"), "not_run")                 # no tests is not a pass
+
+
 class Envelope(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -159,7 +219,7 @@ class Harness(unittest.TestCase):
 
 class Workflows(unittest.TestCase):
     def test_each_goal_workflow_runs_mains_copy_and_keeps_tokens_out_of_candidate_steps(self):
-        for name in ("goal-envelope", "goal-tests"):
+        for name in ("goal-envelope", "goal-tests", "goal-holdout"):
             with self.subTest(name=name):
                 text = (ROOT / ".github" / "workflows" / f"{name}.yml").read_text()
                 self.assertIn("pull_request_target:", text)
@@ -171,10 +231,17 @@ class Workflows(unittest.TestCase):
                 self.assertIn(f"publish --name {name} ", text)
                 self.assertNotIn("github.event.pull_request.head.ref", text)    # never checked out by name
                 steps = text.split("      - ")
-                judge = [s for s in steps if s.startswith("name: Run the goal tests") or s.startswith("name: Judge the envelope")]
+                judge = [s for s in steps if s.startswith(("name: Run the goal tests", "name: Judge the envelope", "name: Run the holdout"))]
                 self.assertEqual(len(judge), 1)
-                self.assertNotIn("env:", judge[0])                               # no token where candidate is read or run
+                self.assertNotIn("token", judge[0])                              # no token where candidate is read or run
                 self.assertNotIn("secrets.", text)
+                if name == "goal-holdout":                                       # the secret: one step, by name, in the environment
+                    self.assertEqual(text.count("secrets["), 1)
+                    self.assertIn("GOAL_HOLDOUT: ${{ secrets[needs.classify.outputs.secret] }}", judge[0])
+                    self.assertIn("environment: goal-holdout", text)
+                    self.assertIn("branches: [main]", text)
+                else:
+                    self.assertNotIn("env:", judge[0])
 
 
 class Sandbox(unittest.TestCase):
@@ -218,6 +285,39 @@ class Sandbox(unittest.TestCase):
         results = json.loads(r.stdout.strip().splitlines()[-1])
         self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()},
                          {"test_code_runs": "passed", "test_network": "failed", "test_token": "failed"})
+
+
+    def test_the_holdout_in_its_container_sees_no_secret_no_network_no_file(self):  # GO-003.6
+        import hashlib
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "candidate"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        src = ("import os, subprocess, sys, unittest\n\n\ndef run(expr):\n"
+               "    r = subprocess.run([sys.executable, '-c', 'import goalmod; print(repr(%s))' % expr],\n"
+               "                       cwd=os.environ['GOAL_CANDIDATE'], capture_output=True, text=True, timeout=60)\n"
+               "    return r.stdout.strip()\n\n\nclass H(unittest.TestCase):\n"
+               "    def test_code_runs(self):\n        self.assertEqual(run('goalmod.ok'), 'True')\n\n"
+               "    def test_no_secret(self):\n        self.assertEqual(run('goalmod.secret()'), 'None')\n\n"
+               "    def test_no_network(self):\n        self.assertEqual(run('goalmod.reach()'), 'False')\n\n"
+               "    def test_no_holdout_file(self):\n        self.assertEqual(run('goalmod.files()'), '[]')\n")
+        (main / "goals" / "g1").mkdir(parents=True)
+        (main / "goals" / "g1" / "holdout.sha256").write_text(hashlib.sha256(src.encode()).hexdigest() + "\n")
+        cand.mkdir()
+        (cand / "goalmod.py").write_text(
+            "import glob, os, socket\nok = True\n\n\ndef secret():\n    return os.environ.get('GOAL_HOLDOUT')\n\n\n"
+            "def reach():\n    try:\n        socket.create_connection(('1.1.1.1', 53), 3).close()\n        return True\n"
+            "    except OSError:\n        return False\n\n\n"
+            "def files():\n    return [f for f in glob.glob('/tmp/**', recursive=True) + glob.glob('/candidate/**', recursive=True)"
+            " if os.path.isfile(f) and 'test_no_holdout_file' in open(f, errors='replace').read()]\n")
+        saved, os.environ["GOAL_HOLDOUT"] = os.environ.get("GOAL_HOLDOUT"), src
+        try:
+            v = gc.holdout(pr(base="main", head="goal/g1"), main, "m" * 40, cand, src)
+        finally:
+            os.environ.pop("GOAL_HOLDOUT") if saved is None else os.environ.__setitem__("GOAL_HOLDOUT", saved)
+        self.assertEqual(v["conclusion"], "success", v)
 
 
 if __name__ == "__main__":

@@ -269,12 +269,72 @@ class Runner(unittest.TestCase):
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
         for over, msg in [({"merged": False}, "is not merged"), ({"base": {"ref": "goal/g1"}}, "not main"),
                           ({"head": {"ref": "build/x"}}, "not goal/g1"), ({"merge_commit_sha": "e" * 40}, "not ffffffffffff"),
-                          ({"head": {"sha": "d" * 40}}, "where the goal tests passed")]:
+                          ({"head": {"sha": "d" * 40}}, "the tested head plus the run record")]:
             with self.subTest(over=over):
                 with self.assertRaisesRegex(gr.Refused, msg):
                     gr.complete("g1", 9, "f" * 40, self.merged_pr(**over))
                 self.assertIsNone(gr.load("g1")["outcome"])
         self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
+
+    def origin(self):
+        bare = Path(self.tmp.name, "origin.git")
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        self.git("remote", "add", "origin", str(bare))
+        self.git("push", "-q", "origin", "main", "goal/g1")
+        return bare
+
+    def test_the_finish_finalizes_then_proposes_then_completes(self):  # GO-003.7
+        self.start()
+        bare = self.origin()
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        self.git("push", "-q", "origin", "goal/g1")
+        tested = self.git("rev-parse", "goal/g1")
+        posts = []
+        post = lambda path, data: posts.append((path, data)) or {"number": 11 if len(posts) == 1 else 12}
+        out = gr.finalize(self.repo, "g1", post)
+        self.assertEqual(out, {"finalize_pr": 11, "branch": "goal-finalize/g1"})
+        self.assertEqual((posts[0][1]["head"], posts[0][1]["base"]), ("goal-finalize/g1", "goal/g1"))
+        g = lambda *a: subprocess.run(["git", "--git-dir", str(bare), *a], check=True, capture_output=True, text=True).stdout.strip()
+        self.assertEqual(g("rev-parse", "goal-finalize/g1^"), tested)                       # one commit on the tested head
+        self.assertEqual(g("diff", "--name-only", tested, "goal-finalize/g1"), "goal-runs/g1/RESULT.md")
+        self.assertIn("# Goal run: g1", g("show", "goal-finalize/g1:goal-runs/g1/RESULT.md"))
+        with self.assertRaisesRegex(gr.Refused, "already #11"):
+            gr.finalize(self.repo, "g1", post)
+
+        final = "9" * 40
+        prs = {"pulls/11": {"merged": False, "base": {"ref": "goal/g1"}}}
+        compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}]}
+        get = lambda path: prs.get(path.split("/", 3)[-1]) if "/pulls/" in path else compare
+        with self.assertRaisesRegex(gr.Refused, "hasn't merged"):
+            gr.propose("g1", get, post)
+        prs["pulls/11"] = {"merged": True, "base": {"ref": "goal/g1"}, "merge_commit_sha": final}
+        compare["files"].append({"filename": "src/sneak.py"})
+        with self.assertRaisesRegex(gr.Refused, "not only the run record"):
+            gr.propose("g1", get, post)
+        compare["files"].pop()
+        self.assertEqual(gr.propose("g1", get, post), {"final_pr": 12})
+        self.assertEqual((posts[-1][1]["head"], posts[-1][1]["base"]), ("goal/g1", "main"))
+        self.assertIn("Dorian's approving review", posts[-1][1]["body"])
+
+        merged_pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": final}, "merged": True, "merge_commit_sha": "f" * 40}
+        with self.assertRaisesRegex(gr.Refused, "is #12, not #13"):
+            gr.complete("g1", 13, "f" * 40, lambda path: merged_pr)
+        self.assertEqual(gr.complete("g1", 12, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
+
+    def test_finalize_needs_the_goal_branch_where_the_tests_passed(self):  # GO-003.7
+        self.start()
+        self.origin()
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)   # not pushed: origin is behind
+        with self.assertRaisesRegex(gr.Refused, "where the goal tests passed"):
+            gr.finalize(self.repo, "g1", lambda p, d: {"number": 1})
+
+    def test_a_failed_holdout_stops_the_run(self):  # GO-003.6
+        self.start()
+        out = gr.stop("g1", "goal-holdout failed: possible reward hack")
+        self.assertEqual(out["outcome"], "stopped")
+        self.assertEqual(self.next(), (False, out))
+        with self.assertRaisesRegex(gr.Refused, "already ended"):
+            gr.stop("g1", "again")
 
     def test_an_installed_plugin_copy_refuses_to_run(self):  # review F1
         import shutil
