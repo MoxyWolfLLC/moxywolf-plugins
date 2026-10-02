@@ -322,19 +322,26 @@ def _harness(nonce, out, path, name, root):
             raise PermissionError("a goal test runs the candidate as a program and reads nothing in its checkout: " + p)
     sys.addaudithook(guard)
     try:
-        s = importlib.util.spec_from_file_location("goal_test", path); m = importlib.util.module_from_spec(s)
-        sys.modules["goal_test"] = m; s.loader.exec_module(m)
-        c, f = name.split(".", 1); getattr(getattr(m, c), f)
-        suite = unittest.defaultTestLoader.loadTestsFromName(name, m)
+        if path == "-":                    # the holdout: source from stdin, never a file on disk (GO-003.6)
+            import types
+            m = types.ModuleType("goal_holdout"); sys.modules["goal_holdout"] = m
+            exec(compile(sys.stdin.read(), "<holdout>", "exec"), m.__dict__)
+            suite = unittest.defaultTestLoader.loadTestsFromModule(m)
+        else:
+            s = importlib.util.spec_from_file_location("goal_test", path); m = importlib.util.module_from_spec(s)
+            sys.modules["goal_test"] = m; s.loader.exec_module(m)
+            c, f = name.split(".", 1); getattr(getattr(m, c), f)
+            suite = unittest.defaultTestLoader.loadTestsFromName(name, m)
     except Exception as e:
         print("not_run:", e); sys.exit(3)
-    if suite.countTestCases() != 1:
-        print("not_run: found", suite.countTestCases()); sys.exit(3)
+    want = suite.countTestCases()
+    if want < 1 or (name != "*" and want != 1):
+        print("not_run: found", want); sys.exit(3)
     r = unittest.TextTestRunner(verbosity=0).run(suite)
     if hits:
         print("not_run: the test loaded candidate code into its own interpreter:", hits[0]); sys.exit(3)
-    if r.testsRun - len(r.skipped) != 1:
-        print("not_run: ran", r.testsRun - len(r.skipped)); sys.exit(3)
+    if r.testsRun - len(r.skipped) != want:
+        print("not_run: ran", r.testsRun - len(r.skipped), "of", want); sys.exit(3)
     out.write("\\ngoal-test-result %s %s\\n" % (nonce, "passed" if r.wasSuccessful() else "failed")); out.flush()
 _h = _harness
 del _harness
@@ -370,6 +377,23 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
     mine = [ln.split()[2] for ln in r.stdout.splitlines()
             if ln.startswith("goal-test-result ") and len(ln.split()) == 3 and ln.split()[1] == nonce]
     return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
+
+def run_holdout(repo_root, source, timeout=1200):
+    """GO-003.6: every test in the holdout source against the candidate, sealed like run_test. The
+    source reaches the harness on stdin after the nonce and is never written to a file, so no
+    candidate process can open it. 'passed' only when every test in it ran and passed."""
+    nonce, root = secrets.token_hex(16), str(Path(repo_root).resolve())
+    with tempfile.TemporaryDirectory(prefix="goal-holdout-") as cwd:
+        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1"}
+        try:
+            r = subprocess.run([sys.executable, "-I", "-B", "-c", _HARNESS, "-", "*", root], cwd=cwd,
+                               input=nonce + "\n" + source, env=env, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return "not_run"
+    mine = [ln.split()[2] for ln in r.stdout.splitlines()
+            if ln.startswith("goal-test-result ") and len(ln.split()) == 3 and ln.split()[1] == nonce]
+    return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
+
 
 def baseline(goal_dir, repo_root):
     """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass."""
