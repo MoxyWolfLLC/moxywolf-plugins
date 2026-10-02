@@ -150,10 +150,11 @@ class Harness(unittest.TestCase):
         goal, cand = t / "goal", t / "cand"
         (goal / "tests").mkdir(parents=True); cand.mkdir()
         (goal / "GOAL.md").write_text("## Goal tests\n- `tests/test_e.py::E.test_x` (invariant)\n")
-        (goal / "tests" / "test_e.py").write_text("import unittest\n\n\nclass E(unittest.TestCase):\n"
-                                                  "    def test_x(self):\n        import goalmod\n        self.fail('never')\n")
-        (cand / "goalmod.py").write_text("import os\nos._exit(0)\n")
-        self.assertEqual(gc.sandbox_run("g", goal, cand), {"tests/test_e.py::E.test_x": {"kind": "invariant", "result": "not_run"}})
+        (goal / "tests" / "test_e.py").write_text("import os, subprocess, sys, unittest\n\n\nclass E(unittest.TestCase):\n"
+                                                  "    def test_x(self):\n        subprocess.run([sys.executable, '-c', 'import goalmod'], cwd=os.environ['GOAL_CANDIDATE'])\n"
+                                                  "        self.fail('never')\n")
+        (cand / "goalmod.py").write_text("import os\nos.write(1, b'\\ngoal-test-result x passed\\n')\nos._exit(0)\n")
+        self.assertEqual(gc.sandbox_run("g", goal, cand), {"tests/test_e.py::E.test_x": {"kind": "invariant", "result": "failed"}})
 
 
 class Workflows(unittest.TestCase):
@@ -198,13 +199,16 @@ class Sandbox(unittest.TestCase):
             "## Goal tests\n- `tests/test_s.py::S.test_code_runs` (invariant)\n"
             "- `tests/test_s.py::S.test_network` (invariant)\n- `tests/test_s.py::S.test_token` (invariant)\n")
         (main / "goals" / "g1" / "tests" / "test_s.py").write_text(
-            "import unittest\n\n\nclass S(unittest.TestCase):\n"
-            "    def test_code_runs(self):\n        import goalmod\n        self.assertTrue(goalmod.ok)\n\n"
-            "    def test_network(self):\n        import goalmod\n        goalmod.reach()\n\n"
-            "    def test_token(self):\n        import goalmod\n        self.assertEqual(goalmod.token(), 'leaked-secret')\n")
+            "import os, subprocess, sys, unittest\n\n\ndef run(expr):\n"
+            "    r = subprocess.run([sys.executable, '-c', 'import goalmod; print(repr(%s))' % expr],\n"
+            "                       cwd=os.environ['GOAL_CANDIDATE'], capture_output=True, text=True, timeout=60)\n"
+            "    return r.stdout.strip()\n\n\nclass S(unittest.TestCase):\n"
+            "    def test_code_runs(self):\n        self.assertEqual(run('goalmod.ok'), 'True')\n\n"
+            "    def test_network(self):\n        self.assertEqual(run('goalmod.reach()'), 'True')\n\n"
+            "    def test_token(self):\n        self.assertEqual(run('goalmod.token()'), \"'leaked-secret'\")\n")
         cand.mkdir()
         (cand / "goalmod.py").write_text(
-            "import os, socket\nok = True\n\n\ndef reach():\n    socket.create_connection(('1.1.1.1', 53), 3).close()\n\n\n"
+            "import os, socket\nok = True\n\n\ndef reach():\n    socket.create_connection(('1.1.1.1', 53), 3).close()\n    return True\n\n\n"
             "def token():\n    return os.environ.get('GITHUB_TOKEN')\n")
         saved, os.environ["GITHUB_TOKEN"] = os.environ.get("GITHUB_TOKEN"), "leaked-secret"
         try:

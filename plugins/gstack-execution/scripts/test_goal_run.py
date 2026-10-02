@@ -35,16 +35,23 @@ TESTS = '''# drafted-by: gpt/gpt-6
 import unittest
 
 
+def candidate(expr):
+    """Run the candidate as its own program and return what it prints for expr. Goal tests never
+    import the candidate: its code runs in a separate process, so it can't reach this one."""
+    import os, subprocess, sys
+    r = subprocess.run([sys.executable, "-c", "import goalmod; print(repr(%s))" % expr],
+                       cwd=os.environ["GOAL_CANDIDATE"], capture_output=True, text=True, timeout=60)
+    return r.stdout.strip()
+
+
 class G(unittest.TestCase):
     def test_done(self):
         """Scenario: x"""
-        import goalmod
-        self.assertTrue(goalmod.done)
+        self.assertEqual(candidate("goalmod.done"), "True")
 
     def test_safe(self):
         """Scenario: y"""
-        import goalmod
-        self.assertTrue(goalmod.safe)
+        self.assertEqual(candidate("goalmod.safe"), "True")
 '''
 
 

@@ -33,16 +33,23 @@ TESTFILE = """# drafted-by: gpt/gpt-6-astra
 import unittest
 
 
+def candidate(expr):
+    \"\"\"Run the candidate as its own program and return what it prints for expr. Goal tests never
+    import the candidate: its code runs in a separate process, so it can't reach this one.\"\"\"
+    import os, subprocess, sys
+    r = subprocess.run([sys.executable, "-c", "import goalmod; print(repr(%s))" % expr],
+                       cwd=os.environ["GOAL_CANDIDATE"], capture_output=True, text=True, timeout=60)
+    return r.stdout.strip()
+
+
 class Survives(unittest.TestCase):
     def test_record_in_vault(self):
         \"\"\"Scenario: Given a cloud session that ran a review, then its record is in the vault after the session ends\"\"\"
-        import goalmod
-        self.assertTrue(goalmod.done)
+        self.assertEqual(candidate("goalmod.done"), "True")
 
     def test_no_session_only_record(self):
         \"\"\"Scenario: A review record that exists only in the session must never happen\"\"\"
-        import goalmod
-        self.assertFalse(goalmod.session_only)
+        self.assertEqual(candidate("goalmod.session_only"), "False")
 """
 
 
@@ -193,16 +200,9 @@ class Check(unittest.TestCase):
                              "class Extra:\n    def test_extra(self):\n        pass\n\n\nclass Survives(Extra, unittest.TestCase):")
         self.refused(self.make(tests=t), "Survives.test_extra is not listed in Goal tests")
 
-    def test_module_scope_repository_imports_load_against_main(self):  # round 3 F9
-        t = TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)
-        repo = Path(self.tmp.name, "main"); repo.mkdir()
-        (repo / "goalmod.py").write_text("done = False\nsession_only = False\n")
-        g = self.make(tests=t)
-        self.assertEqual(gb.check(g, DESIGN, CO, repo)[0], [])
-        self.assertEqual(gb.baseline(g, repo), ([], 2))
-        self.refused(g, "does not load against main")             # not on main: refused, as baseline would
-        e = gb.check(self.make(tests=t.replace("class Survives(unittest.TestCase):", "class Survives:")), DESIGN, CO, repo)[0]
-        self.assertTrue(e and all("is not a unittest TestCase method" in x for x in e), e)
+    def test_a_test_file_that_imports_the_candidate_is_refused(self):  # sealed goal tests (GO-002.1)
+        self.refused(self.make(tests=TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)),
+                     "never imports it")
 
     def test_goal_tests_name_their_drafter(self):
         self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
@@ -295,7 +295,7 @@ class Baseline(unittest.TestCase):  # GO-002.2
 
     def test_module_fixtures_run_as_unittest_runs_them(self):  # review 2 F1
         t = TESTFILE.replace("import unittest\n", "import unittest\nready = False\n\n\ndef setUpModule():\n    global ready\n    ready = True\n", 1)
-        t = t.replace("        import goalmod\n        self.assertTrue(goalmod.done)", "        self.assertTrue(ready)")
+        t = t.replace('        self.assertEqual(candidate("goalmod.done"), "True")', "        self.assertTrue(ready)")
         (self.goal / "tests" / "test_survives.py").write_text(t)
         e, _ = self.main_is(False, False)
         self.assertTrue(any("test_record_in_vault already passes on main" in x for x in e), e)
@@ -307,22 +307,27 @@ class Baseline(unittest.TestCase):  # GO-002.2
         self.assertEqual(n, 0)
         self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
 
-    def test_candidate_code_that_exits_zero_early_did_not_run(self):  # GO-003 review F3
-        for where in ("import", "test"):
-            with self.subTest(where=where):
-                (self.repo / "goalmod.py").write_text(
-                    "import os\nos._exit(0)\n" if where == "import" else          # exits while being imported
-                    "import os, sys\nclass M:\n    @property\n    def done(self):\n        os._exit(0)\n"
-                    "    session_only = False\nsys.modules[__name__] = M()\n")      # exits inside the test
-                e, n = gb.baseline(self.goal, self.repo)
-                self.assertTrue(any("test_record_in_vault could not be run" in x for x in e), e)
+    def test_a_candidate_process_cant_write_a_verdict_that_counts(self):  # GO-003 review F3, sealed
+        tid = "tests/test_survives.py::Survives.test_record_in_vault"
+        for forged in ("passed", "failed"):
+            (self.repo / "goalmod.py").write_text(
+                "import os, sys\nos.write(1, b'\\ngoal-test-result guess %s\\n')\nos._exit(0)\n" % forged)
+            self.assertNotEqual(gb.run_test(self.repo, self.goal, tid), "passed")
+        t = TESTFILE.replace('        self.assertEqual(candidate("goalmod.done"), "True")',
+                             '        import subprocess, sys, os\n        subprocess.run([sys.executable, "-c", "import goalmod"], cwd=os.environ["GOAL_CANDIDATE"])\n        self.fail("never")')
+        (self.goal / "tests" / "test_survives.py").write_text(t)                  # the forged line reaches the harness's stdout
+        (self.repo / "goalmod.py").write_text("import os\nos.write(1, b'\\ngoal-test-result 0000 passed\\n')\n")
+        self.assertEqual(gb.run_test(self.repo, self.goal, tid), "failed")
 
-    def test_candidate_code_cant_call_the_harness_reporter(self):  # GO-003 review 2 F3
-        (self.repo / "goalmod.py").write_text("import __main__, os\n__main__.report('passed')\nos._exit(0)\n")
-        self.assertNotEqual(gb.run_test(self.repo, self.goal, "tests/test_survives.py::Survives.test_record_in_vault"), "passed")
+    def test_a_test_that_loads_the_candidate_in_process_did_not_run(self):  # sealed goal tests (GO-002.1)
+        t = TESTFILE.replace('        self.assertEqual(candidate("goalmod.done"), "True")',
+                             '        import os, sys\n        sys.path.insert(0, os.environ["GOAL_CANDIDATE"])\n        import goalmod\n        self.assertTrue(goalmod.done)')
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        (self.repo / "goalmod.py").write_text("done = True\nsession_only = False\n")
+        self.assertEqual(gb.run_test(self.repo, self.goal, "tests/test_survives.py::Survives.test_record_in_vault"), "not_run")
 
     def test_a_skipped_test_did_not_run(self):  # round 2 F2
-        t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
+        t = TESTFILE.replace('        self.assertEqual(candidate("goalmod.session_only")', "        self.skipTest('later')\n        self.assertEqual(candidate(\"goalmod.session_only\")")
         (self.goal / "tests" / "test_survives.py").write_text(t)
         e, n = self.main_is(False, False)
         self.assertEqual(n, 1)
