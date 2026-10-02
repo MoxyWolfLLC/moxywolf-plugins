@@ -156,12 +156,33 @@ class Check(unittest.TestCase):
 
     # GO-002.1 and .4: tests exist, name their scenario, and one family drafted them
     def test_goal_test_id_must_name_an_existing_test(self):
-        self.refused(self.make(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_missing` (outcome)"})), "is not a unittest method")
-        self.refused(self.make(brief(**{"Goal tests": "- `tests/nope.py::Survives.test_record_in_vault` (outcome)"})), "is not a unittest method")
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_missing` (outcome)"})), "is not a unittest TestCase method")
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/nope.py::Survives.test_record_in_vault` (outcome)"})), "is not a unittest TestCase method")
 
     def test_goal_test_must_carry_a_brief_scenario(self):
         self.refused(self.make(tests=TESTFILE.replace("Scenario: Given a cloud", "Scenario: Given a laptop")), "needs a 'Scenario:' docstring line")
         self.refused(self.make(tests=TESTFILE.replace("Scenario: A review", "No scenario. A review")), "needs a 'Scenario:' docstring line")
+
+    def test_malformed_goal_test_lines_are_refused(self):  # round 1 F3
+        self.refused(self.make(brief(**{"Goal tests": "tests/test_survives.py::Survives.test_record_in_vault (outcome)"})), "not a '- ' bullet")
+        self.refused(self.make(brief(**{"Goal tests": GOOD["Goal tests"] + "\n- just words"})), "Goal tests: expected")
+
+    def test_nested_test_files_are_refused(self):  # round 1 F4
+        g = self.make()
+        (g / "tests" / "sub").mkdir()
+        (g / "tests" / "sub" / "test_x.py").write_text("import unittest\n")
+        self.refused(g, "not in a subfolder")
+
+    def test_a_plain_class_method_is_not_a_test(self):  # round 1 F5
+        self.refused(self.make(tests=TESTFILE.replace("class Survives(unittest.TestCase):", "class Survives:")), "is not a unittest TestCase method")
+
+    def test_inherited_testcase_is_accepted(self):
+        t = TESTFILE.replace("class Survives(unittest.TestCase):", "class Base(unittest.TestCase):\n    pass\n\n\nclass Survives(Base):")
+        self.assertEqual(self.errs(self.make(tests=t)), [])
+
+    def test_unlisted_test_method_is_refused(self):  # round 1 F7
+        t = TESTFILE + "\n    def test_extra(self):\n        pass\n"
+        self.refused(self.make(tests=t), "is not listed in Goal tests")
 
     def test_goal_tests_name_their_drafter(self):
         self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
@@ -224,6 +245,25 @@ class Baseline(unittest.TestCase):  # GO-002.2
     def test_invariant_failing_on_main_is_refused(self):
         e, _ = self.main_is(False, True)
         self.assertTrue(any("fails on main" in x for x in e), e)
+
+    def test_relative_goal_path_runs_from_the_goal_folder(self):  # round 1 F1
+        import os
+        (self.repo / "goalmod.py").write_text("done = False\nsession_only = False\n")
+        cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+        try:
+            self.assertEqual(gb.baseline(Path("goal"), self.repo), ([], 2))
+        finally:
+            os.chdir(cwd)
+
+    def test_a_test_that_cannot_run_is_not_a_failure(self):  # round 1 F2
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- `tests/missing.py::Survives.test_record_in_vault` (outcome)"}))
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertTrue(any("could not be run against main" in x for x in e), e)
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_gone` (outcome)"}))
+        e, n = self.main_is(False, False)
+        self.assertTrue(any("could not be run against main" in x for x in e), e)
 
     def test_baseline_over_no_tests_fails(self):
         (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- nothing here"}))
@@ -333,6 +373,10 @@ class Verify(unittest.TestCase):
 
     def test_reading_must_cover_every_goal_test(self):
         body = READING.replace("- tests/test_survives.py::Survives.test_no_session_only_record checks no record lives only in the session.\n", "")
+        self.refused(fake([[review()]], body=body), "doesn't cover")
+
+    def test_a_prefix_id_does_not_cover_a_shorter_one(self):  # round 1 F6
+        body = READING.replace("Survives.test_record_in_vault checks", "Survives.test_record_in_vault_later checks")
         self.refused(fake([[review()]], body=body), "doesn't cover")
 
     def test_reading_needs_a_reader(self):

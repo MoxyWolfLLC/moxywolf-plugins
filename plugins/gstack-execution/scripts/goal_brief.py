@@ -118,34 +118,57 @@ def goal_tests(brief_body, errors):
         m = TEST_ID.match(t)
         if m:
             out.append((m.group(1), m.group(2).lower()))
+        else:
+            errors.append(f"Goal tests: expected '<test id> (outcome|invariant)', got: {t}")
     return out
 
 
-def test_scenario(goal_dir, test_id):
-    """The 'Scenario:' docstring line of the named unittest method, or None if the test isn't there."""
-    path, _, name = test_id.partition("::")
-    f = Path(goal_dir, path)
-    if not name or "." not in name or not f.is_file() or not path.startswith("tests/"):
-        return None
-    cls, meth = name.split(".", 1)
-    for node in ast.parse(f.read_text()).body:
-        if isinstance(node, ast.ClassDef) and node.name == cls:
-            for fn in node.body:
-                if isinstance(fn, ast.FunctionDef) and fn.name == meth:
-                    doc = ast.get_docstring(fn) or ""
-                    m = re.search(r"^Scenario:\s*(.+?)\s*$", doc, re.M)
-                    return m.group(1) if m else ""
-    return None
+TEST_REF = re.compile(r"tests/[\w.-]+\.py::\w+\.\w+")
+
+
+def _is_testcase(cls, classes, seen=()):
+    for b in cls.bases:
+        name = b.attr if isinstance(b, ast.Attribute) else getattr(b, "id", None)
+        if name == "TestCase":
+            return True
+        if name in classes and name not in seen and _is_testcase(classes[name], classes, seen + (name,)):
+            return True
+    return False
+
+
+def test_inventory(goal_dir, errors):
+    """Every unittest test method under tests/, as {'tests/<file>.py::<Class>.<method>': scenario or ''}.
+    Goal tests live directly in tests/; a nested file is refused so check, baseline and verify see one set."""
+    inv, tests = {}, Path(goal_dir, "tests")
+    if not tests.is_dir():
+        return inv
+    for f in sorted(tests.rglob("*")):
+        if f.is_file() and f.parent != tests:
+            errors.append(f"goal tests live directly in tests/, not in a subfolder: {f.relative_to(goal_dir)}")
+    for f in sorted(tests.glob("*.py")):
+        try:
+            tree = ast.parse(f.read_text())
+        except SyntaxError as e:
+            errors.append(f"tests/{f.name} does not parse: {e}")
+            continue
+        classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+        for cls in classes.values():
+            if not _is_testcase(cls, classes):
+                continue
+            for fn in cls.body:
+                if isinstance(fn, ast.FunctionDef) and fn.name.startswith("test"):
+                    m = re.search(r"^Scenario:\s*(.+?)\s*$", ast.get_docstring(fn) or "", re.M)
+                    inv[f"tests/{f.name}::{cls.name}.{fn.name}"] = m.group(1) if m else ""
+    return inv
 
 
 def drafter(goal_dir):
-    """The one model family that drafted every goal test file (GO-002.1), or None with errors."""
+    """The model families named by '# drafted-by:' across tests/*.py (None for a file with no line)."""
     fams = set()
     for f in sorted(Path(goal_dir, "tests").glob("*.py")):
         m = DRAFTED.search(f.read_text())
         fams.add(m.group(1).lower() if m else None)
     return fams
-
 
 def check(goal_dir, design_text, codeowners_text):
     goal_dir = Path(goal_dir)
@@ -183,18 +206,19 @@ def check(goal_dir, design_text, codeowners_text):
             errors.append("Scenarios needs at least one 'must never happen' line")
 
     if brief.get("Goal tests"):
-        lines = bullet_lines("Goal tests", brief["Goal tests"], [])
-        for t in lines:
-            if not TEST_ID.match(t):
-                errors.append(f"Goal tests: expected '<test id> (outcome|invariant)', got: {t}")
+        listed = goal_tests(brief["Goal tests"], errors)                  # F3: malformed lines are errors
+        if not listed:
+            errors.append("Goal tests lists no test IDs")
+        inv = test_inventory(goal_dir, errors)
         scen = set(bullet_lines("Scenarios", brief.get("Scenarios", ""), []))
-        for tid, _ in goal_tests(brief["Goal tests"], []):           # GO-002.4
-            sc = test_scenario(goal_dir, tid)
-            if sc is None:
-                errors.append(f"Goal test {tid} is not a unittest method in tests/ ('tests/<file>.py::<Class>.<method>')")
-            elif sc not in scen:
+        for tid, _ in listed:                                             # GO-002.1 and .4
+            if tid not in inv:
+                errors.append(f"Goal test {tid} is not a unittest TestCase method in tests/ ('tests/<file>.py::<Class>.<method>')")
+            elif inv[tid] not in scen:
                 errors.append(f"Goal test {tid} needs a 'Scenario:' docstring line that is one of the brief's Scenarios")
-    if tests_dir.is_dir() and any(tests_dir.glob("*.py")):            # GO-002.1
+        for tid in sorted(set(inv) - {t for t, _ in listed}):            # F7: no unlisted test escapes
+            errors.append(f"unittest method {tid} is not listed in Goal tests; every goal test is classified and read")
+    if tests_dir.is_dir() and any(tests_dir.glob("*.py")):              # GO-002.1
         fams = drafter(goal_dir)
         if None in fams:
             errors.append("every goal test file needs a '# drafted-by: <family>/<model>' line")
@@ -258,28 +282,43 @@ def check(goal_dir, design_text, codeowners_text):
 
 
 def run_test(repo_root, goal_dir, test_id, timeout=300):
-    """Run one goal unittest against the code in repo_root. True = passed."""
+    """Run one goal unittest against the code in repo_root: 'passed', 'failed', or 'not_run' when the
+    named test couldn't be loaded or didn't run exactly once (missing file or name, import of the test
+    file itself failing, timeout). A not_run test examined nothing."""
     path, _, name = test_id.partition("::")
+    test_file = Path(goal_dir, path).resolve()          # F1: the goal folder isn't in the main checkout
     code = ("import importlib.util,sys,unittest\n"
-            "s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
-            "r=unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(sys.argv[2], m))\n"
+            "try:\n"
+            "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
+            "    c, f = sys.argv[2].split('.', 1); getattr(getattr(m, c), f)\n"
+            "    suite=unittest.defaultTestLoader.loadTestsFromName(sys.argv[2], m)\n"
+            "except Exception as e:\n"
+            "    print('not_run:', e); sys.exit(3)\n"
+            "if suite.countTestCases() != 1:\n"
+            "    print('not_run: found', suite.countTestCases()); sys.exit(3)\n"
+            "r=unittest.TextTestRunner(verbosity=0).run(suite)\n"
             "sys.exit(0 if r.wasSuccessful() and r.testsRun == 1 else 1)\n")
+    if not test_file.is_file():
+        return "not_run"
     env = dict(os.environ, PYTHONPATH=str(repo_root))
     try:
-        r = subprocess.run([sys.executable, "-c", code, str(Path(goal_dir, path)), name], cwd=repo_root,
+        r = subprocess.run([sys.executable, "-c", code, str(test_file), name], cwd=repo_root,
                            env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return False
-    return r.returncode == 0
-
+        return "not_run"
+    return {0: "passed", 1: "failed"}.get(r.returncode, "not_run")
 
 def baseline(goal_dir, repo_root):
     """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass."""
     errors, examined = [], 0
     brief = sections(Path(goal_dir, "GOAL.md").read_text()) if Path(goal_dir, "GOAL.md").is_file() else {}
     for tid, kind in goal_tests(brief.get("Goal tests", ""), errors):
+        result = run_test(repo_root, goal_dir, tid)
+        if result == "not_run":                                          # F2: unrun is not a fail
+            errors.append(f"goal test {tid} could not be run against main (missing, failed to load, or timed out)")
+            continue
         examined += 1
-        passed = run_test(repo_root, goal_dir, tid)
+        passed = result == "passed"
         if kind == "outcome" and passed:
             errors.append(f"outcome test {tid} already passes on main; it can't show the goal happened")
         if kind == "invariant" and not passed:
@@ -374,7 +413,7 @@ def verify(goal_id, pr, repo, get):
         errors.append(f"PR #{pr} has no '## Plain-English reading' section")
     else:
         rd = reading[1].split("\n## ", 1)[0]
-        missing = [t for t in ids if t not in rd]
+        missing = [t for t in ids if t not in set(TEST_REF.findall(rd))]   # F6: whole IDs, not substrings
         if missing:
             errors.append(f"the plain-English reading doesn't cover {missing}")
         m = READ_BY.search(rd)
