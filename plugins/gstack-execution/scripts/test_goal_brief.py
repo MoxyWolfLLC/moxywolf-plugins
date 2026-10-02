@@ -17,7 +17,7 @@ GOOD = {
     "Outcome": "A review made in a cloud session can be read after the session ends.",
     "Non-goals": "- publishing reviews",
     "Scenarios": "- Given a cloud session that ran a review, then its record is in the vault after the session ends\n- A review record that exists only in the session must never happen",
-    "Goal tests": "- `tests/test_survives.py::test_record_in_vault` (outcome)\n- `tests/test_survives.py::test_no_session_only_record` (invariant)",
+    "Goal tests": "- `tests/test_survives.py::Survives.test_record_in_vault` (outcome)\n- `tests/test_survives.py::Survives.test_no_session_only_record` (invariant)",
     "Allowed paths": "- plugins/project-init/skills/session-end/*.md\n- plugins/project-init/scripts/*.py",
     "Spend cap": "$5",
     "Provider budgets": "- openrouter: $3\n- gemini: $2",
@@ -27,6 +27,23 @@ GOOD = {
     "Stop conditions": "- any goal test regresses",
     "Pre-mortem": "- the test checks the path exists, not that the record is readable",
 }
+
+
+TESTFILE = """# drafted-by: gpt/gpt-6-astra
+import unittest
+
+
+class Survives(unittest.TestCase):
+    def test_record_in_vault(self):
+        \"\"\"Scenario: Given a cloud session that ran a review, then its record is in the vault after the session ends\"\"\"
+        import goalmod
+        self.assertTrue(goalmod.done)
+
+    def test_no_session_only_record(self):
+        \"\"\"Scenario: A review record that exists only in the session must never happen\"\"\"
+        import goalmod
+        self.assertFalse(goalmod.session_only)
+"""
 
 
 def brief(**over):
@@ -54,7 +71,7 @@ class Check(unittest.TestCase):
             (g / "holdout.sha256").write_text(holdout + "\n")
         if tests:
             (g / "tests").mkdir()
-            (g / "tests" / "test_survives.py").write_text("")
+            (g / "tests" / "test_survives.py").write_text(tests if isinstance(tests, str) else TESTFILE)
         return g
 
     def errs(self, g, design=DESIGN, co=CO):
@@ -137,6 +154,23 @@ class Check(unittest.TestCase):
     def test_empty_codeowners_is_refused(self):  # F4: no rules is not "nothing protected"
         self.refused(self.make(), "CODEOWNERS on main has no rules", co="")
 
+    # GO-002.1 and .4: tests exist, name their scenario, and one family drafted them
+    def test_goal_test_id_must_name_an_existing_test(self):
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_missing` (outcome)"})), "is not a unittest method")
+        self.refused(self.make(brief(**{"Goal tests": "- `tests/nope.py::Survives.test_record_in_vault` (outcome)"})), "is not a unittest method")
+
+    def test_goal_test_must_carry_a_brief_scenario(self):
+        self.refused(self.make(tests=TESTFILE.replace("Scenario: Given a cloud", "Scenario: Given a laptop")), "needs a 'Scenario:' docstring line")
+        self.refused(self.make(tests=TESTFILE.replace("Scenario: A review", "No scenario. A review")), "needs a 'Scenario:' docstring line")
+
+    def test_goal_tests_name_their_drafter(self):
+        self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
+
+    def test_goal_tests_have_one_drafting_family(self):
+        g = self.make()
+        (g / "tests" / "test_more.py").write_text("# drafted-by: gemini/gemini-3.8-flash\nimport unittest\n")
+        self.refused(g, "drafted by one model family")
+
     # bounds
     def test_max_items_bounds(self):
         for v in ("0", "11"):
@@ -165,6 +199,39 @@ class Check(unittest.TestCase):
         self.assertEqual(self.errs(self.make(brief(**{"Provider budgets": "- openrouter: $2.99\n- gemini: $2.01"}))), [])
 
 
+class Baseline(unittest.TestCase):  # GO-002.2
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self.tmp.name, "repo"); self.repo.mkdir()
+        self.goal = Path(self.tmp.name, "goal"); (self.goal / "tests").mkdir(parents=True)
+        (self.goal / "tests" / "test_survives.py").write_text(TESTFILE)
+        (self.goal / "GOAL.md").write_text(brief())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def main_is(self, done, session_only):
+        (self.repo / "goalmod.py").write_text(f"done = {done}\nsession_only = {session_only}\n")
+        return gb.baseline(self.goal, self.repo)
+
+    def test_outcome_fails_and_invariant_holds_on_main_passes(self):
+        self.assertEqual(self.main_is(False, False), ([], 2))
+
+    def test_outcome_already_passing_on_main_is_refused(self):
+        e, _ = self.main_is(True, False)
+        self.assertTrue(any("already passes on main" in x for x in e), e)
+
+    def test_invariant_failing_on_main_is_refused(self):
+        e, _ = self.main_is(False, True)
+        self.assertTrue(any("fails on main" in x for x in e), e)
+
+    def test_baseline_over_no_tests_fails(self):
+        (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- nothing here"}))
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertIn("baseline examined no goal tests", e)
+
+
 class Main(unittest.TestCase):
     def test_check_reads_main_and_fails_closed_without_it(self):  # F4
         with self.assertRaises(SystemExit) as c:
@@ -185,11 +252,28 @@ class Main(unittest.TestCase):
 HEAD, OLD, BASE, TREE = "a" * 40, "b" * 40, "e" * 40, "c" * 40
 
 
-def fake(pages, merged=True, base_ref="main", main_tree=TREE, head_tree=TREE, base_tree=None):
+READING = ("## Plain-English reading\n"
+           "- tests/test_survives.py::Survives.test_record_in_vault checks the record is in the vault.\n"
+           "- tests/test_survives.py::Survives.test_no_session_only_record checks no record lives only in the session.\n"
+           "Read by: claude/claude-sonnet-5.5\n")
+
+
+def b64(text):
+    import base64
+    return {"content": base64.b64encode(text.encode()).decode()}
+
+
+def fake(pages, merged=True, base_ref="main", main_tree=TREE, head_tree=TREE, base_tree=None, body=READING):
     trees = {HEAD: head_tree, "main": main_tree, BASE: base_tree}
     def get(path):
         if path.endswith("/pulls/7"):
-            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": base_ref, "sha": BASE}}
+            return {"merged": merged, "head": {"sha": HEAD}, "base": {"ref": base_ref, "sha": BASE}, "body": body}
+        if "/goals/g1/GOAL.md" in path:
+            return b64(brief())
+        if "/goals/g1/tests?" in path:
+            return [{"name": "test_survives.py", "path": "goals/g1/tests/test_survives.py"}]
+        if "/goals/g1/tests/test_survives.py" in path:
+            return b64(TESTFILE)
         if "/reviews" in path:
             page = int(path.rsplit("page=", 1)[1])
             return pages[page - 1] if page <= len(pages) else []
@@ -243,6 +327,19 @@ class Verify(unittest.TestCase):
 
     def test_pr_that_changed_an_existing_goal_is_refused(self):  # round 2 F8: adds, not changes
         self.refused(fake([[review()]], base_tree="f" * 40), "already existed before")
+
+    def test_pr_without_a_plain_english_reading_is_refused(self):  # GO-002.4
+        self.refused(fake([[review()]], body="no reading"), "no '## Plain-English reading' section")
+
+    def test_reading_must_cover_every_goal_test(self):
+        body = READING.replace("- tests/test_survives.py::Survives.test_no_session_only_record checks no record lives only in the session.\n", "")
+        self.refused(fake([[review()]], body=body), "doesn't cover")
+
+    def test_reading_needs_a_reader(self):
+        self.refused(fake([[review()]], body=READING.replace("Read by: claude/claude-sonnet-5.5\n", "")), "Read by")
+
+    def test_reader_must_not_be_the_drafting_family(self):
+        self.refused(fake([[review()]], body=READING.replace("claude/claude-sonnet-5.5", "gpt/gpt-6.1-sol")), "family that drafted")
 
     def test_unmerged_pr_is_refused(self):
         self.refused(fake([[review()]], merged=False), "not merged")
