@@ -293,6 +293,20 @@ class Baseline(unittest.TestCase):  # GO-002.2
         self.assertEqual(n, 0)
         self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
 
+    def test_module_fixtures_run_as_unittest_runs_them(self):  # review 2 F1
+        t = TESTFILE.replace("import unittest\n", "import unittest\nready = False\n\n\ndef setUpModule():\n    global ready\n    ready = True\n", 1)
+        t = t.replace("        import goalmod\n        self.assertTrue(goalmod.done)", "        self.assertTrue(ready)")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, _ = self.main_is(False, False)
+        self.assertTrue(any("test_record_in_vault already passes on main" in x for x in e), e)
+
+    def test_a_failing_module_fixture_ran_nothing(self):  # review 2 F1
+        t = TESTFILE.replace("import unittest\n", "import unittest\n\n\ndef setUpModule():\n    raise RuntimeError('no')\n", 1)
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
+
     def test_a_skipped_test_did_not_run(self):  # round 2 F2
         t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
         (self.goal / "tests" / "test_survives.py").write_text(t)

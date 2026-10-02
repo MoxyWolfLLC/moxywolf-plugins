@@ -310,7 +310,7 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
     test_file = Path(goal_dir, path).resolve()          # F1: the goal folder isn't in the main checkout
     code = ("import importlib.util,sys,unittest\nsys.dont_write_bytecode=True\n"
             "try:\n"
-            "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
+            "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); sys.modules['goal_test']=m; s.loader.exec_module(m)\n"
             "    c, f = sys.argv[2].split('.', 1); getattr(getattr(m, c), f)\n"
             "    suite=unittest.defaultTestLoader.loadTestsFromName(sys.argv[2], m)\n"
             "except Exception as e:\n"
