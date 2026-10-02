@@ -393,7 +393,8 @@ class Verify(unittest.TestCase):
     def test_approved_at_head_with_matching_tree_passes(self):
         rec, e = self.go(fake([[review()]]))
         self.assertEqual(e, [])
-        self.assertEqual(rec, {"goal": "g1", "pr": 7, "review_id": 1, "head": HEAD, "tree": TREE})
+        self.assertEqual(rec, {"goal": "g1", "pr": 7, "review_id": 1, "head": HEAD, "tree": TREE,
+                               "drafted_by": ["gpt"], "read_by": "claude"})   # GO-003.3 reads these
 
     def test_review_by_someone_else_is_refused(self):
         self.refused(fake([[review(login="someone")]]), "no standing APPROVED review")
