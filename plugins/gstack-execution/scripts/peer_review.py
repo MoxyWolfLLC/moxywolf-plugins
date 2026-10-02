@@ -16,6 +16,7 @@ round limits, dispositions, explicit outcomes. The contract file carries the wor
 import argparse
 from governance import data_permission
 import ci_log_receipt as clr
+import goal_spend
 import hashlib
 import shlex
 from datetime import datetime, timezone
@@ -630,11 +631,12 @@ def reducer_ask(instructions, request):
         key = openrouter_key()
         body = {"model": REDUCER_MODEL, "max_tokens": 4000,
                 "messages": [{"role": "system", "content": instructions}, {"role": "user", "content": request}],
-                "response_format": {"type": "json_object"}}
+                "response_format": {"type": "json_object"}, "usage": {"include": True}}
         req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
                                      headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
             env_ = json.loads(r.read().decode())
+        goal_spend.record("openrouter", (env_.get("usage") or {}).get("cost"), "openrouter")   # GO-004.2
         out = ((env_.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
         if not out.strip():
             raise ValueError("empty content")
@@ -1082,7 +1084,8 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
                           + "You cannot open files and cannot run commands. Everything you are "
                             "permitted to examine is below.\n\n" + text}],
             "response_format": {"type": "json_schema",
-                                "json_schema": {"name": "review", "strict": True, "schema": output_schema}}}
+                                "json_schema": {"name": "review", "strict": True, "schema": output_schema}},
+            "usage": {"include": True}}
     req = urllib.request.Request(OPENROUTER_URL, data=json.dumps(body).encode(),
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     try:
@@ -1094,9 +1097,10 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
         raise ReviewError("timeout" if isinstance(e.reason, TimeoutError) else "review_unavailable", f"{tool}: {e.reason}")
     except TimeoutError:
         raise ReviewError("timeout", f"{tool} exceeded {timeout}s")
+    u = env_.get("usage") or {}
+    goal_spend.record("openrouter", u.get("cost"), "openrouter")      # GO-004.2: before any refusal of the reply
     if env_.get("error"):
         raise ReviewError("review_unavailable", f"{tool}: {str(env_['error'])[:400]}")
-    u = env_.get("usage") or {}
     if u:   # XE-013.4 / XE-012.3: one shape from the provider, not a per-CLI parse
         LAST_REVIEWER_USAGE = {"input": u.get("prompt_tokens"), "output": u.get("completion_tokens"),
                                "cache_read": (u.get("prompt_tokens_details") or {}).get("cached_tokens"),
@@ -1186,6 +1190,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     try:
         # stdin closed: codex exec otherwise blocks on "Reading additional input from stdin..."
         r = subprocess.run(cmd, cwd=str(root), env=env, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        goal_spend.record(tool, None, "subscription")                    # GO-004.2: counts against Max calls
         try:
             LAST_REVIEWER_USAGE = reviewer_usage("fake" if fake else tool, r.stdout, r.stderr)
         except Exception:   # XE-016.2: counting the cost must never throw away the round it counted

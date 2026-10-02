@@ -131,6 +131,11 @@ class Envelope(unittest.TestCase):
         self.assertEqual(n, 0)
         self.assertIn("not on main", e[0])
 
+    def test_only_a_clean_read_continues(self):  # a crash exits 1, so 1 can never mean continue
+        self.git("switch", "-q", "main")
+        self.commit("halt", {"goals/g1/HALT": "stop\n"})
+        self.assertEqual(ge.main(["halted", "g1", "--base", "main"], self.repo), 1)
+
     def test_halt_is_read_from_main_only(self):
         self.assertFalse(ge.halted(self.repo, "g1", "main"))
         self.commit("halt on the branch", {"goals/g1/HALT": ""})
@@ -154,7 +159,7 @@ class Envelope(unittest.TestCase):
             ge.revert_commands("abc123")
 
     def test_an_unreadable_main_is_a_stop_not_a_continue(self):  # review F4
-        self.assertEqual(ge.main(["halted", "g1", "--base", "main"], self.repo), 1)
+        self.assertEqual(ge.main(["halted", "g1", "--base", "main"], self.repo), 0)   # read, no HALT: continue
         self.assertEqual(ge.main(["halted", "g1", "--base", "origin/main"], self.repo), 3)   # never fetched
         with self.assertRaises(SystemExit):
             ge.check(self.repo, "g1", self.git("rev-parse", "HEAD"), base="no-such-ref")
