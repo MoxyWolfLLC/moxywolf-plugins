@@ -1457,7 +1457,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-003 — `/gstack-goal` runs the plan onto a goal branch, and `main` moves once
 
-**Status:** building. Criteria 1, 3, 4 and 8 are done (PR #104, `e297a22`: `goal_run.py` and `/gstack-goal`), and criterion 5 (PR #105, `e9602e4`): `goal-envelope.yml` and `goal-tests.yml` run `goal_checks.py` from main's copy on `pull_request_target`, run candidate code only in a container with no network, environment or capabilities, and publish their verdict as a check run on the head with the workflow's own token; a pull request that isn't a goal's passes, so `main`'s ruleset can require them of every pull request. Into `goal/<id>`, `goal-tests` requires the invariants (the runner tracks outcomes, criterion 4); into `main`, every goal test. `agent_token.py --goal-run` mints the contents-and-pull_requests token and `goal_run.py start` requires it. Criterion 6 is built: `goal-holdout.yml` runs only on a goal's pull request into `main`, in the `goal-holdout` environment, checks the secret against `holdout.sha256` from main, and runs it in the same sandbox with the holdout on stdin, never on disk or in the candidate's environment; a failure stops the run as a possible reward hack (`goal_run.py stop`). Criterion 7's runner half is built: `goal_run.py finalize` commits the run record alone on a branch from the tested head and opens its pull request into `goal/<id>`, `propose` opens the goal pull request once that merged and only the record changed, and `complete` takes only that pull request. Criterion 2 and criterion 7's rulesets, and the `goal-holdout` environment, are settings only Dorian can change; they come next, with criterion 9's tests that need them. Goal tests are sealed (GO-002.1, Dorian's decision of 2026-10-02): the candidate runs as a separate program, never in the test's interpreter, so its code can't reach the verdict.
+**Status:** done. Criteria 1, 3, 4 and 8 merged in PR #104 (`e297a22`), criterion 5 and the sealed goal tests in PR #105 (`e9602e4`), criterion 6 and the runner's half of criterion 7 in PR #106 (`761f56a`), each by `moxywolf-agent[bot]` after Dorian's approving review at the head, recorded by `record-release` as `agent_merge_autonomous`. Criteria 2 and 7's settings were made by Dorian on 2 October 2026: the `goal-holdout` environment limited to `main`; the `goal-branches` ruleset on `goal/*` (no deletion or force push, pull requests only, `goal-envelope` from GitHub Actions, an empty bypass list, creation allowed); and `main-gate` requiring `tests`, `goal-envelope`, `goal-tests` and `goal-holdout` from GitHub Actions, branches up to date, stale approvals dismissed and code-owner review. Criterion 9's tests that need those rulesets to refuse something run in B-e.
 
 **Links introduced:** the goal-branch-to-main link. A reader of `main` assumes a goal's changes arrived together, reviewed as a whole, after its goal tests and holdout passed at one head. That holds because the goal branch reaches `main` only through a pull request with its own cross-vendor review and required checks.
 
@@ -1483,7 +1483,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 
 ### GO-005 — A judgment call is a record, and code decides who makes it
 
-**Status:** planned.
+**Status:** building. Criteria 1 to 3 are built in `plugins/gstack-execution/scripts/goal_calls.py` and `goal_run.py`'s `call`, `council` and `answer`, with their tests from criterion 6. Criteria 4 and 5 (the goal ledger through `governance.py`, and the deployment check before a run and before every push, pull request and merge) are next.
 
 **Links introduced:** the decision-to-rule link. A reader of a decision record assumes the action type it names is what the change does. That holds as far as the code detectors in criterion 2 reach, and anything they can't place goes to Dorian.
 
@@ -1562,6 +1562,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-02: GO-003 marked done (PRs #104 to #106, and Dorian's repository settings). GO-005 builds in two changes, criteria 1 to 3 first.
 
 - 2026-10-02: GO-002 criterion 1 amended on Dorian's decision. The review of PR #105 showed that a goal test which imports the candidate can't be made unforgeable, because candidate code in the test's interpreter can reach the harness that reports the verdict. Offered sealing goal tests off or recording the limit, he chose “Seal it off”: a goal test runs the candidate as a separate program and never imports it, and the harness refuses one that does.
 

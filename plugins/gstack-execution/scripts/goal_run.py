@@ -7,8 +7,8 @@
         goal tests and a token with a secrets permission (GO-003.3), opens goal/<id> from main
   goal_run.py next <id>
         exit 0 with the next PLAN.md item (JSON) to build through /gstack-build into goal/<id>, or
-        with {"step": "finish"} when every goal test passes; exit 1 with the outcome when the run
-        has ended (stopped or exhausted). Checks, in order: HALT on main (GO-004.3), the goal folder
+        with {"step": "finish"} when every goal test passes; exit 3 while a judgment call waits for
+        Dorian; exit 1 with the outcome when the run has ended (stopped or exhausted). Checks, in order: HALT on main (GO-004.3), the goal folder
         unchanged on main (GO-002.5), the spend ledger (GO-004.2), Max items.
   goal_run.py merged <id> --item N --head <sha>
         after item N's pull request merged into goal/<id> as <sha>: runs the goal tests at that head
@@ -17,6 +17,13 @@
   goal_run.py failed <id> --item N --reason <text>
         item N's build ended without a merge (rounds_exhausted, review_unavailable, ...): the run
         stops with that reason
+  goal_run.py call <id> --question <text> --options <json list> --proposed-by <fam/model>
+                  --framed-by <fam/model> --head <sha>
+        records a judgment call (GO-005): code types the change at <sha> and names the decider
+  goal_run.py council <id> --call N --votes <json list>
+        the council's two votes on an in_envelope_code call: unanimous decides, split escalates
+  goal_run.py answer <id> --call N --choice <option> --words <Dorian's words>
+        Dorian's answer to a call that's his; until then `next` exits 3 and the run waits
   goal_run.py finalize <id> [--repo owner/name]
         every goal test passes: commits the run record, goal-runs/<id>/RESULT.md, alone on a branch
         from goal/<id> and opens its pull request into goal/<id> (GO-003.7)
@@ -57,6 +64,7 @@ if not (Path(__file__).resolve().parents[3] / ".github" / "CODEOWNERS").is_file(
 import goal_brief as gb  # noqa: E402
 import goal_envelope as ge  # noqa: E402
 import goal_spend as gs  # noqa: E402
+import goal_calls as gcalls  # noqa: E402
 
 OUTCOMES = ("complete", "stopped", "exhausted")
 REPO = "MoxyWolfLLC/moxywolf-plugins"
@@ -146,7 +154,7 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "items": [{"n": i + 1, "title": t, "criteria": c} for i, (t, c) in enumerate(plan_items((goal / "PLAN.md").read_text()))],
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
-             "outcome": None, "reason": None, "merge": None}
+             "outcome": None, "reason": None, "merge": None, "calls": []}
     (d / "spend.jsonl").touch()
     save(state)
     return state
@@ -173,6 +181,10 @@ def next_step(repo, goal_id, base="origin/main"):
     stop, reasons, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
     if stop:
         return False, end(state, "stopped", "; ".join(reasons))
+    pending = gcalls.waiting(state.get("calls", []))
+    if pending:                                       # GO-005.3: the run waits for Dorian, it doesn't end
+        return None, {"waiting": [{k: c[k] for k in ("n", "question", "options", "type", "type_reasons", "dissent")}
+                                  for c in pending]}
     ids = [t for t, _ in state["tests"]]
     if ids and set(ids) <= set(state["passing"]):
         return True, {"step": "finish", "branch": state["branch"], "spend": totals}
@@ -313,6 +325,49 @@ def resync(repo, goal_id, head, base="origin/main"):
     return {"finalized_head": head}
 
 
+def open_call(repo, goal_id, question, options, proposed_by, framed_by, head, base="origin/main"):
+    state = load(goal_id)
+    if state["outcome"]:
+        raise Refused(f"the run already ended: {state['outcome']}")
+    kind, reasons = gcalls.action_type(repo, goal_id, head, base)
+    commits = [sha for sha, _ in ge.goal_commits(repo, base, head)]
+    try:
+        call = gcalls.new_call(len(state.setdefault("calls", [])) + 1, question, options, proposed_by, framed_by,
+                               kind, reasons, commits)
+    except ValueError as e:
+        raise Refused(str(e))
+    state["calls"].append(call)
+    save(state)
+    return call
+
+
+def _call(state, n):
+    hit = [c for c in state.get("calls", []) if c["n"] == n]
+    if not hit:
+        raise Refused(f"no call {n}")
+    return hit[0]
+
+
+def council_votes(goal_id, n, votes):
+    state = load(goal_id)
+    try:
+        call = gcalls.council(_call(state, n), votes, state["builder"])
+    except ValueError as e:
+        raise Refused(str(e))
+    save(state)
+    return call
+
+
+def dorian_answers(goal_id, n, choice, words):
+    state = load(goal_id)
+    try:
+        call = gcalls.answer(_call(state, n), choice, words)
+    except ValueError as e:
+        raise Refused(str(e))
+    save(state)
+    return call
+
+
 def stop(goal_id, reason):
     state = load(goal_id)
     if state["outcome"]:
@@ -365,6 +420,16 @@ def record(goal_id):
     last = state["results"][-1]["results"] if state["results"] else {}
     for t, k in state["tests"]:
         lines.append(f"- `{t}` ({k}): {last.get(t, 'not run')}")
+    if state.get("calls"):
+        lines += ["", "## Judgment calls", ""]
+        for c in state["calls"]:
+            lines.append(f"{c['n']}. {c['question']} ({c['type']}, decided by {c['decider']}): "
+                         f"{c['choice'] or c['status']}" + (f"; Dorian: \u201c{c['words']}\u201d" if c["words"] else ""))
+            lines.append(f"   - options: {', '.join(c['options'])}; proposed by {c['proposed_by']}, framed by {c['framed_by']}")
+            lines.append(f"   - type by code: {'; '.join(c['type_reasons'])}")
+            lines.append(f"   - commits: {', '.join(x[:12] for x in c['commits']) or 'none'}")
+            lines += [f"   - vote: {v['model']} ({v['role']}): {v['choice']} - {v.get('reason', '')}" for v in c["votes"]]
+            lines += [f"   - dissent: {x}" for x in c["dissent"]]
     if state["merge"]:
         lines += ["", "## Rolling back", "", "```", ge.revert_commands(state["merge"]), "```"]
     return "\n".join(lines) + "\n"
@@ -405,7 +470,17 @@ def main(argv, repo=gb.ROOT):
         if cmd == "next" and goal_id and not opts:
             ok, out = next_step(repo, goal_id)
             print(json.dumps(out))
-            return 0 if ok else 1
+            return 0 if ok else 3 if ok is None else 1
+        if cmd == "call" and goal_id and set(opts) == {"--question", "--options", "--proposed-by", "--framed-by", "--head"}:
+            print(json.dumps(open_call(repo, goal_id, opts["--question"], json.loads(opts["--options"]),
+                                       opts["--proposed-by"], opts["--framed-by"], opts["--head"])))
+            return 0
+        if cmd == "council" and goal_id and set(opts) == {"--call", "--votes"}:
+            print(json.dumps(council_votes(goal_id, int(opts["--call"]), json.loads(opts["--votes"]))))
+            return 0
+        if cmd == "answer" and goal_id and set(opts) == {"--call", "--choice", "--words"}:
+            print(json.dumps(dorian_answers(goal_id, int(opts["--call"]), opts["--choice"], opts["--words"])))
+            return 0
         if cmd == "merged" and goal_id and set(opts) == {"--head", "--item"}:
             out = merged(repo, goal_id, opts["--head"], int(opts["--item"]))
             print(json.dumps(out))
