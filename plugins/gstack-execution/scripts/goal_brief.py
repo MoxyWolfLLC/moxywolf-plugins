@@ -15,7 +15,6 @@ how many sections and files it examined, and examining none is a failure (EV-001
 the approving review through the GitHub API and prints the run-record fields. Formats are in
 goals/README.md.
 """
-import ast
 import json
 import os
 import re
@@ -126,39 +125,58 @@ def goal_tests(brief_body, errors):
 TEST_REF = re.compile(r"tests/[\w.-]+\.py::\w+\.\w+")
 
 
-def _is_testcase(cls, classes, seen=()):
-    for b in cls.bases:
-        name = b.attr if isinstance(b, ast.Attribute) else getattr(b, "id", None)
-        if name == "TestCase":
-            return True
-        if name in classes and name not in seen and _is_testcase(classes[name], classes, seen + (name,)):
-            return True
-    return False
+_LIST = """import importlib.util, json, re, sys, unittest
+sys.dont_write_bytecode = True
+out = {}
+for path in sys.argv[1:]:
+    name = path.rsplit("/", 1)[-1]
+    try:
+        spec = importlib.util.spec_from_file_location("goal_" + name[:-3], path)
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        suite = unittest.defaultTestLoader.loadTestsFromModule(mod)
+    except BaseException as e:
+        out["error:" + name] = repr(e); continue
+    stack = [suite]
+    while stack:
+        t = stack.pop()
+        if isinstance(t, unittest.TestSuite):
+            stack.extend(t); continue
+        if type(t).__name__ == "_FailedTest":
+            out["error:" + name] = str(getattr(t, "_exception", "load failed")); continue
+        doc = getattr(type(t), t._testMethodName).__doc__ or ""
+        m = re.search(r"^\\s*Scenario:\\s*(.+?)\\s*$", doc, re.M)
+        out["tests/%s::%s.%s" % (name, type(t).__name__, t._testMethodName)] = m.group(1) if m else ""
+print(json.dumps(out))
+"""
 
 
 def test_inventory(goal_dir, errors):
-    """Every unittest test method under tests/, as {'tests/<file>.py::<Class>.<method>': scenario or ''}.
+    """Every test unittest itself would run under tests/ (inheritance included), as
+    {'tests/<file>.py::<Class>.<method>': scenario or ''}. Each file is loaded in an isolated
+    interpreter with no repository on its path, so a goal test file must load on its own.
     Goal tests live directly in tests/; a nested file is refused so check, baseline and verify see one set."""
-    inv, tests = {}, Path(goal_dir, "tests")
+    inv, tests = {}, Path(goal_dir, "tests").resolve()
     if not tests.is_dir():
         return inv
     for f in sorted(tests.rglob("*")):
-        if f.is_file() and f.parent != tests:
-            errors.append(f"goal tests live directly in tests/, not in a subfolder: {f.relative_to(goal_dir)}")
-    for f in sorted(tests.glob("*.py")):
-        try:
-            tree = ast.parse(f.read_text())
-        except SyntaxError as e:
-            errors.append(f"tests/{f.name} does not parse: {e}")
-            continue
-        classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
-        for cls in classes.values():
-            if not _is_testcase(cls, classes):
-                continue
-            for fn in cls.body:
-                if isinstance(fn, ast.FunctionDef) and fn.name.startswith("test"):
-                    m = re.search(r"^Scenario:\s*(.+?)\s*$", ast.get_docstring(fn) or "", re.M)
-                    inv[f"tests/{f.name}::{cls.name}.{fn.name}"] = m.group(1) if m else ""
+        if f.is_file() and f.parent != tests and "__pycache__" not in f.relative_to(tests).parts:
+            errors.append(f"goal tests live directly in tests/, not in a subfolder: tests/{f.relative_to(tests)}")
+    files = [str(f) for f in sorted(tests.glob("*.py"))]
+    if not files:
+        return inv
+    env = {"PATH": os.environ.get("PATH", ""), "PYTHONDONTWRITEBYTECODE": "1"}
+    try:
+        r = subprocess.run([sys.executable, "-I", "-c", _LIST, *files], cwd=tests, env=env,
+                           capture_output=True, text=True, timeout=120)
+        found = json.loads(r.stdout.strip().splitlines()[-1])
+    except (subprocess.TimeoutExpired, ValueError, IndexError) as e:
+        errors.append(f"goal tests could not be listed: {e}")
+        return inv
+    for k, v in sorted(found.items()):
+        if k.startswith("error:"):
+            errors.append(f"tests/{k[6:]} does not load on its own ({v}); move repository imports into the test methods")
+        else:
+            inv[k] = v
     return inv
 
 
@@ -287,7 +305,7 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
     file itself failing, timeout). A not_run test examined nothing."""
     path, _, name = test_id.partition("::")
     test_file = Path(goal_dir, path).resolve()          # F1: the goal folder isn't in the main checkout
-    code = ("import importlib.util,sys,unittest\n"
+    code = ("import importlib.util,sys,unittest\nsys.dont_write_bytecode=True\n"
             "try:\n"
             "    s=importlib.util.spec_from_file_location('goal_test', sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
             "    c, f = sys.argv[2].split('.', 1); getattr(getattr(m, c), f)\n"
@@ -297,10 +315,12 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
             "if suite.countTestCases() != 1:\n"
             "    print('not_run: found', suite.countTestCases()); sys.exit(3)\n"
             "r=unittest.TextTestRunner(verbosity=0).run(suite)\n"
-            "sys.exit(0 if r.wasSuccessful() and r.testsRun == 1 else 1)\n")
+            "if r.testsRun - len(r.skipped) != 1:\n"            # setUpClass failure or a skip ran nothing
+            "    print('not_run: ran', r.testsRun - len(r.skipped)); sys.exit(3)\n"
+            "sys.exit(0 if r.wasSuccessful() else 1)\n")
     if not test_file.is_file():
         return "not_run"
-    env = dict(os.environ, PYTHONPATH=str(repo_root))
+    env = dict(os.environ, PYTHONPATH=str(repo_root), PYTHONDONTWRITEBYTECODE="1")
     try:
         r = subprocess.run([sys.executable, "-c", code, str(test_file), name], cwd=repo_root,
                            env=env, capture_output=True, text=True, timeout=timeout)

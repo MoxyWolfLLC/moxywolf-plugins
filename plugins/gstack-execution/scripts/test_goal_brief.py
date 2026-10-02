@@ -184,6 +184,19 @@ class Check(unittest.TestCase):
         t = TESTFILE + "\n    def test_extra(self):\n        pass\n"
         self.refused(self.make(tests=t), "is not listed in Goal tests")
 
+    def test_a_local_class_named_testcase_is_not_unittest(self):  # round 2 F5
+        t = TESTFILE.replace("class Survives(unittest.TestCase):", "class TestCase:\n    pass\n\n\nclass Survives(TestCase):")
+        self.refused(self.make(tests=t), "is not a unittest TestCase method")
+
+    def test_an_inherited_mixin_test_must_be_listed(self):  # round 2 F7
+        t = TESTFILE.replace("class Survives(unittest.TestCase):",
+                             "class Extra:\n    def test_extra(self):\n        pass\n\n\nclass Survives(Extra, unittest.TestCase):")
+        self.refused(self.make(tests=t), "Survives.test_extra is not listed in Goal tests")
+
+    def test_a_test_file_that_needs_the_repository_to_load_is_refused(self):
+        self.refused(self.make(tests=TESTFILE.replace("import unittest\n", "import unittest\nimport goalmod\n", 1)),
+                     "does not load on its own")
+
     def test_goal_tests_name_their_drafter(self):
         self.refused(self.make(tests=TESTFILE.replace("# drafted-by: gpt/gpt-6-astra\n", "")), "drafted-by")
 
@@ -264,6 +277,27 @@ class Baseline(unittest.TestCase):  # GO-002.2
         (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- `tests/test_survives.py::Survives.test_gone` (outcome)"}))
         e, n = self.main_is(False, False)
         self.assertTrue(any("could not be run against main" in x for x in e), e)
+
+    def test_a_test_whose_class_setup_fails_did_not_run(self):  # round 2 F2
+        t = TESTFILE.replace("class Survives(unittest.TestCase):",
+                             "class Survives(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n        raise RuntimeError('no')\n")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 0)
+        self.assertEqual(sum("could not be run against main" in x for x in e), 2, e)
+
+    def test_a_skipped_test_did_not_run(self):  # round 2 F2
+        t = TESTFILE.replace("        import goalmod\n        self.assertFalse", "        self.skipTest('later')\n        import goalmod\n        self.assertFalse")
+        (self.goal / "tests" / "test_survives.py").write_text(t)
+        e, n = self.main_is(False, False)
+        self.assertEqual(n, 1)
+        self.assertTrue(any("test_no_session_only_record could not be run" in x for x in e), e)
+
+    def test_baseline_leaves_the_goal_folder_as_check_saw_it(self):  # round 2 F8
+        before = gb.check(self.goal, DESIGN, CO)[0]
+        self.assertEqual(self.main_is(False, False), ([], 2))
+        self.assertEqual(gb.check(self.goal, DESIGN, CO)[0], before)
+        self.assertFalse(any(self.goal.rglob("__pycache__")))
 
     def test_baseline_over_no_tests_fails(self):
         (self.goal / "GOAL.md").write_text(brief(**{"Goal tests": "- nothing here"}))
