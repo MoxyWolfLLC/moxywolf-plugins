@@ -68,7 +68,8 @@ class Decisions(unittest.TestCase):
     def test_the_sandbox_has_no_network_no_environment_and_reads_only(self):
         cmd = gc.sandbox_cmd("/m", "/c", "g1")
         joined = " ".join(cmd)
-        for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 65534:65534"):
+        for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 65534:65534",
+                     "--tmpfs /tmp:exec"):
             self.assertIn(flag, joined)
         self.assertIn("/m:/main:ro", joined); self.assertIn("/c:/candidate:ro", joined)
         envs = [cmd[i + 1] for i, a in enumerate(cmd) if a in ("-e", "--env")]
@@ -264,6 +265,42 @@ class Sandbox(unittest.TestCase):
             if os.environ.get("CI"):
                 self.fail("CI must run the goal-test sandbox; Docker isn't available")
             self.skipTest("no Docker daemon here; CI runs this test")
+
+    def test_a_goal_test_can_run_a_program_it_writes_in_tmp(self):  # cloud-review-survives' stub gitleaks
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main = t / "main"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_x.py::X.test_stub_runs` (invariant)\n")
+        (main / "goals" / "g1" / "tests" / "test_x.py").write_text(
+            "import os, subprocess, sys, tempfile, unittest\n\n\nclass X(unittest.TestCase):\n"
+            "    def test_stub_runs(self):\n        d = tempfile.mkdtemp(); p = os.path.join(d, 'stub')\n"
+            "        open(p, 'w').write('#!' + sys.executable + '\\nprint(42)\\n'); os.chmod(p, 0o755)\n"
+            "        self.assertEqual(subprocess.run([p], capture_output=True, text=True).stdout.strip(), '42')\n")
+        r = subprocess.run(gc.sandbox_cmd(main, main, "g1"), capture_output=True, text=True, timeout=600)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_stub_runs": "passed"})
+
+    def test_baseline_runs_in_the_container(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        wt, goal = Path(tempfile.mkdtemp()), t / "g1"         # review F1: 0700, as main_checkout() makes it
+        self.addCleanup(shutil.rmtree, wt, True)
+        os.chmod(t, 0o755)
+        shutil.copytree(HERE, wt / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (wt / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", wt / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", wt / ".github")
+        (goal / "tests").mkdir(parents=True)
+        (goal / "GOAL.md").write_text("## Goal tests\n- `tests/test_y.py::Y.test_in_container` (invariant)\n")
+        (goal / "tests" / "test_y.py").write_text(      # passes only in the container, where the candidate is /candidate
+            "import os, unittest\n\n\nclass Y(unittest.TestCase):\n"
+            "    def test_in_container(self):\n        self.assertEqual(os.environ['GOAL_CANDIDATE'], '/candidate')\n")
+        import goal_brief as gb
+        self.assertEqual(gb.baseline(goal, wt, run=gb.sandboxed(goal, wt)), ([], 1))
+        self.assertTrue(gb.baseline(goal, wt)[0])               # on the host the same test fails: baseline would differ
 
     def test_candidate_code_sees_no_network_and_no_token(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
