@@ -179,12 +179,25 @@ class Ledger(tgr.RunnerFixture):
         self.git("switch", "-q", "main")
         sync_pr = dict(PR, head=empty)
         self.assertEqual(self.act("merge", "goal/g1", head=empty, checks=GREEN, pr=sync_pr, sync=True)["by"], "GO-004.1 sync")
-        with self.assertRaisesRegex(gr.Refused, "changes helper.py against main"):
+        with self.assertRaisesRegex(gr.Refused, "one empty commit on main's tip"):
             self.act("merge", "goal/g1", head=changed, checks=GREEN, pr=dict(PR, head=changed), sync=True)
+        with self.assertRaisesRegex(gr.Refused, "changes helper.py against main"):
+            gguard.sync_allowed("goal/g1", "goal/g1", empty, GREEN, sync_pr, ["helper.py"])
         with self.assertRaisesRegex(gr.Refused, "goal-envelope at .* is missing"):
             self.act("merge", "goal/g1", head=empty, checks={"tests": ("success", None)}, pr=sync_pr, sync=True)
         with self.assertRaisesRegex(gr.Refused, "a sync merges into goal/g1, not main"):
             self.act("merge", "main", head=empty, checks=GREEN, pr=sync_pr, sync=True)
+        self.git("switch", "-q", "-c", "detour", "main")             # a change and its revert: no diff, unreviewed history
+        self.commit("change", {"helper.py": "x = 2\n"}); self.git("revert", "--no-edit", "-q", "HEAD")
+        self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
+        detour = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "-c", "off-goal", "goal/g1")
+        self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
+        off_goal = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "main")
+        for head in (detour, off_goal):
+            with self.subTest(head=head), self.assertRaisesRegex(gr.Refused, "one empty commit on main's tip"):
+                self.act("merge", "goal/g1", head=head, checks=GREEN, pr=dict(PR, head=head), sync=True)
 
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()

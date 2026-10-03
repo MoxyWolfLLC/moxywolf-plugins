@@ -333,6 +333,11 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
         if head is None or checks is None or pr is None:
             raise Refused("a sync merge names its pull request, its head and the checks at that head")
         changed = [f for f in ge.git(repo, "diff", "--name-only", base, head).split() if f]
+        tip = ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip()
+        parents = ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()[1:]
+        tree = lambda c: ge.git(repo, "rev-parse", f"{c}^{{tree}}").strip()
+        if parents != [tip] or tree(head) != tree(tip):
+            raise Refused(f"a sync's head is one empty commit on main's tip {tip[:12]}; {head[:12]} isn't")
         gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
         return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
     if klass == "merge":
