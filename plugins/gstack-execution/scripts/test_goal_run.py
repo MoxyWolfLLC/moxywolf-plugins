@@ -131,6 +131,13 @@ class RunnerFixture(unittest.TestCase):
     def next(self):
         return gr.next_step(self.repo, "g1", base="main")
 
+    def origin(self):
+        bare = Path(self.tmp.name, "origin.git")
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        self.git("remote", "add", "origin", str(bare))
+        self.git("push", "-q", "origin", "main", "goal/g1")
+        return bare
+
     envs = staticmethod(lambda: ["goal-holdout"])
 
 
@@ -297,13 +304,6 @@ class Runner(RunnerFixture):
                     gr.complete("g1", 9, "f" * 40, self.merged_pr(**over))
                 self.assertIsNone(gr.load("g1")["outcome"])
         self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
-
-    def origin(self):
-        bare = Path(self.tmp.name, "origin.git")
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
-        self.git("remote", "add", "origin", str(bare))
-        self.git("push", "-q", "origin", "main", "goal/g1")
-        return bare
 
     def test_the_finish_finalizes_then_proposes_then_completes(self):  # GO-003.7
         self.start()

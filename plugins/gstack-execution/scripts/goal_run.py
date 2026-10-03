@@ -10,10 +10,12 @@
         with {"step": "finish"} when every goal test passes; exit 3 while a judgment call waits for
         Dorian; exit 1 with the outcome when the run has ended (stopped or exhausted). Checks, in order: HALT on main (GO-004.3), the goal folder
         unchanged on main (GO-002.5), the spend ledger (GO-004.2), Max items.
-  goal_run.py merged <id> --item N --head <sha>
+  goal_run.py merged <id> --item N --head <sha> --unsure <text> [--review <review-id>]
         after item N's pull request merged into goal/<id> as <sha>: runs the goal tests at that head
         and stops the run on a failing invariant or an outcome test that passed and now fails
-        (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded.
+        (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded. --unsure
+        is what the agent is least sure of in the item, for its digest (GO-006.1); --review names the
+        item's review, whose blocking findings' files are compared with the previous item's
   goal_run.py failed <id> --item N --reason <text>
         item N's build ended without a merge (rounds_exhausted, review_unavailable, ...): the run
         stops with that reason
@@ -40,6 +42,12 @@
         the goal pull request's head moved because a sync from main merged into goal/<id>
         (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
         keeps the run record and passes the envelope check
+  goal_run.py holdout-failed <id> --detail <text>
+        goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2)
+  goal_run.py ack <id> --escalation N --words <Dorian's words>
+        Dorian's acknowledgement of an escalation that holds the run; until then `next` exits 3
+  Every command also prints {"messages": [...]}, when there are new ones: GO-006's digests and
+  escalations, for the agent to relay to Dorian. They're kept in the run record either way.
   goal_run.py stop <id> --reason <text>
         ends a run that hasn't ended, e.g. when goal-holdout fails (a possible reward hack, GO-003.6)
   goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
@@ -177,10 +185,91 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     return state
 
 
+def notify(state, kind, text, trigger=None, item=None, waits=False):
+    """GO-006: a digest or an escalation, written into the run's state (so the run record carries
+    it) and printed by the CLI for the agent to relay to Dorian. A digest never waits; an escalation
+    with waits=True holds the run until Dorian acknowledges it."""
+    from datetime import datetime, timezone
+    msgs = state.setdefault("messages", [])
+    msgs.append({"n": len(msgs) + 1, "kind": kind, "trigger": trigger, "item": item, "text": text,
+                 "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "waits": waits,
+                 "status": "open" if waits else "noted", "words": None, "delivered": False})
+    return msgs[-1]
+
+
+def escalate(state, trigger, text, waits=False):
+    return notify(state, "escalation", text, trigger=trigger, waits=waits)
+
+
+def digest(state, item=None, unsure=None):
+    """GO-006.1: which calls were close, what the agent is least sure of, what changed against the
+    brief. Dissent is shown. It asks nothing and gates nothing."""
+    close = [c for c in state.get("calls", []) if c.get("dissent")]
+    lines = ["Close calls: " + ("none" if not close else
+                                "; ".join(f"#{c['n']} {c['question']} ({c['status']}{', ' + c['choice'] if c['choice'] else ''})"
+                                          for c in close))]
+    lines += [f"  dissent on #{c['n']}: {x}" for c in close for x in c["dissent"]]
+    lines.append("Least sure of: " + (unsure or "the agent didn't say"))
+    ids = [t for t, _ in state["tests"]]
+    d = run_dir(state["goal"])
+    _, _, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
+    lines.append(f"Against the brief: {len(state['done'])} of {len(state['items'])} items merged; "
+                 f"{len(set(ids) & set(state['passing']))} of {len(ids)} goal tests passing"
+                 + (f" ({', '.join(sorted(set(ids) - set(state['passing'])))} still failing)" if set(ids) - set(state["passing"]) else "")
+                 + f"; spend ${totals.get('total', '?')}, {totals.get('calls', '?')} counted calls"
+                 + (f"; outcome {state['outcome']}: {state['reason']}" if state["outcome"] else ""))
+    head = f"Item {item} merged" if item else f"Run {state['outcome'] or 'ended'}"
+    return notify(state, "digest", head + "\n" + "\n".join(lines), item=item)
+
+
 def end(state, outcome, reason):
+    d = run_dir(state["goal"])
+    stop, reasons, _ = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
+    if stop and not any(m["trigger"] == "spend" for m in state.get("messages", [])):
+        escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))   # whichever path ends the run
     state["outcome"], state["reason"] = outcome, reason
+    last = next((r for r in reversed(state["results"]) if r.get("unsure")), {})
+    digest(state, unsure=last.get("unsure"))            # GO-006.1: one at the end, whatever the outcome
     save(state)
     return {"outcome": outcome, "reason": reason}
+
+
+def outbox(goal_id):
+    """Messages not yet printed; printing marks them delivered. Missed ones stay in the record."""
+    try:
+        state = load(goal_id)
+    except Refused:
+        return []
+    out = [m for m in state.get("messages", []) if not m["delivered"]]
+    for m in out:
+        m["delivered"] = True
+    if out:
+        save(state)
+    return out
+
+
+def held(state):
+    """Open escalations that hold the run; progress refuses while there are any."""
+    return [m for m in state.get("messages", []) if m["kind"] == "escalation" and m["status"] == "open"]
+
+
+def refuse_if_held(state):
+    h = held(state)
+    if h:
+        raise Refused(f"escalation {h[0]['n']} ({h[0]['trigger']}) holds the run until Dorian acknowledges it")
+
+
+def acknowledge(goal_id, n, words):
+    """Dorian's acknowledgement, in his words, of an escalation that holds the run."""
+    state = load(goal_id)
+    hit = [m for m in state.get("messages", []) if m["n"] == n and m["kind"] == "escalation"]
+    if not hit or hit[0]["status"] != "open":
+        raise Refused(f"no open escalation {n}")
+    if not str(words or "").strip():
+        raise Refused("record Dorian's acknowledgement in his own words")
+    hit[0].update(status="acknowledged", words=words)
+    save(state)
+    return hit[0]
 
 
 def next_step(repo, goal_id, base="origin/main"):
@@ -197,11 +286,14 @@ def next_step(repo, goal_id, base="origin/main"):
         return False, end(state, "stopped", str(e))
     stop, reasons, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
     if stop:
+        escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))
         return False, end(state, "stopped", "; ".join(reasons))
     pending = gcalls.waiting(state.get("calls", []))
-    if pending:                                       # GO-005.3: the run waits for Dorian, it doesn't end
+    holds = held(state)
+    if pending or holds:                               # GO-005.3, GO-006.2: the run waits for Dorian, it doesn't end
         return None, {"waiting": [{k: c[k] for k in ("n", "question", "options", "type", "type_reasons", "dissent")}
-                                  for c in pending]}
+                                  for c in pending],
+                      "escalations": [{k: m[k] for k in ("n", "trigger", "text")} for m in holds]}
     ids = [t for t, _ in state["tests"]]
     if ids and set(ids) <= set(state["passing"]):
         return True, {"step": "finish", "branch": state["branch"], "spend": totals}
@@ -222,6 +314,13 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
+    refuse_if_held(state)
+    d = run_dir(goal_id)
+    stop, reasons, _ = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
+    if stop:                                          # GO-006.2: at once, not at the next item
+        escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))
+        end(state, "stopped", "; ".join(reasons))
+        raise Refused("the run stopped: " + "; ".join(reasons))
     if klass in ("vcs.push", "pr.open", "merge"):
         brief = (run_dir(goal_id) / "goal" / "GOAL.md").read_text()
         problems, now = gguard.assess(repo, base, brief, environments())
@@ -234,7 +333,12 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
         gguard.merge_allowed(state["branch"], resource, head, review, checks, pr)
         return {"allowed": klass, "resource": resource, "by": "DR-113"}
-    row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
+    try:
+        row = gguard.granted(run_dir(goal_id) / "ledger.jsonl", klass, resource, state["spent"])
+    except Refused as e:
+        escalate(state, "dorian_call", f"The goal ledger refused {klass} on {resource}: {e}", waits=True)
+        save(state)
+        raise
     if row and row["scope"] == "once":
         state["spent"].append(row["id"])
         save(state)
@@ -256,10 +360,12 @@ def failed(goal_id, item, reason):
     """An item build that ended without a merge ends the run."""
     state = load(goal_id)
     current_item(state, item)
+    if "rounds_exhausted" in reason:
+        escalate(state, "review_cap", f"Item {item} reached the review cap: {reason}")
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
 
 
-def merged(repo, goal_id, head, item):
+def merged(repo, goal_id, head, item, unsure="", review_files=()):
     """Run the goal tests at head; stop on a failing invariant or a regressed outcome."""
     state = load(goal_id)
     remaining = current_item(state, item)
@@ -273,14 +379,24 @@ def merged(repo, goal_id, head, item):
     finally:
         subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
     state["done"].append(remaining[0]["n"])
-    state["results"].append({"item": remaining[0]["n"], "head": head, "results": results})
+    state["results"].append({"item": remaining[0]["n"], "head": head, "results": results, "unsure": unsure,
+                             "blocking_files": sorted(set(review_files))})
     kinds = dict(state["tests"])
     bad = [f"invariant {t} {r}" for t, r in results.items() if kinds[t] == "invariant" and r != "passed"]
     bad += [f"outcome {t} passed before and is now {r}" for t, r in results.items()
             if kinds[t] == "outcome" and t in state["passing"] and r != "passed"]
     state["passing"] = sorted(t for t, r in results.items() if r == "passed")
     if bad:
+        digest(state, item=remaining[0]["n"], unsure=unsure)
+        escalate(state, "regression", f"Goal tests regressed at {head[:12]} after item {remaining[0]['n']}: " + "; ".join(bad))
         return end(state, "stopped", "regression at " + head[:12] + ": " + "; ".join(bad))
+    digest(state, item=remaining[0]["n"], unsure=unsure)
+    # ponytail: a finding's file stands in for its category, which findings don't carry
+    if len(state["results"]) >= 2:
+        again = sorted(set(state["results"][-1]["blocking_files"]) & set(state["results"][-2]["blocking_files"]))
+        if again:
+            escalate(state, "repeat_finding", f"Blocking findings in {', '.join(again)} on items "
+                     f"{state['results'][-2]['item']} and {remaining[0]['n']} in a row", waits=True)
     save(state)
     return {"item": remaining[0]["n"], "results": results}
 
@@ -353,6 +469,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
 def resync(repo, goal_id, head, base="origin/main"):
     """Rebind the goal pull request to a head that only a sync from main moved."""
     state = finishing(goal_id)
+    refuse_if_held(state)
     if not (state.get("final_pr") and state.get("finalized_head")):
         raise Refused("resync applies only after propose")
     parents = ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()
@@ -365,6 +482,9 @@ def resync(repo, goal_id, head, base="origin/main"):
         raise Refused(f"{head[:12]} changes the run record")
     errors, _ = ge.check(repo, goal_id, head, base)
     if errors:
+        escalate(state, "outside_envelope", f"The goal branch moved to {head[:12]} with changes outside the envelope: "
+                 + "; ".join(errors), waits=True)
+        save(state)
         raise Refused("the envelope check refuses the new head: " + "; ".join(errors))
     state.setdefault("resyncs", []).append({"from": state["finalized_head"], "to": head})
     state["finalized_head"] = head
@@ -384,6 +504,11 @@ def open_call(repo, goal_id, question, options, proposed_by, framed_by, head, ba
     except ValueError as e:
         raise Refused(str(e))
     state["calls"].append(call)
+    if call["decider"] == "dorian":
+        outside = any("outside the envelope" in r for r in reasons)
+        escalate(state, "outside_envelope" if outside else "dorian_call",
+                 f"Call #{call['n']} is Dorian's ({kind}): {question} Options: {', '.join(options)}. "
+                 f"Typed by code: {'; '.join(reasons)}")
     save(state)
     return call
 
@@ -401,6 +526,8 @@ def council_votes(goal_id, n, votes):
         call = gcalls.council(_call(state, n), votes, state["builder"])
     except ValueError as e:
         raise Refused(str(e))
+    if call["status"] == "escalated":
+        escalate(state, "dorian_call", f"The council split on call #{n}, {call['question']}: " + "; ".join(call["dissent"]))
     save(state)
     return call
 
@@ -413,6 +540,14 @@ def dorian_answers(goal_id, n, choice, words):
         raise Refused(str(e))
     save(state)
     return call
+
+
+def holdout_failed(goal_id, detail):
+    state = load(goal_id)
+    if state["outcome"]:
+        raise Refused(f"the run already ended: {state['outcome']}")
+    escalate(state, "holdout", f"goal-holdout failed, a possible reward hack: {detail}")
+    return end(state, "stopped", f"goal-holdout failed: {detail}")
 
 
 def stop(goal_id, reason):
@@ -477,6 +612,13 @@ def record(goal_id):
             lines.append(f"   - commits: {', '.join(x[:12] for x in c['commits']) or 'none'}")
             lines += [f"   - vote: {v['model']} ({v['role']}): {v['choice']} - {v.get('reason', '')}" for v in c["votes"]]
             lines += [f"   - dissent: {x}" for x in c["dissent"]]
+    if state.get("messages"):
+        lines += ["", "## Digests and escalations", ""]
+        for m in state["messages"]:
+            what = m["kind"] + (f" ({m['trigger']})" if m["trigger"] else "")
+            lines.append(f"{m['n']}. {m['at']} {what}" + (f", acknowledged: \u201c{m['words']}\u201d" if m["words"] else
+                                                          ", waiting for Dorian" if m["status"] == "open" else ""))
+            lines += [f"   {ln}" for ln in m["text"].splitlines()]
     if state["merge"]:
         lines += ["", "## Rolling back", "", "```", ge.revert_commands(state["merge"]), "```"]
     return "\n".join(lines) + "\n"
@@ -491,6 +633,23 @@ def _api(token, method, path, data):
         return json.load(r)
 
 
+def blocking_files(review_id):
+    """Repo-relative files named by a review's blocking findings, every round, from the review
+    record (the bound subject's path where there is one)."""
+    rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    d = Path(rdir or "", review_id)
+    if not rdir or not (d / "state.json").is_file():
+        raise Refused(f"no review record {review_id} under GSTACK_PEER_REVIEW_DIR")
+    files = set()
+    for f in sorted(d.glob("round-*.json")):
+        rec = json.loads(f.read_text())
+        for x in rec.get("findings", []):
+            if x.get("severity") == "blocking":
+                s = (rec.get("subjects") or {}).get(x["id"]) or {}
+                files.add(s["path"] if s.get("bound") else x["file"])
+    return sorted(files)
+
+
 def environments_of(get, name):
     """Every deployment environment GitHub reports for the repository: its environments and the
     environments its deployments name. A read that fails stops the caller; it never reads as none."""
@@ -501,6 +660,16 @@ def environments_of(get, name):
 
 
 def main(argv, repo=gb.ROOT):
+    rc = _main(argv, repo)
+    goal_id = (argv + [None, None])[1]
+    if goal_id and argv[0] not in ("record",) and ge.GOAL_ID.match(goal_id or "") and os.environ.get("GSTACK_GOAL_RUN_DIR"):
+        msgs = outbox(goal_id)
+        if msgs:                                      # GO-006: relay each one to Dorian
+            print(json.dumps({"messages": [{k: m[k] for k in ("n", "kind", "trigger", "waits", "text")} for m in msgs]}))
+    return rc
+
+
+def _main(argv, repo=gb.ROOT):
     cmd, goal_id = (argv + [None, None])[:2]
     opts = dict(zip(argv[2::2], argv[3::2]))
     try:
@@ -538,8 +707,9 @@ def main(argv, repo=gb.ROOT):
         if cmd == "answer" and goal_id and set(opts) == {"--call", "--choice", "--words"}:
             print(json.dumps(dorian_answers(goal_id, int(opts["--call"]), opts["--choice"], opts["--words"])))
             return 0
-        if cmd == "merged" and goal_id and set(opts) == {"--head", "--item"}:
-            out = merged(repo, goal_id, opts["--head"], int(opts["--item"]))
+        if cmd == "merged" and goal_id and {"--head", "--item", "--unsure"} <= set(opts) <= {"--head", "--item", "--unsure", "--review"}:
+            files = blocking_files(opts["--review"]) if "--review" in opts else ()
+            out = merged(repo, goal_id, opts["--head"], int(opts["--item"]), opts["--unsure"], files)
             print(json.dumps(out))
             return 1 if out.get("outcome") else 0
         if cmd == "failed" and goal_id and set(opts) == {"--item", "--reason"}:
@@ -581,6 +751,12 @@ def main(argv, repo=gb.ROOT):
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))
+            return 0
+        if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
+            print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
+            return 1
+        if cmd == "ack" and goal_id and set(opts) == {"--escalation", "--words"}:
+            print(json.dumps(acknowledge(goal_id, int(opts["--escalation"]), opts["--words"])))
             return 0
         if cmd == "stop" and goal_id and set(opts) == {"--reason"}:
             print(json.dumps(stop(goal_id, opts["--reason"])))
