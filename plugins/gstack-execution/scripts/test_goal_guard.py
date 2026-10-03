@@ -188,9 +188,16 @@ class Ledger(tgr.RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "a sync merges into goal/g1, not main"):
             self.act("merge", "main", head=empty, checks=GREEN, pr=sync_pr, sync=True)
         self.git("switch", "-q", "-c", "detour", "main")             # a change and its revert: no diff, unreviewed history
-        self.commit("change", {"helper.py": "x = 2\n"}); self.git("revert", "--no-edit", "-q", "HEAD")
+        self.commit("change", {"helper.py": "x = 2\n"}); self.git("revert", "--no-edit", "HEAD")
         self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
         detour = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "-c", "one-change", "main")         # one commit on main's tip, but not empty
+        self.commit("change", {"helper.py": "x = 3\n"})
+        one_change = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "main")
+        with self.assertRaisesRegex(gr.Refused, "one empty commit on main's tip"):
+            self.act("merge", "goal/g1", head=one_change, checks=GREEN, pr=dict(PR, head=one_change), sync=True)
+        self.item("done = False\nsafe = True\n# goal work\n")      # the goal branch moves past main's tip
         self.git("switch", "-q", "-c", "off-goal", "goal/g1")
         self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
         off_goal = self.git("rev-parse", "HEAD")
