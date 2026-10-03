@@ -18,13 +18,20 @@ ROOT = Path(__file__).resolve().parents[3]
 TIMEOUT = 600
 
 
+def goal_test(path, root):
+    """A goal's own test (goals/<id>/tests/...). It isn't one of the repository's checks: it runs a
+    candidate named by GOAL_CANDIDATE, sealed, and only the goal-tests check runs it (GO-003.5)."""
+    rel = path.relative_to(root).parts
+    return len(rel) > 1 and rel[0] == "goals"
+
+
 def discover(root):
     """(suites, selftests) -- every runnable check in the repository."""
     suites = sorted(p for p in root.rglob("test_*.py")
-                    if "__pycache__" not in p.parts and ".git" not in p.parts)
+                    if "__pycache__" not in p.parts and ".git" not in p.parts and not goal_test(p, root))
     selftests = sorted(p for p in root.rglob("*.py")
                        if "__pycache__" not in p.parts and ".git" not in p.parts
-                       and not p.name.startswith("test_")
+                       and not p.name.startswith("test_") and not goal_test(p, root)
                        and "--selftest" in p.read_text(errors="replace"))
     return suites, selftests
 
@@ -45,8 +52,9 @@ def main(argv=None):
     suites, selftests = discover(root)
     jobs = [(p, []) for p in suites] + [(p, ["--selftest"]) for p in selftests]
 
+    goal_tests = sorted(p for p in root.rglob("*.py") if "__pycache__" not in p.parts and goal_test(p, root))
     print(f"discovered {len(suites)} test suites and {len(selftests)} selftest entry points "
-          f"under {root}")
+          f"under {root}; left {len(goal_tests)} goal test files under goals/ to the goal-tests check")
     for p, args in jobs:
         print(f"  - {p.relative_to(root)}{' --selftest' if args else ''}")
     if a.list:
@@ -90,6 +98,17 @@ def _selftest():
         assert main(["--root", str(empty)]) == 0
         (empty / "test_bad.py").write_text("import sys; sys.exit(3)\n")
         assert main(["--root", str(empty)]) == 1, "a failing suite must fail the run"
+
+        goal = empty / "goals" / "g1" / "tests"
+        goal.mkdir(parents=True)
+        (goal / "test_goal.py").write_text("import os, sys; sys.exit(0 if os.environ.get('GOAL_CANDIDATE') else 3)\n")
+        assert goal / "test_goal.py" not in discover(empty)[0], "a goal's test is the goal-tests check's, not this runner's"
+        (empty / "test_bad.py").unlink()
+        assert main(["--root", str(empty)]) == 0, "a goal test that needs a candidate must not fail the repository's run"
+        nested = empty / "plugins" / "goals"
+        nested.mkdir(parents=True)
+        (nested / "test_inner.py").write_text("print('fine')\n")
+        assert nested / "test_inner.py" in discover(empty)[0], "only the top-level goals/ folder is left out"
 
         s, st = discover(ROOT)
         assert s and st, f"the real repository must discover checks, got {len(s)}/{len(st)}"
