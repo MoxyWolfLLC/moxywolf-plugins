@@ -1565,6 +1565,8 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-03: `run_all_tests.py` leaves `goals/<id>/` to the `goal-tests` check and says how many goal test files it left (XE-006.2). B-e's throwaway goal, PR #111, was the first goal folder on a pull request, and the repository's own run failed on its tests, which run only against a candidate named by `GOAL_CANDIDATE` (GO-003.5).
+
 - 2026-10-02: GO-005 marked done (PRs #107, #108). GO-006 built; its readings are in its status.
 
 - 2026-10-02: GO-005 criteria 4 to 6 built: the goal ledger, the trigger check at the start and before every push, pull request and merge, and their tests. The readings it rests on are in GO-005's status.
