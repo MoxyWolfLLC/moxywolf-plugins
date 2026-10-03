@@ -580,10 +580,11 @@ def refused(goal_id, pr, get, repo_name=REPO):
     if pr in state.get("refusals", []):
         raise Refused(f"PR #{pr}'s refusal is already in the run record")
     head = p["head"]["sha"]
+    bound = f"pr={pr};base_ref={state['branch']}"    # checks sit on the head sha, which other PRs can share
     runs = [r for r in get(f"repos/{repo_name}/commits/{head}/check-runs?per_page=100")["check_runs"]
-            if r["name"] == "goal-envelope"]
+            if r["name"] == "goal-envelope" and (r.get("external_id") or "").split(";base=")[0] == bound]
     run = max(runs, key=lambda r: r["id"], default=None)
-    if not run or (run.get("external_id") or "").split(";base=")[0] != f"pr={pr};base_ref={state['branch']}":
+    if not run:
         raise Refused(f"no goal-envelope run for PR #{pr} into {state['branch']} at {head[:12]}")
     if run.get("status") != "completed" or run.get("conclusion") != "failure":
         raise Refused(f"goal-envelope didn't refuse PR #{pr} at {head[:12]}: {run.get('conclusion') or run.get('status')}")

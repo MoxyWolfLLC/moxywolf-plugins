@@ -316,11 +316,14 @@ class Runner(RunnerFixture):
         for kw, msg in [({"pr": {"base": {"ref": "main"}}}, "not goal/g1"), ({"runs": []}, "no goal-envelope run"),
                         ({"runs": [dict(run, external_id="pr=3;base_ref=goal/g1;base=b")]}, "no goal-envelope run"),
                         ({"runs": [run, dict(run, id=6, conclusion="success")]}, "didn't refuse"),
+                        ({"runs": [dict(run, id=6, conclusion="success"), dict(run, id=7, external_id="pr=3;base_ref=goal/g1;base=b")]},
+                         "didn't refuse"),
                         ({"runs": [dict(run, status="in_progress", conclusion=None)]}, "didn't refuse")]:
             with self.subTest(kw=kw):
                 with self.assertRaisesRegex(gr.Refused, msg):
                     gr.refused("g1", 4, api(**kw))
-        self.assertEqual(gr.refused("g1", 4, api()), {"refused": 4, "check": 5})
+        other = dict(run, id=9, conclusion="success", external_id="pr=3;base_ref=goal/g1;base=b")   # review F1
+        self.assertEqual(gr.refused("g1", 4, api(runs=[run, other])), {"refused": 4, "check": 5})
         with self.assertRaisesRegex(gr.Refused, "already in the run record"):
             gr.refused("g1", 4, api())
         rec = gr.record("g1")
