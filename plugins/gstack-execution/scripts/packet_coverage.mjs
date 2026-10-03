@@ -24,7 +24,32 @@ import { pathToFileURL } from 'node:url';
 
 const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
 
+// B-e: a goal item's criteria live in goals/<id>/PLAN.md, not DESIGN.md, so an item review could
+// never reach `covered` and GO-005.4's merge check could never pass. Items are named <goal>/<n>.
+function planCriteria(text, goal) {
+  const items = {};
+  let cur = null, n = 0;
+  for (const line of text.split('\n')) {
+    const it = line.match(/^(\d+)\.\s+(\S.*)$/);
+    const cr = line.match(/^\s+[-*]\s+(\S.*)$/);
+    // By position, as goal_run.py numbers items, never by the printed number: `1.` twice is a valid plan.
+    if (it) { cur = `${goal}/${++n}`; items[cur] = { title: it[2].trim(), declared: [] }; }
+    else if (cr && cur) items[cur].declared.push(cr[1].trim());
+  }
+  // The same second count as for DESIGN.md: every criterion bullet must have landed in an item.
+  const counted = (text.match(/^\s+[-*]\s+\S/gm) ?? []).length;
+  const found = Object.values(items).reduce((n, i) => n + i.declared.length, 0);
+  if (found !== counted) {
+    console.error(`goals/${goal}/PLAN.md: extractor found ${found} criteria but ${counted} are listed.`);
+    console.error('Refusing to score a partial plan: a check over input it did not examine cannot pass.');
+    process.exit(2);
+  }
+  return Object.fromEntries(Object.entries(items).filter(([, i]) => i.declared.length));
+}
+
 function declaredCriteria(designPath) {
+  const plan = designPath.replace(/\\/g, '/').match(/(?:^|\/)goals\/([a-z0-9][a-z0-9-]*)\/PLAN\.md$/);
+  if (plan) return planCriteria(fs.readFileSync(designPath, 'utf8'), plan[1]);
   const design = fs.readFileSync(designPath, 'utf8');
   const items = {};
   // Stop at the next heading of ANY level, so a criterion cannot swallow the following section.
@@ -109,7 +134,7 @@ export function resolveCredential(env = process.env) {
 async function main() {
   const [packetPath, designPath] = process.argv.slice(2);
   if (!packetPath || !designPath) {
-    console.error('usage: packet_coverage.mjs <packet.json> <DESIGN.md>');
+    console.error('usage: packet_coverage.mjs <packet.json> <DESIGN.md | goals/<id>/PLAN.md>');
     process.exit(2);
   }
   const packet = JSON.parse(fs.readFileSync(packetPath, 'utf8'));
@@ -128,7 +153,7 @@ async function main() {
   const items = declaredCriteria(designPath);
   const missing = claimed.filter(i => !items[i]);
   if (missing.length) {
-    console.error(`DESIGN.md declares no criteria for: ${missing.join(', ')}`);
+    console.error(`${path.basename(designPath)} declares no criteria for: ${missing.join(', ')}`);
     process.exit(2);
   }
 
