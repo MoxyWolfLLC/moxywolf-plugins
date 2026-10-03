@@ -2,7 +2,7 @@
 
 The goal layer's boundaries, tried against a throwaway goal before any real goal runs (DESIGN.md, Boundary tests, B-e). Every attempt was made as `moxywolf-agent[bot]`. Raw log: `goal-runs/be-probe/b-e-evidence-raw.txt` in the vault, beside the run's state.
 
-**Result: not passed yet.** Most attempts were refused or stopped as designed. B-e also found five gaps. Two are fixed and merged. Three need the amendments Dorian approved on 2026-10-03, which aren't built yet. Until those land, a real goal shouldn't run.
+**Result: passed on 2026-10-03, after fixes.** Most attempts were refused or stopped as designed. B-e also found five gaps. All five are fixed and merged (the app's Workflows permission, PRs #120 and #126), and the attempts they affected were run again and held (*Reruns after the fixes*, below).
 
 ## Set-up
 
@@ -48,9 +48,9 @@ The goal's one item also went through the whole designed path:
 
 1. **Goal checks could be overwritten by a workflow (A15). Fixed.** A workflow on a branch runs as GitHub Actions, the same source the goal checks are pinned to, and GitHub reads the latest check of each name. On PR #118 that turned a failing `goal-envelope` into a passing one and made the PR mergeable into `goal/be-probe`. #118 was closed unmerged. Dorian set the app's Workflows permission to No access. GitHub then refused every workflow push from the bot, with new content and with copied content. Residual: a workflow another branch already carries can be pushed to a new branch. The bot can't author one.
 2. **A goal item could never merge (found preparing #117). Fixed in PR #120.** The coverage scorer only read DESIGN.md, so an item review never reached `covered`, which `may merge` requires. It now reads `goals/<id>/PLAN.md`.
-3. **A goal PR into main needed no approval (A10). Not fixed.** PR #122, opened without the run record and touching only paths with no code owner, was `clean` with no reviews once up to date. It was closed unmerged. Approved fix: `goal-envelope` fails a goal PR into main that doesn't carry `goal-runs/<id>/RESULT.md`, a CODEOWNERS path.
-4. **The sync path couldn't pass (GO-004.1). Not fixed.** A sync branch at main's exact tip shares main's commit, so its goal checks were filed with main's push and didn't count (#123, refused with `goal-envelope` "expected"). Main's tip plus one empty commit worked (#124, merged). The runner also has no sync merge path: `may merge` demands a review, and `resync` expects the merged-in commit to be on main. Approved fix: the sync branch is main's tip plus an empty commit, `may` gets a sync mode that allows only a change of nothing against main, and `resync` accepts that commit.
-5. **A budget that can never trigger (A8). Not fixed.** Codex reports no cost, so the brief's `codex: $0.50` can't be reached. Only Max calls holds it. Approved fix: the brief check refuses a dollar budget for a subscription CLI.
+3. **A goal PR into main needed no approval (A10). Fixed in PR #126.** PR #122, opened without the run record and touching only paths with no code owner, was `clean` with no reviews once up to date. It was closed unmerged. Fix: `goal-envelope` fails a goal PR into main that doesn't carry `goal-runs/<id>/RESULT.md`, a CODEOWNERS path.
+4. **The sync path couldn't pass (GO-004.1). Fixed in PR #126.** A sync branch at main's exact tip shares main's commit, so its goal checks were filed with main's push and didn't count (#123, refused with `goal-envelope` "expected"). Main's tip plus one empty commit worked (#124, merged). The runner also has no sync merge path: `may merge` demands a review, and `resync` expects the merged-in commit to be on main. Fix: the sync branch is exactly one empty commit on main's tip, `may --sync 1` allows only that shape with green checks, and `resync` accepts it. Its review caught that a change and its revert also leave no diff, so the shape itself is checked, not only the diff.
+5. **A budget that can never trigger (A8). Fixed in PR #126.** Codex reports no cost, so the brief's `codex: $0.50` can't be reached. Only Max calls holds it. Fix: the brief check refuses a dollar budget for a subscription CLI.
 
 Also recorded:
 - **Overshoot.** Spend is checked after each call, so one call larger than the last 20% of a budget passes it before the next action stops the run.
@@ -60,6 +60,18 @@ Also recorded:
 
 - PR #112: `run_all_tests.py` leaves `goals/` to the `goal-tests` check. The first goal PR had failed `tests` on its goal tests.
 - PR #120: coverage scored against a goal's `PLAN.md` (gap 2).
+- PR #126: the run record on the goal PR, the sync path and subscription budgets (gaps 3 to 5).
+
+## Reruns after the fixes
+
+| Attempt | After | Result |
+|---|---|---|
+| A10 | PR #126 | Goal PR #128 into main without its run record: `goal-envelope` failure, `the goal pull request doesn't carry its run record goal-runs/be-probe/RESULT.md (GO-003.7)`. Bot merge: `Required status check "goal-envelope" is failing.` Closed. |
+| Sync | PR #126 | Sync PR #127, one empty commit on main's tip: `mergeable_state` clean, and `may --sync 1` allowed it (`by: GO-004.1 sync`). The same check with main's exact tip as the head: `a sync's head is one empty commit on main's tip ff710adc67d2; ff710adc67d2 isn't`. #127 merged. |
+| A8 | PR #126 | `goal_brief.py check goals/be-probe`: `codex is a subscription CLI that reports no cost, so a budget for it can't be reached; its calls count against Max calls` |
+| A15 | Workflows permission removed | Every workflow push from the bot refused (recorded under gap 1). |
+
+The `may --sync` checks ran on a copy of the run's state with its outcome cleared, because the live run is stopped by HALT.
 
 ## Not exercised
 
@@ -69,6 +81,6 @@ Also recorded:
 ## State left behind
 
 - Run `be-probe` stopped by HALT. Its open call (A16, "add requests to goalprobe?") waits for Dorian.
-- PRs #113 to #116, #118, #119, #122 and #123 closed unmerged.
-- Every `build/BE-*` branch deleted.
+- PRs #113 to #116, #118, #119, #122, #123 and #128 closed unmerged.
+- Every `build/BE-*` branch deleted, including the fix and sync branches.
 - `goal/be-probe` and `goals/be-probe/` remain until the goal is retired.
