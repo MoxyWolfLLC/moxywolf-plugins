@@ -121,6 +121,14 @@ class ScorerRuns(unittest.TestCase):
         plan.write_text("# g1\n1. Add the greeter\n   - it prints hello\n - stray\n")
         r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)       # a stray bullet still lands in item 1: counted and kept
+        for numbering in (("1", "1"), ("3", "2")):                  # items are numbered by position, as goal_run.py does
+            plan.write_text(f"# g1\n{numbering[0]}. First\n   - first only\n{numbering[1]}. Second\n   - it prints hello\n   - it reads nothing\n")
+            self.packet.write_text(json.dumps({"items": ["g1/2"], "acceptance_criteria": ["it prints hello", "it reads nothing"]}))
+            r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            cov = json.loads(self.packet.read_text())["coverage"]
+            self.assertEqual([(c["item"], c["declared"]) for c in cov["criteria"]],
+                             [("g1/2", "it prints hello"), ("g1/2", "it reads nothing")], numbering)
         plan.write_text("# g1\n   - before any item\n1. Add the greeter\n   - it prints hello\n")
         r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 2, "a criterion outside any item is a partial read, refused")

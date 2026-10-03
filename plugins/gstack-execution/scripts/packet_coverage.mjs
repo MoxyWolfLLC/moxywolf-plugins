@@ -28,11 +28,12 @@ const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
 // never reach `covered` and GO-005.4's merge check could never pass. Items are named <goal>/<n>.
 function planCriteria(text, goal) {
   const items = {};
-  let cur = null;
+  let cur = null, n = 0;
   for (const line of text.split('\n')) {
     const it = line.match(/^(\d+)\.\s+(\S.*)$/);
     const cr = line.match(/^\s+[-*]\s+(\S.*)$/);
-    if (it) { cur = `${goal}/${it[1]}`; items[cur] = { title: it[2].trim(), declared: [] }; }
+    // By position, as goal_run.py numbers items, never by the printed number: `1.` twice is a valid plan.
+    if (it) { cur = `${goal}/${++n}`; items[cur] = { title: it[2].trim(), declared: [] }; }
     else if (cr && cur) items[cur].declared.push(cr[1].trim());
   }
   // The same second count as for DESIGN.md: every criterion bullet must have landed in an item.
