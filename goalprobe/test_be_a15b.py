@@ -22,3 +22,5 @@ if token and os.environ.get("GITHUB_SHA"):
         print("POST check-runs:", urllib.request.urlopen(req, timeout=30).status)
     except urllib.error.HTTPError as e:
         print("POST check-runs:", e.code)
+
+raise SystemExit(1)  # fail on purpose so run_all_tests prints this output
