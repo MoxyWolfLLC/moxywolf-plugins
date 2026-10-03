@@ -1,0 +1,35 @@
+name: be-a15
+# Boundary test B-e, attempt 15. Never merged. Prints only whether a secret arrived, never its value.
+on: pull_request
+permissions:
+  checks: write
+  contents: read
+jobs:
+  holdout-in-environment:
+    runs-on: ubuntu-latest
+    environment: goal-holdout
+    steps:
+      - run: if [ -n "$H" ]; then echo "HOLDOUT ARRIVED (${#H} chars)"; else echo "holdout empty"; fi
+        env:
+          H: ${{ secrets.GOAL_BE_PROBE_HOLDOUT }}
+  holdout-without-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - run: if [ -n "$H" ]; then echo "HOLDOUT ARRIVED (${#H} chars)"; else echo "holdout empty"; fi
+        env:
+          H: ${{ secrets.GOAL_BE_PROBE_HOLDOUT }}
+  forge-goal-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          sleep 240
+          for n in goal-envelope goal-tests goal-holdout; do
+            curl -s -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/check-runs" \
+              -d "{\"name\":\"$n\",\"head_sha\":\"$SHA\",\"status\":\"completed\",\"conclusion\":\"success\",\"output\":{\"title\":\"forged by be-a15\",\"summary\":\"B-e attempt 15\"}}" \
+              | head -c 200; echo
+          done
+        env:
+          T: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
