@@ -286,7 +286,9 @@ class Sandbox(unittest.TestCase):
 
     def test_baseline_runs_in_the_container(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
-        wt, goal = t / "wt", t / "g1"
+        wt, goal = Path(tempfile.mkdtemp()), t / "g1"         # review F1: 0700, as main_checkout() makes it
+        self.addCleanup(shutil.rmtree, wt, True)
+        os.chmod(t, 0o755)
         shutil.copytree(HERE, wt / "plugins" / "gstack-execution" / "scripts",
                         ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
         (wt / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", wt / ".github")

@@ -430,6 +430,7 @@ def sandboxed(goal_dir, wt):
     import goal_checks as gc
     gid = Path(goal_dir).resolve().name
     shutil.copytree(goal_dir, Path(wt, "goals", gid), dirs_exist_ok=True)
+    os.chmod(wt, 0o755)          # review F1: mkdtemp made it 0700, and the container runs as uid 65534
     try:
         r = subprocess.run(gc.sandbox_cmd(wt, wt, gid), capture_output=True, text=True, timeout=1800)
         results = json.loads(r.stdout.strip().splitlines()[-1])
