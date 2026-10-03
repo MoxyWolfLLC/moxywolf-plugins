@@ -1,6 +1,9 @@
+import sys
 import unittest
+from pathlib import Path
 
-from pilotmod.slug import slug
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # run_all_tests runs this file as a script
+from pilotmod.slug import slug  # noqa: E402
 
 
 class Slug(unittest.TestCase):
