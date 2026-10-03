@@ -305,6 +305,33 @@ class Runner(RunnerFixture):
                 self.assertIsNone(gr.load("g1")["outcome"])
         self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
 
+    def test_a_refused_item_pull_request_escalates_quoting_githubs_check(self):  # GO-006.2, pilot-1
+        self.start()
+        run = {"id": 5, "name": "goal-envelope", "status": "completed", "conclusion": "failure",
+               "external_id": "pr=4;base_ref=goal/g1;base=" + "b" * 40,
+               "output": {"title": "1 file(s) outside the envelope", "summary": "- d1 changes goals/g1/tests/test_g.py"}}
+        def api(pr=None, runs=None):
+            pr = dict({"base": {"ref": "goal/g1"}, "head": {"sha": "c" * 40}, "title": "loosen"}, **(pr or {}))
+            return lambda path: pr if "/pulls/" in path else {"check_runs": runs if runs is not None else [run]}
+        for kw, msg in [({"pr": {"base": {"ref": "main"}}}, "not goal/g1"), ({"runs": []}, "no goal-envelope run"),
+                        ({"runs": [dict(run, external_id="pr=3;base_ref=goal/g1;base=b")]}, "no goal-envelope run"),
+                        ({"runs": [run, dict(run, id=6, conclusion="success")]}, "didn't refuse"),
+                        ({"runs": [dict(run, status="in_progress", conclusion=None)]}, "didn't refuse")]:
+            with self.subTest(kw=kw):
+                with self.assertRaisesRegex(gr.Refused, msg):
+                    gr.refused("g1", 4, api(**kw))
+        self.assertEqual(gr.refused("g1", 4, api()), {"refused": 4, "check": 5})
+        with self.assertRaisesRegex(gr.Refused, "already in the run record"):
+            gr.refused("g1", 4, api())
+        rec = gr.record("g1")
+        self.assertIn("escalation (outside_envelope), waiting for Dorian", rec)
+        self.assertIn("refused by goal-envelope: 1 file(s) outside the envelope", rec)
+        self.assertIn("- d1 changes goals/g1/tests/test_g.py", rec)
+        self.assertIsNone(gr.load("g1")["outcome"])          # held, not ended
+        self.assertIsNone(self.next()[0])
+        gr.acknowledge("g1", 1, "seen; carry on")
+        self.assertEqual(self.next()[1]["step"], "build")
+
     def test_the_finish_finalizes_then_proposes_then_completes(self):  # GO-003.7
         self.start()
         bare = self.origin()
