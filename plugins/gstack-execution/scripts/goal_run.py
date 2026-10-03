@@ -42,6 +42,10 @@
         the goal pull request's head moved because a sync from main merged into goal/<id>
         (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
         keeps the run record and passes the envelope check
+  goal_run.py refused <id> --pr N [--repo owner/name]
+        a pull request into goal/<id> that goal-envelope refused: escalates a change outside the
+        envelope (GO-006.2), quoting GitHub's own check output, not the agent's words, into the run
+        record; the run holds until Dorian acknowledges it
   goal_run.py holdout-failed <id> --detail <text>
         goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2)
   goal_run.py ack <id> --escalation N --words <Dorian's words>
@@ -565,6 +569,35 @@ def dorian_answers(goal_id, n, choice, words):
     return call
 
 
+def refused(goal_id, pr, get, repo_name=REPO):
+    """GO-006.2's change outside the envelope, for an item pull request: escalates with goal-envelope's
+    refusal quoted from its newest run at the pull request's head, reached for this pull request.
+    The escalation holds the run until Dorian acknowledges it."""
+    state = load(goal_id)
+    p = get(f"repos/{repo_name}/pulls/{pr}")
+    if p["base"]["ref"] != state["branch"]:
+        raise Refused(f"PR #{pr} targets {p['base']['ref']}, not {state['branch']}")
+    if pr in state.get("refusals", []):
+        raise Refused(f"PR #{pr}'s refusal is already in the run record")
+    head = p["head"]["sha"]
+    bound = f"pr={pr};base_ref={state['branch']}"    # checks sit on the head sha, which other PRs can share
+    # filter=all: GitHub's default lists only the newest run of a name, which may be another PR's.
+    # ponytail: one page of 100 goal-envelope runs on one head; page if a head ever carries more.
+    runs = [r for r in get(f"repos/{repo_name}/commits/{head}/check-runs?check_name=goal-envelope&filter=all&per_page=100")["check_runs"]
+            if r["name"] == "goal-envelope" and (r.get("external_id") or "").split(";base=")[0] == bound]
+    run = max(runs, key=lambda r: r["id"], default=None)
+    if not run:
+        raise Refused(f"no goal-envelope run for PR #{pr} into {state['branch']} at {head[:12]}")
+    if run.get("status") != "completed" or run.get("conclusion") != "failure":
+        raise Refused(f"goal-envelope didn't refuse PR #{pr} at {head[:12]}: {run.get('conclusion') or run.get('status')}")
+    out = run.get("output") or {}
+    escalate(state, "outside_envelope", f"PR #{pr} ({p.get('title', '')}) at {head[:12]}, refused by goal-envelope: "
+           f"{out.get('title', '')}\n{out.get('summary', '')}".rstrip(), waits=True)
+    state.setdefault("refusals", []).append(pr)
+    save(state)
+    return {"refused": pr, "check": run["id"]}
+
+
 def holdout_failed(goal_id, detail):
     state = load(goal_id)
     if state["outcome"]:
@@ -776,6 +809,12 @@ def _main(argv, repo=gb.ROOT):
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))
+            return 0
+        if cmd == "refused" and goal_id and {"--pr"} <= set(opts) <= {"--pr", "--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token:
+                raise Refused("refused needs GITHUB_TOKEN: run it under agent_token.py exec --")
+            print(json.dumps(refused(goal_id, int(opts["--pr"]), gb.github(token), opts.get("--repo", REPO))))
             return 0
         if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
             print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
