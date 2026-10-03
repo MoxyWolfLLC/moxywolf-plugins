@@ -75,8 +75,10 @@ def envelope(pr, repo, main_sha, candidate):
 
 def sandbox_cmd(main_dir, candidate_dir, gid):
     """The container the goal tests run in: no network, no host environment, no capabilities, an
-    unprivileged user and read-only mounts. Only /tmp is writable."""
-    return ["docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp",
+    unprivileged user and read-only mounts. Only /tmp is writable, and it allows exec: a goal test
+    may need a stub program there (cloud-review-survives' gitleaks), and the candidate already runs
+    as arbitrary code in this container, so Docker's default noexec on a tmpfs held nothing back."""
+    return ["docker", "run", "--rm", "--network", "none", "--read-only", "--tmpfs", "/tmp:exec",
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "65534:65534",
             "--pids-limit", "256", "--memory", "1g", "-e", "HOME=/tmp", "-w", "/tmp",
             "-v", f"{Path(main_dir).resolve()}:/main:ro", "-v", f"{Path(candidate_dir).resolve()}:/candidate:ro",
