@@ -374,6 +374,29 @@ class Runner(RunnerFixture):
             gr.resync(self.repo, "g1", sync({"goal-runs/g1/RESULT.md": "forged\n"}), base="main")
         with self.assertRaisesRegex(gr.Refused, "isn't a merge onto the recorded head"):
             gr.resync(self.repo, "g1", final, base="main")
+
+        def sync_tip(extra, off_main=False):       # main's tip plus one commit, merged onto the recorded head
+            self.git("switch", "-q", "-c", f"tip{len(moves)}", "main")
+            moves.append(1)
+            if off_main:
+                self.commit("a commit main doesn't have", {"other/off.py": "off\n"})
+            if extra:
+                self.commit("not empty", extra)
+            else:
+                self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
+            tip = self.git("rev-parse", "HEAD")
+            self.git("switch", "-q", "--detach", gr.load("g1")["finalized_head"])
+            self.git("merge", "-q", "--no-ff", "-m", "sync main", tip)
+            head = self.git("rev-parse", "HEAD")
+            self.git("switch", "-q", "main")
+            return head
+        empty_sync = sync_tip(None)
+        self.assertEqual(gr.resync(self.repo, "g1", empty_sync, base="main"), {"finalized_head": empty_sync})
+        with self.assertRaisesRegex(gr.Refused, "isn't on main or main's tip plus an empty commit"):
+            gr.resync(self.repo, "g1", sync_tip({"other/z.py": "z\n"}), base="main")
+        with self.assertRaisesRegex(gr.Refused, "isn't on main or main's tip plus an empty commit"):
+            gr.resync(self.repo, "g1", sync_tip(None, off_main=True), base="main")   # empty, but not on top of main
+        merged_pr = dict(merged_pr, head={"ref": "goal/g1", "sha": empty_sync})
         self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
 
     def test_finalize_needs_the_goal_branch_where_the_tests_passed(self):  # GO-003.7

@@ -44,6 +44,7 @@ MONEY = re.compile(r"^\$?(\d+(?:\.\d{1,2})?)$")
 INT = re.compile(r"^\d+$")
 TEST_ID = re.compile(r"^`?([\w./:\[\]-]+)`?\s*(?:[:(-]\s*)?(outcome|invariant)\)?(?:\s*[:-]\s*.+)?$", re.I)
 META = re.compile(r"[*?\[]")
+SUBSCRIPTION = {"codex", "claude", "gemini"}   # the CLIs goal_spend records with no cost
 
 
 def sections(text):
@@ -276,6 +277,9 @@ def check(goal_dir, design_text, codeowners_text):
         m = MONEY.match(amount.strip())
         if not name.strip() or not m or Decimal(m.group(1)) <= 0:
             errors.append(f"Provider budget must read '<provider>: $<positive amount>', got: {line}")
+        elif name.strip().lower() in SUBSCRIPTION:
+            errors.append(f"{name.strip()} is a subscription CLI that reports no cost, so a budget for it can't be "
+                          f"reached; its calls count against Max calls")
         else:
             total += Decimal(m.group(1))
     if cap is not None and total > cap:

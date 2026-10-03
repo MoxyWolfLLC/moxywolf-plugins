@@ -125,6 +125,17 @@ def merge_allowed(branch, target, head, review, checks, pr):
          and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
         (any(head in hs for hs in (review.get("heads") or [])[-1:]), f"the review's last head isn't {head[:12]}"),
     ] if not ok]
+    problems += checks_green(target, head, checks, pr)
+    if problems:
+        raise Refused("; ".join(problems))
+
+
+def checks_green(target, head, checks, pr):
+    """Problems with the pull request and its checks at head: it must be at head into target, with
+    tests, goal-envelope and goal-tests green, the goal checks reached for this pull request at its
+    current base."""
+    import goal_checks
+    problems = []
     if (pr.get("head"), pr.get("base_ref")) != (head, target):
         problems.append(f"PR #{pr.get('number')} is at {str(pr.get('head'))[:12]} into {pr.get('base_ref')}, "
                         f"not {head[:12]} into {target}")
@@ -133,6 +144,18 @@ def merge_allowed(branch, target, head, review, checks, pr):
     bound = goal_checks.provenance({"pr": pr.get("number"), "base_ref": target, "base": pr.get("base")})
     problems += [f"{c} at {head[:12]} was reached for {(checks.get(c) or (None, None))[1] or 'nothing named'}, not {bound}"
                  for c in GOAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
+    return problems
+
+
+def sync_allowed(branch, target, head, checks, pr, changed):
+    """GO-004.1: a sync pull request into the goal branch merges without a new review when it brings
+    nothing but main: its head changes no file against main (`changed` is that diff's file list) and
+    its checks are green. Its head is main's tip plus an empty commit, so its checks get a check suite
+    of their own rather than joining main's push."""
+    if target != branch:
+        raise Refused(f"a sync merges into {branch}, not {target}")
+    problems = [f"the sync's head changes {', '.join(changed)} against main"] if changed else []
+    problems += checks_green(target, head, checks, pr)
     if problems:
         raise Refused("; ".join(problems))
 

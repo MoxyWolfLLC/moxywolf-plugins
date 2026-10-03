@@ -198,6 +198,16 @@ class Envelope(unittest.TestCase):
         self.assertIn("plugins/gstack-execution/scripts/goal_envelope.py, a CODEOWNERS path", v["summary"])
         self.assertIn(".github/workflows/goal-envelope.yml, a CODEOWNERS path", v["summary"])
 
+    def test_a_goal_pull_request_into_main_needs_its_run_record(self):
+        goal = pr(base="main", head="goal/g1")
+        code = self.commit({"src/b.py": "b\n"})
+        v = gc.envelope(goal, self.repo, self.main, code)
+        self.assertEqual(v["conclusion"], "failure")
+        self.assertIn("doesn't carry its run record goal-runs/g1/RESULT.md", v["summary"])
+        recorded = self.commit({"goal-runs/g1/RESULT.md": "record\n"})
+        self.assertEqual(gc.envelope(goal, self.repo, self.main, recorded)["conclusion"], "success")
+        self.assertEqual(gc.envelope(pr(), self.repo, self.main, code)["conclusion"], "success")   # an item PR doesn't need it
+
     def test_a_sync_whose_candidate_is_main_passes(self):
         self.assertEqual(gc.envelope(pr(), self.repo, self.main, self.main)["conclusion"], "success")
 

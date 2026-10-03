@@ -20,7 +20,7 @@ GOOD = {
     "Goal tests": "- `tests/test_survives.py::Survives.test_record_in_vault` (outcome)\n- `tests/test_survives.py::Survives.test_no_session_only_record` (invariant)",
     "Allowed paths": "- plugins/project-init/skills/session-end/*.md\n- plugins/project-init/scripts/*.py",
     "Spend cap": "$5",
-    "Provider budgets": "- openrouter: $3\n- gemini: $2",
+    "Provider budgets": "- openrouter: $3\n- aigateway: $2",
     "Max calls": "40",
     "Max items": "3",
     "Max review rounds per item": "3",
@@ -236,8 +236,14 @@ class Check(unittest.TestCase):
                 self.refused(self.make(brief(**{"Provider budgets": line})), "Provider budget must read")
 
     def test_budgets_past_the_cap_are_refused_exactly(self):
-        self.refused(self.make(brief(**{"Provider budgets": "- openrouter: $3.01\n- gemini: $2"})), "more than the Spend cap")
-        self.assertEqual(self.errs(self.make(brief(**{"Provider budgets": "- openrouter: $2.99\n- gemini: $2.01"}))), [])
+        self.refused(self.make(brief(**{"Provider budgets": "- openrouter: $3.01\n- aigateway: $2"})), "more than the Spend cap")
+        self.assertEqual(self.errs(self.make(brief(**{"Provider budgets": "- openrouter: $2.99\n- aigateway: $2.01"}))), [])
+
+    def test_a_budget_for_a_subscription_cli_is_refused(self):
+        for name in ("codex", "Claude", "gemini"):
+            with self.subTest(name=name):
+                self.refused(self.make(brief(**{"Provider budgets": f"- openrouter: $3\n- {name}: $1"})),
+                             f"{name} is a subscription CLI that reports no cost")
 
 
 class Baseline(unittest.TestCase):  # GO-002.2

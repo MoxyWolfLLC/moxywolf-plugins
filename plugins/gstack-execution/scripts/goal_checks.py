@@ -64,6 +64,10 @@ def envelope(pr, repo, main_sha, candidate):
         return verdict(pr, "failure", "envelope could not be read", str(e))
     if not errors and n == 0 and not on_main:
         errors = ["examined no goal-authored commits and the candidate is not on main"]
+    record = f"goal-runs/{gid}/RESULT.md"
+    if kind == "goal" and record not in ge.git(repo, "diff", "--name-only", main_sha, candidate).split():
+        # The run record is a CODEOWNERS path, so carrying it is what makes GitHub require Dorian's review.
+        errors.append(f"the goal pull request doesn't carry its run record {record} (GO-003.7)")
     summary = f"Examined {n} goal-authored commits against main {main_sha[:12]}.\n\n" + "\n".join(f"- {e}" for e in errors)
     return verdict(pr, "failure" if errors else "success",
                    f"{len(errors)} file(s) outside the envelope" if errors else f"inside the envelope ({n} commits)", summary)
