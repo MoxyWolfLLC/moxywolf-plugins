@@ -399,12 +399,14 @@ def run_holdout(repo_root, source, timeout=1200):
     return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
 
 
-def baseline(goal_dir, repo_root):
-    """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass."""
+def baseline(goal_dir, repo_root, run=None):
+    """GO-002.2: against repo_root (a checkout of main), outcome tests fail and invariant tests pass.
+    `run(repo_root, goal_dir, test_id)` gives one result; the command line passes sandboxed()'s."""
+    run = run or run_test
     errors, examined = [], 0
     brief = sections(Path(goal_dir, "GOAL.md").read_text()) if Path(goal_dir, "GOAL.md").is_file() else {}
     for tid, kind in goal_tests(brief.get("Goal tests", ""), errors):
-        result = run_test(repo_root, goal_dir, tid)
+        result = run(repo_root, goal_dir, tid)
         if result == "not_run":                                          # F2: unrun is not a fail
             errors.append(f"goal test {tid} could not be run against main (missing, failed to load, or timed out)")
             continue
@@ -417,6 +419,26 @@ def baseline(goal_dir, repo_root):
     if examined == 0:
         errors.append("baseline examined no goal tests")
     return errors, examined
+
+
+def sandboxed(goal_dir, wt):
+    """GO-002.2: the goal tests run in goal-tests' own container (goal_checks.sandbox_cmd), so a test
+    that can't run there fails baseline too. cloud-review-survives passed baseline on the host while
+    the container's /tmp was noexec, and its tests could never pass in CI. wt is a scratch checkout
+    of main; the goal folder is copied into it, so the container sees it at /main/goals/<id>."""
+    import shutil
+    import goal_checks as gc
+    gid = Path(goal_dir).resolve().name
+    shutil.copytree(goal_dir, Path(wt, "goals", gid), dirs_exist_ok=True)
+    try:
+        r = subprocess.run(gc.sandbox_cmd(wt, wt, gid), capture_output=True, text=True, timeout=1800)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+    except FileNotFoundError:
+        raise SystemExit("baseline runs the goal tests in the goal-tests container and needs Docker; it isn't installed")
+    except (ValueError, IndexError):
+        raise SystemExit("the goal-tests container did not report (is the Docker daemon running?): "
+                         + ((r.stderr or r.stdout)[-800:]))
+    return lambda root, gdir, tid: (results.get(tid) or {}).get("result", "not_run")
 
 
 def main_checkout(ref="origin/main"):
@@ -534,10 +556,10 @@ def main(argv):
     if argv[:1] == ["baseline"] and len(argv) == 2:
         wt = main_checkout()
         try:
-            errors, examined = baseline(argv[1], wt)
+            errors, examined = baseline(argv[1], wt, run=sandboxed(argv[1], wt))
         finally:
             subprocess.run(["git", "-C", str(ROOT), "worktree", "remove", "--force", wt], capture_output=True)
-        print(f"examined {examined} goal tests against origin/main")
+        print(f"examined {examined} goal tests against origin/main, in the goal-tests container")
         for e in errors:
             print("FAIL:", e)
         return 1 if errors else 0
