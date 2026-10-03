@@ -105,6 +105,34 @@ class ScorerRuns(unittest.TestCase):
         self.assertEqual(cov["credential_source"], "env AI_GATEWAY_API_KEY")
         self.assertEqual(Stub.seen[0]["path"], "/evaluation-model")
 
+    def test_a_goal_plan_is_scored_by_item(self):
+        """B-e: a goal item's criteria are in goals/<id>/PLAN.md; items are <goal>/<n>."""
+        plan = self.tmp / "goals" / "g1" / "PLAN.md"; plan.parent.mkdir(parents=True)
+        plan.write_text("# g1\n1. Add the greeter\n   - it prints hello\n   - it reads nothing\n2. Polish\n   - docs\n")
+        self.packet.write_text(json.dumps({"items": ["g1/1"], "acceptance_criteria": ["it prints hello", "it reads nothing"]}))
+        e = {k: v for k, v in os.environ.items() if k not in {"AI_GATEWAY_API_KEY", "GSTACK_AIGATEWAY_ENV", "JEV_ENDPOINT"}}
+        e.update(HOME=str(self.home), AI_GATEWAY_API_KEY="k", JEV_ENDPOINT=self.endpoint)
+        r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cov = json.loads(self.packet.read_text())["coverage"]
+        self.assertEqual(cov["status"], "checked")
+        self.assertEqual([(c["item"], c["criterion_no"], c["declared"]) for c in cov["criteria"]],
+                         [("g1/1", 1, "it prints hello"), ("g1/1", 2, "it reads nothing")])
+        plan.write_text("# g1\n1. Add the greeter\n   - it prints hello\n - stray\n")
+        r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)       # a stray bullet still lands in item 1: counted and kept
+        for numbering in (("1", "1"), ("3", "2")):                  # items are numbered by position, as goal_run.py does
+            plan.write_text(f"# g1\n{numbering[0]}. First\n   - first only\n{numbering[1]}. Second\n   - it prints hello\n   - it reads nothing\n")
+            self.packet.write_text(json.dumps({"items": ["g1/2"], "acceptance_criteria": ["it prints hello", "it reads nothing"]}))
+            r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            cov = json.loads(self.packet.read_text())["coverage"]
+            self.assertEqual([(c["item"], c["declared"]) for c in cov["criteria"]],
+                             [("g1/2", "it prints hello"), ("g1/2", "it reads nothing")], numbering)
+        plan.write_text("# g1\n   - before any item\n1. Add the greeter\n   - it prints hello\n")
+        r = subprocess.run(["node", str(SCRIPT), str(self.packet), str(plan)], env=e, capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2, "a criterion outside any item is a partial read, refused")
+
     def test_a_missing_ai_package_records_broken_and_exits_nonzero(self):
         lone = self.tmp / "lone" / "packet_coverage.mjs"; lone.parent.mkdir()
         shutil.copy(SCRIPT, lone)              # no node_modules anywhere above it

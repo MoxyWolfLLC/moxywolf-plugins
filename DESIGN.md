@@ -1565,6 +1565,8 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-03: `packet_coverage.mjs` scores a goal item against `goals/<id>/PLAN.md`, items named `<id>/<n>`. B-e found that a goal item's review could never reach coverage `covered`, so GO-005.4's item merge could never pass; the unit tests had handed the runner a review record directly.
+
 - 2026-10-03: `run_all_tests.py` leaves `goals/<id>/` to the `goal-tests` check and says how many goal test files it left (XE-006.2). B-e's throwaway goal, PR #111, was the first goal folder on a pull request, and the repository's own run failed on its tests, which run only against a candidate named by `GOAL_CANDIDATE` (GO-003.5).
 
 - 2026-10-02: GO-005 marked done (PRs #107, #108). GO-006 built; its readings are in its status.
