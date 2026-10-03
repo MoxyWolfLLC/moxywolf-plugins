@@ -223,6 +223,10 @@ def digest(state, item=None, unsure=None):
 
 
 def end(state, outcome, reason):
+    d = run_dir(state["goal"])
+    stop, reasons, _ = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
+    if stop and not any(m["trigger"] == "spend" for m in state.get("messages", [])):
+        escalate(state, "spend", "Spend reached its stop: " + "; ".join(reasons))   # whichever path ends the run
     state["outcome"], state["reason"] = outcome, reason
     last = next((r for r in reversed(state["results"]) if r.get("unsure")), {})
     digest(state, unsure=last.get("unsure"))            # GO-006.1: one at the end, whatever the outcome

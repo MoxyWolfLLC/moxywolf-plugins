@@ -124,6 +124,21 @@ class Digests(tgr.RunnerFixture):
             gr.act(self.repo, "g1", "external.model_call", "openai/gpt-6-astra", self.envs, base="main")
         self.assertEqual((self.escalations(), gr.load("g1")["outcome"]), (["spend"], "stopped"))
 
+    def test_a_call_that_crosses_the_stop_then_ends_the_item_still_escalates(self):
+        self.start()
+        Path(os.environ["GSTACK_GOAL_RUN_DIR"], "g1", "spend.jsonl").write_text(
+            json.dumps({"provider": "openrouter", "cost": "2.40", "transport": "openrouter"}) + "\n")
+        gr.failed("g1", 1, "review_unavailable: the reviewer timed out")     # no act() or next() in between
+        self.assertEqual(self.escalations(), ["spend"])
+        self.assertEqual([m["trigger"] for m in gr.outbox("g1") if m["kind"] == "escalation"], ["spend"])
+
+    def test_spend_escalates_once(self):
+        self.start()
+        Path(os.environ["GSTACK_GOAL_RUN_DIR"], "g1", "spend.jsonl").write_text(
+            json.dumps({"provider": "openrouter", "cost": "2.40", "transport": "openrouter"}) + "\n")
+        self.next()                                                          # escalates, then ends the run
+        self.assertEqual(self.escalations(), ["spend"])
+
     def test_a_ledger_refusal_thats_dorians_escalates_and_holds(self):
         self.start()
         with self.assertRaisesRegex(gr.Refused, "Dorian's call"):
