@@ -1199,17 +1199,20 @@ def cmd_read(a):
             raise Refused(f"{d} contains a symlink")
         verify_hashes(d)
         receipt = json.loads((d / "publish-receipt.json").read_text())
+        manifest = json.loads((d / "capture" / "manifest.json").read_text())
         pid, who = receipt.get("publication_id"), receipt.get("confirmed_by")
+        sid, audience = manifest.get("session_id"), receipt.get("audience")      # review F1: every header field is checked
+        if not SAFE_ID.match(str(sid or "")) or not BOUNDED.match(str(audience or "")):
+            raise Refused("the capture manifest doesn't name a session, or the receipt doesn't name an audience")
         if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.match(str(who or "")):
             raise Refused("the receipt doesn't name a publication and the person who confirmed it")
         files = sorted(n for n in (str(x.relative_to(d)) for x in d.rglob("*") if x.is_file()) if n not in GENERATED)
         if sorted(receipt.get("confirmed_files") or []) != files:
             raise Refused("the folder's files aren't the ones the receipt says were confirmed")
-        manifest = json.loads((d / "capture" / "manifest.json").read_text())
         review = (d / "review" / "review.md").read_text()
     except (OSError, ValueError, AttributeError, TypeError) as e:      # a damaged copy is refused, never a traceback
         raise Refused(f"{d} can't be read as a published folder: {type(e).__name__}: {e}")
-    print(f"session {manifest.get('session_id')}\npublication {pid}\naudience {receipt.get('audience')}\n"
+    print(f"session {sid}\npublication {pid}\naudience {audience}\n"
           f"confirmed by {who} at {receipt.get('confirmed_at')}\n"
           f"verified: every file matches hashes.sha256 and the receipt\n")
     print(review, end="" if review.endswith("\n") else "\n")

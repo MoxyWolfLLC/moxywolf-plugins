@@ -1290,7 +1290,8 @@ class Reading(PublishBase):
         d, _ = self.published()
         for name, change in [("files", lambda r: r.update(confirmed_files=r["confirmed_files"][:-1])),
                              ("login", lambda r: r.update(confirmed_by="not a login")),
-                             ("id", lambda r: r.update(publication_id="x"))]:
+                             ("id", lambda r: r.update(publication_id="x")),
+                             ("audience", lambda r: r.pop("audience"))]:                  # review F1
             with self.subTest(name):
                 c = self.tmp / f"r-{name}" / d.name
                 shutil.copytree(d, c); self.writable(c)
@@ -1299,6 +1300,23 @@ class Reading(PublishBase):
                 (c / "hashes.sha256").unlink(); sr.write_hashes(c)
                 rc, out, err = self.read(c)
                 self.assertEqual((rc, out), (2, ""), err)
+
+    def test_a_manifest_or_receipt_of_the_wrong_shape_is_refused(self):  # review F1
+        d, _ = self.published()
+        m = json.loads((d / "capture" / "manifest.json").read_text()); m.pop("session_id")
+        for name, path, text in [("no-session", "capture/manifest.json", json.dumps(m)),
+                                 ("list-manifest", "capture/manifest.json", "[]"),
+                                 ("list-receipt", "publish-receipt.json", "[]")]:
+            with self.subTest(name):
+                c = self.tmp / f"s-{name}" / d.name
+                shutil.copytree(d, c); self.writable(c)
+                (c / path).write_text(text)
+                for h in (c / "hashes.sha256", c / "capture" / "hashes.sha256"):
+                    h.unlink()
+                sr.write_hashes(c / "capture"); sr.write_hashes(c)
+                rc, out, err = self.read(c)
+                self.assertEqual((rc, out), (2, ""), err)
+                self.assertIn("refused:", err)
 
     def test_a_folder_that_isnt_a_publication_is_refused(self):
         self.captured()
