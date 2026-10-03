@@ -581,7 +581,9 @@ def refused(goal_id, pr, get, repo_name=REPO):
         raise Refused(f"PR #{pr}'s refusal is already in the run record")
     head = p["head"]["sha"]
     bound = f"pr={pr};base_ref={state['branch']}"    # checks sit on the head sha, which other PRs can share
-    runs = [r for r in get(f"repos/{repo_name}/commits/{head}/check-runs?per_page=100")["check_runs"]
+    # filter=all: GitHub's default lists only the newest run of a name, which may be another PR's.
+    # ponytail: one page of 100 goal-envelope runs on one head; page if a head ever carries more.
+    runs = [r for r in get(f"repos/{repo_name}/commits/{head}/check-runs?check_name=goal-envelope&filter=all&per_page=100")["check_runs"]
             if r["name"] == "goal-envelope" and (r.get("external_id") or "").split(";base=")[0] == bound]
     run = max(runs, key=lambda r: r["id"], default=None)
     if not run:

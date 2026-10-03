@@ -312,7 +312,10 @@ class Runner(RunnerFixture):
                "output": {"title": "1 file(s) outside the envelope", "summary": "- d1 changes goals/g1/tests/test_g.py"}}
         def api(pr=None, runs=None):
             pr = dict({"base": {"ref": "goal/g1"}, "head": {"sha": "c" * 40}, "title": "loosen"}, **(pr or {}))
-            return lambda path: pr if "/pulls/" in path else {"check_runs": runs if runs is not None else [run]}
+            def checks(path):            # GitHub's default view keeps only the newest run of each name
+                rs = runs if runs is not None else [run]
+                return {"check_runs": rs if "filter=all" in path else [max(rs, key=lambda r: r["id"])] if rs else []}
+            return lambda path: pr if "/pulls/" in path else checks(path)
         for kw, msg in [({"pr": {"base": {"ref": "main"}}}, "not goal/g1"), ({"runs": []}, "no goal-envelope run"),
                         ({"runs": [dict(run, external_id="pr=3;base_ref=goal/g1;base=b")]}, "no goal-envelope run"),
                         ({"runs": [run, dict(run, id=6, conclusion="success")]}, "didn't refuse"),
