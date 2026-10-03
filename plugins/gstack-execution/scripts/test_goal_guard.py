@@ -170,6 +170,22 @@ class Ledger(tgr.RunnerFixture):
                 {"id": 3, "name": "tests", "status": "queued", "conclusion": None}]
         self.assertEqual(gguard.latest_checks(runs), {"goal-tests": ("success", None), "tests": ("queued", None)})
 
+    def test_a_sync_merges_without_a_review_only_when_it_changes_nothing_against_main(self):
+        self.start()
+        self.git("switch", "-q", "-c", "sync", "main")
+        self.git("commit", "-q", "--allow-empty", "-m", "Sync main")
+        empty = self.git("rev-parse", "HEAD")
+        changed = self.commit("sneak", {"helper.py": "x = 1\n"})
+        self.git("switch", "-q", "main")
+        sync_pr = dict(PR, head=empty)
+        self.assertEqual(self.act("merge", "goal/g1", head=empty, checks=GREEN, pr=sync_pr, sync=True)["by"], "GO-004.1 sync")
+        with self.assertRaisesRegex(gr.Refused, "changes helper.py against main"):
+            self.act("merge", "goal/g1", head=changed, checks=GREEN, pr=dict(PR, head=changed), sync=True)
+        with self.assertRaisesRegex(gr.Refused, "goal-envelope at .* is missing"):
+            self.act("merge", "goal/g1", head=empty, checks={"tests": ("success", None)}, pr=sync_pr, sync=True)
+        with self.assertRaisesRegex(gr.Refused, "a sync merges into goal/g1, not main"):
+            self.act("merge", "main", head=empty, checks=GREEN, pr=sync_pr, sync=True)
+
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()
         self.act("pr.open", "goal/g1<-build/GX-1-a")

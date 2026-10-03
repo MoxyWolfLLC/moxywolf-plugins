@@ -307,7 +307,8 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
-def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None, pr=None):
+def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None, pr=None,
+        sync=False):
     """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
     first rechecks what it would set off and stops the run if that changed since the start; then the
     ledger (or, for an item merge, DR-113's conditions) must allow it, or it's Dorian's."""
@@ -328,6 +329,12 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             end(state, "stopped", f"what a {klass} sets off changed since the run started"
                 + (": " + "; ".join(problems) if problems else ""))
             raise Refused(f"the run stopped: the workflows or deployment environments changed since the start")
+    if klass == "merge" and sync:
+        if head is None or checks is None or pr is None:
+            raise Refused("a sync merge names its pull request, its head and the checks at that head")
+        changed = [f for f in ge.git(repo, "diff", "--name-only", base, head).split() if f]
+        gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
+        return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
             raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
@@ -466,6 +473,17 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
     return {"final_pr": pr["number"]}
 
 
+def from_main(repo, commit, base):
+    """A commit on main, or a sync's empty commit whose one parent is on main (GO-004.1)."""
+    def on_main(c):
+        return subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", c, base]).returncode == 0
+    if on_main(commit):
+        return True
+    parents = ge.git(repo, "rev-list", "--parents", "-n", "1", commit).split()[1:]
+    return (len(parents) == 1 and on_main(parents[0])
+            and ge.git(repo, "rev-parse", f"{commit}^{{tree}}").strip() == ge.git(repo, "rev-parse", f"{parents[0]}^{{tree}}").strip())
+
+
 def resync(repo, goal_id, head, base="origin/main"):
     """Rebind the goal pull request to a head that only a sync from main moved."""
     state = finishing(goal_id)
@@ -476,8 +494,8 @@ def resync(repo, goal_id, head, base="origin/main"):
     record_path = f"goal-runs/{goal_id}/RESULT.md"
     if len(parents) != 3 or parents[1] != state["finalized_head"]:
         raise Refused(f"{head[:12]} isn't a merge onto the recorded head {state['finalized_head'][:12]}")
-    if subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", parents[2], base]).returncode:
-        raise Refused(f"{head[:12]} merges {parents[2][:12]}, which isn't on main")
+    if not from_main(repo, parents[2], base):
+        raise Refused(f"{head[:12]} merges {parents[2][:12]}, which isn't on main or main's tip plus an empty commit")
     if ge.git(repo, "diff", "--name-only", state["finalized_head"], head, "--", record_path).strip():
         raise Refused(f"{head[:12]} changes the run record")
     errors, _ = ge.check(repo, goal_id, head, base)
@@ -728,7 +746,7 @@ def _main(argv, repo=gb.ROOT):
                    else propose(goal_id, get, post, name, repo=repo, environments=envs))
             print(json.dumps(out))
             return 0
-        if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--pr", "--repo"}:
+        if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--pr", "--repo", "--sync"}:
             token = os.environ.get("GITHUB_TOKEN")
             if not token:
                 raise Refused("may needs GITHUB_TOKEN to read the deployment environments: run it under agent_token.py exec --")
@@ -746,8 +764,10 @@ def _main(argv, repo=gb.ROOT):
                 checks = gguard.latest_checks(get(f"repos/{name}/commits/{opts['--head']}/check-runs?per_page=100")["check_runs"])
                 p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
                 pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
+                if "--sync" in opts:
+                    ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
-                                 head=opts.get("--head"), review=review, checks=checks, pr=pr)))
+                                 head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts)))
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))
