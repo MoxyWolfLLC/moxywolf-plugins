@@ -1232,5 +1232,92 @@ class Empty(Base):
         self.assertFalse((self.staging / "session-records").exists() and any((self.staging / "session-records").rglob("*")))
 
 
+
+class Reading(PublishBase):
+    """Goal cloud-review-survives, item 1: a published folder is read back with no staging."""
+
+    def published(self):
+        self.captured(asst("the read marker sentence"))
+        pub, prep = self.prepare()
+        rc, out, err = self.publish(pub, prep["candidate_content_sha256"])
+        self.assertEqual(rc, 0, err)
+        return Path(json.loads(out)["published"]), prep["publication_id"]
+
+    def read(self, d):
+        return quiet(sr.main, ["read", str(d)])
+
+    def writable(self, d):
+        for x in [d, *d.rglob("*")]:
+            os.chmod(x, 0o700 if x.is_dir() else 0o600)
+
+    def test_a_copy_in_the_vault_is_read_with_staging_gone_and_left_unchanged(self):
+        d, pid = self.published()
+        vault = self.tmp / "vault" / d.name
+        shutil.copytree(d, vault)
+        for x in [*vault.rglob("*"), vault]:
+            os.chmod(x, 0o555 if x.is_dir() else 0o444)
+        before = {str(x): (x.stat().st_mtime_ns, x.read_bytes()) for x in vault.rglob("*") if x.is_file()}
+        self.cleanup_staging()
+        rc, out, err = self.read(vault)
+        self.assertEqual(rc, 0, err)
+        self.assertIn(f"publication {pid}", out)
+        self.assertIn("confirmed by dorianatmoxywolf", out)
+        self.assertIn("audience Dorian", out)
+        self.assertIn("## 1. ", out)                                    # the review itself
+        self.assertEqual(before, {str(x): (x.stat().st_mtime_ns, x.read_bytes()) for x in vault.rglob("*") if x.is_file()})
+        self.assertFalse(self.staging.exists(), "read made a staging folder")
+
+    def cleanup_staging(self):
+        self.writable(self.staging)
+        shutil.rmtree(self.staging)
+
+    def test_a_changed_added_or_removed_file_is_refused_and_nothing_is_printed(self):
+        d, _ = self.published()
+        review = d / "review" / "review.md"
+        for name, damage in [("changed", lambda c: (c / "review" / "review.md").write_text("forged\n")),
+                             ("added", lambda c: (c / "review" / "extra.md").write_text("x")),
+                             ("removed", lambda c: (c / "capture" / "manifest.json").unlink())]:
+            with self.subTest(name):
+                c = self.tmp / name / d.name
+                shutil.copytree(d, c); self.writable(c)
+                damage(c)
+                rc, out, err = self.read(c)
+                self.assertEqual((rc, out), (2, ""), err)
+                self.assertIn("refused:", err)
+        self.assertTrue(review.exists())
+
+    def test_a_receipt_that_doesnt_match_the_folder_is_refused(self):  # hashes rewritten to cover a forged receipt
+        d, _ = self.published()
+        for name, change in [("files", lambda r: r.update(confirmed_files=r["confirmed_files"][:-1])),
+                             ("login", lambda r: r.update(confirmed_by="not a login")),
+                             ("id", lambda r: r.update(publication_id="x"))]:
+            with self.subTest(name):
+                c = self.tmp / f"r-{name}" / d.name
+                shutil.copytree(d, c); self.writable(c)
+                r = json.loads((c / "publish-receipt.json").read_text()); change(r)
+                (c / "publish-receipt.json").write_text(json.dumps(r))
+                (c / "hashes.sha256").unlink(); sr.write_hashes(c)
+                rc, out, err = self.read(c)
+                self.assertEqual((rc, out), (2, ""), err)
+
+    def test_a_folder_that_isnt_a_publication_is_refused(self):
+        self.captured()
+        for d in (self.cap_dir(), self.tmp / "nowhere", self.tr):
+            with self.subTest(str(d)):
+                rc, out, err = self.read(d)
+                self.assertEqual((rc, out), (2, ""), err)
+                self.assertIn("isn't a published folder", err)
+
+    def test_a_damaged_receipt_is_refused_not_a_traceback(self):
+        d, _ = self.published()
+        c = self.tmp / "bad" / d.name
+        shutil.copytree(d, c); self.writable(c)
+        (c / "publish-receipt.json").write_text("{not json")
+        (c / "hashes.sha256").unlink(); sr.write_hashes(c)
+        rc, out, err = self.read(c)
+        self.assertEqual((rc, out), (2, ""), err)
+        self.assertIn("can't be read as a published folder", err)
+
+
 if __name__ == "__main__":
     unittest.main()
