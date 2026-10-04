@@ -161,6 +161,17 @@ class Holdout(unittest.TestCase):  # GO-003.6
         self.assertIn("AssertionError", why)
         self.assertNotIn("holdout-canary", why)                                               # and never carries the source
         self.assertEqual(gb.run_holdout(cand, src, detail=True), ("passed", ""))
+        many = ("import subprocess, sys, unittest\n\n\nclass M(unittest.TestCase):\n"          # review F1, F2
+                "    def test_long(self):\n        self.fail('x' * 4000)\n"
+                "    def test_plain(self):\n        raise Exception('diagnosis')\n"
+                "    def test_called(self):\n        subprocess.run([sys.executable, '-c', 'import sys; sys.exit(3)'], check=True)\n")
+        result, why = gb.run_holdout(cand, many, detail=True)
+        self.assertEqual(result, "failed")
+        for name in ("FAIL: test_long", "ERROR: test_plain", "ERROR: test_called"):
+            self.assertIn(name, why)
+        self.assertIn("AssertionError: xxx", why); self.assertIn("[... cut]", why)
+        self.assertIn("Exception: diagnosis", why)
+        self.assertIn("subprocess.CalledProcessError", why)
 
 
 class Envelope(unittest.TestCase):
