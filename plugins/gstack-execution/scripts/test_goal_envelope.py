@@ -48,6 +48,22 @@ class Envelope(unittest.TestCase):
         self.commit("item 2", {"docs/notes.md": "n\n"})
         self.assertEqual(self.check(), ([], 2))
 
+    def test_the_goal_never_moves_the_top_level_marketplace_version(self):  # GO-004.1
+        mk = lambda top, alpha: '{"version": "%s", "plugins": [{"name": "a", "version": "%s"}]}\n' % (top, alpha)
+        self.git("switch", "-q", "main")
+        self.write("goals/g1/GOAL.md", BRIEF.replace("`src/**`", "`src/**`\n- `.claude-plugin/marketplace.json`"))
+        self.commit("main", {".claude-plugin/marketplace.json": mk("1.0.0", "0.1.0")})
+        self.git("switch", "-q", "goal/g1"); self.git("merge", "-q", "main")
+        self.commit("item: the plugin's own entry", {".claude-plugin/marketplace.json": mk("1.0.0", "0.2.0")})
+        self.assertEqual(self.check()[0], [])
+        self.git("switch", "-q", "main")
+        self.commit("main moves the top line", {"src/a.py": "a = 2\n", ".claude-plugin/marketplace.json": mk("1.1.0", "0.1.0")})
+        self.git("switch", "-q", "goal/g1")
+        self.assertEqual(self.check()[0], [])                     # main's move isn't the goal's change
+        self.commit("item: the top line too", {".claude-plugin/marketplace.json": mk("1.2.0", "0.2.0")})
+        e, _ = self.check()
+        self.assertTrue(any("top-level version (1.0.0 -> 1.2.0)" in x for x in e), e)
+
     def test_a_file_outside_allowed_paths_is_named(self):
         sha = self.commit("item", {"lib/x": "x\n"})
         e, n = self.check()

@@ -156,6 +156,7 @@ class Digests(tgr.RunnerFixture):
         self.start()
         self.origin()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1, unsure="x")
+        self.rest_built()
         self.git("switch", "-q", "goal/g1")
         final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n"})
         self.git("switch", "-q", "main")

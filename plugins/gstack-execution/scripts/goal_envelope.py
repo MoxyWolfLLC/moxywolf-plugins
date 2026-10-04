@@ -88,6 +88,9 @@ def goal_commits(repo, base, head):
     return out
 
 
+MARKETPLACE = ".claude-plugin/marketplace.json"
+
+
 def check(repo, goal_id, head, base="origin/main"):
     """(errors, examined commits). Fails closed when the goal isn't on main."""
     if not GOAL_ID.match(goal_id):
@@ -104,6 +107,12 @@ def check(repo, goal_id, head, base="origin/main"):
         return errors + ["the brief on main lists no Allowed paths"], 0
     rs, record = rules(codeowners), f"goal-runs/{goal_id}/RESULT.md"
     commits = goal_commits(repo, base, head)
+    if any(MARKETPLACE in files for _, files in commits):
+        top = lambda ref: (json.loads(at(repo, ref, MARKETPLACE) or "{}") or {}).get("version")
+        fork = git(repo, "merge-base", base, head).strip()
+        if top(head) != top(fork):        # main moved since the fork is main's change, not the goal's
+            errors.append(f"the goal changes {MARKETPLACE}'s top-level version ({top(fork)} -> {top(head)}); it moves "
+                          f"only in the release bump after the goal merges, since main moves the same line (GO-004.1)")
     for sha, files in commits:
         if files == [record]:
             continue                                       # the finalize commit (GO-003.7)
