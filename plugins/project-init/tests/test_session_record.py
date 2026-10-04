@@ -1337,5 +1337,59 @@ class Reading(PublishBase):
         self.assertIn("can't be read as a published folder", err)
 
 
+
+class Listing(Reading):
+    """Goal vault-review-list, item 1: every published review in a vault folder, checked as read checks it."""
+
+    def list_(self, d):
+        return quiet(sr.main, ["list", str(d)])
+
+    def vault_of(self, *pubs):
+        v = self.tmp / "listvault"
+        v.mkdir(exist_ok=True)
+        for d in pubs:
+            shutil.copytree(d, v / d.name)
+        return v
+
+    def test_every_good_publication_lists_as_verified(self):
+        d, pid = self.published()
+        v = self.vault_of(d)
+        self.cleanup_staging()
+        before = {str(x): x.read_bytes() for x in v.rglob("*") if x.is_file()}
+        rc, out, err = self.list_(v)
+        self.assertEqual(rc, 0, err)
+        lines = out.splitlines()
+        self.assertTrue(lines[0].startswith(f"verified  {d.name}  publication {pid}"), out)
+        self.assertIn("confirmed by dorianatmoxywolf", lines[0])
+        self.assertEqual(lines[-1], "examined 1 folder(s): 1 verified, 0 refused")
+        self.assertEqual(before, {str(x): x.read_bytes() for x in v.rglob("*") if x.is_file()})   # writes nothing
+
+    def test_a_changed_or_foreign_folder_is_refused_and_the_rest_still_verify(self):
+        d, pid = self.published()
+        v = self.vault_of(d)
+        bad = v / "zz-changed"
+        shutil.copytree(d, bad); self.writable(bad)
+        (bad / "review" / "review.md").write_text("forged\n")
+        (v / "aa-empty").mkdir()
+        (v / "loose-file.txt").write_text("not a folder\n")           # files directly inside are not examined
+        rc, out, err = self.list_(v)
+        self.assertEqual(rc, 1, err)
+        lines = out.splitlines()
+        by = {ln.split()[1]: ln.split()[0] for ln in lines[:-1]}            # folder name -> verdict
+        self.assertEqual(by, {"aa-empty": "refused", d.name: "verified", "zz-changed": "refused"}, out)
+        self.assertEqual([ln.split()[1] for ln in lines[:-1]], sorted(by), out)     # in name order
+        self.assertIn(f"publication {pid}", next(ln for ln in lines if ln.startswith("verified")))
+        self.assertEqual(lines[-1], "examined 3 folder(s): 1 verified, 2 refused")
+
+    def test_an_empty_folder_or_no_folder_exits_2(self):
+        (self.tmp / "nothing").mkdir()
+        (self.tmp / "nothing" / "f.txt").write_text("x")
+        for d in (self.tmp / "nothing", self.tmp / "missing"):
+            with self.subTest(str(d)):
+                rc, out, err = self.list_(d)
+                self.assertEqual((rc, out), (2, ""), err)
+                self.assertIn("refused:", err)
+
+
 if __name__ == "__main__":
     unittest.main()
