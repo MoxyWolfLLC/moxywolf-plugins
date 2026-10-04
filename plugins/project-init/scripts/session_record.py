@@ -1188,10 +1188,10 @@ def cmd_publish(a):
 GENERATED = ("confirmation-attestation.json", "scan-attestation.json", "publish-receipt.json", "hashes.sha256")
 
 
-def cmd_read(a):
-    """A published folder, wherever it was copied (the vault, after a cloud session ends), is checked
-    against its own hashes and receipt and its review printed. Needs no staging and writes nothing."""
-    d = Path(a.publication)
+def published(d):
+    """A published folder, wherever it was copied (the vault, after a cloud session ends), checked
+    against its own hashes and receipt: its header fields and review, or Refused. Writes nothing."""
+    d = Path(d)
     try:
         if not d.is_dir() or not (d / "hashes.sha256").is_file() or not (d / "publish-receipt.json").is_file():
             raise Refused(f"{d} isn't a published folder: it needs hashes.sha256 and publish-receipt.json")
@@ -1202,9 +1202,9 @@ def cmd_read(a):
         manifest = json.loads((d / "capture" / "manifest.json").read_text())
         pid, who = receipt.get("publication_id"), receipt.get("confirmed_by")
         sid, audience = manifest.get("session_id"), receipt.get("audience")      # review F1: every header field is checked
-        if not SAFE_ID.match(str(sid or "")) or not BOUNDED.match(str(audience or "")):
+        if not SAFE_ID.fullmatch(str(sid or "")) or not BOUNDED.fullmatch(str(audience or "")):   # fullmatch: $ allows a final newline
             raise Refused("the capture manifest doesn't name a session, or the receipt doesn't name an audience")
-        if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.match(str(who or "")):
+        if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.fullmatch(str(who or "")):
             raise Refused("the receipt doesn't name a publication and the person who confirmed it")
         files = sorted(n for n in (str(x.relative_to(d)) for x in d.rglob("*") if x.is_file()) if n not in GENERATED)
         if sorted(receipt.get("confirmed_files") or []) != files:
@@ -1212,10 +1212,40 @@ def cmd_read(a):
         review = (d / "review" / "review.md").read_text()
     except (OSError, ValueError, AttributeError, TypeError) as e:      # a damaged copy is refused, never a traceback
         raise Refused(f"{d} can't be read as a published folder: {type(e).__name__}: {e}")
-    print(f"session {sid}\npublication {pid}\naudience {audience}\n"
-          f"confirmed by {who} at {receipt.get('confirmed_at')}\n"
+    return {"session": sid, "publication": pid, "audience": audience, "confirmed_by": who,
+            "confirmed_at": receipt.get("confirmed_at"), "review": review}
+
+
+def cmd_read(a):
+    """Print a published folder's review once published() has checked it. Needs no staging."""
+    p = published(a.publication)
+    print(f"session {p['session']}\npublication {p['publication']}\naudience {p['audience']}\n"
+          f"confirmed by {p['confirmed_by']} at {p['confirmed_at']}\n"
           f"verified: every file matches hashes.sha256 and the receipt\n")
-    print(review, end="" if review.endswith("\n") else "\n")
+    print(p["review"], end="" if p["review"].endswith("\n") else "\n")
+
+
+def cmd_list(a):
+    """Goal vault-review-list: every folder directly inside <folder> (the vault's session-records),
+    checked as `read` checks it, one line each. 0 when every one verified, 1 when any was refused."""
+    root = Path(a.folder)
+    if not root.is_dir():
+        raise Refused(f"{root} isn't a folder")
+    kids = sorted(k for k in root.iterdir() if k.is_dir())
+    if not kids:
+        raise Refused(f"{root} holds no folders, so there is nothing to list")
+    good = 0
+    flat = lambda s: "".join(c if c.isprintable() else "\\u%04x" % ord(c) for c in str(s))   # review F1: one line per folder, Unicode separators too
+    for k in kids:
+        try:
+            p = published(k)
+        except Refused as e:
+            print(f"refused  {flat(k.name)}  {flat(e)}")
+            continue
+        good += 1
+        print(f"verified  {flat(k.name)}  publication {flat(p['publication'])}  session {flat(p['session'])}  confirmed by {flat(p['confirmed_by'])}")
+    print(f"examined {len(kids)} folder(s): {good} verified, {len(kids) - good} refused")
+    return 0 if good == len(kids) else 1
 
 
 # ---------------------------------------------------------------- command line
@@ -1241,6 +1271,7 @@ def main(argv=None):
     pu = sub.add_parser("publish"); pu.add_argument("--publication", required=True); pu.add_argument("--confirm", required=True)
     pu.add_argument("--confirmed-by", required=True); pu.add_argument("--dest", required=True)
     rd = sub.add_parser("read"); rd.add_argument("publication")
+    ls = sub.add_parser("list"); ls.add_argument("folder")
     a = ap.parse_args(argv)
     try:
         if a.cmd in ("hook-expansion", "hook-stop"):
@@ -1250,9 +1281,10 @@ def main(argv=None):
             except Exception as e:     # a hook never blocks the session it watches; exit 2 would
                 print(f"session_record {a.cmd}: {type(e).__name__}: {e}", file=sys.stderr)
             return 0                   # stop a Stop hook from letting the turn end
-        {"capture": cmd_capture, "review-prompt": cmd_review_prompt, "review-finalize": cmd_review_finalize,
-         "examine": cmd_examine, "publish-prepare": cmd_publish_prepare, "publish": cmd_publish, "read": cmd_read}[a.cmd](a)
-        return 0
+        rc = {"capture": cmd_capture, "review-prompt": cmd_review_prompt, "review-finalize": cmd_review_finalize,
+              "examine": cmd_examine, "publish-prepare": cmd_publish_prepare, "publish": cmd_publish, "read": cmd_read,
+              "list": cmd_list}[a.cmd](a)
+        return rc if a.cmd == "list" else 0
     except Refused as e:
         print(f"refused: {e}", file=sys.stderr)
         return 2
