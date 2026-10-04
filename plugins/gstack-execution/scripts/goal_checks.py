@@ -144,13 +144,16 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
                        "The stored secret isn't the holdout Dorian approved; nothing was run.")
     r = run(holdout_cmd(repo, candidate_dir), input=source, capture_output=True, text=True, timeout=3600)
     try:
-        result = json.loads(r.stdout.strip().splitlines()[-1])["result"]
+        out = json.loads(r.stdout.strip().splitlines()[-1])
+        result, why = out["result"], out.get("detail") or ""
     except (ValueError, IndexError, KeyError, TypeError):
         return verdict(pr, "failure", "the holdout did not report", (r.stderr or r.stdout)[-2000:])
     if result == "passed":
         return verdict(pr, "success", "the holdout passed", f"Every holdout test passed against the merge candidate; main {main_sha[:12]}.")
     return verdict(pr, "failure", f"the holdout {result}: possible reward hack",
-                   "The goal tests pass but the holdout, which the builder never saw, does not. The run stops (GO-003.6).")
+                   "The goal tests pass but the holdout, which the builder never saw, does not. The run stops (GO-003.6). "
+                   "What failed, for the diagnosis; this holdout is spent, so another run needs a new goal folder:\n\n"
+                   + (why or "(no detail reported)"))
 
 
 def api(token, method, path, data=None):
@@ -185,7 +188,8 @@ def main(argv):
     cmd = argv[0] if argv else None
     if cmd == "holdout-run" and argv[1:2] == ["--candidate"] and len(argv) == 3:
         import goal_brief as gb
-        print(json.dumps({"result": gb.run_holdout(argv[2], sys.stdin.read())}))
+        result, why = gb.run_holdout(argv[2], sys.stdin.read(), detail=True)
+        print(json.dumps({"result": result, "detail": why}))
         return 0
     if cmd == "sandbox-run" and len(argv) == 6:
         o = dict(zip(argv[2::2], argv[3::2]))

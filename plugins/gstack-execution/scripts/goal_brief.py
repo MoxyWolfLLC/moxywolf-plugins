@@ -382,10 +382,12 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
             if ln.startswith("goal-test-result ") and len(ln.split()) == 3 and ln.split()[1] == nonce]
     return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
 
-def run_holdout(repo_root, source, timeout=1200):
+def run_holdout(repo_root, source, timeout=1200, detail=False):
     """GO-003.6: every test in the holdout source against the candidate, sealed like run_test. The
     source reaches the harness on stdin after the nonce and is never written to a file, so no
-    candidate process can open it. 'passed' only when every test in it ran and passed."""
+    candidate process can open it. 'passed' only when every test in it ran and passed. With detail=True,
+    (result, detail): on a failure, the failing tests' names and error lines (never the holdout's source,
+    which a traceback of exec'd text doesn't carry), so a failure can be diagnosed once the run is over."""
     nonce, root = secrets.token_hex(16), str(Path(repo_root).resolve())
     with tempfile.TemporaryDirectory(prefix="goal-holdout-") as cwd:
         env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -393,10 +395,15 @@ def run_holdout(repo_root, source, timeout=1200):
             r = subprocess.run([sys.executable, "-I", "-B", "-c", _HARNESS, "-", "*", root], cwd=cwd,
                                input=nonce + "\n" + source, env=env, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
-            return "not_run"
+            return ("not_run", "the holdout timed out") if detail else "not_run"
     mine = [ln.split()[2] for ln in r.stdout.splitlines()
             if ln.startswith("goal-test-result ") and len(ln.split()) == 3 and ln.split()[1] == nonce]
-    return mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
+    result = mine[0] if len(mine) == 1 and mine[0] in ("passed", "failed") else "not_run"
+    if not detail:
+        return result
+    why = [ln for ln in r.stderr.splitlines() if re.match(r"(FAIL|ERROR): |\w+(Error|Exception)\b|not_run", ln)]
+    why += [ln for ln in r.stdout.splitlines() if ln.startswith("not_run")]
+    return result, ("" if result == "passed" else "\n".join(why)[-3000:])
 
 
 def baseline(goal_dir, repo_root, run=None):
