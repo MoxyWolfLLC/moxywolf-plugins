@@ -1202,9 +1202,9 @@ def published(d):
         manifest = json.loads((d / "capture" / "manifest.json").read_text())
         pid, who = receipt.get("publication_id"), receipt.get("confirmed_by")
         sid, audience = manifest.get("session_id"), receipt.get("audience")      # review F1: every header field is checked
-        if not SAFE_ID.match(str(sid or "")) or not BOUNDED.match(str(audience or "")):
+        if not SAFE_ID.fullmatch(str(sid or "")) or not BOUNDED.fullmatch(str(audience or "")):   # fullmatch: $ allows a final newline
             raise Refused("the capture manifest doesn't name a session, or the receipt doesn't name an audience")
-        if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.match(str(who or "")):
+        if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.fullmatch(str(who or "")):
             raise Refused("the receipt doesn't name a publication and the person who confirmed it")
         files = sorted(n for n in (str(x.relative_to(d)) for x in d.rglob("*") if x.is_file()) if n not in GENERATED)
         if sorted(receipt.get("confirmed_files") or []) != files:
@@ -1235,7 +1235,7 @@ def cmd_list(a):
     if not kids:
         raise Refused(f"{root} holds no folders, so there is nothing to list")
     good = 0
-    flat = lambda s: re.sub(r"[\x00-\x1f\x7f]", lambda m: "\\x%02x" % ord(m.group()), str(s))   # review F1: one line per folder
+    flat = lambda s: "".join(c if c.isprintable() else "\\u%04x" % ord(c) for c in str(s))   # review F1: one line per folder, Unicode separators too
     for k in kids:
         try:
             p = published(k)
@@ -1243,7 +1243,7 @@ def cmd_list(a):
             print(f"refused  {flat(k.name)}  {flat(e)}")
             continue
         good += 1
-        print(f"verified  {flat(k.name)}  publication {p['publication']}  session {p['session']}  confirmed by {p['confirmed_by']}")
+        print(f"verified  {flat(k.name)}  publication {flat(p['publication'])}  session {flat(p['session'])}  confirmed by {flat(p['confirmed_by'])}")
     print(f"examined {len(kids)} folder(s): {good} verified, {len(kids) - good} refused")
     return 0 if good == len(kids) else 1
 

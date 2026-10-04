@@ -1390,8 +1390,27 @@ class Listing(Reading):
         self.assertEqual(rc, 1, err)
         lines = out.splitlines()
         self.assertEqual(len(lines), 3, out)                              # two folders, one count line
-        self.assertTrue(lines[0].startswith("refused  bad\\x0averified  pretend  "), out)
-        self.assertTrue(lines[1].startswith(f"verified  good\\x0averified  forged  publication {pid}"), out)
+        self.assertTrue(lines[0].startswith("refused  bad\\u000averified  pretend  "), out)
+        self.assertTrue(lines[1].startswith(f"verified  good\\u000averified  forged  publication {pid}"), out)
+
+    def test_unicode_separators_and_a_trailing_newline_in_a_field_stay_on_one_line(self):  # review F1, round 2
+        d, pid = self.published()
+        v = self.tmp / "uvault"; v.mkdir()
+        (v / "a\u2028verified  pretend").mkdir()
+        (v / "b\u0085verified  pretend").mkdir()
+        c = v / "c-session-newline"
+        shutil.copytree(d, c); self.writable(c)
+        m = json.loads((c / "capture" / "manifest.json").read_text()); m["session_id"] += "\n"
+        (c / "capture" / "manifest.json").write_text(json.dumps(m))
+        for h in (c / "hashes.sha256", c / "capture" / "hashes.sha256"):
+            h.unlink()
+        sr.write_hashes(c / "capture"); sr.write_hashes(c)
+        rc, out, err = self.list_(v)
+        self.assertEqual(rc, 1, err)
+        self.assertEqual(len(out.splitlines()), 4, out)                    # three folders, one count line
+        self.assertEqual([ln.split()[0] for ln in out.splitlines()[:3]], ["refused"] * 3, out)
+        rc, out, err = self.read(c)                                         # read refuses it too
+        self.assertEqual((rc, out), (2, ""), err)
 
     def test_an_empty_folder_or_no_folder_exits_2(self):
         (self.tmp / "nothing").mkdir()
