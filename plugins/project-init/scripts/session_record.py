@@ -1183,6 +1183,41 @@ def cmd_publish(a):
     return target
 
 
+# ---------------------------------------------------------------- read (goal cloud-review-survives)
+
+GENERATED = ("confirmation-attestation.json", "scan-attestation.json", "publish-receipt.json", "hashes.sha256")
+
+
+def cmd_read(a):
+    """A published folder, wherever it was copied (the vault, after a cloud session ends), is checked
+    against its own hashes and receipt and its review printed. Needs no staging and writes nothing."""
+    d = Path(a.publication)
+    try:
+        if not d.is_dir() or not (d / "hashes.sha256").is_file() or not (d / "publish-receipt.json").is_file():
+            raise Refused(f"{d} isn't a published folder: it needs hashes.sha256 and publish-receipt.json")
+        if d.is_symlink() or any(x.is_symlink() for x in d.rglob("*")):
+            raise Refused(f"{d} contains a symlink")
+        verify_hashes(d)
+        receipt = json.loads((d / "publish-receipt.json").read_text())
+        manifest = json.loads((d / "capture" / "manifest.json").read_text())
+        pid, who = receipt.get("publication_id"), receipt.get("confirmed_by")
+        sid, audience = manifest.get("session_id"), receipt.get("audience")      # review F1: every header field is checked
+        if not SAFE_ID.match(str(sid or "")) or not BOUNDED.match(str(audience or "")):
+            raise Refused("the capture manifest doesn't name a session, or the receipt doesn't name an audience")
+        if not re.fullmatch(r"\d{8}-\d{6}-[0-9a-f]{6}", str(pid)) or not LOGIN.match(str(who or "")):
+            raise Refused("the receipt doesn't name a publication and the person who confirmed it")
+        files = sorted(n for n in (str(x.relative_to(d)) for x in d.rglob("*") if x.is_file()) if n not in GENERATED)
+        if sorted(receipt.get("confirmed_files") or []) != files:
+            raise Refused("the folder's files aren't the ones the receipt says were confirmed")
+        review = (d / "review" / "review.md").read_text()
+    except (OSError, ValueError, AttributeError, TypeError) as e:      # a damaged copy is refused, never a traceback
+        raise Refused(f"{d} can't be read as a published folder: {type(e).__name__}: {e}")
+    print(f"session {sid}\npublication {pid}\naudience {audience}\n"
+          f"confirmed by {who} at {receipt.get('confirmed_at')}\n"
+          f"verified: every file matches hashes.sha256 and the receipt\n")
+    print(review, end="" if review.endswith("\n") else "\n")
+
+
 # ---------------------------------------------------------------- command line
 
 def main(argv=None):
@@ -1205,6 +1240,7 @@ def main(argv=None):
     pp.add_argument("--audience", required=True); pp.add_argument("--allow-binary", action="append", default=[], metavar="SHA256:NAME")
     pu = sub.add_parser("publish"); pu.add_argument("--publication", required=True); pu.add_argument("--confirm", required=True)
     pu.add_argument("--confirmed-by", required=True); pu.add_argument("--dest", required=True)
+    rd = sub.add_parser("read"); rd.add_argument("publication")
     a = ap.parse_args(argv)
     try:
         if a.cmd in ("hook-expansion", "hook-stop"):
@@ -1215,7 +1251,7 @@ def main(argv=None):
                 print(f"session_record {a.cmd}: {type(e).__name__}: {e}", file=sys.stderr)
             return 0                   # stop a Stop hook from letting the turn end
         {"capture": cmd_capture, "review-prompt": cmd_review_prompt, "review-finalize": cmd_review_finalize,
-         "examine": cmd_examine, "publish-prepare": cmd_publish_prepare, "publish": cmd_publish}[a.cmd](a)
+         "examine": cmd_examine, "publish-prepare": cmd_publish_prepare, "publish": cmd_publish, "read": cmd_read}[a.cmd](a)
         return 0
     except Refused as e:
         print(f"refused: {e}", file=sys.stderr)

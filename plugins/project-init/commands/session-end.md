@@ -8,7 +8,7 @@ The skill assumes the project has a saved `cowork-project-instructions.md` in it
 
 1. Resolves which project — uses the argument after `/session-end` if provided, otherwise infers from currently-mounted folders, or lists candidates and asks.
 2. Scans the current Cowork conversation to extract: what shipped this session, what's still open in priority order, the commit/push state of the active repo(s) — Claude commits and pushes directly during the session via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005), so this is normally a list of commits that landed this session — production-data state changes, procedural reminders.
-3. **Reviews the session with code (SM-006)**: captures it, writes a review from the captured record, validates and freezes it in staging, exactly as `/session-review` does, and never publishes. A review that can't run is reported in one line and doesn't block the handoff.
+3. **Reviews the session with code (SM-006)**: captures it, writes a review from the captured record, validates and freezes it in staging, exactly as `/session-review` does, and never publishes without the person's word. In a cloud session it says the review is lost when the session ends unless it's published, and offers to publish it; on their word it publishes and copies it into the vault's `11-Knowledge/session-records/`, then checks the copy with `read` on the linked computer, as `/session-review` describes under *In a cloud session*. A review that can't run is reported in one line and doesn't block the handoff.
 3a. Composes a handoff document in the canonical structure (frontmatter + `What landed` + `Open work` + `Commit & push state` + `Procedural reminders` + `Suggested opening line`).
 4. Writes it to **`[project]/00 – Project Hub/cowork-session-handoff.md`** — single canonical filename, overwritten each session, Drive versioning preserves history.
 5. (Optional) `--archive` flag also writes a dated archive copy to `00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md`.
@@ -19,4 +19,4 @@ The skill assumes the project has a saved `cowork-project-instructions.md` in it
 
 Pairs with `/session-start`, which reads `cowork-session-handoff.md` and surfaces the open-work and suggested-opening-line in the session-start briefing.
 
-**Session record (SM-004, SM-006).** The handoff's `What landed` section links the review from step 3 by its folder path, and a published package too if one exists. Link them; never restate what they say.
+**Session record (SM-004, SM-006).** The handoff's `What landed` section links the review from step 3 by its folder path, and a published package too if one exists. In a cloud session the staging path dies with the session, so it names the vault path of the copy `read` checked, or says the review wasn't kept. Link them; never restate what they say.
