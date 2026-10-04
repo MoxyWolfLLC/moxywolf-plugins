@@ -431,7 +431,7 @@ Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.m
 
 ## Session reviewed
 
-[The Step 3.7 review folder (in a cloud session, the vault path of the checked copy, or that it wasn't kept), its validation status, and its proposals listed by id and one line each for Dorian. Nothing was promoted or published. Or the one-line reason the review didn't run.]
+[The Step 3.7 review folder (in a cloud session, the vault path of the checked copy, or that it wasn't kept), its validation status, and its proposals listed by id and one line each for Dorian. Nothing was promoted. Nothing was published unless the person confirmed it; then name the publication and the vault path `read` checked. Or the one-line reason the review didn't run.]
 
 ## Vault updated via /obsidian-update
 
