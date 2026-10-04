@@ -299,10 +299,13 @@ def next_step(repo, goal_id, base="origin/main"):
                                   for c in pending],
                       "escalations": [{k: m[k] for k in ("n", "trigger", "text")} for m in holds]}
     ids = [t for t, _ in state["tests"]]
-    if ids and set(ids) <= set(state["passing"]):
-        return True, {"step": "finish", "branch": state["branch"], "spend": totals}
     remaining = [i for i in state["items"] if i["n"] not in state["done"]]
-    if not remaining or len(state["done"]) >= state["max_items"]:
+    capped = len(state["done"]) >= state["max_items"]
+    # GO-003.3: every plan item is built, even after the goal tests pass; an item the tests don't
+    # reach (cloud-review-survives' instructions) is still part of the goal Dorian approved.
+    if ids and set(ids) <= set(state["passing"]) and (not remaining or capped):
+        return True, {"step": "finish", "branch": state["branch"], "spend": totals}
+    if not remaining or capped:
         failing = sorted(set(ids) - set(state["passing"]))
         return False, end(state, "exhausted", f"the plan ran out with goal tests still failing: {failing}")
     item = remaining[0]
@@ -424,6 +427,9 @@ def finishing(goal_id):
         raise Refused(f"the run already ended: {state['outcome']}")
     if not ids or not set(ids) <= set(state["passing"]):
         raise Refused("the finish needs every goal test passing at the last merged head")
+    left = [i["n"] for i in state["items"] if i["n"] not in state["done"]]
+    if left and len(state["done"]) < state["max_items"]:
+        raise Refused(f"the finish needs every plan item built; item {left[0]} isn't")
     return state
 
 

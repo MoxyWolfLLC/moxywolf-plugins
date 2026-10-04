@@ -30,6 +30,8 @@ install is a check that stops running.
 """
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -91,10 +93,33 @@ def _roster(root, ref):
     return names
 
 
-def run(root, base, head="HEAD"):
+GOAL_MERGE = re.compile(r"^Merge pull request #\d+ from [\w.-]+/goal/[a-z0-9-]+$")
+
+
+def goal_range(root, h, goal=None):
+    """GO-004.1: a range in goal mode, where the top-level version doesn't move. A pull request into or
+    out of goal/<id>, a push to one, or a push to main that is a goal's merge. The goal branch and main
+    would otherwise both move one line and every sync would conflict; the release bump after the merge
+    moves it instead. Read from the Actions environment, or given as goal=True."""
+    if goal is not None:
+        return goal
+    env = os.environ
+    if any(env.get(k, "").startswith(p) for k, p in (("GITHUB_BASE_REF", "goal/"), ("GITHUB_HEAD_REF", "goal/"),
+                                                     ("GITHUB_REF", "refs/heads/goal/"))):
+        return True
+    return env.get("GITHUB_REF") == "refs/heads/main" and bool(GOAL_MERGE.match(_git(root, "log", "-1", "--format=%s", h).strip()))
+
+
+def run(root, base, head="HEAD", goal=None):
     """Resolve the range and examine every plugin whose files changed inside it."""
     root = Path(root)
     b, h = resolve(root, base), resolve(root, head)
+    goal = goal_range(root, h, goal)
+    main = resolve(root, "origin/main") if goal else None
+    if goal and subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", b, main]).returncode:
+        # Into a goal branch (its base isn't on main): measure from where the head left main, so commits
+        # that arrive from main in a sync were checked on main already and aren't the goal's changes.
+        b = _git(root, "merge-base", main, h).strip()
 
     changed = [ln for ln in _git(root, "diff", "--name-only", b, h).splitlines() if ln]
     plugins = sorted({ln.split("/")[1] for ln in changed
@@ -132,6 +157,9 @@ def run(root, base, head="HEAD"):
     if not plugins:
         top = {"status": PASS, "base": top_was, "head": top_now,
                "detail": "no plugin changed in this range; no top-level bump required"}
+    elif goal:
+        top = {"status": PASS, "base": top_was, "head": top_now,
+               "detail": "goal mode: the top-level version moves in the release bump after the goal merges (GO-004.1)"}
     elif top_was == top_now:
         top = {"status": FAIL, "base": top_was, "head": top_now,
                "detail": f"{len(plugins)} plugin(s) changed and the top-level version stayed at "
@@ -189,6 +217,19 @@ def main(argv=None):
 
 
 def _selftest():
+    """CI-002.9, run apart from the Actions environment it may be called in (review F1): on a goal
+    branch's CI, GITHUB_*_REF would put every case in goal mode."""
+    keys = ("GITHUB_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF")
+    saved = {k: os.environ.pop(k, None) for k in keys}
+    try:
+        return _selftest_cases()
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
+
+
+def _selftest_cases():
     """CI-002.9. Temporary repositories, because the thing under test is a real diff range."""
     import tempfile
 
@@ -325,7 +366,44 @@ def _selftest():
         assert r["changed_files"] == 5, r
         assert len(r["base"]) == 40 and len(r["head"]) == 40, r
 
-    print("version_bump selftest: 9 cases, all pass")
+    # 10. GO-004.1: goal mode. A sync into a goal branch carries main's commits, already checked on main;
+    #     an item into it moves its plugin and leaves the top-level line to the release bump.
+    with tempfile.TemporaryDirectory() as d:
+        fixture(d, plugins=(("alpha", "0.1.0"), ("beta", "0.1.0")))
+        git(d, "update-ref", "refs/remotes/origin/main", "main")
+        git(d, "switch", "-q", "-c", "goal/g1")
+        (Path(d) / "plugins/alpha/code.py").write_text("x = 2\n")
+        write(d, f"plugins/alpha/{MANIFEST}", {"name": "alpha", "version": "0.2.0"})
+        commit(d, "item")
+        item = run(d, "main", "HEAD", goal=True)
+        assert verdict(item) == PASS and "release bump" in item["top_level"]["detail"], item
+        assert verdict(run(d, "main", "HEAD", goal=False)) == FAIL          # outside goal mode the line must move
+        git(d, "switch", "-q", "main")
+        (Path(d) / "plugins/beta/code.py").write_text("y = 2\n")
+        write(d, f"plugins/beta/{MANIFEST}", {"name": "beta", "version": "0.2.0"})
+        write(d, MARKETPLACE, {"version": "1.1.0", "plugins": [{"name": n, "source": f"./plugins/{n}"} for n in ("alpha", "beta")]})
+        commit(d, "main moves")
+        git(d, "update-ref", "refs/remotes/origin/main", "main")
+        git(d, "switch", "-q", "-c", "sync", "main")
+        git(d, "commit", "-q", "--allow-empty", "-m", "Sync main")
+        sync = run(d, "goal/g1", "sync", goal=True)
+        assert verdict(sync) == PASS and sync["examined"] == 0, sync                # main's own commits aren't the goal's
+        git(d, "switch", "-q", "main")
+        git(d, "merge", "-q", "--no-ff", "-m", "Merge pull request #5 from Org/goal/g1", "goal/g1")
+        saved = {k: os.environ.pop(k, None) for k in ("GITHUB_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF")}
+        try:
+            os.environ["GITHUB_REF"] = "refs/heads/main"
+            assert goal_range(d, resolve(d, "HEAD")) is True                       # a goal's merge into main
+            assert goal_range(d, resolve(d, "HEAD~1")) is False                    # an ordinary commit on main
+            os.environ["GITHUB_REF"] = "refs/pull/7/merge"; os.environ["GITHUB_BASE_REF"] = "goal/g1"
+            assert goal_range(d, resolve(d, "HEAD~1")) is True                     # a pull request into a goal branch
+        finally:
+            for k, v in saved.items():
+                os.environ.pop(k, None)
+                if v is not None:
+                    os.environ[k] = v
+
+    print("version_bump selftest: 10 cases, all pass")
     return 0
 
 
