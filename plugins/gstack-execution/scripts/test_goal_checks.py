@@ -102,10 +102,11 @@ class Holdout(unittest.TestCase):  # GO-003.6
         (d / "goals" / "g1" / "holdout.sha256").write_text(__import__("hashlib").sha256(self.SRC.encode()).hexdigest() + "\n")
         return d
 
-    def run_with(self, result):
+    def run_with(self, result, detail=None):
         def run(cmd, **kw):
             self.cmd, self.kw = cmd, kw
-            return subprocess.CompletedProcess(cmd, 0, json.dumps({"result": result}) + "\n", "")
+            out = {"result": result} if detail is None else {"result": result, "detail": detail}
+            return subprocess.CompletedProcess(cmd, 0, json.dumps(out) + "\n", "")
         return run
 
     def test_the_holdout_runs_only_on_the_goal_pull_request_into_main(self):
@@ -135,6 +136,9 @@ class Holdout(unittest.TestCase):  # GO-003.6
             v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with(result))
             self.assertEqual(v["conclusion"], "failure")
             self.assertIn("possible reward hack", v["title"])
+        v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with("failed", "FAIL: test_empty (goal_holdout.H.test_empty)\nAssertionError: 2 != 0"))
+        self.assertIn("FAIL: test_empty", v["summary"])                  # GO-003.6: the diagnosis reaches the check
+        self.assertIn("this holdout is spent", v["summary"])
 
     def test_the_sealed_harness_runs_holdout_source_that_is_never_a_file(self):
         import goal_brief as gb
@@ -151,6 +155,23 @@ class Holdout(unittest.TestCase):  # GO-003.6
         self.assertEqual(gb.run_holdout(cand, src), "passed")
         self.assertEqual(gb.run_holdout(cand, src.replace("'[]'", "'nope'")), "failed")
         self.assertEqual(gb.run_holdout(cand, "import unittest\n"), "not_run")                 # no tests is not a pass
+        result, why = gb.run_holdout(cand, src.replace("'[]'", "'nope'"), detail=True)        # the diagnosis names what failed
+        self.assertEqual(result, "failed")
+        self.assertIn("FAIL: test_sees_nothing", why)
+        self.assertIn("AssertionError", why)
+        self.assertNotIn("holdout-canary", why)                                               # and never carries the source
+        self.assertEqual(gb.run_holdout(cand, src, detail=True), ("passed", ""))
+        many = ("import subprocess, sys, unittest\n\n\nclass M(unittest.TestCase):\n"          # review F1, F2
+                "    def test_long(self):\n        self.fail('x' * 4000)\n"
+                "    def test_plain(self):\n        raise Exception('diagnosis')\n"
+                "    def test_called(self):\n        subprocess.run([sys.executable, '-c', 'import sys; sys.exit(3)'], check=True)\n")
+        result, why = gb.run_holdout(cand, many, detail=True)
+        self.assertEqual(result, "failed")
+        for name in ("FAIL: test_long", "ERROR: test_plain", "ERROR: test_called"):
+            self.assertIn(name, why)
+        self.assertIn("AssertionError: xxx", why); self.assertIn("[... cut]", why)
+        self.assertIn("Exception: diagnosis", why)
+        self.assertIn("subprocess.CalledProcessError", why)
 
 
 class Envelope(unittest.TestCase):
