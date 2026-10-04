@@ -140,6 +140,10 @@ class RunnerFixture(unittest.TestCase):
 
     envs = staticmethod(lambda: ["goal-holdout"])
 
+    def rest_built(self):
+        """The plan's other items, recorded as built; building every item is tested in the plan test."""
+        st = gr.load("g1"); st["done"] = [i["n"] for i in st["items"]]; gr.save(st)
+
 
 class Runner(RunnerFixture):
     def test_a_plan_runs_in_order_to_complete(self):
@@ -153,7 +157,11 @@ class Runner(RunnerFixture):
         self.assertEqual(out["results"], {"tests/test_g.py::G.test_done": "failed", "tests/test_g.py::G.test_safe": "passed"})
         self.assertEqual(self.next()[1]["item"]["n"], 2)
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 2)
-        self.assertEqual(self.next(), (True, self.next()[1]))
+        step = self.next()[1]                    # GO-003.3: the tests pass, but item 3 is still built
+        self.assertEqual((step["step"], step["item"]["n"]), ("build", 3))
+        with self.assertRaisesRegex(gr.Refused, "every plan item built; item 3"):
+            gr.finishing("g1")
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\npolished = True\n"), 3)
         self.assertEqual(self.next()[1]["step"], "finish")
         with self.assertRaisesRegex(gr.Refused, "needs the finish"):          # review F1: no skipping the record
             gr.complete("g1", 9, "f" * 40, self.merged_pr())
@@ -164,7 +172,7 @@ class Runner(RunnerFixture):
         self.assertIn("by review 4242", rec)                                 # review F3
         self.assertIn("drafted by gpt, read by gemini", rec)
         self.assertIn("git revert -m 1 --no-edit " + "f" * 40, rec)
-        self.assertIn("3. polish - not built", rec)
+        self.assertIn("3. polish - merged", rec)
 
     def test_dependent_items_on_their_own_branches_build_on_each_other(self):  # review F5
         self.start()
@@ -185,7 +193,7 @@ class Runner(RunnerFixture):
         out = gr.merged(self.repo, "g1", item_branch("build/item-2", {
             "goalmod.py": "import helper\ndone = helper.value\nsafe = True\n"}), 2)
         self.assertEqual(out["results"]["tests/test_g.py::G.test_done"], "passed")   # item 2 used item 1's module
-        self.assertEqual(self.next()[1]["step"], "finish")
+        self.assertEqual(self.next()[1]["item"]["n"], 3)
 
     def test_an_item_that_ends_without_a_merge_stops_the_run(self):  # review 2 F1
         self.start()
@@ -342,6 +350,7 @@ class Runner(RunnerFixture):
         self.start()
         bare = self.origin()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        self.rest_built()
         self.git("push", "-q", "origin", "goal/g1")
         tested = self.git("rev-parse", "goal/g1")
         posts = []
@@ -380,6 +389,7 @@ class Runner(RunnerFixture):
         self.start()
         self.origin()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
+        self.rest_built()
         self.git("switch", "-q", "goal/g1")
         final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n"})     # what the finalize merge leaves
         self.git("switch", "-q", "main")
@@ -436,6 +446,7 @@ class Runner(RunnerFixture):
         self.start()
         self.origin()
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)   # not pushed: origin is behind
+        self.rest_built()
         with self.assertRaisesRegex(gr.Refused, "where the goal tests passed"):
             gr.finalize(self.repo, "g1", lambda p, d: {"number": 1}, environments=self.envs, base="main")
 
