@@ -217,6 +217,19 @@ def main(argv=None):
 
 
 def _selftest():
+    """CI-002.9, run apart from the Actions environment it may be called in (review F1): on a goal
+    branch's CI, GITHUB_*_REF would put every case in goal mode."""
+    keys = ("GITHUB_BASE_REF", "GITHUB_HEAD_REF", "GITHUB_REF")
+    saved = {k: os.environ.pop(k, None) for k in keys}
+    try:
+        return _selftest_cases()
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
+
+
+def _selftest_cases():
     """CI-002.9. Temporary repositories, because the thing under test is a real diff range."""
     import tempfile
 
