@@ -1381,6 +1381,18 @@ class Listing(Reading):
         self.assertIn(f"publication {pid}", next(ln for ln in lines if ln.startswith("verified")))
         self.assertEqual(lines[-1], "examined 3 folder(s): 1 verified, 2 refused")
 
+    def test_a_name_with_a_line_break_is_still_one_line(self):  # review F1
+        d, pid = self.published()
+        v = self.tmp / "nlvault"; v.mkdir()
+        shutil.copytree(d, v / "good\nverified  forged")
+        (v / "bad\nverified  pretend").mkdir()
+        rc, out, err = self.list_(v)
+        self.assertEqual(rc, 1, err)
+        lines = out.splitlines()
+        self.assertEqual(len(lines), 3, out)                              # two folders, one count line
+        self.assertTrue(lines[0].startswith("refused  bad\\x0averified  pretend  "), out)
+        self.assertTrue(lines[1].startswith(f"verified  good\\x0averified  forged  publication {pid}"), out)
+
     def test_an_empty_folder_or_no_folder_exits_2(self):
         (self.tmp / "nothing").mkdir()
         (self.tmp / "nothing" / "f.txt").write_text("x")

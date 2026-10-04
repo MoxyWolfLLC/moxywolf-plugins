@@ -1235,14 +1235,15 @@ def cmd_list(a):
     if not kids:
         raise Refused(f"{root} holds no folders, so there is nothing to list")
     good = 0
+    flat = lambda s: re.sub(r"[\x00-\x1f\x7f]", lambda m: "\\x%02x" % ord(m.group()), str(s))   # review F1: one line per folder
     for k in kids:
         try:
             p = published(k)
         except Refused as e:
-            print(f"refused  {k.name}  {e}")
+            print(f"refused  {flat(k.name)}  {flat(e)}")
             continue
         good += 1
-        print(f"verified  {k.name}  publication {p['publication']}  session {p['session']}  confirmed by {p['confirmed_by']}")
+        print(f"verified  {flat(k.name)}  publication {p['publication']}  session {p['session']}  confirmed by {p['confirmed_by']}")
     print(f"examined {len(kids)} folder(s): {good} verified, {len(kids) - good} refused")
     return 0 if good == len(kids) else 1
 
