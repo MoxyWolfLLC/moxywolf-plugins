@@ -50,7 +50,7 @@ assert not missing, (
 
 # Miss 1: a plugin whose files changed and whose version did not.
 merge, plugin, stuck = UNMOVED_PLUGIN
-r = run(ROOT, f"{merge}^", merge)
+r = run(ROOT, f"{merge}^", merge, goal=False)
 assert verdict(r) == FAIL, f"{merge} should not pass: {r}"
 caught = {c["plugin"]: c for c in r["checks"] if c["status"] == FAIL}
 assert plugin in caught, f"{merge} must catch {plugin}; caught {sorted(caught)} instead"
@@ -63,7 +63,7 @@ assert gra and gra[0]["status"] == PASS, f"github-repo-analyzer bumped at {merge
 # plugin are caught; the three that shipped none owe nothing and must pass.
 caught_top, owed_nothing = [], []
 for merge in UNMOVED_TOP:
-    r = run(ROOT, f"{merge}^", merge)
+    r = run(ROOT, f"{merge}^", merge, goal=False)
     assert r["top_level"]["head"] == "1.57.0", f"{merge} top-level: {r['top_level']}"
     if r["examined"]:
         assert r["top_level"]["status"] == FAIL, f"{merge} changed {r['examined']} plugin(s): {r}"
