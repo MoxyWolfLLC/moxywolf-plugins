@@ -68,7 +68,7 @@ Examples:
 - "Multi-axis classifier shipped end-to-end. 3,233/3,323 nouns now carry real entity_type values. Browse pages render the live distribution. PostgREST 1000-row cap workaround landed."
 - "Wrote the Strike Graph reseller v4 contract. Added MSA addendum for the 70/30 split. Filed both in 01 – Admin & Legal."
 
-Link the session review from Step 3.7 by its folder path, and a published session record too if one exists (SM-004, SM-006). Link them; never restate what they say.
+Link the session review from Step 3.7 by its folder path, and a published session record too if one exists (SM-004, SM-006). In a cloud session, link the vault path of the copy `read` checked, since the staging path is gone once the session ends, or say the review wasn't kept. Link them; never restate what they say.
 
 #### b. Open work, in priority order
 
@@ -179,6 +179,8 @@ A lesson written down is not a lesson applied: a rule read once at session start
 ### Step 3.7: Review this session with code (SM-006)
 
 Run the session review exactly as `commands/session-review.md` steps 1 to 4 describe, with no prompt from the person: `session_record.py capture --from-hook <session_id>` (the capture hook fired when `/session-end` was typed, so the record ends there), then `review-prompt`, then the review draft in staging, then `review-finalize`. Never run `publish-prepare` or `publish` here; publishing stays a separate step on the person's word.
+
+**In a cloud session**, staging is deleted with the session, so this review is too. Say so in one line and ask once whether to keep it. On the person's word, publish it and copy the published folder into the project's vault folder `11-Knowledge/session-records/` exactly as `commands/session-review.md` describes under *In a cloud session*, then run `session_record.py read` on the copy on the linked computer. With no computer linked, say the review stays in this session and is lost when it ends.
 
 - Keep the review folder path and its `validation_status` for the handoff and the Step 8 report.
 - If the session was already captured, the capture is reused and says the line it ends at; say that the review covers the session only up to that line.
@@ -429,7 +431,7 @@ Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.m
 
 ## Session reviewed
 
-[The Step 3.7 review folder, its validation status, and its proposals listed by id and one line each for Dorian. Nothing was promoted or published. Or the one-line reason the review didn't run.]
+[The Step 3.7 review folder (in a cloud session, the vault path of the checked copy, or that it wasn't kept), its validation status, and its proposals listed by id and one line each for Dorian. Nothing was promoted. Nothing was published unless the person confirmed it; then name the publication and the vault path `read` checked. Or the one-line reason the review didn't run.]
 
 ## Vault updated via /obsidian-update
 
