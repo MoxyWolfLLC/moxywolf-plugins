@@ -332,7 +332,7 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
     if klass in ("vcs.push", "pr.open", "merge"):
         brief = (run_dir(goal_id) / "goal" / "GOAL.md").read_text()
         problems, now = gguard.assess(repo, base, brief, environments())
-        if now != state.get("triggers"):
+        if problems or now != state.get("triggers"):   # review F2: a problem stops it even if the fingerprint held
             end(state, "stopped", f"what a {klass} sets off changed since the run started"
                 + (": " + "; ".join(problems) if problems else ""))
             raise Refused(f"the run stopped: the workflows or deployment environments changed since the start")

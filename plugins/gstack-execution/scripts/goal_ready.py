@@ -111,14 +111,15 @@ def requirements(repo, get):
 
     def workflows():
         text = text_at(get, repo, goal_guard.PIN_FILE, "main")
+        if text is None:
+            return False, f"no {goal_guard.PIN_FILE} pinning the repository's own checks (tests.yml first)"
         try:
-            own = json.loads(text)["checks"] if text else None
-            assert isinstance(own, dict) and own
-        except (ValueError, KeyError, TypeError, AssertionError):
-            return False, f"no {goal_guard.PIN_FILE} pinning the repository's own checks (its tests workflow first)"
+            own = goal_guard.own_pins(text)                  # the same rules goal_run start applies
+        except ValueError as e:
+            return False, str(e)
         pins = {**own, **goal_guard.GOAL_WORKFLOWS}
-        bad = [w for w in pins if w in goal_guard.GOAL_WORKFLOWS and w in own
-               or hashlib.sha256((text_at(get, repo, f".github/workflows/{w}", "main") or "").encode()).hexdigest() != pins[w]]
+        texts = {w: text_at(get, repo, f".github/workflows/{w}", "main") for w in pins}
+        bad = [w for w in pins if texts[w] is None or hashlib.sha256(texts[w].encode()).hexdigest() != pins[w]]
         return not bad, (f"{len(pins)} workflows match their pins ({len(own)} in {goal_guard.PIN_FILE})" if not bad else
                          f"absent or not the pinned content: {bad} (goal_run start refuses a check that isn't pinned)")
     req("checks pinned: the goal workflows and the repository's own", workflows)

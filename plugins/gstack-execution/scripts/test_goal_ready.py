@@ -80,6 +80,16 @@ class Ready(unittest.TestCase):
         self.broken(lambda s: s.files.pop(".github/workflows/goal-holdout.yml"), name)
         self.broken(lambda s: s.files.pop(goal_guard.PIN_FILE), name)
         self.broken(lambda s: s.files.update({".github/workflows/tests.yml": {"content": base64.b64encode(b"x").decode()}}), name)
+        b64 = lambda x: {"content": base64.b64encode(x.encode()).decode()}
+        empty = __import__("hashlib").sha256(b"").hexdigest()
+        self.broken(lambda s: s.files.update({goal_guard.PIN_FILE: b64('{"checks": {"ci.yml": "%s"}}' % ("a" * 64))}), name)
+        self.broken(lambda s: s.files.update({goal_guard.PIN_FILE: b64('{"checks": {"tests.yml": "%s", "../x.yml": "%s"}}'
+                                                                          % ("a" * 64, "a" * 64))}), name)
+        def ghost(s):
+            pins = __import__("json").loads((gr.ROOT / goal_guard.PIN_FILE).read_text())
+            pins["checks"]["ghost.yml"] = empty
+            s.files[goal_guard.PIN_FILE] = b64(__import__("json").dumps(pins))
+        self.broken(ghost, name)
         self.broken(lambda s: s.tree.pop(), "goal-mode scripts, same as this checkout")
         self.broken(lambda s: s.rules[3]["parameters"]["required_status_checks"].pop(), "main's ruleset")
         self.broken(lambda s: s.rules[2]["parameters"].update(require_code_owner_review=False), "main's ruleset")

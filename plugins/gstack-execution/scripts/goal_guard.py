@@ -32,26 +32,32 @@ PIN_FILE = ".github/goal-checks.json"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
+def own_pins(text):
+    """The repository's own pins from PIN_FILE's text, `{"checks": {"tests.yml": "<sha256>"}}`. Raises
+    ValueError, naming the defect, for a file that doesn't parse, pins a goal check, pins anything but
+    a workflow file name to a lowercase sha256, or doesn't pin tests.yml, the `tests` check."""
+    try:
+        own = json.loads(text)["checks"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise ValueError(f"{PIN_FILE} doesn't parse as {{\"checks\": {{...}}}}: {e}")
+    if not isinstance(own, dict):
+        raise ValueError(f"{PIN_FILE}: checks must be an object")
+    bad = [k for k, v in own.items() if k in GOAL_WORKFLOWS or not re.fullmatch(r"[\w.-]+\.ya?ml", str(k))
+           or not isinstance(v, str) or not SHA256.fullmatch(v)]
+    if bad:
+        raise ValueError(f"{PIN_FILE} pins {bad}: each must be a workflow file other than a goal check, "
+                         "pinned to a lowercase sha256")
+    if "tests.yml" not in own:
+        raise ValueError(f"{PIN_FILE} doesn't pin tests.yml, the workflow behind the required `tests` check")
+    return own
+
+
 def checks(repo, ref):
     """{workflow file: sha256} of every check a goal may set off on ref: the goal checks pinned above
-    and the repository's own checks pinned in PIN_FILE, `{"checks": {"tests.yml": "<sha256>"}}`.
-    Raises ValueError, naming the defect, for a pin file that doesn't parse, pins a goal check, or
-    pins anything but a workflow file name to a lowercase sha256. No pin file pins no own checks."""
+    and the repository's own checks pinned in PIN_FILE (own_pins). Raises ValueError for a defective
+    pin file. No pin file pins no own checks, so the repository's workflows each read as unpinned."""
     text = ge.at(repo, ref, PIN_FILE)
-    own = {}
-    if text is not None:
-        try:
-            own = json.loads(text)["checks"]
-        except (ValueError, KeyError, TypeError) as e:
-            raise ValueError(f"{PIN_FILE} doesn't parse as {{\"checks\": {{...}}}}: {e}")
-        if not isinstance(own, dict):
-            raise ValueError(f"{PIN_FILE}: checks must be an object")
-        bad = [k for k, v in own.items() if k in GOAL_WORKFLOWS or not re.fullmatch(r"[\w.-]+\.ya?ml", str(k))
-               or not isinstance(v, str) or not SHA256.fullmatch(v)]
-        if bad:
-            raise ValueError(f"{PIN_FILE} pins {bad}: each must be a workflow file other than a goal check, "
-                             "pinned to a lowercase sha256")
-    return {**own, **GOAL_WORKFLOWS}
+    return {**(own_pins(text) if text is not None else {}), **GOAL_WORKFLOWS}
 
 
 CHECK_ENVS = {"goal-holdout"}
@@ -226,9 +232,10 @@ def assess(repo, ref, brief, environments):
     problems, seen = [], {}
     try:
         pins = checks(repo, ref)
+        pin_state = pins
     except ValueError as e:
         problems.append(str(e))
-        pins = dict(GOAL_WORKFLOWS)
+        pins, pin_state = dict(GOAL_WORKFLOWS), f"defective: {e}"
     for name, text in sorted(workflows(repo, ref).items()):
         events = set(EVENTS.findall(text))
         if not events:
@@ -247,5 +254,5 @@ def assess(repo, ref, brief, environments):
     for env in sorted(set(environments) - CHECK_ENVS):
         if env not in stops:
             problems.append(f"deployment environment {env} isn't named in the brief's Stop conditions")
-    fingerprint = hashlib.sha256(json.dumps([seen, sorted(environments)], sort_keys=True).encode()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps([seen, sorted(environments), pin_state], sort_keys=True).encode()).hexdigest()
     return problems, fingerprint

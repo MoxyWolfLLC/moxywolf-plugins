@@ -62,7 +62,8 @@ class Triggers(tgr.RunnerFixture):
         problems, _ = gguard.assess(self.repo, "main", tgr.BRIEF, ["goal-holdout"])
         self.assertTrue(any("isn't one of the repository's checks" in p for p in problems), problems)
         for bad in ("not json", '{"checks": []}', '{"checks": {"goal-holdout.yml": "%s"}}' % ("a" * 64),
-                    '{"checks": {"tests.yml": "ABC"}}', '{"checks": {"../x.yml": "%s"}}' % ("a" * 64)):
+                    '{"checks": {"tests.yml": "ABC"}}', '{"checks": {"../x.yml": "%s"}}' % ("a" * 64),
+                    '{"checks": {"ci.yml": "%s"}}' % ("a" * 64)):
             self.commit("pins", {".github/goal-checks.json": bad})
             problems, _ = gguard.assess(self.repo, "main", tgr.BRIEF, ["goal-holdout"])
             self.assertTrue(any(".github/goal-checks.json" in p for p in problems), (bad, problems))
@@ -128,6 +129,13 @@ class Triggers(tgr.RunnerFixture):
             gr.act(self.repo, "g1", "vcs.push", "build/GX-1-a", self.envs, base="main")
         self.assertEqual(gr.load("g1")["outcome"], "stopped")
         self.assertIn("changed since the run started", gr.load("g1")["reason"])
+
+    def test_a_pin_file_broken_after_the_start_stops_the_next_push(self):
+        self.start()
+        self.commit("pins", {".github/goal-checks.json": "not json"})
+        with self.assertRaises(gr.Refused):
+            gr.act(self.repo, "g1", "vcs.push", "build/GX-1-a", self.envs, base="main")
+        self.assertEqual(gr.load("g1")["outcome"], "stopped")
 
     def test_a_new_deployment_environment_stops_the_next_pull_request(self):
         self.start()
