@@ -24,6 +24,10 @@ class GraphTests(unittest.TestCase):
 p=json.loads(pathlib.Path(sys.argv[-1]).read_text()); n=p['node']; start=time.time()
 assert (pathlib.Path(p['snapshots'][0])/'value').read_text() in ('one','two')
 time.sleep(n.get('delay',0))
+if n.get('barrier'):
+    d=pathlib.Path(n['barrier']['dir']); d.mkdir(parents=True,exist_ok=True); (d/n['id']).write_text('')
+    t=time.time()+20
+    while time.time()<t and not all((d/x).exists() for x in n['barrier']['peers']): time.sleep(.01)
 if n.get('fail'): sys.exit(3)
 r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[], 'summary':n['id']}
 if n.get('finding'): r['findings']=[{'id':'F1','status':'TENTATIVE','detail':'candidate','evidence':['value:1']}]
@@ -115,6 +119,9 @@ print(json.dumps(r))
         self.assertEqual(tg.undeclared_writes({'extra.json':'cc'},{'extra.json':'dd'},node),['extra.json'],'a modification is a write')
     def state(self): return json.loads((self.run/'state.json').read_text())
     def test_diamond_overlaps_and_preserves_all_findings(self):
+        # Each sibling waits for the other's marker, so they overlap when run concurrently and time out
+        # (and fail the overlap below) when run serially. A bare sleep raced process start-up on slow CI.
+        for n in self.graph['nodes'][1:3]: n['barrier']={'dir':str(self.root/'barrier'),'peers':['a','b']}
         r=self.execute();self.ok(r)
         s=self.state(); a=s['nodes']['a']['result'];b=s['nodes']['b']['result']
         self.assertLess(max(a['interval'][0],b['interval'][0]),min(a['interval'][1],b['interval'][1]))

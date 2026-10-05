@@ -22,7 +22,7 @@ import governance as gov
 # until this pin moves with it, in a change Dorian approves (this file is a CODEOWNERS path), and
 # test_goal_guard fails CI while a pin and its workflow disagree.
 CHECKS = {
-    "tests.yml": "3d665e3dca8e37afacf7775e278eef9692f5d67896c29946b90eb73191a256b2",
+    "tests.yml": "9ec0828550fb90f4f93e2fa4ddee992a7a7386caaa7f654eb83234e31cf5db4e",
     "goal-envelope.yml": "03c4d6e7e6ee8a5aca467cbea7899b22f1a00b1cae72d36b0d65bbfe412823d5",
     "goal-tests.yml": "27bfd7ad9b61ee9cb491ee5abee6b9b8899af7a616ea851da7c92004900460a5",
     "goal-holdout.yml": "76ab3029baef7a5b42911dcd9eb0071992260c79fe71a328ba926a2e1192f21b",
