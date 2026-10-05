@@ -44,6 +44,10 @@ class Stub:
             return self.repo
         if path.startswith(f"repos/{R}/contents/"):
             return self.files.get(path.split("/contents/", 1)[1].split("?", 1)[0])
+        if "/check-runs" in path:
+            return {"check_runs": []}
+        if path.startswith(f"repos/{R}/deployments"):
+            return []
         if path.startswith(f"repos/{R}/git/trees/"):
             return {"tree": self.tree, "truncated": False}
         if path.startswith(f"repos/{R}/rules/branches/main"):
@@ -124,6 +128,19 @@ class Ready(unittest.TestCase):
         s = Stub()
         s.refuse.add("/environments/")
         self.assertEqual(self.status(s)["goal-holdout environment, main only"], "unknown")
+        for hidden in ("/deployments", "/check-runs"):     # a private repository hides these without the read scopes
+            s = Stub()
+            s.refuse.add(hidden)
+            self.assertEqual(self.status(s)["app can read it, default branch main"], "unknown", hidden)
+
+    def test_a_404_on_either_probe_is_unknown_and_an_empty_list_is_readable(self):
+        for probe in ("/check-runs", "/deployments"):
+            s = Stub()
+            orig = s.__call__
+            s.__class__ = type("S404", (Stub,), {"__call__": lambda self, path, probe=probe:
+                                                  None if probe in path else Stub.__call__(self, path)})
+            self.assertEqual(self.status(s)["app can read it, default branch main"], "unknown", probe)
+        self.assertEqual(self.status(Stub())["app can read it, default branch main"], "ready")   # deployments == []
 
     def test_main_prints_one_line_for_an_invisible_repository(self):
         s = Stub()

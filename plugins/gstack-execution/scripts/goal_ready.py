@@ -84,7 +84,11 @@ def requirements(repo, get):
         if not r:
             return False, "the token can't see this repository; install the moxywolf-agent app on it"
         meta.update(r)
-        return r.get("default_branch") == "main", f"default branch {r.get('default_branch')!r} (goal mode needs main)"
+        for probe in (f"repos/{repo}/commits/main/check-runs?per_page=1", f"repos/{repo}/deployments?per_page=1"):
+            if get(probe) is None:   # a run decides merges and deploys from both; unreadable is unknown, never ready
+                raise Unknown(f"HTTP 404 on {probe}")
+        return r.get("default_branch") == "main", (f"default branch {r.get('default_branch')!r} (goal mode needs main); "
+                                                   "checks and deployments readable")
     req("app can read it, default branch main", access)
     if not meta:
         return out

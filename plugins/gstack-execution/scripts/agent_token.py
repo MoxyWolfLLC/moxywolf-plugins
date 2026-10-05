@@ -140,7 +140,11 @@ def installation_for(repo, app_id, key):
              f"token returns the same 404.")
 
 
-GOAL_RUN_PERMISSIONS = {"contents": "write", "pull_requests": "write"}
+# GO-003.5 as amended 2026-10-05: on a private repository GitHub hides checks, workflow runs, environments
+# and deployments from a token that doesn't hold their read scopes, and a goal run must read all four to
+# decide a merge and to see what a push would set off. Reads only: nothing here writes a workflow or a secret.
+GOAL_RUN_PERMISSIONS = {"contents": "write", "pull_requests": "write", "checks": "read", "actions": "read",
+                        "environments": "read", "deployments": "read"}
 
 
 def mint(repo=None, permissions=None):

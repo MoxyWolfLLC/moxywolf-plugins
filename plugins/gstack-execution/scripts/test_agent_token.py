@@ -15,6 +15,9 @@ SCRIPT = HERE / "agent_token.py"
 TOKEN = "ghs_FIXTURE_TOKEN_0123456789abcdef"
 
 
+RESTRICTED = {"contents": "write", "pull_requests": "write", "checks": "read", "actions": "read",
+              "environments": "read", "deployments": "read"}
+
 class Stub(http.server.BaseHTTPRequestHandler):
     seen = []
     granted = None   # GO-003.5: what the stub claims to grant a restricted token; None echoes the request
@@ -114,14 +117,14 @@ class AgentToken(unittest.TestCase):
         child = f"import json,os;json.dump(os.environ.get('GSTACK_GOAL_RUN_TOKEN'),open({str(probe)!r},'w'))"
         r = self.run_script("exec", "--goal-run", "--", sys.executable, "-c", child)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(Stub.body, {"permissions": {"contents": "write", "pull_requests": "write"}})
+        self.assertEqual(Stub.body, {"permissions": RESTRICTED})
         self.assertEqual(json.loads(probe.read_text()), "1")
         r = self.run_script("exec", "--", sys.executable, "-c", child)          # an ordinary token
         self.assertEqual(Stub.body, None)
         self.assertIsNone(json.loads(probe.read_text()))
 
     def test_api_and_nested_calls_in_a_goal_run_are_restricted(self):  # GO-003 review F1
-        restricted = {"permissions": {"contents": "write", "pull_requests": "write"}}
+        restricted = {"permissions": RESTRICTED}
         self.run_script("api", "--goal-run", "GET", "repos/owner/known/pulls", "--repo", "owner/known")
         self.assertEqual(Stub.body, restricted)
         inner = [sys.executable, str(SCRIPT), "exec", "--", sys.executable, "-c", "pass"]

@@ -14,7 +14,7 @@ Work in a checkout of the governed repository, on a branch `build/goal-<id>` mad
 2. **Brief and plan.** Write `GOAL.md` and `PLAN.md` yourself in the README's formats.
    - **Scenarios and Goal tests.** Each goal test has its own Scenario. At least one test is an `outcome` test and one an `invariant`.
    - **Allowed paths.** These are the files the items change, plus the touched plugins' `plugin.json` and `.claude-plugin/marketplace.json`. Never a `CODEOWNERS` path.
-   - **Stop conditions.** Include "the marketplace's top-level version moves on the goal branch" (GO-004.1).
+   - **Stop conditions.** Include "the marketplace's top-level version moves on the goal branch" (GO-004.1). Name every deployment environment the repository reports other than `goal-holdout` (`agent_token.py api GET repos/<owner>/<repo>/environments`; on a Vercel repository that's `Preview` and `Production`) as Dorian's call, for example "a deploy to Preview or Production beyond the host's own builds on a push and on the merge into main". `goal_run.py start` refuses a goal whose stop conditions leave one out, and an approved goal can't be edited, so a miss costs a new goal folder.
    - **Pre-mortem.** List the ways the tests could pass while the goal fails. The holdout is drafted against them.
    - **Plan items.** Each item's criteria say which output stream each message goes to and every exit code.
 3. **Goal tests.** `goal_new.py tests goals/<id>` asks the gpt family (Codex, read-only) for exactly the tests the brief names and writes them with its `drafted-by` line. Never edit a drafted test by hand: that makes you a co-drafter. If one is wrong, fix the brief or plan and run `tests` again.
