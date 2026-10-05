@@ -55,6 +55,10 @@ Run this once per existing project to move it to the loader-stub model, or any t
 
 Because the content lives in the vault spec, changing a project-instruction rule is a vault edit + a per-project run of this command — no plugin update. Safe to re-run, including across machines.
 
+### `/init-goal-mode` — is a repository ready for goal mode?
+
+Checks one repository against the seven things goal mode needs in its own `main` (GO-008): the bot's access and a `main` default branch, a `DESIGN.md` with objectives, Dorian on the gate paths in `CODEOWNERS`, the pinned `tests` and goal workflows, the goal-mode scripts, `main`'s rules and the `goal-holdout` environment. It prints `ready`, `missing` or `unknown` for each and says who closes each gap. Read-only. Installing goal mode in another repository waits on two amendments (a per-repository `tests.yml` pin and a sandbox that can run non-Python candidates), so for now only moxywolf-plugins reports ready.
+
 ## How to use
 
 **To set up a new project:** type `/init-project` or say "set up a new project", "init a new Cowork project", "configure project instructions". The skill walks through the rest interactively with Finder pickers for folder selection.
@@ -91,6 +95,8 @@ The end-of-session **obsidian-update** workflow extracts session knowledge into 
 If a specific project genuinely needs a different routing for its own knowledge, the skill will write that as a "Project-Specific Overrides" addendum at the bottom of the filled-in instructions instead of mutating the core routing rules.
 
 ## Version history
+
+- **0.37.0**: `/init-goal-mode <owner>/<repo>` checks whether a repository is ready for goal mode (GO-008) and says who closes each gap. Read-only.
 
 - **0.34.1**: The GitHub root moved out of iCloud: `~/Documents/GitHub` is now `~/GitHub` (2026-10-01, loader-stub directive D4).
 - **0.31.0**: `/session-end` Step 3.6 (SM-003): mistakes are gathered from evidence (review rounds, failed runs, user corrections), each becomes a check or a rule at the point of action or is marked one-off, a repeat escalates, and `scripts/mistake_ledger.py` validates the per-project ledger.
