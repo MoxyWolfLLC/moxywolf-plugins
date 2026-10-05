@@ -356,6 +356,43 @@ class Sandbox(unittest.TestCase):
         self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
         self.assertFalse((cand / "out").exists())            # the build wrote into the sandbox's copy, not the checkout
 
+    def test_a_dependency_free_node_build_writes_in_the_sandbox_copy(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "cand"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_n.py::N.test_build` (outcome)\n")
+        (main / "goals" / "g1" / "tests" / "test_n.py").write_text(
+            "import os, subprocess, unittest\n\n\nclass N(unittest.TestCase):\n"
+            "    def test_build(self):\n"
+            "        b = subprocess.run(['npm', 'run', '-s', 'build'], cwd=os.environ['GOAL_CANDIDATE'], capture_output=True, text=True, timeout=120)\n"
+            "        self.assertEqual((b.returncode, b.stdout.strip()), (0, 'built'), b.stderr)\n")
+        cand.mkdir()
+        (cand / "package.json").write_text('{"name":"cand","version":"1.0.0","private":true,"scripts":{"build":"node build.js"}}\n')
+        (cand / "build.js").write_text("require('fs').writeFileSync('out.txt', '1'); console.log('built');\n")
+        os.chmod(t, 0o755)
+        self.assertIsNone(gc.install_deps(cand))
+        r = subprocess.run(gc.sandbox_cmd(main, cand, "g1"), capture_output=True, text=True, timeout=600)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
+        self.assertFalse((cand / "out.txt").exists())
+
+    def test_a_symlinked_install_file_is_refused(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        outside = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, outside, True)
+        (outside / "secret").write_text("x"); (t / "other.json").write_text("{}")
+        for target in (outside / "secret", t / "other.json"):
+            for name in ("package.json", "package-lock.json", ".npmrc"):
+                with self.subTest(target=target.name, name=name):
+                    for f in ("package.json", "package-lock.json", ".npmrc"):
+                        (t / f).unlink(missing_ok=True); (t / f).write_text("{}")
+                    (t / name).unlink(); (t / name).symlink_to(target)
+                    with self.assertRaises(SystemExit):
+                        gc.install_deps(t, run=lambda *a, **k: self.fail("installed through a symlink"))
+
     def test_no_lockfile_installs_nothing(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
         self.assertIsNone(gc.install_deps(t, run=lambda *a, **k: self.fail("installed without a lockfile")))

@@ -48,12 +48,15 @@ def install_deps(candidate_dir, run=subprocess.run):
     installs. Returns the folder to mount read-only at /deps, or None for a candidate with no
     package-lock.json. Raises SystemExit, naming the failure, when the install fails."""
     cand = Path(candidate_dir)
+    links = [f for f in DEPS_FILES if (cand / f).is_symlink()]
+    if links:   # review F1: a link could point the networked container at a file outside these three
+        raise SystemExit(f"refused: {', '.join(links)} in the candidate is a symlink; the install takes regular files only")
     if not (cand / "package-lock.json").is_file():
         return None
     deps = Path(tempfile.mkdtemp(prefix="goal-deps-"))
     for f in DEPS_FILES:
         if (cand / f).is_file():
-            shutil.copyfile(cand / f, deps / f)
+            shutil.copyfile(cand / f, deps / f, follow_symlinks=False)
     os.chmod(deps, 0o777)                  # the container runs as uid 65534
     r = run(["docker", "run", "--rm", "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL",
              "--security-opt", "no-new-privileges", "--user", "65534:65534", "--pids-limit", "512",
@@ -67,14 +70,15 @@ def install_deps(candidate_dir, run=subprocess.run):
 
 
 def writable(candidate):
-    """Inside the sandbox: a Node candidate runs from a copy on the container's /tmp with the installed
-    dependencies linked in read-only, because a build writes into its own folder and the candidate's
-    mount is read-only. A candidate with no installed dependencies runs where it is."""
-    if not Path("/deps/node_modules").is_dir():
+    """Inside the sandbox: a Node candidate (one with a package.json) runs from a copy on the container's
+    /tmp, with the installed dependencies linked in read-only when there are any, because a build writes
+    into its own folder and the candidate's mount is read-only. Any other candidate runs where it is."""
+    if not Path(candidate, "package.json").is_file():
         return candidate
     copy = Path("/tmp/candidate")
     shutil.copytree(candidate, copy, ignore=shutil.ignore_patterns(".git", "node_modules"), symlinks=True)
-    (copy / "node_modules").symlink_to("/deps/node_modules")
+    if Path("/deps/node_modules").is_dir():      # review F2: a dependency-free build still gets the copy
+        (copy / "node_modules").symlink_to("/deps/node_modules")
     return str(copy)
 
 
