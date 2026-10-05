@@ -219,9 +219,9 @@ def test_a_directory_a_criterion_names_travels_whole():
         root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root, criteria=["every U+2014 under `pkg/` is gone", "`widget.py` returns 2"])
         assert st["criterion_dirs"] == [{"dir": "pkg", "files": 2, "binary": 1, "withheld": 0}], st["criterion_dirs"]
-        body = (surf/"dirs"/"0-r"/"pkg.txt").read_text()
+        body = (surf/"dirs"/"0-r"/"0.txt").read_text()
         assert "=== pkg/a.md ===" in body and "\u2014" in body and "beta" in body and "not committed" not in body
-        assert "`dirs/0-r/pkg.txt`: `pkg/`, 2 text files" in (surf/"SURFACE.md").read_text()
+        assert "`dirs/0-r/0.txt`: `pkg/`, 2 text files" in (surf/"SURFACE.md").read_text()
 
 
 def test_no_directory_in_the_criteria_carries_none():
@@ -229,6 +229,22 @@ def test_no_directory_in_the_criteria_carries_none():
         repos = repo(t); root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root, criteria=["`widget.py` returns 2"])
         assert st["criterion_dirs"] == [] and not (surf/"dirs").exists()
+
+
+def test_quoted_names_and_lookalike_directories_survive():
+    """XE-033 review F1, F2: a path git quotes is carried, and a/b and a__b don't overwrite each other."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); r = Path(repos[0]["path"])
+        for d, f, body in (("a/b", "caf\u00e9.md", "first"), ("a__b", "x.md", "second")):
+            (r/d).mkdir(parents=True); (r/d/f).write_text(body + "\n")
+        subprocess.run(["git","add","-A"], cwd=r, check=True, capture_output=True)
+        subprocess.run(["git","commit","-qm","dirs"], cwd=r, check=True, capture_output=True)
+        repos[0]["head"] = subprocess.run(["git","rev-parse","HEAD"],cwd=r,capture_output=True,text=True).stdout.strip()
+        root = Path(t)/"root"; root.mkdir()
+        surf, st = pr.build_surface(repos, root, criteria=["everything under `a/b/` and `a__b/`"])
+        assert [(d["dir"], d["files"]) for d in st["criterion_dirs"]] == [("a/b", 1), ("a__b", 1)], st["criterion_dirs"]
+        bodies = [(surf/"dirs"/"0-r"/f"{i}.txt").read_text() for i in (0, 1)]
+        assert "=== a/b/caf\u00e9.md ===" in bodies[0] and "first" in bodies[0] and "second" in bodies[1]
 
 
 if __name__ == "__main__":

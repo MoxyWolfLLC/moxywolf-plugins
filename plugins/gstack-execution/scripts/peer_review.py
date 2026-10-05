@@ -737,7 +737,9 @@ def criterion_dirs(repos, criteria, surf, idx):
     Returns [(surface path, files carried, binaries skipped, files withheld by DIR_BUDGET)]."""
     out, budget, done = [], DIR_BUDGET, set()
     for r in repos:
-        tracked = git(r["path"], "ls-tree", "-r", "--name-only", r["head"]).splitlines()
+        # -z: a quoted path ("src/caf\\303\\251.md") would fail the prefix test and vanish uncounted
+        tracked = [f for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only", r["head"]],
+                                             capture_output=True, text=True, check=True).stdout.split("\0") if f]
         names = set(tracked)
         for c in criteria:
             for tok in PATH_TOKEN.findall(c):
@@ -757,7 +759,7 @@ def criterion_dirs(repos, criteria, surf, idx):
                     else:
                         budget -= len(blob)
                         parts.append(f"=== {f} ===\n" + blob.decode("utf-8", "replace"))
-                rel = f"dirs/{idx[id(r)]}-{Path(r['path']).name}/{tok.replace('/', '__')}.txt"
+                rel = f"dirs/{idx[id(r)]}-{Path(r['path']).name}/{len(out)}.txt"   # numbered: a/b and a__b can't collide
                 (surf / rel).parent.mkdir(parents=True, exist_ok=True)
                 (surf / rel).write_text("\n".join(parts))
                 out.append((rel, tok, len(parts), binary, withheld))
