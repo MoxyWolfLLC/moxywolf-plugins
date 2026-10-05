@@ -1371,6 +1371,20 @@ XE-025's `OFF_REPO` matches `vault` with `\b`, and a hyphen is a word boundary. 
 3. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a version with XE-031's change, and the top-level marketplace version moves (CI-002).
 4. In CI, `run_all_tests.py` reports a nonzero count of what it examined and no failures.
 
+### XE-033 — A criterion about a whole directory is judged against the whole directory
+
+**Status:** building. Declared 2026-10-05 during goal no-em-dashes-2 on moxywolf-website, under Dorian's standing instruction to build goal mode until it is done.
+
+**Links introduced:** none. The directory files live in the round's surface and are torn down with it; the round record keeps what was carried.
+
+The first goal on a product repository stopped at its first review. Item 1's criterion reads "every U+2014 in a file under `src/` or `content/` is rewritten". The surface carried the diff, its callers and the files criteria name by path, but a directory is not a file, so the reviewer saw 4 of the 31 text files under those directories and correctly refused to call the criterion met. The builder's grep is a claim. CI can't carry the evidence either, because the check that scans the tree is item 2. Every goal of the shape "remove X everywhere" hits this, so the fix belongs in the dispatcher, not the goal.
+
+1. When an acceptance criterion names a directory tracked at the reviewed head, the dispatcher writes every tracked text file under it, read from git at that head and not from the working tree, into one surface file per directory under `dirs/`, each file headed `=== path ===`; binary files are skipped and counted, and a byte budget of 512,000 per review withholds and counts what doesn't fit.
+2. `SURFACE.md` lists each directory file with its text, binary and withheld counts, says the dispatcher wrote it from git at the reviewed head, and says a withheld file is not evidence; the round record's surface stats carry the same counts as `criterion_dirs`.
+3. A criterion that names only files, or no paths, carries no `dirs/`, and the existing surface tests still pass.
+4. `test_review_surface.py` covers a named directory carried whole from the head with a binary skipped and an uncommitted edit absent, and a criterion with no directory carrying none.
+5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves to 0.74.0 and the top-level marketplace version moves to 1.112.0 (CI-002).
+
 ## Tenth objective: external intake
 
 Opened 2026-09-30. Dorian passed four outside links to `/session-start` and asked where they fit. Each got a fit note in `Taskade/Team Plugins/06 – Engineering/` (`archify-`, `prompt-master-`, `coderabbit-` and `timesfm-fit-2026-09-30.md`), written from the source, not the README. Two carry an idea worth porting. Two don’t belong in this marketplace, and this objective records why so a later session doesn’t reopen them.

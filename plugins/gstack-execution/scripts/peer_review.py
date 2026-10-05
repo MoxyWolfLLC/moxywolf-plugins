@@ -727,6 +727,46 @@ def fetch_ci_evidence(repos, ci_runs, surf, archive_dir=None):
     return out
 
 
+DIR_BUDGET = 512_000   # XE-033: bytes of criterion-named directories one review may carry
+
+
+def criterion_dirs(repos, criteria, surf, idx):
+    """XE-033: a criterion about everything under a directory ("every U+2014 under `src/`") can't
+    be judged from the diff and its callers. The dispatcher, not the builder, writes each tracked
+    text file under such a directory, read at the reviewed head, into one file per directory.
+    Returns [(surface path, files carried, binaries skipped, files withheld by DIR_BUDGET)]."""
+    out, budget, done = [], DIR_BUDGET, set()
+    for r in repos:
+        # -z: a quoted path ("src/caf\\303\\251.md") would fail the prefix test and vanish uncounted
+        # bytes, not text=True: universal newlines would turn a "\r" in a name into "\n"
+        tracked = [os.fsdecode(f) for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only",
+                                                           r["head"]], capture_output=True, check=True).stdout.split(b"\0") if f]
+        names = set(tracked)
+        for c in criteria:
+            for tok in PATH_TOKEN.findall(c):
+                tok = tok.rstrip("/.")
+                members = [f for f in tracked if f.startswith(tok + "/")] if tok and tok not in names else []
+                if not members or (id(r), tok) in done:
+                    continue
+                done.add((id(r), tok))
+                parts, binary, withheld = [], 0, 0
+                for f in members:
+                    blob = subprocess.run(["git", "-C", str(r["path"]), "show", f"{r['head']}:{f}"],
+                                          capture_output=True, check=True).stdout
+                    if b"\0" in blob:
+                        binary += 1
+                    elif len(blob) > budget:
+                        withheld += 1
+                    else:
+                        budget -= len(blob)
+                        parts.append(f"=== {f} ===\n" + blob.decode("utf-8", "replace"))
+                rel = f"dirs/{idx[id(r)]}-{Path(r['path']).name}/{len(out)}.txt"   # numbered: a/b and a__b can't collide
+                (surf / rel).parent.mkdir(parents=True, exist_ok=True)
+                (surf / rel).write_text("\n".join(parts))
+                out.append((rel, tok, len(parts), binary, withheld))
+    return out
+
+
 def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None,
                   coverage="not_run"):
     """Write the review surface. Returns (path, stats).
@@ -783,9 +823,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
                 dest.write_bytes(src.read_bytes())
             except OSError:
                 continue
+    dirs = criterion_dirs(repos, criteria, surf, idx)
     stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
              "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())]),
-             "dependencies": len(deps), "dependencies_withheld": deps_dropped}
+             "dependencies": len(deps), "dependencies_withheld": deps_dropped,
+             "criterion_dirs": [{"dir": d, "files": n, "binary": b, "withheld": w} for _, d, n, b, w in dirs]}
     ci = fetch_ci_evidence(repos, ci_runs, surf, archive_dir)
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     stats["evidence"] = {"requested": len(ci), "read": sum(1 for c in ci if c["read"]),
@@ -823,6 +865,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
         f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
         f"- `{SURFACE_KINDS[2]}/` — {len(deps)} files the change or a criterion names\n"
+        f"- `dirs/` — {len(dirs)} directories an acceptance criterion names, every tracked text file in each\n"
         f"- `{EVIDENCE_DIR}/` — {len(ci)} CI runs, fetched by the dispatcher, not the builder\n"
         f"- withheld by the {cap}-file cap: {dropped}\n"
         f"- dependencies withheld by the same cap: {deps_dropped}\n\n"
@@ -835,6 +878,12 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         "packet.\n\n"
         "## Files the change or a criterion names\n\n"
         f"{dep_list}\n\n"
+        "## Directories a criterion names\n\n"
+        + ("\n".join(f"  - `{rel}`: `{d}/`, {n} text files at the reviewed head, each headed `=== path ===`"
+                     + (f"; {b} binary skipped" if b else "") + (f"; {w} WITHHELD by the size budget" if w else "")
+                     for rel, d, n, b, w in dirs) or "  (none)") + "\n\n"
+        "The dispatcher wrote these from git at the reviewed head, not the builder. A criterion about "
+        "everything under a directory is judged against this file; a withheld file is not evidence.\n\n"
         "## CI runs\n\n"
         f"{ci_list}\n\n"
         "Each file under `evidence/` was read from GitHub Actions by the dispatcher. A step with "
