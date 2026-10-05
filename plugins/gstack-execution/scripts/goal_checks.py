@@ -187,9 +187,13 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     want = Path(repo, "goals", gid, "holdout.sha256")
     if not ge.GOAL_ID.match(gid) or not want.is_file():
         return verdict(pr, "failure", f"goals/{gid}/holdout.sha256 is not on main", "Only an approved goal has a holdout.")
+    carried = Path(candidate_dir, "goal-runs", gid, "holdout.py") if candidate_dir else None
+    if carried is not None and carried.is_file() and not carried.is_symlink():
+        source = carried.read_text()
+        carried.unlink()      # GO-002.8: read here, then gone, so the candidate's code can't open it while it runs
     if not source:
-        return verdict(pr, "failure", f"no {secret_name(gid)} secret in the goal-holdout environment",
-                       "Dorian stores the holdout there; without it the goal can't reach main.")
+        return verdict(pr, "failure", f"no goal-runs/{gid}/holdout.py in the goal pull request and no {secret_name(gid)} secret",
+                       "The run's finalize step carries the approved holdout; without it the goal can't reach main.")
     expected = want.read_text().strip()
     if expected not in {hashlib.sha256(s.encode()).hexdigest() for s in (source, source + "\n", source.rstrip("\n"))}:
         return verdict(pr, "failure", "the holdout doesn't match holdout.sha256",

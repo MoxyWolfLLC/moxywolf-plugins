@@ -147,6 +147,24 @@ class Holdout(unittest.TestCase):  # GO-003.6
         self.assertEqual([self.cmd[i + 1] for i, a in enumerate(self.cmd) if a == "-e"], ["HOME=/tmp"])
         self.assertIn("--network none", " ".join(self.cmd))
 
+    def test_the_holdout_carried_in_the_pull_request_runs_and_is_gone_before_the_candidate_runs(self):  # GO-002.8
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        cand = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, cand)
+        (cand / "goal-runs" / "g1").mkdir(parents=True)
+        carried = cand / "goal-runs" / "g1" / "holdout.py"
+        carried.write_text(self.SRC)
+        seen = {}
+        def run(cmd, **kw):
+            seen["exists"] = carried.exists()
+            return self.run_with("passed")(cmd, **kw)
+        v = gc.holdout(g, repo, "m", str(cand), "", run)
+        self.assertEqual(v["conclusion"], "success")
+        self.assertEqual(self.kw["input"], self.SRC)
+        self.assertFalse(seen["exists"])
+        carried.write_text(self.SRC + "# swapped\n")
+        never = lambda *a, **k: self.fail("ran a holdout that doesn't match")
+        self.assertEqual(gc.holdout(g, repo, "m", str(cand), "", never)["title"], "the holdout doesn't match holdout.sha256")
+
     def test_a_failing_holdout_is_a_possible_reward_hack(self):
         g, repo = pr(base="main", head="goal/g1"), self.repo()
         for result in ("failed", "not_run"):

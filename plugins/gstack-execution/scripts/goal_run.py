@@ -433,8 +433,27 @@ def finishing(goal_id):
     return state
 
 
+def holdout_path(goal_id):
+    return f"goal-runs/{goal_id}/holdout.py"
+
+
+def holdout_source(goal_id):
+    """GO-002.8: the approved holdout, read by code from GSTACK_GOAL_HOLDOUTS (default ~/.goal-holdouts) only
+    when the run finishes, and only if it matches the holdout.sha256 Dorian approved with the goal. Never
+    printed. Refused, naming why, when it's missing or doesn't match."""
+    import hashlib
+    f = Path(os.environ.get("GSTACK_GOAL_HOLDOUTS", "~/.goal-holdouts")).expanduser() / f"{goal_id}.py"
+    if not f.is_file() or f.is_symlink():
+        raise Refused(f"no holdout at {f}; it's drafted with the goal (goal_new.py holdout) and kept there until the run finishes")
+    src = f.read_text()
+    want = (run_dir(goal_id) / "goal" / "holdout.sha256").read_text().strip()
+    if hashlib.sha256(src.encode()).hexdigest() != want:
+        raise Refused(f"{f} doesn't match the approved holdout.sha256; nothing was committed")
+    return src
+
+
 def finalize(repo, goal_id, post, repo_name=REPO, *, environments, base="origin/main"):
-    """Commit RESULT.md alone on goal-finalize/<id> from goal/<id>'s head and open its pull request."""
+    """Commit RESULT.md and the approved holdout on goal-finalize/<id> from goal/<id>'s head and open its pull request."""
     state = finishing(goal_id)
     if state.get("finalize_pr"):
         raise Refused(f"the finalize pull request is already #{state['finalize_pr']}")
@@ -443,6 +462,7 @@ def finalize(repo, goal_id, post, repo_name=REPO, *, environments, base="origin/
     head = ge.git(repo, "rev-parse", f"origin/{state['branch']}").strip()
     if head != state["results"][-1]["head"]:
         raise Refused(f"{state['branch']} is at {head[:12]}, not {state['results'][-1]['head'][:12]} where the goal tests passed")
+    hold = holdout_source(goal_id)
     act(repo, goal_id, "vcs.push", branch, environments, base)
     act(repo, goal_id, "pr.open", f"{state['branch']}<-{branch}", environments, base)
     wt = tempfile.mkdtemp(prefix="goal-finalize-")
@@ -450,13 +470,15 @@ def finalize(repo, goal_id, post, repo_name=REPO, *, environments, base="origin/
     try:
         Path(wt, path).parent.mkdir(parents=True, exist_ok=True)
         Path(wt, path).write_text(record(goal_id))
-        ge.git(wt, "add", path)
-        ge.git(wt, "commit", "-q", "-m", f"Run record for goal {goal_id}")
+        Path(wt, holdout_path(goal_id)).write_text(hold)
+        ge.git(wt, "add", path, holdout_path(goal_id))
+        ge.git(wt, "commit", "-q", "-m", f"Run record and holdout for goal {goal_id}")
         ge.git(wt, "push", "origin", f"HEAD:refs/heads/{branch}")
     finally:
         subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
     pr = post(f"repos/{repo_name}/pulls", {"title": f"Run record for goal {goal_id}", "head": branch, "base": state["branch"],
-                                           "body": f"The finalize pull request (GO-003.7): only `{path}` changes."})
+                                           "body": f"The finalize pull request (GO-003.7): only `{path}` and the "
+                                                   f"approved holdout `{holdout_path(goal_id)}` (GO-002.8) change."})
     state["finalize_pr"] = pr["number"]
     save(state)
     return {"finalize_pr": pr["number"], "branch": branch}
@@ -474,7 +496,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
         raise Refused(f"finalize pull request #{state['finalize_pr']} hasn't merged into {state['branch']}")
     tested, final = state["results"][-1]["head"], f["merge_commit_sha"]
     files = [x["filename"] for x in (get(f"repos/{repo_name}/compare/{tested}...{final}") or {}).get("files", [])]
-    if files != [f"goal-runs/{goal_id}/RESULT.md"]:
+    if sorted(files) != sorted([f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)]):
         raise Refused(f"between the tested head and {final[:12]}, {state['branch']} changed {files}, not only the run record")
     act(repo, goal_id, "pr.open", f"main<-{state['branch']}", environments, base)
     state = load(goal_id)

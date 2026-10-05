@@ -114,8 +114,8 @@ def check(repo, goal_id, head, base="origin/main"):
             errors.append(f"the goal changes {MARKETPLACE}'s top-level version ({top(fork)} -> {top(head)}); it moves "
                           f"only in the release bump after the goal merges, since main moves the same line (GO-004.1)")
     for sha, files in commits:
-        if files == [record]:
-            continue                                       # the finalize commit (GO-003.7)
+        if record in files and set(files) <= {record, f"goal-runs/{goal_id}/holdout.py"}:
+            continue                                       # the finalize commit (GO-003.7, GO-002.8)
         for f in files:
             if owners(rs, f):
                 errors.append(f"{sha[:12]} changes {f}, a CODEOWNERS path")

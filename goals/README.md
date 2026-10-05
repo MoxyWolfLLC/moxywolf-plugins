@@ -5,7 +5,7 @@ Each goal is a folder, `goals/<id>/`, approved by Dorian in one pull request (DE
 - `GOAL.md`, the goal brief. Its sections: Serves (the DESIGN.md objective it works under), Outcome, Non-goals, Scenarios, Goal tests, Allowed paths, Spend cap, Provider budgets, Max calls, Max items, Max review rounds per item, Stop conditions, Pre-mortem.
 - `PLAN.md`, the items in run order, each with its own acceptance criteria.
 - `tests/`, the goal tests, written by a model other than the builder.
-- `holdout.sha256`, the hash of the holdout, which never lives in the repository.
+- `holdout.sha256`, the hash of the holdout. The holdout itself stays out of the repository until the run finishes, when the finalize step carries it into `goal-runs/<id>/holdout.py` (GO-002.8).
 
 Formats `goal_brief.py check` enforces:
 

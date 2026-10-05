@@ -88,7 +88,7 @@ class GoalNew(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.home.stat().st_mode), 0o700)
         self.assertEqual((self.g / "holdout.sha256").read_text().strip(), hashlib.sha256(HOLDOUT.encode()).hexdigest())
         self.assertNotIn("secret_case_7f3a", out)
-        self.assertIn('"secret": "GOAL_G1_HOLDOUT"', out)
+        self.assertIn('"kept_until"', out)
         self.assertEqual([p.name for p in self.root.rglob("*") if p.is_file()].count("g1.py"), 0)
 
     def test_a_holdout_folder_inside_the_repo_is_refused(self):

@@ -136,6 +136,13 @@ class Envelope(unittest.TestCase):
         e, _ = self.check()
         self.assertTrue(any("goal-runs/g1/RESULT.md, a CODEOWNERS path" in x for x in e), e)
 
+    def test_the_run_record_may_carry_its_holdout_and_nothing_else(self):  # GO-002.8
+        self.commit("finalize", {"goal-runs/g1/RESULT.md": "complete\n", "goal-runs/g1/holdout.py": "h\n"})
+        self.assertEqual(self.check(), ([], 1))
+        self.commit("holdout alone", {"goal-runs/g1/holdout.py": "again\n"})
+        e, _ = self.check()
+        self.assertTrue(any("goal-runs/g1/holdout.py, a CODEOWNERS path" in x for x in e), e)
+
     def test_another_goals_run_record_is_refused(self):
         self.commit("finalize", {"goal-runs/g2/RESULT.md": "complete\n"})
         e, _ = self.check()
