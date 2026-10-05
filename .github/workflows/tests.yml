@@ -12,6 +12,10 @@ on:
   # the scorer. A branch with one runs twice; that is the cost.
   push:
 
+# Read-only token: this job checks out and runs tests, and writes nothing to GitHub.
+permissions:
+  contents: read
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -53,10 +57,12 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # A push to a branch other than main diffs against where it left main, not against its
-          # previous push: a version moves once per merge, not once per fix commit.
+          # A version ships only through a merge, and every merge is a pull request, so a push to any
+          # other branch is checked on its pull request, against the base it merges into. Measured from
+          # main here, a goal item or goal-finalize branch reads red for a line it must not move.
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            BASE=$(git merge-base origin/main HEAD)
+            echo "push to ${{ github.ref }}: not examined here; its pull request checks the range it merges"
+            exit 0
           fi
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             echo "no base commit for this event; nothing to diff against"

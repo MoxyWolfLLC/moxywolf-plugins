@@ -1101,6 +1101,7 @@ The version has three homes, not two, and DR-013 (2026-06-14) says which one the
 7. The workflow gives the check the history it needs. `actions/checkout` at its default depth of 1 has no base commit, so this is a workflow change as well as a script.
 8. The catalog is clean when the check lands, per DR-102. The top-level version is bumped in this same change, which is what finally ships 0.12.0.
 9. Tests: a changed plugin at an unmoved version FAILS; the same plugin with a moved version passes; a changed plugin whose own version moved while the top-level did not FAILS, which is criterion 2 as a test; a new plugin passes; a range touching no plugin passes while reporting zero examined; an unresolvable base FAILS; and the check runs over this repository's real history: across `6c9912c`, where it must catch `gstack-execution` at an unmoved 0.27.0, and across `d619c06..2293ff6`, where six consecutive merges sit at an unmoved top-level version and it must fail the three of them that changed a plugin while passing the three that changed none.
+10. The check runs where a version can ship: on every pull request, against its base, and on every push to `main`. A push to any other branch is checked on its pull request, against the base it merges into, and the push run says it examined nothing and why. Measured from `main`, a goal item or `goal-finalize` branch would read red for the top-level line GO-004.1 forbids it to move. The workflow's token is read-only (amended 2026-10-04).
 
 ## Ninth objective: design craft
 
