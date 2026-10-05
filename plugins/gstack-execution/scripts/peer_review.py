@@ -738,8 +738,9 @@ def criterion_dirs(repos, criteria, surf, idx):
     out, budget, done = [], DIR_BUDGET, set()
     for r in repos:
         # -z: a quoted path ("src/caf\\303\\251.md") would fail the prefix test and vanish uncounted
-        tracked = [f for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only", r["head"]],
-                                             capture_output=True, text=True, check=True).stdout.split("\0") if f]
+        # bytes, not text=True: universal newlines would turn a "\r" in a name into "\n"
+        tracked = [os.fsdecode(f) for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only",
+                                                           r["head"]], capture_output=True, check=True).stdout.split(b"\0") if f]
         names = set(tracked)
         for c in criteria:
             for tok in PATH_TOKEN.findall(c):

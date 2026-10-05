@@ -235,16 +235,16 @@ def test_quoted_names_and_lookalike_directories_survive():
     """XE-033 review F1, F2: a path git quotes is carried, and a/b and a__b don't overwrite each other."""
     with tempfile.TemporaryDirectory() as t:
         repos = repo(t); r = Path(repos[0]["path"])
-        for d, f, body in (("a/b", "caf\u00e9.md", "first"), ("a__b", "x.md", "second")):
-            (r/d).mkdir(parents=True); (r/d/f).write_text(body + "\n")
+        for d, f, body in (("a/b", "caf\u00e9.md", "first"), ("a/b", "c\rr.md", "third"), ("a__b", "x.md", "second")):
+            (r/d).mkdir(parents=True, exist_ok=True); (r/d/f).write_text(body + "\n")
         subprocess.run(["git","add","-A"], cwd=r, check=True, capture_output=True)
         subprocess.run(["git","commit","-qm","dirs"], cwd=r, check=True, capture_output=True)
         repos[0]["head"] = subprocess.run(["git","rev-parse","HEAD"],cwd=r,capture_output=True,text=True).stdout.strip()
         root = Path(t)/"root"; root.mkdir()
         surf, st = pr.build_surface(repos, root, criteria=["everything under `a/b/` and `a__b/`"])
-        assert [(d["dir"], d["files"]) for d in st["criterion_dirs"]] == [("a/b", 1), ("a__b", 1)], st["criterion_dirs"]
+        assert [(d["dir"], d["files"]) for d in st["criterion_dirs"]] == [("a/b", 2), ("a__b", 1)], st["criterion_dirs"]
         bodies = [(surf/"dirs"/"0-r"/f"{i}.txt").read_text() for i in (0, 1)]
-        assert "=== a/b/caf\u00e9.md ===" in bodies[0] and "first" in bodies[0] and "second" in bodies[1]
+        assert "=== a/b/caf\u00e9.md ===" in bodies[0] and "first" in bodies[0] and "third" in bodies[0] and "second" in bodies[1]
 
 
 if __name__ == "__main__":
