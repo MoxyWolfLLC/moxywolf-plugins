@@ -23,7 +23,8 @@ class Stub:
 
     def __init__(self):
         self.files = {"DESIGN.md": content("DESIGN.md"), ".github/CODEOWNERS": content(".github/CODEOWNERS")}
-        for w in goal_guard.CHECKS:
+        self.files[goal_guard.PIN_FILE] = content(goal_guard.PIN_FILE)
+        for w in list(goal_guard.GOAL_WORKFLOWS) + ["tests.yml"]:
             self.files[f".github/workflows/{w}"] = content(f".github/workflows/{w}")
         self.tree = [{"path": p, "sha": s, "type": "blob"} for p, s in gr.local_tree(gr.SCRIPTS).items()]
         self.rules = [{"type": "deletion"}, {"type": "non_fast_forward"},
@@ -75,7 +76,20 @@ class Ready(unittest.TestCase):
         self.broken(lambda s: s.files.pop("DESIGN.md"), "DESIGN.md with objectives (a goal serves one)")
         self.broken(lambda s: s.files.update({".github/CODEOWNERS": {"content": base64.b64encode(b"/.github/ @x\n").decode()}}),
                     "CODEOWNERS names Dorian on goal mode's gate paths")
-        self.broken(lambda s: s.files.pop(".github/workflows/goal-holdout.yml"), "tests and goal workflows, as goal_guard pins them")
+        name = "checks pinned: the goal workflows and the repository's own"
+        self.broken(lambda s: s.files.pop(".github/workflows/goal-holdout.yml"), name)
+        self.broken(lambda s: s.files.pop(goal_guard.PIN_FILE), name)
+        self.broken(lambda s: s.files.update({".github/workflows/tests.yml": {"content": base64.b64encode(b"x").decode()}}), name)
+        b64 = lambda x: {"content": base64.b64encode(x.encode()).decode()}
+        empty = __import__("hashlib").sha256(b"").hexdigest()
+        self.broken(lambda s: s.files.update({goal_guard.PIN_FILE: b64('{"checks": {"ci.yml": "%s"}}' % ("a" * 64))}), name)
+        self.broken(lambda s: s.files.update({goal_guard.PIN_FILE: b64('{"checks": {"tests.yml": "%s", "../x.yml": "%s"}}'
+                                                                          % ("a" * 64, "a" * 64))}), name)
+        def ghost(s):
+            pins = __import__("json").loads((gr.ROOT / goal_guard.PIN_FILE).read_text())
+            pins["checks"]["ghost.yml"] = empty
+            s.files[goal_guard.PIN_FILE] = b64(__import__("json").dumps(pins))
+        self.broken(ghost, name)
         self.broken(lambda s: s.tree.pop(), "goal-mode scripts, same as this checkout")
         self.broken(lambda s: s.rules[3]["parameters"]["required_status_checks"].pop(), "main's ruleset")
         self.broken(lambda s: s.rules[2]["parameters"].update(require_code_owner_review=False), "main's ruleset")

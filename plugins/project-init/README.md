@@ -96,6 +96,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.38.0**: `/init-goal-mode` names the repository's check pin file (GO-005.7) and the Preview-variables rule for hosted previews (GO-005.8).
 - **0.37.0**: `/init-goal-mode <owner>/<repo>` checks whether a repository is ready for goal mode (GO-008) and says who closes each gap. Read-only.
 
 - **0.34.1**: The GitHub root moved out of iCloud: `~/Documents/GitHub` is now `~/GitHub` (2026-10-01, loader-stub directive D4).
