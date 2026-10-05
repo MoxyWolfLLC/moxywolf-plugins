@@ -24,8 +24,10 @@ push that moved it starts a fresh run; otherwise it posts the verdict as a check
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -33,7 +35,47 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import goal_envelope as ge  # noqa: E402
 
-IMAGE = "python:3.11-slim"
+# GO-002.6: one image for every governed repository, pinned by digest: Debian bookworm with Python 3.11
+# (the harness) and Node 22 LTS (a Node candidate). A new digest is a change Dorian approves.
+IMAGE = "node:22-bookworm@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7"
+DEPS_FILES = ("package.json", "package-lock.json", ".npmrc")
+
+
+def install_deps(candidate_dir, run=subprocess.run):
+    """GO-002.6: a Node candidate's dependencies, installed from its lockfile in a container of their
+    own that has the network and nothing else: no checkout, no secret, no goal test, only the three
+    files that say what to install, and `npm ci --ignore-scripts` so no package runs code while it
+    installs. Returns the folder to mount read-only at /deps, or None for a candidate with no
+    package-lock.json. Raises SystemExit, naming the failure, when the install fails."""
+    cand = Path(candidate_dir)
+    if not (cand / "package-lock.json").is_file():
+        return None
+    deps = Path(tempfile.mkdtemp(prefix="goal-deps-"))
+    for f in DEPS_FILES:
+        if (cand / f).is_file():
+            shutil.copyfile(cand / f, deps / f)
+    os.chmod(deps, 0o777)                  # the container runs as uid 65534
+    r = run(["docker", "run", "--rm", "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL",
+             "--security-opt", "no-new-privileges", "--user", "65534:65534", "--pids-limit", "512",
+             "--memory", "2g", "-e", "HOME=/tmp", "-e", "npm_config_cache=/tmp/npm", "-w", "/deps",
+             "-v", f"{deps.resolve()}:/deps", IMAGE,
+             "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+            capture_output=True, text=True, timeout=1200)
+    if r.returncode != 0:
+        raise SystemExit(f"npm ci failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
+    return deps
+
+
+def writable(candidate):
+    """Inside the sandbox: a Node candidate runs from a copy on the container's /tmp with the installed
+    dependencies linked in read-only, because a build writes into its own folder and the candidate's
+    mount is read-only. A candidate with no installed dependencies runs where it is."""
+    if not Path("/deps/node_modules").is_dir():
+        return candidate
+    copy = Path("/tmp/candidate")
+    shutil.copytree(candidate, copy, ignore=shutil.ignore_patterns(".git", "node_modules"), symlinks=True)
+    (copy / "node_modules").symlink_to("/deps/node_modules")
+    return str(copy)
 
 
 def classify(pr):
@@ -73,7 +115,7 @@ def envelope(pr, repo, main_sha, candidate):
                    f"{len(errors)} file(s) outside the envelope" if errors else f"inside the envelope ({n} commits)", summary)
 
 
-def sandbox_cmd(main_dir, candidate_dir, gid):
+def sandbox_cmd(main_dir, candidate_dir, gid, deps=None):
     """The container the goal tests run in: no network, no host environment, no capabilities, an
     unprivileged user and read-only mounts. Only /tmp is writable, and it allows exec: a goal test
     may need a stub program there (cloud-review-survives' gitleaks), and the candidate already runs
@@ -82,6 +124,7 @@ def sandbox_cmd(main_dir, candidate_dir, gid):
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "65534:65534",
             "--pids-limit", "256", "--memory", "1g", "-e", "HOME=/tmp", "-w", "/tmp",
             "-v", f"{Path(main_dir).resolve()}:/main:ro", "-v", f"{Path(candidate_dir).resolve()}:/candidate:ro",
+            *(["-v", f"{Path(deps).resolve()}:/deps:ro"] if deps else []),
             IMAGE, "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "sandbox-run", gid,
             "--goal", f"/main/goals/{gid}", "--candidate", "/candidate"]
 
@@ -89,6 +132,7 @@ def sandbox_cmd(main_dir, candidate_dir, gid):
 def sandbox_run(gid, goal_dir, candidate):
     import goal_brief as gb
     tests = gb.goal_tests(gb.sections(Path(goal_dir, "GOAL.md").read_text()).get("Goal tests", ""), [])
+    candidate = writable(candidate)
     return {tid: {"kind": kind, "result": gb.run_test(candidate, goal_dir, tid)} for tid, kind in tests}
 
 
@@ -98,7 +142,11 @@ def tests(pr, repo, main_sha, candidate_dir, run=subprocess.run):
         return verdict(pr, "success", "not a goal pull request", "No goal tests apply.")
     if not ge.GOAL_ID.match(gid) or not Path(repo, "goals", gid, "GOAL.md").is_file():
         return verdict(pr, "failure", f"goals/{gid}/ is not on main", "Only an approved goal has goal tests.")
-    r = run(sandbox_cmd(repo, candidate_dir, gid), capture_output=True, text=True, timeout=1800)
+    try:
+        deps = install_deps(candidate_dir)
+    except SystemExit as e:
+        return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
+    r = run(sandbox_cmd(repo, candidate_dir, gid, deps), capture_output=True, text=True, timeout=1800)
     try:
         results = json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -118,10 +166,10 @@ def secret_name(gid):
     return "GOAL_%s_HOLDOUT" % gid.upper().replace("-", "_")
 
 
-def holdout_cmd(main_dir, candidate_dir):
+def holdout_cmd(main_dir, candidate_dir, deps=None):
     """The holdout's container: the goal-tests sandbox, with the holdout on stdin (-i) and nowhere
     else: not in its environment, not on any disk the candidate can reach."""
-    cmd = sandbox_cmd(main_dir, candidate_dir, "x")
+    cmd = sandbox_cmd(main_dir, candidate_dir, "x", deps)
     image = cmd.index(IMAGE)
     return cmd[:2] + ["-i"] + cmd[2:image + 1] + [
         "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "holdout-run", "--candidate", "/candidate"]
@@ -142,7 +190,11 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     if expected not in {hashlib.sha256(s.encode()).hexdigest() for s in (source, source + "\n", source.rstrip("\n"))}:
         return verdict(pr, "failure", "the holdout doesn't match holdout.sha256",
                        "The stored secret isn't the holdout Dorian approved; nothing was run.")
-    r = run(holdout_cmd(repo, candidate_dir), input=source, capture_output=True, text=True, timeout=3600)
+    try:
+        deps = install_deps(candidate_dir)       # before the holdout exists anywhere: it's on stdin below
+    except SystemExit as e:
+        return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
+    r = run(holdout_cmd(repo, candidate_dir, deps), input=source, capture_output=True, text=True, timeout=3600)
     try:
         out = json.loads(r.stdout.strip().splitlines()[-1])
         result, why = out["result"], out.get("detail") or ""
@@ -188,7 +240,7 @@ def main(argv):
     cmd = argv[0] if argv else None
     if cmd == "holdout-run" and argv[1:2] == ["--candidate"] and len(argv) == 3:
         import goal_brief as gb
-        result, why = gb.run_holdout(argv[2], sys.stdin.read(), detail=True)
+        result, why = gb.run_holdout(writable(argv[2]), sys.stdin.read(), detail=True)
         print(json.dumps({"result": result, "detail": why}))
         return 0
     if cmd == "sandbox-run" and len(argv) == 6:

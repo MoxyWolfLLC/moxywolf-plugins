@@ -57,7 +57,7 @@ Because the content lives in the vault spec, changing a project-instruction rule
 
 ### `/init-goal-mode` — is a repository ready for goal mode?
 
-Checks one repository against the seven things goal mode needs in its own `main` (GO-008): the bot's access and a `main` default branch, a `DESIGN.md` with objectives, Dorian on the gate paths in `CODEOWNERS`, the pinned `tests` and goal workflows, the goal-mode scripts, `main`'s rules and the `goal-holdout` environment. It prints `ready`, `missing` or `unknown` for each and says who closes each gap. Read-only. Installing goal mode in another repository waits on two amendments (a per-repository `tests.yml` pin and a sandbox that can run non-Python candidates), so for now only moxywolf-plugins reports ready.
+Checks one repository against the seven things goal mode needs in its own `main` (GO-008): the bot's access and a `main` default branch, a `DESIGN.md` with objectives, Dorian on the gate paths in `CODEOWNERS`, the pinned `tests` and goal workflows, the goal-mode scripts, `main`'s rules and the `goal-holdout` environment. It prints `ready`, `missing` or `unknown` for each and says who closes each gap. Read-only. Another repository becomes ready through its onboarding pull request: its own check pins (GO-005.7), the goal workflows and scripts, and its ruleset and environment.
 
 ## How to use
 
@@ -96,6 +96,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.39.0**: `/init-goal-mode` treats Node repositories as installable (GO-002.7) and flags builds that fetch from the network.
 - **0.38.0**: `/init-goal-mode` names the repository's check pin file (GO-005.7) and the Preview-variables rule for hosted previews (GO-005.8).
 - **0.37.0**: `/init-goal-mode <owner>/<repo>` checks whether a repository is ready for goal mode (GO-008) and says who closes each gap. Read-only.
 
