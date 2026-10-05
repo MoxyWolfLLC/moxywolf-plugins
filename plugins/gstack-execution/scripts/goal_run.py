@@ -86,7 +86,15 @@ import goal_calls as gcalls  # noqa: E402
 import goal_guard as gguard  # noqa: E402
 
 OUTCOMES = ("complete", "stopped", "exhausted")
-REPO = "MoxyWolfLLC/moxywolf-plugins"
+def _origin_repo():
+    """owner/name of the checkout goal_run.py lives in, from origin: the governed repository (GO-008)."""
+    r = subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[3]), "remote", "get-url", "origin"],
+                       capture_output=True, text=True)
+    m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?$", r.stdout.strip())
+    return m.group(1) if m else "MoxyWolfLLC/moxywolf-plugins"
+
+
+REPO = _origin_repo()
 
 
 Refused = gguard.Refused
