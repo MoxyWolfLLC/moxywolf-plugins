@@ -179,6 +179,16 @@ def holdout_cmd(main_dir, candidate_dir, deps=None):
         "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "holdout-run", "--candidate", "/candidate"]
 
 
+def sanitized(tree):
+    """GO-002.8, review F1: a copy of tree with no Git metadata, for a holdout sandbox mount. The carried
+    holdout is committed in the candidate's history, which the checkout's .git (and a worktree's link to
+    it) would hand to the code under test; only the files themselves are copied."""
+    out = Path(tempfile.mkdtemp(prefix="goal-tree-"))
+    shutil.copytree(tree, out, ignore=shutil.ignore_patterns(".git"), symlinks=True, dirs_exist_ok=True)
+    os.chmod(out, 0o755)                   # mkdtemp's 0700 would shut out the sandbox's uid 65534
+    return out
+
+
 def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     """GO-003.6: the holdout, checked against main's holdout.sha256, run against the merge candidate."""
     kind, gid = classify(pr)
@@ -187,18 +197,23 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     want = Path(repo, "goals", gid, "holdout.sha256")
     if not ge.GOAL_ID.match(gid) or not want.is_file():
         return verdict(pr, "failure", f"goals/{gid}/holdout.sha256 is not on main", "Only an approved goal has a holdout.")
+    carried = Path(candidate_dir, "goal-runs", gid, "holdout.py") if candidate_dir else None
+    if carried is not None and carried.is_file() and not carried.is_symlink():
+        source = carried.read_text()
+        carried.unlink()      # GO-002.8: read here, then gone, so the candidate's code can't open it while it runs
     if not source:
-        return verdict(pr, "failure", f"no {secret_name(gid)} secret in the goal-holdout environment",
-                       "Dorian stores the holdout there; without it the goal can't reach main.")
+        return verdict(pr, "failure", f"no goal-runs/{gid}/holdout.py in the goal pull request and no {secret_name(gid)} secret",
+                       "The run's finalize step carries the approved holdout; without it the goal can't reach main.")
     expected = want.read_text().strip()
     if expected not in {hashlib.sha256(s.encode()).hexdigest() for s in (source, source + "\n", source.rstrip("\n"))}:
         return verdict(pr, "failure", "the holdout doesn't match holdout.sha256",
                        "The stored secret isn't the holdout Dorian approved; nothing was run.")
+    main_tree, cand_tree = sanitized(repo), sanitized(candidate_dir)
     try:
-        deps = install_deps(candidate_dir)       # before the holdout exists anywhere: it's on stdin below
+        deps = install_deps(cand_tree)           # before the holdout exists anywhere: it's on stdin below
     except SystemExit as e:
         return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
-    r = run(holdout_cmd(repo, candidate_dir, deps), input=source, capture_output=True, text=True, timeout=3600)
+    r = run(holdout_cmd(main_tree, cand_tree, deps), input=source, capture_output=True, text=True, timeout=3600)
     try:
         out = json.loads(r.stdout.strip().splitlines()[-1])
         result, why = out["result"], out.get("detail") or ""

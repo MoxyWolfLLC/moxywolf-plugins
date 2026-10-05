@@ -173,7 +173,7 @@ The plan:
     sha = hashlib.sha256(hold.encode()).hexdigest()
     (g / "holdout.sha256").write_text(sha + "\n")
     print(json.dumps({"holdout_file": str(path), "lines": len(hold.splitlines()), "sha256": sha,
-                      "secret": goal_checks.secret_name(g.name), "environment": "goal-holdout",
+                      "kept_until": "the run's finalize step carries it into the goal pull request (GO-002.8)",
                       "drafted_by": f"{DRAFTER[0]}/{DRAFTER[1]}"}, indent=2))
     return 0
 

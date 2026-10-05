@@ -59,6 +59,9 @@ class G(unittest.TestCase):
 '''
 
 
+HOLDOUT_SRC = "import unittest\n\n\nclass Holdout(unittest.TestCase):\n    def test_h(self):\n        pass\n"
+HOLDOUT_SHA = __import__("hashlib").sha256(HOLDOUT_SRC.encode()).hexdigest()
+
 class RunnerFixture(unittest.TestCase):
     """A goal on main, a run folder, and helpers; no tests of its own (test_goal_calls reuses it)."""
 
@@ -71,7 +74,7 @@ class RunnerFixture(unittest.TestCase):
         self.git("init", "-q", "-b", "main")
         self.git("config", "user.email", "t@t"); self.git("config", "user.name", "t")
         self.commit("goal approved", {"goals/g1/GOAL.md": BRIEF, "goals/g1/PLAN.md": PLAN,
-                                      "goals/g1/tests/test_g.py": TESTS, "goals/g1/holdout.sha256": "a" * 64 + "\n",
+                                      "goals/g1/tests/test_g.py": TESTS, "goals/g1/holdout.sha256": HOLDOUT_SHA + "\n",
                                       "goalmod.py": "done = False\nsafe = True\n",
                                       ".github/CODEOWNERS": "/.github/ @d\n/goals/ @d\n/goal-runs/ @d\n"})
         self.tree = self.git("rev-parse", "main:goals/g1")
@@ -355,19 +358,28 @@ class Runner(RunnerFixture):
         tested = self.git("rev-parse", "goal/g1")
         posts = []
         post = lambda path, data: posts.append((path, data)) or {"number": 11 if len(posts) == 1 else 12}
+        holds = Path(self.tmp.name, "holdouts"); holds.mkdir()
+        os.environ["GSTACK_GOAL_HOLDOUTS"] = str(holds); self.addCleanup(os.environ.pop, "GSTACK_GOAL_HOLDOUTS", None)
+        with self.assertRaisesRegex(gr.Refused, "no holdout at"):
+            gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
+        (holds / "g1.py").write_text(HOLDOUT_SRC + "# swapped\n")
+        with self.assertRaisesRegex(gr.Refused, "doesn't match the approved holdout.sha256"):
+            gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
+        (holds / "g1.py").write_text(HOLDOUT_SRC)
         out = gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
         self.assertEqual(out, {"finalize_pr": 11, "branch": "goal-finalize/g1"})
         self.assertEqual((posts[0][1]["head"], posts[0][1]["base"]), ("goal-finalize/g1", "goal/g1"))
         g = lambda *a: subprocess.run(["git", "--git-dir", str(bare), *a], check=True, capture_output=True, text=True).stdout.strip()
         self.assertEqual(g("rev-parse", "goal-finalize/g1^"), tested)                       # one commit on the tested head
-        self.assertEqual(g("diff", "--name-only", tested, "goal-finalize/g1"), "goal-runs/g1/RESULT.md")
+        self.assertEqual(g("diff", "--name-only", tested, "goal-finalize/g1").split(), ["goal-runs/g1/RESULT.md", "goal-runs/g1/holdout.py"])
+        self.assertEqual(g("show", "goal-finalize/g1:goal-runs/g1/holdout.py") + "\n", HOLDOUT_SRC)
         self.assertIn("# Goal run: g1", g("show", "goal-finalize/g1:goal-runs/g1/RESULT.md"))
         with self.assertRaisesRegex(gr.Refused, "already #11"):
             gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
 
         final = "9" * 40
         prs = {"pulls/11": {"merged": False, "base": {"ref": "goal/g1"}}}
-        compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}]}
+        compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}, {"filename": "goal-runs/g1/holdout.py"}]}
         get = lambda path: prs.get(path.split("/", 3)[-1]) if "/pulls/" in path else compare
         with self.assertRaisesRegex(gr.Refused, "hasn't merged"):
             gr.propose("g1", get, post, repo=self.repo, environments=self.envs, base="main")

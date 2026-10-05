@@ -18,15 +18,12 @@ Work in a checkout of the governed repository, on a branch `build/goal-<id>` mad
    - **Pre-mortem.** List the ways the tests could pass while the goal fails. The holdout is drafted against them.
    - **Plan items.** Each item's criteria say which output stream each message goes to and every exit code.
 3. **Goal tests.** `goal_new.py tests goals/<id>` asks the gpt family (Codex, read-only) for exactly the tests the brief names and writes them with its `drafted-by` line. Never edit a drafted test by hand: that makes you a co-drafter. If one is wrong, fix the brief or plan and run `tests` again.
-4. **Holdout.** `goal_new.py holdout goals/<id>` asks the same family for the holdout. It writes the file to `~/.goal-holdouts/<id>.py` (mode 600, outside every repository), writes only its hash to `holdout.sha256`, and prints the file path, the secret name `GOAL_<ID>_HOLDOUT` and the environment `goal-holdout`. Never open, print or copy the holdout file.
+4. **Holdout.** `goal_new.py holdout goals/<id>` asks the same family for the holdout. It writes the file to `~/.goal-holdouts/<id>.py` (mode 600, outside every repository), writes only its hash to `holdout.sha256`, and prints the file path. The file stays there until the run's finalize step, which code (never the agent) reads, checks against the approved hash and carries into the goal pull request (GO-002.8). Never open, print or copy the holdout file.
 5. **Check.** `goal_brief.py check goals/<id>`, then `goal_brief.py baseline goals/<id>`. Outcome tests must fail on `main` and invariant tests must pass. A test on the wrong side means the brief or plan was unclear: fix it and redo steps 3 and 4.
 6. **Reading.** `goal_new.py read goals/<id>` asks the gemini family for the plain-English reading of every goal test. It prints the `## Plain-English reading` section with its `Read by:` line. The builder of the run will be neither family (GO-003.3), so it builds as `claude`.
 7. **Pull request.** Commit `goals/<id>/` alone, push as the bot (`agent_token.py exec -- git push`), and open the pull request into `main` titled `Goal: <outcome in a few words> (<id>)`.
    - **The body.** The outcome, the plan's items in one line each, the spend cap, and the reading from step 6 as printed.
-   - **What to tell Dorian, in one message:**
-     - the pull request link;
-     - that it needs his approving review;
-     - that the holdout goes into the `goal-holdout` environment's secret `GOAL_<ID>_HOLDOUT` from the file `holdout` printed, at `https://github.com/<owner>/<repo>/settings/environments`. GitHub won't let the bot set it.
-8. **After he says the secret is in:** delete the exact `holdout_file` path step 4 printed (`GSTACK_GOAL_HOLDOUTS` moves it), and confirm that path is gone. No run starts while it exists. Merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`.
+   - **What to tell Dorian, in one message:** the pull request link, and that it needs his approving review. Nothing else is his to do: there is no secret to set.
+8. **After he approves:** merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`. Leave the holdout file where step 4 put it; the run's finalize step needs it.
 
 Goals come from the open work under each objective, the session handoff and the project's Jira label. Drafting one asks Dorian nothing beyond step 1 and the approval in step 7.

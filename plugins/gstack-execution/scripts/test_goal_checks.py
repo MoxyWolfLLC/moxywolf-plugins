@@ -113,6 +113,10 @@ class Decisions(unittest.TestCase):
 class Holdout(unittest.TestCase):  # GO-003.6
     SRC = "import unittest\n\n\nclass H(unittest.TestCase):\n    def test_h(self):\n        self.assertTrue(True)\n"
 
+    def cand(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        return str(d)
+
     def repo(self):
         d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
         (d / "goals" / "g1").mkdir(parents=True)
@@ -134,12 +138,12 @@ class Holdout(unittest.TestCase):  # GO-003.6
         g, repo = pr(base="main", head="goal/g1"), self.repo()
         never = lambda *a, **k: self.fail("ran a holdout it should have refused")
         self.assertIn("no GOAL_G1_HOLDOUT secret", gc.holdout(g, repo, "m", "/c", "", never)["title"])
-        self.assertEqual(gc.holdout(g, repo, "m", "/c", self.SRC + "# changed\n", never)["title"],
+        self.assertEqual(gc.holdout(g, repo, "m", self.cand(), self.SRC + "# changed\n", never)["title"],
                          "the holdout doesn't match holdout.sha256")
 
     def test_the_holdout_reaches_the_sandbox_on_stdin_only(self):
         g, repo = pr(base="main", head="goal/g1"), self.repo()
-        v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with("passed"))
+        v = gc.holdout(g, repo, "m", self.cand(), self.SRC, self.run_with("passed"))
         self.assertEqual(v["conclusion"], "success")
         self.assertEqual(self.kw["input"], self.SRC)
         self.assertIn("-i", self.cmd)
@@ -147,13 +151,55 @@ class Holdout(unittest.TestCase):  # GO-003.6
         self.assertEqual([self.cmd[i + 1] for i, a in enumerate(self.cmd) if a == "-e"], ["HOME=/tmp"])
         self.assertIn("--network none", " ".join(self.cmd))
 
+    def test_the_holdout_carried_in_the_pull_request_runs_and_is_gone_before_the_candidate_runs(self):  # GO-002.8
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        cand = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, cand)
+        (cand / "goal-runs" / "g1").mkdir(parents=True)
+        carried = cand / "goal-runs" / "g1" / "holdout.py"
+        carried.write_text(self.SRC)
+        seen = {}
+        def run(cmd, **kw):
+            seen["exists"] = carried.exists()
+            return self.run_with("passed")(cmd, **kw)
+        v = gc.holdout(g, repo, "m", str(cand), "", run)
+        self.assertEqual(v["conclusion"], "success")
+        self.assertEqual(self.kw["input"], self.SRC)
+        self.assertFalse(seen["exists"])
+        carried.write_text(self.SRC + "# swapped\n")
+        never = lambda *a, **k: self.fail("ran a holdout that doesn't match")
+        self.assertEqual(gc.holdout(g, repo, "m", str(cand), "", never)["title"], "the holdout doesn't match holdout.sha256")
+
+    def test_no_mount_carries_git_history_holding_the_holdout(self):  # GO-002.8, review F1
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        sh = lambda *a, cwd=repo: subprocess.run(["git", "-C", str(cwd), *a], check=True, capture_output=True, text=True).stdout.strip()
+        sh("init", "-q", "-b", "main"); sh("config", "user.email", "t@t"); sh("config", "user.name", "t")
+        sh("add", "-A"); sh("commit", "-qm", "main")
+        (repo / "goal-runs" / "g1").mkdir(parents=True)
+        (repo / "goal-runs" / "g1" / "holdout.py").write_text(self.SRC)
+        sh("add", "-A"); sh("commit", "-qm", "finalize"); sh("update-ref", "refs/candidate", "HEAD")
+        sh("reset", "-q", "--hard", "HEAD~1")
+        cand = Path(tempfile.mkdtemp()); shutil.rmtree(cand); self.addCleanup(shutil.rmtree, cand, True)
+        sh("worktree", "add", "-q", "--detach", str(cand), "refs/candidate")
+        mounts = []
+        def run(cmd, **kw):
+            mounts.extend(cmd[i + 1].split(":")[0] for i, a in enumerate(cmd) if a == "-v")
+            return self.run_with("passed")(cmd, **kw)
+        self.assertEqual(gc.holdout(g, repo, "m", str(cand), "", run)["conclusion"], "success")
+        self.assertTrue(mounts)
+        marker = b"class H(unittest.TestCase)"
+        for m in mounts:
+            for f in Path(m).rglob("*"):
+                self.assertNotEqual(f.name, ".git", f)
+                if f.is_file() and not f.is_symlink():
+                    self.assertNotIn(marker, f.read_bytes(), f)
+
     def test_a_failing_holdout_is_a_possible_reward_hack(self):
         g, repo = pr(base="main", head="goal/g1"), self.repo()
         for result in ("failed", "not_run"):
-            v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with(result))
+            v = gc.holdout(g, repo, "m", self.cand(), self.SRC, self.run_with(result))
             self.assertEqual(v["conclusion"], "failure")
             self.assertIn("possible reward hack", v["title"])
-        v = gc.holdout(g, repo, "m", "/c", self.SRC, self.run_with("failed", "FAIL: test_empty (goal_holdout.H.test_empty)\nAssertionError: 2 != 0"))
+        v = gc.holdout(g, repo, "m", self.cand(), self.SRC, self.run_with("failed", "FAIL: test_empty (goal_holdout.H.test_empty)\nAssertionError: 2 != 0"))
         self.assertIn("FAIL: test_empty", v["summary"])                  # GO-003.6: the diagnosis reaches the check
         self.assertIn("this holdout is spent", v["summary"])
 
