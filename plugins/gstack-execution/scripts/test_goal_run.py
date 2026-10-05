@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goal_run as gr  # noqa: E402
+gr.SANDBOXED = False   # the container is test_goal_checks' to test; one test below checks merged uses it
 
 BRIEF = """## Goal tests
 - `tests/test_g.py::G.test_done` (outcome)
@@ -487,6 +488,22 @@ class Runner(RunnerFixture):
         self.start()
         self.assertEqual(gr.main(["next", "g1"], self.repo), 1)   # origin/main doesn't exist here: stop
         self.assertEqual(gr.load("g1")["outcome"], "stopped")
+
+
+class MergedUsesTheContainer(RunnerFixture):
+    def test_merged_runs_the_goal_tests_through_sandboxed(self):
+        """GO-003.11: merged judges a head the way goal-tests does, not on the bare host."""
+        self.start(); self.next()
+        seen = []
+        real = gr.gb.sandboxed
+        gr.gb.sandboxed = lambda goal, wt: (seen.append(Path(wt).is_dir()), lambda r, g, tid: "passed")[1]
+        gr.SANDBOXED = True
+        try:
+            out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nx = 1\n"), 1)
+        finally:
+            gr.gb.sandboxed, gr.SANDBOXED = real, False
+        self.assertEqual(seen, [True])
+        self.assertEqual(set(out["results"].values()), {"passed"})
 
 
 if __name__ == "__main__":

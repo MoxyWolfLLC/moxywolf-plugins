@@ -392,6 +392,9 @@ def failed(goal_id, item, reason):
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
 
 
+SANDBOXED = True   # GO-003.11; the unit tests set it False and test the container in test_goal_checks
+
+
 def merged(repo, goal_id, head, item, unsure="", review_files=()):
     """Run the goal tests at head; stop on a failing invariant or a regressed outcome."""
     state = load(goal_id)
@@ -402,7 +405,11 @@ def merged(repo, goal_id, head, item, unsure="", review_files=()):
     wt = tempfile.mkdtemp(prefix="goal-head-")
     ge.git(repo, "worktree", "add", "--detach", wt, head)
     try:
-        results = {tid: gb.run_test(wt, goal, tid) for tid, _ in state["tests"]}
+        # GO-003.11: the same container, with the candidate's dependencies, that goal-tests uses in CI
+        # and baseline uses at start. On the host the worktree has no node_modules, so a test that runs
+        # the candidate's `tsc` failed here and stopped no-em-dashes-2 on a regression that wasn't one.
+        run = gb.sandboxed(goal, wt) if SANDBOXED else gb.run_test
+        results = {tid: run(wt, goal, tid) for tid, _ in state["tests"]}
     finally:
         subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
     state["done"].append(remaining[0]["n"])
