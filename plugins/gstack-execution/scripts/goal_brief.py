@@ -447,18 +447,23 @@ def baseline(goal_dir, repo_root, run=None):
     return errors, examined
 
 
-def sandboxed(goal_dir, wt):
+def sandboxed(goal_dir, wt, candidate=None):
     """GO-002.2: the goal tests run in goal-tests' own container (goal_checks.sandbox_cmd), so a test
     that can't run there fails baseline too. cloud-review-survives passed baseline on the host while
     the container's /tmp was noexec, and its tests could never pass in CI. wt is a scratch checkout
-    of main; the goal folder is copied into it, so the container sees it at /main/goals/<id>."""
+    of main; the goal folder is copied into it, so the container sees it at /main/goals/<id>.
+    candidate is the checkout under test, mounted only at /candidate; without one, main is the
+    candidate (baseline). The verdict script always runs from wt (GO-003.11 review F1)."""
     import shutil
     import goal_checks as gc
     gid = Path(goal_dir).resolve().name
     shutil.copytree(goal_dir, Path(wt, "goals", gid), dirs_exist_ok=True)
-    os.chmod(wt, 0o755)          # review F1: mkdtemp made it 0700, and the container runs as uid 65534
+    candidate = candidate or wt
+    for d in {wt, candidate}:
+        os.chmod(d, 0o755)       # review F1: mkdtemp made it 0700, and the container runs as uid 65534
     try:
-        r = subprocess.run(gc.sandbox_cmd(wt, wt, gid, gc.install_deps(wt)), capture_output=True, text=True, timeout=1800)
+        r = subprocess.run(gc.sandbox_cmd(wt, candidate, gid, gc.install_deps(candidate)), capture_output=True,
+                           text=True, timeout=1800)
         results = json.loads(r.stdout.strip().splitlines()[-1])
     except FileNotFoundError:
         raise SystemExit("baseline runs the goal tests in the goal-tests container and needs Docker; it isn't installed")

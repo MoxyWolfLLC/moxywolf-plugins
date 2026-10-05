@@ -392,6 +392,9 @@ def failed(goal_id, item, reason):
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
 
 
+SANDBOXED = True   # GO-003.11; the unit tests set it False and test the container in test_goal_checks
+
+
 def merged(repo, goal_id, head, item, unsure="", review_files=()):
     """Run the goal tests at head; stop on a failing invariant or a regressed outcome."""
     state = load(goal_id)
@@ -401,10 +404,23 @@ def merged(repo, goal_id, head, item, unsure="", review_files=()):
     goal = run_dir(goal_id) / "goal"
     wt = tempfile.mkdtemp(prefix="goal-head-")
     ge.git(repo, "worktree", "add", "--detach", wt, head)
+    trusted = tempfile.mkdtemp(prefix="goal-main-") if SANDBOXED else None
     try:
-        results = {tid: gb.run_test(wt, goal, tid) for tid, _ in state["tests"]}
+        # GO-003.11: the same container, with the candidate's dependencies, that goal-tests uses in CI
+        # and baseline uses at start. On the host the worktree has no node_modules, so a test that runs
+        # the candidate's `tsc` failed here and stopped no-em-dashes-2 on a regression that wasn't one.
+        # The verdict script runs from main as the run started, never from the candidate: a candidate's
+        # scripts/json.py beside goal_checks.py would otherwise print its own results (review F1).
+        if SANDBOXED:
+            ge.git(repo, "worktree", "add", "--detach", trusted, state["main_at_start"])
+            run = gb.sandboxed(goal, trusted, candidate=wt)
+        else:
+            run = gb.run_test
+        results = {tid: run(wt, goal, tid) for tid, _ in state["tests"]}
     finally:
-        subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
+        for d in (wt, trusted):
+            if d:
+                subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", d], capture_output=True)
     state["done"].append(remaining[0]["n"])
     state["results"].append({"item": remaining[0]["n"], "head": head, "results": results, "unsure": unsure,
                              "blocking_files": sorted(set(review_files))})
