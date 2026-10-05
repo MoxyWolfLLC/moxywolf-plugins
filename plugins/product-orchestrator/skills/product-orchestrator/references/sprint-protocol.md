@@ -178,6 +178,8 @@ After deliberation, the orchestrator routes tasks to the right skill. When the g
 ### Build Tasks
 | Task Type | gstack Command | Fallback Skill |
 |-----------|---------------|----------------|
+| Several build items toward one outcome (the sprint's build plan) | `/gstack-goal-new`, then `/gstack-goal` once Dorian approves the goal | `/gstack-build`, one item at a time |
+| One build item | `/gstack-build` | `dev-create-orchestrator` |
 | Code review | `/gstack-review` | `code-review-pro` |
 | Bug investigation | `/gstack-investigate` | Manual debugging |
 | Security audit | `/gstack-cso` | `code-review-pro` (limited) |
@@ -217,7 +219,9 @@ For a typical build sprint, the natural flow is:
 Deliberation output (scope/arch decisions)
     │
     ▼
-Code the feature (manual or dev-create-orchestrator)
+Build the plan:
+  several items, repo set up for goal mode → /gstack-goal-new → Dorian approves → /gstack-goal
+  one item, or no goal mode               → /gstack-build
     │
     ▼
 /gstack-review (catch issues before they compound)
@@ -234,6 +238,8 @@ Code the feature (manual or dev-create-orchestrator)
     ▼
 /gstack-browse (verify deploy)
 ```
+
+Goal mode is the default for a sprint whose build plan has two or more items: Dorian approves the outcome, the plan and the limits once, and each item still goes through `/gstack-build`'s cross-vendor review. It needs the repository set up for it first (`/init-goal-mode` in project-init). Without that, or for a single item, use `/gstack-build`. A goal only narrows the repository's DESIGN.md, so a sprint decision that changes the charter is an amendment Dorian approves before the goal is drafted.
 
 Not every sprint needs every step. A content-only sprint skips everything except the marketing routing. A bug fix might only need `/gstack-investigate` → fix → `/gstack-review` → `/gstack-ship`.
 
