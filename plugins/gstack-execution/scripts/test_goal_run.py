@@ -496,13 +496,21 @@ class MergedUsesTheContainer(RunnerFixture):
         self.start(); self.next()
         seen = []
         real = gr.gb.sandboxed
-        gr.gb.sandboxed = lambda goal, wt: (seen.append(Path(wt).is_dir()), lambda r, g, tid: "passed")[1]
+        main_goalmod = (self.repo / "goalmod.py").read_text() if (self.repo / "goalmod.py").exists() else None
+
+        def fake(goal, trusted, candidate=None):
+            # review F1: the verdict script's tree is main as the run started, not the candidate
+            t = Path(trusted, "goalmod.py")
+            seen.append((Path(trusted) != Path(candidate), t.read_text() if t.exists() else None,
+                         Path(candidate, "goalmod.py").read_text()))
+            return lambda r, g, tid: "passed"
+        gr.gb.sandboxed = fake
         gr.SANDBOXED = True
         try:
             out = gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nx = 1\n"), 1)
         finally:
             gr.gb.sandboxed, gr.SANDBOXED = real, False
-        self.assertEqual(seen, [True])
+        self.assertEqual(seen, [(True, main_goalmod, "done = False\nsafe = True\nx = 1\n")])
         self.assertEqual(set(out["results"].values()), {"passed"})
 
 
