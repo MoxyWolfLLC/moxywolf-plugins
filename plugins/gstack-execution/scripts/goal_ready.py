@@ -53,6 +53,14 @@ def local_tree(prefix):
     return {p: sha for _, _, sha, p in rows if not Path(p).name.startswith("test_")}
 
 
+def gate_paths():
+    """Every file this checkout tracks that its own CODEOWNERS gives Dorian: the gate a governed repository
+    must keep under his review, workflows, scripts, goal folders and hooks alike."""
+    rs = co.rules((ROOT / ".github/CODEOWNERS").read_text())
+    files = subprocess.check_output(["git", "-C", str(ROOT), "ls-files"], text=True).splitlines()
+    return [p for p in files if OWNER in co.owners(rs, p)]
+
+
 def text_at(get, repo, path, ref):
     c = get(f"repos/{repo}/contents/{path}?ref={ref}")
     return base64.b64decode(c["content"]).decode() if c and c.get("content") is not None else None
@@ -88,9 +96,11 @@ def requirements(repo, get):
     req("DESIGN.md with objectives (a goal serves one)", design)
 
     def codeowners():
+        need = gate_paths()
         rs = co.rules(text_at(get, repo, ".github/CODEOWNERS", "main") or "")
-        lack = [p for p in co.GATE if OWNER not in co.owners(rs, p)]   # last matching rule wins, as on GitHub
-        return not lack, f"{len(co.GATE) - len(lack)}/{len(co.GATE)} gate paths owned by {OWNER}" + (f"; not: {lack}" if lack else "")
+        lack = [p for p in need if OWNER not in co.owners(rs, p)]   # last matching rule wins, as on GitHub
+        return bool(need) and not lack, f"{len(need) - len(lack)}/{len(need)} gate paths owned by {OWNER}" + \
+            (f"; not: {lack[:5]}{' ...' if len(lack) > 5 else ''}" if lack else "")
     req("CODEOWNERS names Dorian on goal mode's gate paths", codeowners)
 
     def workflows():

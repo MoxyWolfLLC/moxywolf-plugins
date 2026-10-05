@@ -82,10 +82,18 @@ class Ready(unittest.TestCase):
         self.broken(lambda s: s.branches.append("goal/*"), "goal-holdout environment, main only")
 
     def test_a_later_rule_that_drops_dorian_wins(self):
-        def drop(s):
-            text = (gr.ROOT / ".github/CODEOWNERS").read_text() + "/goals/ @someone-else\n"
-            s.files[".github/CODEOWNERS"] = {"content": base64.b64encode(text.encode()).decode()}
-        self.broken(drop, "CODEOWNERS names Dorian on goal mode's gate paths")
+        for override in ("/goals/ @someone-else\n", "/.github/workflows/goal-holdout.yml @someone-else\n",
+                         "/plugins/gstack-execution/scripts/goal_run.py\n"):
+            def drop(s, override=override):
+                text = (gr.ROOT / ".github/CODEOWNERS").read_text() + override
+                s.files[".github/CODEOWNERS"] = {"content": base64.b64encode(text.encode()).decode()}
+            self.broken(drop, "CODEOWNERS names Dorian on goal mode's gate paths")
+
+    def test_the_gate_covers_the_goal_workflows_and_scripts(self):
+        need = gr.gate_paths()
+        for p in (".github/workflows/goal-holdout.yml", ".github/workflows/tests.yml", "goals/README.md",
+                  "plugins/gstack-execution/scripts/goal_run.py"):
+            self.assertIn(p, need)
 
     def test_a_refused_call_is_unknown_and_never_ready(self):
         s = Stub()
