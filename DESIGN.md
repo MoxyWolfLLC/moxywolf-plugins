@@ -1518,6 +1518,7 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 4. `goal_new.py read <goal dir>` has the gemini family, through OpenRouter, read every goal test back in plain English. It prints the goal pull request's `## Plain-English reading` section with its `Read by:` line. It refuses a reading that misses a test, a model below the reader's floor, and tests whose drafting family is missing or is the reader's.
 5. `goal_brief.py check` and `baseline` still decide whether the folder is a goal. The command opens the pull request adding `goals/<id>/` alone and tells Dorian, in one message, the link, that it needs his approval, and where the holdout secret goes.
 6. A test covers, with stub drafters: tests written under the drafter's family; a missing file refused with nothing written; a brief with no goal tests; the holdout outside the repository at 600, hashed, its source absent from the output; a holdout folder inside the repository refused; an unparseable holdout and one with no class refused; a reading covering every test with its reader named; a reading that misses a test, one below the floor, and tests drafted by the reader's family, each refused.
+7. product-orchestrator's sprint protocol routes a build plan of two or more items to `/gstack-goal-new`, then `/gstack-goal` once Dorian approves the goal, and a single item to `/gstack-build`. It names `/init-goal-mode` as the step that says whether a repository can run goals (amended 2026-10-04).
 
 ### Dissent from the design review
 
