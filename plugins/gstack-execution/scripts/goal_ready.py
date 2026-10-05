@@ -25,7 +25,7 @@ import test_codeowners as co  # noqa: E402  goal_brief put .github on the path; 
 ROOT = Path(__file__).resolve().parents[3]
 OWNER = "@dorianatmoxywolf"
 SCRIPTS = "plugins/gstack-execution/scripts/"
-CHECKS = [w[:-4] for w in goal_guard.CHECKS]
+CHECKS = ["tests"] + [w[:-4] for w in goal_guard.GOAL_WORKFLOWS]
 
 
 class Unknown(Exception):
@@ -110,12 +110,18 @@ def requirements(repo, get):
     req("CODEOWNERS names Dorian on goal mode's gate paths", codeowners)
 
     def workflows():
-        bad = [w for w in goal_guard.CHECKS
-               if hashlib.sha256((text_at(get, repo, f".github/workflows/{w}", "main") or "").encode()).hexdigest()
-               != goal_guard.CHECKS[w]]
-        return not bad, (f"{len(goal_guard.CHECKS)} workflows match goal_guard's pins" if not bad else
+        text = text_at(get, repo, goal_guard.PIN_FILE, "main")
+        try:
+            own = json.loads(text)["checks"] if text else None
+            assert isinstance(own, dict) and own
+        except (ValueError, KeyError, TypeError, AssertionError):
+            return False, f"no {goal_guard.PIN_FILE} pinning the repository's own checks (its tests workflow first)"
+        pins = {**own, **goal_guard.GOAL_WORKFLOWS}
+        bad = [w for w in pins if w in goal_guard.GOAL_WORKFLOWS and w in own
+               or hashlib.sha256((text_at(get, repo, f".github/workflows/{w}", "main") or "").encode()).hexdigest() != pins[w]]
+        return not bad, (f"{len(pins)} workflows match their pins ({len(own)} in {goal_guard.PIN_FILE})" if not bad else
                          f"absent or not the pinned content: {bad} (goal_run start refuses a check that isn't pinned)")
-    req("tests and goal workflows, as goal_guard pins them", workflows)
+    req("checks pinned: the goal workflows and the repository's own", workflows)
 
     def scripts():
         tree = get(f"repos/{repo}/git/trees/main?recursive=1") or {}

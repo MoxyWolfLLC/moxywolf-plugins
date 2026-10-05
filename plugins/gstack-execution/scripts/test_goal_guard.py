@@ -42,10 +42,30 @@ class Triggers(tgr.RunnerFixture):
 
     def test_a_check_named_workflow_that_deploys_without_an_environment_isnt_a_check(self):
         self.commit("wf", {".github/workflows/tests.yml": "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n"
-                                                          "    steps:\n      - run: python3 run_all_tests.py\n      - run: ./deploy\n"})
+                                                          "    steps:\n      - run: python3 run_all_tests.py\n      - run: ./deploy\n",
+                           ".github/goal-checks.json": '{"checks": {"tests.yml": "' + "0" * 64 + '"}}'})
         with self.assertRaises(gr.Refused) as e:
             self.start()
-        self.assertIn("tests.yml runs on push and its content isn't the check pinned", str(e.exception))
+        self.assertIn("tests.yml runs on push and its content isn't the check pinned in .github/goal-checks.json", str(e.exception))
+
+    def test_a_check_pinned_in_the_repositorys_pin_file_is_a_check(self):
+        import hashlib
+        wf = "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+        self.commit("wf", {".github/workflows/tests.yml": wf,
+                           ".github/goal-checks.json": '{"checks": {"tests.yml": "%s"}}' % hashlib.sha256(wf.encode()).hexdigest()})
+        problems, _ = gguard.assess(self.repo, "main", tgr.BRIEF, ["goal-holdout"])
+        self.assertEqual(problems, [])
+
+    def test_an_unpinned_check_or_a_bad_pin_file_is_a_problem(self):
+        wf = "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+        self.commit("wf", {".github/workflows/tests.yml": wf})
+        problems, _ = gguard.assess(self.repo, "main", tgr.BRIEF, ["goal-holdout"])
+        self.assertTrue(any("isn't one of the repository's checks" in p for p in problems), problems)
+        for bad in ("not json", '{"checks": []}', '{"checks": {"goal-holdout.yml": "%s"}}' % ("a" * 64),
+                    '{"checks": {"tests.yml": "ABC"}}', '{"checks": {"../x.yml": "%s"}}' % ("a" * 64)):
+            self.commit("pins", {".github/goal-checks.json": bad})
+            problems, _ = gguard.assess(self.repo, "main", tgr.BRIEF, ["goal-holdout"])
+            self.assertTrue(any(".github/goal-checks.json" in p for p in problems), (bad, problems))
 
     def test_start_reads_current_main_not_a_stale_copy(self):
         bare = Path(self.tmp.name, "remote.git")
@@ -118,12 +138,15 @@ class Triggers(tgr.RunnerFixture):
 
 class Pins(unittest.TestCase):
     def test_every_pinned_check_is_the_workflow_in_this_repository(self):
-        import hashlib
-        root = Path(__file__).resolve().parents[3] / ".github" / "workflows"
-        for name, pin in gguard.CHECKS.items():
+        import hashlib, json
+        gh = Path(__file__).resolve().parents[3] / ".github"
+        own = json.loads((gh / "goal-checks.json").read_text())["checks"]
+        self.assertIn("tests.yml", own)
+        for name, pin in {**own, **gguard.GOAL_WORKFLOWS}.items():
             with self.subTest(name=name):
-                self.assertEqual(hashlib.sha256((root / name).read_bytes()).hexdigest(), pin,
-                                 f"{name} changed: re-review it as a check and move its pin in goal_guard.CHECKS")
+                self.assertEqual(hashlib.sha256((gh / "workflows" / name).read_bytes()).hexdigest(), pin,
+                                 f"{name} changed: re-review it as a check and move its pin "
+                                 f"({'goal_guard.GOAL_WORKFLOWS' if name in gguard.GOAL_WORKFLOWS else '.github/goal-checks.json'})")
 
 
 class Ledger(tgr.RunnerFixture):

@@ -13,6 +13,8 @@ Goal mode (`/gstack-goal-new`, `/gstack-goal`) runs only in a repository whose o
 3. **Say who closes each gap:**
    - **App, ruleset, `goal-holdout` environment (main only), and any `CODEOWNERS` change:** Dorian, as the repository's admin.
    - **`DESIGN.md` with objectives:** the agent, through `/gstack-design-doc`.
-   - **The goal workflows and scripts:** not installable yet. `goal_guard` pins moxywolf-plugins' own `tests.yml`, and the goal sandbox runs Python only. Each needs a DESIGN.md amendment Dorian approves first (GO-008.4). Say that plainly. Never copy the workflows or scripts across by hand.
+   - **The repository's check pins:** `.github/goal-checks.json` pins its own checks (GO-005.7). It's a `CODEOWNERS` path, so the agent proposes it in a pull request and Dorian approves it.
+   - **The goal workflows and scripts:** not installable yet for a candidate that needs Node. The goal sandbox runs Python only, and that needs a DESIGN.md amendment Dorian approves first (GO-008.4). Say that plainly. Never copy the workflows or scripts across by hand.
+4. **Preview deploys.** If the repository deploys previews from a hosting integration (Vercel, say), say that previews can stay on as long as the Preview environment variables hold no production credential (GO-005.8). Check which variables are set for Preview through the host's API, never their values, and report it.
 
 Don't retry a refused call or work around a missing permission. Report it as the check printed it.
