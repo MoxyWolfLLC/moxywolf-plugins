@@ -1520,6 +1520,25 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 6. A test covers, with stub drafters: tests written under the drafter's family; a missing file refused with nothing written; a brief with no goal tests; the holdout outside the repository at 600, hashed, its source absent from the output; a holdout folder inside the repository refused; an unparseable holdout and one with no class refused; a reading covering every test with its reader named; a reading that misses a test, one below the floor, and tests drafted by the reader's family, each refused.
 7. product-orchestrator's sprint protocol routes a build plan of two or more items to `/gstack-goal-new`, then `/gstack-goal` once Dorian approves the goal, and a single item to `/gstack-build`. It names `/init-goal-mode` as the step that says whether a repository can run goals (amended 2026-10-04).
 
+### GO-008 — Before goal mode runs in a repository, a check says what that repository lacks
+
+**Status:** review. Opened 2026-10-04: goal mode is proven on this repository only. Everything that enforces it lives in the governed repository's own `main` under Dorian's code-owner review. Another repository needs the same pieces before `/gstack-goal` can run there, and nothing said which it had.
+
+**Links introduced:** none. The check reads; it changes nothing in either repository.
+
+1. `goal_ready.py <owner>/<repo>`, run from a moxywolf-plugins checkout under `agent_token.py exec --repo <owner>/<repo>`, reads the repository through the GitHub API and reports seven requirements:
+   - the bot can see it, and its default branch is `main`;
+   - `DESIGN.md` on `main` has at least one objective heading;
+   - `CODEOWNERS` names Dorian on every gate path this repository's `CODEOWNERS` lists under `/.github/`, `/goals/`, `/goal-runs/` and the goal-mode scripts;
+   - the four workflows `goal_guard.CHECKS` pins match their pins byte for byte;
+   - every non-test file under `plugins/gstack-execution/scripts/` is the same git blob as the checkout's `HEAD`;
+   - `main`'s rules require code-owner review and the `tests`, `goal-envelope`, `goal-tests` and `goal-holdout` checks, and block force pushes and deletion;
+   - the `goal-holdout` environment deploys from `main` only.
+2. Each requirement prints `ready`, `missing` or `unknown` (the API refused) with what it examined, then a count line. It exits 0 only when all seven are ready. Unknown is not ready. A repository the token can't see stops after its first line.
+3. `/init-goal-mode <owner>/<repo>` in project-init runs the check and turns each gap into who acts. Dorian installs the app, sets the ruleset and the environment, and approves any `CODEOWNERS` change. The agent writes `DESIGN.md` through `/gstack-design-doc`. It changes nothing on its own.
+4. Installing goal mode in another repository is not built here, and the check says so by its own result. `goal_guard` pins this repository's `tests.yml`, so another repository's tests can't match until the pin is per repository. The goal sandbox image carries Python only, so a candidate that needs Node can't run in it. Each is an amendment Dorian decides before any installer is written.
+5. A test covers, against a stub API built from this checkout: a repository set up like this one, ready on all seven; each requirement failing alone; a refused call reported as unknown; an invisible repository stopping after one line.
+
 ### Dissent from the design review
 
 The two-reviewer loop (XE-031's first live run: Codex on gpt-6-astra and Gemini 3.8 Flash, writer Claude) ran five rounds and stopped at its cap. Reviewers raised 36 findings across the two loops (16 in the first, 20 in the second); every one was accepted and fixed. The two below were raised in the last round, so their fixes haven't been reviewed. Log: `Taskade/Team Plugins/06 – Engineering/DESIGN-REVIEW-LOG-2026-10-01.md`. A first loop ended `incomplete` when Gemini 3.1 Pro used its whole 16,000-token output on reasoning; its sixteen findings carried into the second.
