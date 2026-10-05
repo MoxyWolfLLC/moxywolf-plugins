@@ -158,6 +158,7 @@ The plan:
     hold = unfence(ask(prompt, root))
     try:
         tree = ast.parse(hold)
+        compile(tree, "holdout", "exec")
     except SyntaxError as e:
         raise Refused(f"the holdout doesn't parse: {e.msg} at line {e.lineno}")
     if not any(isinstance(n, ast.ClassDef) and n.name == "Holdout" for n in tree.body):

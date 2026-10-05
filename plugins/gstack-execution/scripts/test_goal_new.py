@@ -99,7 +99,7 @@ class GoalNew(unittest.TestCase):
 
     def test_a_holdout_that_does_not_parse_or_has_no_class_is_refused(self):
         for bad in ("class Holdout(:\n", "import unittest\n", 'DOC = """\nclass Holdout:\n    pass\n"""\n',
-                    "def f():\n    class Holdout:\n        pass\n"):
+                    "def f():\n    class Holdout:\n        pass\n", HOLDOUT + "return 1\n"):
             with self.assertRaises(gn.Refused):
                 self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: bad)
         self.assertFalse((self.g / "holdout.sha256").exists())
