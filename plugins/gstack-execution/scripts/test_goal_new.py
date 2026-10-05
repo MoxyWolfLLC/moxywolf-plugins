@@ -67,6 +67,13 @@ class GoalNew(unittest.TestCase):
             self.run_cmd(gn.cmd_tests, ask=lambda p, cwd: TESTS.replace("test_tool.py", "test_other.py"))
         self.assertFalse((self.g / "tests").exists())
 
+    def test_an_extra_or_duplicate_section_is_refused_and_nothing_is_written(self):
+        for extra in ("=====FILE tests/sub/evil.py=====\nx = 1\n", "=====FILE tests/notes.txt=====\nhi\n",
+                      TESTS.split("```python")[0] + "x = 1\n"):
+            with self.assertRaises(gn.Refused):
+                self.run_cmd(gn.cmd_tests, ask=lambda p, cwd: TESTS + extra)
+        self.assertFalse((self.g / "tests").exists())
+
     def test_a_brief_with_no_goal_tests_is_refused(self):
         (self.g / "GOAL.md").write_text("## Outcome\nx\n")
         with self.assertRaises(gn.Refused):
@@ -91,7 +98,8 @@ class GoalNew(unittest.TestCase):
         self.assertFalse((self.g / "holdout.sha256").exists())
 
     def test_a_holdout_that_does_not_parse_or_has_no_class_is_refused(self):
-        for bad in ("class Holdout(:\n", "import unittest\n"):
+        for bad in ("class Holdout(:\n", "import unittest\n", 'DOC = """\nclass Holdout:\n    pass\n"""\n',
+                    "def f():\n    class Holdout:\n        pass\n"):
             with self.assertRaises(gn.Refused):
                 self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: bad)
         self.assertFalse((self.g / "holdout.sha256").exists())

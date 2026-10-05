@@ -14,6 +14,7 @@ them (GO-002, GO-003.3):
 Each refuses (exit 1) rather than write a partial folder. `goal_brief.py check` and `baseline` still
 decide whether the folder is a goal; nothing here replaces them.
 """
+import ast
 import hashlib
 import os
 import re
@@ -32,7 +33,8 @@ import peer_review as pr  # noqa: E402
 DRAFTER = ("gpt", pr.REVIEWERS["codex"]["model"])
 READER_TOOL = "openrouter-gemini"
 READER = ("gemini", pr.REVIEWERS[READER_TOOL]["model"])
-FILE = re.compile(r"^=====FILE (tests/[\w.-]+\.py)=====\s*$", re.M)
+FILE = re.compile(r"^=====FILE (.*?)=====\s*$", re.M)
+TEST_FILE = re.compile(r"tests/[\w.-]+\.py")
 RULES = """Goal tests never import the candidate and never open any file in the candidate's checkout. They run it as a
 separate program from the checkout named by the GOAL_CANDIDATE environment variable, for example
 subprocess.run([sys.executable, "path/to/tool.py", ...], cwd=os.environ["GOAL_CANDIDATE"], capture_output=True, text=True, timeout=120),
@@ -118,7 +120,11 @@ The plan:
 """
     out = ask(prompt, root)
     parts = FILE.split(out)
-    got = dict(zip(parts[1::2], map(unfence, parts[2::2])))
+    names = parts[1::2]
+    bad = [n for n in names if not TEST_FILE.fullmatch(n)]
+    if bad or len(set(names)) != len(names):
+        raise Refused(f"the drafter returned sections {names}; each must be one tests/<file>.py, once")
+    got = dict(zip(names, map(unfence, parts[2::2])))
     if set(got) != set(files):
         raise Refused(f"the drafter returned {sorted(got)}; the brief names {files}")
     for path, src in got.items():
@@ -151,10 +157,10 @@ The plan:
 """
     hold = unfence(ask(prompt, root))
     try:
-        compile(hold, "holdout", "exec")
+        tree = ast.parse(hold)
     except SyntaxError as e:
         raise Refused(f"the holdout doesn't parse: {e.msg} at line {e.lineno}")
-    if not re.search(r"^class Holdout\b", hold, re.M):
+    if not any(isinstance(n, ast.ClassDef) and n.name == "Holdout" for n in tree.body):
         raise Refused("the holdout has no class Holdout")
     home.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(home, 0o700)

@@ -27,6 +27,6 @@ Work in a checkout of the governed repository, on a branch `build/goal-<id>` mad
      - the pull request link;
      - that it needs his approving review;
      - that the holdout goes into the `goal-holdout` environment's secret `GOAL_<ID>_HOLDOUT` from the file `holdout` printed, at `https://github.com/<owner>/<repo>/settings/environments`. GitHub won't let the bot set it.
-8. **After he says the secret is in:** delete the local holdout file (`rm ~/.goal-holdouts/<id>.py`). No run starts while it exists. Merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`.
+8. **After he says the secret is in:** delete the exact `holdout_file` path step 4 printed (`GSTACK_GOAL_HOLDOUTS` moves it), and confirm that path is gone. No run starts while it exists. Merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`.
 
 Goals come from the open work under each objective, the session handoff and the project's Jira label. Drafting one asks Dorian nothing beyond step 1 and the approval in step 7.
