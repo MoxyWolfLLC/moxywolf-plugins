@@ -6,8 +6,11 @@ import peer_review as pr
 
 
 def repo(t):
+    # maintenance.auto off everywhere below: git runs auto-maintenance detached after a commit, and its
+    # lock file landed in .git mid-cleanup ("Directory not empty: '.git'", CI on PR #170)
     r = Path(t) / "r"; r.mkdir()
-    for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"]):
+    for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"],
+              ["git","config","maintenance.auto","false"], ["git","config","gc.auto","0"]):
         subprocess.run(c, cwd=r, check=True, capture_output=True)
     (r/"widget.py").write_text("def make():\n    return 1\n")
     (r/"caller.py").write_text("import widget\nprint(widget.make())\n")
@@ -64,7 +67,8 @@ def test_the_cap_bounds_the_surface_and_reports_what_it_withheld():
     them changed files, not callers, which is what the first version of this test got wrong."""
     with tempfile.TemporaryDirectory() as t:
         r = Path(t) / "r"; r.mkdir()
-        for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"]):
+        for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"],
+              ["git","config","maintenance.auto","false"], ["git","config","gc.auto","0"]):
             subprocess.run(c, cwd=r, check=True, capture_output=True)
         (r/"widget.py").write_text("def make():\n    return 1\n")
         for i in range(80):
@@ -110,7 +114,8 @@ def test_a_disproof_round_with_no_new_commits_still_carries_the_files_under_revi
 
 def _mini(t, name, extra=""):
     r = Path(t) / name; r.mkdir(parents=True)
-    for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"]):
+    for c in (["git","init","-q"],["git","config","user.email","t@t"],["git","config","user.name","t"],
+              ["git","config","maintenance.auto","false"], ["git","config","gc.auto","0"]):
         subprocess.run(c, cwd=r, check=True, capture_output=True)
     (r/"utils.py").write_text(f"VALUE = '{name}'\n")
     (r/"uses.py").write_text("import utils\n" + extra)
