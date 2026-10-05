@@ -29,6 +29,8 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 |---------|-------------|-----------|
 | `/gstack-design-doc` | Create or refresh `DESIGN.md` as an editable artifact; approval writes it to the repo and Taskade, commits, pushes, pulls back | Artifact + Git |
 | `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → human release handoff → record merge before done | Git + `codex`/`claude` CLI |
+| `/gstack-goal-new` | Draft a goal (GO-007): brief and plan by the agent, goal tests and holdout by the gpt family, the plain-English reading by the gemini family; opens the goal pull request for Dorian's approval | Git + `codex` CLI + OpenRouter |
+| `/gstack-goal` | Run an approved goal (GO-003): each plan item through `/gstack-build` onto `goal/<id>`, then one goal pull request into `main` | Git + the other tool's CLI for the reviews |
 | `/gstack-review` | Structural code review with two-pass checklist | Git + Grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md (real Codex or fresh-context Claude critic) | Git + Grep + `codex` CLI (optional) |
 | `/gstack-peer-review` | Bounded cross-tool review loop at an implementation checkpoint (Codex ↔ Claude Code), fixed contract, explicit outcomes | Git + the other tool's CLI (`codex` or `claude`) |

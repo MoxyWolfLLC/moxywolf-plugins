@@ -1506,6 +1506,19 @@ Not taken, on the council's advice: design-loop convergence as approval (not bef
 3. Every digest and escalation is written into the run record as well as sent, so a missed message is still on file.
 4. A test covers each escalation trigger in criterion 2 with a stub run, and checks that a digest doesn't block the next item.
 
+### GO-007 — `/gstack-goal-new` drafts a goal, and no one family writes the tests, explains them and builds against them
+
+**Status:** review. Opened 2026-10-04 after goal mode's acceptance run: each of the five goals so far was drafted by hand-written one-off scripts, the same steps every time.
+
+**Links introduced:** none. The drafter, the reader and the builder were already three families (GO-002.1, GO-002.4, GO-003.3); this item makes the drafting path one command instead of a fresh script per goal.
+
+1. `/gstack-goal-new <id> "<outcome>"` drafts `goals/<id>/` on a branch from `origin/main`. The agent writes `GOAL.md` and `PLAN.md`. It agrees the outcome with Dorian in one exchange and asks him nothing else before the pull request.
+2. `goal_new.py tests <goal dir>` has the gpt family, through Codex read-only, draft exactly the test files the brief's Goal tests name. Each file carries that family's `drafted-by` line, whatever line the drafter wrote. A reply missing a named file, or adding one, writes nothing and exits 1. A drafted test is never edited by hand: a wrong one is fixed in the brief or plan and drafted again.
+3. `goal_new.py holdout <goal dir>` has the same family draft the holdout against the plan and the pre-mortem. The holdout goes to `~/.goal-holdouts/<id>.py` (folder 700, file 600; `GSTACK_GOAL_HOLDOUTS` overrides), refused when that folder is inside the repository. Only its SHA-256 enters `holdout.sha256`. The command prints the file's path, the secret name `GOAL_<ID>_HOLDOUT` and the environment, never the holdout. A reply that doesn't parse or has no `class Holdout` writes nothing and exits 1. Dorian sets the secret (GO-002.3), and the file is deleted before any run starts.
+4. `goal_new.py read <goal dir>` has the gemini family, through OpenRouter, read every goal test back in plain English. It prints the goal pull request's `## Plain-English reading` section with its `Read by:` line. It refuses a reading that misses a test, a model below the reader's floor, and tests whose drafting family is missing or is the reader's.
+5. `goal_brief.py check` and `baseline` still decide whether the folder is a goal. The command opens the pull request adding `goals/<id>/` alone and tells Dorian, in one message, the link, that it needs his approval, and where the holdout secret goes.
+6. A test covers, with stub drafters: tests written under the drafter's family; a missing file refused with nothing written; a brief with no goal tests; the holdout outside the repository at 600, hashed, its source absent from the output; a holdout folder inside the repository refused; an unparseable holdout and one with no class refused; a reading covering every test with its reader named; a reading that misses a test, one below the floor, and tests drafted by the reader's family, each refused.
+
 ### Dissent from the design review
 
 The two-reviewer loop (XE-031's first live run: Codex on gpt-6-astra and Gemini 3.8 Flash, writer Claude) ran five rounds and stopped at its cap. Reviewers raised 36 findings across the two loops (16 in the first, 20 in the second); every one was accepted and fixed. The two below were raised in the last round, so their fixes haven't been reviewed. Log: `Taskade/Team Plugins/06 – Engineering/DESIGN-REVIEW-LOG-2026-10-01.md`. A first loop ended `incomplete` when Gemini 3.1 Pro used its whole 16,000-token output on reasoning; its sixteen findings carried into the second.
