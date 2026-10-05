@@ -83,7 +83,8 @@ class Ready(unittest.TestCase):
 
     def test_a_later_rule_that_drops_dorian_wins(self):
         for override in ("/goals/ @someone-else\n", "/.github/workflows/goal-holdout.yml @someone-else\n",
-                         "/plugins/gstack-execution/scripts/goal_run.py\n"):
+                         "/plugins/gstack-execution/scripts/goal_run.py\n", "* @someoneelse\n", "*.yml @x\n",
+                         "/**/goal_run.py @x\n"):
             def drop(s, override=override):
                 text = (gr.ROOT / ".github/CODEOWNERS").read_text() + override
                 s.files[".github/CODEOWNERS"] = {"content": base64.b64encode(text.encode()).decode()}

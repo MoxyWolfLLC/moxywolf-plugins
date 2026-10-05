@@ -98,6 +98,12 @@ def requirements(repo, get):
     def codeowners():
         need = gate_paths()
         rs = co.rules(text_at(get, repo, ".github/CODEOWNERS", "main") or "")
+        # ponytail: test_codeowners matches anchored paths, dir/ and **/name/ only. A pattern outside that
+        # subset (a catch-all, an unanchored glob) could override Dorian unseen, so it's refused, not guessed.
+        odd = [pat for pat, _ in rs if not (pat.startswith("/") and "**" not in pat)
+               and not (pat.startswith("**/") and pat.endswith("/") and "*" not in pat[3:])]
+        if odd:
+            return False, f"CODEOWNERS uses patterns this check can't evaluate, so ownership can't be shown: {odd[:5]}"
         lack = [p for p in need if OWNER not in co.owners(rs, p)]   # last matching rule wins, as on GitHub
         return bool(need) and not lack, f"{len(need) - len(lack)}/{len(need)} gate paths owned by {OWNER}" + \
             (f"; not: {lack[:5]}{' ...' if len(lack) > 5 else ''}" if lack else "")
