@@ -31,7 +31,7 @@ class Stub:
                       {"type": "required_status_checks", "parameters": {"required_status_checks":
                                                                        [{"context": c} for c in gr.CHECKS]}}]
         self.env = {"deployment_branch_policy": {"custom_branch_policies": True}}
-        self.branches = ["main"]
+        self.branches = [("branch", "main")]
         self.repo = {"default_branch": "main"}
         self.refuse = set()
 
@@ -45,12 +45,12 @@ class Stub:
             return self.files.get(path.split("/contents/", 1)[1].split("?", 1)[0])
         if path.startswith(f"repos/{R}/git/trees/"):
             return {"tree": self.tree, "truncated": False}
-        if path == f"repos/{R}/rules/branches/main":
-            return self.rules
+        if path.startswith(f"repos/{R}/rules/branches/main"):
+            return self.rules if "page=1" in path else []
         if path == f"repos/{R}/environments/goal-holdout":
             return self.env
-        if path.endswith("/deployment-branch-policies"):
-            return {"branch_policies": [{"name": b} for b in self.branches]}
+        if "/deployment-branch-policies" in path:
+            return {"branch_policies": [{"type": t, "name": n} for t, n in self.branches]}
         raise AssertionError(path)
 
 
@@ -79,7 +79,17 @@ class Ready(unittest.TestCase):
         self.broken(lambda s: s.tree.pop(), "goal-mode scripts, same as this checkout")
         self.broken(lambda s: s.rules[3]["parameters"]["required_status_checks"].pop(), "main's ruleset")
         self.broken(lambda s: s.rules[2]["parameters"].update(require_code_owner_review=False), "main's ruleset")
-        self.broken(lambda s: s.branches.append("goal/*"), "goal-holdout environment, main only")
+        self.broken(lambda s: s.branches.append(("branch", "goal/*")), "goal-holdout environment, main only")
+        self.broken(lambda s: s.branches.__setitem__(0, ("tag", "main")), "goal-holdout environment, main only")
+        self.broken(lambda s: s.branches.append(("tag", "main")), "goal-holdout environment, main only")
+
+    def test_rules_split_across_rulesets_still_count(self):
+        s = Stub()
+        checks = s.rules[3]["parameters"]["required_status_checks"]
+        s.rules[3:] = [{"type": "required_status_checks", "parameters": {"required_status_checks": checks[:2]}},
+                       {"type": "required_status_checks", "parameters": {"required_status_checks": checks[2:]}},
+                       {"type": "pull_request", "parameters": {"require_code_owner_review": False}}]
+        self.assertEqual(self.status(s)["main's ruleset"], "ready")
 
     def test_a_later_rule_that_drops_dorian_wins(self):
         for override in ("/goals/ @someone-else\n", "/.github/workflows/goal-holdout.yml @someone-else\n",

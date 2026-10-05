@@ -129,11 +129,18 @@ def requirements(repo, get):
     req("goal-mode scripts, same as this checkout", scripts)
 
     def ruleset():
-        rules = get(f"repos/{repo}/rules/branches/main") or []
-        kinds = {r["type"]: r.get("parameters") or {} for r in rules}
-        ctx = {c["context"] for c in kinds.get("required_status_checks", {}).get("required_status_checks", [])}
+        rules, page = [], 1
+        while True:   # every applicable rule from every ruleset, all pages
+            batch = get(f"repos/{repo}/rules/branches/main?per_page=100&page={page}") or []
+            rules += batch
+            if len(batch) < 100:
+                break
+            page += 1
+        kinds = {r["type"] for r in rules}
+        ctx = {c["context"] for r in rules if r["type"] == "required_status_checks"
+               for c in (r.get("parameters") or {}).get("required_status_checks", [])}
         lack = [c for c in CHECKS if c not in ctx]
-        if not kinds.get("pull_request", {}).get("require_code_owner_review"):
+        if not any((r.get("parameters") or {}).get("require_code_owner_review") for r in rules if r["type"] == "pull_request"):
             lack.insert(0, "code-owner review")
         for k in ("non_fast_forward", "deletion"):
             if k not in kinds:
@@ -147,9 +154,10 @@ def requirements(repo, get):
         if not env:
             return False, "no goal-holdout environment"
         pol = env.get("deployment_branch_policy") or {}
-        names = [p["name"] for p in (get(f"repos/{repo}/environments/goal-holdout/deployment-branch-policies") or {})
-                 .get("branch_policies", [])] if pol.get("custom_branch_policies") else []
-        return names == ["main"], f"deployment branches {names or 'unrestricted'} (must be main only)"
+        pols = (get(f"repos/{repo}/environments/goal-holdout/deployment-branch-policies?per_page=100") or {}) \
+            .get("branch_policies", []) if pol.get("custom_branch_policies") else []
+        seen = [(p.get("type", "?"), p["name"]) for p in pols]
+        return seen == [("branch", "main")], f"deploys from {seen or 'anywhere'} (must be the branch main only)"
     req("goal-holdout environment, main only", environment)
     return out
 
