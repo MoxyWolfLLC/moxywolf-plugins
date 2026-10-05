@@ -179,6 +179,16 @@ def holdout_cmd(main_dir, candidate_dir, deps=None):
         "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "holdout-run", "--candidate", "/candidate"]
 
 
+def sanitized(tree):
+    """GO-002.8, review F1: a copy of tree with no Git metadata, for a holdout sandbox mount. The carried
+    holdout is committed in the candidate's history, which the checkout's .git (and a worktree's link to
+    it) would hand to the code under test; only the files themselves are copied."""
+    out = Path(tempfile.mkdtemp(prefix="goal-tree-"))
+    shutil.copytree(tree, out, ignore=shutil.ignore_patterns(".git"), symlinks=True, dirs_exist_ok=True)
+    os.chmod(out, 0o755)                   # mkdtemp's 0700 would shut out the sandbox's uid 65534
+    return out
+
+
 def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     """GO-003.6: the holdout, checked against main's holdout.sha256, run against the merge candidate."""
     kind, gid = classify(pr)
@@ -198,11 +208,12 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
     if expected not in {hashlib.sha256(s.encode()).hexdigest() for s in (source, source + "\n", source.rstrip("\n"))}:
         return verdict(pr, "failure", "the holdout doesn't match holdout.sha256",
                        "The stored secret isn't the holdout Dorian approved; nothing was run.")
+    main_tree, cand_tree = sanitized(repo), sanitized(candidate_dir)
     try:
-        deps = install_deps(candidate_dir)       # before the holdout exists anywhere: it's on stdin below
+        deps = install_deps(cand_tree)           # before the holdout exists anywhere: it's on stdin below
     except SystemExit as e:
         return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
-    r = run(holdout_cmd(repo, candidate_dir, deps), input=source, capture_output=True, text=True, timeout=3600)
+    r = run(holdout_cmd(main_tree, cand_tree, deps), input=source, capture_output=True, text=True, timeout=3600)
     try:
         out = json.loads(r.stdout.strip().splitlines()[-1])
         result, why = out["result"], out.get("detail") or ""
