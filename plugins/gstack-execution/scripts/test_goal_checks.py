@@ -24,6 +24,23 @@ def pr(base="goal/g1", head="build/item-1", number=5, head_sha="a" * 40, base_sh
     return {"number": number, "base": {"ref": base, "sha": base_sha}, "head": {"ref": head, "sha": head_sha}}
 
 
+NODE_LOCK = """{
+  "name": "cand",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {"name": "cand", "version": "1.0.0", "dependencies": {"ms": "2.1.3"}},
+    "node_modules/ms": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+      "license": "MIT"
+    }
+  }
+}
+"""
+
 class Decisions(unittest.TestCase):
     def test_classify(self):
         self.assertEqual(gc.classify(pr()), ("item", "g1"))
@@ -304,6 +321,96 @@ class Sandbox(unittest.TestCase):
         r = subprocess.run(gc.sandbox_cmd(main, main, "g1"), capture_output=True, text=True, timeout=600)
         results = json.loads(r.stdout.strip().splitlines()[-1])
         self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_stub_runs": "passed"})
+
+    def test_a_node_candidate_builds_with_its_locked_dependencies_and_no_network(self):
+        """GO-002.6: the dependencies install from the lockfile in their own container; the goal test
+        then runs the candidate's build in the sandbox, which writes into its own folder, still offline."""
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "cand"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_n.py::N.test_build` (outcome)\n")
+        (main / "goals" / "g1" / "tests" / "test_n.py").write_text(
+            "import os, subprocess, unittest\n\n\nclass N(unittest.TestCase):\n"
+            "    def test_build(self):\n        c = os.environ['GOAL_CANDIDATE']\n"
+            "        b = subprocess.run(['npm', 'run', '-s', 'build'], cwd=c, capture_output=True, text=True, timeout=300)\n"
+            "        self.assertEqual(b.returncode, 0, b.stderr)\n"
+            "        n = subprocess.run(['node', '-e', 'fetch(\"https://example.com\").then(()=>console.log(\"online\"),()=>console.log(\"offline\"))'],"
+            " capture_output=True, text=True, timeout=60)\n"
+            "        self.assertEqual((b.stdout.strip(), n.stdout.strip()), ('2 days = 172800000', 'offline'))\n")
+        cand.mkdir()
+        (cand / "package.json").write_text('{"name":"cand","version":"1.0.0","private":true,"dependencies":{"ms":"2.1.3"},'
+                                           '"scripts":{"build":"node build.js"}}\n')
+        (cand / "package-lock.json").write_text(NODE_LOCK)
+        (cand / "build.js").write_text("const ms = require('ms'); const fs = require('fs');\n"
+                                       "fs.mkdirSync('out', {recursive: true}); fs.writeFileSync('out/x', '1');\n"
+                                       "console.log('2 days = ' + ms('2 days'));\n")
+        os.chmod(t, 0o755)
+        deps = gc.install_deps(cand)
+        self.addCleanup(shutil.rmtree, deps, True)
+        r = subprocess.run(gc.sandbox_cmd(main, cand, "g1", deps), capture_output=True, text=True, timeout=600)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
+        self.assertFalse((cand / "out").exists())            # the build wrote into the sandbox's copy, not the checkout
+
+    def test_a_dependency_free_node_build_writes_in_the_sandbox_copy(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "cand"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_n.py::N.test_build` (outcome)\n")
+        (main / "goals" / "g1" / "tests" / "test_n.py").write_text(
+            "import os, subprocess, unittest\n\n\nclass N(unittest.TestCase):\n"
+            "    def test_build(self):\n"
+            "        b = subprocess.run(['npm', 'run', '-s', 'build'], cwd=os.environ['GOAL_CANDIDATE'], capture_output=True, text=True, timeout=120)\n"
+            "        self.assertEqual((b.returncode, b.stdout.strip()), (0, 'built'), b.stderr)\n")
+        cand.mkdir()
+        (cand / "package.json").write_text('{"name":"cand","version":"1.0.0","private":true,"scripts":{"build":"node build.js"}}\n')
+        (cand / "build.js").write_text("require('fs').writeFileSync('out.txt', '1'); console.log('built');\n")
+        os.chmod(t, 0o755)
+        self.assertIsNone(gc.install_deps(cand))
+        r = subprocess.run(gc.sandbox_cmd(main, cand, "g1"), capture_output=True, text=True, timeout=600)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
+        self.assertFalse((cand / "out.txt").exists())
+
+    def test_a_symlinked_install_file_is_refused(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        outside = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, outside, True)
+        (outside / "secret").write_text("x"); (t / "other.json").write_text("{}")
+        for target in (outside / "secret", t / "other.json"):
+            for name in ("package.json", "package-lock.json", ".npmrc"):
+                with self.subTest(target=target.name, name=name):
+                    for f in ("package.json", "package-lock.json", ".npmrc"):
+                        (t / f).unlink(missing_ok=True); (t / f).write_text("{}")
+                    (t / name).unlink(); (t / name).symlink_to(target)
+                    with self.assertRaises(SystemExit):
+                        gc.install_deps(t, run=lambda *a, **k: self.fail("installed through a symlink"))
+
+    def test_no_lockfile_installs_nothing(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        self.assertIsNone(gc.install_deps(t, run=lambda *a, **k: self.fail("installed without a lockfile")))
+
+    def test_the_install_container_gets_three_files_and_no_checkout(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        for f in ("package.json", "package-lock.json", ".npmrc", "secret.env", "src.js"):
+            (t / f).write_text("x")
+        seen = {}
+        def run(cmd, **k):
+            seen["cmd"] = cmd
+            seen["files"] = sorted(p.name for p in Path(cmd[cmd.index("-v") + 1].split(":")[0]).iterdir())
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        deps = gc.install_deps(t, run=run); self.addCleanup(shutil.rmtree, deps, True)
+        self.assertEqual(seen["files"], [".npmrc", "package-lock.json", "package.json"])
+        self.assertEqual(seen["cmd"].count("-v"), 1)
+        self.assertIn("--ignore-scripts", seen["cmd"])
+        self.assertNotIn("GOAL_HOLDOUT", " ".join(seen["cmd"]))
 
     def test_baseline_runs_in_the_container(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
