@@ -20,6 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goal_brief as gb  # noqa: E402
 import goal_guard  # noqa: E402
+import test_codeowners as co  # noqa: E402  goal_brief put .github on the path; one CODEOWNERS reader
 
 ROOT = Path(__file__).resolve().parents[3]
 OWNER = "@dorianatmoxywolf"
@@ -87,13 +88,9 @@ def requirements(repo, get):
     req("DESIGN.md with objectives (a goal serves one)", design)
 
     def codeowners():
-        mine = [ln.split()[0] for ln in (ROOT / ".github/CODEOWNERS").read_text().splitlines()
-                if ln.strip() and not ln.startswith("#")
-                and ln.split()[0].startswith(("/.github/", "/goals/", "/goal-runs/", "/" + SCRIPTS))]
-        t = text_at(get, repo, ".github/CODEOWNERS", "main") or ""
-        theirs = {ln.split()[0] for ln in t.splitlines() if ln.strip() and not ln.startswith("#") and OWNER in ln.split()[1:]}
-        lack = [p for p in mine if p not in theirs]
-        return not lack, f"{len(mine) - len(lack)}/{len(mine)} gate paths owned by {OWNER}" + (f"; lacks {lack}" if lack else "")
+        rs = co.rules(text_at(get, repo, ".github/CODEOWNERS", "main") or "")
+        lack = [p for p in co.GATE if OWNER not in co.owners(rs, p)]   # last matching rule wins, as on GitHub
+        return not lack, f"{len(co.GATE) - len(lack)}/{len(co.GATE)} gate paths owned by {OWNER}" + (f"; not: {lack}" if lack else "")
     req("CODEOWNERS names Dorian on goal mode's gate paths", codeowners)
 
     def workflows():
@@ -150,6 +147,12 @@ def main(argv):
         print("refused: no GITHUB_TOKEN; run it under agent_token.py exec", file=sys.stderr)
         return 2
     rows = requirements(argv[0], api(token))
+    head = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], text=True).strip()
+    if len(rows) == 1 and rows[0][1] != "ready":
+        name, status, detail = rows[0]
+        print(f"{status:8} {name}: {detail}; stopped, examined 1 of 7 requirements")
+        return 1
+    print(f"compared with moxywolf-plugins at {head}")
     for name, status, detail in rows:
         print(f"{status:8} {name}: {detail}")
     ready = sum(s == "ready" for _, s, _ in rows)

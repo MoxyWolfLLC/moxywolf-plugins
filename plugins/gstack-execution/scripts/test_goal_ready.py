@@ -1,7 +1,10 @@
 """GO-008.4: goal_ready.py against a stub GitHub API built from this checkout. No network."""
 import base64
+import contextlib
+import io
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -78,10 +81,27 @@ class Ready(unittest.TestCase):
         self.broken(lambda s: s.rules[2]["parameters"].update(require_code_owner_review=False), "main's ruleset")
         self.broken(lambda s: s.branches.append("goal/*"), "goal-holdout environment, main only")
 
+    def test_a_later_rule_that_drops_dorian_wins(self):
+        def drop(s):
+            text = (gr.ROOT / ".github/CODEOWNERS").read_text() + "/goals/ @someone-else\n"
+            s.files[".github/CODEOWNERS"] = {"content": base64.b64encode(text.encode()).decode()}
+        self.broken(drop, "CODEOWNERS names Dorian on goal mode's gate paths")
+
     def test_a_refused_call_is_unknown_and_never_ready(self):
         s = Stub()
         s.refuse.add("/environments/")
         self.assertEqual(self.status(s)["goal-holdout environment, main only"], "unknown")
+
+    def test_main_prints_one_line_for_an_invisible_repository(self):
+        s = Stub()
+        s.repo = None
+        orig, gr.api = gr.api, lambda token: s
+        self.addCleanup(setattr, gr, "api", orig)
+        out = io.StringIO()
+        with unittest.mock.patch.dict("os.environ", {"GITHUB_TOKEN": "t"}), contextlib.redirect_stdout(out):
+            rc = gr.main([R])
+        self.assertEqual(rc, 1)
+        self.assertEqual(len(out.getvalue().splitlines()), 1, out.getvalue())
 
     def test_an_invisible_repository_stops_after_one_line(self):
         s = Stub()
