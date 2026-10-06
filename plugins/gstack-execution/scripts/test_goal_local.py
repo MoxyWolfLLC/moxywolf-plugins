@@ -78,5 +78,53 @@ class Local(unittest.TestCase):
             self.assertEqual(os.readlink(deps / "node_modules" / "left-pad"), "left-pad-real")
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_baseline_refuses_an_outcome_that_did_not_run(self):
+        real = gl.check
+        gl.check = lambda *a, **k: {"tests": {"t::A.o": {"kind": "outcome", "result": "not_run"},
+                                              "t::A.i": {"kind": "invariant", "result": "passed"}}}
+        gl.git = (lambda real_git: (lambda repo, *args: "abc\n" if args[:1] == ("rev-parse",) else ""))(gl.git)
+        try:
+            out = gl.baseline(Path("."), "g", "x")
+        finally:
+            gl.check = real
+            import importlib; importlib.reload(gl)
+        self.assertEqual(len(out["errors"]), 1)
+        self.assertIn("not_run", out["errors"][0])
+
+    def test_an_ordinary_codeowners_keeps_the_fixed_gate(self):
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {".github/CODEOWNERS": "/docs/ @someone\n"})
+            subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+            head = commit(r, {".github/workflows/x.yml": "y\n", "src/a.ts": "1\n"})
+            errors, _ = gl.envelope(r, "g", head, "main", BRIEF)
+            self.assertEqual([e.split(" ", 2)[2] for e in errors], [".github/workflows/x.yml, a gate path"])
+
+    def test_brief_passes_a_valid_goal_in_a_repo_without_codeowners(self):
+        site = gl.PLUGINS                          # an approved goal folder from this checkout, CODEOWNERS left behind
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            import shutil
+            shutil.copytree(site / "goals/vault-review-list-2", r / "goals/vault-review-list-2")
+            shutil.copy(site / "DESIGN.md", r / "DESIGN.md")
+            self.assertEqual(gl.main(["brief", str(r), "vault-review-list-2"]), 0)
+
+    def test_a_failed_check_still_reports_json(self):
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {"README.md": "x\n"})
+            out = gl.check(r, "g", "0" * 40)
+            self.assertFalse(out["passed"])
+            self.assertTrue(out["error"])
+
+    def test_a_dangling_pnpm_lock_link_is_refused(self):
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            os.symlink("/nonexistent/lock", r / "pnpm-lock.yaml")
+            with self.assertRaises(SystemExit):
+                gl.deps_for(r)
+
+
 if __name__ == "__main__":
     unittest.main()

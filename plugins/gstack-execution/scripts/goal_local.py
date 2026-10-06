@@ -84,7 +84,10 @@ def pnpm_deps(cand, run=subprocess.run):
 
 
 def deps_for(cand):
-    if Path(cand, "pnpm-lock.yaml").is_file():
+    lock = Path(cand, "pnpm-lock.yaml")
+    if lock.is_symlink():             # review F5: a link, dangling or not, never picks the installer
+        raise SystemExit("refused: pnpm-lock.yaml in the candidate is a symlink; the install takes regular files only")
+    if lock.is_file():
         return pnpm_deps(cand)
     return gc.install_deps(cand)
 
@@ -94,14 +97,15 @@ def with_memory(cmd):
     return cmd[:i + 1] + [MEMORY] + cmd[i + 2:]
 
 
-GATED = (".github/", "goals/", "goal-runs/")   # stand-in for gate CODEOWNERS in a repository without them
+GATED = (".github/", "goals/", "goal-runs/")   # always the gate in local mode, whatever CODEOWNERS says
+LOCAL_CODEOWNERS = "".join(f"/{g} @dorianatmoxywolf\n" for g in GATED)
 
 
 def envelope(repo, gid, head, base, brief_text):
-    """Files the goal changed outside its Allowed paths. A repository with CODEOWNERS gets the full
-    check; one without treats .github/, goals/ and goal-runs/ as the gate a goal may never touch."""
-    if ge.at(repo, base, ".github/CODEOWNERS") and ge.at(repo, base, f"goals/{gid}/GOAL.md"):
-        return ge.check(repo, gid, head, base)
+    """Files the goal changed outside its Allowed paths, or on the gate: .github/, goals/ and goal-runs/
+    always, plus any path the repository's own CODEOWNERS assigns an owner (review F2: an ordinary
+    CODEOWNERS no longer switches the fixed gate off)."""
+    rs = ge.rules(ge.at(repo, base, ".github/CODEOWNERS") or "")
     errors = []
     allowed = [g.strip("`") for g in ge.bullet_lines("Allowed paths", ge.sections(brief_text).get("Allowed paths", ""), errors)]
     if not allowed:
@@ -109,7 +113,7 @@ def envelope(repo, gid, head, base, brief_text):
     commits = ge.goal_commits(repo, base, head)
     for sha, files in commits:
         for f in files:
-            if f.startswith(GATED):
+            if f.startswith(GATED) or ge.owners(rs, f):
                 errors.append(f"{sha[:12]} changes {f}, a gate path")
             elif not any(ge.path_in(g, f) for g in allowed):
                 errors.append(f"{sha[:12]} changes {f}, outside Allowed paths")
@@ -117,12 +121,22 @@ def envelope(repo, gid, head, base, brief_text):
 
 
 def check(repo, gid, head, holdout_file=None, base="origin/main", run=subprocess.run, goal_dir=None):
+    """Never raises for an operational failure (review F4): it lands in the JSON as `error`, not passed."""
+    try:
+        return _check(repo, gid, head, holdout_file, base, run, goal_dir)
+    except (SystemExit, subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as e:
+        detail = getattr(e, "stderr", None) or str(e)
+        return {"goal": gid, "head": head, "base": base, "tests": {}, "holdout": None, "envelope": None,
+                "error": (detail if isinstance(detail, str) else detail.decode(errors="replace"))[-2000:], "passed": False}
+
+
+def _check(repo, gid, head, holdout_file, base, run, goal_dir):
     out = {"goal": gid, "head": head, "base": base, "tests": {}, "holdout": None, "envelope": None}
     trusted = Path(tempfile.mkdtemp(prefix="goal-trusted-"))
     cand = Path(tempfile.mkdtemp(prefix="goal-cand-"))
-    git(PLUGINS, "worktree", "add", "--detach", str(trusted), "HEAD")
-    git(repo, "worktree", "add", "--detach", str(cand), head)
     try:
+        git(PLUGINS, "worktree", "add", "--detach", str(trusted), "HEAD")
+        git(repo, "worktree", "add", "--detach", str(cand), head)
         goal = trusted / "goals" / gid           # the approved folder, from the repository's base
         goal.mkdir(parents=True, exist_ok=True)
         if goal_dir:
@@ -160,7 +174,7 @@ def check(repo, gid, head, holdout_file=None, base="origin/main", run=subprocess
         for d, owner in ((trusted, PLUGINS), (cand, repo)):
             subprocess.run(["git", "-C", str(owner), "worktree", "remove", "--force", str(d)], capture_output=True)
     ok = (bool(out["tests"]) and all(v.get("result") == "passed" for v in out["tests"].values())
-          and not out["envelope"]["errors"]
+          and not (out["envelope"] or {"errors": ["envelope not run"]})["errors"]
           and (holdout_file is None or (out["holdout"] or {}).get("result") == "passed"))
     out["passed"] = ok
     return out
@@ -172,8 +186,8 @@ def baseline(repo, gid, goal_dir):
     out = check(repo, gid, head, goal_dir=goal_dir)
     errors = [] if out["tests"] else ["examined no goal tests" + (": " + out.get("tests_error", "") if out.get("tests_error") else "")]
     for t, v in out["tests"].items():
-        if v["kind"] == "outcome" and v["result"] == "passed":
-            errors.append(f"outcome test {t} already passes on main; it can't show the goal happened")
+        if v["kind"] == "outcome" and v["result"] != "failed":   # review F1: not_run shows nothing either
+            errors.append(f"outcome test {t} is {v['result']} on main, not failed; it can't show the goal happened")
         if v["kind"] == "invariant" and v["result"] != "passed":
             errors.append(f"invariant test {t} is {v['result']} on main; it must hold before and throughout")
     return {"head": head, "tests": out["tests"], "errors": errors}
@@ -184,7 +198,8 @@ def main(argv):
     if argv[:1] == ["brief"] and len(argv) == 3:
         repo = Path(argv[1]).resolve()
         read = lambda p: Path(repo, p).read_text() if Path(repo, p).is_file() else ""
-        errors, examined = gb.check(repo / "goals" / argv[2], read("DESIGN.md"), read(".github/CODEOWNERS"))
+        # review F3: no CODEOWNERS means local mode's fixed gate stands in for it
+        errors, examined = gb.check(repo / "goals" / argv[2], read("DESIGN.md"), read(".github/CODEOWNERS") or LOCAL_CODEOWNERS)
         print(f"examined {examined} sections and files in goals/{argv[2]}")
         for e in errors + ([] if examined else ["examined nothing"]):
             print("FAIL:", e)
