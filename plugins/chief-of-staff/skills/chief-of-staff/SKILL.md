@@ -87,7 +87,7 @@ Use it for everything in the escalates row. Write it in Dorian's voice: no em da
 
 ## The decision log
 
-Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing.
+Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`, where `<project>` is the attached project. With no project attached, it goes to `Taskade/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing. The entry is written on every exit: a stop for a missing context card, an escalation and an incomplete result all get one.
 
 ```
 ## <YYYY-MM-DD> <short ask>
