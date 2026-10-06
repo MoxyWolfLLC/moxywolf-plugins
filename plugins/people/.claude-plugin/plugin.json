@@ -1,0 +1,17 @@
+{
+  "name": "people",
+  "description": "Org design, hiring and interviewing, compensation and leveling, and workforce planning.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "repository": "https://github.com/cbrock84/headcount",
+  "license": "MIT",
+  "keywords": [
+    "people",
+    "hr",
+    "org-design",
+    "hiring",
+    "compensation"
+  ]
+}
