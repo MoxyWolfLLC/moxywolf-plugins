@@ -851,6 +851,38 @@
         "program-management",
         "vendors"
       ]
+    },
+    {
+      "name": "corporate-strategy",
+      "source": "./plugins/corporate-strategy",
+      "description": "Portfolio strategy, corporate development, strategic alliances, and scenario planning.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "strategy",
+        "corp-dev",
+        "m-and-a",
+        "partnerships",
+        "scenario-planning"
+      ]
+    },
+    {
+      "name": "customer-experience",
+      "source": "./plugins/customer-experience",
+      "description": "Support operations, escalation management, voice of customer, and self-service. Owns what the customer experiences after the sale.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "support",
+        "customer-success",
+        "escalation",
+        "voice-of-customer",
+        "service"
+      ]
     }
   ]
 }

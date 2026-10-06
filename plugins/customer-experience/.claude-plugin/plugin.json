@@ -1,0 +1,17 @@
+{
+  "name": "customer-experience",
+  "description": "Support operations, escalation management, voice of customer, and self-service. Owns what the customer experiences after the sale.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "repository": "https://github.com/cbrock84/headcount",
+  "license": "MIT",
+  "keywords": [
+    "support",
+    "customer-success",
+    "escalation",
+    "voice-of-customer",
+    "service"
+  ]
+}
