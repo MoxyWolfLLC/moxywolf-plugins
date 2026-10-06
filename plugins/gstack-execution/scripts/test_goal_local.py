@@ -170,6 +170,19 @@ class ReviewFixes(unittest.TestCase):
         self.assertEqual(own("lib/x.py"), ["@lib"])                  # inner slash anchors
         self.assertEqual(own("pkg/lib/x.py"), ["@all"])
 
+    def test_a_single_level_wildcard_does_not_unown_nested_files(self):
+        rs = gl.co_rules("/src/private/ @owner\n/src/*\n")
+        self.assertEqual(gl.co_owners(rs, "src/private/a.ts"), ["@owner"])
+        self.assertEqual(gl.co_owners(rs, "src/top.ts"), [])
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {".github/CODEOWNERS": "/src/private/ @owner\n/src/*\n"})
+            subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+            head = commit(r, {"src/private/a.ts": "1\n"})
+            brief = BRIEF + "- src/private/*.ts\n"
+            errors, _ = gl.envelope(r, "g", head, "main", brief)
+            self.assertEqual([e.split(" ", 2)[2] for e in errors], ["src/private/a.ts, a gate path"])
+
     def test_a_dangling_pnpm_lock_link_is_refused(self):
         with tempfile.TemporaryDirectory() as t:
             r = repo(t)

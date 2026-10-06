@@ -109,7 +109,8 @@ def codeowners_text(read):
 def co_rules(text):
     """[(regex, owners)] in file order. Full CODEOWNERS pattern syntax (review F2): * and ** anywhere,
     ?, a pattern with no inner slash matches at any depth, a leading / anchors it, a trailing / means
-    everything under that folder, and a file or folder pattern also covers what's inside it."""
+    everything under that folder, a literal name also covers what's inside it, and a wildcard last
+    segment stays at its own level."""
     out = []
     for line in text.splitlines():
         line = line.split("#", 1)[0].strip()
@@ -130,7 +131,10 @@ def co_rules(text):
                 rx, i = rx + "[^/]", i + 1
             else:
                 rx, i = rx + re.escape(body[i]), i + 1
-        rx = ("" if anchored else "(?:.*/)?") + rx + ("/.*" if folder else "(?:/.*)?")
+        # review F2: a last segment with a wildcard (`/src/*`, `*.ts`) matches at that level only; a
+        # literal last segment may name a folder, so it also covers what's inside (GitHub's semantics)
+        tail = "/.*" if folder else ("" if "*" in body.rsplit("/", 1)[-1] else "(?:/.*)?")
+        rx = ("" if anchored else "(?:.*/)?") + rx + tail
         out.append((re.compile("^" + rx + "$"), owners))
     return out
 
