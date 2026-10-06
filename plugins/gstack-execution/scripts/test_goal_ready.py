@@ -111,8 +111,8 @@ class Ready(unittest.TestCase):
 
     def test_a_later_rule_that_drops_dorian_wins(self):
         for override in ("/goals/ @someone-else\n", "/.github/workflows/goal-holdout.yml @someone-else\n",
-                         "/plugins/gstack-execution/scripts/goal_run.py\n", "* @someoneelse\n", "*.yml @x\n",
-                         "/**/goal_run.py @x\n"):
+                         "/plugins/gstack-execution/scripts/goal_checks.py\n", "* @someoneelse\n", "*.yml @x\n",
+                         "/**/goal_checks.py @x\n"):
             def drop(s, override=override):
                 text = (gr.ROOT / ".github/CODEOWNERS").read_text() + override
                 s.files[".github/CODEOWNERS"] = {"content": base64.b64encode(text.encode()).decode()}
@@ -121,7 +121,7 @@ class Ready(unittest.TestCase):
     def test_the_gate_covers_the_goal_workflows_and_scripts(self):
         need = gr.gate_paths()
         for p in (".github/workflows/goal-holdout.yml", ".github/workflows/tests.yml", "goals/README.md",
-                  "plugins/gstack-execution/scripts/goal_run.py"):
+                  "plugins/gstack-execution/scripts/goal_checks.py"):
             self.assertIn(p, need)
 
     def test_a_refused_call_is_unknown_and_never_ready(self):

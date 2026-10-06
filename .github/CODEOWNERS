@@ -1,5 +1,8 @@
 # GA-008: Dorian reviews the gate, not every change (DR-113, DESIGN.md Constraints).
 # Everything not listed here merges on a clean cross-vendor review and green `tests`.
+# Owned: what CI runs to gate main, what sets the agent's token and data permissions, what
+# caps spend, and the goal folders. The agent's own tooling (review dispatcher, goal runner)
+# is not, since 2026-10-05 at Dorian's instruction: its fixes merge on a clean review.
 # A path listed here needs his approving review: the ruleset requires code-owner review.
 # .github/test_codeowners.py fails if a gate path drops out of this file or a catch-all returns.
 
@@ -8,19 +11,11 @@
 /plugins/gstack-execution/package.json @dorianatmoxywolf
 /plugins/gstack-execution/package-lock.json @dorianatmoxywolf
 /plugins/gstack-execution/scripts/agent_token.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/peer_review.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/governance.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/packet_coverage.mjs @dorianatmoxywolf
-/plugins/gstack-execution/scripts/repo_gates.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/run_all_tests.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/version_bump.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/vocab_check.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/goal_brief.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_envelope.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_spend.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/goal_run.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_checks.py @dorianatmoxywolf
-/plugins/gstack-execution/scripts/goal_calls.py @dorianatmoxywolf
 /plugins/gstack-execution/scripts/goal_guard.py @dorianatmoxywolf
 # GO-001: a goal's brief, plan, tests and run record change only with his approval.
 /goals/ @dorianatmoxywolf
