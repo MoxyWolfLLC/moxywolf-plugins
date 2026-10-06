@@ -1609,7 +1609,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-001 — The Chief of Staff routes an ask to the departments that own it
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the context card’s vault path (`MoxyWolf Vault/_Shared Knowledge/Operating Norms/chief-of-staff-context.md`), which re-resolves by reading the file; the decision log’s path (`Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`), which re-resolves the same way; and the eight agent names in the roster, which re-resolve against `plugins/<name>/agents/<name>.md`.
 
