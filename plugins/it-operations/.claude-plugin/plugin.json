@@ -1,0 +1,20 @@
+{
+  "name": "it-operations",
+  "description": "Corporate IT: service desk, systems and network administration, virtualization and cloud, telephony and conferencing, endpoints, assets, identity lifecycle, and backup and recovery.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "repository": "https://github.com/cbrock84/headcount",
+  "license": "MIT",
+  "keywords": [
+    "it-operations",
+    "service-desk",
+    "sysadmin",
+    "network",
+    "endpoint-management",
+    "virtualization",
+    "cloud",
+    "telephony"
+  ]
+}

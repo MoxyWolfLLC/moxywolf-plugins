@@ -784,6 +784,42 @@
         "hiring",
         "compensation"
       ]
+    },
+    {
+      "name": "it-operations",
+      "source": "./plugins/it-operations",
+      "description": "Corporate IT: service desk, systems and network administration, virtualization and cloud, telephony and conferencing, endpoints, assets, identity lifecycle, and backup and recovery.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "it-operations",
+        "service-desk",
+        "sysadmin",
+        "network",
+        "endpoint-management",
+        "virtualization",
+        "cloud",
+        "telephony"
+      ]
+    },
+    {
+      "name": "security",
+      "source": "./plugins/security",
+      "description": "Threat modeling, security architecture review, incident response, vulnerability management, and access and identity. Reviewer-class: blocking findings are not overrulable by the department under review.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "security",
+        "appsec",
+        "threat-modeling",
+        "incident-response",
+        "vulnerability-management",
+        "identity"
+      ]
     }
   ]
 }
