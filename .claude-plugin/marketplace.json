@@ -820,6 +820,37 @@
         "vulnerability-management",
         "identity"
       ]
+    },
+    {
+      "name": "pmo",
+      "source": "./plugins/pmo",
+      "description": "Enterprise program management office: portfolio governance, program and project delivery, dependencies and delivery risk, benefits realization, and adoption.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "pmo",
+        "portfolio",
+        "project-management",
+        "program-management",
+        "delivery"
+      ]
+    },
+    {
+      "name": "operations",
+      "source": "./plugins/operations",
+      "description": "Program management, process design, vendor and supplier management, and operational delivery.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "operations",
+        "process",
+        "program-management",
+        "vendors"
+      ]
     }
   ]
 }

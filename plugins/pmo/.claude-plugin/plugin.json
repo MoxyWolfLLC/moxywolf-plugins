@@ -1,0 +1,17 @@
+{
+  "name": "pmo",
+  "description": "Enterprise program management office: portfolio governance, program and project delivery, dependencies and delivery risk, benefits realization, and adoption.",
+  "version": "0.1.0",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "repository": "https://github.com/cbrock84/headcount",
+  "license": "MIT",
+  "keywords": [
+    "pmo",
+    "portfolio",
+    "project-management",
+    "program-management",
+    "delivery"
+  ]
+}
