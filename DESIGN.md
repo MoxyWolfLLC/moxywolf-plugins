@@ -1619,13 +1619,13 @@ The three sources describe the same parts: a context file, specialist subagents,
    - Incidents: a security event goes to security, and an operational outage goes to operations.
    - Identity: account creation and removal go to it-operations, and access policy and access review go to security.
    - Program management: across projects goes to pmo, and inside one process or vendor relationship goes to operations.
-4. The roster also names what the eight don’t cover, and where that work goes instead: legal, sales, marketing, product and engineering go to the installed `legal:`, `sales:`, `marketing:`, `product-orchestrator:` and `/gstack-build`. Nothing in the roster is routed to an agent that doesn’t exist.
+4. The roster also names what the eight don’t cover, and where that work goes instead: legal, sales, marketing, product and engineering go to the installed `legal:`, `sales:`, `marketing:`, `product-orchestrator:` and `/gstack-build`. Nothing in the roster is routed to an agent that doesn’t exist. The eight roster entries resolve to `plugins/finance/agents/finance.md`, `plugins/people/agents/people.md`, `plugins/it-operations/agents/it-operations.md`, `plugins/security/agents/security.md`, `plugins/pmo/agents/pmo.md`, `plugins/operations/agents/operations.md`, `plugins/corporate-strategy/agents/corporate-strategy.md` and `plugins/customer-experience/agents/customer-experience.md`. Product and engineering resolve to `plugins/product-orchestrator/.claude-plugin/plugin.json` and `plugins/gstack-execution/commands/gstack-build.md`. Legal, sales and marketing come from other marketplaces and aren’t in this repository.
 5. `/cos <ask>` classifies the ask and names the departments it’s sending it to before dispatching. Departments that don’t depend on each other run in parallel. Each dispatch carries the context card’s path and the ask’s success criteria.
 6. A department’s result is accepted only when it carries the four fields the department agents promise (the answer, the skills loaded, the sources cited and the open questions). A result missing a field is sent back once, and if it’s still incomplete it’s reported as incomplete, never filled in by the Chief of Staff.
 7. Anything in the escalates class stops and reaches Dorian as a decision memo. The memo has a one-paragraph summary, each department’s position in its own words, the options with a recommendation, and what happens if he does nothing. It follows his voice rules.
 8. Every `/cos` run appends one entry to the decision log: the date, the ask, the departments dispatched, the outcome (done, proposed or escalated), and any decision Dorian made.
 9. The context card exists in the vault, holds MoxyWolf’s entities, products, tools, team and standing rules, and is the only place those facts live. The plugin points at it and doesn’t copy it.
-10. A stdlib test (`plugins/chief-of-staff/tests/test_roster.py`) fails when the roster names an agent with no `plugins/<name>/agents/<name>.md`, or when a department agent in this marketplace is missing from the roster. It reports what it examined, and an empty roster FAILS (EV-001). `run_all_tests.py` discovers it.
+10. A stdlib test (`plugins/chief-of-staff/tests/test_roster.py`) fails when the roster names an agent with no `plugins/<name>/agents/<name>.md`, or when a department agent in this marketplace is missing from the roster. It reports what it examined, and an empty roster FAILS (EV-001). `plugins/gstack-execution/scripts/run_all_tests.py` discovers it.
 
 ### CS-002 — The morning brief dispatches the day
 
@@ -1698,6 +1698,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-06: Dorian approved naming exact paths in CS-001 criteria 4 and 10. Review `20261006-202034-4e2ec3a-qsez89ny` ran out of rounds with no blocking findings left. The reviewer couldn't check the roster targets or the runner, because the review surface carries only files a criterion names, and these criteria named a pattern and a bare filename. The criteria's meaning is unchanged.
 
 - 2026-10-06: Dorian approved a twelfth objective, the Chief of Staff (CS-001 to CS-003), after the eight headcount department agents landed with nothing to route between them. Built to Anthropic's Managed Agents article, the Agent SDK cookbook's Chief of Staff agent and AI Maker's setup post. He chose a Cowork plugin, wider autonomy and headcount's executive ideas without its files. CS-001 is built first.
 
