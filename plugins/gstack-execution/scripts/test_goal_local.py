@@ -118,6 +118,30 @@ class ReviewFixes(unittest.TestCase):
             self.assertFalse(out["passed"])
             self.assertTrue(out["error"])
 
+    def test_a_fully_gated_repository_keeps_the_existing_envelope(self):
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {".github/CODEOWNERS": "/.github/ @dorianatmoxywolf\n/goals/ @dorianatmoxywolf\n/goal-runs/ @dorianatmoxywolf\n",
+                       "goals/g/GOAL.md": BRIEF})
+            subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+            head = commit(r, {"src/a.ts": "1\n"})
+            seen, real = [], gl.ge.check
+            gl.ge.check = lambda *a: (seen.append(a), (["sentinel"], 7))[1]
+            try:
+                self.assertEqual(gl.envelope(r, "g", head, "main", BRIEF), (["sentinel"], 7))
+            finally:
+                gl.ge.check = real
+            self.assertEqual(len(seen), 1)
+
+    def test_a_partly_gated_repository_gets_the_fixed_gate(self):
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {".github/CODEOWNERS": "/goals/ @dorianatmoxywolf\n", "goals/g/GOAL.md": BRIEF})
+            subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+            head = commit(r, {".github/workflows/x.yml": "y\n"})
+            errors, _ = gl.envelope(r, "g", head, "main", BRIEF)
+            self.assertEqual([e.split(" ", 2)[2] for e in errors], [".github/workflows/x.yml, a gate path"])
+
     def test_a_dangling_pnpm_lock_link_is_refused(self):
         with tempfile.TemporaryDirectory() as t:
             r = repo(t)

@@ -106,6 +106,11 @@ def envelope(repo, gid, head, base, brief_text):
     always, plus any path the repository's own CODEOWNERS assigns an owner (review F2: an ordinary
     CODEOWNERS no longer switches the fixed gate off)."""
     rs = ge.rules(ge.at(repo, base, ".github/CODEOWNERS") or "")
+    # review F7: a repository whose CODEOWNERS already gives Dorian the whole gate, with the goal on its
+    # base, gets the existing check unchanged (its finalize-record exception, its marketplace rule)
+    gate = (".github/CODEOWNERS", f"goals/{gid}/GOAL.md", f"goal-runs/{gid}/RESULT.md")
+    if ge.at(repo, base, f"goals/{gid}/GOAL.md") and all("@" + gb.OWNER in ge.owners(rs, g) for g in gate):
+        return ge.check(repo, gid, head, base)
     errors = []
     allowed = [g.strip("`") for g in ge.bullet_lines("Allowed paths", ge.sections(brief_text).get("Allowed paths", ""), errors)]
     if not allowed:
