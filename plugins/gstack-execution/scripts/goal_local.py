@@ -24,6 +24,7 @@ Run it from a moxywolf-plugins checkout. Stdlib plus Docker.
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -97,6 +98,52 @@ def with_memory(cmd):
     return cmd[:i + 1] + [MEMORY] + cmd[i + 2:]
 
 
+CODEOWNERS_AT = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")   # GitHub's own precedence
+
+
+def codeowners_text(read):
+    """The first CODEOWNERS file GitHub would use (review F1), via read(path) -> text or None."""
+    return next((t for t in (read(p) for p in CODEOWNERS_AT) if t), "")
+
+
+def co_rules(text):
+    """[(regex, owners)] in file order. Full CODEOWNERS pattern syntax (review F2): * and ** anywhere,
+    ?, a pattern with no inner slash matches at any depth, a leading / anchors it, a trailing / means
+    everything under that folder, and a file or folder pattern also covers what's inside it."""
+    out = []
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        pat, *owners = line.split()
+        anchored = pat.startswith("/") or "/" in pat.strip("/")
+        body, folder = pat.strip("/"), pat.endswith("/")
+        rx, i = "", 0
+        while i < len(body):
+            if body.startswith("**/", i):
+                rx, i = rx + "(?:.*/)?", i + 3
+            elif body.startswith("**", i):
+                rx, i = rx + ".*", i + 2
+            elif body[i] == "*":
+                rx, i = rx + "[^/]*", i + 1
+            elif body[i] == "?":
+                rx, i = rx + "[^/]", i + 1
+            else:
+                rx, i = rx + re.escape(body[i]), i + 1
+        rx = ("" if anchored else "(?:.*/)?") + rx + ("/.*" if folder else "(?:/.*)?")
+        out.append((re.compile("^" + rx + "$"), owners))
+    return out
+
+
+def co_owners(rules, path):
+    """The owners of path: the last matching rule wins, and a rule with no owners unowns it."""
+    found = []
+    for rx, owners in rules:
+        if rx.match(path):
+            found = owners
+    return found
+
+
 GATED = (".github/", "goals/", "goal-runs/")   # always the gate in local mode, whatever CODEOWNERS says
 LOCAL_CODEOWNERS = "".join(f"/{g} @dorianatmoxywolf\n" for g in GATED)
 
@@ -108,7 +155,7 @@ def envelope(repo, gid, head, base, brief_text):
     gate, so no partial CODEOWNERS can switch the fixed gate off. Local mode has no finalize commit (the
     holdout runs from the Mac and is never committed), so goal_envelope's finalize exception has nothing
     to apply to; its marketplace rule is kept below."""
-    rs = ge.rules(ge.at(repo, base, ".github/CODEOWNERS") or "")
+    rs = co_rules(codeowners_text(lambda p: ge.at(repo, base, p)))
     errors = []
     allowed = [g.strip("`") for g in ge.bullet_lines("Allowed paths", ge.sections(brief_text).get("Allowed paths", ""), errors)]
     if not allowed:
@@ -122,7 +169,7 @@ def envelope(repo, gid, head, base, brief_text):
                           f"only in the release bump after the goal merges (GO-004.1)")
     for sha, files in commits:
         for f in files:
-            if f.startswith(GATED) or ge.owners(rs, f):
+            if f.startswith(GATED) or co_owners(rs, f):
                 errors.append(f"{sha[:12]} changes {f}, a gate path")
             elif not any(ge.path_in(g, f) for g in allowed):
                 errors.append(f"{sha[:12]} changes {f}, outside Allowed paths")
@@ -206,9 +253,9 @@ def main(argv):
     opts = dict(zip(argv[3::2], argv[4::2])) if argv[:1] != ["check"] else dict(zip(argv[4::2], argv[5::2]))
     if argv[:1] == ["brief"] and len(argv) == 3:
         repo = Path(argv[1]).resolve()
-        read = lambda p: Path(repo, p).read_text() if Path(repo, p).is_file() else ""
+        read = lambda p: Path(repo, p).read_text() if Path(repo, p).is_file() else None
         # review F3: no CODEOWNERS means local mode's fixed gate stands in for it
-        errors, examined = gb.check(repo / "goals" / argv[2], read("DESIGN.md"), read(".github/CODEOWNERS") or LOCAL_CODEOWNERS)
+        errors, examined = gb.check(repo / "goals" / argv[2], read("DESIGN.md"), codeowners_text(read) or LOCAL_CODEOWNERS)
         print(f"examined {examined} sections and files in goals/{argv[2]}")
         for e in errors + ([] if examined else ["examined nothing"]):
             print("FAIL:", e)

@@ -149,6 +149,27 @@ class ReviewFixes(unittest.TestCase):
             errors, _ = gl.envelope(r, "g", head, "main", BRIEF)
             self.assertEqual([e.split(" ", 2)[2] for e in errors], [".github/workflows/x.yml, a gate path"])
 
+    def test_codeowners_at_the_root_or_in_docs_counts(self):
+        for where in ("CODEOWNERS", "docs/CODEOWNERS"):
+            with self.subTest(where=where), tempfile.TemporaryDirectory() as t:
+                r = repo(t)
+                commit(r, {where: "/src/secret.ts @someone\n"})
+                subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+                head = commit(r, {"src/secret.ts": "1\n", "src/a.ts": "1\n"})
+                errors, _ = gl.envelope(r, "g", head, "main", BRIEF)
+                self.assertEqual([e.split(" ", 2)[2] for e in errors], ["src/secret.ts, a gate path"])
+
+    def test_full_codeowners_patterns(self):
+        rs = gl.co_rules("* @all\n*.ts @ts\n/src/open/ \ndocs/ @docs\n/src/**/deep.ts @deep\nlib/*.py @lib\n")
+        own = lambda p: gl.co_owners(rs, p)
+        self.assertEqual(own("README.md"), ["@all"])                 # catch-all
+        self.assertEqual(own("a/b/c.ts"), ["@ts"])                   # unanchored, any depth
+        self.assertEqual(own("src/open/x.ts"), [])                   # a later rule with no owner unowns
+        self.assertEqual(own("x/docs/y.md"), ["@docs"])              # folder name at any depth
+        self.assertEqual(own("src/a/b/deep.ts"), ["@deep"])          # ** in the middle
+        self.assertEqual(own("lib/x.py"), ["@lib"])                  # inner slash anchors
+        self.assertEqual(own("pkg/lib/x.py"), ["@all"])
+
     def test_a_dangling_pnpm_lock_link_is_refused(self):
         with tempfile.TemporaryDirectory() as t:
             r = repo(t)
