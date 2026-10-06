@@ -2,7 +2,7 @@
 name: crm-sync-health
 risk_tier: bounded-write
 description: >
-  Daily health check on the CRM sync pipeline in Supabase that finds stuck runs, budget-exceeded errors, dead-lettered sources and stale sources, then applies two bounded bookkeeping repairs: it sweeps orphaned `running` rows and releases a dead-lettered queue task once a day. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill the scheduled daily run invokes. One line on a healthy day. Every repair is reported with its row counts, so the signal stays readable.
+  Daily health check on the CRM sync pipeline in Supabase that finds stuck runs, budget-exceeded errors, dead-lettered sources and stale sources, then applies two bounded bookkeeping repairs: it sweeps orphaned `running` rows and releases a dead-lettered queue task once a day unless it died of a budget overrun. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill the scheduled daily run invokes. One line on a healthy day. Every repair is reported with its row counts, so the signal stays readable.
 ---
 
 # CRM sync health
@@ -108,17 +108,18 @@ select source, count(*), min(started_at), max(started_at) from swept group by so
 
 Rows between `stuckMinutes` and 2 hours are left alone; they may still be in flight. Report them as stuck.
 
-**Repair B: release a dead-lettered task, at most once a day.** Only when the task has not finished anything in the last 20 hours. That guard is what stops a loop: if yesterday's release failed three more times, `last_finished_at` is recent, the release is skipped, and the report escalates instead.
+**Repair B: release a dead-lettered task, at most once a day, and never for a budget overrun.** Only when the task has not finished anything in the last 20 hours, and only when `last_error` is not a budget overrun (`exceeded its ... budget`). The 20-hour guard stops a loop. The overrun exclusion matters more: a source that runs out its budget also eats the run's wall clock, and the platform kills the isolate before the sources behind it finish. On 2026-10-06 releasing `sams` cost a whole tick: it overran again, one other phase-1 source completed, and `clarify_pull` was orphaned. An overrun needs a human, so it escalates instead.
 
 ```sql
 update crm.sync_tasks set consecutive_failures=0, attempts=0, next_due_at=now(), updated_at=now()
 where enabled and consecutive_failures >= max_attempts and last_finished_at < now()-interval '20 hours'
+  and coalesce(last_error,'') not like '%exceeded its%budget%'
 returning source, last_error;
 ```
 
 The next scheduled `sync-all` tick picks the task up. Don't invoke `sync-all` yourself.
 
-If a dead-lettered task was **not** released because of the 20-hour guard, it is failing fresh after a release. Lead the report with it: "<source> dead-lettered again after release; needs a human." Quote `last_error` verbatim and name the likely fix (raise `budget_ms` in `crm.sync_tasks` and `SOURCE_BUDGET_MS` in `sync-all/index.ts` together, or fix the upstream), then stop.
+A dead-lettered task left in place leads the report. Quote `last_error` verbatim and say why it stayed: "budget overrun; needs a human" or "dead-lettered again after release; needs a human". For an overrun, name the options: give the source its own `deferred` invocation (like `attio_mirror`), make it faster, or raise `budget_ms` in `crm.sync_tasks` and `SOURCE_BUDGET_MS` in `sync-all/index.ts` together. A bigger budget alone doesn't help when the run's wall clock is the real ceiling. Then stop.
 
 If either write fails, say which and why, verbatim. Don't retry.
 

@@ -1,6 +1,6 @@
 {
   "name": "daily-briefings",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Scheduled personal briefings that render as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar, the inbox, and every configured work surface — Jira, GitHub, deployments and domain renewals, scheduled social posts, content in flight, outreach queues, search and competitor watch, product experiments, invoices, payroll, contracts, pipeline commitments, decision records awaiting sign-off, and the scheduled tasks themselves — with double-booking, duplicate-invite, location-clash and unprepped-deadline flags. /morning-brief renders today's version. /crm-sync-health checks the CRM sync pipeline, sweeps orphaned runs and releases a dead-lettered source once a day, and costs one line on a healthy day. /briefings-setup writes the owner config and registers the recurring tasks. Read-only across every other surface, and three-state honest: a source that could not be read is reported as not checked, never as empty.",
   "author": {
     "name": "MoxyWolf LLC"
