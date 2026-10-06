@@ -24,8 +24,8 @@ LEDGER = os.path.join(HERE, "check_ledger.py")
 SUITE = "import os,sys; sys.exit(0 if sys.argv[1:] == ['only_a'] else (1 if os.path.exists(os.environ['R'] + '/FAIL') else 0))"
 
 
-def repo():
-    d = Path(tempfile.mkdtemp())
+def repo(parent=None):
+    d = Path(tempfile.mkdtemp(dir=parent))
     run = lambda *a: subprocess.run(["git", "-C", str(d), *a], check=True, capture_output=True)
     run("init", "-q", "-b", "build/x"); run("config", "user.email", "t@t"); run("config", "user.name", "t")
     (d / "README.md").write_text("x\n"); (d / "sub").mkdir(); (d / "sub" / "k").write_text("k\n")
@@ -133,8 +133,8 @@ def test_a_pass_in_a_repository_with_a_colliding_name_does_not_close_the_failure
 def test_relative_origins_resolve_to_the_repository_they_name():
     """F2, review 20261006-163016 round 2: two checkouts with origin ../upstream name different repos."""
     root = Path(tempfile.mkdtemp())
-    a, _, _ = repo(); b, _, _ = repo()
-    for d in (a, b):
+    a, _, _ = repo(tempfile.mkdtemp()); b, _, _ = repo(tempfile.mkdtemp())   # different parents, so
+    for d in (a, b):                                                        # ../upstream differs
         subprocess.run(["git", "-C", str(d), "remote", "add", "origin", "../upstream"], check=True)
     assert cl.repo_id(a) != cl.repo_id(b) and cl.repo_id(a).startswith("local:/")
     (a / "FAIL").write_text("")
