@@ -1452,7 +1452,7 @@ The packet's `tests` field is the builder's account of what ran. Nothing ties a 
 7. `plugins/gstack-execution/scripts/test_check_ledger.py` covers: exit-code passthrough; a failure closed by the same check passing; a failure not closed by a subset; a failure not closed by the same argument list in another directory; a piped `-c` script without `pipefail` refused; `open-issues` exit codes; and `peer_review.py open` refused with an open issue, opened with the override and its reason recorded, and opened with no ledger recording `none`.
 8. The `gstack-build` skill's Step 3 says to run the item's tests through `check_ledger.py run`; the plugin README's scripts table gains a `check_ledger.py` row; both credit `WXK-AI/jev-opus` (MIT) at `6b6b0f8`, idea only, no code copied.
 9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a minor version and the top-level marketplace version moves (CI-002).
-10. In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_check_ledger.py` among the suites it ran, and reports no failures.
+10. In CI, `plugins/gstack-execution/scripts/run_all_tests.py`, run by `.github/workflows/tests.yml`, reports a nonzero count of what it examined, names `test_check_ledger.py` among the suites it ran, and reports no failures.
 
 ## Eleventh objective: goal mode
 
@@ -1718,6 +1718,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-06: Dorian approved naming exact paths in XE-034 criterion 10. Review `20261006-162216-c6ccd11-456j0wnv` marked it unmet (F2) because the criterion named the runner as a bare filename, so the review surface didn't carry it, the same gap CS-001 hit. Its F1, a combined `-ec` shell option slipping past the pipe check, was fixed in `deeec92`. The criterion's meaning is unchanged.
 
 - 2026-10-06: XE-034 declared on Dorian's approval, from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`). A check that fails while an item is built stays an open issue until the same check passes, and `peer_review.py open` refuses while one is open. The idea is from `WXK-AI/jev-opus` at `6b6b0f8` (MIT); its output-text classifier and its runtime aren't taken. A branch with no ledger is shown, not blocked, until Dorian rules otherwise.
 
