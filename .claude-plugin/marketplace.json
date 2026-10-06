@@ -753,6 +753,136 @@
         "transcription",
         "text"
       ]
+    },
+    {
+      "name": "finance",
+      "source": "./plugins/finance",
+      "description": "Financial modeling, budgeting and forecasting, unit economics, and financial decision support.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "finance",
+        "budgeting",
+        "forecasting",
+        "unit-economics"
+      ]
+    },
+    {
+      "name": "people",
+      "source": "./plugins/people",
+      "description": "Org design, hiring and interviewing, compensation and leveling, and workforce planning.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "people",
+        "hr",
+        "org-design",
+        "hiring",
+        "compensation"
+      ]
+    },
+    {
+      "name": "it-operations",
+      "source": "./plugins/it-operations",
+      "description": "Corporate IT: service desk, systems and network administration, virtualization and cloud, telephony and conferencing, endpoints, assets, identity lifecycle, and backup and recovery.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "it-operations",
+        "service-desk",
+        "sysadmin",
+        "network",
+        "endpoint-management",
+        "virtualization",
+        "cloud",
+        "telephony"
+      ]
+    },
+    {
+      "name": "security",
+      "source": "./plugins/security",
+      "description": "Threat modeling, security architecture review, incident response, vulnerability management, and access and identity. Reviewer-class: blocking findings are not overrulable by the department under review.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "security",
+        "appsec",
+        "threat-modeling",
+        "incident-response",
+        "vulnerability-management",
+        "identity"
+      ]
+    },
+    {
+      "name": "pmo",
+      "source": "./plugins/pmo",
+      "description": "Enterprise program management office: portfolio governance, program and project delivery, dependencies and delivery risk, benefits realization, and adoption.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "pmo",
+        "portfolio",
+        "project-management",
+        "program-management",
+        "delivery"
+      ]
+    },
+    {
+      "name": "operations",
+      "source": "./plugins/operations",
+      "description": "Program management, process design, vendor and supplier management, and operational delivery.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "operations",
+        "process",
+        "program-management",
+        "vendors"
+      ]
+    },
+    {
+      "name": "corporate-strategy",
+      "source": "./plugins/corporate-strategy",
+      "description": "Portfolio strategy, corporate development, strategic alliances, and scenario planning.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "strategy",
+        "corp-dev",
+        "m-and-a",
+        "partnerships",
+        "scenario-planning"
+      ]
+    },
+    {
+      "name": "customer-experience",
+      "source": "./plugins/customer-experience",
+      "description": "Support operations, escalation management, voice of customer, and self-service. Owns what the customer experiences after the sale.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "support",
+        "customer-success",
+        "escalation",
+        "voice-of-customer",
+        "service"
+      ]
     }
   ]
 }
