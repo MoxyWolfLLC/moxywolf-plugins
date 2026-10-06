@@ -57,9 +57,15 @@ def repo_id(repo):
     directory name `<owner>-<repo>` can collide (acme-tools/api and acme/tools-api), so this is what
     a line is matched on, not the path it is filed under."""
     url = _git(repo, "remote", "get-url", "origin")
-    if url:
-        return re.sub(r"^([a-z+]+://)[^/@]*@", r"\1", url)
-    return "local:" + os.path.realpath(_git(repo, "rev-parse", "--show-toplevel") or repo)
+    top = _git(repo, "rev-parse", "--show-toplevel") or repo
+    if url and not url.startswith("file://"):
+        if re.match(r"^[a-z+]+://", url):
+            return re.sub(r"^([a-z+]+://)[^/@]*@", r"\1", url)
+        if re.match(r"^[^/.][^/]*:", url):
+            return url   # scp-like host:path
+    if url:   # a filesystem origin, relative ones included, names the repository it resolves to
+        return "local:" + os.path.realpath(os.path.join(top, url[7:] if url.startswith("file://") else url))
+    return "local:" + os.path.realpath(top)
 
 
 def branch_of(repo):

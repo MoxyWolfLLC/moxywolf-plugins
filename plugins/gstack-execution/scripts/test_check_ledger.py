@@ -130,6 +130,19 @@ def test_a_pass_in_a_repository_with_a_colliding_name_does_not_close_the_failure
     assert len(cl.issues_for(str(a), root)) == 1 and cl.issues_for(str(b), root) == []
 
 
+def test_relative_origins_resolve_to_the_repository_they_name():
+    """F2, review 20261006-163016 round 2: two checkouts with origin ../upstream name different repos."""
+    root = Path(tempfile.mkdtemp())
+    a, _, _ = repo(); b, _, _ = repo()
+    for d in (a, b):
+        subprocess.run(["git", "-C", str(d), "remote", "add", "origin", "../upstream"], check=True)
+    assert cl.repo_id(a) != cl.repo_id(b) and cl.repo_id(a).startswith("local:/")
+    (a / "FAIL").write_text("")
+    assert ledger(a, root, sys.executable, "-c", SUITE) == 1
+    assert ledger(b, root, sys.executable, "-c", SUITE) == 0
+    assert issues(a, root)[0] == 1
+
+
 def open_review(d, base, head, root, reason=None):
     pk = {"outcome": "o", "acceptance_criteria": ["the README says y"],
           "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "b",
