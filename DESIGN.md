@@ -1437,7 +1437,7 @@ Prompt Master (`nidhinjs/prompt-master` at `2bd9251`, MIT) is markdown only, but
 
 ### XE-034 — A check that failed stays failed until the same check passes
 
-**Status:** planned. Declared 2026-10-06 from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`), approved by Dorian.
+**Status:** building. Declared 2026-10-06 from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`), approved by Dorian.
 
 **Links introduced:** one ledger file per branch, `<review_root()>/ledger/<owner>-<repo>/<branch>.jsonl`, one line per check run. A line names a check by its identity (the working directory relative to the repository root, plus the argument list exactly as given) and records the head it ran at. The reader's assumption is that two lines with the same identity ran the same check. That holds only while the argument list is spelled the same way: reordered flags read as a different check, so they can't close an issue, which errs toward blocking. The ledger is keyed by branch name, so a branch deleted and recreated under the same name inherits the old ledger.
 

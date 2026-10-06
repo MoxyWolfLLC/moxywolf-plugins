@@ -48,6 +48,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | Script | What it does |
 |--------|--------------|
 | `peer_review.py` | The review dispatcher: reviewer routing by model family, surface construction, content-bound findings, dispatch/collect, explicit outcomes |
+| `check_ledger.py` | Runs a check with no shell and records its real exit code in a per-branch ledger under the review root (XE-034). A failure stays open until the same check, in the same directory with the same arguments, passes; `open-issues` lists what's open. The idea is from WXK-AI/jev-opus at `6b6b0f8` (MIT); no code copied |
 | `packet_coverage.mjs` | Scores each acceptance criterion declared for an item against the review packet, so a packet narrower than the item it claims is caught before the review opens. Typed boolean scoring through TypeSafe AI's Jev on the Vercel AI Gateway |
 | `agent_token.py` | Acts on GitHub as the `moxywolf-agent` app (GA-005): mints a one-hour token per command and passes it through the environment, never argv, output or a file. No fallback to a person's token. `permissions [--repo owner/name]` prints what that installation actually grants, which is the only thing that separates a permission the app never declared from one it declared and the installation has not accepted (GA-007) |
 | `review_host.sh` | Stands up a shell where a dispatched review survives between calls. Use it whenever a review has timed out once |
@@ -106,6 +107,8 @@ from Python silently dropped the last criterion of every item — which is check
 discipline applied to the gate itself: a pass over input it never read is a failure, whoever produced it.
 
 The open refuses one more shape of packet (XE-025). A criterion about a place the reviewer can't see, such as the Release Owner's Mac, the vault or a local run, has to name a repository file at the reviewed head that carries its evidence, usually `docs/evidence/<item>.md`. Otherwise the open fails as `unevidenced_off_repo_criterion`. `tests.results` doesn't count, because it's the builder's own account. `--accept-off-repo-criterion` proceeds anyway and the record says so.
+
+And one more (XE-034). If a check run through `check_ledger.py` failed on the branch and the same check hasn't passed since, the open fails as `open_check_failure` and names each one. `--accept-open-failure "<reason>"` proceeds and records the reason word for word. `state.json` and the first line of `SURFACE.md` carry `ledger_status`: `clear`, `overridden`, or `none` for a branch that never used the ledger, which opens but shows it. The rule that only the same check can clear a failure comes from WXK-AI/jev-opus at `6b6b0f8` (MIT); no code was copied.
 
 ## Licence and provenance
 
