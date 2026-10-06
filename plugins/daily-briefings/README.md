@@ -12,7 +12,7 @@ A ticket due Thursday, a pull request open eleven days, a post that will publish
 |---|---|
 | `/commitment-calendar [days]` | Builds the rolling window — 14 days by default — as a week grid. Every calendar event, plus every dated commitment found in the inbox, with the five flags. Optional argument overrides the window for that run only. |
 | `/morning-brief` | Today and tomorrow, what arrived overnight, what still needs an answer, close deadlines, today's flags. Same sources, same rules, one day. |
-| `/crm-sync-health` | Read-only check on a CRM sync pipeline in Supabase — stuck runs, budget-exceeded errors, stale sources. One line on a healthy day. Fixes nothing, ever. |
+| `/crm-sync-health` | Daily check on a CRM sync pipeline in Supabase: stuck runs, budget-exceeded errors, dead-lettered and stale sources. Sweeps orphaned runs and releases a dead-lettered task once a day, reported with counts. One line on a healthy day. |
 | `/briefings-setup` | Writes your config into the vault and registers the recurring scheduled tasks. Idempotent — run it again to change a time, add a venue, enable a surface, or mute a noisy sender. |
 
 ## The flags
