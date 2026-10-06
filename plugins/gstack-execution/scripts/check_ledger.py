@@ -52,6 +52,16 @@ def repo_key(repo):
     return Path(_git(repo, "rev-parse", "--show-toplevel") or repo).name
 
 
+def repo_id(repo):
+    """The repository a run belongs to: origin without credentials, or the checkout's real path. The
+    directory name `<owner>-<repo>` can collide (acme-tools/api and acme/tools-api), so this is what
+    a line is matched on, not the path it is filed under."""
+    url = _git(repo, "remote", "get-url", "origin")
+    if url:
+        return re.sub(r"^([a-z+]+://)[^/@]*@", r"\1", url)
+    return "local:" + os.path.realpath(_git(repo, "rev-parse", "--show-toplevel") or repo)
+
+
 def branch_of(repo):
     """The checked-out branch, or None on a detached head."""
     b = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")
@@ -78,10 +88,13 @@ def key(identity):
     return json.dumps([identity["cwd"], identity["argv"]])
 
 
-def open_issues(runs):
-    """Failures not yet followed by a pass of the same identity. The first failure stays the opener."""
+def open_issues(runs, rid):
+    """Failures not yet followed by a pass of the same identity in the same repository. The first
+    failure stays the opener. Lines from another repository filed under a colliding name are skipped."""
     opened = {}
     for i, r in enumerate(runs):
+        if r.get("repo") != rid:
+            continue
         k = key(r["identity"])
         if r["exit_code"] != 0:
             opened.setdefault(k, (i, r))
@@ -95,26 +108,26 @@ def issues_for(repo, root):
     """For peer_review open: the open issues of the branch checked out at repo, or None with no ledger."""
     b = branch_of(repo)
     p = ledger_path(repo, b, root) if b else None
-    return open_issues(read(p)) if p and p.exists() else None
+    return open_issues(read(p), repo_id(repo)) if p and p.exists() else None
 
 
 def unsafe_pipe(argv):
     """True for a shell command string with a pipe and no pipefail. The command string is the argument
-    after the first short-option cluster carrying `c` (`-c`, `-ec`, `-lc`); `-o`/`+o` take a value."""
+    after the first short-option cluster carrying `c` (`-c`, `-ec`, `-lc`); `-o`/`+o` take a value.
+    Only the script's own `set -o pipefail` prefix counts (criterion 1)."""
     if Path(argv[0]).name not in SHELLS:
         return False
-    pipefail, i = False, 1
+    i = 1
     while i < len(argv):
         a = argv[i]
         if a in ("-o", "+o", "-O", "+O"):
-            pipefail = pipefail or (a == "-o" and argv[i + 1:i + 2] == ["pipefail"])
-            i += 2
+            i += 2   # these take a value; `-o pipefail` here doesn't count, since `+o pipefail` can follow
             continue
         if a == "--" or not a.startswith(("-", "+")):
             return False   # a script file or the end of options: no command string
         if a.startswith("-") and not a.startswith("--") and "c" in a[1:]:
             script = argv[i + 1] if i + 1 < len(argv) else ""
-            return "|" in script and not pipefail and not script.lstrip().startswith("set -o pipefail")
+            return "|" in script and not script.lstrip().startswith("set -o pipefail")
         i += 1
     return False
 
@@ -145,7 +158,7 @@ def cmd_run(repo, argv):
     rc = 128 - rc if rc < 0 else rc   # killed by signal N reads as 128+N, as a shell reports it
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
-        f.write(json.dumps({"id": uuid.uuid4().hex[:12], "identity": {"cwd": cwd, "argv": argv},
+        f.write(json.dumps({"id": uuid.uuid4().hex[:12], "repo": repo_id(repo), "identity": {"cwd": cwd, "argv": argv},
                             "head": _git(repo, "rev-parse", "HEAD"), "exit_code": rc,
                             "started": started, "ended": time.time()}) + "\n")
     return rc
@@ -153,7 +166,7 @@ def cmd_run(repo, argv):
 
 def cmd_open_issues(repo, branch):
     p = ledger_path(repo, branch, pr.review_root())
-    issues = open_issues(read(p)) if p.exists() else []
+    issues = open_issues(read(p), repo_id(repo)) if p.exists() else []
     for i in issues:
         print(f"open  {i['identity']['cwd']}: {' '.join(i['identity']['argv'])}  "
               f"(run {i['id']} at {str(i['head'])[:7]}, {i['runs_ago']} runs ago)")

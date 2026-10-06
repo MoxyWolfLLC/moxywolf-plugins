@@ -100,7 +100,11 @@ def test_a_piped_shell_script_needs_pipefail():
     # F1, review 20261006-162216: the command string after a combined cluster is checked too.
     for argv in (["bash", "-ec", "false | cat"], ["bash", "-lc", "false | cat"], ["bash", "-o", "posix", "-c", "false | cat"]):
         assert ledger(d, root, *argv) == 2, argv
-    assert ledger(d, root, "bash", "-o", "pipefail", "-c", "false | cat") == 1
+    # F1, review 20261006-163016: `-o pipefail` on the command line can be undone by `+o pipefail`,
+    # so only the script's own prefix counts.
+    for argv in (["bash", "-o", "pipefail", "-c", "false | cat"],
+                 ["bash", "-o", "pipefail", "+o", "pipefail", "-c", "false | cat"]):
+        assert ledger(d, root, *argv) == 2, argv
     assert ledger(d, root, "bash", "-ec", "set -o pipefail; false | cat") == 1
 
 
@@ -110,6 +114,20 @@ def test_with_no_review_root_it_refuses_to_run():
     r = subprocess.run([sys.executable, LEDGER, "run", "--repo", str(d), "--", "true"],
                        cwd=str(d), env=env, capture_output=True, text=True)
     assert r.returncode != 0 and "GSTACK_PEER_REVIEW_DIR" in r.stderr
+
+
+def test_a_pass_in_a_repository_with_a_colliding_name_does_not_close_the_failure():
+    """F2, review 20261006-163016: acme-tools/api and acme/tools-api file under one directory name."""
+    root = Path(tempfile.mkdtemp())
+    a, _, _ = repo(); b, _, _ = repo()
+    subprocess.run(["git", "-C", str(a), "remote", "add", "origin", "git@github.com:acme-tools/api.git"], check=True)
+    subprocess.run(["git", "-C", str(b), "remote", "add", "origin", "git@github.com:acme/tools-api.git"], check=True)
+    assert cl.ledger_path(a, "build/x", root) == cl.ledger_path(b, "build/x", root)   # the collision is real
+    (a / "FAIL").write_text("")
+    assert ledger(a, root, sys.executable, "-c", SUITE) == 1
+    assert ledger(b, root, sys.executable, "-c", SUITE) == 0
+    assert issues(a, root)[0] == 1 and issues(b, root)[0] == 0
+    assert len(cl.issues_for(str(a), root)) == 1 and cl.issues_for(str(b), root) == []
 
 
 def open_review(d, base, head, root, reason=None):
