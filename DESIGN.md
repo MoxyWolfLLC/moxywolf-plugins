@@ -1577,6 +1577,77 @@ The two-reviewer loop (XE-031's first live run: Codex on gpt-6-astra and Gemini 
 | `R5-r1-1` (material): GO-003.7 has no permitted path for adding RESULT.md. The final PR's source is goal/<id>, so RESULT.md must first enter that branch. Direct pushes are forbidden by GO-003.2, while a PR adding it is rejected by GO-004.1: the protected-path exception applies only to the final PR into main. GO-002.5 also stops any run that changes the goal folder. Consequently, the run cannot construct the PR that is supposed to require Dorian's approval. Specify a gated finalization path and narrowly scoped RESULT.md exceptions, preserving the approved charter, plan and tests. Test the complete sequence from finishing the last item through adding the record and obtaining final approval. | codex | 5 | accepted: Run record moves to goal-runs/<id>/RESULT.md, outside the approved tree; one finalize PR into goal/<id> may change only that file; goal-runs/ joins CODEOWNERS; end-to-end finish test added. Applied after the last review round, so unreviewed. |
 | `R5-r1-2` (material): GO-003.5–7 does not specify how pull_request_target results become required checks bound to the tested merge candidate. That event runs in the default-branch context; checking out another commit does not by itself bind the emitted check to that commit. GitHub requires checks on the applicable head or test-merge SHA. Specify candidate SHA resolution, trusted publication of each verdict against that SHA, and rejection of stale results after either parent changes. Extend B-e to demonstrate that a passing candidate actually satisfies the ruleset and that its result cannot satisfy a different candidate. See [workflow event context](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target) and [required-check SHA requirements](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks). | codex | 5 | accepted: Each goal check resolves head and merge candidate at start, re-reads before publishing, publishes nothing on drift, and posts a check run on the head SHA via GITHUB_TOKEN; B-e shows a verdict satisfies its own head and not the next. Applied after the last review round, so unreviewed. |
 
+## Twelfth objective: the Chief of Staff
+
+Opened 2026-10-06. That morning the marketplace took in eight department agents from headcount (`cbrock84/headcount` at `98d1c17`, MIT): finance, people, it-operations, security, pmo, operations, corporate-strategy and customer-experience. Each one is good inside its own remit. None of them knows the others exist, and nobody owns routing an ask between them, running them on a schedule or keeping track of what they decided. Dorian asked for a Chief of Staff to do that job, built to three outside sources: Anthropic’s Claude Managed Agents article, the Agent SDK cookbook’s Chief of Staff agent, and AI Maker’s “AI Chief of Staff setup” post (all read 2026-10-06).
+
+The three sources describe the same parts: a context file, specialist subagents, slash commands, an audience-specific output style, an audit trail, a plan before acting, memory, approval rules and a scheduled routine. Here’s where each part lives in this plugin:
+
+| Source part | Lives here as |
+|---|---|
+| CLAUDE.md company context | one vault file, read on every run (DR-085: company memory is written, not remembered) |
+| `.claude/agents/` subagents | the eight department agents already in this marketplace, called by name and not copied |
+| `.claude/commands/` | the plugin’s skills: `/cos`, `/cos-brief`, `/cos-review` |
+| Executive output style | the decision memo format in the operating manual |
+| Approval rules and scoped permissions | the authority table (autonomous / proposes / escalates), ported from headcount’s `agent-hierarchy` |
+| Self-evaluation against outcomes | the return contract, checked before any result reaches Dorian |
+| Audit hooks and tracing | the decision log (see the constraint below for why this isn’t a hook yet) |
+| Scheduled deployment | a weekday Cowork scheduled task that runs `/cos-brief` |
+
+**Settled decisions**
+
+- **The runtime is a Cowork plugin** (Dorian, 2026-10-06). The layout follows the cookbook’s, so moving to Managed Agents later is a port, not a rewrite. That port isn’t an item yet.
+- **The Chief of Staff runs in the main session, not as a subagent.** Claude Code doesn’t give a subagent the Agent tool, so a Chief of Staff defined as a subagent couldn’t dispatch anyone. The cookbook does the same thing: its orchestrator is the main agent and holds the Task tool.
+- **Authority is wider autonomy** (Dorian, 2026-10-06).
+  - Autonomous: read Jira MOXY, session handoffs, calendar, mail, Drive and the vault. Dispatch any department for analysis. File or comment on Jira MOXY tickets, with the project label declared by the ticket’s project. Write deliverables into a Taskade project’s numbered folders.
+  - Proposes: edits to vault shared knowledge, and changes to a ticket someone else owns. Code goes through `/gstack-build`.
+  - Escalates: anything that leaves MoxyWolf (email, Slack, posts, invites to other people), any spend (credits, purchases, subscriptions), a conflict between departments, and any blocking finding from security.
+- **Headcount’s `executive` plugin contributes ideas only** (Dorian, 2026-10-06). The authority levels and the rule that producer and auditor are never the same agent are re-expressed in our words. No file is copied. When departments disagree, the Chief of Staff doesn’t arbitrate, because Dorian is the CEO. It writes him a decision memo.
+- **Security reviews, and nobody reviews their own work.** When a department’s output touches identity, secrets, customer data or an external integration, the Chief of Staff sends that output to security before it reaches Dorian. Security’s blocking findings stand, as its agent definition already says.
+- **No audit hook in this objective.** In a cloud session a plugin hook writes to the container, and the container is reclaimed, so the log it kept would disappear with it. Cowork’s transcript is the trace for now. The decision log is written by the skill, which is a recalled record, not a captured one, and the operating manual says so. Moving to Managed Agents tracing is the upgrade path.
+- **Reuse before writing.** `/cos-brief` builds on `daily-briefings:morning-brief` and doesn’t re-read the sources that skill already reads.
+
+### CS-001 — The Chief of Staff routes an ask to the departments that own it
+
+**Status:** planned.
+
+**Links introduced:** the context card’s vault path (`MoxyWolf Vault/_Shared Knowledge/Operating Norms/chief-of-staff-context.md`), which re-resolves by reading the file; the decision log’s path (`Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`), which re-resolves the same way; and the eight agent names in the roster, which re-resolve against `plugins/<name>/agents/<name>.md`.
+
+1. A new plugin, `plugins/chief-of-staff`, carries `plugin.json`, a README with a Version History, and a marketplace entry, and its version is the same in all three places.
+2. The skill `chief-of-staff` is the operating manual. It covers the role, the reading order (context card, then the project’s instructions, then the ask), the roster, the authority table above, the return contract and the decision memo format.
+3. The roster names each department agent with a one-line remit, and it settles the three overlaps.
+   - Incidents: a security event goes to security, and an operational outage goes to operations.
+   - Identity: account creation and removal go to it-operations, and access policy and access review go to security.
+   - Program management: across projects goes to pmo, and inside one process or vendor relationship goes to operations.
+4. The roster also names what the eight don’t cover, and where that work goes instead: legal, sales, marketing, product and engineering go to the installed `legal:`, `sales:`, `marketing:`, `product-orchestrator:` and `/gstack-build`. Nothing in the roster is routed to an agent that doesn’t exist.
+5. `/cos <ask>` classifies the ask and names the departments it’s sending it to before dispatching. Departments that don’t depend on each other run in parallel. Each dispatch carries the context card’s path and the ask’s success criteria.
+6. A department’s result is accepted only when it carries the four fields the department agents promise (the answer, the skills loaded, the sources cited and the open questions). A result missing a field is sent back once, and if it’s still incomplete it’s reported as incomplete, never filled in by the Chief of Staff.
+7. Anything in the escalates class stops and reaches Dorian as a decision memo. The memo has a one-paragraph summary, each department’s position in its own words, the options with a recommendation, and what happens if he does nothing. It follows his voice rules.
+8. Every `/cos` run appends one entry to the decision log: the date, the ask, the departments dispatched, the outcome (done, proposed or escalated), and any decision Dorian made.
+9. The context card exists in the vault, holds MoxyWolf’s entities, products, tools, team and standing rules, and is the only place those facts live. The plugin points at it and doesn’t copy it.
+10. A stdlib test (`plugins/chief-of-staff/tests/test_roster.py`) fails when the roster names an agent with no `plugins/<name>/agents/<name>.md`, or when a department agent in this marketplace is missing from the roster. It reports what it examined, and an empty roster FAILS (EV-001). `run_all_tests.py` discovers it.
+
+### CS-002 — The morning brief dispatches the day
+
+**Status:** planned.
+
+**Links introduced:** the scheduled task’s ID, which re-resolves through `list_triggers`.
+
+1. `/cos-brief` reads `daily-briefings:morning-brief`’s output, plus Jira MOXY across all project labels, and turns it into three lists: dispatches it ran, proposals waiting on Dorian, and escalations. Each list leads with its count.
+2. The autonomous dispatches have run, and their results are in the brief, before the brief reaches Dorian.
+3. A weekday scheduled task runs `/cos-brief` at a time Dorian sets, and the brief says which approval setting the task got.
+4. A brief with nothing in it still says what it read and how many items each source returned. Saying that nothing came back doesn’t count as a clean day (EV-001).
+
+### CS-003 — The weekly scorecard keeps the roster honest
+
+**Status:** planned.
+
+**Links introduced:** none beyond CS-001’s decision log.
+
+1. `/cos-review` reads the past week of the decision log and grades each department Keep, Tune or Cut, with the log entries behind each grade.
+2. A Tune names the change, either to the context card or to the routing, and proposes it. It isn’t applied without Dorian’s approval.
+3. A department with no dispatches that week is reported as unused, not graded.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -1627,6 +1698,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-06: Dorian approved a twelfth objective, the Chief of Staff (CS-001 to CS-003), after the eight headcount department agents landed with nothing to route between them. Built to Anthropic's Managed Agents article, the Agent SDK cookbook's Chief of Staff agent and AI Maker's setup post. He chose a Cowork plugin, wider autonomy and headcount's executive ideas without its files. CS-001 is built first.
 
 - 2026-10-04: GO-003.6 amended on Dorian's approval: a failing `goal-holdout` names the failing holdout tests and their error lines in its check, never the holdout's source, so the failure can be diagnosed; that holdout is then spent, and another run needs a new goal folder with a fresh holdout. vault-review-list's holdout failed with nothing anyone could diagnose, Dorian included.
 - 2026-10-04: GO-003.3 and GO-004.1 amended on Dorian's approval (“start it ... keep going”), from the first real goal: every plan item is built even after the goal tests pass, and the goal never moves the marketplace's top-level version; the release bump after the goal merges moves it.
