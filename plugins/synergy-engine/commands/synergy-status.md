@@ -27,7 +27,7 @@ Engaged:        <n>       (with a like+comment logged)
 Queued:         <n>       (discovered, awaiting a run)
 Ready for review: <n>     (scheduled task staged drafts)
 Pending accept: <n>       (connection sent, awaiting accept)
-Due today:      <n>       (Not started/Queued, or Next Action Date <= today)
+Due today:      <n>       (the due rule in references/tracker-schema.md, Replied rows included)
 
 Top due (recommend for the next /synergy-run):
   1. <name> — <synergy> — <path> — <one-line angle>

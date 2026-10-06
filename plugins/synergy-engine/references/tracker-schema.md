@@ -34,7 +34,7 @@ One xlsx workbook, sheet `Outreach Tracker`, one row per target. Created by `scr
 
 ## Dedupe rule
 
-Before discovery, collect the set of `publicIdentifier`s already present (any status) and pass it as the exclude-list to scoring, so already-tracked authors don't resurface. Before a run, a target is **due** if `Status = Not started/Queued/Ready for review`, or `Status in {Posted, Accepted, Engaged}` and `Next Action Date <= today`. Skip `Parked`.
+Before discovery, collect the set of `publicIdentifier`s already present (any status) and pass it as the exclude-list to scoring, so already-tracked authors don't resurface. Before a run, a target is **due** if `Status = Not started/Queued/Ready for review`, or `Status in {Posted, Accepted, Engaged, Replied}` and `Next Action Date <= today`. A `Replied` row is the author answering our comment; its Next Action Date is the day the reply was seen, so it comes due at once (`references/engagement-followthrough.md`). Skip `Parked`.
 
 ## Synergy colors
 

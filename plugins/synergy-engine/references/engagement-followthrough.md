@@ -18,7 +18,7 @@ When the post's author replies to our comment, that reply is the warmest moment 
 | 24 to 72 hours | Cooling | Reply only if there's something new to add. |
 | Over 72 hours | Dormant | Don't reply in the thread. If the target isn't a connection, the connect note per cadence is the next touch. Never a DM: non-connections can't be free-messaged (`outreach-channels.md` Part 2). |
 
-Log the author's reply as `Status = Replied`, with the reply time in Notes and the reply move in Next Action, so `/synergy-status` shows it as due.
+Log the author's reply as `Status = Replied`, with the reply time in Notes, the reply move in Next Action, and Next Action Date set to the day the reply was seen. The due rule in `tracker-schema.md` counts a `Replied` row with that date as due, so the next run picks it up.
 
 ## Threading
 

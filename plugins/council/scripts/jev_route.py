@@ -53,6 +53,12 @@ CHOICE_MIN_PROBABILITY = 0.8
 CHOICE_MIN_MARGIN = 0.15
 
 
+def unit_probability(p):
+    """True for a finite number in [0, 1]. The range is checked before isfinite, because
+    a huge JSON integer (10**400) overflows the float conversion isfinite makes."""
+    return type(p) in (int, float) and 0 <= p <= 1 and math.isfinite(p)
+
+
 def well_formed(choice, probabilities, labels):
     """True when a choice answer is one the router can trust as an answer at all: the
     pick is a label we offered, the probabilities cover exactly the offered labels, each
@@ -68,14 +74,9 @@ def well_formed(choice, probabilities, labels):
         ps = [probabilities[k] for k in labels]
     except (AttributeError, TypeError):
         return False
-    if not all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in ps):
+    if not all(unit_probability(v) for v in ps):
         return False
     return abs(sum(ps) - 1) < 0.02 and probabilities[choice] >= max(ps) - 1e-9
-
-
-def unit_probability(p):
-    """True for a finite number in [0, 1]; a boolean answer outside that is malformed."""
-    return type(p) in (int, float) and math.isfinite(p) and 0 <= p <= 1
 
 
 def clears_bar(choice, probabilities, labels=None):
@@ -260,7 +261,8 @@ def route(query: str, budget=None, *, key=None):
     if p_delib is None or category is None or protocol is None:
         raise JevUnavailable("gateway answered without the fields the router needs")
     # A probability that isn't a number in [0, 1] is a malformed answer, not a confident one.
-    if not unit_probability(p_delib) or (p_compound is not None and not unit_probability(p_compound)):
+    compound_present = "probability" in a.get("compound", {})
+    if not unit_probability(p_delib) or (compound_present and not unit_probability(p_compound)):
         raise JevUnavailable("gateway answered with a probability outside [0, 1]")
     # XE-028: a pick that didn't clear the bar is returned as null for Step 3 to fill
     # from the heuristics. That is review, not unavailability: the rest still routes.
@@ -416,12 +418,18 @@ def selftest_offline():
               not clears_bar("a", {"a": 0.9, "b": 0.6}, ["a", "b"])
               and not clears_bar("a", {"a": 0.9}, ["a", "b"])
               and clears_bar("a", {"a": 0.9, "b": 0.1}, ["a", "b"]))
-        reply = {"answers": dict(CANNED[0][0], deliberate={"probability": 1.7})}
-        try:
-            route("q", key="stub")
-            check("p=1.7 raises JevUnavailable", False)
-        except JevUnavailable:
-            check("p=1.7 raises JevUnavailable", True)
+        for name, node in (("p=1.7", {"deliberate": {"probability": 1.7}}),
+                           ("p=10**400", {"deliberate": {"probability": 10 ** 400}}),
+                           ("compound null", {"compound": {"probability": None}}),
+                           ("compound 10**400", {"compound": {"probability": 10 ** 400}})):
+            reply = {"answers": dict(CANNED[0][0], **node)}
+            try:
+                route("q", key="stub")
+                check("%s raises JevUnavailable" % name, False)
+            except JevUnavailable:
+                check("%s raises JevUnavailable" % name, True)
+        check("a 10**400 choice probability doesn't clear, and doesn't raise",
+              not clears_bar("a", {"a": 10 ** 400, "b": 0}, ["a", "b"]))
 
         # A coin flip deliberates on purpose, flagged as exploration.
         reply = {"answers": dict(CANNED[0][0], deliberate={"probability": 0.6})}

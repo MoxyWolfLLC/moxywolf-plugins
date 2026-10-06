@@ -52,7 +52,7 @@ Run the current `stage-prompts.md` against all benchmark queries:
 
 **Read the traces first.** Before picking a variable, grep the earlier experiment folders (`optimization/<experiment_id>/`, see Step 6) for the criterion that failed most often in the last run, and read the transcripts where it failed. The modification you propose must name the experiment and the transcript passage that motivated it. On the first run there are no folders yet; say so and fall back to the priority order below.
 
-Why: in Meta-Harness (Lee et al., arXiv 2603.28052, 2026) a proposer that could read full execution traces reached 50.0 median accuracy, against 34.9 for scores plus summaries and 34.6 for scores alone. Council's log used to be the scores-plus-summary kind. Council runs 3 to 5 benchmarks, not the paper's ~60 candidates, so expect a direction, not their effect size.
+Why: in Meta-Harness (Lee et al., arXiv 2603.28052, 2026, CC BY 4.0; the idea is re-expressed here, no code copied) a proposer that could read full execution traces reached 50.0 median accuracy, against 34.9 for scores plus summaries and 34.6 for scores alone. Council's log used to be the scores-plus-summary kind. Council runs 3 to 5 benchmarks, not the paper's ~60 candidates, so expect a direction, not their effect size.
 
 Select one prompt variable to modify. Absent a trace that points elsewhere, the optimization proceeds through these variables in priority order (highest impact first):
 
