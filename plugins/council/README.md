@@ -163,6 +163,8 @@ MIT — MoxyWolf LLC
 
 The Jev router's choice margin and the calibration figures it cites come from [wuyoscar/jev-skill](https://github.com/wuyoscar/jev-skill) (MIT). The idea and the measurement are credited here; no code was copied.
 
+The router's check that a Jev answer is well formed (an offered label, probabilities in [0, 1] that sum to 1) comes from [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) (MIT), re-expressed; no code was copied. The prompt optimizer keeps full experiment traces and reads them before proposing a change, following Meta-Harness (Lee, Nair, Zhang, Lee, Khattab and Finn, [arXiv 2603.28052](https://arxiv.org/abs/2603.28052), 2026, CC BY 4.0). The idea is re-expressed from the paper; no code was copied.
+
 ## Composio fallback
 
 For apps with no native MCP connector, this plugin can reach them through Composio's Tool Router when the Composio connector is installed. See the `composio` plugin.

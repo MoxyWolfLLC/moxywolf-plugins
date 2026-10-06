@@ -46,6 +46,7 @@ See `references/citation-center.md`, `references/outreach-channels.md`, and `ref
 - Cite, don't pitch. Verified citations only — the Apollo verify gate exists because name+org matching produces wrong-person matches.
 - Voice: no em-dashes, contractions, practitioner register. Cadence: <=5 fresh/run for comment centers; ~20-25 connects/day, ~100/week for the citation center.
 - The tracker (post centers) and the citation registry (citation center) are the source of truth for dedupe and the queue.
+- Follow-through: answer an author's reply inside the reply window, on the top-level thread; every comment adds a noun the thread doesn't have; engagers of a strong post can be mined as peer / aspirational / prospect targets (`references/engagement-followthrough.md`, ideas from [sergebulaev/linkedin-skills](https://github.com/sergebulaev/linkedin-skills), MIT, re-expressed; no code copied).
 
 ## Layout
 
@@ -57,7 +58,8 @@ synergy-engine/
 ├── commands/                            # synergy-init|fingerprint|discover|run|schedule|status
 │                                        # + synergy-cite-harvest|cite-run|cite-accept-check
 ├── references/                          # methodology, cadence-and-guardrails, apify-actors, tracker-schema,
-│                                        # citation-center, outreach-channels, citation-registry-schema
+│                                        # citation-center, outreach-channels, citation-registry-schema,
+│                                        # engagement-followthrough
 └── scripts/                             # tracker_init.py, flatten_posts.py, citation_registry.py
 ```
 

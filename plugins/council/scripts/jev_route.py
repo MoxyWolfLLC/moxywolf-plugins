@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 import subprocess
 import sys
@@ -52,9 +53,38 @@ CHOICE_MIN_PROBABILITY = 0.8
 CHOICE_MIN_MARGIN = 0.15
 
 
-def clears_bar(choice, probabilities):
+def unit_probability(p):
+    """True for a finite number in [0, 1]. The range is checked before isfinite, because
+    a huge JSON integer (10**400) overflows the float conversion isfinite makes."""
+    return type(p) in (int, float) and 0 <= p <= 1 and math.isfinite(p)
+
+
+def well_formed(choice, probabilities, labels):
+    """True when a choice answer is one the router can trust as an answer at all: the
+    pick is a label we offered, the probabilities cover exactly the offered labels, each
+    is a finite number in [0, 1], they sum to 1 within 0.02, and the pick is the top one.
+
+    Idea from browser-use/jev-ultrafast (MIT), re-expressed here; no code copied. Before
+    this, an answer naming a label we never offered, or a probability of 1.7, passed the
+    rank-and-margin check and routed (found 2026-10-06)."""
+    try:
+        labels = set(labels)
+        if choice not in labels or set(probabilities) != labels:
+            return False
+        ps = [probabilities[k] for k in labels]
+    except (AttributeError, TypeError):
+        return False
+    if not all(unit_probability(v) for v in ps):
+        return False
+    return abs(sum(ps) - 1) < 0.02 and probabilities[choice] >= max(ps) - 1e-9
+
+
+def clears_bar(choice, probabilities, labels=None):
     """True when `choice` is the top label, at CHOICE_MIN_PROBABILITY or more, and leads
-    the next label by CHOICE_MIN_MARGIN or more. Missing probabilities never clear it."""
+    the next label by CHOICE_MIN_MARGIN or more. Missing probabilities never clear it.
+    With `labels`, the answer must also be well formed (see well_formed)."""
+    if labels is not None and not well_formed(choice, probabilities, labels):
+        return False
     try:
         ranked = sorted((float(v) for v in probabilities.values()), reverse=True)
         p = float(probabilities[choice])
@@ -230,12 +260,16 @@ def route(query: str, budget=None, *, key=None):
     # was left out of this guard, so a missing one read as a low-confidence pick).
     if p_delib is None or category is None or protocol is None:
         raise JevUnavailable("gateway answered without the fields the router needs")
+    # A probability that isn't a number in [0, 1] is a malformed answer, not a confident one.
+    compound_present = "probability" in a.get("compound", {})
+    if not unit_probability(p_delib) or (compound_present and not unit_probability(p_compound)):
+        raise JevUnavailable("gateway answered with a probability outside [0, 1]")
     # XE-028: a pick that didn't clear the bar is returned as null for Step 3 to fill
     # from the heuristics. That is review, not unavailability: the rest still routes.
     needs_review = []
-    if not clears_bar(category, cat_probs):
+    if not clears_bar(category, cat_probs, CATEGORIES):
         category = None; needs_review.append("category")
-    if not clears_bar(protocol, proto_probs):
+    if not clears_bar(protocol, proto_probs, questions["protocol"]["criteria"]):
         protocol = None; needs_review.append("protocol")
 
     # Calibrated distance from the 0.5 boundary. An answer at 0.5 is a coin flip
@@ -373,6 +407,29 @@ def selftest_offline():
         check("0.85 over 0.15 clears; 0.79 over 0.21 and 0.85 over a 0.75 runner-up don't",
               clears_bar("a", {"a": 0.85, "b": 0.15}) and not clears_bar("a", {"a": 0.79, "b": 0.21})
               and not clears_bar("a", {"a": 0.85, "b": 0.75}) and not clears_bar("b", {"a": 0.85, "b": 0.15}))
+
+        # jev-ultrafast port: a malformed answer is never a confident one.
+        reply = {"answers": dict(CANNED[1][0], category={"choice": "rm_rf",
+                 "probabilities": {"rm_rf": 0.99, "other": 0.01}})}
+        r = route("q", key="stub")
+        check("a label we never offered is not used",
+              r["category"] is None and r["needs_review"] == ["category"])
+        check("probabilities that don't sum to 1 don't clear",
+              not clears_bar("a", {"a": 0.9, "b": 0.6}, ["a", "b"])
+              and not clears_bar("a", {"a": 0.9}, ["a", "b"])
+              and clears_bar("a", {"a": 0.9, "b": 0.1}, ["a", "b"]))
+        for name, node in (("p=1.7", {"deliberate": {"probability": 1.7}}),
+                           ("p=10**400", {"deliberate": {"probability": 10 ** 400}}),
+                           ("compound null", {"compound": {"probability": None}}),
+                           ("compound 10**400", {"compound": {"probability": 10 ** 400}})):
+            reply = {"answers": dict(CANNED[0][0], **node)}
+            try:
+                route("q", key="stub")
+                check("%s raises JevUnavailable" % name, False)
+            except JevUnavailable:
+                check("%s raises JevUnavailable" % name, True)
+        check("a 10**400 choice probability doesn't clear, and doesn't raise",
+              not clears_bar("a", {"a": 10 ** 400, "b": 0}, ["a", "b"]))
 
         # A coin flip deliberates on purpose, flagged as exploration.
         reply = {"answers": dict(CANNED[0][0], deliberate={"probability": 0.6})}

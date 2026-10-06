@@ -23,7 +23,7 @@ Both actors, inputs, and dataset-reading guidance are in `references/apify-actor
 
 ## STEP 3 — Score against the fingerprint
 
-Read the dataset (projected fields). If too large for context, save and delegate to a subagent with: the file path, the fingerprint themes, the **exclude-list** (every `publicIdentifier` already in the tracker), and the output contract. Score each post on theme-hit (signature match = double), stance (extends / contradicts / adjacent), recency + heat, persona fit. Classify each author advisor / competitor-vendor / other.
+Read the dataset (projected fields). If too large for context, save and delegate to a subagent with: the file path, the fingerprint themes, the **exclude-list** (every `publicIdentifier` already in the tracker), and the output contract. Score each post on theme-hit (signature match = double), stance (extends / contradicts / adjacent), recency + heat, persona fit. Classify each author advisor / competitor-vendor / other. For a High-synergy post, optionally mine its engagers into peer / aspirational / prospect targets (`references/engagement-followthrough.md`, "Mining who engaged").
 
 ## STEP 4 — Write the synergy scan + queue
 

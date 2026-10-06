@@ -26,6 +26,8 @@ For each target, in the user's logged-in LinkedIn:
 4. **Path A / cite-then-tell:** if the path edits live content (an `/answers` page), do that edit first, confirm it's live, THEN comment with the link.
 5. **DM/connect:** per cadence, the connect note waits 2-3 days. If due now and the target isn't a connection, send a connection request with a <=300-char note that names the commented post (no URL — the comment carries it). Email-gated connects are skipped (the like+comment is the touch); InMail is the alternative.
 
+6. **Follow-through:** if an earlier comment of ours drew a reply from the author, answer it in this run, top of the batch, inside the reply window and on the top-level comment's thread (`references/engagement-followthrough.md`). Every comment and reply passes the new-noun check in that file before it's typed.
+
 Between each, re-verify the composer identity and space the actions out.
 
 ## STEP 4 — Log every action
