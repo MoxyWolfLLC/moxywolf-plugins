@@ -300,6 +300,13 @@
       "skos:definition": "a criterion names a place outside the repository and no repository file at the reviewed head carries its evidence"
     },
     {
+      "id": "open_check_failure",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "open_check_failure",
+      "skos:definition": "a check failed on the branch and the same check has not passed since (XE-034)"
+    },
+    {
       "id": "release_blocked",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",
