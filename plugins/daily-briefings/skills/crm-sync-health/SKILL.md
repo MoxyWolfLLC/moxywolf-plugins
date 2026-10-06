@@ -1,117 +1,142 @@
 ---
 name: crm-sync-health
-risk_tier: read-only
+risk_tier: bounded-write
 description: >
-  Standalone read-only health check on a CRM sync pipeline in Supabase — stuck runs, budget-exceeded errors, and sources that have gone stale. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill a scheduled daily run of that check invokes. Reports in one line when everything is at baseline, and leads with the source name and verbatim error detail when it is not. Never fixes anything.
+  Daily health check on the CRM sync pipeline in Supabase that finds stuck runs, budget-exceeded errors, dead-lettered sources and stale sources, then applies two bounded bookkeeping repairs: it sweeps orphaned `running` rows and releases a dead-lettered queue task once a day. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill the scheduled daily run invokes. One line on a healthy day. Every repair is reported with its row counts, so the signal stays readable.
 ---
 
 # CRM sync health
 
-A standalone check. It assumes no memory of prior runs, because a scheduled firing has none — everything needed to interpret the result is either in this file or in the config.
+A standalone check. It assumes no memory of prior runs, because a scheduled firing has none. Everything needed to interpret the result is in this file or in the config.
 
-**Read-only, and that is the whole posture.** Do not fix anything. Do not re-run `sync-all`. Do not change secrets, data, schema, or config. Do not restart a source. If something is broken, say so precisely and stop — the value here is a trustworthy signal, and a checker that also repairs is a checker whose signal you can no longer read.
+**Find, repair the bookkeeping, report everything.** The check may make exactly two writes, both listed in Step 4, both reversible, both reported with counts. Anything else stays a human's call: no code change, no deploy, no secret or config change, no direct call to `sync-all`, no schema change, no `enabled` flip. If the real fix is outside that list, name it and stop.
 
-Read `${CLAUDE_PLUGIN_ROOT}/references/briefing-config.md` for the `crmHealth` block, and `${CLAUDE_PLUGIN_ROOT}/references/source-discipline.md` for the three-state rule, which applies here too: a database you could not reach is `unavailable`, and it must never be reported as a clean pipeline.
+Why repair at all: on 2026-09-15 `sams` blew its 300s budget three runs in a row, hit `max_attempts`, and the queue quietly stopped claiming it. Nothing resets a dead-lettered task on its own, so the source stayed dark for 21 days while the daily check reported the same stale number every morning. A check that sees the same corpse every day and only describes it is not doing the job.
+
+Why repairs don't muddy the signal: every repair is printed with the source, the count and the date span, and a repair never turns a red line green in the same report. The report says what it found first, then what it did.
+
+Read `${CLAUDE_PLUGIN_ROOT}/references/briefing-config.md` for the `crmHealth` block, and `${CLAUDE_PLUGIN_ROOT}/references/source-discipline.md` for the three-state rule: a database you could not reach is `unavailable`, never a clean pipeline.
 
 ---
 
-## Step 1 — Read the config
+## Step 1: Read the config
 
 The `crmHealth` block in `briefings.config.json` carries the target and the baseline:
 
 | Key | What it is |
 |---|---|
 | `crmHealth.projectId` | Supabase project id |
-| `crmHealth.schema` | Schema holding `sync_log` |
+| `crmHealth.schema` | Schema holding `sync_log` and `sync_tasks` |
 | `crmHealth.pipelineSources` | The source names that belong to the ticking pipeline |
 | `crmHealth.stuckMinutes` | How long a `running` row may sit before it counts as stuck |
 | `crmHealth.staleHours` | How long without an `ok` before a source counts as stale |
-| `crmHealth.knownIssues` | Named open issues, so they report as still-open rather than as news |
-| `crmHealth.baseline` | The last verified result of the three checks, with its date |
+| `crmHealth.knownIssues` | Named open issues, so they report as still open rather than as news |
+| `crmHealth.baseline` | The last verified result of the checks, with its date |
 
-If the block is absent, say so and stop. Do not guess a project id, and do not run this against a database the config does not name.
+If the block is absent, say so and stop. Never guess a project id, and never run against a database the config does not name.
 
-## Step 2 — Run the three checks
+## Step 2: Run the four checks
 
-One query, via the Supabase MCP `execute_sql`. Substitute the config values for the schema, the source list, and the two thresholds.
-
-```sql
-select '1. stuck runs (>20 min)' as check, count(*)::text as result
-from crm.sync_log where status='running' and finished_at is null and started_at < now() - interval '20 minutes'
-union all
-select '2. budget-exceeded (24h)', coalesce(string_agg(source||':'||n,', '),'none')
-from (select source, count(*) n from crm.sync_log
-      where status='error' and error_detail like '[elapsed %' and started_at > now()-interval '24 hours'
-      group by source) b
-union all
-select '3. stale PIPELINE sources (no ok in 10h)', coalesce(string_agg(source||' ('||hrs||'h)',', '),'none')
-from (select source, round(extract(epoch from (now()-max(finished_at) filter (where status='ok')))/3600,1) as hrs
-      from crm.sync_log
-      where source in ('sams','aiscrapesafe','stripe','clarify_pull','clarify_events_pull','clarify_mirror',
-                       'stigviewer_partner_pull','sams_events_pull','posthog_events_pull','product_pql',
-                       'customer_direct_advance','attio_pull','attio_users_mirror','attio_mirror')
-      group by source
-      having max(finished_at) filter (where status='ok') < now()-interval '10 hours') s;
-```
-
-## Step 3 — Read each line against the baseline
-
-### Check 1 — stuck runs
-
-Expected `0`.
-
-A non-zero result means **the wall-clock budget guard did not fire**. Flag that distinctly, because it is a different failure from a source simply being slow: a slow source eventually logs `error`, while an orphan sits at `running` forever and is invisible to any health query that groups on `finished_at`.
-
-The mechanism worth remembering: a serverless isolate killed by the platform runs no JavaScript, so a guard written in JavaScript cannot report its own death. A guard that never fires against a class of failure is not evidence that the class does not happen. Cross-check against check 3 — if the orphans are piling up while every source still has a recent `ok`, the pipeline is running fine and simply leaving corpses behind, which is a bookkeeping failure rather than an outage, and should be described that way.
-
-When check 1 fires, break it down before reporting:
+One query via the Supabase MCP `execute_sql`. Substitute the config's schema, source list and thresholds. The left join on the source list matters: a source with no `ok` row at all must still show up as stale.
 
 ```sql
-select source, count(*) n, min(started_at) oldest, max(started_at) newest
-from crm.sync_log
-where status='running' and finished_at is null and started_at < now() - interval '20 minutes'
-group by source order by n desc;
+with src as (select unnest(array['sams','aiscrapesafe','stripe','clarify_pull','clarify_events_pull','clarify_mirror',
+  'stigviewer_partner_pull','sams_events_pull','posthog_events_pull','product_pql',
+  'customer_direct_advance','attio_pull','attio_users_mirror','attio_mirror']) s)
+select 'c1 stuck' chk, source, count(*)::text n, min(started_at)::text oldest, max(started_at)::text newest
+  from crm.sync_log where status='running' and finished_at is null and started_at < now()-interval '20 minutes' group by source
+union all
+select 'c2 budget', source, count(*)::text, min(started_at)::text, max(started_at)::text
+  from crm.sync_log where status='error' and error_detail like '[elapsed %' and started_at > now()-interval '24 hours' group by source
+union all
+select 'c3 stale', s, coalesce(round(extract(epoch from now()-max(l.finished_at))/3600,1)::text,'never'), max(l.finished_at)::text, null
+  from src left join crm.sync_log l on l.source=s and l.status='ok' group by s
+  having max(l.finished_at) is null or max(l.finished_at) < now()-interval '10 hours'
+union all
+select 'c4 deadletter', source, consecutive_failures||'/'||max_attempts, last_finished_at::text, left(last_error,200)
+  from crm.sync_tasks where enabled and consecutive_failures >= max_attempts
+order by 1,2;
 ```
 
-Report the per-source counts and the date span. A span tells you whether this is one bad night or a slow accumulation, and those get different responses.
+## Step 3: Read each check against the baseline
 
-### Check 2 — budget-exceeded
+### Check 1: stuck runs
 
-The `[elapsed ` prefix is written only by the guard, so anything here is real rather than inferred.
+Expected: nothing. A row means **the wall-clock budget guard did not fire**, which is a different failure from a slow source. A slow source eventually logs `error`; an orphan sits at `running` forever, because a serverless isolate killed by the platform runs no JavaScript and can't report its own death.
 
-When a source appears, pull the full row and **quote `error_detail` verbatim**, including the elapsed time and the stack:
+Report per-source counts and the date span. Cross-check against check 3: orphans piling up while every source still has a recent `ok` is a bookkeeping failure, not an outage, and gets described that way.
+
+### Check 2: budget-exceeded
+
+The `[elapsed ` prefix is written only by the guard, so anything here is real. Pull the full row and **quote `error_detail` verbatim**:
 
 ```sql
 select id, source, started_at, error_detail from crm.sync_log
-where error_detail like '[elapsed %' order by started_at desc limit 5;
+where error_detail like '[elapsed %' and started_at > now()-interval '24 hours' order by started_at desc limit 5;
 ```
 
-Do not paraphrase an error detail. The verbatim string is the evidence; a summary of it is an opinion.
+A summary of an error is an opinion. The verbatim string is the evidence.
 
-### Check 3 — stale sources
+An `[elapsed ...]` row whose message is an upstream HTTP 5xx (PostHog `500`, `503 Queries are a little too busy`) is a vendor blip, not a pipeline fault. If the same source has an `ok` after it, say "upstream 5xx, recovered on the next run" and move on.
 
-The pipeline ticks roughly every four hours and GitHub Actions cron drifts by up to an hour and a half, so anything under `staleHours` is not interesting and is not reported.
+### Check 3: stale sources
 
-A source listed in `crmHealth.knownIssues` reports as **still open**, not as news. Give its current number and move on.
+The pipeline ticks every four hours and cron drifts up to ninety minutes, so anything under `staleHours` isn't reported.
 
-**A known-stale source that has dropped back under the threshold has recovered on its own — say so clearly and plainly.** That is the good-news case and it is easy to lose in a report shaped around problems. Someone is waiting to hear it.
+A source in `knownIssues` reports as **still open**, not as news. **A known-stale source that has dropped back under the threshold has recovered on its own. Say so plainly.** That's the good-news case and it's easy to lose in a report shaped around problems.
 
-Any source here that is not a known issue is new, and leads the report.
+Any other source here is new and leads the report. If it also appears in check 4, check 4 is the cause; say so in one line.
 
-## Step 4 — Report
+### Check 4: dead-lettered tasks
 
-**If checks 1 and 2 are clean and check 3 shows only known issues:** one line. `pipeline healthy, <issue> still stale at Nh.` Nothing more. The whole point of a daily check is that a healthy day costs one line to read.
+`crm.claim_sync_tasks` skips any task where `consecutive_failures >= max_attempts`, and nothing ever resets it. A row here means the queue has stopped running that source entirely. This is the failure that hides best: no new errors, no new orphans, just silence and a growing stale number.
 
-**If anything else fires:** lead with the source name and the check number, quote `error_detail` verbatim where there is one, and state plainly whether it is a known issue or something new. Say which, in those words — an ambiguous report gets read as noise, and a check that gets read as noise stops getting read.
+## Step 4: Repair (two writes, nothing else)
 
-**If the database could not be reached:** say that, and say that the pipeline state is therefore unknown. Never report an unreachable database as a healthy one.
+Run these only after the checks have been read and recorded for the report.
+
+**Repair A: sweep orphans.** Rows still `running` after 2 hours are dead: the lease is 900s and the largest budget is 300s. Close them as errors with a note that is *not* `[elapsed ...]`, so check 2 never mistakes a sweep for a guard firing.
+
+```sql
+with swept as (
+  update crm.sync_log set status='error', finished_at=started_at,
+    error_detail='Orphaned run: source never returned, so finish() was never called and the row stayed status=running. Swept <YYYY-MM-DD> by the CRM sync health check (rows running > 2h).'
+  where status='running' and finished_at is null and started_at < now()-interval '2 hours'
+  returning source, started_at)
+select source, count(*), min(started_at), max(started_at) from swept group by source;
+```
+
+Rows between `stuckMinutes` and 2 hours are left alone; they may still be in flight. Report them as stuck.
+
+**Repair B: release a dead-lettered task, at most once a day.** Only when the task has not finished anything in the last 20 hours. That guard is what stops a loop: if yesterday's release failed three more times, `last_finished_at` is recent, the release is skipped, and the report escalates instead.
+
+```sql
+update crm.sync_tasks set consecutive_failures=0, attempts=0, next_due_at=now(), updated_at=now()
+where enabled and consecutive_failures >= max_attempts and last_finished_at < now()-interval '20 hours'
+returning source, last_error;
+```
+
+The next scheduled `sync-all` tick picks the task up. Don't invoke `sync-all` yourself.
+
+If a dead-lettered task was **not** released because of the 20-hour guard, it is failing fresh after a release. Lead the report with it: "<source> dead-lettered again after release; needs a human." Quote `last_error` verbatim and name the likely fix (raise `budget_ms` in `crm.sync_tasks` and `SOURCE_BUDGET_MS` in `sync-all/index.ts` together, or fix the upstream), then stop.
+
+If either write fails, say which and why, verbatim. Don't retry.
+
+## Step 5: Report
+
+**Healthy (checks 1, 2 and 4 clean, check 3 only known issues, no repairs):** one line. `pipeline healthy.` or `pipeline healthy, <issue> still stale at Nh.`
+
+**Anything else:** lead with the source name and check number. Quote `error_detail` verbatim where there is one. Say plainly whether it's a known issue or something new. Then a short **Repaired** block: what was swept (per source, count, date span), what was released, and when the next tick will show whether the release held. A repair is never reported as a fix to the underlying cause; it's bookkeeping.
+
+**Database unreachable:** say the pipeline state is unknown, and that no repairs ran. Never report an unreachable database as healthy.
 
 ---
 
 ## Boundaries
 
-- Read-only. No fix, no re-run, no restart, no write of any kind, no secret or config change. If the fix is obvious, name it and let a human make it.
+- Two writes, both above, both reported with counts. No other write of any kind.
+- No code change, deploy, secret, config, schema or `enabled` change. No direct `sync-all` call.
 - Never runs against a project the config does not name.
 - Never paraphrases an `error_detail`.
 - Never reports an unreachable source as a clean one.
-- Ruled-out causes belong in the project's engineering notes, not in this file — this skill reports state, and it does not re-litigate a diagnosis. Point at the write-up rather than restating it.
+- Ruled-out causes belong in the project's engineering notes, not here.

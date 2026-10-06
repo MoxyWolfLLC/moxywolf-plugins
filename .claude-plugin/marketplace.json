@@ -155,8 +155,8 @@
     {
       "name": "daily-briefings",
       "source": "./plugins/daily-briefings",
-      "description": "Scheduled personal briefings rendered as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar, the inbox, and every configured work surface \u2014 team board, repositories, deployments and domain renewals, scheduled social posts, content in flight, outreach queues, search and competitor watch, product experiments, invoices, payroll, contracts, pipeline commitments, decision records awaiting sign-off, and the scheduled tasks themselves \u2014 flagging real clashes, duplicate invites, location clashes and deadlines with no prep blocked. /morning-brief renders today's version. /crm-sync-health is a read-only pipeline check that costs one line on a healthy day. /briefings-setup writes the owner config and registers the recurring tasks. Read-only across every surface; a source that could not be read is reported as not checked, never as empty.",
-      "version": "0.2.0",
+      "description": "Scheduled personal briefings rendered as self-contained HTML on the owner's own machine. /commitment-calendar builds a rolling N-day commitment grid from the calendar, the inbox, and every configured work surface \u2014 team board, repositories, deployments and domain renewals, scheduled social posts, content in flight, outreach queues, search and competitor watch, product experiments, invoices, payroll, contracts, pipeline commitments, decision records awaiting sign-off, and the scheduled tasks themselves \u2014 flagging real clashes, duplicate invites, location clashes and deadlines with no prep blocked. /morning-brief renders today's version. /crm-sync-health checks the CRM sync pipeline, sweeps orphaned runs and releases a dead-lettered source once a day, and costs one line on a healthy day. /briefings-setup writes the owner config and registers the recurring tasks. Read-only across every other surface; a source that could not be read is reported as not checked, never as empty.",
+      "version": "0.3.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
