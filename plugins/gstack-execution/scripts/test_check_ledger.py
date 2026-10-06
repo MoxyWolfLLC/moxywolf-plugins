@@ -97,6 +97,11 @@ def test_a_piped_shell_script_needs_pipefail():
     assert not cl.ledger_path(d, "build/x", root).exists()    # refused before anything ran
     assert ledger(d, root, "bash", "-c", "set -o pipefail; false | cat") == 1
     assert ledger(d, root, "bash", "-c", "true") == 0
+    # F1, review 20261006-162216: the command string after a combined cluster is checked too.
+    for argv in (["bash", "-ec", "false | cat"], ["bash", "-lc", "false | cat"], ["bash", "-o", "posix", "-c", "false | cat"]):
+        assert ledger(d, root, *argv) == 2, argv
+    assert ledger(d, root, "bash", "-o", "pipefail", "-c", "false | cat") == 1
+    assert ledger(d, root, "bash", "-ec", "set -o pipefail; false | cat") == 1
 
 
 def test_with_no_review_root_it_refuses_to_run():

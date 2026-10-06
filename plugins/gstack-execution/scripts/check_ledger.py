@@ -99,11 +99,24 @@ def issues_for(repo, root):
 
 
 def unsafe_pipe(argv):
-    if Path(argv[0]).name not in SHELLS or "-c" not in argv[1:]:
+    """True for a shell command string with a pipe and no pipefail. The command string is the argument
+    after the first short-option cluster carrying `c` (`-c`, `-ec`, `-lc`); `-o`/`+o` take a value."""
+    if Path(argv[0]).name not in SHELLS:
         return False
-    i = argv.index("-c", 1)
-    script = argv[i + 1] if i + 1 < len(argv) else ""
-    return "|" in script and not script.lstrip().startswith("set -o pipefail")
+    pipefail, i = False, 1
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-o", "+o", "-O", "+O"):
+            pipefail = pipefail or (a == "-o" and argv[i + 1:i + 2] == ["pipefail"])
+            i += 2
+            continue
+        if a == "--" or not a.startswith(("-", "+")):
+            return False   # a script file or the end of options: no command string
+        if a.startswith("-") and not a.startswith("--") and "c" in a[1:]:
+            script = argv[i + 1] if i + 1 < len(argv) else ""
+            return "|" in script and not pipefail and not script.lstrip().startswith("set -o pipefail")
+        i += 1
+    return False
 
 
 def cmd_run(repo, argv):
