@@ -50,7 +50,11 @@ Run the current `stage-prompts.md` against all benchmark queries:
 
 ### Step 3: Propose a Modification
 
-Select one prompt variable to modify. The optimization proceeds through these variables in priority order (highest impact first):
+**Read the traces first.** Before picking a variable, grep the earlier experiment folders (`optimization/<experiment_id>/`, see Step 6) for the criterion that failed most often in the last run, and read the transcripts where it failed. The modification you propose must name the experiment and the transcript passage that motivated it. On the first run there are no folders yet; say so and fall back to the priority order below.
+
+Why: in Meta-Harness (Lee et al., arXiv 2603.28052, 2026) a proposer that could read full execution traces reached 50.0 median accuracy, against 34.9 for scores plus summaries and 34.6 for scores alone. Council's log used to be the scores-plus-summary kind. Council runs 3 to 5 benchmarks, not the paper's ~60 candidates, so expect a direction, not their effect size.
+
+Select one prompt variable to modify. Absent a trace that points elsewhere, the optimization proceeds through these variables in priority order (highest impact first):
 
 **Priority 1 — Synthesis prompts** (Stage 3):
 - Chairman instructions for voting protocol
@@ -132,6 +136,14 @@ Write an experiment record to pattern memory's optimization log:
   "benchmark_count": 5
 }
 ```
+
+Then write the experiment's folder, `optimization/<experiment_id>/`, in the same workspace folder as `council-memory.json`:
+
+- `edit.diff`, the exact change to `stage-prompts.md` (kept or reverted, either way)
+- `transcripts/`, the raw deliberation transcript of every benchmark run, baseline and modified
+- `grades.md`, each criterion's pass or fail per benchmark, with the grader's note on why
+
+The summary record above is for the report. The folder is what Step 3 reads. A folder with no transcripts in it is a failed log, not a short one.
 
 ### Step 7: Iterate or Stop
 

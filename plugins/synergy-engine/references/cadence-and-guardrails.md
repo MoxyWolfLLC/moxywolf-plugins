@@ -42,6 +42,7 @@ The mechanics of typing and sending a LinkedIn connection note (the separate-cli
 - No em-dashes. 80%+ contractions. Typographer's quotes where the surface allows.
 - Practitioner register: the comment adds something a senior peer would forward. Reference the live thread (a commenter by name) to show you read it.
 - No hype, no "Most people don't realize", no generic CTAs.
+- Add at least one noun the post and thread don't already have (the new-noun check in `references/engagement-followthrough.md`).
 - Read the writer's voice profile if one is configured before drafting outreach copy.
 
 ## Citations
