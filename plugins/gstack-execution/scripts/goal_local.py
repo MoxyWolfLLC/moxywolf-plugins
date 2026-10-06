@@ -103,19 +103,23 @@ LOCAL_CODEOWNERS = "".join(f"/{g} @dorianatmoxywolf\n" for g in GATED)
 
 def envelope(repo, gid, head, base, brief_text):
     """Files the goal changed outside its Allowed paths, or on the gate: .github/, goals/ and goal-runs/
-    always, plus any path the repository's own CODEOWNERS assigns an owner (review F2: an ordinary
-    CODEOWNERS no longer switches the fixed gate off)."""
+    always, plus any path the repository's own CODEOWNERS assigns an owner. One rule for every
+    repository (review F2, F7, F8): no attempt to judge whether a CODEOWNERS file already guards the
+    gate, so no partial CODEOWNERS can switch the fixed gate off. Local mode has no finalize commit (the
+    holdout runs from the Mac and is never committed), so goal_envelope's finalize exception has nothing
+    to apply to; its marketplace rule is kept below."""
     rs = ge.rules(ge.at(repo, base, ".github/CODEOWNERS") or "")
-    # review F7: a repository whose CODEOWNERS already gives Dorian the whole gate, with the goal on its
-    # base, gets the existing check unchanged (its finalize-record exception, its marketplace rule)
-    gate = (".github/CODEOWNERS", f"goals/{gid}/GOAL.md", f"goal-runs/{gid}/RESULT.md")
-    if ge.at(repo, base, f"goals/{gid}/GOAL.md") and all("@" + gb.OWNER in ge.owners(rs, g) for g in gate):
-        return ge.check(repo, gid, head, base)
     errors = []
     allowed = [g.strip("`") for g in ge.bullet_lines("Allowed paths", ge.sections(brief_text).get("Allowed paths", ""), errors)]
     if not allowed:
         return errors + ["the brief lists no Allowed paths"], 0
     commits = ge.goal_commits(repo, base, head)
+    if any(ge.MARKETPLACE in files for _, files in commits):
+        top = lambda ref: (json.loads(ge.at(repo, ref, ge.MARKETPLACE) or "{}") or {}).get("version")
+        fork = git(repo, "merge-base", base, head).strip()
+        if top(head) != top(fork):
+            errors.append(f"the goal changes {ge.MARKETPLACE}'s top-level version ({top(fork)} -> {top(head)}); it moves "
+                          f"only in the release bump after the goal merges (GO-004.1)")
     for sha, files in commits:
         for f in files:
             if f.startswith(GATED) or ge.owners(rs, f):

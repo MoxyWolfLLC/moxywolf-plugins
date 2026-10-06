@@ -118,20 +118,27 @@ class ReviewFixes(unittest.TestCase):
             self.assertFalse(out["passed"])
             self.assertTrue(out["error"])
 
-    def test_a_fully_gated_repository_keeps_the_existing_envelope(self):
+    def test_the_marketplace_version_stays_put(self):
         with tempfile.TemporaryDirectory() as t:
             r = repo(t)
-            commit(r, {".github/CODEOWNERS": "/.github/ @dorianatmoxywolf\n/goals/ @dorianatmoxywolf\n/goal-runs/ @dorianatmoxywolf\n",
-                       "goals/g/GOAL.md": BRIEF})
+            commit(r, {".claude-plugin/marketplace.json": '{"version": "1.0.0"}'})
             subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
-            head = commit(r, {"src/a.ts": "1\n"})
-            seen, real = [], gl.ge.check
-            gl.ge.check = lambda *a: (seen.append(a), (["sentinel"], 7))[1]
-            try:
-                self.assertEqual(gl.envelope(r, "g", head, "main", BRIEF), (["sentinel"], 7))
-            finally:
-                gl.ge.check = real
-            self.assertEqual(len(seen), 1)
+            head = commit(r, {".claude-plugin/marketplace.json": '{"version": "1.1.0"}'})
+            brief = BRIEF + "- .claude-plugin/marketplace.json\n"
+            errors, _ = gl.envelope(r, "g", head, "main", brief)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("top-level version (1.0.0 -> 1.1.0)", errors[0])
+
+    def test_sentinel_file_ownership_does_not_switch_the_gate_off(self):
+        """review F8: CODEOWNERS owning only the three files the old check sampled."""
+        with tempfile.TemporaryDirectory() as t:
+            r = repo(t)
+            commit(r, {".github/CODEOWNERS": "/.github/CODEOWNERS @dorianatmoxywolf\n/goals/g/GOAL.md @dorianatmoxywolf\n"
+                                             "/goal-runs/g/RESULT.md @dorianatmoxywolf\n", "goals/g/GOAL.md": BRIEF})
+            subprocess.run(["git", "switch", "-qc", "goal/g"], cwd=r, check=True)
+            head = commit(r, {".github/workflows/x.yml": "y\n"})
+            errors, _ = gl.envelope(r, "g", head, "main", BRIEF)
+            self.assertEqual([e.split(" ", 2)[2] for e in errors], [".github/workflows/x.yml, a gate path"])
 
     def test_a_partly_gated_repository_gets_the_fixed_gate(self):
         with tempfile.TemporaryDirectory() as t:
