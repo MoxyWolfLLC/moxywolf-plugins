@@ -1395,6 +1395,7 @@ The rules are the ones earlier intakes set. A native runtime behind a thin skill
 
 - **CodeRabbit** (hosted SaaS, $24 to $72 per developer per month, read 2026-09-30). Not a plugin. It can’t stand in for `/gstack-peer-review`, which has the other tool review pinned commits against fixed criteria with bounded rounds. A bot review doesn’t count toward the code-owner approval `main` requires, so it adds comments without removing a step. A one-repo trial on a repo outside the gstack loop (crm-web, the websites) is Dorian’s call and isn’t an item here.
 - **TimesFM** (`google-research/timesfm` at `e51928e`). A Python model with a PyTorch runtime, so the do-not-vendor rule applies. Self-hosted 3.0 weights are licensed non-commercial and non-production; 3.0 through BigQuery ML, and 2.5 and earlier self-hosted, are permitted. No forecasting need has been named. If one is, the route is BigQuery ML or a pinned 2.5 checkpoint, never self-hosted 3.0.
+- **jev-opus** (`WXK-AI/jev-opus` at `6b6b0f8`, MIT, read 2026-10-06). A Claude Code harness that re-picks the effort level before every step without breaking the prompt cache. It can't route a Cowork or cloud session, and its plugin starts a separate Claude Code with our hooks off and permissions on auto. XE-034 takes its failure-tracking rule. A measured trial on terminal goal runs is Dorian's call and isn't an item here. Fit note: `jev-opus-fit-2026-10-06.md`.
 
 ### DG-001 — A diagram of a repository cites the code that proves it
 
@@ -1433,6 +1434,25 @@ Prompt Master (`nidhinjs/prompt-master` at `2bd9251`, MIT) is markdown only, but
 6. The guide adds no role-assignment instruction, no per-step status instruction and no named template inventory (CO-STAR, RISEN, CRISPE). A search for each name finds only the credit line, if anything.
 7. The Maintenance section’s audit record gains a dated entry for this edit, per its own rule.
 8. The prompt-coach rule in the Team Plugins project memory lists the checks the guide now carries, and still exempts one-off conversational prompts.
+
+### XE-034 — A check that failed stays failed until the same check passes
+
+**Status:** planned. Declared 2026-10-06 from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`), approved by Dorian.
+
+**Links introduced:** one ledger file per branch, `<review_root()>/ledger/<owner>-<repo>/<branch>.jsonl`, one line per check run. A line names a check by its identity (the working directory relative to the repository root, plus the argument list exactly as given) and records the head it ran at. The reader's assumption is that two lines with the same identity ran the same check. That holds only while the argument list is spelled the same way: reordered flags read as a different check, so they can't close an issue, which errs toward blocking. The ledger is keyed by branch name, so a branch deleted and recreated under the same name inherits the old ledger.
+
+The packet's `tests` field is the builder's account of what ran. Nothing ties a failure seen while building to a later pass, so a check that failed, then a narrower check that passed, can be quoted as green. jev-opus (`WXK-AI/jev-opus` at `6b6b0f8`, MIT) tracks failures by a stable fingerprint and clears one only when the same check passes. We take that rule and leave its output-text classifier: our wrapper runs the command itself, so it reads the real exit code and never has to guess from text.
+
+1. `plugins/gstack-execution/scripts/check_ledger.py run --repo <path> -- <argv...>` runs the argument list with no shell, from the current directory, passes its output through, appends one JSON line (`id`, `identity` with `cwd` and `argv`, `head`, `exit_code`, start and end times) and exits with the command's own exit code. When `argv` is a shell with `-c` and the script contains a `|`, it's refused unless the script starts with `set -o pipefail`.
+2. A run that exits non-zero opens an issue for its identity. Only a later run with the same identity that exits 0 closes it. A run with a different working directory or a different argument list, including a subset of the same suite, never closes it.
+3. `check_ledger.py open-issues --repo <path> --branch <name>` prints each open issue (identity, the failing line's `id`, its head, and how many runs ago it opened), then a count. It exits 0 when there are none and 1 otherwise.
+4. `peer_review.py open` reads, for each repository in the packet, the ledger of the branch checked out at its `path`. With an open issue it refuses with `open_check_failure`, naming each one, unless `--accept-open-failure "<reason>"` is passed, and then the reason is recorded verbatim in `state.json` as `open_failures_overridden`.
+5. `state.json` records `ledger_status` as `clear`, `overridden` or `none`, and the first line of `SURFACE.md` shows it. A branch with no ledger opens and records `none`: visible, not blocking, until Dorian rules otherwise.
+6. The ledger lives under `review_root()` and nowhere else; with no declared review root, `check_ledger.py` refuses to run, as `open` does (EV-009).
+7. `plugins/gstack-execution/scripts/test_check_ledger.py` covers: exit-code passthrough; a failure closed by the same check passing; a failure not closed by a subset; a failure not closed by the same argument list in another directory; a piped `-c` script without `pipefail` refused; `open-issues` exit codes; and `peer_review.py open` refused with an open issue, opened with the override and its reason recorded, and opened with no ledger recording `none`.
+8. The `gstack-build` skill's Step 3 says to run the item's tests through `check_ledger.py run`; the plugin README's scripts table gains a `check_ledger.py` row; both credit `WXK-AI/jev-opus` (MIT) at `6b6b0f8`, idea only, no code copied.
+9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a minor version and the top-level marketplace version moves (CI-002).
+10. In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_check_ledger.py` among the suites it ran, and reports no failures.
 
 ## Eleventh objective: goal mode
 
@@ -1698,6 +1718,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-06: XE-034 declared on Dorian's approval, from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`). A check that fails while an item is built stays an open issue until the same check passes, and `peer_review.py open` refuses while one is open. The idea is from `WXK-AI/jev-opus` at `6b6b0f8` (MIT); its output-text classifier and its runtime aren't taken. A branch with no ledger is shown, not blocked, until Dorian rules otherwise.
 
 - 2026-10-06: Dorian approved naming exact paths in CS-001 criteria 4 and 10. Review `20261006-202034-4e2ec3a-qsez89ny` ran out of rounds with no blocking findings left. The reviewer couldn't check the roster targets or the runner, because the review surface carries only files a criterion names, and these criteria named a pattern and a bare filename. The criteria's meaning is unchanged.
 
