@@ -87,13 +87,13 @@ Use it for everything in the escalates row. Write it in Dorian's voice: no em da
 
 ## The decision log
 
-Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`, where `<project>` is the attached project. With no project attached, it goes to `Taskade/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing. The entry is written on every exit: a stop for a missing context card, an escalation and an incomplete result all get one.
+Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`, where `<project>` is the attached project. With no project attached, it goes to `Taskade/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
 
 ```
 ## <YYYY-MM-DD> <short ask>
 - Ask: <Dorian's words>
 - Sent to: <departments>, <parallel or in order>
-- Outcome: done | proposed | escalated | incomplete
+- Outcome: done | proposed | escalated (<reason, when escalated>)
 - Decision: <what Dorian decided, or "pending">
 ```
 
