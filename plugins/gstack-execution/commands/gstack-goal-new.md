@@ -27,3 +27,14 @@ Work in a checkout of the governed repository, on a branch `build/goal-<id>` mad
 8. **After he approves:** merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`. Leave the holdout file where step 4 put it; the run's finalize step needs it.
 
 Goals come from the open work under each objective, the session handoff and the project's Jira label. Drafting one asks Dorian nothing beyond step 1 and the approval in step 7.
+
+## Any repository: local mode (GO-010)
+
+Goal mode runs in any GitHub repository the moxywolf-agent app can reach, with no onboarding. If `goal_ready.py` reports the repository isn't set up, don't stop and don't ask Dorian for setup: draft the goal in local mode. Everything above holds except where the scripts run:
+
+- Run every script from the moxywolf-plugins checkout, never from the target repository, and pass the target's paths: `goal_new.py tests <target>/goals/<id>`, `goal_new.py holdout <target>/goals/<id>`, `goal_new.py read <target>/goals/<id>`.
+- Step 5 becomes `goal_local.py brief <target> <id>`, then `goal_local.py baseline <target> <id> --goal-dir <target>/goals/<id>`. The baseline runs the goal tests in the goal-tests container against the target's `origin/main`, with npm or pnpm dependencies installed in their own container.
+- Allowed paths never include `.github/`, `goals/` or `goal-runs/`; local mode treats those as the gate.
+- Push and open the pull request with `agent_token.py exec --repo <owner>/<repo>`. Dorian's approval of that pull request is the approval of the goal.
+
+Tell Dorian once, in the pull request message, that this repository runs in local mode: the checks run on his Mac and his approval of the final pull request is the gate GitHub would otherwise enforce.

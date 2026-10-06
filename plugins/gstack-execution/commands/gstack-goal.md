@@ -27,3 +27,15 @@ A goal is a brief Dorian approved (`goals/<id>/`, GO-001). This command runs it.
 **Messages (GO-006).** Any command can also print `{"messages": [...]}`: digests (one per merged item and one at the end) and escalations. Send each to Dorian as it's printed, as written, with PushNotification when it's available and in the conversation either way. A digest asks nothing; don't wait on it. An escalation that holds the run comes back as exit 3 from `next`. The run record keeps every message, so one that doesn't reach him is still on file.
 
 Never edit `goals/<id>/`, the state folder or the ledger by hand. A changed goal is a new goal, approved again.
+
+## Any repository: local mode (GO-010)
+
+In a repository that isn't set up for goal mode, `goal_run.py` can't run (it reads its gates from the repository's own `main`). Run the goal in local mode instead, with the same order and the same stops, and with no setup asked of Dorian:
+
+1. **Branch.** Push `goal/<id>` from `origin/main` as the bot.
+2. **Items, in `PLAN.md`'s order.** Build each through `/gstack-build` as a pull request into `goal/<id>`. Before merging it: a clean cross-vendor review at its head, the repository's own checks green there, and `goal_local.py check <target> <id> <item head>` from the moxywolf-plugins checkout with every invariant passing, no outcome test that passed at the last item now failing, and an empty envelope error list. Then merge it as the bot, pinned to the head. A failure on any of those stops the run; report what failed. Three blocking review rounds on one item escalate to Dorian (DR-113).
+3. **Finish.** When every goal test passes at the goal branch's head, run `goal_local.py check <target> <id> <head> --holdout ~/.goal-holdouts/<id>.py`. The script reads the holdout and checks its hash; never open it yourself. It must pass. Then a fresh cross-vendor review of the whole `main...goal/<id>` diff, clean.
+4. **Goal pull request.** Open `goal/<id>` into `main` with the goal tests, the holdout result and the review ID in the body, and say it ran in local mode. Dorian approves; merge on his word, pinned to the approved head.
+5. **Record.** Write the run's summary to `GSTACK_GOAL_RUN_DIR/<id>/RESULT.md`: outcome, items, each `goal_local.py check` result, the reviews.
+
+Stop conditions still hold: a HALT file on `main`, spend at 80 percent of the cap, a deploy to an environment the brief names as Dorian's call.
