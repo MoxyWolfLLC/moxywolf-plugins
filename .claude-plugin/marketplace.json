@@ -753,6 +753,37 @@
         "transcription",
         "text"
       ]
+    },
+    {
+      "name": "finance",
+      "source": "./plugins/finance",
+      "description": "Financial modeling, budgeting and forecasting, unit economics, and financial decision support.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "finance",
+        "budgeting",
+        "forecasting",
+        "unit-economics"
+      ]
+    },
+    {
+      "name": "people",
+      "source": "./plugins/people",
+      "description": "Org design, hiring and interviewing, compensation and leveling, and workforce planning.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "keywords": [
+        "people",
+        "hr",
+        "org-design",
+        "hiring",
+        "compensation"
+      ]
     }
   ]
 }
