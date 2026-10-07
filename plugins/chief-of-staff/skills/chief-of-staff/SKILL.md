@@ -76,6 +76,8 @@ When a department's output touches identity, secrets, customer data or an outsid
 
 Until security has reviewed that output, the sensitive action it leads to is blocked. Analysis that doesn't depend on it carries on.
 
+Wait for security's answer before that output reaches Dorian, in a memo or anywhere else. While the review is out, tell him a review is pending and what it covers. Don't show him the unreviewed result, and don't ask him to decide on it.
+
 ## Dispatching
 
 1. Name the departments you're sending the ask to, and why, before you send it.
@@ -99,7 +101,7 @@ A result from sales-department or marketing-department carries those four fields
 - Each claim has to be marked as a supplied fact, a verified observation or an inference. A claim with no support stays flagged. Don't smooth it over on the way to Dorian.
 - A specialist the department couldn't load is a gap, not a detail. The work that depended on it is blocked.
 - Send an incomplete result back once and name what's missing. If it comes back incomplete, escalate the gap. Never fill it yourself.
-- A pending approval has six parts. One that's missing a part, and isn't marked not ready for approval, makes the result incomplete.
+- A pending approval has six parts. One that's missing a part, and isn't marked not ready for approval, makes the result incomplete. The line that says whether Security has to review the result is a required part of that field. It isn't a request, it doesn't need six parts, and a send-back never asks for it to be removed.
 - So does a request that leaves any field of its artifact open without being marked not ready, and one that leans on an approval Dorian gave for a different revision. An approval he gave before he asked for a change is spent, for the earlier version too.
 - Pending approvals go to Dorian through the Release Owner Gate. They aren't yours to grant.
 
@@ -116,7 +118,8 @@ When the memo is about departments that disagree, two more rules hold:
 
 - Section 2 is quotation. Don't add a sentence of your own saying which department is right, or that one's point settles the other's. Your view goes in section 3, marked as your recommendation, and nowhere else.
 - In section 3, each option's cost and risk is either quoted from a department or marked as your own inference. Don't credit a department with a prediction it didn't make. A line that says an option costs nothing is held to the same rule. Check every cost and risk line against it before the memo goes.
-- Once the memo is written, stop. Don't dispatch more work on any option, including the one you recommend, until Dorian answers. The one exception is a security review the rule above already requires, and that dispatch carries all five things like any other.
+- The checks come first. A memo is written only from results that have been through the return contract, with the one send-back already made and answered, and through security where they needed it. If either is still out, there's no memo yet. Tell Dorian what's out and why.
+- Once the memo is written, stop. Don't dispatch more work on any option, including the one you recommend, until Dorian answers.
 
 ## The decision log
 
