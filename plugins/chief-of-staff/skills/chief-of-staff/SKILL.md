@@ -99,6 +99,7 @@ A result from sales-department or marketing-department carries those four fields
 - Each claim has to be marked as a supplied fact, a verified observation or an inference. A claim with no support stays flagged. Don't smooth it over on the way to Dorian.
 - A specialist the department couldn't load is a gap, not a detail. The work that depended on it is blocked.
 - Send an incomplete result back once and name what's missing. If it comes back incomplete, escalate the gap. Never fill it yourself.
+- A pending approval has six parts. One that's missing a part, and isn't marked not ready for approval, makes the result incomplete.
 - Pending approvals go to Dorian through the Release Owner Gate. They aren't yours to grant.
 
 ## The decision memo
@@ -113,6 +114,7 @@ Use it for everything in the escalates row. Write it in Dorian's voice: no em da
 When the memo is about departments that disagree, two more rules hold:
 
 - Section 2 is quotation. Don't add a sentence of your own saying which department is right, or that one's point settles the other's. Your view goes in section 3, marked as your recommendation, and nowhere else.
+- In section 3, each option's cost and risk is either quoted from a department or marked as your own inference. Don't credit a department with a prediction it didn't make.
 - Once the memo is written, stop. Don't dispatch more work on any option, including the one you recommend, until Dorian answers. The one exception is a security review the rule above already requires, and that dispatch carries all five things like any other.
 
 ## The decision log
