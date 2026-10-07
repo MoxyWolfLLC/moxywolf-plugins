@@ -768,7 +768,7 @@ def criterion_dirs(repos, criteria, surf, idx):
 
 
 def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None,
-                  coverage="not_run"):
+                  coverage="not_run", ledger=None):
     """Write the review surface. Returns (path, stats).
 
     prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
@@ -859,7 +859,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
-        f"# What this review can see (coverage: {coverage})\n\n"
+        f"# What this review can see (coverage: {coverage}"
+        + (f", ledger: {ledger}" if ledger else "") + ")\n\n"
         f"- `CHANGE.diff` — the full diff under review, from the review's base\n"
         + ("- `ROUND.diff` — only what changed since the previous round\n" if rounds else "") +
         f"- `{SURFACE_KINDS[0]}/` — the {len(changed)} files the diff modifies, at the reviewed head\n"
@@ -1855,8 +1856,25 @@ def cmd_open(a):
                           "Commit the evidence (e.g. docs/evidence/<item>.md) and name its path in the criterion, "
                           "or pass --accept-off-repo-criterion.")
 
-    stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
+    # XE-034: a check that failed while building stays failed until the same check passes.
+    import check_ledger
     root = review_root()
+    open_failures, missing = [], 0
+    for r in packet["repos"]:
+        found = check_ledger.issues_for(r["path"], root)
+        missing += found is None
+        open_failures += [dict(i, repo=r["path"]) for i in found or ()]
+    reason = getattr(a, "accept_open_failure", None)
+    if open_failures and not reason:
+        lines = "\n".join(f"  {i['repo']} {i['identity']['cwd']}: {' '.join(i['identity']['argv'])} "
+                           f"(run {i['id']}, {i['runs_ago']} runs ago)" for i in open_failures)
+        raise ReviewError("open_check_failure",
+                          "these checks failed on the branch and the same check hasn't passed since:\n"
+                          f"{lines}\nRerun the same check through check_ledger.py until it passes, or pass "
+                          "--accept-open-failure \"<reason>\".")
+    ledger_status = "overridden" if open_failures else ("none" if missing else "clear")
+
+    stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
     root.mkdir(parents=True, exist_ok=True)
     d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=root))
     review_id = d.name
@@ -1873,6 +1891,8 @@ def cmd_open(a):
              "coverage_overridden": bool(uncovered and getattr(a, "accept_narrow_packet", False)),
              "off_repo_evidence": evidenced,
              "off_repo_overridden": [u["criterion"] for u in unevidenced],
+             "ledger_status": ledger_status, "open_failures": open_failures,
+             "open_failures_overridden": reason if open_failures else None,
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     for r in packet["repos"]:
@@ -1937,6 +1957,7 @@ def cmd_round(a):
         # now that the reviewer gets a surface. Shipping the tree to disk while the item is about
         # not shipping the tree is the joke writing itself.
         surf, surf_stats = build_surface(packet["repos"], root, coverage=state.get("coverage_status") or "not_run",
+                                         ledger=state.get("ledger_status") or "none",
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
                                          ci_runs=(packet.get("tests") or {}).get("ci_runs"),
@@ -2481,6 +2502,8 @@ def main():
                    help="open anyway despite uncovered declared criteria; recorded in the review state")
     o.add_argument("--accept-off-repo-criterion", action="store_true",
                    help="open anyway despite a criterion about an off-repo place with no in-repo evidence; recorded in the review state")
+    o.add_argument("--accept-open-failure", metavar="REASON",
+                   help="open anyway despite a check that failed and hasn't passed since; the reason is recorded verbatim (XE-034)")
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
