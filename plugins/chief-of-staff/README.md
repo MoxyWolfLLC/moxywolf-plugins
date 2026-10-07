@@ -26,5 +26,5 @@ Built to Anthropic's Claude Managed Agents article, the Claude Agent SDK cookboo
 
 ## Version History
 
-- 0.2.0 (2026-10-07): CS-004. Routes ten departments: sales-department and marketing-department join the roster, with the Revenue and mixed-ask lines, the Release Owner Gate, five dispatch fields and the nine-field return contract for those two.
+- 0.2.0 (2026-10-07): CS-004. A disagreement that involves sales-department or finance doesn't wait for security, and one that involves finance carries a section for the outside bookkeeper (Dorian, 2026-10-07). Routes ten departments: sales-department and marketing-department join the roster, with the Revenue and mixed-ask lines, the Release Owner Gate, five dispatch fields and the nine-field return contract for those two.
 - 0.1.0 (2026-10-06): CS-001. Operating manual, `/cos` and the roster check.
