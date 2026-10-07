@@ -171,6 +171,23 @@ class Routing(unittest.TestCase):
             self.assertIn(field, manual, f"the manual doesn't check the two departments' results for: {field}")
         print(f"examined {len(RETURN_FIELDS)} return fields and the gate's wording in 2 head skills, 2 GOVERNANCE.md files and the manual")
 
+    def test_the_disagreement_rules_are_written_down(self):
+        """CS-004.8 as amended 2026-10-07. Presence, not behavior: scenarios S7, S11 and S12 are the behavior."""
+        manual, dispatcher = read(MANUAL), read(DISPATCHER)
+        review = section(manual, "Nobody reviews their own work")
+        self.assertRegex(review, r"involves sales-department or finance doesn't wait for security",
+                         "the manual doesn't say which disagreements go ahead without security")
+        self.assertIn("by what it contains", review, "the manual doesn't say a result is judged by what it contains")
+        self.assertIn("stays blocked", review, "the manual doesn't keep the sensitive action blocked while a review is out")
+        memo = section(manual, "The decision memo")
+        for must in ("**For the bookkeeper.**", "context card", "never contact", "open question stays"):
+            self.assertIn(must, memo, f"the decision memo's rules don't say: {must}")
+        self.assertIn("bookkeeper", dispatcher, "/cos doesn't carry a finance disagreement to the bookkeeper's section")
+        self.assertRegex(dispatcher, r"involves sales-department or finance", "/cos doesn't name the disagreements that skip the wait")
+        # ponytail: the bookkeeper's name lives only on the context card, so no check here can spell it.
+        # That it's absent from this repository is checked by hand at review, not by this test.
+        print("examined the manual's review and memo sections and the dispatcher")
+
 
 if __name__ == "__main__":
     unittest.main()
