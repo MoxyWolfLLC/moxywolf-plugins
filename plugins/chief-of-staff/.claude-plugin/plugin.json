@@ -1,7 +1,7 @@
 {
   "name": "chief-of-staff",
   "description": "Routes an ask to the department agents that own it, runs them in parallel, checks what they return, and brings Dorian a result, a proposal or a decision memo.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "MoxyWolf LLC"
   },

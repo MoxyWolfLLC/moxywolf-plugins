@@ -1683,7 +1683,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-004 — Dedicated Sales and Marketing departments under the Chief of Staff
 
-**Status:** planned. Requested by Dorian on 2026-10-07 and approved by him the same day, with criterion 2 amended at approval so the marketplace’s top-level version moves (CI-002). The approval covers the design and a local build. Push, pull request, merge and deployment need separate publication authorization (criterion 10).
+**Status:** building. Requested by Dorian on 2026-10-07 and approved by him the same day, with criterion 2 amended at approval so the marketplace’s top-level version moves (CI-002). The approval covers the design and a local build. Push, pull request, merge and deployment need separate publication authorization (criterion 10).
 
 **Links introduced:** marketplace names `sales-department` and `marketing-department` resolve to their local manifests and agents; the Chief of Staff roster resolves those same agent names. Existing external `sales:` and `marketing:` specialist references resolve against the installed skill catalog at invocation time, never by assuming installation or copying their contents. Evidence references resolve to the source and retrieval date; approval records bind Dorian, action, audience or system, and exact artifact revision. Missing or stale links are reported as gaps, not treated as authorization.
 
