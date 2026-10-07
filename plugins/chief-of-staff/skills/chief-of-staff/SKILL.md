@@ -110,6 +110,11 @@ Use it for everything in the escalates row. Write it in Dorian's voice: no em da
 3. **Options**, each with what it costs and what it risks. Mark your recommendation.
 4. **If you do nothing**: what happens, and when.
 
+When the memo is about departments that disagree, two more rules hold:
+
+- Section 2 is quotation. Don't add a sentence of your own saying which department is right, or that one's point settles the other's. Your view goes in section 3, marked as your recommendation, and nowhere else.
+- Once the memo is written, stop. Don't dispatch more work on any option, including the one you recommend, until Dorian answers. The one exception is a security review the rule above already requires, and that dispatch carries all five things like any other.
+
 ## The decision log
 
 Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`, where `<project>` is the attached project. With no project attached, it goes to `Taskade/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
