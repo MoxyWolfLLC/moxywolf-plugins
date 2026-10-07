@@ -1385,6 +1385,19 @@ The first goal on a product repository stopped at its first review. Item 1's cri
 4. `test_review_surface.py` covers a named directory carried whole from the head with a binary skipped and an uncommitted edit absent, and a criterion with no directory carrying none.
 5. `plugins/gstack-execution/.claude-plugin/plugin.json` moves to 0.74.0 and the top-level marketplace version moves to 1.112.0 (CI-002).
 
+### XE-035 — A file a criterion names reaches the reviewer before anything the change merely mentions
+
+**Status:** planned. Declared 2026-10-06 on Dorian’s instruction, after CS-001’s second review. First numbered XE-034 in PR #187 and renumbered on 2026-10-07, because that id went to the check-ledger item first.
+
+**Links introduced:** none. The surface manifest already records what was sent and what was withheld.
+
+CS-001’s criteria named eight agent files and `plugins/gstack-execution/scripts/run_all_tests.py`. The reviewer saw none of them. The 25-file dependency cap filled first with files the changed files mention, and the 400,000-character API cap dropped `DESIGN.md` whole. The reviewer then reported, correctly, that it couldn’t check those criteria, and three rounds couldn’t change what it was shown.
+
+1. Files an acceptance criterion names by exact path are packed onto the surface before callers and before files a changed file merely mentions, and they don’t count against the 25-file dependency cap.
+2. When the API character cap would drop a criterion-named file, a changed file over a size threshold is sent as its diff hunks instead of whole, and the manifest says so.
+3. A criterion-named file is never withheld silently. If one still can’t fit, the review opens as `unusable` and names the file, rather than sending the reviewer a surface missing what the verdict needs.
+4. A test reproduces CS-001’s shape: a large changed `DESIGN.md`, a 47,000-character changed `marketplace.json` and nine criterion-named files. All nine reach the surface, and the manifest names each one.
+
 ## Tenth objective: external intake
 
 Opened 2026-09-30. Dorian passed four outside links to `/session-start` and asked where they fit. Each got a fit note in `Taskade/Team Plugins/06 – Engineering/` (`archify-`, `prompt-master-`, `coderabbit-` and `timesfm-fit-2026-09-30.md`), written from the source, not the README. Two carry an idea worth porting. Two don’t belong in this marketplace, and this objective records why so a later session doesn’t reopen them.
@@ -1629,7 +1642,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-001 — The Chief of Staff routes an ask to the departments that own it
 
-**Status:** building.
+**Status:** review. Merged unreviewed: merged to `main` in `2ef7868` (PR #186, head `7d0ba15`) on 6 October 2026 by `moxywolf-agent[bot]` on Dorian’s instruction, recorded on the pull request. His exception, in his words: “Merge, log the tool gap: Merge 7d0ba15 as merged_unreviewed, with your exception quoted in your words. Then open a new design item for peer_review.py so files a criterion names are packed first and never get crowded out by large changed files. That fix goes through its own loop.” Two reviews by `openrouter-gpt` (gpt-6-astra). `20261006-202034-4e2ec3a-qsez89ny` found two blocking defects in the decision-log instructions, both fixed (`46fbd34`, `d3b7707`), and ended `rounds_exhausted`. `20261006-211544-7d0ba15-ywbtet8r` at `7d0ba15` raised no blocking finding and left criteria 4, 9 and 10 unmet only because the review surface withheld the files they name (XE-035). CI `tests` was green at the merged head (run 37532195182). Records: `Taskade/Team Plugins/06 – Engineering/peer-reviews/`.
 
 **Links introduced:** the context card’s vault path (`MoxyWolf Vault/_Shared Knowledge/Operating Norms/chief-of-staff-context.md`), which re-resolves by reading the file; the decision log’s path (`Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`), which re-resolves the same way; and the eight agent names in the roster, which re-resolve against `plugins/<name>/agents/<name>.md`.
 
@@ -1718,6 +1731,10 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-07: The item PR #187 declared as XE-034 is renumbered XE-035, on Dorian’s instruction. While #187 was open, XE-034 went to the check-ledger item, declared and merged the same evening (PR #188). The title, the four criteria and their meaning are unchanged. The pull request’s branch keeps its old name, `build/XE-034-criterion-files-first`.
+
+- 2026-10-06: CS-001 merged unreviewed on Dorian’s instruction (PR #186). XE-035 declared from the review that couldn’t see what its criteria named.
 
 - 2026-10-06: Dorian approved naming exact paths in XE-034 criterion 10. Review `20261006-162216-c6ccd11-456j0wnv` marked it unmet (F2) because the criterion named the runner as a bare filename, so the review surface didn't carry it, the same gap CS-001 hit. Its F1, a combined `-ec` shell option slipping past the pipe check, was fixed in `deeec92`. The criterion's meaning is unchanged.
 
