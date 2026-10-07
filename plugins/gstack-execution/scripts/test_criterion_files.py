@@ -17,6 +17,7 @@ API = "openrouter-gpt"
 LINE = "x" * 99 + "\n"                                        # 100 characters
 NAMED = [f"plugins/p{i}/check{i}.py" for i in range(9)]       # CS-001 named nine
 MENTIONED = [f"docs/mentioned{i:02}.md" for i in range(30)]   # more than the 25-file cap
+ODD = ["app/items/[id]/page.tsx", "docs/release notes.md"]   # a tokenizer splits both
 PRE = "0-plugins-repo/"
 DESIGN, MARKET = f"changed/{PRE}DESIGN.md", f"changed/{PRE}.claude-plugin/marketplace.json"
 
@@ -37,6 +38,8 @@ class CriterionFilesTests(unittest.TestCase):
         for i in range(30):
             self.write(f"tools/caller{i:02}.py", "import marketplace\n" + LINE * 120)
         self.write("docs/huge.txt", LINE * 4100)              # larger than the api cap on its own
+        for n in ODD + ["page.tsx"]:                          # nothing changes, calls or mentions these
+            self.write(n, LINE * 10)
         self.sh("add", "."); self.sh("commit", "-qm", "base")
         self.base = self.sh("rev-parse", "HEAD")
         self.write("DESIGN.md", "status: building\n" + " ".join(MENTIONED) + "\n" + LINE * 3300)
@@ -72,6 +75,26 @@ class CriterionFilesTests(unittest.TestCase):
         # 30 files DESIGN.md merely mentions: 25 fit the cap, 5 are withheld, and the nine named are on top
         self.assertEqual((stats["dependencies"], stats["dependencies_withheld"]), (9 + 25, 5))
         self.assertIn("names by path: 9, all here and outside the cap", (surf / "SURFACE.md").read_text())
+
+    def test_a_path_a_tokenizer_would_split_is_still_named(self):
+        """Review 20261007-132627-b9dbce6 F1: brackets were outside PATH_TOKEN's alphabet, so the path
+        became three tokens, matched nothing, and the file was left off with no unusable outcome."""
+        criteria = self.criteria + ["`app/items/[id]/page.tsx` renders the item.", "docs/release notes.md lists it."]
+        surf, stats = self.surface(criteria)
+        odd = [f"dependencies/{PRE}{n}" for n in ODD]
+        self.assertEqual(stats["criterion_files"], self.named + odd)
+        text, sent = pr.surface_as_text(API, surf, stats["criterion_files"])
+        by = {e["path"]: e for e in sent}
+        for p in odd:
+            self.assertTrue((surf / p).exists(), p)
+            self.assertEqual((by[p]["sent"], by[p].get("criterion_named")), (True, True), p)
+            self.assertIn(f"=== {p} ===\n", text)
+
+    def test_a_path_inside_a_longer_path_is_not_the_named_file(self):
+        named = lambda *criteria: [n for _, n in pr.criterion_files(self.repos, list(criteria))]
+        self.assertEqual(named("`app/items/[id]/page.tsx` renders."), [ODD[0]], "root page.tsx is not what this names")
+        self.assertEqual(named(f"`{NAMED[0]}.bak` is gone, and so is old/{NAMED[1]}."), [])
+        self.assertEqual(named(f"See {NAMED[2]}. Then {NAMED[1]}:12, then ({NAMED[0]})."), [NAMED[2], NAMED[1], NAMED[0]])
 
     def test_a_cap_of_one_still_carries_all_nine(self):
         surf, stats = self.surface(self.criteria, cap=1)

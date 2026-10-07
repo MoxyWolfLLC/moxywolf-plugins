@@ -505,15 +505,25 @@ CRITERION_WHY = "named in an acceptance criterion"
 def criterion_files(repos, criteria):
     """XE-035: the tracked files a criterion names by exact path, as [(repo, name)]. The one home
     for that match: build_surface keeps these out of the caller slots, dependency_files carries
-    them outside the cap, and an api reviewer is sent them ahead of callers."""
-    toks = dict.fromkeys(t.rstrip("/.") for c in criteria for t in PATH_TOKEN.findall(c))
+    them outside the cap, and an api reviewer is sent them ahead of callers.
+
+    Each tracked path is looked for in the criteria, written out whole and not as the tail or head
+    of a longer path. Tokenizing the criteria first, as PATH_TOKEN does, lost every path with a
+    character outside its alphabet: `app/items/[id]/page.tsx` became three tokens and the file was
+    left off without a word (review 20261007-132627-b9dbce6, F1). -z for the same reason: a name
+    with a space survives it.
+    ponytail: one search per tracked file that occurs in the text at all. Fine for a repository;
+    build an index if a monorepo makes `open` slow."""
+    text = "\n".join(criteria)
     out = []
     for r in repos:
-        try:
-            tracked = set(git(r["path"], "ls-files").split())
-        except Exception:
-            continue
-        out += [(r, t) for t in toks if t in tracked]
+        found = []   # a repository git can't list raises here, as the diff above it would: no silent miss
+        for f in git(r["path"], "ls-files", "-z").split("\0"):
+            m = f and f in text and re.search(r"(?<![A-Za-z0-9_.@/-])" + re.escape(f)
+                                        + r"(?![A-Za-z0-9_@-]|[./]+[A-Za-z0-9_@-])", text)
+            if m:
+                found.append((m.start(), f))
+        out += [(r, f) for _, f in sorted(found)]   # in the order the criteria name them
     return out
 
 
