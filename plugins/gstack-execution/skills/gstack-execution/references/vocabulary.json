@@ -307,6 +307,13 @@
       "skos:definition": "a check failed on the branch and the same check has not passed since (XE-034)"
     },
     {
+      "id": "unusable",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "unusable",
+      "skos:definition": "a file an acceptance criterion names by path could not reach the reviewer, so nothing was sent; the detail names the file (XE-035)"
+    },
+    {
       "id": "release_blocked",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",

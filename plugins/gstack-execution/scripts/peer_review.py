@@ -460,12 +460,13 @@ def changed_files(repos):
     return out
 
 
-def caller_files(repos, changed, cap):
-    """Files referencing a changed file's base name. Bounded, and reports what it dropped."""
+def caller_files(repos, changed, cap, exclude=()):
+    """Files referencing a changed file's base name. Bounded, and reports what it dropped.
+    `exclude` keeps criterion-named files out of the caller slots (XE-035): they travel uncapped."""
     stems = {Path(n).stem for _, n in changed if Path(n).stem not in {"__init__", "index"}}
     # F1 (reviewer, 20260917-213250): a bare relative path is not unique across repositories --
     # repo A's utils.py masked repo B's. Keyed by repository identity, as build_surface already was.
-    hits, seen = [], {(id(r), n) for r, n in changed}
+    hits, seen = [], {(id(r), n) for r, n in changed} | set(exclude)
     for r in repos:
         try:
             tracked = git(r["path"], "ls-files").split()
@@ -498,15 +499,46 @@ REL_IMPORT = re.compile(r"""['"](\.{1,2}/[^'"\s]+)['"]""")
 PATH_TOKEN = re.compile(r"[A-Za-z0-9_.@-]+(?:/[A-Za-z0-9_.@-]+)*")   # F1: one component is a path too
 
 
+CRITERION_WHY = "named in an acceptance criterion"
+
+
+def criterion_files(repos, criteria):
+    """XE-035: the tracked files a criterion names by exact path, as [(repo, name)]. The one home
+    for that match: build_surface keeps these out of the caller slots, dependency_files carries
+    them outside the cap, and an api reviewer is sent them ahead of callers.
+
+    Each tracked path is looked for in the criteria, written out whole and not as the tail or head
+    of a longer path. Tokenizing the criteria first, as PATH_TOKEN does, lost every path with a
+    character outside its alphabet: `app/items/[id]/page.tsx` became three tokens and the file was
+    left off without a word (review 20261007-132627-b9dbce6, F1). -z for the same reason: a name
+    with a space survives it.
+    ponytail: one search per tracked file that occurs in the text at all. Fine for a repository;
+    build an index if a monorepo makes `open` slow."""
+    text = "\n".join(criteria)
+    out = []
+    for r in repos:
+        found = []   # a repository git can't list raises here, as the diff above it would: no silent miss
+        for f in git(r["path"], "ls-files", "-z").split("\0"):
+            m = f and f in text and re.search(r"(?<![A-Za-z0-9_.@/-])" + re.escape(f)
+                                        + r"(?![A-Za-z0-9_@-]|[./]+[A-Za-z0-9_@-])", text)
+            if m:
+                found.append((m.start(), f))
+        out += [(r, f) for _, f in sorted(found)]   # in the order the criteria name them
+    return out
+
+
 def dependency_files(repos, changed, criteria, exclude, cap):
     """Files a changed file names by path or imports relatively, and files a criterion names.
-    Returns ([(repo, name, why)], withheld). Criteria come first: they are what the verdict needs."""
-    hits, seen = [], set(exclude)
+    Returns ([(repo, name, why)], withheld). Criterion-named files come first and don't count
+    against the cap (XE-035): they are what the verdict needs."""
+    named, hits, seen = [], [], set(exclude)
 
     def add(r, f, why):
         if (id(r), f) not in seen:
-            seen.add((id(r), f)); hits.append((r, f, why))
+            seen.add((id(r), f)); (named if why == CRITERION_WHY else hits).append((r, f, why))
 
+    for r, f in criterion_files(repos, criteria):
+        add(r, f, CRITERION_WHY)
     for r in repos:
         try:
             tracked = set(git(r["path"], "ls-files").split())
@@ -520,9 +552,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
         for c in criteria:
             for tok in PATH_TOKEN.findall(c):
                 tok = tok.rstrip("/.")
-                if tok in tracked:
-                    add(r, tok, "named in an acceptance criterion")
-                elif tok in dirs:
+                if tok in dirs:
                     for m in MANIFESTS:
                         if f"{tok}/{m}" in tracked:
                             add(r, f"{tok}/{m}", f"manifest of {tok}/, which an acceptance criterion names")
@@ -542,7 +572,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
                 for ext in DEP_EXTS:
                     if base + ext in tracked:
                         add(r, base + ext, f"imported by {name}"); break
-    return hits[:cap], max(0, len(hits) - cap)
+    return named + hits[:cap], max(0, len(hits) - cap)
 
 
 def github_name(path):
@@ -797,7 +827,10 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         i, rel = _subject_path(f.get("file", ""), repos)
         if i is not None and (id(repos[i]), rel) not in seen:
             changed.append((repos[i], rel)); seen.add((id(repos[i]), rel))
-    callers, dropped = caller_files(repos, changed, cap)
+    # XE-035: a file a criterion names is what the verdict needs. It takes no caller slot, sits
+    # outside the dependency cap, and is never left off the surface without saying so.
+    named = {(id(r), n) for r, n in criterion_files(repos, criteria)}
+    callers, dropped = caller_files(repos, changed, cap, exclude=named)
     deps, deps_dropped = dependency_files(repos, changed, criteria,
                                           seen | {(id(r), n) for r, n in callers}, cap)
     # F2 (reviewer): the bare directory name collides when two repositories share a basename, and
@@ -811,22 +844,27 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
             # read_bytes(), which FOLLOWS one. Dropping the snapshot silently dropped that control,
             # so it is restored here rather than assumed. Found by tracing what snapshot() did
             # before deleting it.
+            dest = surf / surface_prefix(idx[id(r)], r, sub) / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 if src.is_symlink() and not src.resolve().is_relative_to(Path(r["path"]).resolve()):
                     raise ReviewError("data_use_denied",
                                       f"review surface refused {name}: symlink escapes repository scope")
-            except OSError:
-                continue
-            dest = surf / surface_prefix(idx[id(r)], r, sub) / name
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            try:
                 dest.write_bytes(src.read_bytes())
-            except OSError:
+            except OSError as e:
+                if (id(r), name) in named:   # XE-035.3: never withheld silently
+                    raise ReviewError("unusable", f"{name} is named in an acceptance criterion and "
+                                                  f"could not be put on the review surface: {e}")
                 continue
     dirs = criterion_dirs(repos, criteria, surf, idx)
+    # where each criterion-named file landed: changed/ if the diff touches it, else dependencies/
+    named_paths = [surface_prefix(idx[id(r)], r, sub) + n
+                   for group, sub in ((changed, "changed"), ([(r, n) for r, n, _ in deps], "dependencies"))
+                   for r, n in group if (id(r), n) in named]
     stats = {"changed": len(changed), "callers": len(callers), "callers_withheld": dropped,
              "cap": cap, "from_prior_findings": len([f for f in (prior_findings or ())]),
              "dependencies": len(deps), "dependencies_withheld": deps_dropped,
+             "criterion_files": named_paths,
              "criterion_dirs": [{"dir": d, "files": n, "binary": b, "withheld": w} for _, d, n, b, w in dirs]}
     ci = fetch_ci_evidence(repos, ci_runs, surf, archive_dir)
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
@@ -869,7 +907,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         f"- `dirs/` — {len(dirs)} directories an acceptance criterion names, every tracked text file in each\n"
         f"- `{EVIDENCE_DIR}/` — {len(ci)} CI runs, fetched by the dispatcher, not the builder\n"
         f"- withheld by the {cap}-file cap: {dropped}\n"
-        f"- dependencies withheld by the same cap: {deps_dropped}\n\n"
+        f"- dependencies withheld by the same cap: {deps_dropped}\n"
+        f"- files an acceptance criterion names by path: {len(named_paths)}, all here and outside the cap\n\n"
         "## Files the change did NOT touch, which reference what it changed\n\n"
         f"{caller_list}\n\n"
         "Check each against the diff. A change is not finished because the file it edits is "
@@ -1076,6 +1115,7 @@ def reviewer_usage(tool, stdout, stderr):
 
 OPENROUTER_URL = os.environ.get("GSTACK_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
 API_SURFACE_CAP = 400_000          # characters of surface sent to an api reviewer
+HUNKS_THRESHOLD = 40_000           # XE-035.2: a changed file larger than this can go as its diff hunks instead of whole
 LAST_SENT_SURFACE = None           # XE-013.6: set by run_openrouter, read by the round that called it
 
 
@@ -1097,7 +1137,7 @@ def openrouter_key():
     raise ReviewError("review_unavailable", f"{path} sets no OPENROUTER_API_KEY")
 
 
-def surface_as_text(tool, root):
+def surface_as_text(tool, root, named=()):
     """XE-013.5: an api reviewer has no filesystem, so the surface is SENT to it.
 
     Returns (text, sent). `sent` is the per-file record: this is the honest denominator for a
@@ -1106,30 +1146,78 @@ def surface_as_text(tool, root):
 
     ponytail: concatenation with a byte cap. The ceiling is a surface larger than the cap, where the
     tail is declared unsent rather than silently dropped; paginate only if that starts happening.
+
+    XE-035: `named` is the surface paths of the files a criterion names by path. They are sent
+    wherever they sit, after the diff and the changed files and before any caller. Sorted order
+    used to put callers/ ahead of changed/ and never offered dependencies/, which is how CS-001's
+    reviewer got 25 callers and neither DESIGN.md nor the files its criteria named. If the cap
+    would still drop a named file, the largest changed files stand in as their hunks in
+    CHANGE.diff until it fits, and if that isn't enough the surface is `unusable`, not thinner.
     """
-    sends = REVIEWERS[tool]["sends"]
-    parts, sent, total = [], [], 0
-    for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file()):
-        if rel not in sends and rel.split("/")[0] not in sends:
-            continue
-        body = (root / rel).read_text(errors="replace")
-        if total + len(body) > API_SURFACE_CAP:
-            sent.append({"path": rel, "sent": False, "why": f"surface cap {API_SURFACE_CAP} reached"})
-            continue
-        total += len(body)
-        parts.append(f"=== {rel} ===\n{body}")
-        sent.append({"path": rel, "sent": True, "chars": len(body)})
+    sends, named = REVIEWERS[tool]["sends"], set(named)
+    bodies = {rel: (root / rel).read_text(errors="replace")
+              for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file())
+              if rel in sends or rel.split("/")[0] in sends or rel in named}
+    order = sorted(bodies, key=lambda rel: (0 if "/" not in rel else 1 if rel.startswith("changed/")
+                                            else 2 if rel in named else 3, rel))
+    sections = re.split(r"(?m)^=== .+: \S+\.\.\S+ ===$", bodies.get("CHANGE.diff", ""))[1:]
+
+    def has_hunks(rel):   # only a file whose diff really is in CHANGE.diff, in its own repository's section
+        try:
+            prefix, name = rel.split("/", 2)[1:]
+            return f"diff --git a/{name} b/{name}\n" in sections[int(prefix.split("-")[0])]
+        except (ValueError, IndexError):
+            return False
+
+    stubs = {}
+    while True:
+        total, dropped = 0, set()
+        for rel in order:
+            size = len(stubs.get(rel, bodies[rel]))
+            if total + size > API_SURFACE_CAP:
+                dropped.add(rel)
+            else:
+                total += size
+        lost = sorted(named - bodies.keys()) + [rel for rel in order if rel in dropped and rel in named]
+        if not lost:
+            break
+        big = [rel for rel in order if rel.startswith("changed/") and rel not in named | dropped | stubs.keys()
+               and len(bodies[rel]) > HUNKS_THRESHOLD and "CHANGE.diff" not in dropped and has_hunks(rel)]
+        if not big:
+            raise ReviewError("unusable", f"named in an acceptance criterion and would not reach {tool} under its "
+                                          f"{API_SURFACE_CAP}-character surface cap, even with large changed files "
+                                          f"sent as diff hunks: {', '.join(rel.split('/', 2)[2] for rel in lost)}. "
+                                          "Name fewer files in the criteria, or split the review.")
+        rel = max(big, key=lambda rel: len(bodies[rel]))
+        stubs[rel] = (f"[sent as its diff hunks: see `diff --git a/{rel.split('/', 2)[2]}` in CHANGE.diff. The whole "
+                      f"file, {len(bodies[rel])} characters, was left out so the files an acceptance criterion "
+                      f"names fit under the {API_SURFACE_CAP}-character cap.]")
+    parts, sent = [], []
+    for rel in order:
+        entry = {"path": rel, "sent": rel not in dropped}
+        if rel in dropped:
+            entry["why"] = f"surface cap {API_SURFACE_CAP} reached"
+        else:
+            body = stubs.get(rel, bodies[rel])
+            parts.append(f"=== {rel} ===\n{body}")
+            entry["chars"] = len(body)
+        if rel in stubs and entry["sent"]:
+            entry.update({"as": "diff_hunks", "whole_chars": len(bodies[rel]),
+                          "why": "its hunks are in CHANGE.diff; the whole file made way for criterion-named files"})
+        if rel in named:
+            entry["criterion_named"] = True
+        sent.append(entry)
     return "\n\n".join(parts), sent
 
 
-def run_openrouter(tool, prompt, root, timeout, output_schema):
+def run_openrouter(tool, prompt, root, timeout, output_schema, named=()):
     """One reviewer round over the openrouter transport. Returns (text, model_that_ran)."""
     global LAST_REVIEWER_USAGE, LAST_SENT_SURFACE
     cfg = REVIEWERS[tool]
     if not model_ok(tool, cfg["model"]):
         raise ReviewError("model_below_floor", f"{tool} is configured for {cfg['model']!r}; floor is {cfg['floor_name']}")
     key = openrouter_key()
-    text, sent = surface_as_text(tool, root)
+    text, sent = surface_as_text(tool, root, named)
     LAST_SENT_SURFACE, LAST_REVIEWER_USAGE = sent, "not_reported"
     body = {"model": cfg["model"], "max_tokens": cfg["max_output"],
             "messages": [{"role": "user",
@@ -1173,8 +1261,9 @@ def run_openrouter(tool, prompt, root, timeout, output_schema):
     return out, model
 
 
-def run_reviewer(tool, prompt, root, timeout, schema=None):
-    """Returns (reviewer_output_text, model_that_ran)."""
+def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
+    """Returns (reviewer_output_text, model_that_ran). `named` is the surface paths of the files a
+    criterion names (XE-035); only a transport that sends the surface needs it."""
     output_schema = schema or STRICT_SCHEMA
     # XE-014.13: the reviewer never holds a GitHub token. The dispatcher may run under
     # agent_token.py exec to read CI; the other tool gets a shell, so the token stops here.
@@ -1184,7 +1273,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None):
     if fake:
         cmd, parse = ["sh", "-c", fake], lambda r: (r.stdout, "fake")
     elif REVIEWERS.get(tool, {}).get("transport") == "openrouter":
-        return run_openrouter(tool, prompt, root, timeout, output_schema)
+        return run_openrouter(tool, prompt, root, timeout, output_schema, named)
     elif tool == "codex":
         if not shutil.which("codex"):
             raise ReviewError("review_unavailable", "codex CLI not installed on PATH")
@@ -1828,6 +1917,24 @@ def off_repo_verdict(packet):
     return unevidenced, evidenced
 
 
+def surface_unusable(packet, reviewer):
+    """XE-035.3: build the surface once at open and, for a reviewer that is sent it, pack it.
+    Returns why a file a criterion names can't reach that reviewer, or None. Nothing leaves the
+    machine here. The round runs the same code against the reviewer that actually runs, so a
+    fallback to a capped transport is still caught there."""
+    tmp = Path(tempfile.mkdtemp(prefix="gstack-fit-"))
+    try:
+        surf, stats = build_surface(packet["repos"], tmp, criteria=packet["acceptance_criteria"])
+        if REVIEWERS[reviewer]["transport"] != "cli":
+            surface_as_text(reviewer, surf, stats["criterion_files"])
+    except ReviewError as e:
+        if e.outcome == "unusable":   # any other refusal is the round's to report, as before
+            return e.detail
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return None
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -1874,14 +1981,18 @@ def cmd_open(a):
                           "--accept-open-failure \"<reason>\".")
     ledger_status = "overridden" if open_failures else ("none" if missing else "clear")
 
+    reviewer, is_fallback = choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)
+    unusable = surface_unusable(packet, reviewer)   # before the review directory exists: a crash here leaves nothing behind
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
     root.mkdir(parents=True, exist_ok=True)
     d = Path(tempfile.mkdtemp(prefix=stem + "-", dir=root))
     review_id = d.name
-    reviewer, is_fallback = choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)
     state = {"review_id": review_id, "builder": a.builder, "builder_family": family(a.builder),
              "reviewer": reviewer, "reviewer_family": family(reviewer), "reviewer_is_fallback": is_fallback,
-             "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0, "outcome": "opened",
+             "release_owner": packet["release_owner"], "max_rounds": a.max_rounds, "timeout": a.timeout, "rounds_used": 0,
+             # XE-035.3: a surface missing a file a criterion names is not sent; the review is
+             # terminal from the start and says which file.
+             "outcome": "unusable" if unusable else "opened", **({"error": unusable} if unusable else {}),
              # F1 (reviewer, 20260918-114838): an UNAVAILABLE scorer had been recorded as checked.
              # The record then claimed coverage was verified when nothing had run -- the precise
              # false green this item exists to remove, inside the item's own gate. Only a report
@@ -1986,7 +2097,8 @@ def cmd_round(a):
         if not api:
             _age_atimes(surf)
             before = _atime_map(surf) if read_tracking_probe(surf) else None
-        raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"])
+        raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
+                                            named=surf_stats["criterion_files"])
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
@@ -2538,6 +2650,8 @@ def main():
                   "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
+        if a.cmd == "open" and result["outcome"] == "unusable":   # XE-035.3
+            sys.exit(f"unusable: {result['error']}")
         if a.cmd == "collect":
             # pending is an answer, not a failure; a non-pass outcome and a dead dispatch are failures
             st = result.get("status")

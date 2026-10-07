@@ -60,9 +60,12 @@ class SurfaceEvidenceTests(unittest.TestCase):
 
     def test_cap_reports_what_it_withheld(self):
         surf, stats = self.surface(criteria=self.criteria, cap=1)
-        self.assertEqual(stats["dependencies"], 1)
-        self.assertEqual(stats["dependencies_withheld"], 2)
-        self.assertIn("dependencies withheld by the same cap: 2", (surf / "SURFACE.md").read_text())
+        # XE-035: scripts/local-supabase.ts is named by a criterion, so it sits outside the cap. The
+        # cap now covers the two others (the apps/web manifest and the ./client import): one kept, one withheld.
+        self.assertTrue((surf / "dependencies" / "0-app" / "scripts/local-supabase.ts").exists())
+        self.assertEqual(stats["dependencies"], 2)
+        self.assertEqual(stats["dependencies_withheld"], 1)
+        self.assertIn("dependencies withheld by the same cap: 1", (surf / "SURFACE.md").read_text())
 
     def fake_github(self, head_sha, fail=False):
         def get(name, path):

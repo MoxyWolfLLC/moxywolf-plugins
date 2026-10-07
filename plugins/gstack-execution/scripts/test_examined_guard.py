@@ -70,7 +70,7 @@ def test_a_round_that_read_nothing_is_refused_on_that_and_not_on_its_verdict():
         # where the workflow provisions checkout and Python only. Peer review 20260922-160502
         # F1 caught it; reproduced with PATH stripped of the npm global bin before fixing.
         pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("codex", False)
-        pr.run_reviewer = lambda tool, prompt, root, timeout, schema=None: (clean, "gpt-6-astra")
+        pr.run_reviewer = lambda tool, prompt, root, timeout, schema=None, named=(): (clean, "gpt-6-astra")
         ns = lambda **k: argparse.Namespace(**k)
         rid = pr.cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
         outcome = pr.cmd_round(ns(review_id=rid, head=[]))

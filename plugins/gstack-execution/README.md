@@ -110,6 +110,8 @@ The open refuses one more shape of packet (XE-025). A criterion about a place th
 
 And one more (XE-034). If a check run through `check_ledger.py` failed on the branch and the same check hasn't passed since, the open fails as `open_check_failure` and names each one. `--accept-open-failure "<reason>"` proceeds and records the reason word for word. `state.json` and the first line of `SURFACE.md` carry `ledger_status`: `clear`, `overridden`, or `none` for a branch that never used the ledger, which opens but shows it. The rule that only the same check can clear a failure comes from WXK-AI/jev-opus at `6b6b0f8` (MIT); no code was copied.
 
+And one about what the reviewer is shown (XE-035). A file an acceptance criterion names by exact path always reaches the reviewer. On disk it sits outside the 25-file cap and takes no caller slot. An API reviewer, which is sent the surface as text under a 400,000-character cap, gets the diff, the changed files, the named files and then callers, in that order. If the cap would still drop a named file, changed files over 40,000 characters go as their hunks in `CHANGE.diff`, largest first, and the round record's `sent` list marks each one `as: diff_hunks`. If that isn't enough, or a named file can't be read, the review opens as `unusable`, names the file and takes no round. The round checks again against the reviewer that actually runs, so a fallback to an API reviewer is caught there. An API reviewer still isn't sent `dirs/`, `evidence/`, or the `dependencies/` files no criterion names.
+
 ## Licence and provenance
 
 MIT, following gstack. Adversarial-review framing adapted from codex-plugin-cc (Apache-2.0). The verification discipline, the peer-review contract, the review surface and the gates are MoxyWolf's.

@@ -1387,7 +1387,7 @@ The first goal on a product repository stopped at its first review. Item 1's cri
 
 ### XE-035 — A file a criterion names reaches the reviewer before anything the change merely mentions
 
-**Status:** planned. Declared 2026-10-06 on Dorian’s instruction, after CS-001’s second review. First numbered XE-034 in PR #187 and renumbered on 2026-10-07, because that id went to the check-ledger item first.
+**Status:** building. Declared 2026-10-06 on Dorian’s instruction, after CS-001’s second review. First numbered XE-034 in PR #187 and renumbered on 2026-10-07, because that id went to the check-ledger item first.
 
 **Links introduced:** none. The surface manifest already records what was sent and what was withheld.
 
