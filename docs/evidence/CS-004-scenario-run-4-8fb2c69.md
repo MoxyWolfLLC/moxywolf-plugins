@@ -1,6 +1,6 @@
 # CS-004 scenario evaluation, run 4, at `8fb2c69`
 
-Nine scenarios run against the instruction files at revision `8fb2c69`. Subject: Claude Sonnet subagent. 7 of 9 passed. Method, harness and limits are in `CS-004-scenarios-2026-10-07.md`. Every company, person, address and number in the inputs is an invented fixture.
+9 scenarios run against the instruction files at revision `8fb2c69`. Subject: Claude Sonnet subagent. 7 of 9 passed. Method, harness and limits are in `CS-004-scenarios-2026-10-07.md`. Every company, person, address and number in the inputs is an invented fixture.
 
 ## S1: outreach sending (sales-department)
 

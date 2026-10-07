@@ -1,6 +1,8 @@
 # CS-004 validation record (criteria 9 and 10)
 
-Recorded 2026-10-07 at `882688f`. Review `20261007-155817-a6a9289-sqfgr1r2` round 1 (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds this file changes only `docs/evidence/`.
+Recorded 2026-10-07 at `05c5e68`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
+
+A limit, stated up front: this is the builder's copy. The review dispatcher doesn't put ledger lines or commit history on the review surface itself, so a reviewer can read these records and can't yet check them against the source. Closing that is a change to `peer_review.py`, which is outside CS-004.
 
 Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Nothing was pushed, so there is no CI run.
 
@@ -17,6 +19,8 @@ efe43c3 2026-10-07T15:33:56-07:00 CS-004: tighten the head skills and the memo r
 8fb2c69 2026-10-07T15:45:09-07:00 CS-004: close the two gaps scenario run 3 left open
 a6a9289 2026-10-07T15:52:01-07:00 CS-004: record the four scenario evaluations (criterion 9)
 882688f 2026-10-07T16:02:35-07:00 CS-004: a spent approval can't be reused, and an open field isn't ready (review F1, F2)
+6ae75f7 2026-10-07T16:15:51-07:00 CS-004: record scenario runs 5 and 6 and the validation evidence (review F3)
+05c5e68 2026-10-07T16:19:56-07:00 CS-004: the checks come before the memo (review F4, F5)
 ```
 
 The test commit, `git show --stat ebc29ef`. It touches the two test files and nothing else:
@@ -35,29 +39,34 @@ The first implementation commit is `a2648b8`, after it.
 
 Copied from `<review root>/ledger/MoxyWolfLLC-moxywolf-plugins/build/CS-004-sales-marketing-departments.jsonl`. One line per check run. The head is the commit checked out when the run was recorded.
 
-| Run | Started (UTC) | Head | Exit | Command |
-|---|---|---|---|---|
-| `7202862f68ef` | 2026-10-07T22:18:43Z | `af86735` | 1 | `python3 plugins/chief-of-staff/tests/test_roster.py` |
-| `b6fff0827638` | 2026-10-07T22:18:43Z | `af86735` | 1 | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
-| `ea5909d742a4` | 2026-10-07T22:23:09Z | `a2648b8` | 0 | `python3 plugins/chief-of-staff/tests/test_roster.py` |
-| `c315da59b9b9` | 2026-10-07T22:23:09Z | `a2648b8` | 0 | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
-| `30ab376f20a5` | 2026-10-07T22:24:09Z | `a2648b8` | 0 | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
-| `ca0a33cff599` | 2026-10-07T22:35:39Z | `4ccc93d` | 0 | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
-| `8bd360cfc821` | 2026-10-07T22:41:58Z | `8fb2c69` | 0 | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
-| `3b50304b9cb6` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | `python3 plugins/chief-of-staff/tests/test_roster.py` |
-| `f4da9b6a4d7f` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
-| `2883ad1738b1` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
-| `485b7a5cf87c` | 2026-10-07T22:52:02Z | `a6a9289` | 0 | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
-| `ed056af574f0` | 2026-10-07T23:02:36Z | `882688f` | 0 | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
-| `97892066f49b` | 2026-10-07T23:11:32Z | `882688f` | 0 | `python3 plugins/chief-of-staff/tests/test_roster.py` |
-| `7fc5c39a10c9` | 2026-10-07T23:11:32Z | `882688f` | 0 | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
-| `bb1b233e7b8f` | 2026-10-07T23:11:32Z | `882688f` | 0 | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| Run | Started (UTC) | Head | Exit | Clean tree throughout | Command |
+|---|---|---|---|---|---|
+| `7202862f68ef` | 2026-10-07T22:18:43Z | `af86735` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `b6fff0827638` | 2026-10-07T22:18:43Z | `af86735` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `ea5909d742a4` | 2026-10-07T22:23:09Z | `a2648b8` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `c315da59b9b9` | 2026-10-07T22:23:09Z | `a2648b8` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `30ab376f20a5` | 2026-10-07T22:24:09Z | `a2648b8` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `ca0a33cff599` | 2026-10-07T22:35:39Z | `4ccc93d` | 0 | no | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `8bd360cfc821` | 2026-10-07T22:41:58Z | `8fb2c69` | 0 | no | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `3b50304b9cb6` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `f4da9b6a4d7f` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `2883ad1738b1` | 2026-10-07T22:52:01Z | `a6a9289` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| `485b7a5cf87c` | 2026-10-07T22:52:02Z | `a6a9289` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `ed056af574f0` | 2026-10-07T23:02:36Z | `882688f` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `97892066f49b` | 2026-10-07T23:11:32Z | `882688f` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `7fc5c39a10c9` | 2026-10-07T23:11:32Z | `882688f` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `bb1b233e7b8f` | 2026-10-07T23:11:32Z | `882688f` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| `be5eae326261` | 2026-10-07T23:15:51Z | `05c5e68` | 0 | no | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `1f98d76c784c` | 2026-10-07T23:24:13Z | `05c5e68` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `4910037ee1d1` | 2026-10-07T23:30:39Z | `05c5e68` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `0aa141f16c0e` | 2026-10-07T23:30:40Z | `05c5e68` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `f622fe3371ed` | 2026-10-07T23:30:40Z | `05c5e68` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
 
 Three things to read these lines by:
 
 - The two exit-1 lines are the baseline. They ran with the new test files in the working tree on top of `af86735`, before any implementation. Those files were committed unchanged as `ebc29ef`.
 - The same two commands exit 0 from `a2648b8` on. A failure in this ledger closes only when the same command passes, so that's what cleared them.
-- The `run_all_tests.py` lines at `4ccc93d` and `8fb2c69` started on the commit before and ran while instruction text was being edited and committed. Don't lean on those two. The runs at `a2648b8`, `a6a9289` and `882688f` started and finished on a clean tree at that commit.
+- Three `run_all_tests.py` lines are marked "no" under clean tree. Each started on one commit and was recorded on the next, because instruction text was edited and committed while it ran. Don't lean on those three. Every line marked "yes" started and finished at the head shown with nothing edited.
 
 ## Baseline: the tests fail before the departments exist
 
@@ -83,7 +92,7 @@ Ran 6 tests in 0.003s
 FAILED (failures=6)
 ```
 
-## At `882688f`
+## At `05c5e68`
 
 `test_roster.py`:
 
@@ -124,7 +133,7 @@ examined 74 checks: 74 passed, 0 failed
 `version_bump.py --base origin/main --head HEAD`:
 
 ```text
-version bump: PASS, range origin/main..HEAD (e48e1ec..882688f), 25 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
+version bump: PASS, range origin/main..HEAD (e48e1ec..05c5e68), 28 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
 ```
 
 `check_ledger.py open-issues`:
