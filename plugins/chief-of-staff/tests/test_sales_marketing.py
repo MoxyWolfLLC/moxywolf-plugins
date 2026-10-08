@@ -161,7 +161,7 @@ class Routing(unittest.TestCase):
             skill, governance = read(base / f"skills/{head}/SKILL.md"), read(base / "GOVERNANCE.md")
             for field in RETURN_FIELDS:
                 self.assertIn(field, skill.lower(), f"{head} doesn't promise: {field}")
-            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement"):
+            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement", "Absence is a claim too"):
                 self.assertIn(must, skill, f"{head} doesn't state: {must}")
             self.assertIn("Dorian Cougias", governance, f"{pkg}'s GOVERNANCE.md names no Release Owner")
             for row in (f"`{pkg}`", f"`{head}`"):
@@ -180,7 +180,7 @@ class Routing(unittest.TestCase):
         self.assertIn("by what it contains", review, "the manual doesn't say a result is judged by what it contains")
         self.assertIn("stays blocked", review, "the manual doesn't keep the sensitive action blocked while a review is out")
         memo = section(manual, "The decision memo")
-        for must in ("**For the bookkeeper.**", "context card", "never contact", "open question stays", "identifies the customer"):
+        for must in ("**For the bookkeeper.**", "context card", "never contact", "open question stays", "identifies the customer", "hasn't answered"):
             self.assertIn(must, memo, f"the decision memo's rules don't say: {must}")
         self.assertIn("bookkeeper", dispatcher, "/cos doesn't carry a finance disagreement to the bookkeeper's section")
         self.assertRegex(dispatcher, r"involves sales-department or finance", "/cos doesn't name the disagreements that skip the wait")
