@@ -118,7 +118,7 @@ Dorian set this on 2026-10-07. Fifteen scenario runs showed the same thing: an a
 | `Ask: "…"` | Dorian's own words in the ask, the same way. |
 | `Card: "…"` | The context card's own words, the same way. |
 | `Me: I …` | One sentence, first person: what you did or didn't do in this run. "Me: I haven't had security's answer." Never what somebody else did or didn't do. |
-| `Open: …?` | A question that's still open. |
+| `Open: …?` | One question that's still open, and only the question. It starts with the question word (is, does, should, what, which) and ends with the question mark. What leads up to it goes on its own line first, in its own form. |
 | `My inference: …` | Everything else: your arithmetic, your recommendation and each reason for it, a risk you're carrying from one option to another, your read of what a result means. |
 
 Headings and short bold titles are fine. Tables aren't. A fenced block is for the log entry and nothing else.
@@ -127,7 +127,7 @@ Before anything goes to Dorian, the report and the memo together:
 
 1. Write it to a file. Write the ask to a file, and each result to a file exactly as it came back. The context card already is one.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claim_check.py" --doc <file> --source Ask=<file> --source Card=<file> --source Sales=<file>`, with one `--source` for each result.
-3. Fix every line it fails, and run it again until it passes. A line that fails because you can't quote it has two honest fixes: find the words in the result and quote them, or call it what it is, your inference. Never get a line through by quoting something that says less than you meant. And never say in your own words what a source said, in any line. "Finance says 30% is too much" fails even under an inference label, because the script reads a source's name followed by a verb of saying as a retelling. Quote it under its name, then put your own point on the next line. The script also fails an inference or a proposal that says nobody did something or nothing was done, like "nobody has reviewed it". You can't know what nobody did. Say what you did: "Me: I haven't reviewed it."
+3. Fix every line it fails, and run it again until it passes. A line that fails because you can't quote it has two honest fixes: find the words in the result and quote them, or call it what it is, your inference. Never get a line through by quoting something that says less than you meant. And never say in your own words what a source said, in any line. "Finance says 30% is too much" fails even under an inference label, because the script reads a source's name followed by a verb of saying as a retelling. Quote it under its name, then put your own point on the next line. The script also fails any line of yours that says nobody did something or nothing was done, like "nobody has reviewed it". You can't know what nobody did. Say what you did: "Me: I haven't reviewed it."
 4. End what you give him with the script's last line, the receipt. He can run the script again and get the same line.
 
 Run the same script on a result from sales-department or marketing-department when it comes back, with `--source Dispatch=<the dispatch you sent>` and `--source Card=<the card>`. A failure makes the result incomplete. It goes back once, with the script's output.
