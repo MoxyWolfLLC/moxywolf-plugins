@@ -161,7 +161,7 @@ class Routing(unittest.TestCase):
             skill, governance = read(base / f"skills/{head}/SKILL.md"), read(base / "GOVERNANCE.md")
             for field in RETURN_FIELDS:
                 self.assertIn(field, skill.lower(), f"{head} doesn't promise: {field}")
-            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement", "Absence is a claim too", "Before you return", "## How a result is written", '`Dispatch: "…"`'):
+            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement", "Absence is a claim too", "Before you return", "## How a result is written", '`Dispatch: "…"`', "and only the question"):
                 self.assertIn(must, skill, f"{head} doesn't state: {must}")
             self.assertIn("Dorian Cougias", governance, f"{pkg}'s GOVERNANCE.md names no Release Owner")
             for row in (f"`{pkg}`", f"`{head}`"):
@@ -171,7 +171,7 @@ class Routing(unittest.TestCase):
             self.assertIn(field, manual, f"the manual doesn't check the two departments' results for: {field}")
         self.assertIn("go past their source", manual, "the manual doesn't send back a claim that goes past its source")
         # CS-006.5 and .9: the check is named, run before anything reaches Dorian, and its limits are stated
-        for must in ("## the claim check", "scripts/claim_check.py", "the receipt", "it doesn't know whether your inference is sound"):
+        for must in ("## the claim check", "scripts/claim_check.py", "the receipt", "it doesn't know whether your inference is sound", "and only the question"):
             self.assertIn(must, manual, f"the manual doesn't say: {must}")
         self.assertTrue((COS / "scripts/claim_check.py").is_file(), "the manual names a script that isn't there")
         self.assertIn("claim check", read(DISPATCHER), "/cos doesn't run the claim check")

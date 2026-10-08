@@ -72,6 +72,18 @@ class Forms(unittest.TestCase):
         self.bad('- Sales: "from pipeline review notes"\n', "not found in Sales")
         print("examined curly quotes, asterisk and underscore emphasis in source and document, and quotations joined by and/then")
 
+    def test_a_mark_inside_a_word_is_part_of_the_word(self):
+        """Review round 2, F7: `pipeline__review` lost both underscores, so a changed identifier verified."""
+        with tempfile.TemporaryDirectory() as d:
+            ops = Path(d) / "ops.md"
+            ops.write_text("Notes come from pipeline__review and from 5*4 checks, **not** from the `claim_check.py` script or a `x`y pair.\n")
+            src = ("--source", f"Ops={ops}")
+            self.ok('- Ops: "come from pipeline__review and" and "from 5*4 checks" then "not from the claim_check.py script"\n', *src)
+            for changed in ("come from pipelinereview and", "come from pipeline_review and", "come from pipeline review and",
+                            "from 54 checks", "from the claimcheck.py script", "or a xy pair"):
+                self.bad(f'- Ops: "{changed}"\n', "not found in Ops", *src)
+        print("examined a double underscore, an asterisk and a backtick inside a word: each stays, and 6 quotations that drop or change one fail")
+
     def test_a_quotation_must_be_in_the_named_source(self):
         self.bad('- Sales: "Whether Halden would accept prepay"\n', "not found in Sales")
         self.bad('- Finance: "30% off is $14,000 of margin"\n', "not found in Finance")
@@ -112,6 +124,40 @@ class Forms(unittest.TestCase):
         self.bad("**A. Offer 30% off.** Sales wants it.\n- Open: Do we?\n", "unlabeled")
         self.bad("**" + "A long bold line is a sentence wearing a title's clothes, and it says nobody read the CRM at all" + "**\n- Open: Do we?\n", "unlabeled")
         self.bad("| Option | Cost |\n|---|---|\n| A | $14,400 |\n- Open: Do we?\n", "unlabeled")
+
+    def test_a_label_in_a_title_is_still_judged(self):
+        """A heading or a short bold title is structure. One that begins with a label is a labeled line set as a title."""
+        self.bad(OPEN + '**Sales: "The buyer signed the order form"**\n', "not found in Sales")
+        self.bad(OPEN + '## Sales: "The buyer signed the order form"\n', "not found in Sales")
+        self.bad(OPEN + "**My inference: nobody has reviewed the email**\n", "nobody")
+        self.bad(OPEN + "### Inference: nobody has reviewed the email\n", "nobody")
+        self.bad(OPEN + "## Me: Sales read the CRM\n", "first person")
+        out = self.ok('## Sales: "Read the supplied note."\n**Finance: "takes this deal below the floor"**\n')
+        self.assertEqual((out["labeled"], out["quotations_verified"], out["titles"]), (2, 2, 0))
+        self.bad(OPEN + "#Nobody read the CRM\n", "unlabeled")       # a hash with no space after it isn't a heading
+        out = self.ok("\ufeff# Memo\n" + OPEN + "## 2. Where each department stands\n**Option A: offer 30% off.**\n")
+        self.assertEqual(out["titles"], 3, "a byte-order mark hid the first heading, or a plain title was judged")
+        print("examined 5 labeled titles that fail, 2 that verify, a hash that isn't a heading, and 3 plain titles after a byte-order mark")
+
+    def test_open_is_one_question_and_nothing_else(self):
+        """Review round 2, F8: `Open: Nothing's been checked with Halden. Shall I check?` passed, because only the last character was read."""
+        self.ok("- Open: Would Halden accept prepay?\n- Open: On what date should the post go out?\n- Open: What's the floor for this deal?\n"
+                "- Open: Isn't the floor 40%?\n- Open: Which revision did Dorian approve, A or B?\n- Open: Has nobody checked the address?\n"
+                "- Open: Did no one read the CRM?\n")
+        self.bad(OPEN + "- Open: Halden's address isn't confirmed. Should I confirm it?\n", "one question")
+        self.bad(OPEN + "- Open: Should I confirm it? Halden's address isn't confirmed.\n", "doesn't end with one")
+        self.bad(OPEN + "- Open: Halden's address isn't confirmed, so should I confirm it?\n", "question word")
+        self.bad(OPEN + "- Open: I read no CRM record, so do the records match?\n", "question word")   # recorded in run 16, S5
+        self.bad(OPEN + "- Open: For legal: is this a commercial email?\n", "question word")           # recorded in run 17, S1
+        # asking whether nobody did it is a question; these three say it
+        self.bad(OPEN + "- Open: Why has nobody checked the address?\n", "nobody")
+        self.bad(OPEN + "- Open: Is it true that nobody has reviewed the email?\n", "nobody")
+        self.bad(OPEN + "- Open: Has nobody checked the address, and has nothing been sent?\n", "nobody")
+        for sentence, where in SLIPPED:
+            for line in (sentence, f"{sentence} Shall I check?", f"{sentence[:-1]}, so shall I check?"):
+                self.bad(f"{OPEN}- Open: {line}\n", "")
+        print(f"examined 7 questions that pass, 8 lines with a statement attached that fail, and {len(SLIPPED)} recorded sentences under Open: "
+              "as written, with a question after, and leading into a question")
 
     def test_a_fence_closes_only_on_its_own_kind(self):
         """Review F4: any line starting with three backticks toggled the fence, and a tilde fence wasn't one."""
@@ -168,6 +214,8 @@ class Forms(unittest.TestCase):
                           "hold the send, since no one has checked the address.",
                           'hold because "nobody has reviewed the email".'):   # review F3: quote marks don't hide it
                 self.bad(f"{OPEN}- {label}: {claim}\n", "nobody")
+        self.bad(OPEN + "- Me: I can see that nobody has reviewed the email.\n", "nobody")
+        self.bad(OPEN + "- Inference: the gap is that nobody actually reviewed the draft.\n", "nobody")
         self.ok("- Me: I sent nothing to Halden.\n- Me: I haven't reviewed the email against the FTC guide.\n"
                 "- Open: Has nobody checked the address?\n- Inference: the email wasn't reviewed against the FTC guide in this run.\n")
         # honest lines the first version of this rule failed when it was replayed over run 17
@@ -175,7 +223,8 @@ class Forms(unittest.TestCase):
                 "- Proposal: I do nothing further until a dispatch carries his recorded approval.\n"
                 "- Inference: with no target number, nobody can grade the campaign afterwards.\n"
                 "- Proposal: Nothing is written to the CRM until a recorded approval matches.\n")
-        print("examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, and 9 lines that make no such claim")
+        print("examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, one under Me:, one with an adverb, "
+              "and 9 lines that make no such claim")
 
     def test_nothing_passes_unchecked(self):
         """Review F1: `--also LABEL` let any line through, including a built-in label or a source's own."""
