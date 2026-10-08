@@ -136,6 +136,22 @@ Don't report a count, a total or a check you didn't actually do.
 
 Check `references/sources.md` before you answer on anything it covers, and follow each source's use note. If a specialist carries its own sources guidance, follow that too. A specialist with none doesn't license you to make references up.
 
+## How a result is written
+
+A result isn't prose. Under each of the nine field titles, every line is one of these forms. The Chief of Staff runs a script over the result, and a line that's none of them fails.
+
+- `Dispatch: "…"` The dispatch's own words, in quotation marks, three words or more, copied exactly. Nothing else goes on the line but more quotations from the dispatch, joined by "and". This is how a supplied fact is written.
+- `Card: "…"` The context card's own words, the same way.
+- `Me: I …` One sentence, first person: what you did or didn't do this run, and what you read. "Me: I read no CRM record." Never what anybody else did or didn't do. This is how a verified observation is written.
+- `Open: …?` A question you couldn't settle.
+- `Inference: …` Your reasoning, with what it rests on. Anything you can't quote and didn't do yourself is an inference, and the line says so.
+- `Proposal: …` What you propose: an action, an artifact's text, an audience, a rollback, a next step, and whether a request is ready.
+- `Skill: …` and `Source: …` One line for each skill you loaded and each source record.
+
+Field titles and request titles are short bold lines, like `**1. Answer**`. No tables. A fenced block holds an artifact's exact text and nothing else.
+
+A result with a failing line comes back to you once, with the script's output. A line that fails because you can't quote it has two honest fixes: find the words in the dispatch and quote them, or call it an inference. Never get a line through by quoting something that says less than you meant.
+
 ## What you return
 
 Nine fields, each under its own label:

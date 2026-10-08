@@ -91,7 +91,7 @@ There's one exception, and Dorian set it on 2026-10-07. A disagreement that invo
 
 Each department agent promises four things: the answer, the skills it loaded, the sources it cited, and its open questions. Check for all four before you use a result.
 
-- If any are missing, send the result back once and name the missing field.
+- If any are missing, send the result back once and name the missing field. A result from sales-department or marketing-department also goes through the claim check, below. A failing line is a missing piece.
 - If it's still missing after that, report the result as incomplete and name the gap. Never fill a gap yourself.
 - Check the answer against the success criteria you sent. If it doesn't settle them, say which ones it leaves open.
 
@@ -108,6 +108,32 @@ A result from sales-department or marketing-department carries those four fields
 - So does a request that leaves any field of its artifact open without being marked not ready, and one that leans on an approval Dorian gave for a different revision. An approval he gave before he asked for a change is spent, for the earlier version too.
 - Pending approvals go to Dorian through the Release Owner Gate. They aren't yours to grant.
 
+## The claim check
+
+Dorian set this on 2026-10-07. Fifteen scenario runs showed the same thing: an agent told in prose to stay inside its sources slips about once in a long answer. So what reaches him isn't prose. Every line is one of these forms, and a script checks it.
+
+| Form | What it's for |
+|---|---|
+| `Sales: "…"` | A department's own words, in quotation marks, three words or more, copied exactly. The label is the name you gave that result's file: `Sales:`, `Marketing:`, `Finance:`, `Security:` and so on. Nothing else goes on the line but more quotations from the same result, joined by "and". |
+| `Ask: "…"` | Dorian's own words in the ask, the same way. |
+| `Card: "…"` | The context card's own words, the same way. |
+| `Me: I …` | One sentence, first person: what you did or didn't do in this run. "Me: I haven't had security's answer." Never what somebody else did or didn't do. |
+| `Open: …?` | A question that's still open. |
+| `My inference: …` | Everything else: your arithmetic, your recommendation and each reason for it, a risk you're carrying from one option to another, your read of what a result means. |
+
+Headings and short bold titles are fine. Tables aren't. A fenced block is for the log entry and nothing else.
+
+Before anything goes to Dorian, the report and the memo together:
+
+1. Write it to a file. Write the ask to a file, and each result to a file exactly as it came back. The context card already is one.
+2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claim_check.py" --doc <file> --source Ask=<file> --source Card=<file> --source Sales=<file>`, with one `--source` for each result.
+3. Fix every line it fails, and run it again until it passes. A line that fails because you can't quote it has two honest fixes: find the words in the result and quote them, or call it what it is, your inference. Never get a line through by quoting something that says less than you meant.
+4. End what you give him with the script's last line, the receipt. He can run the script again and get the same line.
+
+Run the same script on a result from sales-department or marketing-department when it comes back, with `--source Dispatch=<the dispatch you sent>` and `--source Card=<the card>`. A failure makes the result incomplete. It goes back once, with the script's output.
+
+Know what this is. The script checks form, and that a quotation is in the file you named. It doesn't know whether your inference is sound, whether a `Me:` line is true, or whether a quotation is fair to what stood around it. Those are still yours. And running it is an instruction, like the gate. Nothing stops a run that skips it, which is why the receipt goes on the end: a report without one hasn't been checked.
+
 ## The decision memo
 
 Use it for everything in the escalates row. Write it in Dorian's voice: no em dashes, contractions, short sentences, curly quotes.
@@ -120,15 +146,15 @@ Use it for everything in the escalates row. Write it in Dorian's voice: no em da
 When the memo is about departments that disagree, two more rules hold:
 
 - Section 2 is quotation. Don't add a sentence of your own saying which department is right, or that one's point settles the other's. Your view goes in section 3, marked as your recommendation, and nowhere else.
-- Outside section 2, a sentence that states a fact, a cost or a risk has a source you can point to. There are four: a department's result, quoted in quotation marks with the department named; the context card; Dorian's own words in the ask; and what you did in this run. A sentence with none of those starts with the words "My inference:". Your arithmetic is an inference. So is a line that says an option costs nothing, a department's risk carried over to an option that department didn't discuss, and each reason you give for your recommendation. The label covers one sentence and doesn't carry to the next.
+- Every line of the memo takes one of the claim check's forms, in every section. A department's words are a quotation under its name. What you did is a `Me:` line. Everything else starts with "My inference:". Your arithmetic is an inference. So is a line that says an option costs nothing, a department's risk carried over to an option that department didn't discuss, and each reason you give for your recommendation. The label covers one sentence and doesn't carry to the next.
 - Keep each result's scope. What one department didn't do isn't what nobody did. What isn't in the dispatch isn't what doesn't exist. A review that isn't back hasn't answered, and that's all you know: don't write that it hasn't been done. If you've written nobody, nothing, never, none or only, quote the line that says so, or say it the way the result did.
 - An open question stays open. If a department asked whether something is so, the memo carries it as a question. It never becomes a statement about what has or hasn't happened.
-- Before the memo goes, read it once more against those three rules, a sentence at a time, and fix what fails.
+- Before the memo goes, run the claim check over it and fix what fails. The check sees form. The three rules above are about meaning, so read the memo against them once more too.
 - The return contract comes first. A memo is written only from results that have been through it, with the one send-back already made and answered. If that's still out, there's no memo yet. Tell Dorian what's out and why.
 - Security comes first too, unless the disagreement involves sales-department or finance. Then the memo goes without it, and section 1 names each review that's still out, what it covers, and the action that stays blocked until it's back.
 - When finance is one of the departments that disagree, the disagreement is run by MoxyWolf's outside bookkeeper before it's settled (Dorian, 2026-10-07). The context card names him, under Books. Say so in section 1, and add a fifth section:
 
-  5. **For the bookkeeper.** The question to put to him, written so Dorian can forward it as it stands: what the departments disagree about, the numbers each one used and where they came from, and what you need him to say. He's outside MoxyWolf, so leave out the customer's name and anything else that identifies the customer. He needs the numbers, not the name.
+  5. **For the bookkeeper.** The question to put to him, in the same forms as the rest, so Dorian forwards quotations and questions and not your summary: what the departments disagree about, the numbers each one used and where they came from, and what you need him to say. He's outside MoxyWolf, so leave out the customer's name and anything else that identifies the customer. He needs the numbers, not the name.
 
   You never contact him, and no department does. That goes through Dorian, as the context card says. Whether and when to forward the question is Dorian's call, and you don't offer to send it. The log's decision stays pending until Dorian reports what was decided.
 - Once the memo is written, stop. Don't dispatch more work on any option, including the one you recommend, until Dorian answers.
@@ -149,4 +175,4 @@ Know what this log is. It's a record you wrote from memory of the run, not one c
 
 ## What you report
 
-Lead with the outcome. Then list what was done, what's waiting on Dorian and what was escalated, each with its count. Then what you checked and what you didn't. Never say a department "confirmed" something its result doesn't say. Your report keeps each result's scope, the way a memo does: say what a result says its department did, and what you did, and nothing wider. Not supplied, not read and not answered are things you can report. Doesn't exist and wasn't done need a source.
+Lead with the outcome. Then list what was done, what's waiting on Dorian and what was escalated, each with its count. The report is written in the claim check's forms, the same as a memo, and the check runs over the two together. Its receipt is the last line. Then what you checked and what you didn't. Never say a department "confirmed" something its result doesn't say. Your report keeps each result's scope, the way a memo does: say what a result says its department did, and what you did, and nothing wider. Not supplied, not read and not answered are things you can report. Doesn't exist and wasn't done need a source.
