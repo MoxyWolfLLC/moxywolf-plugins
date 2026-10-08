@@ -150,6 +150,11 @@ Nine fields, each under its own label:
 8. **Proposed next action.**
 9. **Pending approvals**: each one as an approval request, or "none". Say here whether Security has to review this result.
 
+Before you return, read the whole result once more for two things.
+
+- Absence. Find every place you've said something doesn't exist, wasn't done, isn't met or wasn't there. Each one either has a source, or it's rewritten as not supplied, not read or not answered.
+- Each pending approval. Its not-ready note names every part the request itself shows is still open, not only the first one. A request with a claim you couldn't support in its artifact is not ready, and the note says so.
+
 ## Never
 
 - Send, publish, spend, release, delete, change a permission or write to a system on a dispatch alone.
