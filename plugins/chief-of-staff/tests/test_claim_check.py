@@ -160,7 +160,8 @@ class Forms(unittest.TestCase):
 
     def test_an_inference_cannot_say_what_nobody_did(self):
         """Run 17, S2 and S8: two inferences said what nobody had done. One run can't know that."""
-        for label in ("Inference", "My inference", "Proposal"):
+        # review round 1, criterion 7: every label that isn't a quotation, `Me:` or a question
+        for label in ("Inference", "My inference", "Proposal", "Skill", "Source"):
             for claim in ("up to $2,000 goes to an audience nobody has evidenced.",
                           "the risk is that nobody has reviewed the email against the FTC guide.",
                           "no quote goes out, because nothing's written and sending one waits for you.",
@@ -174,7 +175,7 @@ class Forms(unittest.TestCase):
                 "- Proposal: I do nothing further until a dispatch carries his recorded approval.\n"
                 "- Inference: with no target number, nobody can grade the campaign afterwards.\n"
                 "- Proposal: Nothing is written to the CRM until a recorded approval matches.\n")
-        print("examined 5 claims about what nobody did under each of 3 labels, three recorded in runs 16 and 17, and 9 lines that make no such claim")
+        print("examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, and 9 lines that make no such claim")
 
     def test_nothing_passes_unchecked(self):
         """Review F1: `--also LABEL` let any line through, including a built-in label or a source's own."""
