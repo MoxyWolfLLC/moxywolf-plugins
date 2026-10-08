@@ -106,6 +106,17 @@ class Forms(unittest.TestCase):
             self.ok(f"- Open: Do we offer it?\n- My inference: {sentence}\n")
         print(f"examined {len(SLIPPED)} recorded sentences: each fails bare, fails as a bullet, and passes labeled as an inference")
 
+    def test_a_source_is_quoted_never_retold(self):
+        """Run 16, S12: an inference credited sales with more than it said. The label was right and the line was still wrong."""
+        recorded = ("My inference: My second reason is that 10% with prepay is still a concession this month, "
+                    "and a concession is what sales-department says keeps the deal from slipping.")
+        for line in (recorded, "My inference: finance says 30% is too much.", "Inference: according to Sales, the deal slips.",
+                     "Me: I checked, and finance's result confirms the floor.", "Proposal: do what Sales recommended."):
+            self.bad(f"- Open: Do we offer it?\n- {line}\n", "retells")
+        self.ok("- My inference: sales and finance give opposite answers.\n- Me: I sent the finance result to security.\n"
+                "- Open: Is finance right about the floor?\n- My inference: the claim in the sales result rests on one call note.\n")
+        print("examined 5 lines that retell a source, one of them recorded in run 16, and 4 that only refer to one")
+
     def test_blockquotes_and_extra_labels(self):
         self.ok('> - Finance: "takes this deal below the floor"\n> - Open: Is that right?\n')
         self.bad("DISPATCH: security the finance result\n- Open: Do we?\n", "not a known label")
