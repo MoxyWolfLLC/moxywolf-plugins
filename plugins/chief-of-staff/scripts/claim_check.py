@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 FREE = {"my inference", "inference", "proposal", "skill", "source"}
+RESERVED = FREE | {"me", "open"}
 LABEL = re.compile(r"^\**([A-Za-z][A-Za-z -]{0,30}?)\**\s*:\**\s*(.*)$")
 MARKER = re.compile(r"^(?:>\s*)*(?:[-*+]\s+|\d+[.)]\s+)?")
 QUOTE = re.compile(r'"([^"]*)"')
@@ -122,7 +123,7 @@ def judge(line, sources, also):
         q = q.strip().rstrip(".,;:")
         if len(q.split()) < 3:
             return False, f"a quotation is at least three words: {q!r}", 0
-        if q not in sources[label]:
+        if not re.search(rf"(?<!\w){re.escape(q)}(?!\w)", sources[label]):   # whole words: "he call" is not in "the call"
             return False, f"quotation not found in {m.group(1)}: {q!r}", 0
     return True, "", len(quotes)
 
@@ -164,6 +165,8 @@ def main():
             name, _, path = item.partition("=")
             if not name or not path:
                 raise ValueError(f"--source takes NAME=FILE, got {item!r}")
+            if name.strip().lower() in RESERVED:
+                raise ValueError(f"a source can't be named {name!r}: that label already means something")
             sources[name.strip().lower()] = norm(Path(path).read_text())
     except (OSError, ValueError) as e:
         print(f"claim-check couldn't run: {e}", file=sys.stderr)
