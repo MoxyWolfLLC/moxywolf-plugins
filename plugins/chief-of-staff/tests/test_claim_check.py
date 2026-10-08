@@ -71,6 +71,9 @@ class Forms(unittest.TestCase):
         self.bad('- Finance: "30% off is $14,000 of margin"\n', "not found in Finance")
         self.bad('- Sales: "Offer the 30% discount ... budget closes this month"\n', "not found in Sales")
         self.bad('- Marketing: "Offer the 30% discount"\n', "not a known label")
+        # "he supplied note" is inside "the supplied note": a quotation starts and ends on a word
+        self.bad('- Sales: "he supplied note. No CRM"\n', "not found in Sales")
+        self.bad('- Sales: "Read the supplied no"\n', "not found in Sales")
         print("examined the wrong source, a changed word, an ellipsis and an unknown source")
 
     def test_words_outside_the_quotation_fail(self):
@@ -153,6 +156,10 @@ class Forms(unittest.TestCase):
         self.assertRegex(last, r"^claim-check: examined 1 line, 1 labeled, 0 quotations verified, 0 failed, 1 titles and 2 fenced lines not examined, sha256 [0-9a-f]{64}$")
         r = subprocess.run([sys.executable, str(SCRIPT), "--doc", str(Path(d) / "gone.md")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2, "a missing document is a usage error, not a pass and not a failed line")
+        # a source can't take the name of a built-in label, or `Me:` lines would stop meaning what they mean
+        for name in ("Me", "Open", "Inference", "Proposal"):
+            rc, out = check("- Open: Do we offer it?\n", "--source", f"{name}={SCRIPT}")
+            self.assertEqual(rc, 2, f"--source {name}=... was accepted: {out}")
 
 
 if __name__ == "__main__":
