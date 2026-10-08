@@ -132,7 +132,12 @@ class Forms(unittest.TestCase):
             self.bad(f"- Open: Do we offer it?\n- {line}\n", "nobody")
         self.ok("- Me: I sent nothing to Halden.\n- Me: I haven't reviewed the email against the FTC guide.\n"
                 "- Open: Has nobody checked the address?\n- Inference: the email wasn't reviewed against the FTC guide in this run.\n")
-        print("examined 4 lines that say what nobody did, three of them recorded in runs 16 and 17, and 4 that say what the writer did")
+        # honest lines the first version of this rule failed when it was replayed over run 17
+        self.ok("- My inference: doing nothing is option B by default.\n- Proposal: the audience is the buyer. Nobody else.\n"
+                "- Proposal: I do nothing further until a dispatch carries his recorded approval.\n"
+                "- Inference: with no target number, nobody can grade the campaign afterwards.\n"
+                "- Proposal: Nothing is written to the CRM until a recorded approval matches.\n")
+        print("examined 4 lines that say what nobody did, three of them recorded in runs 16 and 17, and 9 that don't")
 
     def test_blockquotes_and_extra_labels(self):
         self.ok('> - Finance: "takes this deal below the floor"\n> - Open: Is that right?\n')

@@ -14,8 +14,9 @@ or failed. Labeled means one of:
     Skill: ... / Source: ... records
 
 None of those may retell what a source said ("finance says ...", "according to Sales"). A source's
-words are quoted under its own label. And an inference or a proposal may not say what nobody did or
-that nothing was done: one run can't know that, and a `Me:` line can say what the writer did.
+words are quoted under its own label. And an inference or a proposal may not say that nobody
+did something or that nothing was done ("nobody has reviewed"): one run can't know that, and a `Me:`
+line can say what the writer did.
 
 Exit 0: no line failed and at least one labeled line was examined. Exit 1: a line failed, or nothing
 was labeled (a check that examined nothing hasn't passed). Exit 2: it couldn't run.
@@ -43,7 +44,11 @@ QUOTE = re.compile(r'"([^"]*)"')
 SAYING = (r"says?|said|reports?|reported|states?|stated|claims?|claimed|confirms?|confirmed|agrees?|agreed|proposes?|proposed|"
           r"recommends?|recommended|wants?|wanted|thinks?|notes?|noted|finds?|found|shows?|showed")
 TITLE_MAX = 80
-NOBODY = re.compile(r"\b(nobody|no[ -]one|nothing)\b", re.I)   # ponytail: three words, the ones the recorded slips used
+DID = (r"read|checked|reviewed|verified|confirmed|asked|looked|written|wrote|sent|tested|evidenced|done|did|seen|saw|"
+       r"approved|answered|contacted|measured|recorded|logged|told|said")
+# ponytail: "nobody has reviewed", "which nobody read", "nothing's been checked". A shape, not the bare words:
+# "doing nothing is option B" and "Nobody else." are honest lines, and a replay over run 17 showed the bare words fail them.
+NOBODY = re.compile(rf"\b(nobody|no[ -]one|nothing)(?:\s+(?:has|had|have|was|ever)|'s)?(?:\s+(?:been|ever|yet))?\s+(?:{DID})\b", re.I)
 
 
 def norm(text):
@@ -94,7 +99,7 @@ def judge(line, sources, also):
             return False, f"empty: nothing follows {m.group(1)}:", 0
         hit = NOBODY.search(QUOTE.sub("", rest)) if label in ("my inference", "inference", "proposal") else None
         if hit:
-            return False, (f"says what nobody did ({hit.group(1)!r}): one run can't know that. Say what you did in a Me: line, "
+            return False, (f"says what nobody did ({hit.group(0)!r}): one run can't know that. Say what you did in a Me: line, "
                            "or quote the source"), 0
         return True, "", 0
     if label == "open":
