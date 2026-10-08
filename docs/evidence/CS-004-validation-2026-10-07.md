@@ -1,12 +1,12 @@
 # CS-004 and CS-006 validation record (CS-004 criteria 9 and 10, CS-006 criterion 7)
 
-Recorded 2026-10-07 at `f5b7ab3`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
+Recorded 2026-10-07 at `acbe5d7`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
 
 A limit, stated up front: this is the builder's copy. The review dispatcher doesn't put ledger lines or commit history on the review surface itself, so a reviewer can read these records and can't yet check them against the source. Closing that is a change to `peer_review.py`, which is outside CS-004.
 
-Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Through `8b066b0` nothing had been pushed. On Dorian's go-ahead of 2026-10-07 (“Go on CS-004”) the branch was pushed as pull request #192, and CI's `tests` job ran green at `bf84b40` (run 37723152193). This file can't name the CI run at its own head, because that run starts after the file is committed. The review packet names it.
+Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Through `8b066b0` nothing had been pushed. On Dorian's go-ahead of 2026-10-07 (“Go on CS-004”) the branch was pushed as pull request #192, and CI's `tests` job ran green at `bf84b40` (run 37723152193) and at `5e1c71a` (run 37726238905). This file can't name the CI run at its own head, because that run starts after the file is committed. The review packet names it.
 
-This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged. It was refreshed again after the second review's first round (`b2d0853` to `233571f`), again after CS-006, the claim check, was built on the same branch (`ce29358` on), and again after CS-006's own review (`27c06a8` on).
+This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged. It was refreshed again after the second review's first round (`b2d0853` to `233571f`), again after CS-006, the claim check, was built on the same branch (`ce29358` on), and again after each round of CS-006's own review (`27c06a8` on, then `26b462e` on).
 
 ## Commit order
 
@@ -65,6 +65,13 @@ cd575e6 2026-10-07T21:00:06-07:00 tests: CS-006, the nobody rule holds under Ski
 27ebed7 2026-10-07T21:00:57-07:00 design: CS-006 criteria 3 and 7 name the same labels for the nobody rule
 9912e9a 2026-10-07T21:00:57-07:00 CS-006: the nobody rule covers Skill: and Source: lines
 f5b7ab3 2026-10-07T21:04:54-07:00 evidence: scenario run 18, every scenario again after CS-006's review
+5e1c71a 2026-10-07T21:10:49-07:00 CS-004, CS-006: refresh the validation record at f5b7ab3
+26b462e 2026-10-07T21:25:37-07:00 design: CS-006 criteria 1, 2, 3 and 7 after the second review round
+badc461 2026-10-07T21:25:38-07:00 tests: CS-006 review round 2, a mark inside a word and an Open: line with a statement attached
+0e034e7 2026-10-07T21:25:56-07:00 CS-006: close the two gaps review round 2 found, and three like them
+8bef09c 2026-10-07T21:36:52-07:00 tests: CS-006, a quotation cut inside a number and prose on a fence's opening line
+da1c796 2026-10-07T21:37:00-07:00 CS-006: a quotation stands on whole tokens, and a fence opens on a bare line
+acbe5d7 2026-10-07T21:40:03-07:00 evidence: scenario run 19, every scenario again after CS-006's second review round
 ```
 
 The test commit, `git show --stat ebc29ef`. It touches the two test files and nothing else:
@@ -178,6 +185,20 @@ Copied from `<review root>/ledger/MoxyWolfLLC-moxywolf-plugins/build/CS-004-sale
 | `e3126a20dc9c` | 2026-10-08T04:05:07Z | `f5b7ab3` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
 | `11ab92f1124e` | 2026-10-08T04:05:13Z | `f5b7ab3` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
 | `afd0760b64dd` | 2026-10-08T04:05:13Z | `f5b7ab3` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `a83a38ac8812` | 2026-10-08T04:25:38Z | `badc461` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `869a1b50f2bb` | 2026-10-08T04:25:43Z | `badc461` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `9232d6ff2ef5` | 2026-10-08T04:25:56Z | `0e034e7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `5c8c9be3188c` | 2026-10-08T04:26:04Z | `0e034e7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `8cee20855fd8` | 2026-10-08T04:26:04Z | `0e034e7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `6c1315711e41` | 2026-10-08T04:36:52Z | `8bef09c` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `b96334703a38` | 2026-10-08T04:37:00Z | `da1c796` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `aa6b9f109915` | 2026-10-08T04:37:09Z | `da1c796` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `c2e1e26f27c0` | 2026-10-08T04:37:09Z | `da1c796` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `1b44b93741b0` | 2026-10-08T04:40:09Z | `acbe5d7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `00e0e6657a3c` | 2026-10-08T04:40:09Z | `acbe5d7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `b2df396e2736` | 2026-10-08T04:40:09Z | `acbe5d7` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `4c7644be879b` | 2026-10-08T04:40:17Z | `acbe5d7` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| `9cdc1d02e76c` | 2026-10-08T04:40:18Z | `acbe5d7` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
 
 Three things to read these lines by:
 
@@ -186,6 +207,7 @@ Three things to read these lines by:
 - CS-006 kept the order three times. `test_claim_check.py` exits 1 at `67a6134`, where the test file exists and the script doesn't, and 0 at `c350893`, which adds the script. `test_sales_marketing.py` exits 1 at `f8b1b33`, which adds assertions for the instruction text, and 0 at `3d783e0`. `test_claim_check.py` exits 1 again at `7974100`, which adds the retelling test, and 0 at `7ebed7b`.
 - One line names a commit that no longer exists. The `test_sales_marketing.py` run at `9e0bf5d` exited 1. That commit's message said two tests failed, where the run's own output said one, so the commit was amended to quote the output. The amended commit is `f8b1b33`, with the same tree, and the same command was run again there. Three exit-0 lines at `7bdee46` are the same case. That commit's message described the nobody rule as narrowed one step further than its code yet was, so the code and test were completed and the commit amended to `d0e74ce` before it left this machine, and the tests were run again there. And `test_claim_check.py` exits 1 at `9423097`, which adds the test for that rule, and 0 at `c00128a`. It exits 1 once more at `b049379`, which adds the whole-word and reserved-name cases, and 0 at `c6ff9bd`.
 - CS-006's own review, `20261007-203859-bf84b40-q531yemm`, found five ways the script let a line through or turned one away in its first round. The order held again. `27c06a8` rewrites the test file to cover them and changes nothing else, and `test_claim_check.py` exits 1 there: 8 of its 13 tests fail. `009eaa6` rewrites the script and the same command exits 0. The exit-1 line at `681d0a1` is that same test commit before its message was corrected. The message said three tests failed where the run's output said eight, so it was amended to quote the output. `27c06a8` has the same tree, and the command was run again there. One more pair follows from the same round: `cd575e6` adds `Skill:` and `Source:` to the test of the rule about what nobody did, and the command exits 1 there with one test failing. `9912e9a` changes the script and it exits 0.
+- The same review's second round closed those findings and raised two more, and the order held once more. `26b462e` amends the criteria. `badc461` changes the two test files and nothing else, and both fail there: `test_claim_check.py` with 4 of its 16 tests failing, `test_sales_marketing.py` with 1 of its 7. `0e034e7` changes the script and the instruction text, and both exit 0. One more pair after scenario run 19: `8bef09c` adds the whole-token and fence-line tests, and `test_claim_check.py` exits 1 there with 2 of its 17 tests failing. `da1c796` changes the script and it exits 0.
 - The same two commands exit 0 from `a2648b8` on. A failure in this ledger closes only when the same command passes, so that's what cleared them.
 - Three `run_all_tests.py` lines are marked "no" under clean tree. Each started on one commit and was recorded on the next, because instruction text was edited and committed while it ran. Don't lean on those three. Every line marked "yes" started and finished at the head shown with nothing edited.
 
@@ -213,7 +235,7 @@ Ran 6 tests in 0.003s
 FAILED (failures=6)
 ```
 
-## At `f5b7ab3`
+## At `acbe5d7`
 
 `test_roster.py`:
 
@@ -240,13 +262,17 @@ examined 9 return fields and the gate's wording in 2 head skills, 2 GOVERNANCE.m
 `test_claim_check.py` (CS-006):
 
 ```text
-Ran 13 tests in 5.358s
+Ran 17 tests in 8.150s
 OK
 examined a document of structure only and an empty one: both fail, because nothing was examined
+examined 5 labeled titles that fail, 2 that verify, a hash that isn't a heading, and 3 plain titles after a byte-order mark
+examined a double underscore, an asterisk and a backtick inside a word: each stays, and 6 quotations that drop or change one fail
 examined curly quotes, asterisk and underscore emphasis in source and document, and quotations joined by and/then
 examined the wrong source, a changed word, an unknown source and two fragments that start or end inside a word
+examined 7 quotations cut inside a number, a date or a possessive: each fails, and the whole tokens verify
 examined 6 lines that retell a source, one recorded in run 16 and one hidden in quote marks, and 4 that only refer to one
-examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, and 9 lines that make no such claim
+examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, one under Me:, one with an adverb, and 9 lines that make no such claim
+examined 7 questions that pass, 8 lines with a statement attached that fail, and 6 recorded sentences under Open: as written, with a question after, and leading into a question
 examined 6 recorded sentences: each fails bare and as a bullet; labeled as an inference, the two that say what nobody did still fail and the other four pass
 ```
 
@@ -268,7 +294,7 @@ examined 75 checks: 75 passed, 0 failed
 `version_bump.py --base origin/main --head HEAD`:
 
 ```text
-version bump: PASS, range origin/main..HEAD (67328b6..f5b7ab3), 44 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
+version bump: PASS, range origin/main..HEAD (67328b6..acbe5d7), 45 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
 ```
 
 `check_ledger.py open-issues`:
@@ -279,7 +305,7 @@ version bump: PASS, range origin/main..HEAD (67328b6..f5b7ab3), 44 changed file(
 
 ## Not run
 
-- No CI run is recorded here for this file's own head. See the top of the file for the one at `bf84b40`.
+- No CI run is recorded here for this file's own head. See the top of the file for the ones at `bf84b40` and `5e1c71a`.
 - No installed run. The two packages aren't installed anywhere, so no live `/cos` dispatched them.
 - These are structure checks and a packaging check. What the agents do is in `CS-004-scenarios-2026-10-07.md` and `CS-004-scenarios-round-2-2026-10-07.md`.
 - That the bookkeeper's name appears nowhere in this repository was checked by hand at this revision (a case-insensitive search of the working tree for his first name and his firm's name found no file). No test can check it without spelling the name.
