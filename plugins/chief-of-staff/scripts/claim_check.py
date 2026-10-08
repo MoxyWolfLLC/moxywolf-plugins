@@ -14,9 +14,9 @@ or failed. Labeled means one of:
     Skill: ... / Source: ... records
 
 None of those may retell what a source said ("finance says ...", "according to Sales"). A source's
-words are quoted under its own label. And an inference or a proposal may not say that nobody
-did something or that nothing was done ("nobody has reviewed"): one run can't know that, and a `Me:`
-line can say what the writer did. Quote marks inside such a line don't exempt it: only a line that
+words are quoted under its own label. And none of them but `Me:` and `Open:` may say that nobody
+did something or that nothing was done ("nobody has reviewed"): one run can't know that, a `Me:`
+line can say what the writer did, and an `Open:` line can ask. Quote marks inside such a line don't exempt it: only a line that
 starts with a source's name is checked as a quotation.
 
 Exit 0: no line failed and at least one labeled line was examined. Exit 1: a line failed, or nothing
@@ -112,7 +112,7 @@ def judge(line, sources):
     if label in FREE:
         if not rest:
             return False, f"empty: nothing follows {m.group(1)}:", 0
-        hit = NOBODY.search(rest) if label in ("my inference", "inference", "proposal") else None
+        hit = NOBODY.search(rest)
         if hit:
             return False, (f"says what nobody did ({hit.group(0)!r}): one run can't know that. Say what you did in a Me: line, "
                            "or quote the source"), 0
