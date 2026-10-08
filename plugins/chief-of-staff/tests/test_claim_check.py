@@ -113,11 +113,11 @@ class Forms(unittest.TestCase):
 
     def test_the_receipt(self):
         with tempfile.TemporaryDirectory() as d:
-            doc = Path(d) / "doc.md"; doc.write_text("- Open: Do we offer it?\n")
+            doc = Path(d) / "doc.md"; doc.write_text("# Memo\n- Open: Do we offer it?\n```\nnobody read it\nat all\n```\n")
             r = subprocess.run([sys.executable, str(SCRIPT), "--doc", str(doc)], capture_output=True, text=True)
         last = r.stdout.strip().splitlines()[-1]
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertRegex(last, r"^claim-check: examined 1 lines?, 1 labeled, 0 quotations verified, 0 failed, sha256 [0-9a-f]{64}$")
+        self.assertRegex(last, r"^claim-check: examined 1 line, 1 labeled, 0 quotations verified, 0 failed, 1 titles and 2 fenced lines not examined, sha256 [0-9a-f]{64}$")
         r = subprocess.run([sys.executable, str(SCRIPT), "--doc", str(Path(d) / "gone.md")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 2, "a missing document is a usage error, not a pass and not a failed line")
 
