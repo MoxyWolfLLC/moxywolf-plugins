@@ -1,12 +1,12 @@
 # CS-004 and CS-006 validation record (CS-004 criteria 9 and 10, CS-006 criterion 7)
 
-Recorded 2026-10-07 at `c6ff9bd`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
+Recorded 2026-10-07 at `f5b7ab3`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
 
 A limit, stated up front: this is the builder's copy. The review dispatcher doesn't put ledger lines or commit history on the review surface itself, so a reviewer can read these records and can't yet check them against the source. Closing that is a change to `peer_review.py`, which is outside CS-004.
 
-Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Nothing was pushed, so there is no CI run.
+Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Through `8b066b0` nothing had been pushed. On Dorian's go-ahead of 2026-10-07 (“Go on CS-004”) the branch was pushed as pull request #192, and CI's `tests` job ran green at `bf84b40` (run 37723152193). This file can't name the CI run at its own head, because that run starts after the file is committed. The review packet names it.
 
-This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged. It was refreshed again after the second review's first round (`b2d0853` to `233571f`), and again after CS-006, the claim check, was built on the same branch (`ce29358` on).
+This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged. It was refreshed again after the second review's first round (`b2d0853` to `233571f`), again after CS-006, the claim check, was built on the same branch (`ce29358` on), and again after CS-006's own review (`27c06a8` on).
 
 ## Commit order
 
@@ -58,6 +58,13 @@ d0e74ce 2026-10-07T20:09:20-07:00 CS-006: the nobody rule matches a shape, so ho
 bdc12fe 2026-10-07T20:19:20-07:00 CS-004, CS-006: record scenario runs 16 and 17 and where both items stand
 b049379 2026-10-07T20:25:04-07:00 tests: CS-006, a quotation starts and ends on a word, and a source can't take a built-in label's name
 c6ff9bd 2026-10-07T20:25:23-07:00 CS-006: a quotation matches whole words, and a source can't be named after a built-in label
+bf84b40 2026-10-07T20:31:35-07:00 CS-004, CS-006: refresh the validation record at c6ff9bd
+27c06a8 2026-10-07T20:47:23-07:00 tests: CS-006 review round 1, five ways the script let a line through or turned one away
+009eaa6 2026-10-07T20:47:51-07:00 CS-006: close the five gaps review round 1 found in claim_check.py
+cd575e6 2026-10-07T21:00:06-07:00 tests: CS-006, the nobody rule holds under Skill: and Source: too
+27ebed7 2026-10-07T21:00:57-07:00 design: CS-006 criteria 3 and 7 name the same labels for the nobody rule
+9912e9a 2026-10-07T21:00:57-07:00 CS-006: the nobody rule covers Skill: and Source: lines
+f5b7ab3 2026-10-07T21:04:54-07:00 evidence: scenario run 18, every scenario again after CS-006's review
 ```
 
 The test commit, `git show --stat ebc29ef`. It touches the two test files and nothing else:
@@ -157,6 +164,20 @@ Copied from `<review root>/ledger/MoxyWolfLLC-moxywolf-plugins/build/CS-004-sale
 | `da760f37adff` | 2026-10-08T03:25:23Z | `c6ff9bd` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
 | `5c0af9f0e0ca` | 2026-10-08T03:25:27Z | `c6ff9bd` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
 | `c7419960b548` | 2026-10-08T03:25:27Z | `c6ff9bd` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `1e36b1125832` | 2026-10-08T03:47:07Z | `681d0a1` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `1a7bb900c431` | 2026-10-08T03:47:23Z | `27c06a8` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `a18bfcc609bf` | 2026-10-08T03:47:51Z | `009eaa6` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `7e2a8d8eb4bd` | 2026-10-08T03:47:56Z | `009eaa6` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `e77d91b97fed` | 2026-10-08T03:47:57Z | `009eaa6` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `7ad1c57731fc` | 2026-10-08T04:00:06Z | `cd575e6` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `144d5fc4daed` | 2026-10-08T04:00:58Z | `9912e9a` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `c7b023066e19` | 2026-10-08T04:01:03Z | `9912e9a` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `85f09e7568a1` | 2026-10-08T04:01:03Z | `9912e9a` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `8b8452f2a8d8` | 2026-10-08T04:05:07Z | `f5b7ab3` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `7e0e57542b46` | 2026-10-08T04:05:07Z | `f5b7ab3` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `e3126a20dc9c` | 2026-10-08T04:05:07Z | `f5b7ab3` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_claim_check.py` |
+| `11ab92f1124e` | 2026-10-08T04:05:13Z | `f5b7ab3` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| `afd0760b64dd` | 2026-10-08T04:05:13Z | `f5b7ab3` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
 
 Three things to read these lines by:
 
@@ -164,6 +185,7 @@ Three things to read these lines by:
 - The two later exit-1 lines, at `dffdea8` and `389d7fd`, are the second pass's failures before the fix. Each ran at a commit that held the new assertion and not yet the manual text it looks for, with a clean tree. The same command exits 0 at `0334f99` and at `6c3cae8`. The exit-1 lines at `b2d0853` and `e05131c` are the same thing for the second review's fixes, and the command exits 0 at `b09d63c` and `233571f`.
 - CS-006 kept the order three times. `test_claim_check.py` exits 1 at `67a6134`, where the test file exists and the script doesn't, and 0 at `c350893`, which adds the script. `test_sales_marketing.py` exits 1 at `f8b1b33`, which adds assertions for the instruction text, and 0 at `3d783e0`. `test_claim_check.py` exits 1 again at `7974100`, which adds the retelling test, and 0 at `7ebed7b`.
 - One line names a commit that no longer exists. The `test_sales_marketing.py` run at `9e0bf5d` exited 1. That commit's message said two tests failed, where the run's own output said one, so the commit was amended to quote the output. The amended commit is `f8b1b33`, with the same tree, and the same command was run again there. Three exit-0 lines at `7bdee46` are the same case. That commit's message described the nobody rule as narrowed one step further than its code yet was, so the code and test were completed and the commit amended to `d0e74ce` before it left this machine, and the tests were run again there. And `test_claim_check.py` exits 1 at `9423097`, which adds the test for that rule, and 0 at `c00128a`. It exits 1 once more at `b049379`, which adds the whole-word and reserved-name cases, and 0 at `c6ff9bd`.
+- CS-006's own review, `20261007-203859-bf84b40-q531yemm`, found five ways the script let a line through or turned one away in its first round. The order held again. `27c06a8` rewrites the test file to cover them and changes nothing else, and `test_claim_check.py` exits 1 there: 8 of its 13 tests fail. `009eaa6` rewrites the script and the same command exits 0. The exit-1 line at `681d0a1` is that same test commit before its message was corrected. The message said three tests failed where the run's output said eight, so it was amended to quote the output. `27c06a8` has the same tree, and the command was run again there. One more pair follows from the same round: `cd575e6` adds `Skill:` and `Source:` to the test of the rule about what nobody did, and the command exits 1 there with one test failing. `9912e9a` changes the script and it exits 0.
 - The same two commands exit 0 from `a2648b8` on. A failure in this ledger closes only when the same command passes, so that's what cleared them.
 - Three `run_all_tests.py` lines are marked "no" under clean tree. Each started on one commit and was recorded on the next, because instruction text was edited and committed while it ran. Don't lean on those three. Every line marked "yes" started and finished at the head shown with nothing edited.
 
@@ -191,12 +213,12 @@ Ran 6 tests in 0.003s
 FAILED (failures=6)
 ```
 
-## At `c6ff9bd`
+## At `f5b7ab3`
 
 `test_roster.py`:
 
 ```text
-Ran 3 tests in 0.003s
+Ran 3 tests in 0.002s
 OK
 examined roster of 10 in plugins/chief-of-staff/skills/chief-of-staff/SKILL.md against 10 department agents under plugins/; non-department routes not examined
 ```
@@ -204,7 +226,7 @@ examined roster of 10 in plugins/chief-of-staff/skills/chief-of-staff/SKILL.md a
 `test_sales_marketing.py`:
 
 ```text
-Ran 7 tests in 0.008s
+Ran 7 tests in 0.007s
 OK
 examined 12 required files across 2 packages
 examined 3 packages against 47 marketplace entries: manifest, entry and README versions
@@ -218,13 +240,13 @@ examined 9 return fields and the gate's wording in 2 head skills, 2 GOVERNANCE.m
 `test_claim_check.py` (CS-006):
 
 ```text
-Ran 11 tests in 3.058s
+Ran 13 tests in 5.358s
 OK
 examined a document of structure only and an empty one: both fail, because nothing was examined
-examined curly quotes, emphasis marks in the source, and two quotations joined by 'and'
-examined the wrong source, a changed word, an ellipsis and an unknown source
-examined 5 lines that retell a source, one of them recorded in run 16, and 4 that only refer to one
-examined 4 lines that say what nobody did, three of them recorded in runs 16 and 17, and 9 that don't
+examined curly quotes, asterisk and underscore emphasis in source and document, and quotations joined by and/then
+examined the wrong source, a changed word, an unknown source and two fragments that start or end inside a word
+examined 6 lines that retell a source, one recorded in run 16 and one hidden in quote marks, and 4 that only refer to one
+examined 5 claims about what nobody did under each of 5 labels, three recorded in runs 16 and 17, and 9 lines that make no such claim
 examined 6 recorded sentences: each fails bare and as a bullet; labeled as an inference, the two that say what nobody did still fail and the other four pass
 ```
 
@@ -246,7 +268,7 @@ examined 75 checks: 75 passed, 0 failed
 `version_bump.py --base origin/main --head HEAD`:
 
 ```text
-version bump: PASS, range origin/main..HEAD (67328b6..c6ff9bd), 43 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
+version bump: PASS, range origin/main..HEAD (67328b6..f5b7ab3), 44 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
 ```
 
 `check_ledger.py open-issues`:
@@ -257,7 +279,7 @@ version bump: PASS, range origin/main..HEAD (67328b6..c6ff9bd), 43 changed file(
 
 ## Not run
 
-- No CI run. Nothing was pushed, which is the approved delivery boundary.
+- No CI run is recorded here for this file's own head. See the top of the file for the one at `bf84b40`.
 - No installed run. The two packages aren't installed anywhere, so no live `/cos` dispatched them.
 - These are structure checks and a packaging check. What the agents do is in `CS-004-scenarios-2026-10-07.md` and `CS-004-scenarios-round-2-2026-10-07.md`.
 - That the bookkeeper's name appears nowhere in this repository was checked by hand at this revision (a case-insensitive search of the working tree for his first name and his firm's name found no file). No test can check it without spelling the name.
