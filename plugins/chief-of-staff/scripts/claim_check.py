@@ -13,6 +13,9 @@ or failed. Labeled means one of:
     Proposal: ...            what the writer proposes
     Skill: ... / Source: ... records
 
+None of those may retell what a source said ("finance says ...", "according to Sales"). A source's
+words are quoted under its own label.
+
 Exit 0: no line failed and at least one labeled line was examined. Exit 1: a line failed, or nothing
 was labeled (a check that examined nothing hasn't passed). Exit 2: it couldn't run.
 
@@ -36,6 +39,8 @@ FREE = {"my inference", "inference", "proposal", "skill", "source"}
 LABEL = re.compile(r"^\**([A-Za-z][A-Za-z -]{0,30}?)\**\s*:\**\s*(.*)$")
 MARKER = re.compile(r"^(?:>\s*)*(?:[-*+]\s+|\d+[.)]\s+)?")
 QUOTE = re.compile(r'"([^"]*)"')
+SAYING = (r"says?|said|reports?|reported|states?|stated|claims?|claimed|confirms?|confirmed|agrees?|agreed|proposes?|proposed|"
+          r"recommends?|recommended|wants?|wanted|thinks?|notes?|noted|finds?|found|shows?|showed")
 TITLE_MAX = 80
 
 
@@ -59,6 +64,18 @@ def structural(line):
     return "title" if title and "**" not in title.group(1) and len(title.group(1)) <= TITLE_MAX else ""
 
 
+def retold(rest, sources):
+    """The source a non-quotation line credits with saying something, or None.
+    ponytail: a list of saying verbs after a source's name. It catches the common shapes, not every paraphrase."""
+    names = "|".join(re.escape(n) for n in sorted(sources, key=len, reverse=True))
+    if not names:
+        return None
+    who = rf"\b(?:the\s+)?({names})(?:-department)?(?:'s)?(?:\s+(?:result|review|answer))?"
+    m = (re.search(rf"{who}\s+(?:also\s+|only\s+)?(?:{SAYING})\b", rest, re.I)
+         or re.search(rf"\baccording to (?:the )?({names})\b", rest, re.I))
+    return m.group(1) if m else None
+
+
 def judge(line, sources, also):
     """(ok, reason, quotations verified) for one non-structural line."""
     body = MARKER.sub("", line.strip()).strip()
@@ -68,6 +85,8 @@ def judge(line, sources, also):
     label, rest = m.group(1).strip().lower(), norm(m.group(2))
     if label in also:
         return True, "", 0
+    if label not in sources and retold(QUOTE.sub("", rest), sources):
+        return False, f"retells what {retold(QUOTE.sub('', rest), sources)} said: a source's words are quoted under its own label, not retold", 0
     if label in FREE:
         return (True, "", 0) if rest else (False, f"empty: nothing follows {m.group(1)}:", 0)
     if label == "open":

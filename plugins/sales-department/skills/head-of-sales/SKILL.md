@@ -150,7 +150,7 @@ A result isn't prose. Under each of the nine field titles, every line is one of 
 
 Field titles and request titles are short bold lines, like `**1. Answer**`. No tables. A fenced block holds an artifact's exact text and nothing else.
 
-A result with a failing line comes back to you once, with the script's output. A line that fails because you can't quote it has two honest fixes: find the words in the dispatch and quote them, or call it an inference. Never get a line through by quoting something that says less than you meant.
+A result with a failing line comes back to you once, with the script's output. A line that fails because you can't quote it has two honest fixes: find the words in the dispatch and quote them, or call it an inference. Never get a line through by quoting something that says less than you meant. And never say in your own words what a source said, in any line. "The dispatch says the deal is closed" fails even under an inference label, because the script reads a source's name followed by a verb of saying as a retelling. Quote it under its name, then put your own point on the next line.
 
 ## What you return
 

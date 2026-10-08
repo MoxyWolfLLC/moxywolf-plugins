@@ -127,7 +127,7 @@ Before anything goes to Dorian, the report and the memo together:
 
 1. Write it to a file. Write the ask to a file, and each result to a file exactly as it came back. The context card already is one.
 2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claim_check.py" --doc <file> --source Ask=<file> --source Card=<file> --source Sales=<file>`, with one `--source` for each result.
-3. Fix every line it fails, and run it again until it passes. A line that fails because you can't quote it has two honest fixes: find the words in the result and quote them, or call it what it is, your inference. Never get a line through by quoting something that says less than you meant.
+3. Fix every line it fails, and run it again until it passes. A line that fails because you can't quote it has two honest fixes: find the words in the result and quote them, or call it what it is, your inference. Never get a line through by quoting something that says less than you meant. And never say in your own words what a source said, in any line. "Finance says 30% is too much" fails even under an inference label, because the script reads a source's name followed by a verb of saying as a retelling. Quote it under its name, then put your own point on the next line.
 4. End what you give him with the script's last line, the receipt. He can run the script again and get the same line.
 
 Run the same script on a result from sales-department or marketing-department when it comes back, with `--source Dispatch=<the dispatch you sent>` and `--source Card=<the card>`. A failure makes the result incomplete. It goes back once, with the script's output.
