@@ -1,12 +1,12 @@
 # CS-004 validation record (criteria 9 and 10)
 
-Recorded 2026-10-07 at `9678db5`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
+Recorded 2026-10-07 at `8b066b0`. Review `20261007-155817-a6a9289-sqfgr1r2` (F3) said the packet claimed test-first order and passing checks that the reviewer had no way to see. This file puts the commit order, the check ledger's own lines and the captured output in the repository. The commit that adds or updates this file changes only `docs/evidence/`.
 
 A limit, stated up front: this is the builder's copy. The review dispatcher doesn't put ledger lines or commit history on the review surface itself, so a reviewer can read these records and can't yet check them against the source. Closing that is a change to `peer_review.py`, which is outside CS-004.
 
 Everything here ran on the Release Owner's Mac from the repository root, through `plugins/gstack-execution/scripts/check_ledger.py run --repo . -- <command>`. Nothing was pushed, so there is no CI run.
 
-This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged.
+This record was refreshed after the second pass of 2026-10-07 (commits `8ea1772` to `6c3cae8`, on Dorian's ruling about disagreements). The first pass's lines are unchanged. It was refreshed again after the second review's first round (`b2d0853` to `233571f`).
 
 ## Commit order
 
@@ -34,6 +34,12 @@ d090420 2026-10-07T16:57:36-07:00 design: CS-004.8 says when a result goes to se
 6c3cae8 2026-10-07T17:08:37-07:00 CS-004: a memo's facts have four sources, and the bookkeeper's question leaves the customer out
 32dfca1 2026-10-07T17:15:16-07:00 Merge main: XE-035 is done (PR #191)
 9678db5 2026-10-07T17:16:06-07:00 CS-004: record scenario runs 8 to 13, the three places brought to ten, and where the item stands
+9026bd2 2026-10-07T17:22:16-07:00 CS-004: refresh the validation record after the second pass
+b2d0853 2026-10-07T17:27:55-07:00 tests: review F7, the absence rule is written down in both head skills and the manual
+b09d63c 2026-10-07T17:27:56-07:00 CS-004: an unknown state isn't reported as a fact (review F7)
+e05131c 2026-10-07T17:39:10-07:00 tests: the last read before a department returns, and the Chief of Staff's send-back for a claim past its source
+233571f 2026-10-07T17:39:10-07:00 CS-004: a department rereads its result before returning it, and the Chief of Staff sends back a claim that goes past its source (review F7)
+8b066b0 2026-10-07T17:50:17-07:00 CS-004: record scenario runs 14 and 15 and where the second review stands
 ```
 
 The test commit, `git show --stat ebc29ef`. It touches the two test files and nothing else:
@@ -48,7 +54,7 @@ ebc29ef test: CS-004 structure checks for the Sales and Marketing departments
 
 The first implementation commit is `a2648b8`, after it.
 
-The second pass kept the same order, twice. `dffdea8` added `test_the_disagreement_rules_are_written_down` and nothing else, and the manual change it checks is the next commit, `0334f99`. `389d7fd` added one more assertion to that test, alongside the design correction it follows, and the manual change is the next commit, `6c3cae8`. `git show --stat dffdea8`:
+The second pass kept the same order, twice. `dffdea8` added `test_the_disagreement_rules_are_written_down` and nothing else, and the manual change it checks is the next commit, `0334f99`. `389d7fd` added one more assertion to that test, alongside the design correction it follows, and the manual change is the next commit, `6c3cae8`. The second review's fixes did the same: `b2d0853` adds two assertions and `b09d63c` the text they look for, then `e05131c` adds two more and `233571f` the text. `git show --stat dffdea8`:
 
 ```text
 dffdea8 tests: CS-004.8 as amended, the disagreement rules are written down
@@ -93,11 +99,19 @@ Copied from `<review root>/ledger/MoxyWolfLLC-moxywolf-plugins/build/CS-004-sale
 | `cf85b51098ac` | 2026-10-08T00:16:06Z | `9678db5` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
 | `6b770b371386` | 2026-10-08T00:16:17Z | `9678db5` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
 | `26393c72353b` | 2026-10-08T00:16:07Z | `9678db5` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
+| `9a24834d795a` | 2026-10-08T00:27:55Z | `b2d0853` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `54281170d6a0` | 2026-10-08T00:27:56Z | `b09d63c` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `f5ea50d8ec55` | 2026-10-08T00:39:10Z | `e05131c` | 1 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `51a4823b9ceb` | 2026-10-08T00:39:10Z | `233571f` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `37749b3f0a08` | 2026-10-08T00:50:18Z | `8b066b0` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_roster.py` |
+| `af905b0cc3c2` | 2026-10-08T00:50:18Z | `8b066b0` | 0 | yes | `python3 plugins/chief-of-staff/tests/test_sales_marketing.py` |
+| `1be0d827c3ed` | 2026-10-08T00:50:18Z | `8b066b0` | 0 | yes | `python3 plugins/gstack-execution/scripts/skill_packaging.py --json` |
+| `8935d72f523f` | 2026-10-08T00:50:19Z | `8b066b0` | 0 | yes | `python3 plugins/gstack-execution/scripts/run_all_tests.py` |
 
 Three things to read these lines by:
 
 - The first two exit-1 lines are the baseline. They ran with the new test files in the working tree on top of `af86735`, before any implementation. Those files were committed unchanged as `ebc29ef`.
-- The two later exit-1 lines, at `dffdea8` and `389d7fd`, are the second pass's failures before the fix. Each ran at a commit that held the new assertion and not yet the manual text it looks for, with a clean tree. The same command exits 0 at `0334f99` and at `6c3cae8`.
+- The two later exit-1 lines, at `dffdea8` and `389d7fd`, are the second pass's failures before the fix. Each ran at a commit that held the new assertion and not yet the manual text it looks for, with a clean tree. The same command exits 0 at `0334f99` and at `6c3cae8`. The exit-1 lines at `b2d0853` and `e05131c` are the same thing for the second review's fixes, and the command exits 0 at `b09d63c` and `233571f`.
 - The same two commands exit 0 from `a2648b8` on. A failure in this ledger closes only when the same command passes, so that's what cleared them.
 - Three `run_all_tests.py` lines are marked "no" under clean tree. Each started on one commit and was recorded on the next, because instruction text was edited and committed while it ran. Don't lean on those three. Every line marked "yes" started and finished at the head shown with nothing edited.
 
@@ -125,12 +139,12 @@ Ran 6 tests in 0.003s
 FAILED (failures=6)
 ```
 
-## At `9678db5`
+## At `8b066b0`
 
 `test_roster.py`:
 
 ```text
-Ran 3 tests in 0.002s
+Ran 3 tests in 0.003s
 OK
 examined roster of 10 in plugins/chief-of-staff/skills/chief-of-staff/SKILL.md against 10 department agents under plugins/; non-department routes not examined
 ```
@@ -138,7 +152,7 @@ examined roster of 10 in plugins/chief-of-staff/skills/chief-of-staff/SKILL.md a
 `test_sales_marketing.py`:
 
 ```text
-Ran 7 tests in 0.006s
+Ran 7 tests in 0.007s
 OK
 examined 12 required files across 2 packages
 examined 3 packages against 47 marketplace entries: manifest, entry and README versions
@@ -167,7 +181,7 @@ examined 74 checks: 74 passed, 0 failed
 `version_bump.py --base origin/main --head HEAD`:
 
 ```text
-version bump: PASS, range origin/main..HEAD (67328b6..9678db5), 37 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
+version bump: PASS, range origin/main..HEAD (67328b6..8b066b0), 39 changed file(s), examined 3 plugin(s): chief-of-staff, marketing-department, sales-department
 ```
 
 `check_ledger.py open-issues`:
