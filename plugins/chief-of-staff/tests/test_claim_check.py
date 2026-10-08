@@ -2,7 +2,8 @@
 
 These run the real script as a subprocess, the way the Chief of Staff does, and read its exit code
 and its receipt. The slipped sentences below are copied from recorded scenario runs 12 to 15, where
-an evaluator failed them: each must fail as written and pass once it's labeled as an inference.
+an evaluator failed them: each must fail as written. Labeled as an inference it passes, unless it says
+what nobody did, and then it fails under that label too.
 
 ponytail: stdlib, tempfiles, one subprocess per case. The script can't judge whether an inference is
 sound or a `Me:` line is true, so nothing here pretends to test that.
@@ -103,8 +104,13 @@ class Forms(unittest.TestCase):
         for sentence, where in SLIPPED:
             self.bad(f"- Open: Do we offer it?\n{sentence}\n", "unlabeled")
             self.bad(f"- Open: Do we offer it?\n- {sentence}\n", "unlabeled")
-            self.ok(f"- Open: Do we offer it?\n- My inference: {sentence}\n")
-        print(f"examined {len(SLIPPED)} recorded sentences: each fails bare, fails as a bullet, and passes labeled as an inference")
+            labeled = f"- Open: Do we offer it?\n- My inference: {sentence}\n"
+            if "nobody" in sentence.lower() or "nothing" in sentence.lower():
+                self.bad(labeled, "nobody")
+            else:
+                self.ok(labeled)
+        print(f"examined {len(SLIPPED)} recorded sentences: each fails bare and as a bullet; labeled as an inference, "
+              "the two that say what nobody did still fail and the other four pass")
 
     def test_a_source_is_quoted_never_retold(self):
         """Run 16, S12: an inference credited sales with more than it said. The label was right and the line was still wrong."""

@@ -14,7 +14,8 @@ or failed. Labeled means one of:
     Skill: ... / Source: ... records
 
 None of those may retell what a source said ("finance says ...", "according to Sales"). A source's
-words are quoted under its own label.
+words are quoted under its own label. And an inference or a proposal may not say what nobody did or
+that nothing was done: one run can't know that, and a `Me:` line can say what the writer did.
 
 Exit 0: no line failed and at least one labeled line was examined. Exit 1: a line failed, or nothing
 was labeled (a check that examined nothing hasn't passed). Exit 2: it couldn't run.
@@ -42,6 +43,7 @@ QUOTE = re.compile(r'"([^"]*)"')
 SAYING = (r"says?|said|reports?|reported|states?|stated|claims?|claimed|confirms?|confirmed|agrees?|agreed|proposes?|proposed|"
           r"recommends?|recommended|wants?|wanted|thinks?|notes?|noted|finds?|found|shows?|showed")
 TITLE_MAX = 80
+NOBODY = re.compile(r"\b(nobody|no[ -]one|nothing)\b", re.I)   # ponytail: three words, the ones the recorded slips used
 
 
 def norm(text):
@@ -88,7 +90,13 @@ def judge(line, sources, also):
     if label not in sources and retold(QUOTE.sub("", rest), sources):
         return False, f"retells what {retold(QUOTE.sub('', rest), sources)} said: a source's words are quoted under its own label, not retold", 0
     if label in FREE:
-        return (True, "", 0) if rest else (False, f"empty: nothing follows {m.group(1)}:", 0)
+        if not rest:
+            return False, f"empty: nothing follows {m.group(1)}:", 0
+        hit = NOBODY.search(QUOTE.sub("", rest)) if label in ("my inference", "inference", "proposal") else None
+        if hit:
+            return False, (f"says what nobody did ({hit.group(1)!r}): one run can't know that. Say what you did in a Me: line, "
+                           "or quote the source"), 0
+        return True, "", 0
     if label == "open":
         return (True, "", 0) if rest.endswith("?") else (False, "Open: is for a question, and this doesn't end with one", 0)
     if label == "me":
