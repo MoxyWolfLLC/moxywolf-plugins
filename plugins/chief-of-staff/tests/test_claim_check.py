@@ -84,6 +84,20 @@ class Forms(unittest.TestCase):
                 self.bad(f'- Ops: "{changed}"\n', "not found in Ops", *src)
         print("examined a double underscore, an asterisk and a backtick inside a word: each stays, and 6 quotations that drop or change one fail")
 
+    def test_a_quotation_starts_and_ends_on_a_whole_token(self):
+        """A quotation that starts inside a number, or stops before the rest of one, changes what the source said."""
+        self.ok('- Finance: "30% off is $14,400 of margin"\n- Sales: "Halden\'s buyer said on 2026-10-06" and "budget closes this month."\n')
+        cut = (("Finance", "400 of margin and takes"),          # starts after the comma in $14,400
+               ("Finance", "14,400 of margin and"),             # drops the dollar sign
+               ("Finance", "30% off is $14"),                   # stops before ,400
+               ("Sales", "Offer the 30% discount. Halden"),     # stops before the possessive
+               ("Sales", "s buyer said on"),                    # starts after the apostrophe
+               ("Sales", "buyer said on 2026-10"),              # stops inside the date
+               ("Sales", "06 that budget closes"))              # starts inside the date
+        for src, q in cut:
+            self.bad(f'- {src}: "{q}"\n', f"not found in {src}")
+        print(f"examined {len(cut)} quotations cut inside a number, a date or a possessive: each fails, and the whole tokens verify")
+
     def test_a_quotation_must_be_in_the_named_source(self):
         self.bad('- Sales: "Whether Halden would accept prepay"\n', "not found in Sales")
         self.bad('- Finance: "30% off is $14,000 of margin"\n', "not found in Finance")
@@ -171,6 +185,11 @@ class Forms(unittest.TestCase):
         rc, out = check("```\nnobody read it\n" + OPEN)
         self.assertEqual((rc, out["labeled"]), (1, 0), out)
         self.bad("```\nx\n```\nnobody read it\n" + OPEN, "unlabeled")
+        # the opening line names a language at most. Prose on it is a line like any other, not a way to open a block
+        self.bad("``` nobody read the CRM\nx\n```\n" + OPEN, "unlabeled")
+        self.bad("```Sales read the CRM``` and the deal is closed\n" + OPEN, "unlabeled")
+        out = self.ok("```c++\nnobody read it\n```\n~~~text\nnobody read it\n~~~\n" + OPEN)
+        self.assertEqual(out["fenced"], 2)
 
     def test_a_document_with_nothing_labeled_does_not_pass(self):
         rc, out = check("# Memo\n\n**Title**\n")
