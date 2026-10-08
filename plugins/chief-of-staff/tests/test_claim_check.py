@@ -117,6 +117,17 @@ class Forms(unittest.TestCase):
                 "- Open: Is finance right about the floor?\n- My inference: the claim in the sales result rests on one call note.\n")
         print("examined 5 lines that retell a source, one of them recorded in run 16, and 4 that only refer to one")
 
+    def test_an_inference_cannot_say_what_nobody_did(self):
+        """Run 17, S2 and S8: two inferences said what nobody had done. One run can't know that."""
+        for line in ("Inference: up to $2,000 goes to an audience nobody has evidenced.",
+                     "Inference: the risk is that nobody has reviewed the email against the FTC guide.",
+                     "My inference: no quote goes out, because nothing's written and sending one waits for you.",
+                     "Proposal: hold the send, since no one has checked the address."):
+            self.bad(f"- Open: Do we offer it?\n- {line}\n", "nobody")
+        self.ok("- Me: I sent nothing to Halden.\n- Me: I haven't reviewed the email against the FTC guide.\n"
+                "- Open: Has nobody checked the address?\n- Inference: the email wasn't reviewed against the FTC guide in this run.\n")
+        print("examined 4 lines that say what nobody did, three of them recorded in runs 16 and 17, and 4 that say what the writer did")
+
     def test_blockquotes_and_extra_labels(self):
         self.ok('> - Finance: "takes this deal below the floor"\n> - Open: Is that right?\n')
         self.bad("DISPATCH: security the finance result\n- Open: Do we?\n", "not a known label")
