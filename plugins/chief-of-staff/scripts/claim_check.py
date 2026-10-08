@@ -28,7 +28,8 @@ What this does not check, on purpose: whether an inference is sound, whether a `
 whether a quotation is fair to its context, or who wrote a source file. It checks form and that a
 quotation exists where the line says it does.
 
-ponytail: stdlib and regexes over lines. A quotation can't contain a double quote of its own, and a
+ponytail: stdlib and regexes over lines. A quotation starts and ends on a whole token of its source,
+so it can't begin inside a number or stop before a possessive. A quotation can't contain a double quote of its own, and a
 `Me:` line is checked for its first word and for one sentence, not for what the sentence says. An
 `Open:` line is checked for its first word, one sentence and its question mark, so a clause after
 the question word can still carry a premise. A sentence ends at a period, so "e.g. this" reads as two.
@@ -153,6 +154,15 @@ def judge(line, sources):
     return True, "", 0
 
 
+def found(q, source):
+    """q stands in source on whole tokens: whitespace or opening punctuation before it, closing punctuation then whitespace after it.
+    So "he call" is not in "the call", "400 of margin" is not in "$14,400 of margin", and "$14" is not in "$14,400"."""
+    for m in re.finditer(re.escape(q), source):
+        if re.search(r"(?:^|\s)[(\[\"'\u2014]*$", source[:m.start()]) and re.match(r"[.,;:!?)\]\"'\u2014]*(?:\s|$)", source[m.end():]):
+            return True
+    return False
+
+
 def quotation(name, rest, source):
     """A source-labeled line: quotations only, each found whole in that source."""
     if "..." in rest or "…" in rest:
@@ -166,7 +176,7 @@ def quotation(name, rest, source):
         q = re.sub(r"[.,;:]$", "", q.strip())           # one closing mark, so a period inside the quote marks doesn't matter
         if len(q.split()) < 3:
             return False, f"a quotation is at least three words: {q!r}", 0
-        if not re.search(rf"(?<!\w){re.escape(q)}(?!\w)", source):   # whole words: "he call" is not in "the call"
+        if not found(q, source):
             return False, f"quotation not found in {name}: {q!r}", 0
     return True, "", len(quotes)
 
@@ -182,7 +192,7 @@ def run(doc, sources):
             else:
                 out["fenced"] += 1
             continue
-        if f:
+        if f and re.fullmatch(r"[\w+.#-]*", f.group(2).strip()):   # the opening line names a language at most: prose on it is a line to judge
             fence = (f.group(1)[0], len(f.group(1)))
             continue
         kind = structural(line, labels)
