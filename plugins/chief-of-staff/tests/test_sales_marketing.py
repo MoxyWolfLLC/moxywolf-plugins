@@ -180,7 +180,7 @@ class Routing(unittest.TestCase):
         self.assertIn("by what it contains", review, "the manual doesn't say a result is judged by what it contains")
         self.assertIn("stays blocked", review, "the manual doesn't keep the sensitive action blocked while a review is out")
         memo = section(manual, "The decision memo")
-        for must in ("**For the bookkeeper.**", "context card", "never contact", "open question stays"):
+        for must in ("**For the bookkeeper.**", "context card", "never contact", "open question stays", "identifies the customer"):
             self.assertIn(must, memo, f"the decision memo's rules don't say: {must}")
         self.assertIn("bookkeeper", dispatcher, "/cos doesn't carry a finance disagreement to the bookkeeper's section")
         self.assertRegex(dispatcher, r"involves sales-department or finance", "/cos doesn't name the disagreements that skip the wait")
