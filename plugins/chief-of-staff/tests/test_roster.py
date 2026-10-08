@@ -6,7 +6,11 @@ from the roster is never called. Either drift fails here.
 
 ponytail: a regex over one fenced block and a glob. A department agent is an agents/<name>.md in
 plugins/<name>/ whose description says "department agent". The non-department routes (legal:,
-sales:, marketing:) live in other marketplaces and are not examined here, and the test says so.
+product-orchestrator:, /gstack-build) are not examined here, and the test says so.
+
+CS-004: Sales and Marketing are departments now (`sales-department`, `marketing-department`), so
+they are examined like the other eight. The `sales:` and `marketing:` skills they borrow live in
+other marketplaces and still aren't.
 """
 import re
 import unittest
@@ -43,6 +47,15 @@ class Roster(unittest.TestCase):
         self.assertEqual(sorted(set(names) - set(found)), [], "roster names an agent that doesn't exist")
         self.assertEqual(sorted(set(found) - set(names)), [], "a department agent is missing from the roster")
         self.assertEqual(len(names), len(set(names)), "roster names an agent twice")
+
+    def test_sales_and_marketing_are_departments(self):
+        """CS-004.9: on the baseline both are missing from the roster and from plugins/, so the
+        general check above passes over eight and says nothing. This one names them."""
+        names, found = roster(MANUAL.read_text()), departments(ROOT)
+        for dept in ("sales-department", "marketing-department"):
+            self.assertIn(dept, found, f"no plugins/{dept}/agents/{dept}.md that says it is a department agent")
+            self.assertIn(dept, names, f"{dept} is not in the roster")
+        self.assertEqual(len(names), 10, f"the roster routes {len(names)} agents, not ten")
 
     def test_parser_catches_drift(self):
         self.assertEqual(roster("no block here"), [])
