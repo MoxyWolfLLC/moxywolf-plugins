@@ -161,7 +161,7 @@ class Routing(unittest.TestCase):
             skill, governance = read(base / f"skills/{head}/SKILL.md"), read(base / "GOVERNANCE.md")
             for field in RETURN_FIELDS:
                 self.assertIn(field, skill.lower(), f"{head} doesn't promise: {field}")
-            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement", "Absence is a claim too"):
+            for must in ("Dorian Cougias", "Release Owner Gate", "not technical enforcement", "Absence is a claim too", "Before you return"):
                 self.assertIn(must, skill, f"{head} doesn't state: {must}")
             self.assertIn("Dorian Cougias", governance, f"{pkg}'s GOVERNANCE.md names no Release Owner")
             for row in (f"`{pkg}`", f"`{head}`"):
@@ -169,6 +169,7 @@ class Routing(unittest.TestCase):
                                 f"{pkg}'s GOVERNANCE.md gives {row} no risk tier")
         for field in RETURN_FIELDS[4:]:
             self.assertIn(field, manual, f"the manual doesn't check the two departments' results for: {field}")
+        self.assertIn("go past their source", manual, "the manual doesn't send back a claim that goes past its source")
         print(f"examined {len(RETURN_FIELDS)} return fields and the gate's wording in 2 head skills, 2 GOVERNANCE.md files and the manual")
 
     def test_the_disagreement_rules_are_written_down(self):
