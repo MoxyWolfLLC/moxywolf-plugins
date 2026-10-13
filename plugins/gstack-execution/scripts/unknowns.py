@@ -167,8 +167,13 @@ def record(repo, question, needs, raised_by, for_=(), against=(), head=None, roo
         uid = new_id(repo, question, raised_by, review)
         if uid in cur:
             row = cur[uid]
-            if review and row["state"] == "open" and seen_in and seen_in != row.get("seen_in", row["raised_by"]):
-                append(p, dict(row, revision=row["revision"] + 1, seen_in=seen_in, at=time.time()))
+            if review and seen_in and seen_in != row.get("seen_in", row["raised_by"]):
+                if row["state"] == "open":
+                    append(p, dict(row, revision=row["revision"] + 1, seen_in=seen_in, at=time.time()))
+                else:   # F2 (review 20261013-152419): declared again after a close, so it is open again, under the same id
+                    reopened = {k: v for k, v in row.items() if k not in ("closed_by", "closed_authority", "settled_by")}
+                    append(p, dict(reopened, revision=row["revision"] + 1, state="open", seen_in=seen_in,
+                                   reopened_from=row["revision"], at=time.time()))
             return uid, False
         row = {"id": uid, "revision": 1, "state": "open", "question": question.strip(), "needs": needs,
                "for": list(for_), "against": list(against), "raised_by": raised_by,
@@ -207,11 +212,11 @@ def update(repo, uid, revision, **changes):
     return row
 
 
-def evidence_authority(ref, repo, review=None):
+def evidence_authority(ref, repo, review=None, root=None):
     """What authority an evidence reference carries, or None when it doesn't exist. Existence is
     checked against the record it names, never taken from the caller's word."""
     kind, _, rest = ref.partition(":")
-    root = pr.review_root()
+    root = Path(root or pr.review_root())
     if kind == "human":
         # F3 (review 20261013-124809): a login is a name, not a record. A person's evidence is an
         # observation they entered on a release handoff (EV-004), `human:<review id>:<index>` into
@@ -263,7 +268,7 @@ def close(repo, uid, revision, evidence, review=None, settled_by=None, root=None
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
         row = _next(cur, uid, revision)
-        have = evidence_authority(evidence, repo, review)
+        have = evidence_authority(evidence, repo, review, root=root)
         if have is None:
             raise pr.ReviewError("authority_insufficient", f"evidence {evidence!r} does not exist in the records it names")
         if RANK[have] < RANK[row["needs"]]:
@@ -280,6 +285,11 @@ def close_all(repo, review, evidence, root=None, branch=None):
     Returns (examined, closed); the caller prints both, zero as zero."""
     rows = [u for u in current(repo, branch, root) if u["state"] == "open"
             and (u.get("review") == review or u["raised_by"].startswith(review + " "))]
+    # F1 (review 20261013-152419): a bulk close is a person's act, checked before any append. A round
+    # finding or a CI run can close one line on its own merits, never a whole review's at once.
+    if rows and not (evidence.startswith(f"human:{review}:") and evidence_authority(evidence, repo, review, root=root) == "human"):
+        raise pr.ReviewError("authority_insufficient",
+                             f"close-all needs a recorded observation on review {review}, human:{review}:<index>; got {evidence!r}")
     closed = 0
     for u in rows:
         close(repo, u["id"], u["revision"], evidence, review, root=root, branch=branch)

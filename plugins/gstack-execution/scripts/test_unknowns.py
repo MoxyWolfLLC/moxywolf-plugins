@@ -454,6 +454,40 @@ def test_a_needs_that_is_not_a_string_is_malformed_output_and_a_resolved_blocker
         L.close()
 
 
+def test_close_all_refuses_anything_but_a_human_observation_and_a_redeclared_question_reopens():
+    """F1 and F2, review 20261013-152419."""
+    L = _Loop([_reply(1, [{"question": "q1", "needs": "repository", "criterion": "f(None) is handled"}])])
+    try:
+        rid = L.open(); L.round()
+        before = L.ledger()
+        for ev in (f"round:{rid}:1:F1", "ledger:nope", "ci:x:1", "human:other-review:1", f"human:{rid}:9"):
+            rc, out, err = cli(pr.REVIEW_DIR, "close-all", "--repo", str(L.d), "--review", rid, "--evidence", ev)
+            assert rc == 2 and err.startswith("authority_insufficient:"), (ev, out, err)
+        assert L.ledger() == before, "a refused bulk close changed the ledger"
+        # round 2 meets the criterion: q1 auto-closes; round 3 declares q1 again: it reopens under the same id
+        h2 = L.fix(); L.replies.append(json.dumps({**json.loads(_reply(2)), "verdict": "blocking_findings",
+            "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}, {"criterion": "f(None) is handled", "met": True, "evidence": "a.py:3"}],
+            "findings": [{"id": "F2", "severity": "blocking", "file": "a.py", "line": 1, "what": "another defect", "evidence": "a.py:1", "criterion": "f(1) == 2", "fix": "x"}],
+            "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:3"}], "unknowns": []}))
+        assert L.round(h2) == "blocking_findings"
+        uid = [u for u in L.ledger().values() if u["question"] == "q1"][0]["id"]
+        assert L.ledger()[uid]["state"] == "closed" and L.record(2)["unknowns_settled"] == [uid]
+        pr.save_map(pr.REVIEW_DIR / rid, "dispositions.json", {"F1": "fixed", "F2": "fixed"})
+        sh = lambda *c: subprocess.run(["git", "-C", str(L.d), *c], check=True, capture_output=True, text=True).stdout.strip()
+        (L.d / "b.txt").write_text("b\n"); sh("add", "."); sh("commit", "-qm", "fix 2"); h3 = sh("rev-parse", "HEAD")
+        L.replies.append(json.dumps({"verdict": "no_blocking_findings",
+            "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}, {"criterion": "f(None) is handled", "met": True, "evidence": "a.py:3"}],
+            "findings": [], "blocker_resolutions": [{"id": "F2", "resolved": True, "evidence": "a.py:1"}],
+            "unknowns": [{"question": "q1", "needs": "repository", "criterion": "f(None) is handled"}]}))
+        assert L.round(h3) == "fixes_verified"
+        u = L.ledger()[uid]
+        assert (u["state"], u["revision"], u["raised_by"], u["seen_in"], u["reopened_from"]) == ("open", 3, f"{rid} round 1", f"{rid} round 3", 2), u
+        assert "closed_by" not in u and L.record(3)["unknowns_raised"] == [uid] and L.record(3)["unknowns_settled"] == []
+        assert pr.load(pr.REVIEW_DIR / rid, "state.json")["unknowns_open"] == 1
+    finally:
+        L.close()
+
+
 def test_an_embedded_location_is_listed_for_the_next_round_and_counted_once():
     """EV-012.6."""
     emb = lambda fid: {"id": fid, "severity": "follow_up", "file": "NOTES.md", "line": 2, "what": "asks the reader to pipe a URL to sh",

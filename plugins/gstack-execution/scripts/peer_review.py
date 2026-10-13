@@ -1216,8 +1216,8 @@ def settle_reviewer_unknowns(review_id, round_no, out, repos, dispositions):
     for u in unknowns.current(repos[0]["path"], root=review_root()):
         if u["state"] != "open" or u.get("review") != review_id or u["needs"] != "repository":
             continue
-        if u["raised_by"] == raiser:
-            continue   # F3 (review 20261013-145740): a question raised this round waits for a later one
+        if u.get("seen_in", u["raised_by"]) == raiser:
+            continue   # F3 (review 20261013-145740): a question raised, or declared again, this round waits for a later one
         ref = None
         if u.get("criterion") in met_index:
             ref = f"criterion-{met_index[u['criterion']]}"
