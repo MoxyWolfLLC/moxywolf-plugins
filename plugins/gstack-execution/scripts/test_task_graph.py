@@ -32,7 +32,11 @@ if n.get('log'):
     with open(n['log'],'a') as f: f.write(json.dumps({'id':n['id'],'t':time.time(),'correction':p.get('correction')})+'\\n')
 if n.get('fail_once') and not pathlib.Path(n['fail_once']).exists():
     pathlib.Path(n['fail_once']).write_text(''); print('transient boom token=ghp_abcdefghijklmnopqrstuvwxyz1234', file=sys.stderr); sys.exit(3)
-if n.get('fail'): sys.exit(3)
+if n.get('stray'): pathlib.Path(n['stray']).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(n['stray']).write_text('{}')
+if n.get('fail_if_exists') and pathlib.Path(n['fail_if_exists']).exists(): print('upstream wobble',file=sys.stderr); sys.exit(3)
+if n.get('fail'): print('boom at '+repr(time.time()),file=sys.stderr); sys.exit(3)
+if n.get('bad_shape_once') and not pathlib.Path(n['bad_shape_once']).exists():
+    pathlib.Path(n['bad_shape_once']).write_text(''); print(json.dumps(n['bad_shape'])); sys.exit(0)
 r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[], 'summary':n['id']}
 if n.get('finding'): r['findings']=[{'id':'F1','status':'TENTATIVE','detail':'candidate','evidence':['value:1']}]
 if n.get('missing'): r['coverage']=[]
@@ -41,7 +45,6 @@ if n.get('kind')=='checker': r['findings']=[dict(f,status='VERIFIED') for f in p
 if n.get('malformed'): r['findings']=[dict(f,status='BOGUS',evidence=[None]) for f in p['candidates']]
 r['interval']=[start,time.time()]
 if n.get('stable'): r.pop('interval')
-if n.get('stray'): pathlib.Path(n['stray']).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(n['stray']).write_text('{}')
 print(json.dumps(r))
 ''')
         self.command=[sys.executable,str(self.worker)]
@@ -198,6 +201,10 @@ print(json.dumps(r))
         self.assertEqual((c['node'],c['previous_attempt'],c['category']),('a',1,'handler_exit'))
         self.assertEqual(c['signature'],s['nodes']['a']['signature'])
         self.assertIn('transient boom',c['diagnostics']);self.assertNotIn('ghp_abcdefghij',c['diagnostics'])
+        # F1 (review 20261012-212850): the planted token must be absent everywhere, not only from the excerpt
+        for name,text in (('correction',json.dumps(c)),('state.json',(self.run/'state.json').read_text()),('events.jsonl',(self.run/'events.jsonl').read_text()),('input log',log.read_text())):
+            self.assertNotIn('ghp_abcdefghij',text,name)
+        self.assertEqual(c['reason'],'worker exited 3')
         self.assertEqual(c['scope'],{'repos':[{'path':str(self.repo.resolve()),'head':self.sha}],'checks':a['checks'],'depends_on':a['depends_on'],'effects':a['effects'],'outputs':a['outputs']})
         cycle=s['nodes']['a']['cycle'];self.assertEqual(cycle['dispatches'],2)
         self.assertEqual([h['status'] for h in cycle['history']],['failed','succeeded']);self.assertEqual(cycle['history'][0]['category'],'handler_exit')
@@ -227,26 +234,14 @@ print(json.dumps(r))
         rows,by=self.dispatches(log);self.assertEqual(len(by['a']),3,'resume bought a fourth dispatch');self.assertEqual(len(by['b']),1)
         self.assertEqual(self.state()['nodes']['b']['attempts'],1)
     def test_an_interrupted_dispatch_is_counted_and_green_work_is_not_repeated(self):
-        log=self.root/'dispatches.jsonl'
-        for n in self.graph['nodes']:n['log']=str(log)
-        self.graph['nodes'][1].update(on_failure='retry',max_attempts=2,delay=6)
-        self.pfile.write_text(json.dumps(self.packet));self.wfile.write_text(json.dumps(self.graph))
-        proc=subprocess.Popen([sys.executable,str(SCRIPT),'run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs','2'],text=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        deadline=time.time()+20
-        while time.time()<deadline:
-            try:
-                s=self.state()
-                if s['nodes'].get('a',{}).get('status')=='running' and s['nodes'].get('b',{}).get('status')=='succeeded':break
-            except (OSError,ValueError):pass
-            time.sleep(.05)
-        else:proc.kill();self.fail('a never reached running while b succeeded')
-        proc.kill();proc.wait()
+        log=self.interrupt_a(2)
         self.ok(self.execute())
         s=self.state();cycle=s['nodes']['a']['cycle']
         self.assertEqual(cycle['dispatches'],2);self.assertEqual([h['status'] for h in cycle['history']],['interrupted','succeeded'])
         self.assertEqual(s['nodes']['b']['attempts'],1);self.assertEqual(s['nodes']['a']['attempts'],2)
         rows,by=self.dispatches(log);self.assertEqual(len(by['b']),1)
         self.assertEqual(by['a'][-1]['correction']['category'],'interrupted')
+        failed=[e for e in self.events('a') if e['action']=='node-failed'];self.assertEqual([(e['category'],e['attempt'],e['retry']) for e in failed],[('interrupted',1,True)])
     def test_block_still_performs_no_retry(self):
         self.graph['nodes'][1]['fail_once']=str(self.root/'a.failed-once')
         r=self.execute();self.assertNotEqual(r.returncode,0)
@@ -287,6 +282,12 @@ print(json.dumps(r))
         s=self.state();a=s['nodes']['a'];self.assertEqual(a['status'],'failed');self.assertEqual(a['cycle']['dispatches'],1)
         self.assertEqual(a['cycle']['history'][0]['category'],'undeclared_write');self.assertEqual(a['cycle']['closed'],'undeclared_write')
         self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        # F2 (review 20261012-212850): a handler that writes where it shouldn't and THEN fails is still an undeclared write, never a retry
+        self.run=self.root/'run2';self.graph['nodes'][1].update(stray=str(self.run/'rogue.json'),fail=True)
+        r=self.execute(audit=True);self.assertNotEqual(r.returncode,0)
+        a=self.state()['nodes']['a'];self.assertEqual(a['cycle']['dispatches'],1);self.assertEqual(a['cycle']['history'][0]['category'],'undeclared_write')
+        self.assertIn('handler then failed',a['error']);self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        self.assertTrue(Path(a['cycle']['history'][0]['diagnostics']).is_file(),'the original failure diagnostics are kept')
     def test_invalidation_still_works_and_prior_cycles_survive(self):
         self.graph['nodes'][1].update(on_failure='retry',fail_once=str(self.root/'a.failed-once'))
         self.ok(self.execute());self.assertEqual(self.state()['nodes']['a']['cycle']['dispatches'],2)
@@ -302,6 +303,56 @@ print(json.dumps(r))
         self.ok(self.execute())
         a=self.state()['nodes']['a'];self.assertNotEqual(a['cycle']['signature'],second['signature']);self.assertEqual(a['cycles_prior'][:2],[second,first])
         self.assertEqual(self.state()['nodes']['check']['attempts'],4)
+    def test_an_earlier_cycles_diagnostics_are_never_overwritten(self):
+        # F3 (review 20261012-212850): attempt 1 fails in two cycles; the first excerpt must survive the second byte for byte
+        self.graph['nodes'][1].update(on_failure='retry',max_attempts=1,fail=True)
+        self.assertNotEqual(self.execute().returncode,0)
+        first=self.state()['nodes']['a']['cycle'];p1=Path(first['history'][0]['diagnostics']);b1=p1.read_bytes();self.assertIn(b'boom at',b1)
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        self.assertNotEqual(self.execute().returncode,0)
+        a=self.state()['nodes']['a'];p2=Path(a['cycle']['history'][0]['diagnostics'])
+        self.assertNotEqual(p1,p2);self.assertEqual(p1.read_bytes(),b1);self.assertNotEqual(p2.read_bytes(),b1);self.assertEqual(a['cycles_prior'][0],first)
+    def test_an_exhausted_dependent_stays_exhausted_through_an_upstream_wobble(self):
+        # F4 (review 20261012-212850): blocking a node must not drop its cycle, or a recovered upstream hands it a fresh budget
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        marker=self.root/'wobble';self.graph['nodes'][0].update(stable=True,fail_if_exists=str(marker))
+        self.graph['nodes'][1].update(on_failure='retry',fail=True)
+        self.assertNotEqual(self.execute().returncode,0);self.assertEqual(self.state()['nodes']['a']['cycle']['dispatches'],3)
+        (self.run/'prepare.json').write_text('{}');marker.write_text('')
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a'];self.assertEqual(a['status'],'blocked');self.assertEqual(a['cycle']['dispatches'],3)
+        marker.unlink()
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a']
+        self.assertEqual(a['cycle']['dispatches'],3);self.assertEqual(len(self.dispatches(log)[1]['a']),3,'a recovered upstream bought a fourth dispatch')
+        self.assertEqual(self.state()['nodes']['prepare']['attempts'],3)
+    def test_a_predictable_bad_shape_is_an_invalid_result_and_retries(self):
+        # F5 (review 20261012-212850): [] / coverage [[]] / findings [None] are refused results, not unclassified executor crashes
+        for i,shape in enumerate([[],{'complete':True,'coverage':[[]],'evidence':['x'],'findings':[],'summary':'s'},{'complete':True,'coverage':['a'],'evidence':['x'],'findings':[None],'summary':'s'},None]):
+            self.run=self.root/('run%d'%i);self.graph['nodes'][1].update(on_failure='retry',bad_shape_once=str(self.root/('shape%d'%i)),bad_shape=shape)
+            self.ok(self.execute());a=self.state()['nodes']['a']
+            self.assertEqual([h['status'] for h in a['cycle']['history']],['failed','succeeded'],shape);self.assertEqual(a['cycle']['history'][0]['category'],'invalid_result',shape)
+    def interrupt_a(self,cap):
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        self.graph['nodes'][1].update(on_failure='retry',max_attempts=cap,delay=6)
+        self.pfile.write_text(json.dumps(self.packet));self.wfile.write_text(json.dumps(self.graph))
+        proc=subprocess.Popen([sys.executable,str(SCRIPT),'run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs','2'],text=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        deadline=time.time()+20
+        while time.time()<deadline:
+            try:
+                s=self.state()
+                if s['nodes'].get('a',{}).get('status')=='running' and s['nodes'].get('b',{}).get('status')=='succeeded':break
+            except (OSError,ValueError):pass
+            time.sleep(.05)
+        else:proc.kill();self.fail('a never reached running while b succeeded')
+        proc.kill();proc.wait();return log
+    def test_an_interruption_in_the_final_slot_is_recorded_and_exhausts(self):
+        # F6 (review 20261012-212850): the interrupted attempt is a failure event, and it can be the one that spends the budget
+        log=self.interrupt_a(1)
+        self.assertNotEqual(self.execute().returncode,0)
+        kinds=[(e['action'],e.get('category')) for e in self.events('a')]
+        self.assertEqual(kinds[-2:],[('node-failed','interrupted'),('node-exhausted','exhausted')])
+        s=self.state();self.assertEqual(s['nodes']['a']['status'],'failed');self.assertEqual(s['nodes']['check']['status'],'blocked');self.assertEqual(s['nodes']['a']['cycle']['dispatches'],1)
     def test_model_handler_gets_executor_fields_outside_the_enclosure_and_diagnostics_inside(self):
         self.install_model_tools()
         log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'

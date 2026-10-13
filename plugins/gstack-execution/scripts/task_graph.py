@@ -36,7 +36,6 @@ DIAG_CAP = 4000
 
 def classify(exc):
     if isinstance(exc, NodeFailure): return exc.category, exc.diagnostics
-    if isinstance(exc, peer.ReviewError): return exc.outcome, ''
     return 'unclassified', ''
 
 
@@ -264,13 +263,14 @@ def unreferenced_dependencies(result, node, dependencies):
 def validate_result(result,node,expected_candidates):
     if not isinstance(result,dict) or result.get('complete') is not True:raise ValueError('worker incomplete')
     coverage=result.get('coverage',[])
-    if not isinstance(coverage,list) or len(coverage)!=len(set(coverage)) or set(coverage)!=set(node['checks']):
+    if not isinstance(coverage,list) or any(not isinstance(c,str) for c in coverage) or len(coverage)!=len(set(coverage)) or set(coverage)!=set(node['checks']):
         raise ValueError('missing, extra or duplicate coverage')
     if not isinstance(result.get('evidence'),list) or not result['evidence'] or any(not isinstance(s,str) or not s.strip() for s in result['evidence']):raise ValueError('missing evidence')
     fs=result.get('findings')
     if not isinstance(fs,list):raise ValueError('findings must be a list')
     ids=[]
     for f in fs:
+        if not isinstance(f,dict):raise ValueError('malformed finding')
         if any(not isinstance(f.get(k),str) or not f[k].strip() for k in ('id','status','detail')) or not isinstance(f.get('evidence'),list) or not f['evidence'] or any(not isinstance(e,str) or not e.strip() for e in f['evidence']):
             raise ValueError('malformed finding')
         if node['kind']=='checker' and f['status'] not in {'VERIFIED','UNVERIFIED','TENTATIVE','DISMISSED'}:raise ValueError('invalid checker disposition')
@@ -354,18 +354,21 @@ def worker(node,packet,dependencies,root,correction=None):
                 input_file=work/'input.json';write(input_file,payload)
                 try:completed=subprocess.run(node['command']+[str(input_file)],cwd=work,capture_output=True,text=True,timeout=packet.get('timeout',900),env=dict(os.environ,GSTACK_PEER_REVIEW_SESSION='1'))
                 except subprocess.TimeoutExpired as e:raise NodeFailure('timeout','worker timed out after '+str(packet.get('timeout',900))+'s',(e.stdout or b'').decode(errors='replace') if isinstance(e.stdout,bytes) else (e.stdout or ''))
-                if completed.returncode:raise NodeFailure('handler_exit','worker exited '+str(completed.returncode)+': '+completed.stderr[-1000:],completed.stderr+completed.stdout)
+                if completed.returncode:raise NodeFailure('handler_exit','worker exited '+str(completed.returncode),completed.stderr+completed.stdout)   # F1 (round 1): the reason is the executor's; handler text goes only through redaction
                 try:result=json.loads(completed.stdout)
-                except ValueError as e:raise NodeFailure('malformed_output','worker output is not JSON: '+str(e),completed.stdout+completed.stderr)
+                except ValueError:raise NodeFailure('malformed_output','worker output is not JSON',completed.stdout+completed.stderr)
             else:
                 prompt=node_prompt(payload)
                 prompt+='\nInspect the pinned repositories. Return complete=false if the task cannot be completed. Coverage must equal node.checks exactly. Every finding needs id, status, detail, evidence. Do not disclose secret values. For verify use BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE findings for every claim. For CSO investigate every candidate before filtering; include severity/confidence/exploit scenario/remediation in detail. Checker: independently inspect all dependencies and candidates, return every candidate ID with VERIFIED/UNVERIFIED/TENTATIVE/DISMISSED and evidence. Never discard a candidate. Read the node instruction. Return JSON only.'
-                raw,model=peer.run_reviewer(tool,prompt,work,packet.get('timeout',900),schema=RESULT_SCHEMA)
+                try:raw,model=peer.run_reviewer(tool,prompt,work,packet.get('timeout',900),schema=RESULT_SCHEMA)
+                except peer.ReviewError as e:   # F7 (round 1): the model boundary is classified here. Only a timeout retries.
+                    raise NodeFailure('timeout' if e.outcome=='timeout' else e.outcome,e.outcome+': '+e.detail)
                 try:result=json.loads(raw)
-                except ValueError as e:raise NodeFailure('malformed_output','model output is not JSON: '+str(e),raw)
+                except ValueError:raise NodeFailure('malformed_output','model output is not JSON',raw)
+                if not isinstance(result,dict):raise NodeFailure('invalid_result','model output is not a JSON object',raw[:DIAG_CAP])   # F5: before metadata is added
                 result['model']=model
             try:result=validate_result(result,node,payload['candidates'])
-            except ValueError as e:raise NodeFailure('invalid_result',str(e),json.dumps(result)[:DIAG_CAP])
+            except (ValueError,TypeError,AttributeError,KeyError) as e:raise NodeFailure('invalid_result',str(e)[:500],json.dumps(result)[:DIAG_CAP])   # F5: a wrong shape is a refused result
             # EV-006: reported, never fatal -- see dependency_references for why a proxy must not
             # fail a run on the difference between "unused" and "used without citing".
             result['unreferenced_dependencies']=unreferenced_dependencies(result,node,dependencies)
@@ -430,7 +433,8 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                 progress=False
                 for id,n in list(pending.items()):
                     if set(n['depends_on'])&failed:
-                        failed.add(id);del pending[id];state['nodes'][id]={'status':'blocked','attempts':state['nodes'].get(id,{}).get('attempts',0)};progress=True;continue
+                        # F4 (round 1): blocking keeps the cycle record, so an exhausted budget survives an upstream wobble
+                        failed.add(id);del pending[id];state['nodes'][id]={k:v for k,v in state['nodes'].get(id,{}).items() if k in {'attempts','signature','cycle','cycles_prior'}};state['nodes'][id].update(status='blocked',attempts=state['nodes'][id].get('attempts',0));progress=True;continue
                     if not set(n['depends_on'])<=done.keys():continue
                     deps={d:done[d] for d in n['depends_on']}
                     signature=digest([n,packet,deps])
@@ -449,7 +453,8 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                     if cycle and cycle.get('signature')!=signature:prior=[cycle]+prior;cycle=None
                     cycle=cycle or {'signature':signature,'dispatches':0,'history':[]}
                     if cycle['history'] and cycle['history'][-1]['status']=='running':   # interrupted: counted, never refunded
-                        cycle['history'][-1].update(status='interrupted',category='interrupted',reason='attempt was running when the executor stopped',diagnostics=None,finished=time.time())
+                        att=cycle['history'][-1];att.update(status='interrupted',category='interrupted',reason='attempt was running when the executor stopped',diagnostics=None,finished=time.time())
+                        event(root,packet,'machine','node-failed',node=id,signature=signature,attempt=att['attempt'],category='interrupted',error=att['reason'],retry=policy=='retry' and cycle['dispatches']<cap)   # F6 (round 1)
                     if policy=='retry' and (cycle.get('closed') or cycle['dispatches']>=cap):
                         state['nodes'][id]={**old,'status':'failed','signature':signature,'cycle':cycle,'cycles_prior':prior,'error':'retry budget exhausted for this signature'}
                         terminal(id,n,cycle,cycle.get('closed') or 'exhausted','retry budget exhausted: '+str(cycle['dispatches'])+' of '+str(cap)+' dispatches used');del pending[id];progress=True;write(root/'state.json',state);continue
@@ -481,8 +486,11 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                             done[id]=result;event(root,packet,'machine','node-succeeded',node=id,signature=signature,attempt=att['attempt'],evidence=n['outputs'])
                         except Exception as e:
                             category,diag=classify(e);path=None
+                            if audit:   # F2 (round 1): a handler that wrote where it shouldn't and then failed gets no retry
+                                stray=undeclared_writes(pre.pop(id,{}),tree_digest(root),n)
+                                if stray:category='undeclared_write';e=NodeFailure(category,'undeclared write by '+id+': '+', '.join(stray)+' (handler then failed: '+str(e)+')',diag)
                             if diag:
-                                (root/DIAG_DIR).mkdir(exist_ok=True);path=str(root/DIAG_DIR/(id+'-attempt'+str(att['attempt'])+'.txt'));Path(path).write_text(redact(diag))
+                                (root/DIAG_DIR).mkdir(exist_ok=True);path=str(root/DIAG_DIR/(id+'-'+signature[:16]+'-attempt'+str(att['attempt'])+'.txt'));Path(path).write_text(redact(diag))   # F3 (round 1): one namespace per cycle
                             entry.update(status='failed',error=str(e),finished=time.time());att.update(status='failed',category=category,reason=str(e)[:1000],diagnostics=path,finished=time.time())
                             retry=n.get('on_failure')=='retry' and category in RETRYABLE and cycle['dispatches']<retry_cap(n)
                             event(root,packet,'machine','node-failed',node=id,signature=signature,attempt=att['attempt'],category=category,error=str(e),retry=retry,evidence=[path] if path else [])
