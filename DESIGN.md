@@ -1548,7 +1548,7 @@ The first review to run under EV-011 (`20261013-124809-dcb80a9-duv7_0b3` and its
 
 ### EV-013 — A fixed finding that mis-cited its line is unverifiable, not stale, and a bulk close reaches an exhausted review
 
-**Status:** planned. Declared 2026-10-13 from EV-012's own review loop, at Dorian's instruction; awaiting his approval before any code.
+**Status:** planned. Declared 2026-10-13 from EV-012's own review loop, at Dorian's instruction, and approved by him the same day ("Approve #203"); design committed as `49d94cd` (PR #203).
 
 **Links introduced:** none new. The link `verify_links` already checks, finding to content at the reviewed head, gains one more named outcome for the case where the reviewer's cited line never existed and the finding was later verified fixed. `close-all` gains a second accepted evidence shape, an observation on any review of the same branch, recorded on the closed line as it is today.
 
