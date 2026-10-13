@@ -305,13 +305,18 @@ print(json.dumps(r))
         self.assertEqual(self.state()['nodes']['check']['attempts'],4)
     def test_an_earlier_cycles_diagnostics_are_never_overwritten(self):
         # F3 (review 20261012-212850): attempt 1 fails in two cycles; the first excerpt must survive the second byte for byte
-        self.graph['nodes'][1].update(on_failure='retry',max_attempts=1,fail=True)
+        self.graph['nodes'][0]['stable']=True;self.graph['nodes'][1].update(on_failure='retry',max_attempts=1,fail=True)
         self.assertNotEqual(self.execute().returncode,0)
         first=self.state()['nodes']['a']['cycle'];p1=Path(first['history'][0]['diagnostics']);b1=p1.read_bytes();self.assertIn(b'boom at',b1)
         (self.repo/'value').write_text('two');self.git('commit','-qam','two');self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
         self.assertNotEqual(self.execute().returncode,0)
         a=self.state()['nodes']['a'];p2=Path(a['cycle']['history'][0]['diagnostics'])
         self.assertNotEqual(p1,p2);self.assertEqual(p1.read_bytes(),b1);self.assertNotEqual(p2.read_bytes(),b1);self.assertEqual(a['cycles_prior'][0],first)
+        # F3 (round 2): A -> B -> A. The returning signature resumes its own closed cycle: no dispatch, no overwrite.
+        second=a['cycle'];self.packet['repos'][0]['head']=self.sha
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a']
+        self.assertEqual(a['cycle'],first,'the first cycle came back untouched');self.assertEqual(a['cycles_prior'],[second])
+        self.assertEqual(p1.read_bytes(),b1);self.assertEqual(self.events('a')[-1]['action'],'node-exhausted')
     def test_an_exhausted_dependent_stays_exhausted_through_an_upstream_wobble(self):
         # F4 (review 20261012-212850): blocking a node must not drop its cycle, or a recovered upstream hands it a fresh budget
         log=self.root/'dispatches.jsonl'
@@ -353,6 +358,16 @@ print(json.dumps(r))
         kinds=[(e['action'],e.get('category')) for e in self.events('a')]
         self.assertEqual(kinds[-2:],[('node-failed','interrupted'),('node-exhausted','exhausted')])
         s=self.state();self.assertEqual(s['nodes']['a']['status'],'failed');self.assertEqual(s['nodes']['check']['status'],'blocked');self.assertEqual(s['nodes']['a']['cycle']['dispatches'],1)
+    def test_a_crashed_reviewer_is_terminal_and_its_output_is_redacted(self):
+        # F9 (review 20261012-212850, round 2): an environmental model failure gets no retry, and its stderr never reaches state or events unredacted
+        self.install_model_tools();os.environ['GRAPH_CRASH']='a';self.addCleanup(os.environ.pop,'GRAPH_CRASH',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.graph['nodes'][1]['on_failure']='retry'
+        self.assertNotEqual(self.execute().returncode,0)
+        s=self.state();a=s['nodes']['a'];self.assertEqual(a['cycle']['dispatches'],1);self.assertEqual(a['cycle']['history'][0]['category'],'review_unavailable')
+        self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        for name,text in (('state.json',(self.run/'state.json').read_text()),('events.jsonl',(self.run/'events.jsonl').read_text())):self.assertNotIn('ghp_zzzz',text,name)
+        diag=Path(a['cycle']['history'][0]['diagnostics']).read_text();self.assertIn('reviewer crashed',diag);self.assertNotIn('ghp_zzzz',diag)
     def test_model_handler_gets_executor_fields_outside_the_enclosure_and_diagnostics_inside(self):
         self.install_model_tools()
         log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'
@@ -498,6 +513,8 @@ else:
  lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));own=json.loads(lines[i-1]);outside=json.loads(lines[i+1]);p={**own,**outside};n=p['node']
  if os.environ.get('GRAPH_LOG'):
   with open(os.environ['GRAPH_LOG'],'a') as f: f.write(json.dumps({'id':n['id'],'own':own,'outside':outside})+'\\n')
+ if os.environ.get('GRAPH_CRASH')==n['id']:
+  print('model: gpt-6-astra',file=sys.stderr);print('reviewer crashed holding token=ghp_zzzzzzzzzzzzzzzzzzzzzzzzzz9999',file=sys.stderr);sys.exit(3)
  if os.environ.get('GRAPH_FAIL_ONCE') and n['id']==os.environ['GRAPH_FAIL_ONCE'] and not pathlib.Path(os.environ['GRAPH_LOG']+'.marker').exists():
   pathlib.Path(os.environ['GRAPH_LOG']+'.marker').write_text('');print('model: gpt-6-astra',file=sys.stderr);print('not json: transient model failure');sys.exit(0)
  r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[],'summary':'checked'}

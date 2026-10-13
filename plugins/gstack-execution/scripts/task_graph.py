@@ -362,7 +362,8 @@ def worker(node,packet,dependencies,root,correction=None):
                 prompt+='\nInspect the pinned repositories. Return complete=false if the task cannot be completed. Coverage must equal node.checks exactly. Every finding needs id, status, detail, evidence. Do not disclose secret values. For verify use BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE findings for every claim. For CSO investigate every candidate before filtering; include severity/confidence/exploit scenario/remediation in detail. Checker: independently inspect all dependencies and candidates, return every candidate ID with VERIFIED/UNVERIFIED/TENTATIVE/DISMISSED and evidence. Never discard a candidate. Read the node instruction. Return JSON only.'
                 try:raw,model=peer.run_reviewer(tool,prompt,work,packet.get('timeout',900),schema=RESULT_SCHEMA)
                 except peer.ReviewError as e:   # F7 (round 1): the model boundary is classified here. Only a timeout retries.
-                    raise NodeFailure('timeout' if e.outcome=='timeout' else e.outcome,e.outcome+': '+e.detail)
+                    # F9 (round 2): the detail may carry the reviewer's stderr, so it travels only through the redacted excerpt
+                    raise NodeFailure('timeout' if e.outcome=='timeout' else e.outcome,'model handler failed: '+e.outcome,e.detail)
                 try:result=json.loads(raw)
                 except ValueError:raise NodeFailure('malformed_output','model output is not JSON',raw)
                 if not isinstance(result,dict):raise NodeFailure('invalid_result','model output is not a JSON object',raw[:DIAG_CAP])   # F5: before metadata is added
@@ -449,8 +450,12 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                     if len(active)>=jobs:continue
                     if (n['kind']=='proof' or 'local_proof' in n['effects']) and any(v[0]['kind']=='proof' or 'local_proof' in v[0]['effects'] for v in active.values()):continue
                     # XE-036.5: one cycle per signature. A prior cycle under another signature is kept, never counted.
-                    prior=old.get('cycles_prior',[]);cycle=old.get('cycle')
-                    if cycle and cycle.get('signature')!=signature:prior=[cycle]+prior;cycle=None
+                    prior=list(old.get('cycles_prior',[]));cycle=old.get('cycle')
+                    if cycle and cycle.get('signature')!=signature:
+                        prior=[cycle]+prior
+                        # F3 (round 2): a signature that comes back resumes ITS cycle, budget and closed state included
+                        cycle=next((c for c in prior if c.get('signature')==signature),None)
+                        if cycle:prior.remove(cycle)
                     cycle=cycle or {'signature':signature,'dispatches':0,'history':[]}
                     if cycle['history'] and cycle['history'][-1]['status']=='running':   # interrupted: counted, never refunded
                         att=cycle['history'][-1];att.update(status='interrupted',category='interrupted',reason='attempt was running when the executor stopped',diagnostics=None,finished=time.time())
@@ -491,11 +496,12 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                                 if stray:category='undeclared_write';e=NodeFailure(category,'undeclared write by '+id+': '+', '.join(stray)+' (handler then failed: '+str(e)+')',diag)
                             if diag:
                                 (root/DIAG_DIR).mkdir(exist_ok=True);path=str(root/DIAG_DIR/(id+'-'+signature[:16]+'-attempt'+str(att['attempt'])+'.txt'));Path(path).write_text(redact(diag))   # F3 (round 1): one namespace per cycle
-                            entry.update(status='failed',error=str(e),finished=time.time());att.update(status='failed',category=category,reason=str(e)[:1000],diagnostics=path,finished=time.time())
+                            reason=redact(str(e))[:1000]   # round 2, F9: no stored reason bypasses redaction, whatever raised it
+                            entry.update(status='failed',error=reason,finished=time.time());att.update(status='failed',category=category,reason=reason,diagnostics=path,finished=time.time())
                             retry=n.get('on_failure')=='retry' and category in RETRYABLE and cycle['dispatches']<retry_cap(n)
-                            event(root,packet,'machine','node-failed',node=id,signature=signature,attempt=att['attempt'],category=category,error=str(e),retry=retry,evidence=[path] if path else [])
+                            event(root,packet,'machine','node-failed',node=id,signature=signature,attempt=att['attempt'],category=category,error=reason,retry=retry,evidence=[path] if path else [])
                             if retry:pending[id]=n   # XE-036.3: back to pending; dependents keep waiting, siblings untouched
-                            else:terminal(id,n,cycle,category,str(e))
+                            else:terminal(id,n,cycle,category,reason)
                         write(root/'state.json',state)
                 elif pending and not progress:raise ValueError('unresolvable dependencies')
         state['outcome']='incomplete' if failed else 'complete'
