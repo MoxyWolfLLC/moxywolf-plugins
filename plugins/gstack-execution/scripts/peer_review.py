@@ -873,6 +873,16 @@ def _safe_rel(path):
     return re.sub(r"[^\x20-\x7e]", "?", str(path))[:200]
 
 
+def mis_cited_subjects(prior):
+    """EV-013.3: the prior round's bound subjects whose cited line did not exist. A record written
+    before FINDING_ID existed may hold any string as an id; only a token reaches SURFACE.md, the
+    rest is named by position."""
+    return [{"id": fid if FINDING_ID.match(fid) else f"(finding {i + 1}, id withheld)",
+             "file": s["path"], "line": s["line"], "file_lines": s["file_lines"]}
+            for i, (fid, s) in enumerate(((prior or {}).get("subjects") or {}).items())
+            if s.get("bound") and not s.get("line_exists", True)]
+
+
 def _this_reviews(unknowns_open, review_id):
     """EV-012.7: the lines this review raised, plus any needing a person; another review's questions
     are not handed to this reviewer as its own."""
@@ -2325,9 +2335,7 @@ def cmd_round(a):
         surf, surf_stats = build_surface(packet["repos"], root, coverage=state.get("coverage_status") or "not_run",
                                          ledger=state.get("ledger_status") or "none",
                                          embedded_prior=state.get("embedded_locations") or [],
-                                         mis_cited=[{"id": fid, "file": s["path"], "line": s["line"], "file_lines": s["file_lines"]}
-                                                    for fid, s in ((prior or {}).get("subjects") or {}).items()
-                                                    if s.get("bound") and not s.get("line_exists", True)],
+                                         mis_cited=mis_cited_subjects(prior),
                                          unknowns_open=open_unknowns(packet["repos"]), review_id=a.review_id,
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
