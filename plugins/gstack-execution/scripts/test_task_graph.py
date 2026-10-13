@@ -626,5 +626,41 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
             if workflow=='verify':self.assertIn('claim-C1',[n['id'] for n in nodes])
     def write_packet(self):
         self.pfile.write_text(json.dumps(self.packet));return self.pfile
+    # EV-010.1 and .5: every key a handler reads is labelled by the executor, from the key's origin.
+    def test_command_handler_input_carries_provenance_for_every_key(self):
+        log=self.root/'inputs.jsonl'
+        probe=self.root/'probe.py';probe.write_text('import json,sys,pathlib\np=json.loads(pathlib.Path(sys.argv[-1]).read_text())\n'
+            'open('+repr(str(log))+',"a").write(json.dumps({"keys":sorted(p),"provenance":p.get("provenance")})+"\\n")\n'
+            'n=p["node"];r={"complete":True,"coverage":n["checks"],"evidence":["value:1"],"findings":[],"summary":n["id"]}\n'
+            'if n["kind"]=="checker":r["findings"]=[dict(f,status="VERIFIED") for f in p["candidates"]]\nprint(json.dumps(r))\n')
+        cmd=[sys.executable,str(probe)];self.policy['allowed_commands'].append(cmd)
+        for n in self.graph['nodes']:
+            if n['kind']!='report':n['command']=cmd
+        self.ok(self.execute())
+        rows=[json.loads(l) for l in log.read_text().splitlines()];self.assertEqual(len(rows),4)
+        for r in rows:
+            prov=r['provenance'];self.assertEqual(sorted(prov),[k for k in r['keys'] if k!='provenance'])
+            for k,v in prov.items():
+                self.assertIn(v['source'],('repository','ci_log','handler_output','fetched','executor'))
+                self.assertEqual(v['untrusted_content'],v['source']!='executor',k)
+            self.assertEqual((prov['node']['source'],prov['packet']['source'],prov['dependencies']['source'],prov['snapshots']['source']),
+                             ('executor','executor','handler_output','repository'))
+    def test_model_handler_provenance_is_false_outside_the_enclosure_and_true_inside(self):
+        self.install_model_tools()
+        log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'
+        self.addCleanup(os.environ.pop,'GRAPH_LOG',None);self.addCleanup(os.environ.pop,'GRAPH_FAIL_ONCE',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.graph['nodes'][1].update(on_failure='retry',id='a')
+        self.ok(self.execute())
+        rows=[json.loads(l) for l in log.read_text().splitlines()];a=[r for r in rows if r['id']=='a']
+        self.assertEqual(len(a),2)
+        for r in rows:
+            own,out=r['own'],r['outside']
+            self.assertEqual(sorted(own['provenance']),sorted(k for k in own if k!='provenance'))
+            self.assertEqual(sorted(out['provenance']),sorted(k for k in out if k!='provenance'))
+            self.assertTrue(all(v['untrusted_content'] for v in out['provenance'].values()),out['provenance'])
+            self.assertFalse(any(v['untrusted_content'] for k,v in own['provenance'].items() if k!='snapshots'),own['provenance'])
+        c=a[1]['own']['provenance'];self.assertEqual(c['correction'],{'source':'executor','untrusted_content':False})
+        self.assertEqual(a[1]['outside']['provenance']['correction_diagnostics'],{'source':'handler_output','untrusted_content':True})
 
 if __name__=='__main__':unittest.main()

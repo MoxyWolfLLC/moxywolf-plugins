@@ -137,10 +137,12 @@ Data-use checks precede dispatch and report export: named policy owner, classifi
 
 | Action | Authority and record |
 |---|---|
-| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. A failed dependency blocks convergence at once under `on_failure: "block"`, and once its bounded retry budget is spent under `on_failure: "retry"` (XE-036); a retry never widens scope or confers release permission. |
+| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. Every key a handler reads, in `input.json` or in the model prompt, carries `provenance` written by the executor from the key's origin: the executor's own fields are not untrusted, a snapshot is repository text, and other handlers' results are handler output (EV-010). A failed dependency blocks convergence at once under `on_failure: "block"`, and once its bounded retry budget is spent under `on_failure: "retry"` (XE-036); a retry never widens scope or confers release permission. |
 | Proof execution | Exact allowed argv, serialized local proof path; captures actual output and exit status. |
 | Report export | Complete report and authorized destination required; repeated identical export is idempotent. |
 | Human observation | Evidence-linked local observation, optionally shared gate-log entry; does not authorize execution or release. |
 | Oversight summary | Separates observations from machine events; override/timing measures are investigation signals, not proof of substantive review. |
+
+The review surface carries the same field per file in `PROVENANCE.json`, and a directive found inside untrusted content is a reported finding (`embedded_instruction`), never an instruction and never a blocker (EV-010). What a reviewer could not settle is a revisioned record in the branch's unknowns ledger, closed only by evidence of matching authority, listed in the release handoff and not refused on (EV-011). Both are from morluto/rea at `7a6defa` (MIT), ideas only.
 
 A signed observation label is not a digital signature. Human observations do not convert machine success into human approval. Release remains the named human's GitHub action under the peer-review contract.

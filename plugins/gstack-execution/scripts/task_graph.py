@@ -43,15 +43,28 @@ def redact(text):
     return LIKELY_SECRET.sub('[redacted]', text or '')[-DIAG_CAP:]
 
 
+# EV-010: what each payload key's bytes are, by the producer that wrote them. The executor's own
+# fields are not untrusted; a snapshot is repository text, and what other handlers returned is
+# handler output. The idea is from morluto/rea at 7a6defa (MIT), no code copied.
+PROVENANCE_OF={'node':'executor','packet':'executor','snapshots':'repository','correction':'executor',
+               'dependencies':'handler_output','candidates':'handler_output','correction_diagnostics':'handler_output'}
+
+
+def provenance_of(keys):
+    return {k:peer.provenance(PROVENANCE_OF[k]) for k in keys}
+
+
 def node_prompt(payload):
     """TB-002, review F1 (20260929-163026): the node's task and the packet are the loop's own and
     stay outside the enclosure, so the worker can follow them. What other workers returned
-    (dependencies, and the candidates drawn from them) is enclosed."""
+    (dependencies, and the candidates drawn from them) is enclosed. EV-010: each side carries
+    `provenance` for its own keys, written here, not by the handler."""
     own = {k: payload[k] for k in ('node', 'packet', 'snapshots')}
     outside = {k: payload[k] for k in ('dependencies', 'candidates')}
     if payload.get('correction'):   # XE-036.4: the executor's record is ours; the failed handler's output is not
         c = dict(payload['correction']); outside['correction_diagnostics'] = c.pop('diagnostics')
         own['correction'] = c
+    own['provenance'] = provenance_of(own); outside['provenance'] = provenance_of(outside)
     return ('Read-only gstack task graph node. Never modify source, dispatch another agent, or release anything.\n'
             + RULE + '\n' + json.dumps(own) + '\n'
             + enclose('results of other graph nodes: dependencies and candidates; diagnostics of a failed earlier attempt', json.dumps(outside)))
@@ -344,6 +357,7 @@ def worker(node,packet,dependencies,root,correction=None):
             snaps=peer.snapshot(repos,work)
             payload={'node':node,'packet':packet,'dependencies':dependencies,'candidates':candidates(dependencies),'snapshots':[str(p) for _,p in snaps]}
             if correction:payload['correction']=correction
+            payload['provenance']=provenance_of(payload)   # EV-010.1: a command handler reads input.json with every key labelled
             if node['kind']=='proof':
                 completed=subprocess.run(node['argv'],cwd=snaps[0][1],capture_output=True,text=True,timeout=packet.get('timeout',900),env=dict(os.environ,GSTACK_PEER_REVIEW_SESSION='1'))
                 text=completed.stdout+completed.stderr
