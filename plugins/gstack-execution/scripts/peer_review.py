@@ -196,6 +196,9 @@ def vocab_shape(term):
 PACKET_FIELDS = vocab_shape("packet")["required"]
 SEVERITIES = vocab_ids("severity")
 FINDING_CATEGORIES = vocab_ids("finding_category")   # EV-010
+# A finding id is a token: it is printed into SURFACE.md, dispositions.json and the unknowns ledger as
+# executor-written text, so it must not be able to carry a sentence.
+FINDING_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,15}$")
 VERDICTS = {c["id"] for c in VOCAB["concepts"] if c.get("verdict")}
 DISPOSITIONS = vocab_ids("disposition")
 OUTCOMES = vocab_ids("round_outcome", "review_outcome", "verify_outcome")
@@ -1632,6 +1635,8 @@ def validate(raw, packet, prior=None, dispositions=None):
         need = OUTPUT_SCHEMA["properties"]["findings"]["items"]["required"]
         if any(k not in f for k in need) or f["severity"] not in SEVERITIES or type(f["line"]) is not int or any(not isinstance(f.get(k), str) or not f[k].strip() for k in need if k != "line"):
             raise ReviewError("malformed_output", f"bad finding {f.get('id')}")
+        if not FINDING_ID.match(f["id"]):
+            raise ReviewError("malformed_output", f"finding id must match {FINDING_ID.pattern}: {f['id'][:40]!r}")
         if f["id"] in ids:
             raise ReviewError("malformed_output", f"duplicate finding id {f['id']}")
         ids.add(f["id"])
