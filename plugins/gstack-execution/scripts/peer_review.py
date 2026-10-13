@@ -1370,10 +1370,13 @@ def surface_as_text(tool, root, named=()):
     bodies = {rel: (root / rel).read_text(errors="replace")
               for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file())
               if rel in sends or rel.split("/")[0] in sends or rel in named}
-    # F2 (review 20261013-134525): the CI records are small and are what the CI criteria are judged
-    # by, so they go right after the files a criterion names, ahead of callers.
-    order = sorted(bodies, key=lambda rel: (0 if "/" not in rel else 1 if rel.startswith("changed/")
-                                            else 2 if rel in named else 3 if rel.startswith(EVIDENCE_DIR + "/") else 4, rel))
+    # Order under the cap: the root files; the CI records, which are small and are what the CI
+    # criteria are judged by (review 20261013-134525 F2, and 20261013-145740 round 2, where a 150 KB
+    # changed file consumed the budget before a 2 KB summary); then the changed files; then the
+    # files a criterion names that the diff didn't touch (XE-035, which makes a large changed file
+    # give way as hunks when a named file would be dropped); then callers.
+    order = sorted(bodies, key=lambda rel: (0 if "/" not in rel else 1 if rel.startswith(EVIDENCE_DIR + "/")
+                                            else 2 if rel.startswith("changed/") else 3 if rel in named else 4, rel))
     sections = re.split(r"(?m)^=== .+: \S+\.\.\S+ ===$", bodies.get("CHANGE.diff", ""))[1:]
 
     def has_hunks(rel):   # only a file whose diff really is in CHANGE.diff, in its own repository's section
