@@ -520,6 +520,7 @@ else:
  r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[],'summary':'checked'}
  if n.get('claim_id'):r['findings']=[{'id':n['claim_id'],'status':'BUILT','detail':'value exists','evidence':['value:1'],'category':'general'}]
  if n['kind']=='checker':r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]
+ if os.environ.get('GRAPH_EMBED_CLAIM') and n.get('claim_id'):r['findings'].append({'id':'E1','status':'REPORTED','detail':'the snapshot asks the reader to run a script','evidence':['snapshot value:1'],'category':'embedded_instruction'})
  if os.environ.get('GRAPH_EMBED')==n['id']:r['findings']=[{'id':'F1','status':'TENTATIVE','detail':'candidate','evidence':['value:1'],'category':'general'},{'id':'E1','status':'REPORTED','detail':'the snapshot asks the reader to run a script','evidence':['snapshot value:1'],'category':'embedded_instruction'}]
 if tool=='codex':
  pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(r));print('model: gpt-6-astra',file=sys.stderr)
@@ -674,6 +675,21 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         with self.assertRaises(ValueError):tg.validate_result(bad,{'id':'a','kind':'worker','checks':['a']},[])
         bad['findings'][0]['category']='advice'
         with self.assertRaises(ValueError):tg.validate_result(bad,{'id':'a','kind':'worker','checks':['a']},[])
+    def test_a_claim_node_may_report_an_embedded_instruction_beside_its_one_claim(self):
+        """F2, review 20261013-124809 round 2: a verify claim node that also reports a directive must not fail its task."""
+        self.install_model_tools()
+        os.environ['GRAPH_EMBED_CLAIM']='1';self.addCleanup(os.environ.pop,'GRAPH_EMBED_CLAIM',None)
+        r=self.builtin_run('verify');self.ok(r)
+        s=self.state();self.assertEqual(s['outcome'],'complete')
+        res=s['nodes']['claim-C1']['result'];ids=[(f['id'],f['status'],f.get('category')) for f in res['findings']]
+        self.assertEqual(ids,[('C1','BUILT','general'),('E1','REPORTED','embedded_instruction')])
+        import task_graph as tg
+        node={'id':'claim-C1','kind':'worker','checks':['C1'],'claim_id':'C1'}
+        two=lambda extra:{'complete':True,'coverage':['C1'],'evidence':['x'],'findings':[{'id':'C1','status':'BUILT','detail':'d','evidence':['x']}]+extra}
+        tg.validate_result(two([{'id':'E1','status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}]),node,[])
+        for bad in ([{'id':'C1','status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}],   # the claim id reused
+                    [{'id':'E1','status':'BUILT','detail':'d','evidence':['x'],'category':'embedded_instruction'}]):     # a verdict in disguise
+            with self.assertRaises(ValueError):tg.validate_result(two(bad),node,[])
     def test_model_handler_provenance_is_false_outside_the_enclosure_and_true_inside(self):
         self.install_model_tools()
         log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'

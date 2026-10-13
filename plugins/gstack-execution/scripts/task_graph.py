@@ -302,8 +302,9 @@ def validate_result(result,node,expected_candidates):
         f.setdefault('category','general')   # EV-010: a command handler may omit it; the model schema requires it
         if f['category'] not in FINDING_CATEGORIES:raise ValueError('unknown finding category')
         if f['category']=='embedded_instruction':
-            if node.get('claim_id') or f['status']!='REPORTED':raise ValueError('an embedded instruction is REPORTED, never a claim or checker verdict')
-            continue   # reported, never a candidate verdict and never a claim: it cannot block or clear anything
+            if f['status']!='REPORTED':raise ValueError('an embedded instruction is REPORTED, never a claim or checker verdict')
+            if f['id'] in ids or f['id']==node.get('claim_id'):raise ValueError('duplicate finding')
+            continue   # F2 round 2: reported beside the claim or the candidates, never counted among them, so it cannot block or clear anything
         if node['kind']=='checker' and f['status'] not in {'VERIFIED','UNVERIFIED','TENTATIVE','DISMISSED'}:raise ValueError('invalid checker disposition')
         if node.get('claim_id') and f['status'] not in {'BUILT','DRIFTED','MISSING','EXTRA','UNVERIFIABLE'}:raise ValueError('invalid claim status')
         ids.append(f['id'])

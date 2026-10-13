@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """EV-011: an open question is a record with a revision, not a sentence in a finding.
 
-  unknowns.py record --repo <path> --question "<text>" --needs <authority> --raised-by "<round or node>"
+  unknowns.py record --repo <path> --question "<text>" --needs <authority> [--raised-by "<round or node>"]
                      [--for <evidence id>...] [--against <evidence id>...]
-      append a new unknown at revision 1, state open, naming what raised it; print its id.
+      append a new unknown at revision 1, state open, naming what raised it: --raised-by, or when absent the
+      newest review of this repository under the review root at its current round; print its id.
   unknowns.py update --repo <path> --id <id> --revision <n> [--question ...] [--needs ...] [--for ...] [--against ...]
       append revision n+1 only when n is the newest stored revision; otherwise stale_revision, nothing written.
   unknowns.py close  --repo <path> --id <id> --revision <n> --evidence <ref> [--review <review id>]
@@ -105,6 +106,25 @@ def _ctx(repo, root=None):
     return b, p, heads(read(p), cl.repo_id(repo))
 
 
+def derive_raised_by(repo, root=None):
+    """F6 (review 20261013-124809 round 2): the documented `record` invocation names no round, so
+    the context is derived from the records: the newest review under the review root whose packet
+    names this repository, at its current round; before any review, the branch head itself."""
+    root = Path(root or pr.review_root())
+    rp = str(Path(repo).resolve())
+    newest = None
+    for q in sorted(root.glob("*/packet.json")) if root.exists() else ():
+        try:
+            pk = json.loads(q.read_text()); st = json.loads((q.parent / "state.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if any(str(Path(r.get("path", "")).resolve()) == rp for r in pk.get("repos") or []):
+            newest = (q.parent.name, st.get("rounds_used", 0))
+    if newest:
+        return f"{newest[0]} round {newest[1]}"
+    return f"builder at {cl.branch_of(repo)} {str(cl._git(repo, 'rev-parse', 'HEAD'))[:7]}"
+
+
 def new_id(repo, question, raised_by):
     return hashlib.sha256(f"{cl.repo_id(repo)}\0{raised_by}\0{question.strip()}".encode()).hexdigest()[:12]
 
@@ -118,7 +138,7 @@ def record(repo, question, needs, raised_by, for_=(), against=(), head=None, roo
     if not question.strip():
         raise SystemExit("refused: an unknown needs its question")
     if not (raised_by or "").strip():
-        raise SystemExit("refused: --raised-by must name the round or node that raised the question")
+        raised_by = derive_raised_by(repo, root)
     b, p = _ledger(repo, root)
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
@@ -239,7 +259,8 @@ def main(argv):
     r = sub.add_parser("record"); r.add_argument("--repo", required=True); r.add_argument("--question", required=True)
     r.add_argument("--needs", required=True); r.add_argument("--for", dest="for_", action="append", default=[])
     r.add_argument("--against", action="append", default=[])
-    r.add_argument("--raised-by", required=True, help="the round or node that raised it, e.g. '<review id> round 2' or 'node check'")
+    r.add_argument("--raised-by", default=None, help="the round or node that raised it, e.g. '<review id> round 2' or 'node check'; "
+                   "derived from the newest review of this repository under the review root when absent")
     u = sub.add_parser("update"); u.add_argument("--repo", required=True); u.add_argument("--id", required=True)
     u.add_argument("--revision", type=int, required=True); u.add_argument("--question"); u.add_argument("--needs")
     u.add_argument("--for", dest="for_", action="append"); u.add_argument("--against", action="append")

@@ -60,11 +60,21 @@ def test_record_then_list():
     row = lines(d, root)[0]
     assert (row["revision"], row["state"], row["needs"], row["question"]) == (1, "open", "runtime", "does f handle None?")
     assert row["head"] and row["repo"] == cl.repo_id(d) and row["raised_by"] == "node check"
-    rc, _, err = cli(root, "record", "--repo", str(d), "--question", "orphan", "--needs", "human")
-    assert rc != 0 and "--raised-by" in err, "a question with nothing raising it was accepted"
+    # F6: the documented invocation, with no --raised-by, derives what raised it: before any review, the branch head;
+    # once a review of this repository exists under the root, that review at its current round
+    rc, out, _ = cli(root, "record", "--repo", str(d), "--question", "before any review", "--needs", "human")
+    assert rc == 0, out
+    before = [r for r in lines(d, root) if r["id"] == out.split()[0]][0]
+    assert before["raised_by"].startswith("builder at build/x ") and before["raised_by"].endswith(before["head"][:7]), before
+    rev = root / "20261013-000000-abcdef0-fixture"; rev.mkdir()
+    (rev / "packet.json").write_text(json.dumps({"repos": [{"path": str(d), "base": "x", "head": "y"}]}))
+    (rev / "state.json").write_text(json.dumps({"rounds_used": 2}))
+    rc, out, _ = cli(root, "record", "--repo", str(d), "--question", "during a review", "--needs", "human")
+    during = [r for r in lines(d, root) if r["id"] == out.split()[0]][0]
+    assert during["raised_by"] == "20261013-000000-abcdef0-fixture round 2", during
     # the same question from the same party is not a second record
     rc, out2, _ = cli(root, "record", "--repo", str(d), "--question", "does f handle None?", "--needs", "runtime", "--raised-by", "node check")
-    assert uid in out2 and "not duplicated" in out2 and len(lines(d, root)) == 1
+    assert uid in out2 and "not duplicated" in out2 and sum(1 for r in lines(d, root) if r["id"] == uid) == 1
     rc, _, err = cli(root, "record", "--repo", str(d), "--question", "x", "--needs", "guess", "--raised-by", "node check")
     assert rc != 0 and "--needs" in err
 
@@ -229,6 +239,13 @@ def test_a_round_that_raises_an_unknown_leaves_a_ledger_line_the_next_round_can_
                                     unknowns_open=pr.open_unknowns([{"path": str(d)}]))
         text2 = (surf2 / "SURFACE.md").read_text()
         assert all(u in text2 for u in rec1["unknowns_raised"]) and "unknowns open: 2;" in text2.splitlines()[1]
+        # F16: the reviewer's words are not in the executor-labelled file; they are in their own untrusted entry
+        assert "could not determine" not in text2 and "not verified" not in text2
+        unk = (surf2 / pr.UNKNOWNS_FILE).read_text()
+        assert "could not determine: no test exercises None" in unk and all(u in unk for u in rec1["unknowns_raised"])
+        prov2 = json.loads((surf2 / pr.PROVENANCE_FILE).read_text())
+        assert prov2[pr.UNKNOWNS_FILE] == {"source": "handler_output", "untrusted_content": True}
+        assert prov2["SURFACE.md"] == {"source": "executor", "untrusted_content": False}
         rec2 = pr.load(pr.REVIEW_DIR / rid, "round-2.json")
         assert rec2["unknowns_raised"] == [] and set(u["id"] for u in un.current(d, "build/x")) == set(rec1["unknowns_raised"])
         # release lists them and does not refuse on them
