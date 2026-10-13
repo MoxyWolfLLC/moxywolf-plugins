@@ -1529,7 +1529,7 @@ Today a reviewer's "could not determine whether X" lives as prose inside a findi
 
 ### EV-012 — A reviewer declares what it could not settle, and the loop keeps each question once
 
-**Status:** planned. Declared 2026-10-13 from what EV-011's first live run did to its own ledger and approved by Dorian the same day ("approve #200"); design committed as `2f467c7` (PR #200).
+**Status:** building. Declared 2026-10-13 from what EV-011's first live run did to its own ledger and approved by Dorian the same day ("approve #200"); design committed as `2f467c7` (PR #200).
 
 **Links introduced:** `unknowns` on a round record, the reviewer's declared list, each entry bound to the ledger line it produced; `settled_by` on a closed ledger line, naming the review, round and finding or criterion that closed it. A ledger line's id binds to (repository, review id, question) instead of (repository, raiser, question), so one question in one review has one line. The reader's assumption is that a line's `raised_by` is the round that first asked and `settled_by` the round that answered, in the same review. That holds because both are written by the dispatcher from the round records, never from the reviewer's prose.
 
