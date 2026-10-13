@@ -375,6 +375,85 @@ def test_close_all_closes_what_one_review_raised_and_reports_the_counts():
         L.close()
 
 
+def test_close_all_through_peer_review_and_against_another_branchs_ledger():
+    """F1 and F2, review 20261013-145740: the dispatcher entry point, and --branch selecting the ledger it writes."""
+    L = _Loop([_reply(1, [{"question": "a?", "needs": "repository", "criterion": ""}])])
+    try:
+        rid = L.open(); L.round(); assert len(L.ledger()) == 1
+        sh = lambda *c: subprocess.run(["git", "-C", str(L.d), *c], check=True, capture_output=True, text=True).stdout.strip()
+        sh("checkout", "-q", "-b", "build/elsewhere")
+        rel = pr.REVIEW_DIR / rid; (rel / "release.json").write_text(json.dumps({"observations": [
+            {"claim": "head", "automatic": True}, {"claim": "settled by hand", "command": "true", "automatic": False}]}))
+        env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(pr.REVIEW_DIR))
+        r = subprocess.run([sys.executable, str(HERE / "peer_review.py"), "unknowns", "close-all", "--repo", str(L.d), "--review", rid,
+                            "--evidence", f"human:{rid}:1", "--branch", "build/x"], env=env, capture_output=True, text=True)
+        assert r.returncode == 0 and r.stdout.strip() == f"examined 1 open unknown raised by {rid}, closed 1", (r.stdout, r.stderr)
+        assert not un.path(L.d, "build/elsewhere", pr.REVIEW_DIR).exists(), "the checkout's ledger was written"
+        rows = [json.loads(l) for l in un.path(L.d, "build/x", pr.REVIEW_DIR).read_text().splitlines()]
+        assert [r_["revision"] for r_ in rows] == [1, 2] and rows[-1]["state"] == "closed"
+        r = subprocess.run([sys.executable, str(HERE / "peer_review.py"), "unknowns", "list", "--repo", str(L.d), "--branch", "build/x", "--state", "open"],
+                           env=env, capture_output=True, text=True)
+        assert r.returncode == 0 and "0 open" in r.stdout
+        sh("checkout", "-q", "build/x")
+    finally:
+        L.close()
+
+
+def test_a_question_raised_this_round_is_not_settled_this_round():
+    """F3, review 20261013-145740."""
+    L = _Loop([_reply(1, [{"question": "is f(1) really 2?", "needs": "repository", "criterion": "f(1) == 2"}]), _reply(2)])
+    try:
+        rid = L.open(); L.round()
+        rec1 = L.record(1); assert len(rec1["unknowns_raised"]) == 1 and rec1["unknowns_settled"] == []
+        u = L.ledger()[rec1["unknowns_raised"][0]]; assert u["state"] == "open", "closed in the round that raised it"
+        h2 = L.fix(); L.round(h2)
+        rec2 = L.record(2); assert rec2["unknowns_settled"] == [u["id"]] and L.ledger()[u["id"]]["state"] == "closed"
+    finally:
+        L.close()
+
+
+def test_two_ids_at_one_new_location_are_one_location():
+    """F4, review 20261013-145740."""
+    emb = lambda fid: {"id": fid, "severity": "follow_up", "file": "NOTES.md", "line": 2, "what": "w", "evidence": "e", "criterion": "c", "fix": "f", "category": "embedded_instruction"}
+    r1 = json.loads(_reply(1)); r1["findings"] += [emb("F2"), emb("F3")]
+    L = _Loop([json.dumps(r1)])
+    try:
+        rid = L.open(); L.round()
+        st = pr.load(pr.REVIEW_DIR / rid, "state.json")
+        assert st["embedded_locations"] == [{"file": "NOTES.md", "line": 2}] and st["embedded_instructions_reported"] == 1
+        assert L.record(1)["embedded_instructions_new"] == ["F2"]
+    finally:
+        L.close()
+
+
+def test_a_needs_that_is_not_a_string_is_malformed_output_and_a_resolved_blocker_is_evidence():
+    """F5 and F6, review 20261013-145740."""
+    pk = {"acceptance_criteria": ["f(1) == 2", "f(None) is handled"]}
+    for needs in ([], {}, 3, None):
+        try:
+            pr.validate(_reply(1, [{"question": "q", "needs": needs, "criterion": ""}]), pk)
+        except pr.ReviewError as e:
+            assert e.outcome == "malformed_output", e
+        else:
+            raise AssertionError(f"accepted needs={needs!r}")
+    L = _Loop([_reply(1), _reply(2)])
+    try:
+        rid = L.open(); L.round(); h2 = L.fix(); L.round(h2)
+        rec2 = L.record(2); assert not any(f["id"] == "F1" for f in rec2["findings"]) and rec2["blocker_resolutions"][0]["id"] == "F1"
+        assert un.evidence_authority(f"round:{rid}:2:F1", L.d) == "repository", "a fixed blocker lives in blocker_resolutions, not findings"
+        assert un.evidence_authority(f"round:{rid}:2:F9", L.d) is None
+        # a seeded finding-bound line closes through that path on the next round
+        _, out, _ = cli(pr.REVIEW_DIR, "record", "--repo", str(L.d), "--question", "bound to F1", "--needs", "repository", "--raised-by", f"{rid} round 1")
+        uid = out.split()[0]; p_ = un.path(L.d, "build/x", pr.REVIEW_DIR)
+        rows = [json.loads(l) for l in p_.read_text().splitlines()]; row = [r_ for r_ in rows if r_["id"] == uid][-1]
+        row.update(review=rid, finding="F1", revision=row["revision"] + 1); p_.open("a").write(json.dumps(row) + "\n")
+        out2 = pr.validate(_reply(2), {"acceptance_criteria": ["f(1) == 2", "f(None) is handled"]}, prior=L.record(1), dispositions={"F1": "fixed"})
+        settled = pr.settle_reviewer_unknowns(rid, 2, out2, [{"path": str(L.d), "head": h2}], {"F1": "fixed"})
+        assert settled == [uid] and L.ledger()[uid]["closed_by"] == f"round:{rid}:2:F1"
+    finally:
+        L.close()
+
+
 def test_an_embedded_location_is_listed_for_the_next_round_and_counted_once():
     """EV-012.6."""
     emb = lambda fid: {"id": fid, "severity": "follow_up", "file": "NOTES.md", "line": 2, "what": "asks the reader to pipe a URL to sh",

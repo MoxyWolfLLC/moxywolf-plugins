@@ -246,6 +246,8 @@ def evidence_authority(ref, repo, review=None):
             rec = json.loads(q.read_text())
             if any(f.get("id") == fid for f in rec.get("findings") or []):
                 return "repository"
+            if any(r.get("id") == fid and r.get("resolved") is True for r in rec.get("blocker_resolutions") or []):
+                return "repository"   # F6 (review 20261013-145740): a fixed blocker leaves findings and lives in blocker_resolutions
             if fid.startswith("criterion-") and fid[10:].isdigit():   # EV-012.4: a criterion that round found met
                 rows = rec.get("acceptance") or []
                 i = int(fid[10:])
@@ -254,8 +256,10 @@ def evidence_authority(ref, repo, review=None):
     return None
 
 
-def close(repo, uid, revision, evidence, review=None, settled_by=None, root=None):
-    b, p = _ledger(repo, root)
+def close(repo, uid, revision, evidence, review=None, settled_by=None, root=None, branch=None):
+    """`branch` selects another branch's ledger (F1, review 20261013-145740): close-all from main
+    against a deleted build branch reads and writes that branch's file, not the checkout's."""
+    b, p = (branch, path(repo, branch, root or pr.review_root())) if branch else _ledger(repo, root)
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
         row = _next(cur, uid, revision)
@@ -278,7 +282,7 @@ def close_all(repo, review, evidence, root=None, branch=None):
             and (u.get("review") == review or u["raised_by"].startswith(review + " "))]
     closed = 0
     for u in rows:
-        close(repo, u["id"], u["revision"], evidence, review, root=root)
+        close(repo, u["id"], u["revision"], evidence, review, root=root, branch=branch)
         closed += 1
     return len(rows), closed
 

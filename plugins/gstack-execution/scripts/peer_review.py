@@ -1212,9 +1212,12 @@ def settle_reviewer_unknowns(review_id, round_no, out, repos, dispositions):
     rows = out["acceptance"]
     met_index = {row["criterion"]: i for i, row in enumerate(rows) if row["met"]}
     resolved = {r["id"] for r in out.get("blocker_resolutions") or [] if r["resolved"]}
+    raiser = f"{review_id} round {round_no}"
     for u in unknowns.current(repos[0]["path"], root=review_root()):
         if u["state"] != "open" or u.get("review") != review_id or u["needs"] != "repository":
             continue
+        if u["raised_by"] == raiser:
+            continue   # F3 (review 20261013-145740): a question raised this round waits for a later one
         ref = None
         if u.get("criterion") in met_index:
             ref = f"criterion-{met_index[u['criterion']]}"
@@ -1681,7 +1684,7 @@ def validate(raw, packet, prior=None, dispositions=None):
         raise ReviewError("malformed_output", "unknowns must be a list")
     for u in out["unknowns"]:
         if (not isinstance(u, dict) or not isinstance(u.get("question"), str) or not u["question"].strip()
-                or u.get("needs") not in UNKNOWN_NEEDS or not isinstance(u.get("criterion"), str)):
+                or not isinstance(u.get("needs"), str) or u["needs"] not in UNKNOWN_NEEDS or not isinstance(u.get("criterion"), str)):
             raise ReviewError("malformed_output", f"unknown entry needs a question, needs in {sorted(UNKNOWN_NEEDS)}, and a criterion string")
         if u["criterion"] and u["criterion"] not in expected:
             raise ReviewError("malformed_output", "unknown entry names a criterion not in this packet")
@@ -2373,7 +2376,10 @@ def cmd_round(a):
         seen_locations = {(e["file"], e["line"]) for e in state.get("embedded_locations") or []}
         record["embedded_instructions"] = [{"id": f["id"], "file": f["file"], "line": f["line"]}
                                            for f in out["findings"] if f["category"] == "embedded_instruction"]
-        new_locs = [e for e in record["embedded_instructions"] if (e["file"], e["line"]) not in seen_locations]
+        new_locs = []
+        for e in record["embedded_instructions"]:   # F4 (review 20261013-145740): two ids at one new location are one location
+            if (e["file"], e["line"]) not in seen_locations:
+                seen_locations.add((e["file"], e["line"])); new_locs.append(e)
         record["embedded_instructions_new"] = [e["id"] for e in new_locs]
         state["embedded_locations"] = (state.get("embedded_locations") or []) + [{"file": e["file"], "line": e["line"]} for e in new_locs]
         state["embedded_instructions_reported"] = len(state["embedded_locations"])
@@ -2664,6 +2670,13 @@ def cmd_ci_log(a):
     return {"examined": len(jobs), "failed": len(failed)}
 
 
+def cmd_unknowns(a):
+    """EV-012.5: `peer_review.py unknowns close-all --repo <path> --review <id> --evidence <ref> [--branch <name>]`
+    and the other unknowns.py verbs, forwarded as given; one implementation, one parser."""
+    import unknowns
+    return unknowns.main(a.rest)
+
+
 def cmd_merge_instruction(a):
     covers = [int(n.strip().lstrip("#")) for n in a.covers.split(",") if n.strip()]
     if not covers or not a.text.strip():
@@ -2878,6 +2891,7 @@ def main():
     release.add_argument("--coverage-exception", help="the Release Owner's words, verbatim, for releasing without a checked coverage report")
     release.add_argument("--observation", action="append", default=[], metavar="CLAIM :: COMMAND",
                          help="what the approver checked and the command that supports it; re-run by `verify`")
+    un = sub.add_parser("unknowns", help="forward to unknowns.py: record, update, close, close-all, list"); un.add_argument("rest", nargs=argparse.REMAINDER)
     mi = sub.add_parser("merge-instruction"); mi.add_argument("--covers", required=True, help="PR numbers, comma-separated")
     mi.add_argument("--text", required=True, help="the owner's words, verbatim"); mi.add_argument("--given-at", required=True)
     mi.add_argument("--owner", required=True, help="the Release Owner's GitHub login")
@@ -2896,9 +2910,11 @@ def main():
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
                   "release": cmd_release, "record-release": cmd_record_release,
-                  "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log}[a.cmd](a)
+                  "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log, "unknowns": cmd_unknowns}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
+        if a.cmd == "unknowns":
+            sys.exit(result)   # unknowns.py's own exit code: 1 for open lines under list --state open, 2 for a refusal
         if a.cmd == "open" and result["outcome"] == "unusable":   # XE-035.3
             sys.exit(f"unusable: {result['error']}")
         if a.cmd == "collect":
