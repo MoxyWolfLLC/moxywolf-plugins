@@ -28,15 +28,23 @@ if n.get('barrier'):
     d=pathlib.Path(n['barrier']['dir']); d.mkdir(parents=True,exist_ok=True); (d/n['id']).write_text('')
     t=time.time()+20
     while time.time()<t and not all((d/x).exists() for x in n['barrier']['peers']): time.sleep(.01)
-if n.get('fail'): sys.exit(3)
+if n.get('log'):
+    with open(n['log'],'a') as f: f.write(json.dumps({'id':n['id'],'t':time.time(),'correction':p.get('correction')})+'\\n')
+if n.get('fail_once') and not pathlib.Path(n['fail_once']).exists():
+    pathlib.Path(n['fail_once']).write_text(''); print('transient boom token=ghp_abcdefghijklmnopqrstuvwxyz1234', file=sys.stderr); sys.exit(3)
+if n.get('stray'): pathlib.Path(n['stray']).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(n['stray']).write_text('{}')
+if n.get('fail_if_exists') and pathlib.Path(n['fail_if_exists']).exists(): print('upstream wobble',file=sys.stderr); sys.exit(3)
+if n.get('fail'): print('boom at '+repr(time.time()),file=sys.stderr); sys.exit(3)
+if n.get('bad_shape_once') and not pathlib.Path(n['bad_shape_once']).exists():
+    pathlib.Path(n['bad_shape_once']).write_text(''); print(json.dumps(n['bad_shape'])); sys.exit(0)
 r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[], 'summary':n['id']}
 if n.get('finding'): r['findings']=[{'id':'F1','status':'TENTATIVE','detail':'candidate','evidence':['value:1']}]
 if n.get('missing'): r['coverage']=[]
+if n.get('claim_status'): r['findings']=[{'id':n['claim_id'],'status':n['claim_status'],'detail':'claim result','evidence':['value:1']}]
 if n.get('kind')=='checker': r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]
 if n.get('malformed'): r['findings']=[dict(f,status='BOGUS',evidence=[None]) for f in p['candidates']]
 r['interval']=[start,time.time()]
 if n.get('stable'): r.pop('interval')
-if n.get('stray'): pathlib.Path(n['stray']).parent.mkdir(parents=True,exist_ok=True); pathlib.Path(n['stray']).write_text('{}')
 print(json.dumps(r))
 ''')
         self.command=[sys.executable,str(self.worker)]
@@ -172,6 +180,206 @@ print(json.dumps(r))
             self.assertEqual(self.state()['outcome'],'incomplete')
             self.assertNotEqual(self.state()['nodes'].get('report',{}).get('status'),'succeeded')
             self.graph['nodes'][1].pop(flag)
+    def dispatches(self,log):
+        rows=[json.loads(l) for l in log.read_text().splitlines()];by={}
+        for x in rows:by.setdefault(x['id'],[]).append(x)
+        return rows,by
+    def test_a_retrying_node_recovers_and_its_green_sibling_never_moves(self):
+        """XE-036 criterion 8, first case. Fails at d81d9fc, where validate_graph refuses `retry`."""
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        a=self.graph['nodes'][1];a.update(on_failure='retry',max_attempts=3,fail_once=str(self.root/'a.failed-once'))
+        self.ok(self.execute())
+        rows,by=self.dispatches(log)
+        self.assertEqual({k:len(v) for k,v in by.items()},{'prepare':1,'a':2,'b':1,'check':1})
+        self.assertGreater(by['check'][0]['t'],max(by['a'][1]['t'],by['b'][0]['t']))
+        s=self.state();self.assertEqual(s['outcome'],'complete')
+        self.assertEqual((s['nodes']['b']['attempts'],s['nodes']['report']['attempts']),(1,1))
+        self.assertEqual(s['nodes']['b']['result_hash'],__import__('hashlib').sha256(json.dumps(json.loads((self.run/'b.json').read_text()),sort_keys=True).encode()).hexdigest())
+        self.assertIsNone(by['a'][0]['correction'])
+        c=by['a'][1]['correction']
+        self.assertEqual((c['node'],c['previous_attempt'],c['category']),('a',1,'handler_exit'))
+        self.assertEqual(c['signature'],s['nodes']['a']['signature'])
+        self.assertIn('transient boom',c['diagnostics']);self.assertNotIn('ghp_abcdefghij',c['diagnostics'])
+        # F1 (review 20261012-212850): the planted token must be absent everywhere, not only from the excerpt
+        for name,text in (('correction',json.dumps(c)),('state.json',(self.run/'state.json').read_text()),('events.jsonl',(self.run/'events.jsonl').read_text()),('input log',log.read_text())):
+            self.assertNotIn('ghp_abcdefghij',text,name)
+        self.assertEqual(c['reason'],'worker exited 3')
+        self.assertEqual(c['scope'],{'repos':[{'path':str(self.repo.resolve()),'head':self.sha}],'checks':a['checks'],'depends_on':a['depends_on'],'effects':a['effects'],'outputs':a['outputs']})
+        cycle=s['nodes']['a']['cycle'];self.assertEqual(cycle['dispatches'],2)
+        self.assertEqual([h['status'] for h in cycle['history']],['failed','succeeded']);self.assertEqual(cycle['history'][0]['category'],'handler_exit')
+        self.assertTrue(Path(cycle['history'][0]['diagnostics']).is_file())
+        events=[json.loads(l) for l in (self.run/'events.jsonl').read_text().splitlines()]
+        kinds=[e['action'] for e in events if e.get('node')=='a']
+        self.assertEqual(kinds,['node-start','node-failed','node-retry','node-start','node-succeeded'])
+        self.assertTrue(all(e.get('signature') for e in events if e.get('node')=='a'))
+        report=json.loads((self.run/'report.json').read_text())
+        self.assertEqual({f['id'] for f in report['findings']},{'a:F1','b:F1'});self.assertEqual(set(report['sources']),{'prepare','a','b','check'})
+    def events(self,node=None):
+        rows=[json.loads(l) for l in (self.run/'events.jsonl').read_text().splitlines()]
+        return [r for r in rows if node is None or r.get('node')==node]
+    def test_an_always_failing_retry_node_stops_at_its_budget_and_stays_stopped(self):
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        self.graph['nodes'][1].update(on_failure='retry',fail=True)
+        r=self.execute();self.assertNotEqual(r.returncode,0)
+        rows,by=self.dispatches(log);self.assertEqual(len(by['a']),3);self.assertEqual(len(by['b']),1)
+        s=self.state();self.assertEqual(s['outcome'],'incomplete');self.assertEqual(s['nodes']['a']['status'],'failed')
+        self.assertEqual((s['nodes']['check']['status'],s['nodes']['report']['status']),('blocked','blocked'))
+        self.assertEqual(s['nodes']['a']['cycle']['dispatches'],3);self.assertEqual(s['nodes']['a']['cycle']['closed'],'handler_exit')
+        self.assertEqual([e['action'] for e in self.events('a')],['node-start','node-failed','node-retry','node-start','node-failed','node-retry','node-start','node-failed','node-exhausted'])
+        self.assertFalse((self.run/'report.json').exists())
+        self.assertNotEqual(self.call('export','--run-dir',str(self.run),'--output',str(self.root/'out.json')).returncode,0)
+        r=self.execute();self.assertNotEqual(r.returncode,0)
+        rows,by=self.dispatches(log);self.assertEqual(len(by['a']),3,'resume bought a fourth dispatch');self.assertEqual(len(by['b']),1)
+        self.assertEqual(self.state()['nodes']['b']['attempts'],1)
+    def test_an_interrupted_dispatch_is_counted_and_green_work_is_not_repeated(self):
+        log=self.interrupt_a(2)
+        self.ok(self.execute())
+        s=self.state();cycle=s['nodes']['a']['cycle']
+        self.assertEqual(cycle['dispatches'],2);self.assertEqual([h['status'] for h in cycle['history']],['interrupted','succeeded'])
+        self.assertEqual(s['nodes']['b']['attempts'],1);self.assertEqual(s['nodes']['a']['attempts'],2)
+        rows,by=self.dispatches(log);self.assertEqual(len(by['b']),1)
+        self.assertEqual(by['a'][-1]['correction']['category'],'interrupted')
+        failed=[e for e in self.events('a') if e['action']=='node-failed'];self.assertEqual([(e['category'],e['attempt'],e['retry']) for e in failed],[('interrupted',1,True)])
+    def test_block_still_performs_no_retry(self):
+        self.graph['nodes'][1]['fail_once']=str(self.root/'a.failed-once')
+        r=self.execute();self.assertNotEqual(r.returncode,0)
+        s=self.state();self.assertEqual(s['nodes']['a']['attempts'],1);self.assertEqual(s['nodes']['a']['cycle']['dispatches'],1)
+        self.assertNotIn('node-retry',[e['action'] for e in self.events()]);self.assertEqual(s['nodes']['check']['status'],'blocked')
+    def test_invalid_retry_declarations_are_refused_before_dispatch(self):
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        cases=[('a',{'on_failure':'bogus'}),('a',{'on_failure':'retry','max_attempts':4}),('a',{'on_failure':'retry','max_attempts':0}),
+               ('a',{'on_failure':'retry','max_attempts':True}),('a',{'on_failure':'retry','max_attempts':'3'}),('report',{'on_failure':'retry'})]
+        for id,change in cases:
+            node=next(n for n in self.graph['nodes'] if n['id']==id);saved=dict(node);node.update(change)
+            r=self.execute();self.assertNotEqual(r.returncode,0,change);self.assertFalse((self.run/'state.json').exists(),change)
+            node.clear();node.update(saved)
+        self.packet['proofs']=[{'id':'t','argv':[sys.executable,'-c','pass']}];self.packet['data_use']['allowed_commands'].append(self.packet['proofs'][0]['argv'])
+        proof=self.node('proof',['prepare'],kind='proof',argv=self.packet['proofs'][0]['argv']);proof.pop('command');proof.update(effects=['local_proof'],on_failure='retry')
+        self.graph['nodes'].insert(1,proof)
+        for n in self.graph['nodes'][-2:]:n['depends_on'].append('proof');n['inputs'].append('proof')
+        r=self.execute();self.assertNotEqual(r.returncode,0);self.assertIn('retry is not accepted on proof',r.stderr)
+        self.assertFalse(log.exists(),'a refused graph dispatched a worker')
+    def test_negative_findings_are_results_and_never_retried(self):
+        self.graph['nodes'][1].update(on_failure='retry',claim_id='C1',claim_status='MISSING',finding=False)
+        self.packet['proofs']=[{'id':'t','argv':[sys.executable,'-c','raise SystemExit(1)']}];self.packet['data_use']['allowed_commands'].append(self.packet['proofs'][0]['argv'])
+        proof=self.node('proof',['prepare'],kind='proof',argv=self.packet['proofs'][0]['argv']);proof.pop('command');proof['effects']=['local_proof']
+        self.graph['nodes'].insert(1,proof)
+        for n in self.graph['nodes'][-2:]:n['depends_on'].append('proof');n['inputs'].append('proof')
+        self.ok(self.execute())
+        s=self.state();self.assertEqual(s['nodes']['a']['result']['findings'][0]['status'],'MISSING');self.assertEqual(s['nodes']['a']['cycle']['dispatches'],1)
+        self.assertEqual(s['nodes']['proof']['result']['findings'][0]['status'],'FAILED');self.assertEqual(s['nodes']['proof']['attempts'],1)
+        self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+    def test_governance_failures_get_no_correction_attempt(self):
+        self.graph['nodes'][1]['on_failure']='retry'
+        self.packet['data_use']['allowed_commands']=[]
+        r=self.execute();self.assertNotEqual(r.returncode,0);self.assertIn('data_use',r.stderr);self.assertFalse((self.run/'state.json').exists())
+        self.packet['data_use']['allowed_commands']=[self.command]
+        self.graph['nodes'][1]['stray']=str(self.run/'rogue.json')
+        r=self.execute(audit=True);self.assertNotEqual(r.returncode,0)
+        s=self.state();a=s['nodes']['a'];self.assertEqual(a['status'],'failed');self.assertEqual(a['cycle']['dispatches'],1)
+        self.assertEqual(a['cycle']['history'][0]['category'],'undeclared_write');self.assertEqual(a['cycle']['closed'],'undeclared_write')
+        self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        # F2 (review 20261012-212850): a handler that writes where it shouldn't and THEN fails is still an undeclared write, never a retry
+        self.run=self.root/'run2';self.graph['nodes'][1].update(stray=str(self.run/'rogue.json'),fail=True)
+        r=self.execute(audit=True);self.assertNotEqual(r.returncode,0)
+        a=self.state()['nodes']['a'];self.assertEqual(a['cycle']['dispatches'],1);self.assertEqual(a['cycle']['history'][0]['category'],'undeclared_write')
+        self.assertIn('handler then failed',a['error']);self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        self.assertTrue(Path(a['cycle']['history'][0]['diagnostics']).is_file(),'the original failure diagnostics are kept')
+    def test_invalidation_still_works_and_prior_cycles_survive(self):
+        self.graph['nodes'][1].update(on_failure='retry',fail_once=str(self.root/'a.failed-once'))
+        self.ok(self.execute());self.assertEqual(self.state()['nodes']['a']['cycle']['dispatches'],2)
+        (self.run/'a.json').write_text('{}');self.ok(self.execute())
+        s=self.state();self.assertEqual(s['nodes']['a']['cycle']['dispatches'],3,'a tampered output is re-dispatched under the same signature');self.assertEqual(s['nodes']['b']['attempts'],1)
+        first=s['nodes']['a']['cycle']
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        self.ok(self.execute())
+        s=self.state();a=s['nodes']['a'];self.assertNotEqual(a['cycle']['signature'],first['signature']);self.assertEqual(a['cycle']['dispatches'],1)
+        self.assertEqual(a['cycles_prior'][0],first);self.assertEqual([h['status'] for h in first['history']],['failed','succeeded','succeeded'])
+        self.assertTrue(Path(first['history'][0]['diagnostics']).is_file(),'the first failure\'s diagnostics outlived two later successes')
+        second=a['cycle'];self.graph['nodes'][0]['finding']=True   # prepare changes, so a's dependency result changes
+        self.ok(self.execute())
+        a=self.state()['nodes']['a'];self.assertNotEqual(a['cycle']['signature'],second['signature']);self.assertEqual(a['cycles_prior'][:2],[second,first])
+        self.assertEqual(self.state()['nodes']['check']['attempts'],4)
+    def test_an_earlier_cycles_diagnostics_are_never_overwritten(self):
+        # F3 (review 20261012-212850): attempt 1 fails in two cycles; the first excerpt must survive the second byte for byte
+        self.graph['nodes'][0]['stable']=True;self.graph['nodes'][1].update(on_failure='retry',max_attempts=1,fail=True)
+        self.assertNotEqual(self.execute().returncode,0)
+        first=self.state()['nodes']['a']['cycle'];p1=Path(first['history'][0]['diagnostics']);b1=p1.read_bytes();self.assertIn(b'boom at',b1)
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        self.assertNotEqual(self.execute().returncode,0)
+        a=self.state()['nodes']['a'];p2=Path(a['cycle']['history'][0]['diagnostics'])
+        self.assertNotEqual(p1,p2);self.assertEqual(p1.read_bytes(),b1);self.assertNotEqual(p2.read_bytes(),b1);self.assertEqual(a['cycles_prior'][0],first)
+        # F3 (round 2): A -> B -> A. The returning signature resumes its own closed cycle: no dispatch, no overwrite.
+        second=a['cycle'];self.packet['repos'][0]['head']=self.sha
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a']
+        self.assertEqual(a['cycle'],first,'the first cycle came back untouched');self.assertEqual(a['cycles_prior'],[second])
+        self.assertEqual(p1.read_bytes(),b1);self.assertEqual(self.events('a')[-1]['action'],'node-exhausted')
+    def test_an_exhausted_dependent_stays_exhausted_through_an_upstream_wobble(self):
+        # F4 (review 20261012-212850): blocking a node must not drop its cycle, or a recovered upstream hands it a fresh budget
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        marker=self.root/'wobble';self.graph['nodes'][0].update(stable=True,fail_if_exists=str(marker))
+        self.graph['nodes'][1].update(on_failure='retry',fail=True)
+        self.assertNotEqual(self.execute().returncode,0);self.assertEqual(self.state()['nodes']['a']['cycle']['dispatches'],3)
+        (self.run/'prepare.json').write_text('{}');marker.write_text('')
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a'];self.assertEqual(a['status'],'blocked');self.assertEqual(a['cycle']['dispatches'],3)
+        marker.unlink()
+        self.assertNotEqual(self.execute().returncode,0);a=self.state()['nodes']['a']
+        self.assertEqual(a['cycle']['dispatches'],3);self.assertEqual(len(self.dispatches(log)[1]['a']),3,'a recovered upstream bought a fourth dispatch')
+        self.assertEqual(self.state()['nodes']['prepare']['attempts'],3)
+    def test_a_predictable_bad_shape_is_an_invalid_result_and_retries(self):
+        # F5 (review 20261012-212850): [] / coverage [[]] / findings [None] are refused results, not unclassified executor crashes
+        for i,shape in enumerate([[],{'complete':True,'coverage':[[]],'evidence':['x'],'findings':[],'summary':'s'},{'complete':True,'coverage':['a'],'evidence':['x'],'findings':[None],'summary':'s'},None]):
+            self.run=self.root/('run%d'%i);self.graph['nodes'][1].update(on_failure='retry',bad_shape_once=str(self.root/('shape%d'%i)),bad_shape=shape)
+            self.ok(self.execute());a=self.state()['nodes']['a']
+            self.assertEqual([h['status'] for h in a['cycle']['history']],['failed','succeeded'],shape);self.assertEqual(a['cycle']['history'][0]['category'],'invalid_result',shape)
+    def interrupt_a(self,cap):
+        log=self.root/'dispatches.jsonl'
+        for n in self.graph['nodes']:n['log']=str(log)
+        self.graph['nodes'][1].update(on_failure='retry',max_attempts=cap,delay=6)
+        self.pfile.write_text(json.dumps(self.packet));self.wfile.write_text(json.dumps(self.graph))
+        proc=subprocess.Popen([sys.executable,str(SCRIPT),'run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs','2'],text=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        deadline=time.time()+20
+        while time.time()<deadline:
+            try:
+                s=self.state()
+                if s['nodes'].get('a',{}).get('status')=='running' and s['nodes'].get('b',{}).get('status')=='succeeded':break
+            except (OSError,ValueError):pass
+            time.sleep(.05)
+        else:proc.kill();self.fail('a never reached running while b succeeded')
+        proc.kill();proc.wait();return log
+    def test_an_interruption_in_the_final_slot_is_recorded_and_exhausts(self):
+        # F6 (review 20261012-212850): the interrupted attempt is a failure event, and it can be the one that spends the budget
+        log=self.interrupt_a(1)
+        self.assertNotEqual(self.execute().returncode,0)
+        kinds=[(e['action'],e.get('category')) for e in self.events('a')]
+        self.assertEqual(kinds[-2:],[('node-failed','interrupted'),('node-exhausted','exhausted')])
+        s=self.state();self.assertEqual(s['nodes']['a']['status'],'failed');self.assertEqual(s['nodes']['check']['status'],'blocked');self.assertEqual(s['nodes']['a']['cycle']['dispatches'],1)
+    def test_a_crashed_reviewer_is_terminal_and_its_output_is_redacted(self):
+        # F9 (review 20261012-212850, round 2): an environmental model failure gets no retry, and its stderr never reaches state or events unredacted
+        self.install_model_tools();os.environ['GRAPH_CRASH']='a';self.addCleanup(os.environ.pop,'GRAPH_CRASH',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.graph['nodes'][1]['on_failure']='retry'
+        self.assertNotEqual(self.execute().returncode,0)
+        s=self.state();a=s['nodes']['a'];self.assertEqual(a['cycle']['dispatches'],1);self.assertEqual(a['cycle']['history'][0]['category'],'review_unavailable')
+        self.assertNotIn('node-retry',[e['action'] for e in self.events()])
+        for name,text in (('state.json',(self.run/'state.json').read_text()),('events.jsonl',(self.run/'events.jsonl').read_text())):self.assertNotIn('ghp_zzzz',text,name)
+        diag=Path(a['cycle']['history'][0]['diagnostics']).read_text();self.assertIn('reviewer crashed',diag);self.assertNotIn('ghp_zzzz',diag)
+    def test_model_handler_gets_executor_fields_outside_the_enclosure_and_diagnostics_inside(self):
+        self.install_model_tools()
+        log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'
+        self.addCleanup(os.environ.pop,'GRAPH_LOG',None);self.addCleanup(os.environ.pop,'GRAPH_FAIL_ONCE',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.graph['nodes'][1].update(on_failure='retry',id='a')
+        self.ok(self.execute())
+        rows=[json.loads(l) for l in log.read_text().splitlines()];a=[r for r in rows if r['id']=='a']
+        self.assertEqual(len(a),2);self.assertNotIn('correction',a[0]['own']);self.assertNotIn('correction_diagnostics',a[0]['outside'])
+        c=a[1]['own']['correction'];self.assertEqual((c['node'],c['previous_attempt'],c['category']),('a',1,'malformed_output'))
+        self.assertNotIn('diagnostics',c,'handler output must not sit outside the enclosure');self.assertIn('transient model failure',a[1]['outside']['correction_diagnostics'])
+        self.assertEqual(c['scope']['checks'],['a']);self.assertEqual(self.state()['nodes']['b']['attempts'],1)
     def test_resume_preserves_work_and_invalidates_descendants(self):
         self.ok(self.execute())
         first=self.state();self.ok(self.execute())
@@ -302,7 +510,13 @@ if '=== PACKET ===' in prompt:
  if os.environ.get('GRAPH_BLOCK'):r['findings']=[{'id':'F1','severity':'blocking','file':'value','line':1,'what':'bad','evidence':'value:1','criterion':p['acceptance_criteria'][0],'fix':'fix'}]
 else:
  # TB-002: the payload arrives inside the untrusted enclosure, on the line after its opening tag
- lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));p={**json.loads(lines[i-1]),**json.loads(lines[i+1])};n=p['node']
+ lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));own=json.loads(lines[i-1]);outside=json.loads(lines[i+1]);p={**own,**outside};n=p['node']
+ if os.environ.get('GRAPH_LOG'):
+  with open(os.environ['GRAPH_LOG'],'a') as f: f.write(json.dumps({'id':n['id'],'own':own,'outside':outside})+'\\n')
+ if os.environ.get('GRAPH_CRASH')==n['id']:
+  print('model: gpt-6-astra',file=sys.stderr);print('reviewer crashed holding token=ghp_zzzzzzzzzzzzzzzzzzzzzzzzzz9999',file=sys.stderr);sys.exit(3)
+ if os.environ.get('GRAPH_FAIL_ONCE') and n['id']==os.environ['GRAPH_FAIL_ONCE'] and not pathlib.Path(os.environ['GRAPH_LOG']+'.marker').exists():
+  pathlib.Path(os.environ['GRAPH_LOG']+'.marker').write_text('');print('model: gpt-6-astra',file=sys.stderr);print('not json: transient model failure');sys.exit(0)
  r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[],'summary':'checked'}
  if n.get('claim_id'):r['findings']=[{'id':n['claim_id'],'status':'BUILT','detail':'value exists','evidence':['value:1']}]
  if n['kind']=='checker':r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]

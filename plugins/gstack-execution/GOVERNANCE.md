@@ -137,7 +137,7 @@ Data-use checks precede dispatch and report export: named policy owner, classifi
 
 | Action | Authority and record |
 |---|---|
-| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. Failed dependencies block convergence. |
+| Graph plan/run | Authorized source analysis, model disclosure and local artifact generation within packet permissions. A failed dependency blocks convergence at once under `on_failure: "block"`, and once its bounded retry budget is spent under `on_failure: "retry"` (XE-036); a retry never widens scope or confers release permission. |
 | Proof execution | Exact allowed argv, serialized local proof path; captures actual output and exit status. |
 | Report export | Complete report and authorized destination required; repeated identical export is idempotent. |
 | Human observation | Evidence-linked local observation, optionally shared gate-log entry; does not authorize execution or release. |
