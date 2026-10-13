@@ -7,7 +7,7 @@ file changes; the name still resolves; the report stays complete, internally con
 and wrong about its subject. Nothing throws. So each test here changes the world under a
 finished review and asserts that the review notices.
 """
-import argparse, json, os, shutil, subprocess, sys, tempfile, unittest
+import argparse, contextlib, io, json, os, shutil, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -162,6 +162,66 @@ class LinkTests(unittest.TestCase):
         self.write("def f(x):\n    return x + 1\n"); self.sh("commit", "-qam", "fix")
         report = pr.verify_links(d)
         self.assertEqual(report["outcome"], "links_verified", [c for c in report["checks"] if not c["ok"]])
+
+    # ---- EV-013: a fixed finding that mis-cited its line ----
+
+    def mis_cited(self, disposition=None):
+        """A round whose one blocking finding names line 400 of a two-line file, then the disposition."""
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, dict(BLOCKING, findings=[dict(BLOCKING["findings"][0], line=400)])), "blocking_findings")
+        d = pr.rdir(rid)
+        self.assertFalse(pr.load(d, "round-1.json")["subjects"]["F1"]["line_exists"])
+        if disposition:
+            pr.cmd_disposition(self.ns(review_id=rid, items=[f"F1={disposition}"]))
+        return rid, d
+
+    def test_a_fixed_finding_whose_line_never_existed_is_unverifiable_and_releases(self):
+        rid, d = self.mis_cited("fixed")
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "links_unverifiable", [c for c in report["checks"] if not c["ok"]])
+        self.assertEqual(report["mis_cited_fixed"], 1)
+        c = [c for c in report["checks"] if c["link"].startswith("round 1 F1")][0]
+        self.assertEqual(c["kind"], "unverifiable"); self.assertIn("400", c["detail"]); self.assertIn("2 lines", c["detail"])
+        # a fix round verifies it, and release proceeds carrying the count
+        self.write("def f(x):\n    return x + 1\n"); self.sh("commit", "-qam", "fix")
+        clean = {"verdict": "no_blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}],
+                 "findings": [], "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:2"}]}
+        os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "cat " + str(self.tmp / "reply.json")
+        (self.tmp / "reply.json").write_text(json.dumps(clean))
+        try:
+            self.assertEqual(pr.cmd_round(self.ns(review_id=rid, head=[f"{self.repo}={self.sh('rev-parse', 'HEAD')}"])), "fixes_verified")
+        finally:
+            os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(pr.ReviewError) as cm:
+                pr.cmd_release(self.ns(review_id=rid, target="main", coverage_exception=None, observation=None))
+        self.assertEqual(cm.exception.outcome, "awaiting_human_release", cm.exception)
+        rel = pr.load(d, "release.json")
+        self.assertEqual((rel["links"]["outcome"], rel["links"]["mis_cited_fixed"]), ("links_unverifiable", 1))
+
+    def test_a_mis_cited_finding_with_any_other_disposition_stays_a_stale_link(self):
+        for disposition in ("disproved:the line is fine, see a.py:1", None):   # a blocker can't be deferred through this CLI
+            _, d = self.mis_cited(disposition)
+            report = pr.verify_links(d)
+            self.assertEqual(report["outcome"], "stale_link", (disposition, [c for c in report["checks"] if not c["ok"]]))
+            self.assertEqual(report["mis_cited_fixed"], 0)
+
+    def test_a_fixed_finding_with_an_existing_changed_line_is_unchanged_behaviour(self):
+        rid, d = self.reviewed()
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        self.write("def f(x):\n    return x + 1\n"); self.sh("commit", "-qam", "fix")
+        report = pr.verify_links(d)
+        self.assertEqual((report["outcome"], report["mis_cited_fixed"]), ("links_verified", 0))
+
+    def test_the_next_surface_names_the_prior_rounds_mis_citation(self):
+        rid, d = self.mis_cited("fixed")
+        prior = pr.load(d, "round-1.json")
+        mis = [{"id": fid, "file": s["path"], "line": s["line"], "file_lines": s["file_lines"]}
+               for fid, s in prior["subjects"].items() if s.get("bound") and not s.get("line_exists", True)]
+        surf, _ = pr.build_surface(self.packet["repos"], Path(tempfile.mkdtemp()), mis_cited=mis)
+        text = (surf / "SURFACE.md").read_text()
+        self.assertIn("F1: `a.py:400`, the file had 2 lines at the reviewed head", text)
+        self.assertIn("must exist in the file at the reviewed head", pr.build_prompt(self.packet, 1, None, {}))
 
     def test_an_altered_record_is_detected_at_the_reviewed_head(self):
         """Run directories are ordinary writable files. A record that no longer matches

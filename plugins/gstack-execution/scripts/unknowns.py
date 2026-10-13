@@ -280,16 +280,39 @@ def close(repo, uid, revision, evidence, review=None, settled_by=None, root=None
     return row
 
 
+def _same_branch_review(repo, review_id, branch, root):
+    """EV-013.5: the review the observation sits on must be of this repository and its reviewed
+    head must be on the branch whose lines are being closed (the head itself or an ancestor)."""
+    pk = (lambda q: json.loads(q.read_text()) if q.exists() else None)(Path(root) / review_id / "packet.json")
+    if not pk:
+        return False
+    tip = cl._git(repo, "rev-parse", branch) if branch else cl._git(repo, "rev-parse", "HEAD")
+    rp = str(Path(repo).resolve())
+    for r in pk.get("repos") or []:
+        if str(Path(r.get("path", "")).resolve()) != rp:
+            continue
+        rh = r.get("head") or ""
+        if rh and tip and (rh == tip or cl._git(repo, "merge-base", "--is-ancestor", rh, tip) is not None):
+            return True
+    return False
+
+
 def close_all(repo, review, evidence, root=None, branch=None):
     """EV-012.5: every open line a named review raised, closed with one recorded observation.
     Returns (examined, closed); the caller prints both, zero as zero."""
+    root = root or pr.review_root()
     rows = [u for u in current(repo, branch, root) if u["state"] == "open"
             and (u.get("review") == review or u["raised_by"].startswith(review + " "))]
     # F1 (review 20261013-152419): a bulk close is a person's act, checked before any append. A round
     # finding or a CI run can close one line on its own merits, never a whole review's at once.
-    if rows and not (evidence.startswith(f"human:{review}:") and evidence_authority(evidence, repo, review, root=root) == "human"):
+    # EV-013.5: the observation may sit on the raising review or on any review of the same branch,
+    # since a review that ended rounds_exhausted never gets a handoff to carry one.
+    kind, _, rest = evidence.partition(":"); obs_review = rest.partition(":")[0]
+    if rows and not (kind == "human" and evidence_authority(evidence, repo, review, root=root) == "human"
+                     and (obs_review == review or _same_branch_review(repo, obs_review, branch, root))):
         raise pr.ReviewError("authority_insufficient",
-                             f"close-all needs a recorded observation on review {review}, human:{review}:<index>; got {evidence!r}")
+                             f"close-all needs a recorded observation on review {review} or on a review of the same branch, "
+                             f"human:<review>:<index>; got {evidence!r}")
     closed = 0
     for u in rows:
         close(repo, u["id"], u["revision"], evidence, review, root=root, branch=branch)

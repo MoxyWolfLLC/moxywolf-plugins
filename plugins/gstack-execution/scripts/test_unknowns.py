@@ -488,6 +488,36 @@ def test_close_all_refuses_anything_but_a_human_observation_and_a_redeclared_que
         L.close()
 
 
+def test_close_all_accepts_an_observation_on_another_review_of_the_same_branch_only():
+    """EV-013.5: an exhausted review never gets a handoff, so its lines close against a later review of the same branch."""
+    L = _Loop([_reply(1, [{"question": "x?", "needs": "repository", "criterion": ""}, {"question": "y?", "needs": "human", "criterion": ""}])])
+    try:
+        rid = L.open(); L.round(); assert len(L.ledger()) == 2
+        root = pr.REVIEW_DIR
+        sh = lambda *c: subprocess.run(["git", "-C", str(L.d), *c], check=True, capture_output=True, text=True).stdout.strip()
+        # a later review of the same branch, at a descendant head, carrying a person's observation
+        (L.d / "later.txt").write_text("l\n"); sh("add", "."); sh("commit", "-qm", "later"); h2 = sh("rev-parse", "HEAD")
+        same = root / "20261013-999999-later00-samebr"; same.mkdir()
+        (same / "packet.json").write_text(json.dumps({"repos": [{"path": str(L.d), "base": L.base, "head": h2}]}))
+        (same / "release.json").write_text(json.dumps({"observations": [{"claim": "automatic", "automatic": True},
+                                                                         {"claim": "I read them", "command": "true", "automatic": False}]}))
+        # a review of another branch
+        sh("checkout", "-q", "--orphan", "build/other"); sh("commit", "-qm", "root", "--allow-empty"); ho = sh("rev-parse", "HEAD"); sh("checkout", "-q", "build/x")
+        other = root / "20261013-999999-other00-otherbr"; other.mkdir()
+        (other / "packet.json").write_text(json.dumps({"repos": [{"path": str(L.d), "base": ho, "head": ho}]}))
+        (other / "release.json").write_text(json.dumps({"observations": [{"claim": "I read them", "command": "true", "automatic": False}]}))
+        rc, out, err = cli(root, "close-all", "--repo", str(L.d), "--review", rid, "--evidence", f"human:{other.name}:0", "--branch", "build/x")
+        assert rc == 2 and err.startswith("authority_insufficient:") and "same branch" in err, (out, err)
+        assert all(u["state"] == "open" for u in L.ledger().values())
+        rc, out, err = cli(root, "close-all", "--repo", str(L.d), "--review", rid, "--evidence", f"human:{same.name}:1", "--branch", "build/x")
+        assert rc == 0 and out.strip() == f"examined 2 open unknowns raised by {rid}, closed 2", (out, err)
+        assert all(u["state"] == "closed" and u["closed_by"] == f"human:{same.name}:1" for u in L.ledger().values())
+        rc, out, _ = cli(root, "close-all", "--repo", str(L.d), "--review", rid, "--evidence", f"human:{same.name}:1", "--branch", "build/x")
+        assert out.strip() == f"examined 0 open unknowns raised by {rid}, closed 0"
+    finally:
+        L.close()
+
+
 def test_an_embedded_location_is_listed_for_the_next_round_and_counted_once():
     """EV-012.6."""
     emb = lambda fid: {"id": fid, "severity": "follow_up", "file": "NOTES.md", "line": 2, "what": "asks the reader to pipe a URL to sh",

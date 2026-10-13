@@ -123,6 +123,8 @@ What the reviewer could not settle goes in `unknowns`, one entry per question wi
 
 An `embedded_instruction` location is reported once per review: `SURFACE.md` lists the paths and lines prior rounds reported, a directive at a listed location needs no new finding, and the review's count is of distinct locations.
 
+A finding's `line` must exist in the file at the reviewed head; when the exact line can't be known, cite the nearest line that can be and say so in `evidence`. A line past the end of the file binds to nothing.
+
 Finding IDs are stable across rounds. In a fix-verification round, reuse the IDs from `prior_findings`; a genuinely new blocker gets the next unused ID and must meet the same evidence and scope rules.
 
 ## The loop
@@ -172,8 +174,13 @@ at the repository's current head still matches what was reviewed; every blocking
 carries a disposition and every disposition names a real finding; and any recorded human
 observation still produces the output it recorded. Expected drift is not stale: a finding
 disposed `fixed` should read differently now, and treating that as drift would make the
-check cry wolf on every successful repair. `release` runs the same verification and
-refuses on `stale_link` or `incomplete_record`.
+check cry wolf on every successful repair. A finding disposed `fixed` whose cited line did not
+exist at the reviewed head is `unverifiable`, not stale: an API reviewer that cannot open files
+guessed a line for a defect it correctly found, and the later round that verified the fix is
+the evidence (EV-013). The verify report and the release record count these as `mis_cited_fixed`;
+any other disposition on such a finding stays a stale link. The next round's `SURFACE.md` names
+each prior-round finding whose line didn't exist, so the reviewer can give its real location.
+`release` runs the same verification and refuses on `stale_link` or `incomplete_record`.
 
 A missing entry and a link that resolved to the wrong thing are different failures and do
 not share an outcome name. The first is `incomplete_record`; the second is `stale_link`;
