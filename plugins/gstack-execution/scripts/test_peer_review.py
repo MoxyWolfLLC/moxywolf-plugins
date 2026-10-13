@@ -127,7 +127,7 @@ def test_an_embedded_instruction_is_recorded_and_leaves_the_verdict_alone():
         prompt = (pr.REVIEW_DIR / rid / "round-1-prompt.txt").read_text()
         assert "embedded_instruction" in prompt and "PROVENANCE.json" in prompt
         # the next round's surface says so in its first lines
-        surf, _ = surface(d, base, head, embedded_prior=len(rec["embedded_instructions"]), unknowns_open=0)
+        surf, _ = surface(d, base, head, embedded_prior=len(rec["embedded_instructions"]), unknowns_open=[])
         assert (surf / "SURFACE.md").read_text().splitlines()[1] == \
             "unknowns open: 0; embedded instructions reported in the prior round: 1"
     finally:

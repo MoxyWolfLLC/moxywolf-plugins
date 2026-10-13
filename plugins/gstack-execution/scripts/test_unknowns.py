@@ -50,7 +50,7 @@ def lines(d, root):
 
 def test_record_then_list():
     d, _, _, root = fixture()
-    rc, out, err = cli(root, "record", "--repo", str(d), "--question", "does f handle None?", "--needs", "runtime")
+    rc, out, err = cli(root, "record", "--repo", str(d), "--question", "does f handle None?", "--needs", "runtime", "--raised-by", "node check")
     assert rc == 0, err
     uid = out.split()[0]; assert len(uid) == 12
     rc, out, _ = cli(root, "list", "--repo", str(d), "--branch", "build/x")
@@ -59,17 +59,42 @@ def test_record_then_list():
     assert rc == 1, "an open unknown exits 1 under --state open"
     row = lines(d, root)[0]
     assert (row["revision"], row["state"], row["needs"], row["question"]) == (1, "open", "runtime", "does f handle None?")
-    assert row["head"] and row["repo"] == cl.repo_id(d)
+    assert row["head"] and row["repo"] == cl.repo_id(d) and row["raised_by"] == "node check"
+    rc, _, err = cli(root, "record", "--repo", str(d), "--question", "orphan", "--needs", "human")
+    assert rc != 0 and "--raised-by" in err, "a question with nothing raising it was accepted"
     # the same question from the same party is not a second record
-    rc, out2, _ = cli(root, "record", "--repo", str(d), "--question", "does f handle None?", "--needs", "runtime")
+    rc, out2, _ = cli(root, "record", "--repo", str(d), "--question", "does f handle None?", "--needs", "runtime", "--raised-by", "node check")
     assert uid in out2 and "not duplicated" in out2 and len(lines(d, root)) == 1
-    rc, _, err = cli(root, "record", "--repo", str(d), "--question", "x", "--needs", "guess")
+    rc, _, err = cli(root, "record", "--repo", str(d), "--question", "x", "--needs", "guess", "--raised-by", "node check")
     assert rc != 0 and "--needs" in err
+
+
+def test_an_empty_ledger_lists_zero_and_exits_zero():
+    d, _, _, root = fixture()
+    rc, out, _ = cli(root, "list", "--repo", str(d), "--branch", "build/x", "--state", "open")
+    assert rc == 0 and "0 unknowns listed, 0 open" in out, out
+
+
+def test_two_writers_at_the_same_revision_produce_exactly_one_mutation():
+    """F4 (review 20261013-124809): the read, the revision check and the append are one locked
+    transaction, so of two concurrent updates at revision 1 one appends revision 2 and the other
+    reads 2 and is refused with the winning line."""
+    d, _, _, root = fixture()
+    _, out, _ = cli(root, "record", "--repo", str(d), "--question", "q", "--needs", "human", "--raised-by", "node check"); uid = out.split()[0]
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(root))
+    procs = [subprocess.Popen([sys.executable, str(UNK), "update", "--repo", str(d), "--id", uid, "--revision", "1", "--question", f"writer {i}"],
+                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for i in range(2)]
+    results = [(p.wait(), *p.communicate()) for p in procs]
+    assert sorted(rc for rc, _, _ in results) == [0, 2], results
+    loser = next(err for rc, _, err in results if rc == 2)
+    assert loser.startswith("stale_revision:") and "revision 2" in loser and '"revision": 2' in loser, loser
+    rows = lines(d, root)
+    assert [r["revision"] for r in rows] == [1, 2] and un.current(d, "build/x", root=root)[0]["revision"] == 2
 
 
 def test_update_at_the_current_revision_is_accepted_and_a_stale_one_writes_nothing():
     d, _, _, root = fixture()
-    _, out, _ = cli(root, "record", "--repo", str(d), "--question", "q", "--needs", "repository"); uid = out.split()[0]
+    _, out, _ = cli(root, "record", "--repo", str(d), "--question", "q", "--needs", "repository", "--raised-by", "builder round 0"); uid = out.split()[0]
     rc, out, _ = cli(root, "update", "--repo", str(d), "--id", uid, "--revision", "1", "--question", "q, sharpened")
     assert rc == 0 and json.loads(out)["revision"] == 2 and json.loads(out)["question"] == "q, sharpened"
     before = lines(d, root)
@@ -90,7 +115,7 @@ def test_close_needs_evidence_that_exists_and_carries_enough_authority():
 
 
 def _close_cases(d, root):
-    _, out, _ = cli(root, "record", "--repo", str(d), "--question", "does the suite pass?", "--needs", "runtime"); uid = out.split()[0]
+    _, out, _ = cli(root, "record", "--repo", str(d), "--question", "does the suite pass?", "--needs", "runtime", "--raised-by", "builder round 0"); uid = out.split()[0]
     # a ledger line that passed is runtime authority
     env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(root))
     subprocess.run([sys.executable, str(LEDGER), "run", "--repo", str(d), "--", sys.executable, "-c", "pass"], cwd=str(d), env=env, check=True)
@@ -99,9 +124,10 @@ def _close_cases(d, root):
     rc, _, err = cli(root, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", "ledger:nope")
     assert rc == 2 and err.startswith("authority_insufficient:") and "does not exist" in err, err
     # weaker authority is refused: a reviewer finding (repository) cannot close a runtime question
-    rc, _, err = cli(root, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", "human:")
-    assert rc == 2 and "does not exist" in err
-    _, out2, _ = cli(root, "record", "--repo", str(d), "--question", "needs a person", "--needs", "human"); uid2 = out2.split()[0]
+    for bare in ("human:", "human:dorian", "human:no-such-review:0"):
+        rc, _, err = cli(root, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", bare)
+        assert rc == 2 and "does not exist" in err, (bare, err)
+    _, out2, _ = cli(root, "record", "--repo", str(d), "--question", "needs a person", "--needs", "human", "--raised-by", "builder round 0"); uid2 = out2.split()[0]
     rc, _, err = cli(root, "close", "--repo", str(d), "--id", uid2, "--revision", "1", "--evidence", f"ledger:{passed}")
     assert rc == 2 and "needs human" in err and "carries runtime" in err, err
     assert all(r["state"] == "open" for r in un.current(d, "build/x")), "a refused close changed state"
@@ -118,14 +144,26 @@ def _close_cases(d, root):
     # a failed ledger line is not evidence of anything
     subprocess.run([sys.executable, str(LEDGER), "run", "--repo", str(d), "--", sys.executable, "-c", "import sys; sys.exit(1)"], cwd=str(d), env=env)
     failed = cl.read(cl.ledger_path(d, "build/x", root))[-1]["id"]
-    assert un.evidence_authority(f"ledger:{failed}", d) is None and un.evidence_authority("human:dorian", d) == "human"
+    assert un.evidence_authority(f"ledger:{failed}", d) is None and un.evidence_authority("human:dorian", d) is None
     assert un.evidence_authority("round:none:1:F1", d) is None and un.evidence_authority("ci:none:1", d) is None
+    # a person's observation on a release handoff is human evidence; the automatic head check is not
+    rel = root / "rev-x"; rel.mkdir()
+    (rel / "release.json").write_text(json.dumps({"observations": [
+        {"claim": "release head is the reviewed head", "automatic": True},
+        {"claim": "I ran the suite on my Mac and read the counts", "command": "python3 run_all_tests.py", "automatic": False}]}))
+    assert un.evidence_authority("human:rev-x:1", d) == "human"
+    assert un.evidence_authority("human:rev-x:0", d) is None and un.evidence_authority("human:rev-x:2", d) is None
+    rc, out, err = cli(root, "close", "--repo", str(d), "--id", uid2, "--revision", "1", "--evidence", "human:rev-x:1")
+    assert rc == 0 and json.loads(out)["closed_authority"] == "human", err
+    # all closed: list --state open exits 0 and prints zero (F7)
+    rc, out, _ = cli(root, "list", "--repo", str(d), "--branch", "build/x", "--state", "open")
+    assert rc == 0 and "0 unknowns listed, 0 open" in out, out
 
 
 def test_the_ledger_lives_under_the_review_root_only():
     d, _, _, _ = fixture()
     env = {k: v for k, v in os.environ.items() if k != "GSTACK_PEER_REVIEW_DIR"}
-    r = subprocess.run([sys.executable, str(UNK), "record", "--repo", str(d), "--question", "q", "--needs", "human"],
+    r = subprocess.run([sys.executable, str(UNK), "record", "--repo", str(d), "--question", "q", "--needs", "human", "--raised-by", "x"],
                        env=env, capture_output=True, text=True)
     assert r.returncode != 0 and "GSTACK_PEER_REVIEW_DIR" in r.stderr
     assert not list(Path.home().glob(".gstack/**/unknowns")), "no silent home default"
@@ -187,12 +225,17 @@ def test_a_round_that_raises_an_unknown_leaves_a_ledger_line_the_next_round_can_
         with contextlib.redirect_stdout(io.StringIO()):
             assert pr.cmd_round(ns(review_id=rid, head=[f"{d}={h2}"])) == "fixes_verified"
         assert (pr.REVIEW_DIR / rid / "round-2-prompt.txt").exists()
+        surf2, _ = pr.build_surface([{"path": str(d), "base": base, "head": h2}], Path(tempfile.mkdtemp()),
+                                    unknowns_open=pr.open_unknowns([{"path": str(d)}]))
+        text2 = (surf2 / "SURFACE.md").read_text()
+        assert all(u in text2 for u in rec1["unknowns_raised"]) and "unknowns open: 2;" in text2.splitlines()[1]
         rec2 = pr.load(pr.REVIEW_DIR / rid, "round-2.json")
         assert rec2["unknowns_raised"] == [] and set(u["id"] for u in un.current(d, "build/x")) == set(rec1["unknowns_raised"])
         # release lists them and does not refuse on them
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             try:
-                pr.cmd_release(ns(review_id=rid, target="main", coverage_exception="release it, fixture-human", observation=None))
+                pr.cmd_release(ns(review_id=rid, target="main", coverage_exception="release it, fixture-human",
+                                  observation=["None is handled, I read a.py :: git -C " + str(d) + " show HEAD:a.py"]))
             except pr.ReviewError as e:
                 assert e.outcome == "awaiting_human_release", e
             else:
@@ -202,6 +245,10 @@ def test_a_round_that_raises_an_unknown_leaves_a_ledger_line_the_next_round_can_
         # a human closes one at the current revision; the next open count drops to one
         uid = rec1["unknowns_raised"][0]
         rc, out, err = cli(pr.REVIEW_DIR, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", "human:fixture-human")
+        assert rc == 2 and "does not exist" in err, "a bare login closed an unknown"
+        rc, out, err = cli(pr.REVIEW_DIR, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", f"human:{rid}:0")
+        assert rc == 2, "the automatic head check is not a person's observation"
+        rc, out, err = cli(pr.REVIEW_DIR, "close", "--repo", str(d), "--id", uid, "--revision", "1", "--evidence", f"human:{rid}:1")
         assert rc == 0, err
         assert pr.unknowns_open_count([{"path": str(d)}]) == 1
     finally:
@@ -211,7 +258,7 @@ def test_a_round_that_raises_an_unknown_leaves_a_ledger_line_the_next_round_can_
 def test_the_surface_first_lines_show_the_open_count():
     d, base, head = repo()
     surf, _ = pr.build_surface([{"path": str(d), "base": base, "head": head}], Path(tempfile.mkdtemp()),
-                               coverage="covered", ledger="none", unknowns_open=3)
+                               coverage="covered", ledger="none", unknowns_open=[{"id": f"u{i}", "revision": 1, "needs": "human", "question": "q"} for i in range(3)])
     first = (surf / "SURFACE.md").read_text().splitlines()
     assert first[0] == "# What this review can see (coverage: covered, ledger: none)"
     assert first[1] == "unknowns open: 3; embedded instructions reported in the prior round: 0"

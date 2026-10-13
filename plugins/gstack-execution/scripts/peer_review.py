@@ -71,22 +71,22 @@ REVIEWERS = {
                "model": os.environ.get("GSTACK_OPENROUTER_GPT_MODEL", "openai/gpt-6-astra"),
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher",
-               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md"]},
     "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher",
-               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md"]},
     "openrouter-claude": {"family": "claude", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_CLAUDE_MODEL", "anthropic/claude-opus-5"),
                "floor": r"^claude-(opus-([5-9]|\d{2,})|fable-\d+|mythos)",
                "floor_name": "Opus 5 or higher",
-               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md"]},
     "openrouter-deepseek": {"family": "deepseek", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_DEEPSEEK_MODEL", "deepseek/deepseek-v4.1-flash"),
                "floor": r"^deepseek-v([4-9]|\d{2,})\b",
                "floor_name": "DeepSeek v4 or higher",
-               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json"]},
+               "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md"]},
 }
 TRANSPORTS = {"cli", "openrouter"}
 # XE-013.2: refused at the table, not at run time. An entry named for its transport would span
@@ -944,7 +944,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     (surf / "SURFACE.md").write_text(
         f"# What this review can see (coverage: {coverage}"
         + (f", ledger: {ledger}" if ledger else "") + ")\n"
-        f"unknowns open: {'not tracked' if unknowns_open is None else unknowns_open}; "
+        f"unknowns open: {'not tracked' if unknowns_open is None else len(unknowns_open)}; "
         f"embedded instructions reported in the prior round: {embedded_prior}\n\n"
         f"- `{PROVENANCE_FILE}` — where every entry here came from and whether it is untrusted text\n"
         f"- `CHANGE.diff` — the full diff under review, from the review's base\n"
@@ -982,6 +982,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         "A receipt's quotes were checked byte for byte by the dispatcher, not the builder, against the "
         "log whose sha256 it names; the full log is kept in the review record. What a receipt leaves out, "
         "and its `uncertain` flag, prove nothing.\n\n"
+        "## Open unknowns on this branch\n\n"
+        + ("\n".join(f"  - `{u['id']}` r{u['revision']} needs {u['needs']}: {u['question'][:300]}" for u in unknowns_open or ())
+           or "  (none, or not tracked)") + "\n\n"
+        "Each is a ledger record a prior round or the builder raised and nothing has closed (EV-011). Cite its id "
+        "if your evidence settles it; do not re-raise it as a new question.\n\n"
         "## Limits\n\n"
         "The repository tree is NOT here. This is deliberate: a reviewer given the whole tree spends "
         "its budget reading it. If a judgement needs a file that is not present, do not guess — "
@@ -1086,11 +1091,15 @@ def examined_nothing(ex):
 UNKNOWN_PHRASES = ("could not determine", "not verified", "unknown")
 
 
-def unknowns_open_count(repos):
+def open_unknowns(repos):
     """Open unknowns on the branch checked out at each packet repository. A repository with no
     ledger contributes zero records, which is printed as zero, never as silence."""
     import unknowns
-    return sum(1 for r in repos for u in unknowns.current(r["path"], root=review_root()) if u["state"] == "open")
+    return [u for r in repos for u in unknowns.current(r["path"], root=review_root()) if u["state"] == "open"]
+
+
+def unknowns_open_count(repos):
+    return len(open_unknowns(repos))
 
 
 def record_reviewer_unknowns(review_id, round_no, out, repos):
@@ -1106,7 +1115,7 @@ def record_reviewer_unknowns(review_id, round_no, out, repos):
             continue
         i, _ = _subject_path(file, repos) if file else (None, None)
         repo = repos[i if i is not None else 0]["path"]
-        uid, _ = unknowns.record(repo, text, "human", raised_by=f"{review_id} round {round_no}",
+        uid, _ = unknowns.record(repo, text, "human", f"{review_id} round {round_no}",
                                  head=repos[i if i is not None else 0]["head"], root=review_root())
         raised.append(uid)
     return raised
@@ -2166,7 +2175,7 @@ def cmd_round(a):
         surf, surf_stats = build_surface(packet["repos"], root, coverage=state.get("coverage_status") or "not_run",
                                          ledger=state.get("ledger_status") or "none",
                                          embedded_prior=len((prior or {}).get("embedded_instructions") or []),
-                                         unknowns_open=state.get("unknowns_open"),
+                                         unknowns_open=open_unknowns(packet["repos"]),
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
                                          ci_runs=(packet.get("tests") or {}).get("ci_runs"),
@@ -2431,10 +2440,10 @@ def cmd_release(a):
         raise ReviewError("incomplete_record", f"{len(missing)} required record entr(ies) missing: {missing[:5]}")
     coverage = coverage_line(state, getattr(a, "coverage_exception", None))
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
-    open_unknowns = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
-                     for r in packet["repos"] for u in unknowns.current(r["path"], root=review_root()) if u["state"] == "open"]
+    open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
+                         for u in open_unknowns(packet["repos"])]
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
-              "unknowns_open": open_unknowns,
+              "unknowns_open": open_unknowns_now,
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
               "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"]},
               "observations": human_observations(packet, getattr(a, "observation", None)),
@@ -2444,7 +2453,7 @@ def cmd_release(a):
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
-        record["unknowns_open"] = open_unknowns   # EV-011: the list is of now, whatever the handoff was
+        record["unknowns_open"] = open_unknowns_now   # EV-011: the list is of now, whatever the handoff was
     else:
         save(d, "release.json", record, "gate_output")
     # XE-014.12: the handoff's first line is the coverage status, before anything else is read

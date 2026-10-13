@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """EV-011: an open question is a record with a revision, not a sentence in a finding.
 
-  unknowns.py record --repo <path> --question "<text>" --needs <authority> [--for <evidence id>...]
-                     [--against <evidence id>...] [--raised-by <round or node>]
-      append a new unknown at revision 1, state open; print its id.
+  unknowns.py record --repo <path> --question "<text>" --needs <authority> --raised-by "<round or node>"
+                     [--for <evidence id>...] [--against <evidence id>...]
+      append a new unknown at revision 1, state open, naming what raised it; print its id.
   unknowns.py update --repo <path> --id <id> --revision <n> [--question ...] [--needs ...] [--for ...] [--against ...]
       append revision n+1 only when n is the newest stored revision; otherwise stale_revision, nothing written.
   unknowns.py close  --repo <path> --id <id> --revision <n> --evidence <ref> [--review <review id>]
@@ -15,7 +15,8 @@
 Authorities, weakest first: repository (a reviewer finding citing file:line), ci_run (a CI run at the
 reviewed head), runtime (a check that ran through check_ledger.py), human (a named person).
 Evidence references: `round:<review id>:<n>:<finding id>` (repository), `ci:<review id>:<run id>`
-(ci_run, head_matches and conclusion success), `ledger:<id>` (runtime, exit 0), `human:<login>` (human).
+(ci_run, head_matches and conclusion success), `ledger:<id>` (runtime, exit 0), `human:<review id>:<index>` (human:
+an observation a person entered on that review's release handoff, EV-004; a bare login is not a record).
 
 The ledger is `<review_root()>/unknowns/<owner>-<repo>/<branch>.jsonl`, under the declared review
 directory (EV-009) and nowhere else. The newest line for an id is its current state; a line with a
@@ -28,6 +29,8 @@ aren't taken.
 ponytail: stdlib, one JSONL file per branch, linear scans. Fine until a branch carries thousands.
 """
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import sys
@@ -73,13 +76,32 @@ def append(p, row):
         f.write(json.dumps(row) + "\n")
 
 
-def _ctx(repo, root=None):
+@contextlib.contextmanager
+def locked(p):
+    """F4 (review 20261013-124809): read, check and append are one transaction per ledger. Two
+    writers that both read revision 1 would both have appended revision 2; under the lock the
+    second one reads 2 and is refused."""
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with (p.parent / (p.name + ".lock")).open("a") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lk, fcntl.LOCK_UN)
+
+
+def _ledger(repo, root=None):
     """root is passed by peer_review.py, whose own review_root() is the one that was set: when it
     runs as __main__, this module's `pr` is a second instance with no REVIEW_DIR (CI run 38456179646)."""
     b = cl.branch_of(repo)
     if not b:
         raise SystemExit(f"refused: {repo} is not a git checkout on a branch")
-    p = path(repo, b, root or pr.review_root())
+    return b, path(repo, b, root or pr.review_root())
+
+
+def _ctx(repo, root=None):
+    """Current heads, read under no lock: callers that write take `locked(p)` and reread inside it."""
+    b, p = _ledger(repo, root)
     return b, p, heads(read(p), cl.repo_id(repo))
 
 
@@ -87,20 +109,25 @@ def new_id(repo, question, raised_by):
     return hashlib.sha256(f"{cl.repo_id(repo)}\0{raised_by}\0{question.strip()}".encode()).hexdigest()[:12]
 
 
-def record(repo, question, needs, for_=(), against=(), raised_by="builder", head=None, root=None):
+def record(repo, question, needs, raised_by, for_=(), against=(), head=None, root=None):
     """Append an open unknown, or return the existing id when the same question was raised by the
-    same party before: a round that repeats itself doesn't open a second record."""
+    same party before: a round that repeats itself doesn't open a second record. `raised_by` names
+    the round or node that raised it and has no default (F6, review 20261013-124809)."""
     if needs not in NEEDS:
         raise SystemExit(f"refused: --needs must be one of {NEEDS}")
     if not question.strip():
         raise SystemExit("refused: an unknown needs its question")
-    b, p, cur = _ctx(repo, root)
-    uid = new_id(repo, question, raised_by)
-    if uid in cur:
-        return uid, False
-    append(p, {"id": uid, "revision": 1, "state": "open", "question": question.strip(), "needs": needs,
-               "for": list(for_), "against": list(against), "raised_by": raised_by,
-               "head": head or cl._git(repo, "rev-parse", "HEAD"), "repo": cl.repo_id(repo), "at": time.time()})
+    if not (raised_by or "").strip():
+        raise SystemExit("refused: --raised-by must name the round or node that raised the question")
+    b, p = _ledger(repo, root)
+    with locked(p):
+        cur = heads(read(p), cl.repo_id(repo))
+        uid = new_id(repo, question, raised_by)
+        if uid in cur:
+            return uid, False
+        append(p, {"id": uid, "revision": 1, "state": "open", "question": question.strip(), "needs": needs,
+                   "for": list(for_), "against": list(against), "raised_by": raised_by,
+                   "head": head or cl._git(repo, "rev-parse", "HEAD"), "repo": cl.repo_id(repo), "at": time.time()})
     return uid, True
 
 
@@ -117,14 +144,16 @@ def _next(cur, uid, revision):
 
 
 def update(repo, uid, revision, **changes):
-    b, p, cur = _ctx(repo)
-    row = _next(cur, uid, revision)
-    for k, v in changes.items():
-        if v is not None:
-            row[k] = v
-    if row["needs"] not in NEEDS:
-        raise SystemExit(f"refused: --needs must be one of {NEEDS}")
-    append(p, row)
+    b, p = _ledger(repo)
+    with locked(p):
+        cur = heads(read(p), cl.repo_id(repo))
+        row = _next(cur, uid, revision)
+        for k, v in changes.items():
+            if v is not None:
+                row[k] = v
+        if row["needs"] not in NEEDS:
+            raise SystemExit(f"refused: --needs must be one of {NEEDS}")
+        append(p, row)
     return row
 
 
@@ -134,7 +163,17 @@ def evidence_authority(ref, repo, review=None):
     kind, _, rest = ref.partition(":")
     root = pr.review_root()
     if kind == "human":
-        return "human" if rest.strip() else None
+        # F3 (review 20261013-124809): a login is a name, not a record. A person's evidence is an
+        # observation they entered on a release handoff (EV-004), `human:<review id>:<index>` into
+        # that review's release.json observations, and only one a person wrote, never the automatic
+        # head check.
+        review_id, _, idx = rest.partition(":")
+        q = root / review_id / "release.json"
+        if not idx.isdigit() or not q.exists():
+            return None
+        obs = (json.loads(q.read_text()).get("observations") or [])
+        i = int(idx)
+        return "human" if i < len(obs) and not obs[i].get("automatic") else None
     if kind == "ledger":
         for r in cl.read(cl.ledger_path(repo, cl.branch_of(repo), root)) if cl.ledger_path(repo, cl.branch_of(repo), root).exists() else ():
             if r.get("id") == rest and r.get("repo") == cl.repo_id(repo):
@@ -162,15 +201,17 @@ def evidence_authority(ref, repo, review=None):
 
 
 def close(repo, uid, revision, evidence, review=None):
-    b, p, cur = _ctx(repo)
-    row = _next(cur, uid, revision)
-    have = evidence_authority(evidence, repo, review)
-    if have is None:
-        raise pr.ReviewError("authority_insufficient", f"evidence {evidence!r} does not exist in the records it names")
-    if RANK[have] < RANK[row["needs"]]:
-        raise pr.ReviewError("authority_insufficient", f"{uid} needs {row['needs']}; {evidence!r} carries {have}")
-    row.update(state="closed", closed_by=evidence, closed_authority=have)
-    append(p, row)
+    b, p = _ledger(repo)
+    with locked(p):
+        cur = heads(read(p), cl.repo_id(repo))
+        row = _next(cur, uid, revision)
+        have = evidence_authority(evidence, repo, review)
+        if have is None:
+            raise pr.ReviewError("authority_insufficient", f"evidence {evidence!r} does not exist in the records it names")
+        if RANK[have] < RANK[row["needs"]]:
+            raise pr.ReviewError("authority_insufficient", f"{uid} needs {row['needs']}; {evidence!r} carries {have}")
+        row.update(state="closed", closed_by=evidence, closed_authority=have)
+        append(p, row)
     return row
 
 
@@ -197,7 +238,8 @@ def main(argv):
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("record"); r.add_argument("--repo", required=True); r.add_argument("--question", required=True)
     r.add_argument("--needs", required=True); r.add_argument("--for", dest="for_", action="append", default=[])
-    r.add_argument("--against", action="append", default=[]); r.add_argument("--raised-by", default="builder")
+    r.add_argument("--against", action="append", default=[])
+    r.add_argument("--raised-by", required=True, help="the round or node that raised it, e.g. '<review id> round 2' or 'node check'")
     u = sub.add_parser("update"); u.add_argument("--repo", required=True); u.add_argument("--id", required=True)
     u.add_argument("--revision", type=int, required=True); u.add_argument("--question"); u.add_argument("--needs")
     u.add_argument("--for", dest="for_", action="append"); u.add_argument("--against", action="append")
@@ -208,7 +250,7 @@ def main(argv):
     a = ap.parse_args(argv)
     try:
         if a.cmd == "record":
-            uid, created = record(a.repo, a.question, a.needs, a.for_, a.against, a.raised_by)
+            uid, created = record(a.repo, a.question, a.needs, a.raised_by, a.for_, a.against)
             print(uid + ("" if created else "  (already open; not duplicated)"))
             return 0
         if a.cmd == "update":

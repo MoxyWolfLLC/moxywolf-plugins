@@ -519,7 +519,7 @@
     {
       "id": "provenance",
       "skos:inScheme": "gstack-contract-vocabulary",
-      "group": "term",
+      "group": "packet_field",
       "skos:prefLabel": "Provenance",
       "skos:definition": "where the bytes of a surface entry or a handler input came from, decided by the producer that wrote them and never by reading them; everything but the executor's own fields is untrusted content (EV-010)",
       "shape": {
@@ -589,6 +589,13 @@
       "group": "review_outcome",
       "skos:prefLabel": "authority_insufficient",
       "skos:definition": "the evidence offered to close an unknown is missing, or of weaker authority than the unknown needs (EV-011)"
+    },
+    {
+      "id": "unknowns_open",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "state_field",
+      "skos:prefLabel": "unknowns_open",
+      "skos:definition": "in state.json, the count of open unknowns on the packet's branches when the review opened or the round ran; in release.json, the list of them (EV-011)"
     }
   ]
 }
