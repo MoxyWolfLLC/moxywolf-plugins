@@ -34,6 +34,7 @@ import contextlib
 import fcntl
 import hashlib
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -45,6 +46,9 @@ import peer_review as pr   # noqa: E402  review_root(), vocabulary
 SHAPE = pr.vocab_shape("unknown")
 NEEDS, STATES = SHAPE["needs"], SHAPE["states"]
 RANK = {a: i for i, a in enumerate(NEEDS)}   # weakest first
+# F17 (review 20261013-124809 round 3): raised_by is an identifier, one line, no directives. It is
+# the only ledger field that reaches an executor-labelled file, so it is validated at the door.
+RAISED_BY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/@ -]{0,79}$")
 
 
 def path(repo, branch, root):
@@ -107,22 +111,32 @@ def _ctx(repo, root=None):
 
 
 def derive_raised_by(repo, root=None):
-    """F6 (review 20261013-124809 round 2): the documented `record` invocation names no round, so
-    the context is derived from the records: the newest review under the review root whose packet
-    names this repository, at its current round; before any review, the branch head itself."""
+    """F6 (review 20261013-124809 rounds 2 and 3): the documented `record` invocation names no
+    round, so the context is derived from the records, and only from one that is about this
+    checkout: the newest still-open review under the review root whose packet names this
+    repository AND whose reviewed head is an ancestor of the branch's current HEAD, at its
+    current round. A review of another branch, or one already closed, is not what raised a new
+    question here. Before any such review, the branch head itself."""
     root = Path(root or pr.review_root())
     rp = str(Path(repo).resolve())
+    head = cl._git(repo, "rev-parse", "HEAD") or ""
     newest = None
     for q in sorted(root.glob("*/packet.json")) if root.exists() else ():
         try:
             pk = json.loads(q.read_text()); st = json.loads((q.parent / "state.json").read_text())
         except (OSError, ValueError):
             continue
-        if any(str(Path(r.get("path", "")).resolve()) == rp for r in pk.get("repos") or []):
-            newest = (q.parent.name, st.get("rounds_used", 0))
+        if st.get("outcome") not in ("opened", "blocking_findings"):
+            continue   # a terminal review raised nothing new
+        for r in pk.get("repos") or []:
+            if str(Path(r.get("path", "")).resolve()) != rp:
+                continue
+            rh = r.get("head") or ""
+            if rh == head or (rh and cl._git(repo, "merge-base", "--is-ancestor", rh, head) is not None):
+                newest = (q.parent.name, st.get("rounds_used", 0))
     if newest:
         return f"{newest[0]} round {newest[1]}"
-    return f"builder at {cl.branch_of(repo)} {str(cl._git(repo, 'rev-parse', 'HEAD'))[:7]}"
+    return f"builder at {cl.branch_of(repo)} {head[:7]}"
 
 
 def new_id(repo, question, raised_by):
@@ -139,6 +153,9 @@ def record(repo, question, needs, raised_by, for_=(), against=(), head=None, roo
         raise SystemExit("refused: an unknown needs its question")
     if not (raised_by or "").strip():
         raised_by = derive_raised_by(repo, root)
+    if not RAISED_BY.match(raised_by):
+        raise SystemExit("refused: --raised-by is an identifier for a round or node (one line, letters, digits, "
+                         "space and _.:/@-, at most 80 characters)")
     b, p = _ledger(repo, root)
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
