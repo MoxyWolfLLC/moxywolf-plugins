@@ -73,11 +73,13 @@ def append(p, row):
         f.write(json.dumps(row) + "\n")
 
 
-def _ctx(repo):
+def _ctx(repo, root=None):
+    """root is passed by peer_review.py, whose own review_root() is the one that was set: when it
+    runs as __main__, this module's `pr` is a second instance with no REVIEW_DIR (CI run 38456179646)."""
     b = cl.branch_of(repo)
     if not b:
         raise SystemExit(f"refused: {repo} is not a git checkout on a branch")
-    p = path(repo, b, pr.review_root())
+    p = path(repo, b, root or pr.review_root())
     return b, p, heads(read(p), cl.repo_id(repo))
 
 
@@ -85,14 +87,14 @@ def new_id(repo, question, raised_by):
     return hashlib.sha256(f"{cl.repo_id(repo)}\0{raised_by}\0{question.strip()}".encode()).hexdigest()[:12]
 
 
-def record(repo, question, needs, for_=(), against=(), raised_by="builder", head=None):
+def record(repo, question, needs, for_=(), against=(), raised_by="builder", head=None, root=None):
     """Append an open unknown, or return the existing id when the same question was raised by the
     same party before: a round that repeats itself doesn't open a second record."""
     if needs not in NEEDS:
         raise SystemExit(f"refused: --needs must be one of {NEEDS}")
     if not question.strip():
         raise SystemExit("refused: an unknown needs its question")
-    b, p, cur = _ctx(repo)
+    b, p, cur = _ctx(repo, root)
     uid = new_id(repo, question, raised_by)
     if uid in cur:
         return uid, False
@@ -172,12 +174,12 @@ def close(repo, uid, revision, evidence, review=None):
     return row
 
 
-def current(repo, branch=None):
+def current(repo, branch=None, root=None):
     """The newest line per id, for peer_review: [] with no ledger, never None-as-zero."""
     b = branch or cl.branch_of(repo)
     if not b:
         return []
-    p = path(repo, b, pr.review_root())
+    p = path(repo, b, root or pr.review_root())
     return sorted(heads(read(p), cl.repo_id(repo)).values(), key=lambda r: r["id"]) if p.exists() else []
 
 

@@ -1090,7 +1090,7 @@ def unknowns_open_count(repos):
     """Open unknowns on the branch checked out at each packet repository. A repository with no
     ledger contributes zero records, which is printed as zero, never as silence."""
     import unknowns
-    return sum(1 for r in repos for u in unknowns.current(r["path"]) if u["state"] == "open")
+    return sum(1 for r in repos for u in unknowns.current(r["path"], root=review_root()) if u["state"] == "open")
 
 
 def record_reviewer_unknowns(review_id, round_no, out, repos):
@@ -1106,7 +1106,8 @@ def record_reviewer_unknowns(review_id, round_no, out, repos):
             continue
         i, _ = _subject_path(file, repos) if file else (None, None)
         repo = repos[i if i is not None else 0]["path"]
-        uid, _ = unknowns.record(repo, text, "human", raised_by=f"{review_id} round {round_no}", head=repos[i if i is not None else 0]["head"])
+        uid, _ = unknowns.record(repo, text, "human", raised_by=f"{review_id} round {round_no}",
+                                 head=repos[i if i is not None else 0]["head"], root=review_root())
         raised.append(uid)
     return raised
 
@@ -2431,7 +2432,7 @@ def cmd_release(a):
     coverage = coverage_line(state, getattr(a, "coverage_exception", None))
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
     open_unknowns = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
-                     for r in packet["repos"] for u in unknowns.current(r["path"]) if u["state"] == "open"]
+                     for r in packet["repos"] for u in unknowns.current(r["path"], root=review_root()) if u["state"] == "open"]
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "unknowns_open": open_unknowns,
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
