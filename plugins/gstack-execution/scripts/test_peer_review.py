@@ -149,6 +149,43 @@ def test_validate_defaults_the_category_and_refuses_a_blocking_embedded_instruct
     assert set(pr.OUTPUT_SCHEMA["properties"]["findings"]["items"]["properties"]["category"]["enum"]) == pr.FINDING_CATEGORIES
 
 
+def test_a_passing_jobs_report_lines_reach_the_surface_as_ci_log():
+    """F2, review 20261013-134525: an API reviewer cannot open GitHub, so the dispatcher reads a passing
+    job's own report lines and puts them on the surface, labelled ci_log, with the log's hash."""
+    d, base, head = repo()
+    saved = pr.github_get, pr.github_job_log, pr.github_name
+    log = ("2026-10-13T20:00:00.0000000Z discovered 60 test suites and 17 selftest entry points under /x\n"
+           "2026-10-13T20:00:01.0000000Z   - plugins/gstack-execution/scripts/test_unknowns.py\n"
+           "2026-10-13T20:00:02.0000000Z PASS  plugins/gstack-execution/scripts/test_peer_review.py\n"
+           "2026-10-13T20:00:03.0000000Z PASS  plugins/gstack-execution/scripts/test_unknowns.py\n"
+           "2026-10-13T20:00:04.0000000Z some unrelated runner chatter\n"
+           "2026-10-13T20:00:05.0000000Z examined 77 checks: 77 passed, 0 failed\n").encode()
+    try:
+        pr.github_name = lambda path: "MoxyWolfLLC/moxywolf-plugins"
+        pr.github_get = lambda name, path: ({"html_url": "u", "name": "tests", "head_sha": head, "status": "completed", "conclusion": "success"}
+                                             if path.startswith("actions/runs/7") and "/jobs" not in path
+                                             else {"total_count": 1, "jobs": [{"id": 9, "name": "tests", "conclusion": "success", "steps": []}]})
+        pr.github_job_log = lambda name, job_id: log
+        surf, stats = surface(d, base, head, ci_runs=[{"repo": str(d), "run_id": 7}])
+        shown = surf / "evidence" / "ci-7-job-9.summary.txt"
+        text = shown.read_text()
+        assert "examined 77 checks: 77 passed, 0 failed" in text and "PASS  plugins/gstack-execution/scripts/test_unknowns.py" in text
+        assert "unrelated runner chatter" not in text and "2026-10-13T" not in text.splitlines()[-1]
+        import hashlib
+        assert hashlib.sha256(log).hexdigest() in text
+        prov = json.loads((surf / pr.PROVENANCE_FILE).read_text())
+        assert prov["evidence/ci-7-job-9.summary.txt"] == {"source": "ci_log", "untrusted_content": True}
+        assert prov["evidence/ci-7.json"] == {"source": "fetched", "untrusted_content": True}
+        rec = json.loads((surf / "evidence" / "ci-7.json").read_text())
+        assert rec["jobs"][0]["summary"]["lines"] == 4 and rec["jobs"][0]["summary"]["shown"] == "evidence/ci-7-job-9.summary.txt"
+        assert "summary.txt" in (surf / "SURFACE.md").read_text()
+        # the API reviewer is sent evidence/ ahead of callers
+        sends = pr.REVIEWERS["openrouter-gpt"]["sends"]
+        assert "evidence" in sends and "SURFACE.md" in sends and "UNKNOWNS.md" in sends
+    finally:
+        pr.github_get, pr.github_job_log, pr.github_name = saved
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

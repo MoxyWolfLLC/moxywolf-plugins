@@ -745,6 +745,31 @@ def ci_job_log(name, run_id, job, archive_dir, evidence_dir, ask=None):
     return block
 
 
+SUMMARY_LINE = re.compile(r"(examined \d+ checks|discovered \d+ test suites|(^|\s)(PASS|FAIL|SKIP)  |version bump: |vocabulary \d|selftest ok|FAILED|passed, \d+ failed)")
+SUMMARY_CAP = 400   # lines; the gate's own report is a few hundred lines at most
+
+
+def ci_job_summary(name, run_id, job, evidence_dir):
+    """The report lines of a passing job, read by the dispatcher: lines naming what a gate examined and
+    each suite's verdict, with the full log's sha256 so the excerpt is checkable. Never raises."""
+    block = {"read": False}
+    try:
+        raw = github_job_log(name, job["id"])
+    except Exception as e:
+        block["error"] = str(e)[:300]
+        return block
+    text = raw.decode("utf-8", "replace")
+    lines = [re.sub(r"^\S+Z ", "", ln) for ln in text.splitlines() if SUMMARY_LINE.search(ln)]
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    shown = f"{EVIDENCE_DIR}/ci-{run_id}-job-{job['id']}.summary.txt"
+    (evidence_dir.parent / shown).write_text(
+        f"# report lines of job {job['name']} ({job['conclusion']}) in run {run_id}, read from GitHub Actions by the dispatcher\n"
+        f"# full log sha256 {hashlib.sha256(raw).hexdigest()}, {len(raw)} bytes; {len(lines)} matching lines"
+        + (f", first {SUMMARY_CAP} kept" if len(lines) > SUMMARY_CAP else "") + "\n\n" + "\n".join(lines[:SUMMARY_CAP]) + "\n")
+    block.update(read=True, bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(), lines=len(lines), shown=shown)
+    return block
+
+
 def fetch_ci_evidence(repos, ci_runs, surf, archive_dir=None):
     """XE-018.3-4: read each named GitHub Actions run and write what it says into the surface.
     A run at another head is written and marked; a run that cannot be read is written as unread.
@@ -782,6 +807,11 @@ def fetch_ci_evidence(repos, ci_runs, surf, archive_dir=None):
             for job in rec["jobs"]:   # XE-027: a failed job reaches the reviewer with its log, or a checked receipt of it
                 if job["conclusion"] in FAILED_CONCLUSIONS:
                     job["log"] = ci_job_log(name, run_id, job, archive_dir or surf.parent / "ci-logs", surf / EVIDENCE_DIR)
+                elif job["conclusion"] == "success" and rec["head_matches"]:
+                    # F2 (review 20261013-134525): a passing job's own report lines (what the gate examined,
+                    # which suites, the counts) are what a CI criterion is judged by, and an API reviewer
+                    # cannot open GitHub to read them. The dispatcher reads them and keeps the log's hash.
+                    job["summary"] = ci_job_summary(name, run_id, job, surf / EVIDENCE_DIR)
         except Exception as e:
             rec["error"] = str(e)
         (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
@@ -912,6 +942,10 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     for j in failed:
         if j["log"].get("shown"):
             prov[j["log"]["shown"]] = provenance("ci_log")
+    for c in ci:
+        for j in c.get("jobs") or ():
+            if j.get("summary", {}).get("shown"):
+                prov[j["summary"]["shown"]] = provenance("ci_log")
     # EV-011: the run records themselves outlive the surface, so a closed unknown can cite one
     stats["ci_runs"] = [{"run_id": c.get("run_id"), "read": c["read"], "head_matches": c.get("head_matches"),
                          "conclusion": c.get("conclusion")} for c in ci]
@@ -978,7 +1012,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         f"{ci_list}\n\n"
         "Each file under `evidence/` was read from GitHub Actions by the dispatcher. A step with "
         "conclusion `success` in a run whose `head_matches` is true ran and passed at the reviewed "
-        "head.\n\n"
+        "head. A passing job's own report lines (what it examined, each suite's verdict) are in "
+        "`evidence/ci-<run>-job-<id>.summary.txt`, with the full log's sha256.\n\n"
         "## Failed jobs\n\n"
         f"{log_list}\n\n"
         "A receipt's quotes were checked byte for byte by the dispatcher, not the builder, against the "
@@ -1265,8 +1300,10 @@ def surface_as_text(tool, root, named=()):
     bodies = {rel: (root / rel).read_text(errors="replace")
               for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file())
               if rel in sends or rel.split("/")[0] in sends or rel in named}
+    # F2 (review 20261013-134525): the CI records are small and are what the CI criteria are judged
+    # by, so they go right after the files a criterion names, ahead of callers.
     order = sorted(bodies, key=lambda rel: (0 if "/" not in rel else 1 if rel.startswith("changed/")
-                                            else 2 if rel in named else 3, rel))
+                                            else 2 if rel in named else 3 if rel.startswith(EVIDENCE_DIR + "/") else 4, rel))
     sections = re.split(r"(?m)^=== .+: \S+\.\.\S+ ===$", bodies.get("CHANGE.diff", ""))[1:]
 
     def has_hunks(rel):   # only a file whose diff really is in CHANGE.diff, in its own repository's section
