@@ -10,6 +10,8 @@
   unknowns.py close  --repo <path> --id <id> --revision <n> --evidence <ref> [--review <review id>]
       append a closed revision only when the evidence exists and its authority is at least what the
       unknown needs; otherwise authority_insufficient, nothing written.
+  unknowns.py close-all --repo <path> --review <review id> --evidence human:<review id>:<index> [--branch <name>]
+      close every open line that review raised with one recorded observation; prints examined and closed (EV-012.5).
   unknowns.py list   --repo <path> --branch <name> [--state open|closed]
       every current head in id order, then a count. With --state open, exit 1 when any is open.
 
@@ -139,14 +141,17 @@ def derive_raised_by(repo, root=None):
     return f"builder at {cl.branch_of(repo)} {head[:7]}"
 
 
-def new_id(repo, question, raised_by):
-    return hashlib.sha256(f"{cl.repo_id(repo)}\0{raised_by}\0{question.strip()}".encode()).hexdigest()[:12]
+def new_id(repo, question, raised_by, review=None):
+    """EV-012.3: inside a review, one question has one line whatever round asks it, so the key is
+    the review, not the raiser. Outside a review the raiser still keys it."""
+    return hashlib.sha256(f"{cl.repo_id(repo)}\0{review or raised_by}\0{question.strip()}".encode()).hexdigest()[:12]
 
 
-def record(repo, question, needs, raised_by, for_=(), against=(), head=None, root=None):
-    """Append an open unknown, or return the existing id when the same question was raised by the
-    same party before: a round that repeats itself doesn't open a second record. `raised_by` names
-    the round or node that raised it and has no default (F6, review 20261013-124809)."""
+def record(repo, question, needs, raised_by, for_=(), against=(), head=None, root=None, review=None, criterion=None, seen_in=None):
+    """Append an open unknown, or return the existing id when the same question was raised before.
+    Inside a review (`review` set) a repeat in a later round appends a revision carrying `seen_in`,
+    never a second line (EV-012.3); `raised_by` keeps the first round. `criterion` is the packet
+    criterion the question bears on, which is what lets a later round close it (EV-012.4)."""
     if needs not in NEEDS:
         raise SystemExit(f"refused: --needs must be one of {NEEDS}")
     if not question.strip():
@@ -159,12 +164,20 @@ def record(repo, question, needs, raised_by, for_=(), against=(), head=None, roo
     b, p = _ledger(repo, root)
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
-        uid = new_id(repo, question, raised_by)
+        uid = new_id(repo, question, raised_by, review)
         if uid in cur:
+            row = cur[uid]
+            if review and row["state"] == "open" and seen_in and seen_in != row.get("seen_in", row["raised_by"]):
+                append(p, dict(row, revision=row["revision"] + 1, seen_in=seen_in, at=time.time()))
             return uid, False
-        append(p, {"id": uid, "revision": 1, "state": "open", "question": question.strip(), "needs": needs,
-                   "for": list(for_), "against": list(against), "raised_by": raised_by,
-                   "head": head or cl._git(repo, "rev-parse", "HEAD"), "repo": cl.repo_id(repo), "at": time.time()})
+        row = {"id": uid, "revision": 1, "state": "open", "question": question.strip(), "needs": needs,
+               "for": list(for_), "against": list(against), "raised_by": raised_by,
+               "head": head or cl._git(repo, "rev-parse", "HEAD"), "repo": cl.repo_id(repo), "at": time.time()}
+        if review:
+            row["review"] = review
+        if criterion:
+            row["criterion"] = criterion
+        append(p, row)
     return uid, True
 
 
@@ -233,12 +246,16 @@ def evidence_authority(ref, repo, review=None):
             rec = json.loads(q.read_text())
             if any(f.get("id") == fid for f in rec.get("findings") or []):
                 return "repository"
+            if fid.startswith("criterion-") and fid[10:].isdigit():   # EV-012.4: a criterion that round found met
+                rows = rec.get("acceptance") or []
+                i = int(fid[10:])
+                return "repository" if i < len(rows) and rows[i].get("met") is True else None
         return None
     return None
 
 
-def close(repo, uid, revision, evidence, review=None):
-    b, p = _ledger(repo)
+def close(repo, uid, revision, evidence, review=None, settled_by=None, root=None):
+    b, p = _ledger(repo, root)
     with locked(p):
         cur = heads(read(p), cl.repo_id(repo))
         row = _next(cur, uid, revision)
@@ -248,8 +265,24 @@ def close(repo, uid, revision, evidence, review=None):
         if RANK[have] < RANK[row["needs"]]:
             raise pr.ReviewError("authority_insufficient", f"{uid} needs {row['needs']}; {evidence!r} carries {have}")
         row.update(state="closed", closed_by=evidence, closed_authority=have)
+        if settled_by:
+            row["settled_by"] = settled_by
         append(p, row)
     return row
+
+
+def close_all(repo, review, evidence, root=None, branch=None):
+    """EV-012.5: every open line a named review raised, closed with one recorded observation.
+    Returns (examined, closed); the caller prints both, zero as zero."""
+    rows = [u for u in current(repo, branch, root) if u["state"] == "open"
+            and (u.get("review") == review or u["raised_by"].startswith(review + " "))]
+    closed = 0
+    for u in rows:
+        close(repo, u["id"], u["revision"], evidence, review, root=root)
+        closed += 1
+    return len(rows), closed
+
+
 
 
 def current(repo, branch=None, root=None):
@@ -283,6 +316,8 @@ def main(argv):
     u.add_argument("--for", dest="for_", action="append"); u.add_argument("--against", action="append")
     c = sub.add_parser("close"); c.add_argument("--repo", required=True); c.add_argument("--id", required=True)
     c.add_argument("--revision", type=int, required=True); c.add_argument("--evidence", required=True); c.add_argument("--review")
+    ca = sub.add_parser("close-all"); ca.add_argument("--repo", required=True); ca.add_argument("--review", required=True)
+    ca.add_argument("--evidence", required=True); ca.add_argument("--branch")
     l = sub.add_parser("list"); l.add_argument("--repo", required=True); l.add_argument("--branch", required=True)
     l.add_argument("--state", choices=STATES)
     a = ap.parse_args(argv)
@@ -297,6 +332,10 @@ def main(argv):
             return 0
         if a.cmd == "close":
             print(json.dumps(close(a.repo, a.id, a.revision, a.evidence, a.review)))
+            return 0
+        if a.cmd == "close-all":
+            examined, closed = close_all(a.repo, a.review, a.evidence, branch=a.branch)
+            print(f"examined {examined} open unknown{'s' if examined != 1 else ''} raised by {a.review}, closed {closed}")
             return 0
         return cmd_list(a.repo, a.branch, a.state)
     except pr.ReviewError as e:

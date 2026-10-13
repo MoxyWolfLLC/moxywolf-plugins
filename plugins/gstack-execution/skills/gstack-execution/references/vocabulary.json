@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -555,7 +555,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
       "skos:prefLabel": "Unknown",
-      "skos:definition": "a question the review could not settle, kept as a revisioned ledger record naming the authority that can close it; missing coverage is unknown, not absence (EV-011)",
+      "skos:definition": "a question the review could not settle, kept as a revisioned ledger record naming the authority that can close it; one line per question per review, a repeat in a later round is a revision; missing coverage is unknown, not absence (EV-011, EV-012)",
       "shape": {
         "required": [
           "id",
@@ -596,6 +596,13 @@
       "group": "state_field",
       "skos:prefLabel": "unknowns_open",
       "skos:definition": "in state.json, the count of open unknowns on the packet's branches when the review opened or the round ran; in release.json, the list of them (EV-011)"
+    },
+    {
+      "id": "settled_by",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "state_field",
+      "skos:prefLabel": "settled_by",
+      "skos:definition": "on a closed unknown, the review, round and finding or criterion whose record closed it, written by the dispatcher (EV-012)"
     }
   ]
 }
