@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.124.0",
+  "version": "1.125.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -700,6 +700,26 @@
       ]
     },
     {
+      "name": "rea",
+      "source": "./plugins/rea",
+      "description": "Pointer to REA, Reverse Engineer Anything (morluto/rea, MIT): one MCP server and CLI that inspects shipped artifacts (native binaries through Hopper, Ghidra or IDA; Electron and JavaScript trees; .NET; Go; APKs; firmware; captures) and returns each finding as an Evidence record with coverage, limitations and residual unknowns. Its engine is a Node runtime behind a thin skill, so it is registered upstream rather than re-homed into this markdown marketplace (same posture as understand-anything). This entry documents the engine split, when to reach for it vs. graphify and understand-anything, and the one-line setup. Its evidence ideas are ported as EV-010 and EV-011 in DESIGN.md.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "reverse-engineering",
+        "binary-analysis",
+        "electron",
+        "supply-chain",
+        "evidence",
+        "pointer",
+        "rea",
+        "moxywolf"
+      ]
+    },
+    {
       "name": "vault-code-learn",
       "source": "./plugins/vault-code-learn",
       "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under ~/GitHub/, extracts a durable pattern digest \u2014 tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, file-layout idioms, frequent imports, and what the repo intentionally does NOT use \u2014 and writes one digest per repo to MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md. Incremental: only files modified since the digest's last-learned timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Auto-invoked by /session-start; manual trigger via /code-learn <repo> | --project <slug> | --all. v0.1.0.",
@@ -808,7 +828,7 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "Threat modeling, security architecture review, incident response, vulnerability management, and access and identity. Reviewer-class: blocking findings are not overrulable by the department under review.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "MoxyWolf LLC"
       },
