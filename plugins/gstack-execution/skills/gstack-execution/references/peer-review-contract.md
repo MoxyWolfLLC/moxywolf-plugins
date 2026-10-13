@@ -111,6 +111,8 @@ Return JSON only, matching this schema (the dispatcher rejects anything else as 
 }
 ```
 
+A finding `id` is a token, `^[A-Za-z0-9][A-Za-z0-9_.-]{0,15}$`; it is printed into `SURFACE.md`, `dispositions.json` and the unknowns ledger as executor-written text, so an id that could carry a sentence is `malformed_output`.
+
 Acceptance must contain exactly one entry for every packet criterion, using the exact criterion text, a boolean `met`, and nonblank evidence. Unknown, duplicate, or missing criteria are rejected. A clean verdict requires all criteria met and no blocking findings. A blocking verdict needs a blocking finding or an unmet criterion; an unmet criterion blocks on its own, with no finding needed. In a fix round, `CHANGE.diff` covers the whole change from the review's base and `ROUND.diff` only what changed since the previous round.
 
 `blocker_resolutions` is empty in the initial round. In fix rounds it covers every previous blocking finding exactly once with a boolean `resolved` and nonblank evidence. A resolved entry requires a `fixed` or `disproved` builder disposition and cannot also remain blocking. An unresolved entry must retain its blocking finding. Non-blocking prior findings get no entry; one given is ignored.
@@ -122,6 +124,8 @@ Acceptance must contain exactly one entry for every packet criterion, using the 
 What the reviewer could not settle goes in `unknowns`, one entry per question with the authority that could close it and the packet criterion it bears on (EV-012). Each becomes a line in the branch's unknowns ledger, one per question per review; the same question in a later round is a revision, not a line. A line needing `repository` is closed by the dispatcher when a later round of the same review returns its criterion met, or resolves the finding it was bound to, with the round record as evidence and `settled_by` naming it; a line needing anything else waits for that authority. Only when the reviewer declared nothing does the dispatcher fall back to the evidence of unmet acceptance rows, for `could not determine`, `could not verify` and `not verified`; a criterion's own text and a finding never raise a line. The dispatcher is schema-strict about the list for API reviewers and reads an absent list from a CLI reviewer as empty. `unknowns.py` records, updates, closes and lists them, and `close-all` closes everything one review raised against one recorded observation; a stale revision is refused and writes nothing.
 
 An `embedded_instruction` location is reported once per review: `SURFACE.md` lists the paths and lines prior rounds reported, a directive at a listed location needs no new finding, and the review's count is of distinct locations.
+
+A finding's `line` must exist in the file at the reviewed head; when the exact line can't be known, cite the nearest line that can be and say so in `evidence`. A line past the end of the file binds to nothing.
 
 Finding IDs are stable across rounds. In a fix-verification round, reuse the IDs from `prior_findings`; a genuinely new blocker gets the next unused ID and must meet the same evidence and scope rules.
 
@@ -172,8 +176,13 @@ at the repository's current head still matches what was reviewed; every blocking
 carries a disposition and every disposition names a real finding; and any recorded human
 observation still produces the output it recorded. Expected drift is not stale: a finding
 disposed `fixed` should read differently now, and treating that as drift would make the
-check cry wolf on every successful repair. `release` runs the same verification and
-refuses on `stale_link` or `incomplete_record`.
+check cry wolf on every successful repair. A finding disposed `fixed` whose cited line did not
+exist at the reviewed head is `unverifiable`, not stale: an API reviewer that cannot open files
+guessed a line for a defect it correctly found, and the later round that verified the fix is
+the evidence (EV-013). The verify report and the release record count these as `mis_cited_fixed`;
+any other disposition on such a finding stays a stale link. The next round's `SURFACE.md` names
+each prior-round finding whose line didn't exist, so the reviewer can give its real location.
+`release` runs the same verification and refuses on `stale_link` or `incomplete_record`.
 
 A missing entry and a link that resolved to the wrong thing are different failures and do
 not share an outcome name. The first is `incomplete_record`; the second is `stale_link`;

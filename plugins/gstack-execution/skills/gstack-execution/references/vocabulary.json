@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -603,6 +603,13 @@
       "group": "state_field",
       "skos:prefLabel": "settled_by",
       "skos:definition": "on a closed unknown, the review, round and finding or criterion whose record closed it, written by the dispatcher (EV-012)"
+    },
+    {
+      "id": "mis_cited_fixed",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "state_field",
+      "skos:prefLabel": "mis_cited_fixed",
+      "skos:definition": "in a verify report and a release record's links, the count of findings disposed fixed whose cited line did not exist at the reviewed head; each is unverifiable, settled by the later round that verified the fix, never stale (EV-013)"
     }
   ]
 }
