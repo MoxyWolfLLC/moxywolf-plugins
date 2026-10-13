@@ -55,7 +55,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `ci_log_receipt.py` | Shortens a failed CI job's log to quotes a cheaper model picked, and keeps the receipt only if every quote is in the log byte for byte (XE-027). `peer_review.py ci-log` and the review surface use it. The idea comes from NVlabs/SoL-Pi's evidence-preserving reducer (MIT); no code is copied |
 | `run_all_tests.py` | The repository's own gate. Discovers every `test_*.py` and `--selftest`, names what it examined, and **fails when it discovers none** |
 | `tool_rung.py` | Answers "is there a connector for this service?" by looking. Connector → CLI → REST → browser |
-| `task_graph.py` | Executable task graphs with frozen inputs, an undeclared-write sweep, and a read-side fake-edge report |
+| `task_graph.py` | Executable task graphs with frozen inputs, an undeclared-write sweep, a read-side fake-edge report, and a bounded in-run retry for one failed `worker` or `checker` node that opts in with `on_failure: "retry"` (XE-036): at most three dispatches per execution signature, the next attempt carries a correction packet, green siblings never move |
 | `endform_workflow.py` | The E2E gate and its preflight: proves the gate *can* run before anything is pushed |
 | `repo_gates.py` | Reads and configures branch protection; reports which checks actually gate a merge |
 | `governance.py` | Capability grants that name what they permit rather than who may act |

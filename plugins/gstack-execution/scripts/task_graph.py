@@ -18,6 +18,30 @@ import time
 
 import peer_review as peer
 from enclosure import RULE, enclose   # TB-002
+from ci_log_receipt import LIKELY_SECRET   # XE-036: one home for what counts as a secret
+
+
+class NodeFailure(Exception):
+    """XE-036: a handler failure with an explicit category. Only a category in RETRYABLE may be
+    retried, and only under on_failure "retry"; anything the executor did not classify fails closed."""
+    def __init__(self, category, detail, diagnostics=''):
+        super().__init__(detail); self.category, self.diagnostics = category, diagnostics
+
+
+RETRYABLE = {'handler_exit', 'timeout', 'malformed_output', 'invalid_result', 'interrupted'}
+RETRY_KINDS = {'worker', 'checker'}
+DIAG_DIR = 'diagnostics'   # executor-owned, reserved (XE-036.7)
+DIAG_CAP = 4000
+
+
+def classify(exc):
+    if isinstance(exc, NodeFailure): return exc.category, exc.diagnostics
+    if isinstance(exc, peer.ReviewError): return exc.outcome, ''
+    return 'unclassified', ''
+
+
+def redact(text):
+    return LIKELY_SECRET.sub('[redacted]', text or '')[-DIAG_CAP:]
 
 
 def node_prompt(payload):
@@ -26,9 +50,12 @@ def node_prompt(payload):
     (dependencies, and the candidates drawn from them) is enclosed."""
     own = {k: payload[k] for k in ('node', 'packet', 'snapshots')}
     outside = {k: payload[k] for k in ('dependencies', 'candidates')}
+    if payload.get('correction'):   # XE-036.4: the executor's record is ours; the failed handler's output is not
+        c = dict(payload['correction']); outside['correction_diagnostics'] = c.pop('diagnostics')
+        own['correction'] = c
     return ('Read-only gstack task graph node. Never modify source, dispatch another agent, or release anything.\n'
             + RULE + '\n' + json.dumps(own) + '\n'
-            + enclose('results of other graph nodes: dependencies and candidates', json.dumps(outside)))
+            + enclose('results of other graph nodes: dependencies and candidates; diagnostics of a failed earlier attempt', json.dumps(outside)))
 from governance import check_egress, data_permission as permission, gate_record
 
 HERE = Path(__file__).resolve().parent
@@ -149,11 +176,15 @@ def validate_graph(graph):
         if n['kind']=='proof' and set(n['effects'])!={'local_proof'}:raise ValueError('proof requires local_proof effect')
         if n['kind']=='report' and set(n['effects'])!={'local_report'}:raise ValueError('report requires local_report effect')
         if n['kind'] in {'worker','checker','peer'} and not n.get('command') and set(n['effects'])!={'external_review'}:raise ValueError('model handler requires external_review effect')
-        if n['on_failure']!='block' or not set(n['effects'])<=EFFECTS:raise ValueError('unsupported effect or failure policy')
+        if n.get('on_failure') not in {'block','retry'} or not set(n['effects'])<=EFFECTS:raise ValueError('unsupported effect or failure policy')
+        if n['on_failure']=='retry':   # XE-036.1
+            if n['kind'] not in RETRY_KINDS:raise ValueError('retry is not accepted on '+n['kind']+' node '+n['id']+'; peer, proof and report keep block')
+            cap=n.get('max_attempts',3)
+            if isinstance(cap,bool) or not isinstance(cap,int) or not 1<=cap<=3:raise ValueError('max_attempts must be an integer from 1 to 3 on node '+n['id'])
         if n['kind']=='report' and n['outputs']!=['report.json']:raise ValueError('report owner must write report.json')
         if n['kind']!='report' and 'report.json' in n['outputs']:raise ValueError('report.json has one report owner')
         if not n['outputs'] or any(Path(o).name!=o for o in n['outputs']):raise ValueError('outputs must be local file names')
-        if set(n['outputs']) & {'state.json','packet.json','graph.json','exports.json','events.jsonl','run.lock'}:raise ValueError('reserved output path')
+        if set(n['outputs']) & ({'state.json','packet.json','graph.json','exports.json','events.jsonl','run.lock',DIAG_DIR}):raise ValueError('reserved output path')
         if outputs.intersection(n['outputs']):raise ValueError('conflicting writers')
         outputs.update(n['outputs'])
         if not set(n['depends_on'])<=set(ids):raise ValueError('missing dependency')
@@ -251,7 +282,7 @@ def validate_result(result,node,expected_candidates):
     return result
 
 
-def worker(node,packet,dependencies,root):
+def worker(node,packet,dependencies,root,correction=None):
     if node['kind']=='report':
         fs=[]
         for source in node.get('findings_from',node['depends_on']):fs.extend(dependencies[source]['findings'])
@@ -312,6 +343,7 @@ def worker(node,packet,dependencies,root):
         try:
             snaps=peer.snapshot(repos,work)
             payload={'node':node,'packet':packet,'dependencies':dependencies,'candidates':candidates(dependencies),'snapshots':[str(p) for _,p in snaps]}
+            if correction:payload['correction']=correction
             if node['kind']=='proof':
                 completed=subprocess.run(node['argv'],cwd=snaps[0][1],capture_output=True,text=True,timeout=packet.get('timeout',900),env=dict(os.environ,GSTACK_PEER_REVIEW_SESSION='1'))
                 text=completed.stdout+completed.stderr
@@ -320,15 +352,20 @@ def worker(node,packet,dependencies,root):
                         'summary':'Proof executed in disposable snapshot; result is advisory.'}
             if node.get('command'):
                 input_file=work/'input.json';write(input_file,payload)
-                completed=subprocess.run(node['command']+[str(input_file)],cwd=work,capture_output=True,text=True,timeout=packet.get('timeout',900),env=dict(os.environ,GSTACK_PEER_REVIEW_SESSION='1'))
-                if completed.returncode:raise ValueError('worker exited '+str(completed.returncode)+': '+completed.stderr[-1000:])
-                result=json.loads(completed.stdout)
+                try:completed=subprocess.run(node['command']+[str(input_file)],cwd=work,capture_output=True,text=True,timeout=packet.get('timeout',900),env=dict(os.environ,GSTACK_PEER_REVIEW_SESSION='1'))
+                except subprocess.TimeoutExpired as e:raise NodeFailure('timeout','worker timed out after '+str(packet.get('timeout',900))+'s',(e.stdout or b'').decode(errors='replace') if isinstance(e.stdout,bytes) else (e.stdout or ''))
+                if completed.returncode:raise NodeFailure('handler_exit','worker exited '+str(completed.returncode)+': '+completed.stderr[-1000:],completed.stderr+completed.stdout)
+                try:result=json.loads(completed.stdout)
+                except ValueError as e:raise NodeFailure('malformed_output','worker output is not JSON: '+str(e),completed.stdout+completed.stderr)
             else:
                 prompt=node_prompt(payload)
                 prompt+='\nInspect the pinned repositories. Return complete=false if the task cannot be completed. Coverage must equal node.checks exactly. Every finding needs id, status, detail, evidence. Do not disclose secret values. For verify use BUILT/DRIFTED/MISSING/EXTRA/UNVERIFIABLE findings for every claim. For CSO investigate every candidate before filtering; include severity/confidence/exploit scenario/remediation in detail. Checker: independently inspect all dependencies and candidates, return every candidate ID with VERIFIED/UNVERIFIED/TENTATIVE/DISMISSED and evidence. Never discard a candidate. Read the node instruction. Return JSON only.'
                 raw,model=peer.run_reviewer(tool,prompt,work,packet.get('timeout',900),schema=RESULT_SCHEMA)
-                result=json.loads(raw);result['model']=model
-            result=validate_result(result,node,payload['candidates'])
+                try:result=json.loads(raw)
+                except ValueError as e:raise NodeFailure('malformed_output','model output is not JSON: '+str(e),raw)
+                result['model']=model
+            try:result=validate_result(result,node,payload['candidates'])
+            except ValueError as e:raise NodeFailure('invalid_result',str(e),json.dumps(result)[:DIAG_CAP])
             # EV-006: reported, never fatal -- see dependency_references for why a proxy must not
             # fail a run on the difference between "unused" and "used without citing".
             result['unreferenced_dependencies']=unreferenced_dependencies(result,node,dependencies)
@@ -339,7 +376,7 @@ def worker(node,packet,dependencies,root):
 
 # EV-003: the undeclared-write sweep. Serial by construction; see the module docstring
 # in _patch_ev3 and references/task-graph-contract.md.
-AUDIT_MANAGED={'state.json','packet.json','graph.json','report.json','exports.json','events.jsonl','run.lock'}
+AUDIT_MANAGED={'state.json','packet.json','graph.json','report.json','exports.json','events.jsonl','run.lock',DIAG_DIR}
 
 
 def tree_digest(root):
@@ -350,7 +387,7 @@ def tree_digest(root):
         rel=str(p.relative_to(root))
         # F5: exempt the named executor-owned files and nothing else. Exempting every
         # hidden path and every .lock handed a handler two places to write unobserved.
-        if rel in AUDIT_MANAGED:continue
+        if rel in AUDIT_MANAGED or rel.split('/',1)[0]==DIAG_DIR:continue
         try:out[rel]=hashlib.sha256(p.read_bytes()).hexdigest()[:16]
         except OSError:out[rel]='unreadable'
     return out
@@ -383,6 +420,11 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
         state.update(outcome='running',packet_hash=digest(packet),egress=egress)
         write(root/'state.json',state)
         pending={n['id']:n for n in graph['nodes']};done={};active={};failed=set();pre={}
+        def retry_cap(n):return n.get('max_attempts',3) if n.get('on_failure')=='retry' else 1
+        def terminal(id,n,cycle,category,reason):
+            # XE-036.3: terminal failure. A retry cycle that ends here is closed for its signature.
+            if n.get('on_failure')=='retry':cycle['closed']=category
+            failed.add(id);event(root,packet,'machine','node-exhausted' if n.get('on_failure')=='retry' else 'node-blocked-dependents',node=id,signature=cycle['signature'],attempt=cycle['dispatches'],category=category,error=reason)
         with ThreadPoolExecutor(max_workers=jobs) as pool:
             while pending or active:
                 progress=False
@@ -393,6 +435,7 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                     deps={d:done[d] for d in n['depends_on']}
                     signature=digest([n,packet,deps])
                     old=state['nodes'].get(id,{})
+                    policy=n.get('on_failure');cap=retry_cap(n)
                     valid=old.get('status')=='succeeded' and old.get('signature')==signature
                     if valid:
                         for output in n['outputs']:
@@ -401,26 +444,50 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
                         done[id]=old['result'];del pending[id];progress=True;continue
                     if len(active)>=jobs:continue
                     if (n['kind']=='proof' or 'local_proof' in n['effects']) and any(v[0]['kind']=='proof' or 'local_proof' in v[0]['effects'] for v in active.values()):continue
-                    state['nodes'][id]={'status':'running','attempts':old.get('attempts',0)+1,'signature':signature,'started':time.time()}
-                    write(root/'state.json',state);event(root,packet,'machine','node-start',node=id)
+                    # XE-036.5: one cycle per signature. A prior cycle under another signature is kept, never counted.
+                    prior=old.get('cycles_prior',[]);cycle=old.get('cycle')
+                    if cycle and cycle.get('signature')!=signature:prior=[cycle]+prior;cycle=None
+                    cycle=cycle or {'signature':signature,'dispatches':0,'history':[]}
+                    if cycle['history'] and cycle['history'][-1]['status']=='running':   # interrupted: counted, never refunded
+                        cycle['history'][-1].update(status='interrupted',category='interrupted',reason='attempt was running when the executor stopped',diagnostics=None,finished=time.time())
+                    if policy=='retry' and (cycle.get('closed') or cycle['dispatches']>=cap):
+                        state['nodes'][id]={**old,'status':'failed','signature':signature,'cycle':cycle,'cycles_prior':prior,'error':'retry budget exhausted for this signature'}
+                        terminal(id,n,cycle,cycle.get('closed') or 'exhausted','retry budget exhausted: '+str(cycle['dispatches'])+' of '+str(cap)+' dispatches used');del pending[id];progress=True;write(root/'state.json',state);continue
+                    correction=None
+                    if policy=='retry' and cycle['history'] and cycle['history'][-1]['status'] in {'failed','interrupted'}:   # a tampered output re-dispatches with no correction
+                        last=cycle['history'][-1];diag=Path(last['diagnostics']).read_text() if last.get('diagnostics') else 'no diagnostics were captured for the previous attempt'
+                        repos=[packet['repos'][i] for i in n.get('repo_indexes',range(len(packet['repos'])))]
+                        correction={'node':id,'signature':signature,'previous_attempt':last['attempt'],'category':last['category'],'reason':last.get('reason'),'diagnostics_path':last.get('diagnostics'),'diagnostics':diag,
+                                    'scope':{'repos':[{'path':r['path'],'head':r['head']} for r in repos],'checks':n['checks'],'depends_on':n['depends_on'],'effects':n['effects'],'outputs':n['outputs']}}
+                        event(root,packet,'machine','node-retry',node=id,signature=signature,attempt=cycle['dispatches']+1,previous_attempt=last['attempt'],category=last['category'],evidence=[last['diagnostics']] if last.get('diagnostics') else [])
+                    cycle['dispatches']+=1;cycle['history'].append({'attempt':cycle['dispatches'],'status':'running','started':time.time()})
+                    state['nodes'][id]={'status':'running','attempts':old.get('attempts',0)+1,'signature':signature,'started':time.time(),'cycle':cycle,'cycles_prior':prior}
+                    write(root/'state.json',state);event(root,packet,'machine','node-start',node=id,signature=signature,attempt=cycle['dispatches'])
                     if audit:pre[id]=tree_digest(root)
-                    active[pool.submit(worker,n,packet,deps,root)]=(n,signature)
+                    active[pool.submit(worker,n,packet,deps,root,correction)]=(n,signature)
                     del pending[id];progress=True
                 if active:
                     completed,_=wait(active,return_when=FIRST_COMPLETED)
                     for future in completed:
                         n,signature=active.pop(future);id=n['id'];entry=state['nodes'][id]
+                        cycle=entry['cycle'];att=cycle['history'][-1]
                         try:
                             result=future.result()
                             if audit:
                                 stray=undeclared_writes(pre.pop(id,{}),tree_digest(root),n)
-                                if stray:raise ValueError('undeclared write by '+id+': '+', '.join(stray)+'; declare these paths in the node outputs or stop writing them')
+                                if stray:raise NodeFailure('undeclared_write','undeclared write by '+id+': '+', '.join(stray)+'; declare these paths in the node outputs or stop writing them')
                             for output in n['outputs']:write(root/output,result)
-                            entry.update(status='succeeded',result=result,result_hash=digest(result),finished=time.time())
-                            done[id]=result;event(root,packet,'machine','node-succeeded',node=id,evidence=n['outputs'])
+                            entry.update(status='succeeded',result=result,result_hash=digest(result),finished=time.time());att.update(status='succeeded',finished=time.time())
+                            done[id]=result;event(root,packet,'machine','node-succeeded',node=id,signature=signature,attempt=att['attempt'],evidence=n['outputs'])
                         except Exception as e:
-                            entry.update(status='failed',error=str(e),finished=time.time());failed.add(id)
-                            event(root,packet,'machine','node-failed',node=id,error=str(e))
+                            category,diag=classify(e);path=None
+                            if diag:
+                                (root/DIAG_DIR).mkdir(exist_ok=True);path=str(root/DIAG_DIR/(id+'-attempt'+str(att['attempt'])+'.txt'));Path(path).write_text(redact(diag))
+                            entry.update(status='failed',error=str(e),finished=time.time());att.update(status='failed',category=category,reason=str(e)[:1000],diagnostics=path,finished=time.time())
+                            retry=n.get('on_failure')=='retry' and category in RETRYABLE and cycle['dispatches']<retry_cap(n)
+                            event(root,packet,'machine','node-failed',node=id,signature=signature,attempt=att['attempt'],category=category,error=str(e),retry=retry,evidence=[path] if path else [])
+                            if retry:pending[id]=n   # XE-036.3: back to pending; dependents keep waiting, siblings untouched
+                            else:terminal(id,n,cycle,category,str(e))
                         write(root/'state.json',state)
                 elif pending and not progress:raise ValueError('unresolvable dependencies')
         state['outcome']='incomplete' if failed else 'complete'
