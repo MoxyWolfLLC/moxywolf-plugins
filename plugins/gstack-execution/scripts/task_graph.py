@@ -294,21 +294,22 @@ def validate_result(result,node,expected_candidates):
     if not isinstance(result.get('evidence'),list) or not result['evidence'] or any(not isinstance(s,str) or not s.strip() for s in result['evidence']):raise ValueError('missing evidence')
     fs=result.get('findings')
     if not isinstance(fs,list):raise ValueError('findings must be a list')
-    ids=[]
+    ids=[];seen=set()
     for f in fs:
         if not isinstance(f,dict):raise ValueError('malformed finding')
         if any(not isinstance(f.get(k),str) or not f[k].strip() for k in ('id','status','detail')) or not isinstance(f.get('evidence'),list) or not f['evidence'] or any(not isinstance(e,str) or not e.strip() for e in f['evidence']):
             raise ValueError('malformed finding')
         f.setdefault('category','general')   # EV-010: a command handler may omit it; the model schema requires it
         if f['category'] not in FINDING_CATEGORIES:raise ValueError('unknown finding category')
+        if f['id'] in seen:raise ValueError('duplicate finding')   # F3 (review 20261013-134525): unique whatever the category, in either order
+        seen.add(f['id'])
         if f['category']=='embedded_instruction':
             if f['status']!='REPORTED':raise ValueError('an embedded instruction is REPORTED, never a claim or checker verdict')
-            if f['id'] in ids or f['id']==node.get('claim_id'):raise ValueError('duplicate finding')
-            continue   # F2 round 2: reported beside the claim or the candidates, never counted among them, so it cannot block or clear anything
+            if f['id']==node.get('claim_id'):raise ValueError('an embedded instruction cannot carry the claim id')
+            continue   # reported beside the claim or the candidates, never counted among them, so it cannot block or clear anything
         if node['kind']=='checker' and f['status'] not in {'VERIFIED','UNVERIFIED','TENTATIVE','DISMISSED'}:raise ValueError('invalid checker disposition')
         if node.get('claim_id') and f['status'] not in {'BUILT','DRIFTED','MISSING','EXTRA','UNVERIFIABLE'}:raise ValueError('invalid claim status')
         ids.append(f['id'])
-    if len(ids)!=len(set(ids)):raise ValueError('duplicate finding')
     if node.get('claim_id') and ids!=[node['claim_id']]:raise ValueError('claim result must include exactly the frozen claim ID')
     if node['kind']=='checker' and not {f['id'] for f in expected_candidates}<=set(ids):raise ValueError('checker dropped findings')
     return result
@@ -368,7 +369,8 @@ def worker(node,packet,dependencies,root,correction=None):
         if [(r['path'],r['head']) for r in result['repos']]!=expected:
             raise ValueError('peer result does not match the requested revision')
         return {'complete':True,'coverage':node['checks'],'evidence':[str(root/'peer-reviews'/opened['review_id'])],
-                'findings':[{'id':f['id'],'status':f['severity'],'detail':f['what'],'evidence':[f['evidence']]} for f in result['findings']],
+                'findings':[{'id':f['id'],'status':'REPORTED' if f.get('category')=='embedded_instruction' else f['severity'],
+                             'detail':f['what'],'evidence':[f['evidence']],'category':f.get('category','general')} for f in result['findings']],   # F1 (review 20261013-134525): the classification survives the adapter
                 'summary':result['outcome']}
     with tempfile.TemporaryDirectory(prefix='gstack-node-') as td:
         work=Path(td)

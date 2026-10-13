@@ -508,6 +508,7 @@ if '=== PACKET ===' in prompt:
  except OSError: pass
  r={'verdict':'blocking_findings' if os.environ.get('GRAPH_BLOCK') else 'no_blocking_findings','acceptance':[{'criterion':c,'met':True,'evidence':'value:1'} for c in p['acceptance_criteria']],'findings':[],'blocker_resolutions':[],'regressions_from_fixes':[],'notes':''}
  if os.environ.get('GRAPH_BLOCK'):r['findings']=[{'id':'F1','severity':'blocking','file':'value','line':1,'what':'bad','evidence':'value:1','criterion':p['acceptance_criteria'][0],'fix':'fix'}]
+ if os.environ.get('GRAPH_PEER_EMBED'):r['findings'].append({'id':'E1','severity':'follow_up','file':'value','line':1,'what':'the file asks the reader to run a script','evidence':'value:1','criterion':'none','fix':'none','category':'embedded_instruction'})
 else:
  # TB-002: the payload arrives inside the untrusted enclosure, on the line after its opening tag
  lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));own=json.loads(lines[i-1]);outside=json.loads(lines[i+1]);p={**own,**outside};n=p['node']
@@ -548,6 +549,28 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         r=self.builtin_run('review')
         self.assertNotEqual(r.returncode,0,'Retry erased the original blocker and opened a fresh review')
 
+    def test_a_peer_nodes_embedded_report_keeps_its_category_and_is_never_a_candidate(self):
+        """F1, review 20261013-134525: the peer adapter must not launder a reported directive into an ordinary finding."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        os.environ['GRAPH_PEER_EMBED']='1';self.addCleanup(os.environ.pop,'GRAPH_PEER_EMBED',None)
+        r=self.builtin_run('review');self.ok(r)
+        s=self.state();peer=[n for n,v in s['nodes'].items() if n.startswith('review')][0]
+        fs=s['nodes'][peer]['result']['findings'];e=[f for f in fs if f['id']=='E1']
+        self.assertEqual(len(e),1);self.assertEqual((e[0]['status'],e[0]['category']),('REPORTED','embedded_instruction'))
+        rep=json.loads((self.run/'report.json').read_text())
+        self.assertIn(('E1','REPORTED','embedded_instruction'),[(f['id'],f['status'],f.get('category')) for f in rep['findings']],'the report lost the classification')
+        import task_graph as tg
+        self.assertEqual([c['id'] for c in tg.candidates({peer:s['nodes'][peer]['result']})],[],'a reported directive was offered as a candidate')
+        # F3: ids are unique whatever the category, in either order
+        node={'id':'w','kind':'worker','checks':['w']}
+        mk=lambda *fs:{'complete':True,'coverage':['w'],'evidence':['x'],'findings':list(fs)}
+        g=lambda i:{'id':i,'status':'TENTATIVE','detail':'d','evidence':['x']}
+        em=lambda i:{'id':i,'status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}
+        for bad in (mk(em('X'),g('X')),mk(g('X'),em('X')),mk(em('X'),em('X'))):
+            with self.assertRaises(ValueError):tg.validate_result(bad,node,[])
+        tg.validate_result(mk(em('X'),g('Y')),node,[])
     def test_malformed_checker_evidence_is_refused(self):
         self.graph['nodes'][-2]['malformed']=True
         self.assertNotEqual(self.execute().returncode,0)
