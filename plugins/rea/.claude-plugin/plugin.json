@@ -1,0 +1,18 @@
+{
+  "name": "rea",
+  "version": "0.1.0",
+  "description": "Pointer to REA, Reverse Engineer Anything (morluto/rea, MIT): one MCP server and CLI that inspects shipped artifacts (native binaries through Hopper, Ghidra or IDA; Electron and JavaScript trees; .NET; Go; APKs; firmware; captures) and returns each finding as an Evidence record with coverage, limitations and residual unknowns. Its engine is a Node runtime behind a thin skill, so it is registered upstream rather than re-homed into this markdown marketplace (same posture as understand-anything). This entry documents the engine split, when to reach for it vs. graphify and understand-anything, and the one-line setup. Its evidence ideas are ported as EV-010 and EV-011 in DESIGN.md.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "reverse-engineering",
+    "binary-analysis",
+    "electron",
+    "supply-chain",
+    "evidence",
+    "pointer",
+    "rea",
+    "moxywolf"
+  ]
+}
