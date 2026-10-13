@@ -22,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 REFS = HERE.parent / "skills" / "gstack-execution" / "references"
 STATUS = re.compile(r"^\*\*Status:\*\*\s*(\S+?)(?=[.;,:]|\s|$)")
 TERM = re.compile(r"`([a-z]+(?:_[a-z]+)+)`")
+WORD = re.compile(r"`([a-z]+)`")   # F5 (review 20261013-124809): a declared one-word id (`provenance`, `unknown`) is a term use too
 
 
 def check(files, vocab):
@@ -41,7 +42,7 @@ def check(files, vocab):
                 report["status_lines"] += 1
                 if m.group(1) not in statuses:
                     report["failures"].append(f"{f.name}:{n}: status {m.group(1)!r} is not one of {sorted(statuses)}")
-            for t in TERM.findall(line):
+            for t in TERM.findall(line) + [w for w in WORD.findall(line) if w in ids]:
                 report["term_uses"] += 1
                 if t in ids:
                     report["resolved"] += 1
@@ -81,10 +82,14 @@ def selftest():
                           {"id": "stale_link", "group": "verify_outcome", "skos:definition": "a link resolved elsewhere"}]}
     with tempfile.TemporaryDirectory() as t:
         good = Path(t, "good.md"); good.write_text("**Status:** done. merged.\nreports `stale_link`.\n")
+        one = Path(t, "one.md"); one.write_text("carries `provenance` and an `unknown`, not `main`.\n")
         bad = Path(t, "bad.md"); bad.write_text("**Status:** built, partially.\n`stale_link`\n")
         dup = Path(t, "dup.md"); dup.write_text("`stale_link` means a link resolved elsewhere.\n")
         empty = Path(t, "empty.md"); empty.write_text("nothing here\n")
         assert check([good], vocab)["failures"] == []
+        v1 = {"concepts": vocab["concepts"] + [{"id": "provenance", "group": "packet_field", "skos:definition": "d1"},
+                                               {"id": "unknown", "group": "term", "skos:definition": "d2"}]}
+        r = check([one], v1); assert (r["term_uses"], r["resolved"], r["unresolved"]) == (2, 2, {}), r   # F5: one-word ids resolve; `main` isn't a term
         assert any("'built'" in x for x in check([bad], vocab)["failures"])
         assert any("restates" in x for x in check([dup], vocab)["failures"])
         assert any("no term uses" in x for x in check([empty], vocab)["failures"])

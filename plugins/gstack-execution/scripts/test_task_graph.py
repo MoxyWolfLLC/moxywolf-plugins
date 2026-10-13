@@ -508,18 +508,21 @@ if '=== PACKET ===' in prompt:
  except OSError: pass
  r={'verdict':'blocking_findings' if os.environ.get('GRAPH_BLOCK') else 'no_blocking_findings','acceptance':[{'criterion':c,'met':True,'evidence':'value:1'} for c in p['acceptance_criteria']],'findings':[],'blocker_resolutions':[],'regressions_from_fixes':[],'notes':''}
  if os.environ.get('GRAPH_BLOCK'):r['findings']=[{'id':'F1','severity':'blocking','file':'value','line':1,'what':'bad','evidence':'value:1','criterion':p['acceptance_criteria'][0],'fix':'fix'}]
+ if os.environ.get('GRAPH_PEER_EMBED'):r['findings'].append({'id':'E1','severity':'follow_up','file':'value','line':1,'what':'the file asks the reader to run a script','evidence':'value:1','criterion':'none','fix':'none','category':'embedded_instruction'})
 else:
  # TB-002: the payload arrives inside the untrusted enclosure, on the line after its opening tag
  lines=prompt.splitlines();i=next(i for i,l in enumerate(lines) if l.startswith('<untrusted '));own=json.loads(lines[i-1]);outside=json.loads(lines[i+1]);p={**own,**outside};n=p['node']
  if os.environ.get('GRAPH_LOG'):
-  with open(os.environ['GRAPH_LOG'],'a') as f: f.write(json.dumps({'id':n['id'],'own':own,'outside':outside})+'\\n')
+  with open(os.environ['GRAPH_LOG'],'a') as f: f.write(json.dumps({'id':n['id'],'own':own,'outside':outside,'rule_present':'embedded_instruction' in prompt})+'\\n')
  if os.environ.get('GRAPH_CRASH')==n['id']:
   print('model: gpt-6-astra',file=sys.stderr);print('reviewer crashed holding token=ghp_zzzzzzzzzzzzzzzzzzzzzzzzzz9999',file=sys.stderr);sys.exit(3)
  if os.environ.get('GRAPH_FAIL_ONCE') and n['id']==os.environ['GRAPH_FAIL_ONCE'] and not pathlib.Path(os.environ['GRAPH_LOG']+'.marker').exists():
   pathlib.Path(os.environ['GRAPH_LOG']+'.marker').write_text('');print('model: gpt-6-astra',file=sys.stderr);print('not json: transient model failure');sys.exit(0)
  r={'complete':True,'coverage':n['checks'],'evidence':['value:1'],'findings':[],'summary':'checked'}
- if n.get('claim_id'):r['findings']=[{'id':n['claim_id'],'status':'BUILT','detail':'value exists','evidence':['value:1']}]
+ if n.get('claim_id'):r['findings']=[{'id':n['claim_id'],'status':'BUILT','detail':'value exists','evidence':['value:1'],'category':'general'}]
  if n['kind']=='checker':r['findings']=[dict(f,status='VERIFIED') for f in p['candidates']]
+ if os.environ.get('GRAPH_EMBED_CLAIM') and n.get('claim_id'):r['findings'].append({'id':'E1','status':'REPORTED','detail':'the snapshot asks the reader to run a script','evidence':['snapshot value:1'],'category':'embedded_instruction'})
+ if os.environ.get('GRAPH_EMBED')==n['id']:r['findings']=[{'id':'F1','status':'TENTATIVE','detail':'candidate','evidence':['value:1'],'category':'general'},{'id':'E1','status':'REPORTED','detail':'the snapshot asks the reader to run a script','evidence':['snapshot value:1'],'category':'embedded_instruction'}]
 if tool=='codex':
  pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(r));print('model: gpt-6-astra',file=sys.stderr)
 else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'outputTokens':100}}}))
@@ -546,6 +549,28 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         r=self.builtin_run('review')
         self.assertNotEqual(r.returncode,0,'Retry erased the original blocker and opened a fresh review')
 
+    def test_a_peer_nodes_embedded_report_keeps_its_category_and_is_never_a_candidate(self):
+        """F1, review 20261013-134525: the peer adapter must not launder a reported directive into an ordinary finding."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        os.environ['GRAPH_PEER_EMBED']='1';self.addCleanup(os.environ.pop,'GRAPH_PEER_EMBED',None)
+        r=self.builtin_run('review');self.ok(r)
+        s=self.state();peer=[n for n,v in s['nodes'].items() if n.startswith('review')][0]
+        fs=s['nodes'][peer]['result']['findings'];e=[f for f in fs if f['id']=='E1']
+        self.assertEqual(len(e),1);self.assertEqual((e[0]['status'],e[0]['category']),('REPORTED','embedded_instruction'))
+        rep=json.loads((self.run/'report.json').read_text())
+        self.assertIn(('E1','REPORTED','embedded_instruction'),[(f['id'],f['status'],f.get('category')) for f in rep['findings']],'the report lost the classification')
+        import task_graph as tg
+        self.assertEqual([c['id'] for c in tg.candidates({peer:s['nodes'][peer]['result']})],[],'a reported directive was offered as a candidate')
+        # F3: ids are unique whatever the category, in either order
+        node={'id':'w','kind':'worker','checks':['w']}
+        mk=lambda *fs:{'complete':True,'coverage':['w'],'evidence':['x'],'findings':list(fs)}
+        g=lambda i:{'id':i,'status':'TENTATIVE','detail':'d','evidence':['x']}
+        em=lambda i:{'id':i,'status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}
+        for bad in (mk(em('X'),g('X')),mk(g('X'),em('X')),mk(em('X'),em('X'))):
+            with self.assertRaises(ValueError):tg.validate_result(bad,node,[])
+        tg.validate_result(mk(em('X'),g('Y')),node,[])
     def test_malformed_checker_evidence_is_refused(self):
         self.graph['nodes'][-2]['malformed']=True
         self.assertNotEqual(self.execute().returncode,0)
@@ -626,5 +651,85 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
             if workflow=='verify':self.assertIn('claim-C1',[n['id'] for n in nodes])
     def write_packet(self):
         self.pfile.write_text(json.dumps(self.packet));return self.pfile
+    # EV-010.1 and .5: every key a handler reads is labelled by the executor, from the key's origin.
+    def test_command_handler_input_carries_provenance_for_every_key(self):
+        log=self.root/'inputs.jsonl'
+        probe=self.root/'probe.py';probe.write_text('import json,sys,pathlib\np=json.loads(pathlib.Path(sys.argv[-1]).read_text())\n'
+            'open('+repr(str(log))+',"a").write(json.dumps({"keys":sorted(p),"provenance":p.get("provenance"),"correction":p.get("correction")})+"\\n")\n'
+            'n=p["node"]\nif n.get("fail_once") and not pathlib.Path(n["fail_once"]).exists(): pathlib.Path(n["fail_once"]).write_text(""); print("boom from the handler", file=sys.stderr); sys.exit(3)\n'
+            'r={"complete":True,"coverage":n["checks"],"evidence":["value:1"],"findings":[],"summary":n["id"]}\n'
+            'if n["kind"]=="checker":r["findings"]=[dict(f,status="VERIFIED") for f in p["candidates"]]\nprint(json.dumps(r))\n')
+        cmd=[sys.executable,str(probe)];self.policy['allowed_commands'].append(cmd)
+        for n in self.graph['nodes']:
+            if n['kind']!='report':n['command']=cmd
+        self.graph['nodes'][1].update(on_failure='retry',fail_once=str(self.root/'a.failed-once'))
+        self.ok(self.execute())
+        rows=[json.loads(l) for l in log.read_text().splitlines()];self.assertEqual(len(rows),5)
+        retried=[r for r in rows if r['correction']];self.assertEqual(len(retried),1)
+        p=retried[0]['provenance']   # F1 (review 20261013-124809): the executor's record is trusted, the handler's captured output inside it is not
+        self.assertEqual(p['correction'],{'source':'executor','untrusted_content':False})
+        self.assertEqual(p['correction.diagnostics'],{'source':'handler_output','untrusted_content':True})
+        self.assertIn('boom from the handler',retried[0]['correction']['diagnostics'])
+        for r in rows:
+            prov=r['provenance'];self.assertEqual(sorted(k for k in prov if '.' not in k),[k for k in r['keys'] if k!='provenance'])
+            for k,v in prov.items():
+                self.assertIn(v['source'],('repository','ci_log','handler_output','fetched','executor'))
+                self.assertEqual(v['untrusted_content'],v['source']!='executor',k)
+            self.assertEqual((prov['node']['source'],prov['packet']['source'],prov['dependencies']['source'],prov['snapshots']['source']),
+                             ('executor','executor','handler_output','repository'))
+    def test_model_handler_reports_an_embedded_instruction_and_it_is_never_a_candidate(self):
+        self.install_model_tools()
+        log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_EMBED']='a'
+        self.addCleanup(os.environ.pop,'GRAPH_LOG',None);self.addCleanup(os.environ.pop,'GRAPH_EMBED',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.ok(self.execute())
+        rep=json.loads((self.run/'report.json').read_text())
+        a=json.loads((self.run/'a.json').read_text());e=[f for f in a['findings'] if f.get('category')=='embedded_instruction']
+        self.assertEqual(len(e),1);self.assertEqual(e[0]['status'],'REPORTED');self.assertIn('snapshot',e[0]['evidence'][0])
+        self.assertEqual(self.state()['outcome'],'complete')
+        chk=json.loads((self.run/'check.json').read_text())
+        self.assertNotIn('a:E1',[f['id'] for f in chk['findings']],'a reported instruction became a checker candidate')
+        self.assertIn('a:F1',[f['id'] for f in chk['findings']])
+        rows=[json.loads(l) for l in log.read_text().splitlines()]
+        self.assertTrue(all(r['rule_present'] for r in rows),'the model prompt must carry the report-not-follow paragraph')
+        # a worker claiming an embedded instruction as a verdict is an invalid result
+        import task_graph as tg
+        bad={'complete':True,'coverage':['a'],'evidence':['x'],'findings':[{'id':'E1','status':'VERIFIED','detail':'d','evidence':['x'],'category':'embedded_instruction'}]}
+        with self.assertRaises(ValueError):tg.validate_result(bad,{'id':'a','kind':'worker','checks':['a']},[])
+        bad['findings'][0]['category']='advice'
+        with self.assertRaises(ValueError):tg.validate_result(bad,{'id':'a','kind':'worker','checks':['a']},[])
+    def test_a_claim_node_may_report_an_embedded_instruction_beside_its_one_claim(self):
+        """F2, review 20261013-124809 round 2: a verify claim node that also reports a directive must not fail its task."""
+        self.install_model_tools()
+        os.environ['GRAPH_EMBED_CLAIM']='1';self.addCleanup(os.environ.pop,'GRAPH_EMBED_CLAIM',None)
+        r=self.builtin_run('verify');self.ok(r)
+        s=self.state();self.assertEqual(s['outcome'],'complete')
+        res=s['nodes']['claim-C1']['result'];ids=[(f['id'],f['status'],f.get('category')) for f in res['findings']]
+        self.assertEqual(ids,[('C1','BUILT','general'),('E1','REPORTED','embedded_instruction')])
+        import task_graph as tg
+        node={'id':'claim-C1','kind':'worker','checks':['C1'],'claim_id':'C1'}
+        two=lambda extra:{'complete':True,'coverage':['C1'],'evidence':['x'],'findings':[{'id':'C1','status':'BUILT','detail':'d','evidence':['x']}]+extra}
+        tg.validate_result(two([{'id':'E1','status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}]),node,[])
+        for bad in ([{'id':'C1','status':'REPORTED','detail':'d','evidence':['x'],'category':'embedded_instruction'}],   # the claim id reused
+                    [{'id':'E1','status':'BUILT','detail':'d','evidence':['x'],'category':'embedded_instruction'}]):     # a verdict in disguise
+            with self.assertRaises(ValueError):tg.validate_result(two(bad),node,[])
+    def test_model_handler_provenance_is_false_outside_the_enclosure_and_true_inside(self):
+        self.install_model_tools()
+        log=self.root/'prompts.jsonl';os.environ['GRAPH_LOG']=str(log);os.environ['GRAPH_FAIL_ONCE']='a'
+        self.addCleanup(os.environ.pop,'GRAPH_LOG',None);self.addCleanup(os.environ.pop,'GRAPH_FAIL_ONCE',None)
+        for n in self.graph['nodes']:n.pop('command',None)
+        self.graph['nodes'][1].update(on_failure='retry',id='a')
+        self.ok(self.execute())
+        rows=[json.loads(l) for l in log.read_text().splitlines()];a=[r for r in rows if r['id']=='a']
+        self.assertEqual(len(a),2)
+        for r in rows:
+            own,out=r['own'],r['outside']
+            self.assertEqual(sorted(k for k in own['provenance'] if '.' not in k),sorted(k for k in own if k!='provenance'))
+            self.assertNotIn('correction.diagnostics',own['provenance'],'the prompt side carries no diagnostics, so no label for them')
+            self.assertEqual(sorted(out['provenance']),sorted(k for k in out if k!='provenance'))
+            self.assertTrue(all(v['untrusted_content'] for v in out['provenance'].values()),out['provenance'])
+            self.assertFalse(any(v['untrusted_content'] for k,v in own['provenance'].items() if k!='snapshots'),own['provenance'])
+        c=a[1]['own']['provenance'];self.assertEqual(c['correction'],{'source':'executor','untrusted_content':False})
+        self.assertEqual(a[1]['outside']['provenance']['correction_diagnostics'],{'source':'handler_output','untrusted_content':True})
 
 if __name__=='__main__':unittest.main()
