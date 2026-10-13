@@ -1490,7 +1490,7 @@ The packet's `tests` field is the builder's account of what ran. Nothing ties a 
 
 ### EV-010 — Text that came from the thing under review is marked as such before a model reads it
 
-**Status:** planned. Declared 2026-10-13 from the REA intake; awaiting Dorian's approval before any code.
+**Status:** planned. Declared 2026-10-13 from the REA intake and approved by Dorian the same day ("I approve #196"); design committed as `be80ad8` (PR #196).
 
 **Links introduced:** a `provenance` field on every file and captured output the review packet hands a reviewer or a verifier, naming where the bytes came from. The reader's assumption is that a field present means the packet writer classified the source. That holds because the field is written by the packet builder from the path's origin, never by the model that reads it.
 
@@ -1508,7 +1508,7 @@ A reviewer reads repository files, CI logs, captured handler output and fetched 
 
 ### EV-011 — An open question is a record with a revision, not a sentence in a finding
 
-**Status:** planned. Declared 2026-10-13 from the REA intake; awaiting Dorian's approval before any code.
+**Status:** planned. Declared 2026-10-13 from the REA intake and approved by Dorian the same day ("I approve #196"); design committed as `be80ad8` (PR #196).
 
 **Links introduced:** one ledger file per branch, `<review_root()>/unknowns/<owner>-<repo>/<branch>.jsonl`, one line per revision of an unknown. A line names the unknown by a stable `id`, carries a `revision` that only grows, the question, the authority that can close it, and the evidence IDs for and against. The reader's assumption is that the newest line for an `id` is its current state. That holds because a write with a stale revision is refused, as XE-034's ledger refuses nothing and so cannot make this promise.
 
