@@ -80,7 +80,7 @@ class Hooks(unittest.TestCase):
 
     def call(self, tool, tool_input, **kw):
         return self.run_hook("pre-tool-use", {"session_id": self.sid, "hook_event_name": "PreToolUse", "tool_name": tool,
-                                              "tool_input": tool_input, "tool_use_id": "t1"}, **kw)
+                                              "tool_input": tool_input, "tool_use_id": "t1", "cwd": str(self.root)}, **kw)
 
     def plugin_copy(self, name):
         plugin = self.root / f"plugin-{name}"; (plugin / "scripts").mkdir(parents=True); (plugin / "references").mkdir()
@@ -324,14 +324,32 @@ class Hooks(unittest.TestCase):
 
     # ---- CS-007: department on the line, security at the floor, the after-action report ----
 
-    def test_a_department_launch_carries_its_department_and_cos_run(self):
+    def test_a_department_launch_carries_its_department_and_the_run_id_from_the_marker_in_cwd(self):
+        # the unknown of review 20261014-082908: a shell export never reaches the hook process, so the id travels
+        # as a marker file under the cwd the host passes to every hook, written by `route.py cos-run start`
+        r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "start", "2026-10-14-margin"], capture_output=True, text=True, cwd=str(self.root))
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertTrue((self.root / ".gstack" / "cos-run.json").exists())
         Stub.answers = {"docs_only": 0.2}
-        r = self.call("Agent", FIXTURE_CALL["department-subagent"][1], COS_RUN_ID="2026-10-14-margin")
+        r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.updated(r)["model"], "sonnet")
         last = self.ledger()[-1]
         self.assertEqual((last["class"], last["department"], last["cos_run"], last["decided_by"]), ("department-subagent", "finance", "2026-10-14-margin", "jev"))
-        r = self.call("Read", {"file_path": "/x"})     # no COS_RUN_ID: no cos_run, the hook never invents one
+        self.assertEqual((last["applied_model"], last["floor_rule"]), ("sonnet", False))
+        r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "show"], capture_output=True, text=True, cwd=str(self.root))
+        self.assertEqual(r.stdout.strip(), "2026-10-14-margin")
+        r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "end"], capture_output=True, text=True, cwd=str(self.root))
+        self.assertEqual(r.returncode, 0); self.assertFalse((self.root / ".gstack" / "cos-run.json").exists())
+        r = self.call("Read", {"file_path": "/x"})     # no marker, no env: no cos_run; the hook never invents one
         self.assertNotIn("cos_run", self.ledger()[-1])
+        # a stale marker (a crashed run) is ignored
+        (self.root / ".gstack" / "cos-run.json").write_text(json.dumps({"cos_run": "old", "started": "2026-01-01T00:00:00Z"}))
+        self.call("Read", {"file_path": "/x"})
+        self.assertNotIn("cos_run", self.ledger()[-1])
+        # a caller's explicit model is the applied model, and never a floor rule
+        r = self.call("Agent", {**FIXTURE_CALL["department-subagent"][1], "model": "haiku"}, COS_RUN_ID="env-run")
+        self.assertEqual(self.updated(r), None)
+        last = self.ledger()[-1]
+        self.assertEqual((last["applied_model"], last["caller_model"], last["floor_rule"], last["cos_run"]), ("haiku", "haiku", False, "env-run"))
 
     def test_the_security_department_is_never_moved_below_floor(self):
         Stub.answers = {"docs_only": 0.95}
@@ -339,6 +357,7 @@ class Hooks(unittest.TestCase):
         self.assertEqual(self.updated(r)["model"], "opus")
         last = self.ledger()[-1]
         self.assertEqual((last["department"], last["tier"], last["floor_locked_from"]), ("security", "floor", "light"))
+        self.assertEqual((last["applied_model"], last["floor_rule"]), ("opus", True))   # F5: the lock is a floor rule, written here
 
     def aar(self, d, date):
         r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", date], capture_output=True, text=True)
@@ -348,29 +367,39 @@ class Hooks(unittest.TestCase):
     def test_aar_on_an_empty_day_reads_zero_and_decides_none(self):
         empty = self.root / "empty"; empty.mkdir()
         out = self.aar(empty, "2026-10-13")
-        self.assertIn("Read 0 files and 0 lines", out)
+        self.assertIn("Read 0 files and 0 lines dated 2026-10-13", out)
         self.assertIn("Zero lines read. That is not a clean day", out)
         self.assertNotIn("clean day.", out.replace("not a clean day", ""))
         self.assertIn("| (none) | 0 | 0 | 0 | 0 |", out)
-        self.assertIn("| opus (floor) | 0 | 0/0 (no observations) | 0/0 (no observations) | 0/0 (no observations) |", out)
+        self.assertIn("| opus (floor) | 0 | 0 | 0/0 (no observations) | 0/0 (no observations) | 0/0 (no observations) | 0/0 (no observations) |", out)
         self.assertIn("## Decision\n\nDecision: none this day; the counts are below the bar.", out)
         self.assertEqual(out.count("Decision:"), 1)
 
-    def test_aar_on_a_fixture_day_counts_by_model_and_department_as_rates_and_decides_once(self):
+    def test_aar_on_a_fixture_day_counts_usage_by_the_tags_written_at_launch_and_decides_once(self):
         d = self.root / "model-routing"; d.mkdir()
         day = "2026-10-13"
-        def line(**kw):
-            base = {"ts": f"{day}T10:00:00Z", "class": "department-subagent", "tool": "Agent", "routed": True, "decided_by": "jev", "rule": "default", "tier": "standard", "model": "sonnet"}
+        def line(ts=f"{day}T10:00:00Z", **kw):
+            base = {"ts": ts, "class": "department-subagent", "tool": "Agent", "routed": True, "decided_by": "jev", "rule": "default",
+                    "tier": "standard", "model": "sonnet", "applied_model": "sonnet", "floor_rule": False}
             base.update(kw); return json.dumps(base)
         sess = [json.dumps({"ts": f"{day}T09:00:00Z", "event": "session_start", "routing": "on"}),
                 line(department="finance", cos_run="r1", subagent_type="finance:finance"),
                 line(department="sales-department", cos_run="r1", subagent_type="sales-department:sales-department"),
-                line(department="security", cos_run="r2", subagent_type="security:security", tier="floor", model="opus", rule="trust_boundary"),
+                # F5: the security lock as the hook writes it: Jev said docs_only, the lock put it on the floor
+                line(department="security", cos_run="r2", subagent_type="security:security", tier="floor", model="opus", applied_model="opus",
+                     rule="docs_only", floor_locked_from="light", floor_rule=True),
                 line(department="finance", cos_run="r2", subagent_type="finance:finance"),
+                # F2: the router advised haiku, the caller launched sonnet: counted as sonnet
+                line(department="people", cos_run="r2", subagent_type="people:people", routed=False, tier="light", model="haiku",
+                     caller_model="sonnet", applied_model="sonnet", decided_by="caller (jev advised haiku)"),
+                # a script class carries advice, never an applied model: not a launch
+                json.dumps({"ts": f"{day}T10:10:00Z", "class": "model-select-script", "tool": "Bash", "routed": False, "tier": "floor", "model": "opus", "note": "script selects its own model"}),
                 json.dumps({"ts": f"{day}T10:30:00Z", "class": "read-file", "tool": "Read", "routed": False}),
-                json.dumps({"ts": f"{day}T10:31:00Z", "class": "unclassified", "tool": "Teleport", "routed": False})]
-        (d / f"20261013-s1.jsonl").write_text("\n".join(sess) + "\n")
-        (d / f"20261012-s0.jsonl").write_text(line(department="pmo", cos_run="r0") + "\n")   # another day: not read
+                json.dumps({"ts": f"{day}T10:31:00Z", "class": "unclassified", "tool": "Teleport", "routed": False}),
+                # F3: the same session crosses midnight; the next day's calls belong to the next day
+                line(ts="2026-10-14T00:05:00Z", department="pmo", cos_run="r3", subagent_type="pmo:pmo")]
+        (d / "20261013-s1.jsonl").write_text("\n".join(sess) + "\n")
+        (d / "20261012-s0.jsonl").write_text(line(ts="2026-10-12T10:00:00Z", department="pmo", cos_run="r0") + "\n")
         checks = [{"ts": f"{day}T10:05:00Z", "cos_run": "r1", "department": "finance", "model": "sonnet", "doc": "f.md", "passed": True, "failing_lines": []},
                   {"ts": f"{day}T10:06:00Z", "cos_run": "r1", "department": "sales-department", "model": "sonnet", "doc": "s.md", "passed": False, "failing_lines": [4]},
                   {"ts": f"{day}T10:07:00Z", "cos_run": "r1", "department": "sales-department", "model": "sonnet", "doc": "s2.md", "passed": False, "failing_lines": [2]},
@@ -379,34 +408,47 @@ class Hooks(unittest.TestCase):
                   {"ts": "2026-10-12T10:21:00Z", "cos_run": "r0", "department": "pmo", "model": "sonnet", "doc": "p.md", "passed": False, "failing_lines": [1]}]
         (d / "claim-checks.jsonl").write_text("\n".join(json.dumps(c) for c in checks) + "\n")
         ms = self.root / "model-selection"; ms.mkdir()
-        (ms / "o-r.jsonl").write_text(json.dumps({"recorded_at": f"{day}T11:00:00Z", "declared_tier": "floor", "recommendation": {"tier": "floor", "rule": "cross_file"}, "outcome": {"blocking_findings": 4, "rounds_used": 3}}) + "\n"
-                                       + json.dumps({"recorded_at": "2026-10-12T11:00:00Z", "declared_tier": "floor", "outcome": {"blocking_findings": 0}}) + "\n")
+        (ms / "o-r.jsonl").write_text("\n".join([
+            json.dumps({"recorded_at": f"{day}T11:00:00Z", "declared_tier": "floor", "recommendation": {"tier": "floor", "rule": "cross_file"}, "outcome": {"blocking_findings": 4, "rounds_used": 3}}),
+            # F4: no declared tier; the recommendation says floor, and that is not used
+            json.dumps({"recorded_at": f"{day}T11:30:00Z", "recommendation": {"tier": "floor", "rule": "cross_file"}, "outcome": {"blocking_findings": 9}}),
+            json.dumps({"recorded_at": "2026-10-12T11:00:00Z", "declared_tier": "floor", "outcome": {"blocking_findings": 0}})]) + "\n")
         out = self.aar(d, day)
-        self.assertIn("Read 3 files and 13 lines: 6 calls in 1 session ledgers, 5 claim checks, 1 model-selection lines.", out)
+        self.assertIn("Read 4 files and 16 lines dated 2026-10-13: 8 calls across 2 session ledgers, 5 department dispatches, 5 claim checks, 2 model-selection lines.", out)
         self.assertIn("harder tasks go to stronger models by design", out)
-        self.assertIn("| department-subagent | 4 | 4 | 0 | 0 |", out)
+        self.assertIn("| department-subagent | 5 | 4 | 0 | 0 |", out)
+        self.assertIn("| model-select-script | 1 | 0 | 0 | 0 |", out)
         self.assertIn("| unclassified | 1 | 0 | 0 | 1 |", out)
-        # by model: rates over calls, the floor-rule share, blocking findings over reviews, every count under 10 marked
-        self.assertIn("| sonnet (standard) | 3 | 0/3 (0%), too few to read (n=3 < 10), a lead | 2/3 (67%), too few to read (n=3 < 10), a lead | 0/0 (no observations) |", out)
-        self.assertIn("| opus (floor) | 1 | 1/1 (100%), too few to read (n=1 < 10), a lead | 0/1 (0%), too few to read (n=1 < 10), a lead | 4 over 1 reviews, too few to read (n=1 < 10), a lead |", out)
-        self.assertIn("untagged, counted apart): 1.", out)
-        # by department: dispatches, models, pass rate, send-backs, escalations (two failures for one department in one run)
-        self.assertIn("| sales-department | 1 | sonnet | 0/2 (0%), too few to read (n=2 < 10), a lead | 2/2 (100%), too few to read (n=2 < 10), a lead | 1/1 (100%), too few to read (n=1 < 10), a lead |", out)
-        self.assertIn("| finance | 2 | sonnet | 2/2 (100%), too few to read (n=2 < 10), a lead | 0/2 (0%), too few to read (n=2 < 10), a lead | 0/2 (0%), too few to read (n=2 < 10), a lead |", out)
+        # by model: launches that actually ran on it; dispatches as the denominator for failures; the lock counted as a floor rule
+        self.assertIn("| sonnet (standard) | 4 | 4 | 0/4 (0%), too few to read (n=4 < 10), a lead | 2 over 4 dispatches, too few to read (n=4 < 10), a lead | 1/3 (33%), too few to read (n=3 < 10), a lead | 0/0 (no observations) |", out)
+        self.assertIn("| opus (floor) | 1 | 1 | 1/1 (100%), too few to read (n=1 < 10), a lead | 0 over 1 dispatches, too few to read (n=1 < 10), a lead | 1/1 (100%), too few to read (n=1 < 10), a lead | 4 over 1 reviews, too few to read (n=1 < 10), a lead |", out)
+        self.assertIn("| haiku (light) | 0 | 0 |", out)        # advised haiku, launched sonnet: no haiku usage
+        self.assertIn("Untagged, counted apart: 1 claim-check lines without a model or department; 1 model-selection lines without a declared tier.", out)
+        # by department: send-backs over dispatches (two failed checks on one dispatch is 2 over 1), escalation on the second failure
+        self.assertIn("| sales-department | 1 | sonnet | 0/2 (0%), too few to read (n=2 < 10), a lead | 2 over 1 dispatches, too few to read (n=1 < 10), a lead | 1 over 1 runs, too few to read (n=1 < 10), a lead |", out)
+        self.assertIn("| finance | 2 | sonnet | 2/2 (100%), too few to read (n=2 < 10), a lead | 0 over 2 dispatches, too few to read (n=2 < 10), a lead | 0 over 2 runs, too few to read (n=2 < 10), a lead |", out)
+        self.assertIn("| people | 1 | sonnet | 0/0 (no observations) | 0 over 1 dispatches", out)
+        self.assertNotIn("| pmo |", out)                       # r3 is the next day's; r0 is the day before's
         self.assertIn("- r1: finance, sales-department; models sonnet; escalated (sales-department)", out)
-        self.assertIn("- r2: finance, security; models opus, sonnet; done", out)
-        self.assertNotIn("r0", out)
+        self.assertIn("- r2: finance, people, security; models opus, sonnet; done", out)
         for word in ("because", "caused", "due to"):
             self.assertNotIn(word, out)
         self.assertIn("## Decision\n\nDecision: none this day; the counts are below the bar.", out)
         self.assertEqual(out.count("Decision:"), 1)
-        # with ten failing checks on one department the decision names its gate
-        more = [{"ts": f"{day}T12:00:00Z", "cos_run": f"q{i}", "department": "pmo", "model": "haiku", "doc": "p.md", "passed": i % 2 == 0, "failing_lines": [1]} for i in range(12)]
+        # the next day's report holds the post-midnight dispatch, and nothing from the 13th
+        out14 = self.aar(d, "2026-10-14")
+        self.assertIn("1 department dispatches, 0 claim checks", out14)
+        self.assertIn("| pmo | 1 | sonnet |", out14); self.assertNotIn("sales-department", out14)
+        # ten dispatches with six failed checks: the decision names the department's gate over its dispatches
+        extra = [line(ts=f"{day}T12:0{i % 10}:00Z", department="pmo", cos_run=f"q{i}", subagent_type="pmo:pmo", applied_model="haiku", model="haiku", tier="light") for i in range(12)]
+        with open(d / "20261013-s1.jsonl", "a") as f:
+            f.write("\n".join(extra) + "\n")
+        more = [{"ts": f"{day}T12:0{i % 10}:30Z", "cos_run": f"q{i}", "department": "pmo", "model": "haiku", "doc": "p.md", "passed": i % 2 == 0, "failing_lines": [1]} for i in range(12)]
         with open(d / "claim-checks.jsonl", "a") as f:
             f.write("\n".join(json.dumps(c) for c in more) + "\n")
         out = self.aar(d, day)
-        self.assertIn("| pmo | 0 | haiku | 6/12 (50%) |", out)
-        self.assertIn("Decision: change the pmo department's return contract or claim-check form: 6 of 12 checks failed.", out)
+        self.assertIn("| pmo | 12 | haiku | 6/12 (50%) | 6 over 12 dispatches | 0 over 12 runs |", out)
+        self.assertIn("Decision: change the pmo department's return contract or claim-check form: 6 send-backs over 12 dispatches.", out)
         self.assertEqual(out.count("Decision:"), 1)
 
     def test_hooks_json_declares_the_three_events_running_route_py(self):

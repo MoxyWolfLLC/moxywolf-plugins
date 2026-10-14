@@ -9,6 +9,7 @@ Three hooks and two commands, stdlib only:
   route.py session-end     (hook JSON on stdin)  appends the session summary line
   route.py score --dir D                         counts a ledger directory
   route.py aar --dir D --date YYYY-MM-DD         one day's after-action report (CS-007)
+  route.py cos-run start <id> | end | show       the live /cos run id, a marker file under cwd (CS-007)
   route.py --selftest
 
 The hard limit: a hook cannot change the model answering the current turn. Only a subagent launch
@@ -34,10 +35,13 @@ MODEL_ID = os.environ.get("GSTACK_COVERAGE_MODEL", "typesafe-ai/jev")
 GATEWAY = "https://ai-gateway.vercel.sh/v4/ai"
 JEV_TIMEOUT = 8
 FLOOR_LOCKED = {"review-subagent"}   # MR-003.7: never moved below floor, whatever Jev says
+FLOOR_RULES = {"risky", "trust_boundary", "cross_file"}
 FLOOR_LOCKED_DEPARTMENTS = {"security"}   # CS-007: the security department never drops below floor either
 DEPARTMENTS = ("finance", "people", "it-operations", "security", "pmo", "operations", "corporate-strategy",
                "customer-experience", "sales-department", "marketing-department")
 CLAIM_CHECKS = "claim-checks.jsonl"
+COS_RUN_FILE = Path(".gstack") / "cos-run.json"   # CS-007: /cos step 1 writes it, step 7 removes it; the hook reads it from cwd
+COS_RUN_MAX_AGE = 12 * 3600                         # a marker older than this is a crashed run, not a live one
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -231,6 +235,35 @@ def decide(answers):
     return {"tier": tier, "rule": rule, "booleans": a, "thresholds": THRESHOLDS}
 
 
+def cos_run_id(cwd):
+    """The live /cos run id: the marker file under cwd (host-supported state, since a shell export in one
+    tool call never reaches the hook process of a later one), else COS_RUN_ID for runners that set it."""
+    try:
+        m = json.loads((Path(cwd or ".") / COS_RUN_FILE).read_text(encoding="utf-8"))
+        started = datetime.strptime(m["started"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        if m.get("cos_run") and (datetime.now(timezone.utc) - started).total_seconds() <= COS_RUN_MAX_AGE:
+            return m["cos_run"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return os.environ.get("COS_RUN_ID") or None
+
+
+def cmd_cos_run(argv):
+    """route.py cos-run start <id> | end | show, in the project directory /cos runs in."""
+    f = Path.cwd() / COS_RUN_FILE
+    if argv[:1] == ["start"] and len(argv) > 1 and argv[1]:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"cos_run": argv[1], "started": now()}) + "\n", encoding="utf-8")
+        print(f"cos-run {argv[1]} started; marker {f}"); return 0
+    if argv[:1] == ["end"]:
+        try: f.unlink()
+        except FileNotFoundError: pass
+        print("cos-run ended"); return 0
+    if argv[:1] == ["show"]:
+        print(cos_run_id(Path.cwd()) or "no live cos-run"); return 0
+    print("usage: route.py cos-run start <id> | end | show", file=sys.stderr); return 2
+
+
 # ---- hooks ----
 
 def hook_input():
@@ -277,8 +310,9 @@ def cmd_pre_tool_use(h):
                       "ledger_source": ledger_dir()[1], "source": "lazy"})
     c = classify(table, tool, tin)
     line = {"ts": now(), "class": c["class"], "tool": tool, "routed": False, "tool_use_id": h.get("tool_use_id")}
-    if os.environ.get("COS_RUN_ID"):           # CS-007: set by /cos step 1; the hook never invents one
-        line["cos_run"] = os.environ["COS_RUN_ID"]
+    run = cos_run_id(h.get("cwd"))             # CS-007: /cos step 1 wrote the marker; the hook never invents one
+    if run:
+        line["cos_run"] = run
     if tool == "Agent":
         line["subagent_type"] = tin.get("subagent_type")
         if c["class"] == "department-subagent":
@@ -297,8 +331,9 @@ def cmd_pre_tool_use(h):
             tier, decided_by = d["tier"], "jev"
         else:
             line["jev"] = "unavailable"; line["jev_error"] = r["error"]
+    floor_rule = (decided_by == "jev" and line.get("rule") in FLOOR_RULES) or (decided_by == "table" and tier == "floor")
     if (c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS) and tier != "floor":
-        line["floor_locked_from"] = tier; tier = "floor"
+        line["floor_locked_from"] = tier; tier = "floor"; floor_rule = True
     if tier is None:                      # unclassified Agent with Jev unavailable: unchanged
         append(path, line); return 0
     line.update(tier=tier, decided_by=decided_by, model=table["tiers"][tier])
@@ -306,9 +341,12 @@ def cmd_pre_tool_use(h):
         line["note"] = "script selects its own model"
         append(path, line); return 0
     if tin.get("model"):                  # MR-001.7: a caller's explicit choice stands and is recorded
-        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {table['tiers'][tier]})")
+        # F2/F5 (review 20261014-082908): the model the launch actually used, and whether a floor rule put it there,
+        # are written here, not inferred by a reader later
+        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {table['tiers'][tier]})",
+                    applied_model=tin["model"], floor_rule=False)
         append(path, line); return 0
-    line["routed"] = True
+    line.update(routed=True, applied_model=table["tiers"][tier], floor_rule=floor_rule)
     append(path, line)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": table["tiers"][tier]}}}))
     return 0
@@ -380,31 +418,34 @@ def rate(n, d, per=None):
 
 
 def aar(d, date):
-    """Read one day's routing ledgers, claim-check lines and model-selection lines. Counts, never causes."""
-    d = Path(d); day = date.replace("-", "")
-    files = sorted(d.glob(f"{day}-*.jsonl")) if d.exists() else []
-    lines = [l for f in files for l in read_lines(f)]
+    """Read one day's routing records (by timestamp, across session files that may span days), claim-check
+    lines and model-selection lines. Counts over usage, never causes. Every model attribution comes from a
+    tag written at the time (applied_model, declared_tier); nothing is inferred after the fact."""
+    d = Path(d)
+    session_files = sorted(f for f in d.glob("*.jsonl") if f.name != CLAIM_CHECKS) if d.exists() else []
+    lines = [l for f in session_files for l in read_lines(f) if str(l.get("ts", "")).startswith(date)]   # F3: by ts, not file name
     calls = [l for l in lines if "class" in l]
     checks_file = d / CLAIM_CHECKS
     checks = [l for l in read_lines(checks_file) if str(l.get("ts", "")).startswith(date)] if checks_file.exists() else []
     sel_dir = d.parent / "model-selection"
     sel_files = sorted(sel_dir.glob("*.jsonl")) if sel_dir.exists() else []
     sel = [l for f in sel_files for l in read_lines(f) if str(l.get("recorded_at", "")).startswith(date)]
-    read = {"files": len(files) + (1 if checks_file.exists() else 0) + len(sel_files), "lines": len(lines) + len(checks) + len(sel)}
+    read = {"files": len(session_files) + (1 if checks_file.exists() else 0) + len(sel_files), "lines": len(lines) + len(checks) + len(sel)}
     table = load_table_safely()[0]
     tiers = (table or {}).get("tiers", {"floor": "opus", "standard": "sonnet", "light": "haiku"})
-    FLOOR_RULES = {"risky", "trust_boundary", "cross_file"}
+    tier_of = {m: t for t, m in tiers.items()}
 
+    launches = [l for l in calls if l.get("tool") == "Agent" and l.get("applied_model")]   # F2: what actually ran, written at launch
+    dispatches = [l for l in launches if l.get("department")]
     out = [f"# After-action report for {date}", "",
-           f"Read {read['files']} files and {read['lines']} lines: {len(calls)} calls in {len(files)} session ledgers, "
-           f"{len(checks)} claim checks, {len(sel)} model-selection lines."]
+           f"Read {read['files']} files and {read['lines']} lines dated {date}: {len(calls)} calls across {len(session_files)} session ledgers, "
+           f"{len(dispatches)} department dispatches, {len(checks)} claim checks, {len(sel)} model-selection lines."]
     if read["lines"] == 0:
         out.append("Zero lines read. That is not a clean day; it is a day with no record.")
     out += ["", "Note: harder tasks go to stronger models by design. MR-001 and MR-002 send trust-boundary, cross-file and risky "
             "work to the floor, so a stronger model's higher failure rate is expected before it is evidence. Every rate below is "
             "printed over its usage count; counts under 10 are leads, not findings; nothing here names a cause.", ""]
 
-    # per class
     out += ["## By class", "", "| class | calls | routed | Jev consults | unclassified |", "|---|---|---|---|---|"]
     per_class = {}
     for l in calls:
@@ -416,38 +457,38 @@ def aar(d, date):
     if not per_class:
         out.append("| (none) | 0 | 0 | 0 | 0 |")
 
-    # per model: calls, floor-rule share, check failures over dispatches, blocking findings over reviews
-    out += ["", "## By model", "", "| model | calls | sent by a floor rule | claim-check failures / dispatches | blocking findings / reviews |", "|---|---|---|---|---|"]
-    untagged = sum(1 for c in checks if not c.get("model") or not c.get("department"))
+    # by model: usage is launches that actually ran on it; mistakes are checks and findings tagged with it at write time
+    out += ["", "## By model", "", "| model | launches | department dispatches | sent there by a floor rule | claim-check failures / dispatches | checks passed / checks | blocking findings / reviews |", "|---|---|---|---|---|---|---|"]
+    untagged_checks = sum(1 for c in checks if not c.get("model") or not c.get("department"))
+    untagged_sel = sum(1 for l in sel if l.get("declared_tier") not in tiers)                 # F4: no fallback to the recommendation
     for tier in TIERS:
         model = tiers[tier]
-        mcalls = [l for l in calls if l.get("model") == model]
-        floor_rule = sum(1 for l in mcalls if l.get("rule") in FLOOR_RULES or (l.get("decided_by") == "table" and l.get("tier") == "floor"))
+        ml = [l for l in launches if l["applied_model"] == model]
+        md = [l for l in dispatches if l["applied_model"] == model]
+        floor_rule = sum(1 for l in ml if l.get("floor_rule"))                                   # F5: the tag written at launch
         mchecks = [c for c in checks if c.get("model") == model]
         fails = sum(1 for c in mchecks if not c.get("passed"))
-        msel = [l for l in sel if (l.get("declared_tier") or (l.get("recommendation") or {}).get("tier")) == tier]
+        msel = [l for l in sel if l.get("declared_tier") == tier]
         blocking = sum(int((l.get("outcome") or {}).get("blocking_findings", 0) or 0) for l in msel)
-        out.append(f"| {model} ({tier}) | {len(mcalls)} | {rate(floor_rule, len(mcalls))} | {rate(fails, len(mchecks))} | {rate(blocking, len(msel), 'reviews')} |")
-    out.append(f"\nClaim-check lines without a model or department (untagged, counted apart): {untagged}.")
+        out.append(f"| {model} ({tier}) | {len(ml)} | {len(md)} | {rate(floor_rule, len(ml))} | {rate(fails, len(md), 'dispatches')} | "
+                   f"{rate(len(mchecks) - fails, len(mchecks))} | {rate(blocking, len(msel), 'reviews')} |")
+    out.append(f"\nUntagged, counted apart: {untagged_checks} claim-check lines without a model or department; "
+               f"{untagged_sel} model-selection lines without a declared tier.")
 
-    # per department
-    out += ["", "## By department", "", "| department | dispatches | models used | checks passed / run | send-backs | escalations |", "|---|---|---|---|---|---|"]
-    runs = {}
-    dep_rows = {}
-    for l in calls:
-        if l.get("department"):
-            r = runs.setdefault(l.get("cos_run") or "(no cos_run)", {"departments": set(), "models": set(), "failed": {}})
-            r["departments"].add(l["department"]); r["models"].add(l.get("model") or l.get("caller_model") or "?")
-            dp = dep_rows.setdefault(l["department"], {"dispatches": 0, "models": set(), "checks": 0, "passed": 0, "send_backs": 0, "escalations": 0})
-            dp["dispatches"] += 1; dp["models"].add(l.get("model") or l.get("caller_model") or "?")
+    # by department: dispatches are the usage; send-backs are failed checks over dispatches
+    out += ["", "## By department", "", "| department | dispatches | models used | checks passed / checks | send-backs / dispatches | escalations / runs |", "|---|---|---|---|---|---|"]
+    runs, dep_rows = {}, {}
+    for l in dispatches:
+        r = runs.setdefault(l.get("cos_run") or "(no cos_run)", {"departments": set(), "models": set(), "failed": {}})
+        r["departments"].add(l["department"]); r["models"].add(l["applied_model"])
+        dp = dep_rows.setdefault(l["department"], {"dispatches": 0, "models": set(), "checks": 0, "passed": 0, "send_backs": 0, "escalations": 0})
+        dp["dispatches"] += 1; dp["models"].add(l["applied_model"])
     for c in checks:
         dep = c.get("department") or "(untagged)"
         r = runs.setdefault(c.get("cos_run") or "(no cos_run)", {"departments": set(), "models": set(), "failed": {}})
         r["departments"].add(dep)
-        if c.get("model"): r["models"].add(c["model"])
         dp = dep_rows.setdefault(dep, {"dispatches": 0, "models": set(), "checks": 0, "passed": 0, "send_backs": 0, "escalations": 0})
         dp["checks"] += 1; dp["passed"] += bool(c.get("passed"))
-        if c.get("model"): dp["models"].add(c["model"])
         if not c.get("passed"):
             dp["send_backs"] += 1
             r["failed"][dep] = r["failed"].get(dep, 0) + 1
@@ -456,12 +497,12 @@ def aar(d, date):
             if n >= 2:
                 dep_rows[dep]["escalations"] += 1
     for dep, p in sorted(dep_rows.items()):
+        dep_runs = sum(1 for rr in runs.values() if dep in rr["departments"])
         out.append(f"| {dep} | {p['dispatches']} | {', '.join(sorted(p['models'])) or '(none)'} | {rate(p['passed'], p['checks'])} | "
-                   f"{rate(p['send_backs'], max(p['dispatches'], p['checks']))} | {rate(p['escalations'], len([1 for rr in runs.values() if dep in rr['departments']]))} |")
+                   f"{rate(p['send_backs'], p['dispatches'], 'dispatches')} | {rate(p['escalations'], dep_runs, 'runs')} |")
     if not dep_rows:
         out.append("| (none) | 0 | (none) | 0/0 (no observations) | 0/0 (no observations) | 0/0 (no observations) |")
 
-    # run list
     out += ["", "## Runs", ""]
     for rid, r in sorted(runs.items()):
         esc = [dp for dp, n in r["failed"].items() if n >= 2]
@@ -470,18 +511,18 @@ def aar(d, date):
     if not runs:
         out.append("- (no runs)")
 
-    # one decision
+    # one decision: the worst rate over at least TOO_FEW observations of its own usage
     out += ["", "## Decision", ""]
     candidates = []
     for dep, p in dep_rows.items():
-        if p["checks"] >= TOO_FEW and p["send_backs"]:
-            candidates.append((p["send_backs"] / p["checks"], 2, f"the {dep} department's return contract or claim-check form: {p['send_backs']} of {p['checks']} checks failed"))
+        if p["dispatches"] >= TOO_FEW and p["send_backs"]:
+            candidates.append((p["send_backs"] / p["dispatches"], 2, f"the {dep} department's return contract or claim-check form: {p['send_backs']} send-backs over {p['dispatches']} dispatches"))
     for tier in TIERS:
         model = tiers[tier]
-        mchecks = [c for c in checks if c.get("model") == model]
-        fails = sum(1 for c in mchecks if not c.get("passed"))
-        if len(mchecks) >= TOO_FEW and fails:
-            candidates.append((fails / len(mchecks), 1, f"the routing default that sends department dispatches to {model}: {fails} of {len(mchecks)} checks on it failed"))
+        md = [l for l in dispatches if l["applied_model"] == model]
+        fails = sum(1 for c in checks if c.get("model") == model and not c.get("passed"))
+        if len(md) >= TOO_FEW and fails:
+            candidates.append((fails / len(md), 1, f"the routing default that sends department dispatches to {model}: {fails} claim-check failures over {len(md)} dispatches"))
     if per_class.get("unclassified", {}).get("calls", 0) >= TOO_FEW:
         n = per_class["unclassified"]["calls"]
         candidates.append((n / max(len(calls), 1), 0, f"the ontology: {n} of {len(calls)} calls were unclassified; add the missing class"))
@@ -501,6 +542,8 @@ def main(argv):
     cmd = argv[0]
     if cmd == "--selftest":
         return selftest()
+    if cmd == "cos-run":
+        return cmd_cos_run(argv[1:])
     if cmd == "aar":
         d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
         date = argv[argv.index("--date") + 1] if "--date" in argv else datetime.now(timezone.utc).strftime("%Y-%m-%d")

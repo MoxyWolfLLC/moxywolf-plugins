@@ -61,8 +61,9 @@ class Roster(unittest.TestCase):
         """CS-007.8 and .9: the skill text carries the run id, the AAR step, the folder, the flags and the log line."""
         cos = (ROOT / "plugins/chief-of-staff/skills/cos/SKILL.md").read_text()
         step1 = cos[cos.index("\n1. "):cos.index("\n2. ")]
-        for text in ("COS_RUN_ID=", "route.py\" aar", "00 – Project Hub/after-action/", "previous calendar day", "don't rewrite it", "never a reason to stop a dispatch"):
+        for text in ("cos-run start", ".gstack/cos-run.json", "COS_RUN_ID=", "route.py\" aar", "00 – Project Hub/after-action/", "previous calendar day", "don't rewrite it", "never a reason to stop a dispatch"):
             self.assertIn(text, step1, text)
+        self.assertIn("cos-run end", cos[cos.index("\n7. "):cos.index("\n8. ")])
         step5 = cos[cos.index("\n5. "):cos.index("\n6. ")]
         for flag in ("--department", "--cos-run", "--model"):
             self.assertIn(flag, step5, flag)
