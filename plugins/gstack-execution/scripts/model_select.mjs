@@ -72,7 +72,9 @@ export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model r
 // when they exist in the repository), and the item's "Links introduced".
 export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path) {
   const crits = (packet.acceptance_criteria ?? []).map(c => String(c).replace(/\s+/g, ' ').trim());
-  const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`\s]+\.[a-z0-9]{1,5}|[^`\s]*\/[^`\s]+)`/g)].map(m => m[1])))];
+  // a path is the first token inside backticks when it has a slash or an extension: `scripts/x.mjs recommend <packet>` names scripts/x.mjs
+  const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`]+)`/g)].map(m => m[1].trim().split(/\s+/)[0])
+                                              .filter(t => /^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$/.test(t) && (t.includes('/') || /\.[a-z0-9]{1,5}$/.test(t)))))];
   const files = paths.map((rel) => {
     const f = repoPath ? path.join(repoPath, rel) : null;
     if (!f || !fs.existsSync(f) || !fs.statSync(f).isFile()) return { path: rel, exists: false };

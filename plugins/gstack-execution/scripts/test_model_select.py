@@ -131,6 +131,7 @@ class Selector(unittest.TestCase):
         self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
         self.assertEqual(body["state"]["criteria_count"], 2)
         self.assertIn("scripts/a.py", body["state"]["paths_named"])
+        self.assertEqual(body["state"]["paths_named"], ["scripts/a.py", "test_a.py"])
         # F1 (review 20261013-175825): the named files are read, not only named; a.py exists at the head, scripts/a.py does not
         self.assertEqual(body["state"]["files_read"], 0)
         self.assertEqual([f["exists"] for f in body["state"]["files"]], [False, False])
@@ -229,7 +230,7 @@ class Selector(unittest.TestCase):
         return "\n".join(json.dumps(l) for l in out) + "\n"
 
     def test_a_named_file_that_exists_is_read_at_its_head(self):
-        pk = packet(self.d, self.base, self.head, acceptance_criteria=["`a.py` returns x + 1.", "`test_a.py` passes."])
+        pk = packet(self.d, self.base, self.head, acceptance_criteria=["`a.py recommend <packet>` returns x + 1.", "`test_a.py` passes.", "`x + 1` is not a path."])
         self.pfile.write_text(json.dumps(pk))
         r, ms = self.run_select("recommend", str(self.pfile), answers={})
         self.assertEqual(r.returncode, 0, r.stderr)
