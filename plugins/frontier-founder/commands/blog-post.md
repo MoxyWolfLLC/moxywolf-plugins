@@ -139,8 +139,16 @@ Scan the body for image, video, and audio references.
 
 ## Step 6 — Generate the hero image
 
-Every post gets one hero image, generated in the **brand-aligned abstract**
-style so the blog stays visually cohesive.
+Every post gets one hero image. The target's `hero_style` in 4d-blog-engine
+wins over the spec below: for The Frontier Founder it is `excalidraw-story`,
+a labeled diagram scene composed by `hero-scene-composer`, and a hero is a
+diagram of the post's argument, not abstract art (Dorian, 2026-09-15). When
+the hero is a real diagram to publish (an architecture, a flow, a quadrant),
+draw it with diagram-design (see `plugins/diagram-design`, a pointer to the
+upstream skill) in the `frontier-founder` profile and export the PNG. The
+abstract spec below is the fallback for a target that names no `hero_style`.
+
+The fallback, **brand-aligned abstract**, so the blog stays visually cohesive:
 
 **Style spec — use this every time:**
 

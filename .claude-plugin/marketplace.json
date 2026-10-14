@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.128.0",
+  "version": "1.129.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -282,7 +282,7 @@
       "name": "frontier-founder",
       "source": "./plugins/frontier-founder",
       "description": "Tooling for The Frontier Founder site. /blog-post converts any draft markdown file into a publication-ready, SEO/AEO-structured blog post \u2014 frontmatter with a meta-description excerpt, AEO structure (At a Glance, Key Takeaways, FAQ), a single @graph JSON-LD block (BlogPosting + Person + Organization + FAQPage) on the thefrontierfounder.com canonical, MoxyWolf typographic rules, a brand-aligned hero image, and slug-tied file naming, saved into the FrontierFounder repo. AEO thresholds defer to the canonical aeo-checklist in 4d-blog-engine.",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -716,6 +716,25 @@
         "evidence",
         "pointer",
         "rea",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "diagram-design",
+      "source": "./plugins/diagram-design",
+      "description": "Pointer to diagram-design (cathrynlavery/diagram-design, MIT): an agent skill that draws forty-five diagram types as one self-contained HTML file with inline SVG in an editorial style, with a brand profile pulled from a website URL and importers for Mermaid, draw.io and Excalidraw. It moves fast and ships its own Claude Code marketplace, so it is installed upstream rather than re-homed here (same posture as rea and understand-anything). This entry documents when to reach for it vs. Excalidraw and Mermaid, the install, and how the brand profiles are made.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "design",
+      "keywords": [
+        "diagrams",
+        "svg",
+        "brand",
+        "hero-image",
+        "pointer",
+        "diagram-design",
         "moxywolf"
       ]
     },
