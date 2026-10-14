@@ -2855,6 +2855,7 @@ def model_selection_line(d, state, packet, name, pr_number, decision):
             # shadow mode: the build ran on the floor unless the builder declared otherwise
             "declared_tier": ms.get("declared_tier") or ("floor" if ms.get("mode") == "shadow" else ms.get("applied_tier")),
             "override": ms.get("override"),
+            "routing": ms.get("routing") or "advice",     # MR-001.6 as amended: advice or launched
             "outcome": {"rounds_used": state.get("rounds_used", 0), "blocking_findings": blocking,
                         "unknowns_raised": unknowns, "release_outcome": decision["outcome"]}}
     f = review_root() / "model-selection" / f"{name.replace('/', '-')}.jsonl"

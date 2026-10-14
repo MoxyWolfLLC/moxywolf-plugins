@@ -199,7 +199,10 @@ async function recommend(packetPath, designPath) {
   const write = (fields) => {
     packet.model_selection = { model: MODEL, checked_at: new Date().toISOString(), inputs, ...fields,
                                ...(override !== undefined ? { override } : {}),
-                               declared_tier: prior.declared_tier ?? null };
+                               declared_tier: prior.declared_tier ?? null,
+                               // MR-001.6 as amended: who applied the tier. An interactive session takes it as advice;
+                               // a runner that starts the builder on it writes `launched`. Nothing launches today.
+                               routing: prior.routing === 'launched' ? 'launched' : 'advice' };
     fs.writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n');
   };
 

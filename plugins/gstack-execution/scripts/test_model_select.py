@@ -125,7 +125,7 @@ class Selector(unittest.TestCase):
         for answers, tier, rule in cases:
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
             self.assertEqual(r.returncode, 0, r.stderr)
-            self.assertEqual((ms["status"], ms["mode"], ms["tier"], ms["rule"]), ("checked", "shadow", tier, rule), ms)
+            self.assertEqual((ms["status"], ms["mode"], ms["tier"], ms["rule"], ms["routing"]), ("checked", "shadow", tier, rule, "advice"), ms)
             self.assertEqual(set(ms["answers"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
         body = Stub.seen[-1]
         self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
@@ -208,6 +208,7 @@ class Selector(unittest.TestCase):
             self.assertEqual(line["outcome"], {"rounds_used": 2, "blocking_findings": 1, "unknowns_raised": 1,
                                                "release_outcome": "human_merge_recorded"})
             self.assertIsNone(line["override"])
+            self.assertEqual(line["routing"], "advice")     # MR-001.6 as amended: nothing launched this build
         finally:
             pr.REVIEW_DIR, pr.github_get = saved
 
