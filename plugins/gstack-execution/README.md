@@ -51,6 +51,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `check_ledger.py` | Runs a check with no shell and records its real exit code in a per-branch ledger under the review root (XE-034). A failure stays open until the same check, in the same directory with the same arguments, passes; `open-issues` lists what's open. The idea is from WXK-AI/jev-opus at `6b6b0f8` (MIT); no code copied |
 | `unknowns.py` | Keeps a reviewer's open questions as revisioned ledger lines under the review root (EV-011): `record`, `update` (refused on a stale revision, nothing written), `close` (only by evidence that exists and carries enough authority: a round finding, a CI run at the head, a passed `check_ledger` run, or an observation a person entered on a release handoff), `list`; each write is one locked read-check-append. `peer_review.py round` writes one for each entry the reviewer declares in its `unknowns` list (falling back to `could not determine` / `could not verify` / `not verified` in unmet-row evidence only when it declared nothing), one line per question per review, closes a `repository` line when a later round meets its criterion, and `release` lists what's open; `close-all` closes a review's lines against one recorded observation, reachable as `peer_review.py unknowns close-all` too (EV-012); the observation may sit on any review of the same branch (EV-013). A question is never settled in the round that raised it. From morluto/rea at `7a6defa` (MIT); no code copied |
 | `packet_coverage.mjs` | Scores each acceptance criterion declared for an item against the review packet, so a packet narrower than the item it claims is caught before the review opens. Typed boolean scoring through TypeSafe AI's Jev on the Vercel AI Gateway |
+| `model_select.mjs` | Asks Jev four typed questions about an item and a rule table maps the answers to a builder tier (`floor`, `standard`, `light`), written into the packet as `model_selection`; `record-release` appends the outcome beside it in a per-repository ledger, `score` prints agreement, and `route` mode is refused with `insufficient_history` until 20 scored lines at 0.90 (MR-001) |
 | `agent_token.py` | Acts on GitHub as the `moxywolf-agent` app (GA-005): mints a one-hour token per command and passes it through the environment, never argv, output or a file. No fallback to a person's token. `permissions [--repo owner/name]` prints what that installation actually grants, which is the only thing that separates a permission the app never declared from one it declared and the installation has not accepted (GA-007) |
 | `review_host.sh` | Stands up a shell where a dispatched review survives between calls. Use it whenever a review has timed out once |
 | `ci_log_receipt.py` | Shortens a failed CI job's log to quotes a cheaper model picked, and keeps the receipt only if every quote is in the log byte for byte (XE-027). `peer_review.py ci-log` and the review surface use it. The idea comes from NVlabs/SoL-Pi's evidence-preserving reducer (MIT); no code is copied |
@@ -71,6 +72,28 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `docs` | Haiku | WebFetch, WebSearch, Read | The passage from a reference, changelog or spec, quoted, with its URL and version. No recommendation |
 
 Reading is the cheap half of a build and the expensive half of a context window. Both agents run on Haiku with no shell because an agent that can loop on `grep \| head` burns tokens examining everything and reporting nothing. `/gstack-build` sends its mapping to them before it edits. The department agents in other plugins stay on the session's model: they produce judgements, which is the part that needs it.
+
+## Which model builds an item (MR-001)
+
+`model_select.mjs recommend <packet> DESIGN.md` asks Jev four typed questions about the item, verbatim as the script lists them, and records the answers:
+
+| Question | True when |
+|---|---|
+| `trust_boundary` | the item changes code on a trust boundary: authentication, authorization, payment, credentials or secrets, the agent's GitHub token or app, a repository ruleset, a CI workflow, or anything that decides what an agent may do |
+| `cross_file` | building it needs reasoning across more than one source file at once |
+| `docs_only` | it is documentation, configuration, a status line or a version move only |
+| `has_tests` | its criteria name executable tests the build must add or make pass |
+
+A rule table in the script, not the model, maps the answers to a tier, first row that holds:
+
+| Rule | Condition | Tier |
+|---|---|---|
+| `trust_boundary` | trust_boundary | `floor` (Opus 5 or higher) |
+| `cross_file` | cross_file | `floor` |
+| `docs_only` | docs_only and not has_tests | `light` (Sonnet) |
+| `default` | anything else | `standard` (Sonnet with an Opus advisor) |
+
+Two modes. `shadow`, the default: the build runs on the floor and the recommendation is only recorded; `open` refuses an item packet without a checked one. `route`, with `GSTACK_MODEL_ROUTING=route`: the tier is the one the build is told to run on, refused with `insufficient_history` until the ledger holds 20 scored shadow lines at agreement 0.90. `record-release` appends each released item's outcome beside its recommendation in `$GSTACK_PEER_REVIEW_DIR/model-selection/<owner>-<repo>.jsonl`; `model_select.mjs score --repo <path>` prints per-tier counts, overridden and routed lines apart, how many open or abandoned reviews it skipped, and `agreement` (the share of `standard` and `light` recommendations whose item cleared in at most two rounds with no blocking finding). A person's `model_selection.override: {tier, reason}` wins in both modes. Nothing here changes which model reviews.
 
 ## What a review is, and is not
 
