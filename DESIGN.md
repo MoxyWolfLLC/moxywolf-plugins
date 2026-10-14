@@ -1908,6 +1908,36 @@ Fifteen scenario runs and two reviews found the same thing. Told in prose to kee
 8. Every scenario is rerun at the revision that carries this. The harness runs the script on each response and sends a failure back once, which is what the Chief of Staff does with a department’s result and with its own. Each run records the script’s output beside the response, and codex grades the result.
 9. The manual and `plugins/chief-of-staff/README.md` say what the check is and isn’t. It checks form, and that a quotation exists in its source. It doesn’t check that an inference is sound, that a `Me:` line is true, or that a quotation is fair to its context. Running it is an instruction, and nothing stops an agent that skips it. The receipt is what makes a skipped run visible, because anyone can run the script again.
 
+### CS-007 — Every Chief of Staff dispatch carries its department, and the sweep opens with an after-action report
+
+**Status:** planned. Declared 2026-10-14 at Dorian's instruction, beside MR-003. Drafted on Sonnet at his request; awaiting his approval before any code. Depends on MR-003 (the model-router plugin and its ledger).
+
+**Links introduced:** Six things get read by something else.
+
+- A ledger class `department-subagent` in `plugins/model-router/references/call-ontology.json`. The router hook reads it. It matches Agent calls whose `subagent_type` is one of the ten department agents (finance, people, it-operations, security, pmo, operations, corporate-strategy, customer-experience, sales-department, marketing-department). Default tier is `standard`, `ask` is true so Jev sees the dispatch, and security never drops below its floor (the same rule shape as review-subagent in MR-003).
+- Two new fields on each ledger line in `$GSTACK_PEER_REVIEW_DIR/model-routing/<YYYYMMDD>-<session_id>.jsonl`: `department` (the agent name) and `cos_run`. The hook reads `cos_run` from the env var `COS_RUN_ID`. `/cos` step 1 sets it to the date plus a short slug of the ask. A reader assumes a line without `cos_run` came from outside a COS run. That holds because only `/cos` sets the variable, and the hook never invents one.
+- A new file, `$GSTACK_PEER_REVIEW_DIR/model-routing/claim-checks.jsonl`. `plugins/chief-of-staff/scripts/claim_check.py` appends `{ts, cos_run, department, doc, passed, failing_lines}` to it. `route.py aar` reads it. A reader assumes one line means one check. That holds because the script writes exactly one line per run, and only when both `--department` and `--cos-run` are passed.
+- Two new flags, `--department` and `--cos-run`, passed by step 5 of `plugins/chief-of-staff/skills/cos/SKILL.md`.
+- A new line in each entry of `chief-of-staff-log.md`: `- Run: <cos_run>`. It joins the prose to the code-captured lines on the same id. A reader assumes the id is the same in both places. That holds because step 1 mints it once and every later step reuses it.
+- A new subcommand, `route.py aar --dir <ledger dir> --date <YYYY-MM-DD>`, and a new folder, `Taskade/<project>/00 – Project Hub/after-action/`, holding one `<YYYY-MM-DD>.md` per day. `/cos` step 1 reads and writes it.
+
+**Rationale.** MR-003 will log the model and the class of every call. The Chief of Staff already routes to ten departments and checks Sales and Marketing results with `claim_check.py`. But nothing captured by code says which department ran, on which model, and what happened to its result. The decision log is the only record of that, and the manual says it's written from memory. It's a summary. It can't answer "do our send-backs cluster on one model?" or "does one department escalate more?"
+
+CS-007 adds the missing join. Every dispatch carries its department and run id. Every claim check leaves a line. One report each morning counts what happened the day before, and the person reading it sees counts side by side: model against failures, department against escalations. It names correlations, never causes.
+
+What's not taken. We won't parse the prose log for correlations, because it's written from memory. The AAR won't change routing on its own. Dorian reads it, and MR-001.6's rule that routing earns its history still stands. We won't score departments on judgement. The AAR counts check outcomes and escalations, which are facts, not quality.
+
+1. `plugins/model-router/references/call-ontology.json` has a class `department-subagent` that matches Agent calls whose `subagent_type` is one of the ten department agents. Default tier is `standard` and `ask` is true.
+2. In `plugins/model-router/scripts/test_route.py`, a `finance:finance` launch classifies as `department-subagent`. The ledger line has `department` set to `finance` and `cos_run` taken from `COS_RUN_ID`.
+3. In `test_route.py`, a `security:security` launch stays on opus when the stub Jev says light.
+4. `plugins/chief-of-staff/scripts/claim_check.py` run with `--department` and `--cos-run` appends one line with `ts`, `cos_run`, `department`, `doc`, `passed` and `failing_lines` to `claim-checks.jsonl`. A run without them appends nothing and still prints the receipt. Both cases are tested in `plugins/chief-of-staff/tests/test_claim_check.py`.
+5. `route.py aar` on an empty directory prints zeros and reports zero lines read. It never reports a clean day. Tested in `test_route.py`.
+6. `route.py aar` on a fixture day (two cos runs, three departments, one claim-check failure, one escalation) prints the right counts per class, per model and per department, plus the run list. A rate under 10 observations prints with its count and is marked too few to read. Tested in `test_route.py`.
+7. The AAR output states the file count and line count it read. It reports correlations as counts side by side with no causal wording. The fixture test asserts both.
+8. `plugins/chief-of-staff/skills/cos/SKILL.md` step 1 sets `COS_RUN_ID`, runs the AAR for the previous calendar day, writes it to `00 – Project Hub/after-action/<YYYY-MM-DD>.md`, and leads the report with its headline counts. It skips the write when that day's file exists. If the ledger directory is unreachable it says so and goes on. Step 5 passes `--department` and `--cos-run`. A docs test, or the existing roster test, asserts that step 1 names the AAR and the after-action folder.
+9. The `chief-of-staff-log.md` entry format in `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` includes the `- Run: <cos_run>` line. The same docs test checks it.
+10. `plugins/chief-of-staff/.claude-plugin/plugin.json` and `plugins/model-router/.claude-plugin/plugin.json` each move a minor version, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_route.py` and `test_claim_check.py` among the suites it ran, and reports no failures.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
