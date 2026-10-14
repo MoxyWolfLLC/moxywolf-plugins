@@ -32,5 +32,6 @@ Built to Anthropic's Claude Managed Agents article, the Claude Agent SDK cookboo
 
 ## Version History
 
+- 0.3.0 (2026-10-14): CS-007. `/cos` step 1 mints `COS_RUN_ID` and opens with the previous day's after-action report from `model-router`'s `route.py aar`, written to `00 – Project Hub/after-action/`; `claim_check.py` takes `--department`, `--cos-run` and `--model` and leaves one code-captured line per check in `claim-checks.jsonl`; the decision log gains a `Run:` line that joins the prose to those records.
 - 0.2.0 (2026-10-07): CS-004 and CS-006. `scripts/claim_check.py` and the labeled-line forms for what reaches Dorian (CS-006). A disagreement that involves sales-department or finance doesn't wait for security, and one that involves finance carries a section for the outside bookkeeper (Dorian, 2026-10-07). Routes ten departments: sales-department and marketing-department join the roster, with the Revenue and mixed-ask lines, the Release Owner Gate, five dispatch fields and the nine-field return contract for those two.
 - 0.1.0 (2026-10-06): CS-001. Operating manual, `/cos` and the roster check.

@@ -32,9 +32,10 @@ SLIPPED = [("Security hasn't reviewed either result.", "run 12, S12"),
            ("Halden hasn't moved.", "run 15, S13"),
            ("The account may have CRM history which nobody read.", "run 15, S1")]
 OPEN = "- Open: Do we offer it?\n"
+SALES_LINE = '- Sales: "Offer the 30% discount"\n'
 
 
-def check(doc, *extra, sources=True):
+def check(doc, *extra, sources=True, env=None):
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)
         (d / "doc.md").write_text(doc)
@@ -43,11 +44,45 @@ def check(doc, *extra, sources=True):
         argv = [sys.executable, str(SCRIPT), "--doc", str(d / "doc.md"), "--json", *extra]
         if sources:
             argv += ["--source", f"Sales={d / 'sales.md'}", "--source", f"Finance={d / 'finance.md'}"]
-        r = subprocess.run(argv, capture_output=True, text=True)
+        r = subprocess.run(argv, capture_output=True, text=True, env=env)
     try:
         return r.returncode, json.loads(r.stdout)
     except ValueError:
         return r.returncode, {"raw": r.stdout + r.stderr}
+
+
+class Ledger(unittest.TestCase):
+    """CS-007.4: the receipt also lands as a code-captured line, only when department and run are named."""
+
+    def setUp(self):
+        import os
+        self.root = Path(tempfile.mkdtemp(prefix="cs007-"))
+        self.env = {**os.environ, "GSTACK_PEER_REVIEW_DIR": str(self.root)}
+        self.ledger = self.root / "model-routing" / "claim-checks.jsonl"
+
+    def lines(self):
+        return [json.loads(l) for l in self.ledger.read_text().splitlines() if l.strip()]
+
+    def test_a_run_with_department_and_cos_run_appends_one_tagged_line(self):
+        rc, out = check(SALES_LINE, "--department", "sales-department", "--cos-run", "2026-10-14-pricing", "--model", "sonnet", env=self.env)
+        self.assertEqual((rc, out["failed"]), (0, 0), out)
+        line = self.lines()[-1]
+        self.assertEqual({k: line[k] for k in ("cos_run", "department", "model", "doc", "passed", "failing_lines")},
+                         {"cos_run": "2026-10-14-pricing", "department": "sales-department", "model": "sonnet", "doc": "doc.md", "passed": True, "failing_lines": []})
+        self.assertTrue(line["ts"].startswith("20")); self.assertEqual(line["sha256"], out["sha256"])
+        rc, out = check(SALES_LINE + "- Finance says the margin is thin.\n", "--department", "finance", "--cos-run", "2026-10-14-pricing", env=self.env)
+        self.assertEqual(rc, 1)
+        line = self.lines()[-1]
+        self.assertEqual((line["department"], line["model"], line["passed"], line["failing_lines"]), ("finance", None, False, [2]))
+        self.assertEqual(len(self.lines()), 2)
+
+    def test_a_run_without_them_appends_nothing_and_still_prints_the_receipt(self):
+        rc, out = check(SALES_LINE, env=self.env)
+        self.assertEqual((rc, out["failed"]), (0, 0), out)
+        self.assertIn("sha256", out)
+        self.assertFalse(self.ledger.exists())
+        rc, out = check(SALES_LINE, "--department", "finance", env=self.env)   # one flag alone is not a tagged line
+        self.assertEqual(rc, 0); self.assertFalse(self.ledger.exists())
 
 
 class Forms(unittest.TestCase):

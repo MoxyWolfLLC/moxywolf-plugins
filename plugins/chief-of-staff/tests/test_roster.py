@@ -57,6 +57,17 @@ class Roster(unittest.TestCase):
             self.assertIn(dept, names, f"{dept} is not in the roster")
         self.assertEqual(len(names), 10, f"the roster routes {len(names)} agents, not ten")
 
+    def test_cos_names_the_run_id_the_aar_and_the_after_action_folder(self):
+        """CS-007.8 and .9: the skill text carries the run id, the AAR step, the folder, the flags and the log line."""
+        cos = (ROOT / "plugins/chief-of-staff/skills/cos/SKILL.md").read_text()
+        step1 = cos[cos.index("\n1. "):cos.index("\n2. ")]
+        for text in ("COS_RUN_ID=", "route.py\" aar", "00 – Project Hub/after-action/", "previous calendar day", "don't rewrite it", "never a reason to stop a dispatch"):
+            self.assertIn(text, step1, text)
+        step5 = cos[cos.index("\n5. "):cos.index("\n6. ")]
+        for flag in ("--department", "--cos-run", "--model"):
+            self.assertIn(flag, step5, flag)
+        self.assertIn("- Run: <cos_run", MANUAL.read_text())
+
     def test_parser_catches_drift(self):
         self.assertEqual(roster("no block here"), [])
         self.assertEqual(roster("```roster\nghost | nothing\n```"), ["ghost"])
