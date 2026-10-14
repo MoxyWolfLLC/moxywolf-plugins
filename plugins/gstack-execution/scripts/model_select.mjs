@@ -68,19 +68,27 @@ export function decide(answers) {
 
 export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model reads the named files, not only their names
 
+// F1 (review 20261013-182804): a named file is read from the packet's head commit through git, never
+// from the working tree, and only as a path inside the repository. `git show <head>:<rel>` refuses
+// `..`, absolute paths and anything the commit does not track, and follows no symlink out of the tree.
+export function readAtHead(repoPath, head, rel) {
+  if (!repoPath || !head || !/^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$/.test(rel) || rel.split('/').includes('..')) return { path: rel, exists: false };
+  let text;
+  try {
+    text = execFileSync('git', ['-C', repoPath, 'show', `${head}:${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20 });
+  } catch { return { path: rel, exists: false }; }
+  const lines = text.split('\n');
+  return { path: rel, exists: true, at: head, lines: lines.length, head: lines.slice(0, FILE_HEAD_LINES).join('\n') };
+}
+
 // What the model reads: the criteria, the files they name (their head, at the packet's head commit,
-// when they exist in the repository), and the item's "Links introduced".
-export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path) {
+// when that commit tracks them), and the item's "Links introduced".
+export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path, head = packet.repos?.[0]?.head) {
   const crits = (packet.acceptance_criteria ?? []).map(c => String(c).replace(/\s+/g, ' ').trim());
   // a path is the first token inside backticks when it has a slash or an extension: `scripts/x.mjs recommend <packet>` names scripts/x.mjs
   const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`]+)`/g)].map(m => m[1].trim().split(/\s+/)[0])
                                               .filter(t => /^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$/.test(t) && (t.includes('/') || /\.[a-z0-9]{1,5}$/.test(t)))))];
-  const files = paths.map((rel) => {
-    const f = repoPath ? path.join(repoPath, rel) : null;
-    if (!f || !fs.existsSync(f) || !fs.statSync(f).isFile()) return { path: rel, exists: false };
-    const lines = fs.readFileSync(f, 'utf8').split('\n');
-    return { path: rel, exists: true, lines: lines.length, head: lines.slice(0, FILE_HEAD_LINES).join('\n') };
-  });
+  const files = paths.map((rel) => readAtHead(repoPath, head, rel));
   const links = [];
   if (designText) {
     for (const item of packet.items ?? []) {
@@ -114,21 +122,23 @@ export function readLedger(file) {
 }
 
 // MR-001.5: cleared means at most two rounds and no blocking finding. Counted, never characterised.
-// Only shadow lines score (MR-001.6 asks for shadow history): a line written in route mode ran on
+// Every released line is counted per tier (F4, review 20261013-182804). Only shadow lines feed the
+// route gate and `agreement` (MR-001.6 asks for shadow history): a line written in route mode ran on
 // the recommended tier, so its outcome says nothing about whether the recommendation was safe.
 export function scoreLines(lines) {
-  const per = Object.fromEntries(TIERS.map(t => [t, { items: 0, cleared: 0, not_cleared: 0 }]));
-  let overridden = 0, routed = 0, cheapOk = 0, cheap = 0;
+  const per = Object.fromEntries(TIERS.map(t => [t, { items: 0, cleared: 0, not_cleared: 0, routed: 0 }]));
+  let overridden = 0, routed = 0, cheapOk = 0, cheap = 0, shadow = 0;
   for (const l of lines) {
     if (l.override) { overridden += 1; continue; }
-    if (l.recommendation?.mode !== 'shadow') { routed += 1; continue; }
     const t = l.recommendation?.tier;
     if (!per[t]) continue;
     const ok = (l.outcome?.rounds_used ?? 99) <= 2 && (l.outcome?.blocking_findings ?? 99) === 0;
     per[t].items += 1; per[t][ok ? 'cleared' : 'not_cleared'] += 1;
+    if (l.recommendation?.mode !== 'shadow') { routed += 1; per[t].routed += 1; continue; }
+    shadow += 1;
     if (t !== 'floor') { cheap += 1; if (ok) cheapOk += 1; }
   }
-  const scored = lines.length - overridden - routed;
+  const scored = shadow;
   // agreement is compared unrounded (F4: 0.8996 printed as 0.9 must not pass 0.90); printed to 3 places
   return { lines: lines.length, scored, overridden, routed, per_tier: per,
            agreement: cheap ? cheapOk / cheap : 0, cheap_recommended: cheap };
@@ -158,15 +168,21 @@ export function openReviews(repoPath, ledgerLines, env = process.env) {
 }
 
 function printScore(s, file, skipped) {
-  console.log(`ledger ${file}: ${s.lines} lines, ${s.scored} scored, ${s.overridden} overridden, ${s.routed} routed (not scored), ${skipped} open or abandoned reviews skipped`);
+  console.log(`ledger ${file}: ${s.lines} lines, ${s.scored} scored (shadow), ${s.overridden} overridden, ${s.routed} routed, ${skipped} open or abandoned reviews skipped`);
   for (const t of TIERS) {
     const p = s.per_tier[t];
-    console.log(`  ${t.padEnd(8)} ${p.items} items, ${p.cleared} cleared in at most 2 rounds with no blocking finding, ${p.not_cleared} did not`);
+    console.log(`  ${t.padEnd(8)} ${p.items} items, ${p.cleared} cleared in at most 2 rounds with no blocking finding, ${p.not_cleared} did not, ${p.routed} of them routed`);
   }
   console.log(`agreement ${Number(s.agreement.toFixed(3))} over ${s.cheap_recommended} standard/light recommendations`);
 }
 
 async function recommend(packetPath, designPath) {
+  // F2 (review 20261013-182804): without the design file the item's "Links introduced" is never read,
+  // and a recommendation over fewer inputs than the contract names is not a recommendation.
+  if (!designPath || !fs.existsSync(designPath)) {
+    console.error('usage: model_select.mjs recommend <packet.json> <DESIGN.md | goals/<id>/PLAN.md>  (the design file is required: it carries the item\'s Links introduced)');
+    process.exit(2);
+  }
   const packet = JSON.parse(fs.readFileSync(packetPath, 'utf8'));
   const prior = packet.model_selection ?? {};
   const override = prior.override;
@@ -177,7 +193,7 @@ async function recommend(packetPath, designPath) {
       process.exit(2);
     }
   }
-  const designText = designPath ? fs.readFileSync(designPath, 'utf8') : null;
+  const designText = fs.readFileSync(designPath, 'utf8');
   const inputs = inputsFrom(packet, designText);
   const wanted = process.env.GSTACK_MODEL_ROUTING === 'route' ? 'route' : 'shadow';
   const write = (fields) => {

@@ -135,11 +135,14 @@ class Selector(unittest.TestCase):
         # F1 (review 20261013-175825): the named files are read, not only named; a.py exists at the head, scripts/a.py does not
         self.assertEqual(body["state"]["files_read"], 0)
         self.assertEqual([f["exists"] for f in body["state"]["files"]], [False, False])
+        # F2 (review 20261013-182804): the design file is required
+        r = subprocess.run(["node", str(SCRIPT), "recommend", str(self.pfile)], capture_output=True, text=True, cwd=str(HERE))
+        self.assertEqual(r.returncode, 2); self.assertIn("Links introduced", r.stderr)
         self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
 
     def test_a_trust_boundary_item_is_never_below_floor(self):
         for extra in ({"docs_only": 1}, {"docs_only": 1, "has_tests": 1}, {"cross_file": 1}):
-            r, ms = self.run_select("recommend", str(self.pfile), answers={"trust_boundary": 1, **extra})
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"trust_boundary": 1, **extra})
             self.assertEqual((ms["tier"], ms["rule"]), ("floor", "trust_boundary"), ms)
 
     # ---- MR-001.3: shadow writes the field; open refuses a packet without it ----
@@ -153,7 +156,7 @@ class Selector(unittest.TestCase):
                 pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
             self.assertEqual(cm.exception.outcome, "model_selection_missing")
             self.assertFalse(list((self.root / "reviews").glob("2*")), "a refused open leaves no review directory")
-            r, ms = self.run_select("recommend", str(self.pfile), answers={})
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
             self.assertEqual(ms["mode"], "shadow")
             with contextlib.redirect_stdout(io.StringIO()):
                 st = pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
@@ -213,7 +216,7 @@ class Selector(unittest.TestCase):
     def test_score_prints_zeros_on_an_empty_ledger(self):
         r, _ = self.run_select("score", "--repo", str(self.d))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("0 lines, 0 scored, 0 overridden, 0 routed (not scored), 0 open or abandoned reviews skipped", r.stdout)
+        self.assertIn("0 lines, 0 scored (shadow), 0 overridden, 0 routed, 0 open or abandoned reviews skipped", r.stdout)
         for t in ("floor", "standard", "light"):
             self.assertIn(f"{t:<8} 0 items, 0 cleared", r.stdout)
         self.assertIn("agreement 0 over 0 standard/light recommendations", r.stdout)
@@ -232,13 +235,28 @@ class Selector(unittest.TestCase):
     def test_a_named_file_that_exists_is_read_at_its_head(self):
         pk = packet(self.d, self.base, self.head, acceptance_criteria=["`a.py recommend <packet>` returns x + 1.", "`test_a.py` passes.", "`x + 1` is not a path."])
         self.pfile.write_text(json.dumps(pk))
-        r, ms = self.run_select("recommend", str(self.pfile), answers={})
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
         self.assertEqual(r.returncode, 0, r.stderr)
         files = {f["path"]: f for f in ms["inputs"]["files"]}
         self.assertEqual(ms["inputs"]["files_read"], 1)
-        self.assertEqual((files["a.py"]["exists"], files["a.py"]["lines"]), (True, 3))
+        self.assertEqual((files["a.py"]["exists"], files["a.py"]["lines"], files["a.py"]["at"]), (True, 3, self.head))
         self.assertIn("return x + 1", files["a.py"]["head"])
         self.assertEqual(files["test_a.py"], {"path": "test_a.py", "exists": False})
+        # F1 (review 20261013-182804): read at the packet's head, not the working tree; never outside the repository
+        (self.d / "a.py").write_text("WORKING TREE EDIT\n")
+        secret = self.root / "secret.env"; secret.write_text("TOKEN=x\n")
+        rel_out = os.path.relpath(secret, self.d)
+        pk["acceptance_criteria"] = ["`a.py` returns x + 1.", f"`{rel_out}` is read.", "`/etc/hosts` is read."]
+        pk["repos"][0]["head"] = self.base
+        self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = {f["path"]: f for f in ms["inputs"]["files"]}
+        self.assertEqual(files["a.py"]["at"], self.base)
+        self.assertIn("return x\n", files["a.py"]["head"] + "\n"); self.assertNotIn("WORKING TREE", files["a.py"]["head"])
+        self.assertEqual(files[rel_out]["exists"], False)
+        self.assertNotIn("/etc/hosts", files)
+        self.assertNotIn("TOKEN=x", json.dumps(ms))
 
     def test_a_selector_that_did_not_run_does_not_open(self):
         # F2 (review 20261013-175825): the gate is a checked recommendation, not the field's presence
@@ -266,19 +284,23 @@ class Selector(unittest.TestCase):
                                                                   "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "x"}}) + "\n")
         r, _ = self.run_select("score", "--repo", str(self.d))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("3 lines, 2 scored, 0 overridden, 1 routed (not scored), 1 open or abandoned reviews skipped", r.stdout)
+        self.assertIn("3 lines, 2 scored (shadow), 0 overridden, 1 routed, 1 open or abandoned reviews skipped", r.stdout)
+        # F4 (review 20261013-182804): the routed light item is in light's row; it is not in agreement
+        self.assertIn("light    1 items, 1 cleared in at most 2 rounds with no blocking finding, 0 did not, 1 of them routed", r.stdout)
+        self.assertIn("standard 2 items, 2 cleared", r.stdout)
+        self.assertIn("agreement 1 over 2 standard/light recommendations", r.stdout)
 
     def test_route_is_refused_with_insufficient_history_until_twenty_lines_at_point_nine(self):
         # F4 (review 20261013-175825): the gate reads shadow lines only and compares agreement unrounded
         self.ledger().write_text(self._lines(20, 18).replace('"shadow"', '"route"'))
-        r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING="route")
         self.assertEqual((r.returncode, ms["mode"], ms["route_refused"]["lines"]), (5, "shadow", 0), r.stderr)
         self.ledger().write_text(self._lines(1000, 899))        # 0.899, which prints as 0.899 and must not pass 0.90
-        r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING="route")
         self.assertEqual((r.returncode, ms["route_refused"]["agreement"]), (5, 0.899), r.stderr)
         for n, ok, expect in ((19, 19, False), (20, 17, False), (20, 18, True)):
             self.ledger().write_text(self._lines(n, ok))
-            r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING="route")
             if expect:
                 self.assertEqual((r.returncode, ms["mode"]), (0, "route"), (n, ok, r.stderr))
                 self.assertNotIn("route_refused", ms)
@@ -297,12 +319,12 @@ class Selector(unittest.TestCase):
     def test_an_override_wins_and_is_recorded_and_a_bad_one_is_refused(self):
         pk = packet(self.d, self.base, self.head, model_selection={"override": {"tier": "floor", "reason": "touches the token path"}})
         self.pfile.write_text(json.dumps(pk))
-        r, ms = self.run_select("recommend", str(self.pfile), answers={"docs_only": 1})
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual((ms["tier"], ms["applied_tier"], ms["override"]["reason"]), ("light", "floor", "touches the token path"))
         for bad in ({"tier": "haiku", "reason": "cheaper"}, {"tier": "light"}, {"tier": "nano", "reason": "x"}):
             pk["model_selection"] = {"override": bad}; self.pfile.write_text(json.dumps(pk))
-            r, ms = self.run_select("recommend", str(self.pfile), answers={})
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
             self.assertEqual(r.returncode, 2, (bad, r.stderr))
             self.assertIn("override", r.stderr)
         # the overridden item is counted apart from the scored ones
@@ -310,7 +332,7 @@ class Selector(unittest.TestCase):
                                              "declared_tier": "floor", "override": {"tier": "floor", "reason": "x"},
                                              "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "x"}}) + "\n")
         r, _ = self.run_select("score", "--repo", str(self.d))
-        self.assertIn("1 lines, 0 scored, 1 overridden", r.stdout)
+        self.assertIn("1 lines, 0 scored (shadow), 1 overridden", r.stdout)
 
 
 if __name__ == "__main__":
