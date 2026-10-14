@@ -154,8 +154,8 @@ def session_file(session_id):
 
 def routing_off(path):
     """F2 (review 20261014-014833): a session whose table was refused stays off, whatever the table does later."""
-    starts = [l for l in read_lines(path) if l.get("event") == "session_start"]
-    return bool(starts) and starts[-1].get("routing") == "off"
+    # round 2: any refusal in the session's ledger holds, whatever a later SessionStart (compact, resume) finds
+    return any(l.get("event") == "session_start" and l.get("routing") == "off" for l in read_lines(path))
 
 
 def append(path, line):
@@ -238,12 +238,15 @@ def cmd_session_start(h):
     table, why = load_table_safely()
     sid = h.get("session_id") or "unknown"
     d, source = ledger_dir()
+    path = session_file(sid)                 # the session's existing ledger, across a date rollover
+    if table is not None and routing_off(path):
+        table, why = None, "refused earlier in this session"
     if table is None:
         print(f"model-router: routing is off for this session: {why}", file=sys.stderr)
-        append(ledger_path(sid), {"ts": now(), "event": "session_start", "routing": "off", "why": why, "ledger_source": source})
+        append(path, {"ts": now(), "event": "session_start", "routing": "off", "why": why, "ledger_source": source, "source": h.get("source")})
         return 0
-    append(ledger_path(sid), {"ts": now(), "event": "session_start", "routing": "on", "ontology_version": table["version"],
-                              "ledger_source": source, "source": h.get("source")})
+    append(path, {"ts": now(), "event": "session_start", "routing": "on", "ontology_version": table["version"],
+                  "ledger_source": source, "source": h.get("source")})
     return 0
 
 

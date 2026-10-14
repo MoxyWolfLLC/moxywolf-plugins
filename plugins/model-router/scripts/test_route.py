@@ -163,6 +163,18 @@ class Hooks(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
         last = self.session_lines("s2")[-1]
         self.assertEqual((last["event"], last["why"]), ("refused", "routing is off for this session"))
+        # round 2: a second SessionStart (compact, resume) with the table restored does not turn it back on
+        r = self.run_plugin(plugin, "session-start", {"session_id": "s2", "source": "compact"})
+        self.assertEqual(r.returncode, 0); self.assertIn("refused earlier in this session", r.stderr)
+        self.assertEqual((self.session_lines("s2")[-1]["routing"], self.session_lines("s2")[-1]["source"]), ("off", "compact"))
+        r = self.run_plugin(plugin, "pre-tool-use", {"session_id": "s2", "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore"}})
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
+        self.assertEqual(self.session_lines("s2")[-1]["event"], "refused")
+        # a new session on the restored table routes normally
+        r = self.run_plugin(plugin, "session-start", {"session_id": "s2b", "source": "startup"})
+        self.assertEqual(self.session_lines("s2b")[0]["routing"], "on")
+        r = self.run_plugin(plugin, "pre-tool-use", {"session_id": "s2b", "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore", "prompt": "x"}})
+        self.assertEqual(json.loads(r.stdout)["hookSpecificOutput"]["updatedInput"]["model"], "haiku")
         # a call before any SessionStart, with no table, opens the ledger off (cloud session) and stays off
         plugin3 = self.plugin_copy("s3")
         r = self.run_plugin(plugin3, "pre-tool-use", {"session_id": "s3", "tool_name": "Read", "tool_input": {}})
