@@ -165,7 +165,7 @@ The exact reviewed head is merged in one of three ways. Under DR-113 (Dorian, 20
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" merge-instruction --covers <n>[,<n>…] --text "<their words>" --given-at <UTC time> --owner <login> \
      | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api POST repos/<owner>/<repo>/issues/<n>/comments --data -
    ```
-2. In every case, merge through the pull request as the app, after `release` has written the handoff: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api PUT repos/<owner>/<repo>/pulls/<n>/merge --data '{"sha":"<reviewed head>"}'`. The `sha` pins the merge to the reviewed head.
+2. **Read the lane first (GA-010).** `release.json` carries `release_lane`. When it is `closed`, stop here: DR-113 does not apply, post the handoff for the Release Owner naming what matched, and do not merge; the owner merges or instructs. When it is `wide`, the handoff has already checked the gates it names. In every other case, merge through the pull request as the app, after `release` has written the handoff: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" api PUT repos/<owner>/<repo>/pulls/<n>/merge --data '{"sha":"<reviewed head>"}'`. The `sha` pins the merge to the reviewed head.
 3. Never merge without a passing review at the exact head and a handoff written first, and never under the owner's credential. An instruction is words telling the agent to merge ("merge #83"); a general permission ("move forward", "full permission") is not one (XE-029), and under DR-113 none is needed.
 
 Either way, record each repository's GitHub merge:

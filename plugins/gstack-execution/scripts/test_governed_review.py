@@ -413,6 +413,147 @@ class GovernedReview(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0)
 
 
+class ReleaseLanes(GovernedReview):
+    """GA-010: the lane is decided by what the change touches, by code, at the reviewed head."""
+
+    def commit_change(self, rel, text="x\n", delete=False, rename_to=None):
+        """One more commit on top of the fixture head, returning the new head; the packet follows."""
+        p = self.repo / rel
+        if delete:
+            self.git("rm", "-q", rel)
+        elif rename_to:
+            self.git("mv", rel, rename_to)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text); self.git("add", rel)
+        self.git("commit", "-qm", f"touch {rel}")
+        self.head = self.git("rev-parse", "HEAD")
+        self.packet["repos"][0]["head"] = self.head
+        return self.head
+
+    def lane(self):
+        return peer.release_lane(self.packet["repos"])
+
+    def test_the_fixture_change_is_contained(self):
+        L = self.lane()
+        self.assertEqual((L["lane"], L["decided_by"], L["matched"], L["table"]), ("contained", ["none"], [], "default"))
+
+    def test_a_migration_path_is_closed_by_path(self):
+        self.commit_change("db/migrations/0001_init.sql", "create table t(x int);\n")
+        L = self.lane()
+        self.assertEqual((L["lane"], L["decided_by"]), ("closed", ["path"]))
+        self.assertEqual([m["path"] for m in L["matched"]], ["db/migrations/0001_init.sql"])
+
+    def test_a_deleted_tracked_file_is_closed_by_effect(self):
+        self.commit_change("value.txt", delete=True)
+        L = self.lane()
+        self.assertEqual((L["lane"], L["decided_by"]), ("closed", ["effect"]))
+        self.assertEqual(L["matched"][0]["effect"], "deletes_tracked_file")
+
+    def test_a_shared_script_is_wide_and_a_rename_is_wide(self):
+        self.commit_change("scripts/helper.py", "def h(): pass\n")
+        self.assertEqual(self.lane()["lane"], "wide")
+        self.base = self.head; self.packet["repos"][0]["base"] = self.base   # the rename is base..head, not a later add
+        self.commit_change("scripts/helper.py", rename_to="scripts/helper2.py")
+        L = self.lane()
+        self.assertEqual(L["lane"], "wide")
+        self.assertIn("renames_tracked_file", [m.get("effect") for m in L["matched"]])
+
+    def test_a_file_many_callers_name_is_wide_by_effect(self):
+        for i in range(6):
+            (self.repo / f"caller{i}.py").write_text("import widget\n")
+        self.git("add", "."); self.git("commit", "-qm", "callers")
+        self.base = self.git("rev-parse", "HEAD"); self.packet["repos"][0]["base"] = self.base
+        self.commit_change("widget.py", "VALUE = 2\n")
+        L = self.lane()
+        self.assertEqual(L["lane"], "wide")
+        self.assertEqual([m["effect"] for m in L["matched"]], ["many_callers"])
+        (self.repo / "caller5.py").unlink(); self.git("add", "."); self.git("commit", "-qm", "five callers")
+        self.base = self.git("rev-parse", "HEAD"); self.packet["repos"][0]["base"] = self.base
+        self.commit_change("widget.py", "VALUE = 3\n")
+        self.assertEqual(self.lane()["lane"], "contained")   # exactly five is not more than five
+
+    def test_the_most_restrictive_lane_wins(self):
+        self.commit_change("scripts/helper.py", "x = 1\n")
+        self.commit_change("db/migrations/0002.sql", "alter table t add y int;\n")
+        self.assertEqual(self.lane()["lane"], "closed")
+
+    def test_a_repository_table_replaces_the_default_whole(self):
+        self.commit_change(".gstack/release-lanes.json", json.dumps({"lanes": {"closed": {"paths": ["docs/**"], "effects": []}, "wide": {"paths": [], "effects": []}}}))
+        self.commit_change("db/migrations/0003.sql", "x\n")   # closed by the default table, nothing by this one
+        self.commit_change("docs/a.md", "# a\n")
+        L = self.lane()
+        self.assertEqual((L["lane"], [m["path"] for m in L["matched"]]), ("closed", ["docs/a.md"]))
+        self.assertTrue(L["table"].endswith(".gstack/release-lanes.json@" + self.head[:7]), L["table"])
+
+    def test_an_unreadable_diff_is_refused_not_contained(self):
+        self.packet["repos"][0]["head"] = "0" * 40
+        with self.assertRaises(peer.ReviewError) as cm:
+            self.lane()
+        self.assertEqual(cm.exception.outcome, "malformed_packet")
+
+    def test_open_records_the_lane_and_the_reviewer_cannot_move_it(self):
+        self.commit_change("db/migrations/0004.sql", "x\n")
+        self.open()
+        state = json.loads((self.root / "reviews" / self.rid / "state.json").read_text())
+        self.assertEqual(state["release_lane"]["lane"], "closed")
+        self.response(release_lane={"lane": "contained"})      # a reviewer key, whatever validate does with it
+        r, out = self.round()
+        state = json.loads((self.root / "reviews" / self.rid / "state.json").read_text())
+        self.assertEqual(state["release_lane"]["lane"], "closed")
+        if r.returncode != 0:                                     # the key was refused as malformed; a clean round follows
+            self.response(); r, out = self.round()
+            self.assertEqual(r.returncode, 0, r.stderr)
+        rounds = sorted((self.root / "reviews" / self.rid).glob("round-*.json"))
+        rec = json.loads(rounds[-1].read_text())
+        self.assertEqual(rec["release_lane"]["lane"], "closed")
+
+    def test_release_on_a_closed_lane_says_dr113_does_not_apply(self):
+        self.commit_change("db/migrations/0005.sql", "x\n")
+        self.open(); self.response(); self.round()
+        r = self.call("release", self.rid)
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual(rec["outcome"], "awaiting_human_release")
+        self.assertEqual(rec["release_lane"]["lane"], "closed")
+        self.assertIn("DR-113 does not apply", rec["instruction"])
+        self.assertIn("does not merge", rec["instruction"])
+
+    def test_release_on_a_wide_lane_names_its_gates(self):
+        self.commit_change("scripts/helper.py", "x = 1\n")
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid)
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual(rec["release_lane"]["lane"], "wide")
+        self.assertIn("lane is wide", rec["instruction"])
+
+    def test_an_autonomous_agent_merge_of_a_closed_lane_is_recorded_out_of_lane(self):
+        self.commit_change("db/migrations/0006.sql", "x\n")
+        r = self.bot_merge([])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual(rec["outcome"], "agent_merge_out_of_lane")
+        self.assertEqual(rec["lane"], "closed")
+        self.assertEqual([m["path"] for m in rec["matched"]], ["db/migrations/0006.sql"])
+        self.assertNotIn("authority", rec); self.assertNotIn("authorized_by", rec)
+        self.assertEqual(rec["release_lane"]["lane"], "closed")
+
+    def test_an_instructed_agent_merge_of_a_closed_lane_is_on_instruction_and_carries_the_lane(self):
+        self.commit_change("db/migrations/0007.sql", "x\n")
+        r = self.bot_merge([self.instruction_comment()])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual((rec["outcome"], rec["release_lane"]["lane"]), ("agent_merge_on_instruction", "closed"))
+
+    def test_an_autonomous_merge_of_a_contained_lane_is_still_autonomous(self):
+        r = self.bot_merge([])
+        rec = json.loads(r.stdout)
+        self.assertEqual((rec["outcome"], rec["release_lane"]["lane"]), ("agent_merge_autonomous", "contained"))
+
+
+# ReleaseLanes borrows GovernedReview's fixture, not its tests
+for _name in [n for n in vars(GovernedReview) if n.startswith("test_")]:
+    setattr(ReleaseLanes, _name, None)
+
+
 class ReviewRootIsDeclared(unittest.TestCase):
     """EV-009. The old default wrote records to a session-local home, so the record was
     gone and the review ID in the design document still read like evidence."""

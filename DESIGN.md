@@ -157,7 +157,7 @@ GA-005 criterion 1 mints from the single installation id in `github-app.env`, an
 
 ### GA-010 — A release lane is decided by what the change touches, and the closed lane never opens on its own
 
-**Status:** planned. Declared 2026-10-13 from the Loops and Graphs intake (the post behind XE-036: "open the gate on blast radius, not on confidence"), at Dorian's instruction ("write them both up"); awaiting his approval before any code.
+**Status:** building. Declared 2026-10-13 from the Loops and Graphs intake (the post behind XE-036: "open the gate on blast radius, not on confidence"), at Dorian's instruction ("write them both up") and approved by him the same day ("approve #211"); design committed as `469defb` (PR #211, merged `6959afa`).
 
 **Links introduced:** `release_lane` on `state.json`, the release handoff and the release record: `{lane, decided_by, matched}` where `lane` is `contained`, `wide` or `closed`, `decided_by` is `path` or `effect`, and `matched` lists the paths or effects that decided it. The reader's assumption is that the lane was decided from the change at the reviewed head, by code, before any model read the diff. That holds because `open` computes it from `git diff --name-status <base>..<head>` against a declared table and no later step may change it; a round records it on `SURFACE.md` line 2 and the reviewer cannot write it.
 
