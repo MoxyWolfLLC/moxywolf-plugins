@@ -35,9 +35,9 @@ A launch that already names a `model` keeps it (MR-001.7, a person's choice wins
 
 ## The ledger
 
-`$GSTACK_PEER_REVIEW_DIR/model-routing/<YYYYMMDD>-<session_id>.jsonl`, or `~/.gstack/model-routing/` when the variable is unset (the first line says which). One line per call: `ts`, `class`, `tool`, `routed`, and for a routed line `tier`, `model`, `decided_by`. SessionStart writes the opening line; in a cloud session, where the plugin's hooks register after SessionStart has fired, the first PreToolUse writes it instead (`source: lazy`). SessionEnd appends a summary: calls by class, routed, Jev consults, tier counts, unclassified. With the ontology missing or invalid, SessionStart says so on stderr, routing is off for the session, and each call is recorded as `refused`.
+`$GSTACK_PEER_REVIEW_DIR/model-routing/<YYYYMMDD>-<session_id>.jsonl`, or `~/.gstack/model-routing/` when the variable is unset (the first line says which). One line per call: `ts`, `class`, `tool`, `routed`, and for a routed line `tier`, `model`, `decided_by`. SessionStart writes the opening line; in a cloud session, where the plugin's hooks register after SessionStart has fired, the first PreToolUse writes it instead (`source: lazy`). SessionEnd appends a summary: calls by class, routed, Jev consults, tier counts, unclassified. With the ontology missing or invalid (unreadable, a non-object entry, a missing field, a non-boolean flag, a tier outside the three, a match that is not a regex), SessionStart says so on stderr, routing is off for the session, and each call is recorded as `refused`. The off state lives in the session's ledger, so a table restored mid-session does not turn routing back on; the next session reads the table fresh. `MODEL_ROUTER_FORCE_ERROR=1` forces an internal failure so the test can prove the `hook_error` line; nothing else reads it.
 
-`python3 scripts/route.py score --dir <ledger dir>` prints, per class and per tier, calls, routed and Jev consults, plus files, lines, sessions and unclassified. Zero is printed as zero.
+`python3 scripts/route.py score --dir <ledger dir>` prints, per class and per tier, calls, routed, Jev consults and unclassified (an unclassified Agent launch that Jev routed shows in its tier's row), plus files, lines, sessions and unclassified in all. Zero is printed as zero.
 
 ## Hooks
 

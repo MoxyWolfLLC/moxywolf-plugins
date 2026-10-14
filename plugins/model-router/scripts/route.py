@@ -84,15 +84,37 @@ def load_table(path=ONTOLOGY):
     tiers = t.get("tiers") or {}
     if set(tiers) != set(TIERS):
         return None, f"ontology {path} must map exactly {list(TIERS)} to model names"
+    if not all(isinstance(v, str) and v for v in tiers.values()):
+        return None, f"ontology {path} tiers must map to model names"
     for i, c in enumerate(t["classes"]):
+        if not isinstance(c, dict):
+            return None, f"ontology {path} entry {i} is not an object"
         missing = [f for f in FIELDS if f not in c]
         if missing:
             return None, f"ontology {path} entry {i} lacks {missing}"
+        if not (isinstance(c["class"], str) and c["class"] and isinstance(c["tool"], str) and c["tool"]):
+            return None, f"ontology {path} entry {i} needs string class and tool"
+        if not isinstance(c["carries_model"], bool) or not isinstance(c["ask"], bool):
+            return None, f"ontology {path} entry {c['class']} needs boolean carries_model and ask"
         if c["default_tier"] not in TIERS + ("none",):
             return None, f"ontology {path} entry {c['class']} has default_tier {c['default_tier']!r}; use floor, standard, light or none"
-        if c["match"] is not None and not isinstance(c["match"], dict):
-            return None, f"ontology {path} entry {c['class']} has a non-object match"
+        if c["match"] is not None:
+            if not isinstance(c["match"], dict):
+                return None, f"ontology {path} entry {c['class']} has a non-object match"
+            for k, rx in c["match"].items():
+                try:
+                    re.compile(rx if isinstance(rx, str) else None)
+                except (re.error, TypeError) as e:
+                    return None, f"ontology {path} entry {c['class']} match {k!r} is not a regex: {e}"
     return t, None
+
+
+def load_table_safely(path=ONTOLOGY):
+    """F1 (review 20261014-014833): any failure while reading the table is a refusal, never a hook error."""
+    try:
+        return load_table(path)
+    except Exception as e:
+        return None, f"ontology {path} refused: {type(e).__name__}: {e}"
 
 
 def classify(table, tool, tool_input):
@@ -128,6 +150,12 @@ def session_file(session_id):
         return p
     older = sorted(d.glob(f"*-{session_id}.jsonl")) if d.exists() else []
     return older[-1] if older else p
+
+
+def routing_off(path):
+    """F2 (review 20261014-014833): a session whose table was refused stays off, whatever the table does later."""
+    starts = [l for l in read_lines(path) if l.get("event") == "session_start"]
+    return bool(starts) and starts[-1].get("routing") == "off"
 
 
 def append(path, line):
@@ -207,7 +235,7 @@ def hook_input():
 
 
 def cmd_session_start(h):
-    table, why = load_table()
+    table, why = load_table_safely()
     sid = h.get("session_id") or "unknown"
     d, source = ledger_dir()
     if table is None:
@@ -224,8 +252,15 @@ def cmd_pre_tool_use(h):
     tool = h.get("tool_name") or ""
     tin = h.get("tool_input") if isinstance(h.get("tool_input"), dict) else {}
     path = session_file(sid)
-    table, why = load_table()
+    if os.environ.get("MODEL_ROUTER_FORCE_ERROR"):   # MR-003.8's forced internal failure, for the test only
+        raise RuntimeError("forced by MODEL_ROUTER_FORCE_ERROR")
+    if routing_off(path):
+        append(path, {"ts": now(), "event": "refused", "tool": tool, "why": "routing is off for this session"})
+        return 0
+    table, why = load_table_safely()
     if table is None:
+        if not path.exists():
+            append(path, {"ts": now(), "event": "session_start", "routing": "off", "why": why, "ledger_source": ledger_dir()[1], "source": "lazy"})
         append(path, {"ts": now(), "event": "refused", "tool": tool, "why": why})
         return 0
     if not path.exists():   # a cloud session whose SessionStart fired before the plugin's hooks registered
@@ -281,7 +316,7 @@ def cmd_session_end(h):
     sid = h.get("session_id") or "unknown"
     path = session_file(sid)
     lines = read_lines(path)
-    table, _ = load_table()
+    table, _ = load_table_safely()
     s = summarize(lines)
     s.update(ts=now(), event="session_end", ontology_version=table["version"] if table else None, reason=h.get("reason"))
     append(path, s)
@@ -296,15 +331,16 @@ def score_dir(d):
     files = sorted(Path(d).glob("*.jsonl")) if Path(d).exists() else []
     lines = [l for f in files for l in read_lines(f)]
     calls = [l for l in lines if "class" in l]
-    per_class = {}
-    for l in calls:
-        p = per_class.setdefault(l["class"], {"calls": 0, "routed": 0, "jev": 0, "jev_unavailable": 0})
+    def bump(p, l):
         p["calls"] += 1; p["routed"] += bool(l.get("routed")); p["jev"] += ("answers" in l or l.get("jev") == "unavailable")
-        p["jev_unavailable"] += l.get("jev") == "unavailable"
-    per_tier = {t: {"calls": 0, "routed": 0} for t in TIERS}
+        p["jev_unavailable"] += l.get("jev") == "unavailable"; p["unclassified"] += l["class"] == "unclassified"
+    fresh = lambda: {"calls": 0, "routed": 0, "jev": 0, "jev_unavailable": 0, "unclassified": 0}
+    per_class = {}
+    per_tier = {t: fresh() for t in TIERS}   # F3: the same four counts in both breakdowns
     for l in calls:
+        bump(per_class.setdefault(l["class"], fresh()), l)
         if l.get("tier") in per_tier:
-            per_tier[l["tier"]]["calls"] += 1; per_tier[l["tier"]]["routed"] += bool(l.get("routed"))
+            bump(per_tier[l["tier"]], l)
     return {"files": len(files), "lines": len(lines), "calls": len(calls), "per_class": dict(sorted(per_class.items())),
             "per_tier": per_tier, "unclassified": per_class.get("unclassified", {}).get("calls", 0),
             "sessions": sum(1 for l in lines if l.get("event") == "session_start")}
@@ -312,11 +348,11 @@ def score_dir(d):
 
 def print_score(s, d):
     print(f"ledger {d}: {s['files']} files, {s['lines']} lines, {s['sessions']} sessions, {s['calls']} calls, {s['unclassified']} unclassified")
+    row = lambda p: f"{p['calls']} calls, {p['routed']} routed, {p['jev']} Jev consults ({p['jev_unavailable']} unavailable), {p['unclassified']} unclassified"
     for c, p in s["per_class"].items():
-        print(f"  {c:<22} {p['calls']} calls, {p['routed']} routed, {p['jev']} Jev consults ({p['jev_unavailable']} unavailable)")
+        print(f"  {c:<22} {row(p)}")
     for t in TIERS:
-        p = s["per_tier"][t]
-        print(f"  tier {t:<9} {p['calls']} calls, {p['routed']} routed")
+        print(f"  tier {t:<9} {row(s['per_tier'][t])}")
 
 
 # ---- entry ----

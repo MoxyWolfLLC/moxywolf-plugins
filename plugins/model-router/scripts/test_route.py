@@ -81,6 +81,20 @@ class Hooks(unittest.TestCase):
         return self.run_hook("pre-tool-use", {"session_id": self.sid, "hook_event_name": "PreToolUse", "tool_name": tool,
                                               "tool_input": tool_input, "tool_use_id": "t1"}, **kw)
 
+    def plugin_copy(self, name):
+        plugin = self.root / f"plugin-{name}"; (plugin / "scripts").mkdir(parents=True); (plugin / "references").mkdir()
+        (plugin / "scripts" / "route.py").write_text(SCRIPT.read_text())
+        return plugin
+
+    def run_plugin(self, plugin, cmd, payload):
+        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=self.endpoint, AI_GATEWAY_API_KEY="k-test")
+        return subprocess.run([sys.executable, str(plugin / "scripts" / "route.py"), cmd], input=json.dumps(payload), capture_output=True, text=True, env=e)
+
+    def session_lines(self, sid):
+        files = sorted((self.root / "model-routing").glob(f"*-{sid}.jsonl"))
+        self.assertEqual(len(files), 1, files)
+        return [json.loads(l) for l in files[0].read_text().splitlines() if l.strip()]
+
     def ledger(self):
         files = sorted((self.root / "model-routing").glob(f"*-{self.sid}.jsonl"))
         self.assertEqual(len(files), 1, files)
@@ -102,17 +116,29 @@ class Hooks(unittest.TestCase):
         for c in t["classes"]:
             self.assertEqual(set(c), {"class", "tool", "match", "carries_model", "default_tier", "ask"}, c["class"])
             self.assertEqual(c["carries_model"], c["tool"] == "Agent" or c["class"].endswith("-script"), c["class"])
-        bad = self.root / "bad.json"
-        for mutate in ({"drop": "ask"}, {"tier": "huge"}):
-            tt = json.loads(ONTOLOGY.read_text())
-            if "drop" in mutate: del tt["classes"][0][mutate["drop"]]
-            else: tt["classes"][0]["default_tier"] = mutate["tier"]
-            bad.write_text(json.dumps(tt))
-            r = subprocess.run([sys.executable, "-c",
-                                f"import sys; sys.path.insert(0, {str(HERE)!r}); import route; t, why = route.load_table({str(bad)!r}); print(why)"],
-                               capture_output=True, text=True)
-            self.assertIn("ontology", r.stdout, r.stderr)
-            self.assertTrue("lacks" in r.stdout or "default_tier" in r.stdout, r.stdout)
+        # F1 (review 20261014-014833): every malformed table is a SessionStart refusal, run as the host runs it
+        cases = [("drop-ask", lambda t: t["classes"][0].pop("ask"), "lacks"),
+                 ("bad-tier", lambda t: t["classes"][0].update(default_tier="huge"), "default_tier"),
+                 ("null-entry", lambda t: t["classes"].append(None), "not an object"),
+                 ("bad-regex", lambda t: t["classes"][-1].update(match={"subagent_type": "["}), "not a regex"),
+                 ("string-bool", lambda t: t["classes"][0].update(ask="yes"), "boolean"),
+                 ("not-json", None, "could not be read")]
+        for name, mutate, text in cases:
+            plugin = self.plugin_copy(name)
+            if mutate is None:
+                (plugin / "references" / "call-ontology.json").write_text("{not json")
+            else:
+                tt = json.loads(ONTOLOGY.read_text()); mutate(tt)
+                (plugin / "references" / "call-ontology.json").write_text(json.dumps(tt))
+            r = self.run_plugin(plugin, "session-start", {"session_id": name, "source": "startup"})
+            self.assertEqual(r.returncode, 0, name)
+            self.assertIn("routing is off for this session", r.stderr, name); self.assertIn(text, r.stderr, name)
+            rec = self.session_lines(name)
+            self.assertEqual((rec[0]["event"], rec[0]["routing"]), ("session_start", "off"), name)
+            self.assertIn(text, rec[0]["why"])
+            r = self.run_plugin(plugin, "pre-tool-use", {"session_id": name, "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore"}})
+            self.assertEqual((r.returncode, r.stdout.strip()), (0, ""), name)
+            self.assertEqual(self.session_lines(name)[-1]["event"], "refused", name)
 
     # ---- MR-003.3: SessionStart ----
 
@@ -122,24 +148,27 @@ class Hooks(unittest.TestCase):
         first = self.ledger()[0]
         self.assertEqual((first["event"], first["routing"], first["ledger_source"]), ("session_start", "on", "env GSTACK_PEER_REVIEW_DIR"))
         self.assertTrue(first["ontology_version"])
-        # no table: a copy of the plugin without its references directory
-        plugin = self.root / "plugin"; (plugin / "scripts").mkdir(parents=True); (plugin / "references").mkdir()
-        (plugin / "scripts" / "route.py").write_text(SCRIPT.read_text())
-        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root))
-        r = subprocess.run([sys.executable, str(plugin / "scripts" / "route.py"), "session-start"], input=json.dumps({"session_id": "s2"}),
-                           capture_output=True, text=True, env=e)
+        # no table at all: a copy of the plugin without its ontology
+        plugin = self.plugin_copy("s2")
+        r = self.run_plugin(plugin, "session-start", {"session_id": "s2"})
         self.assertEqual(r.returncode, 0)
-        self.assertIn("routing is off for this session", r.stderr)
-        self.assertIn("could not be read", r.stderr)
-        rec = [json.loads(l) for l in sorted((self.root / "model-routing").glob("*-s2.jsonl"))[0].read_text().splitlines()]
-        self.assertEqual(rec[0]["routing"], "off")
-        # and a call in that session is recorded as refused, not routed
-        r = subprocess.run([sys.executable, str(plugin / "scripts" / "route.py"), "pre-tool-use"],
-                           input=json.dumps({"session_id": "s2", "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore"}}),
-                           capture_output=True, text=True, env=e)
+        self.assertIn("routing is off for this session", r.stderr); self.assertIn("could not be read", r.stderr)
+        self.assertEqual(self.session_lines("s2")[0]["routing"], "off")
+        r = self.run_plugin(plugin, "pre-tool-use", {"session_id": "s2", "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore"}})
         self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
-        rec = [json.loads(l) for l in sorted((self.root / "model-routing").glob("*-s2.jsonl"))[0].read_text().splitlines()]
-        self.assertEqual(rec[-1]["event"], "refused")
+        self.assertEqual(self.session_lines("s2")[-1]["event"], "refused")
+        # F2 (review 20261014-014833): the table restored mid-session does not turn routing back on
+        (plugin / "references" / "call-ontology.json").write_text(ONTOLOGY.read_text())
+        r = self.run_plugin(plugin, "pre-tool-use", {"session_id": "s2", "tool_name": "Agent", "tool_input": {"subagent_type": "gstack-execution:explore"}})
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
+        last = self.session_lines("s2")[-1]
+        self.assertEqual((last["event"], last["why"]), ("refused", "routing is off for this session"))
+        # a call before any SessionStart, with no table, opens the ledger off (cloud session) and stays off
+        plugin3 = self.plugin_copy("s3")
+        r = self.run_plugin(plugin3, "pre-tool-use", {"session_id": "s3", "tool_name": "Read", "tool_input": {}})
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual([l["event"] for l in self.session_lines("s3")], ["session_start", "refused"])
+        self.assertEqual(self.session_lines("s3")[0]["routing"], "off")
 
     # ---- MR-003.4 and .5: classification by code, no Jev for the table path ----
 
@@ -226,7 +255,15 @@ class Hooks(unittest.TestCase):
         r = self.call("Agent", {"subagent_type": "something:new", "prompt": "x"}, endpoint="http://127.0.0.1:9")
         self.assertEqual((r.returncode, self.updated(r)), (0, None))   # unclassified: unchanged
         self.assertEqual(self.ledger()[-1]["jev"], "unavailable")
-        # a forced internal failure: an unwritable ledger root
+        # F4 (review 20261014-014833): a forced internal failure with a writable ledger leaves the hook_error line
+        before = len(self.ledger())
+        r = self.call("Agent", FIXTURE_CALL["explore-subagent"][1], MODEL_ROUTER_FORCE_ERROR="1")
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))     # unchanged input: no updatedInput at all
+        err = self.ledger()[-1]
+        self.assertEqual(len(self.ledger()), before + 1)
+        self.assertEqual((err["event"], err["cmd"], err["tool"]), ("hook_error", "pre-tool-use", "Agent"))
+        self.assertIn("RuntimeError: forced by MODEL_ROUTER_FORCE_ERROR", err["error"])
+        # and an unwritable ledger root still fails open: exit 0, nothing on stdout
         ro = self.root / "ro"; ro.mkdir(); os.chmod(ro, 0o500)
         r = self.call("Read", {"file_path": "/x"}, GSTACK_PEER_REVIEW_DIR=str(ro))
         self.assertEqual((r.returncode, r.stdout.strip()), (0, ""))
@@ -245,27 +282,32 @@ class Hooks(unittest.TestCase):
         Stub.answers = {"cross_file": 0.9}
         self.call("Agent", FIXTURE_CALL["build-subagent"][1])
         self.call("Teleport", {})
+        Stub.answers = {"docs_only": 0.9}
+        self.call("Agent", {"subagent_type": "something:new", "prompt": "read"})   # unclassified, routed by Jev to light
         r = self.run_hook("session-end", {"session_id": self.sid, "reason": "other"})
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("model-router: 5 calls, 2 routed, 1 Jev consults, 1 unclassified", r.stdout)
+        self.assertIn("model-router: 6 calls, 3 routed, 2 Jev consults, 2 unclassified", r.stdout)
         s = self.ledger()[-1]
         self.assertEqual(s["event"], "session_end")
         self.assertEqual({k: s[k] for k in ("calls", "routed", "jev_consults", "jev_unavailable", "unclassified", "refused")},
-                         {"calls": 5, "routed": 2, "jev_consults": 1, "jev_unavailable": 0, "unclassified": 1, "refused": 0})
-        self.assertEqual(s["by_class"], {"build-subagent": 1, "explore-subagent": 1, "read-file": 2, "unclassified": 1})
-        self.assertEqual(s["tiers"], {"floor": 1, "light": 1})
+                         {"calls": 6, "routed": 3, "jev_consults": 2, "jev_unavailable": 0, "unclassified": 2, "refused": 0})
+        self.assertEqual(s["by_class"], {"build-subagent": 1, "explore-subagent": 1, "read-file": 2, "unclassified": 2})
+        self.assertEqual(s["tiers"], {"floor": 1, "light": 2})
         self.assertTrue(s["ontology_version"])
         r = subprocess.run([sys.executable, str(SCRIPT), "score", "--dir", str(self.root / "model-routing")], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("1 files, 7 lines, 1 sessions, 5 calls, 1 unclassified", r.stdout)
-        self.assertIn("read-file              2 calls, 0 routed, 0 Jev consults (0 unavailable)", r.stdout)
-        self.assertIn("build-subagent         1 calls, 1 routed, 1 Jev consults (0 unavailable)", r.stdout)
-        self.assertIn("tier floor     1 calls, 1 routed", r.stdout)
-        self.assertIn("tier standard  0 calls, 0 routed", r.stdout)
+        self.assertIn("1 files, 8 lines, 1 sessions, 6 calls, 2 unclassified", r.stdout)
+        self.assertIn("read-file              2 calls, 0 routed, 0 Jev consults (0 unavailable), 0 unclassified", r.stdout)
+        self.assertIn("build-subagent         1 calls, 1 routed, 1 Jev consults (0 unavailable), 0 unclassified", r.stdout)
+        self.assertIn("unclassified           2 calls, 1 routed, 1 Jev consults (0 unavailable), 2 unclassified", r.stdout)
+        # F3 (review 20261014-014833): the unclassified Agent launch Jev routed to light shows in light's row
+        self.assertIn("tier floor     1 calls, 1 routed, 1 Jev consults (0 unavailable), 0 unclassified", r.stdout)
+        self.assertIn("tier light     2 calls, 2 routed, 1 Jev consults (0 unavailable), 1 unclassified", r.stdout)
+        self.assertIn("tier standard  0 calls, 0 routed, 0 Jev consults (0 unavailable), 0 unclassified", r.stdout)
         empty = self.root / "empty"; empty.mkdir()
         r = subprocess.run([sys.executable, str(SCRIPT), "score", "--dir", str(empty)], capture_output=True, text=True)
         self.assertIn("0 files, 0 lines, 0 sessions, 0 calls, 0 unclassified", r.stdout)
-        self.assertIn("tier light     0 calls, 0 routed", r.stdout)
+        self.assertIn("tier light     0 calls, 0 routed, 0 Jev consults (0 unavailable), 0 unclassified", r.stdout)
 
     def test_hooks_json_declares_the_three_events_running_route_py(self):
         h = json.loads((HERE.parent / "hooks" / "hooks.json").read_text())["hooks"]
