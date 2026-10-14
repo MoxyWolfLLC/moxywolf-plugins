@@ -363,7 +363,7 @@ class Hooks(unittest.TestCase):
                     "echo ';' python3 route.py cos-run end ';'", "echo \\; python3 route.py cos-run end", 'echo "&&" python3 route.py cos-run start z',
                     "cd /p && python3 plugins/model-router/scripts/route.py cos-run end", "python3 route.py cos-run end; ls",
                     "# python3 route.py cos-run end", "#route.py cos-run end", "'#route.py' cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n", "ls\npython3 route.py cos-run end",
-                    "python3 -c \"print(1)\" route.py cos-run end"):
+                    "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py\ncos-run end", "python3 route.py cos-run\nend", "python3 route.py cos-run start\nr1"):
             self.call("Bash", {"command": cmd})
             self.assertNotIn(self.ledger()[-1].get("event"), ("cos_run_start", "cos_run_end"))
             self.assertNotEqual(self.ledger()[-2].get("event"), "cos_run_end", cmd)

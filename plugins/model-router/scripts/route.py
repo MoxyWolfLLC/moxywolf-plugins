@@ -47,7 +47,8 @@ CLAIM_CHECKS = "claim-checks.jsonl"
 # the path is letters, digits and _ . / ~ $ { } : @ + = - only (so `${CLAUDE_PLUGIN_ROOT}/...` fits), quoted or not;
 # a comment mark, an operator, a backtick or $( can't appear anywhere in the command
 _PATH = r"[A-Za-z0-9_./~${}:@+=-]*route\.py"
-COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?\s+)?(?:"%s"|'%s'|%s)\s+cos-run\s+(?:start\s+([A-Za-z0-9._-]+)|(end))\s*$""" % (_PATH, _PATH, _PATH))
+# horizontal whitespace only between tokens: a newline inside the invocation is two shell commands, not one
+COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?[ \t]+)?(?:"%s"|'%s'|%s)[ \t]+cos-run[ \t]+(?:start[ \t]+([A-Za-z0-9._-]+)|(end))[ \t]*\n?\s*$""" % (_PATH, _PATH, _PATH))
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -613,9 +614,10 @@ def selftest():
                  "echo ';' python3 route.py cos-run end ';'", "echo prefix'; python3 route.py cos-run end; suffix'",
                  "python3 route.py cos-run end; ls", "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
                  "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py cos-run start 'two words'", "ls\npython3 route.py cos-run end",
-                 "#route.py cos-run end", "'#route.py' cos-run end", "`x`route.py cos-run end", "$(x)route.py cos-run end"):
+                 "#route.py cos-run end", "'#route.py' cos-run end", "`x`route.py cos-run end", "$(x)route.py cos-run end",
+                 "python3 route.py\ncos-run end", "python3 route.py cos-run\nend", "python3 route.py cos-run start\nr1", "python3\nroute.py cos-run end"):
         assert cos_run_command(text) is None, text
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 19 cos-run command shapes, all passed")
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 23 cos-run command shapes, all passed")
     return 0
 
 
