@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "tiers": {"floor": "opus", "standard": "sonnet", "light": "haiku"},
+  "classes": [
+    {"class": "read-file",  "tool": "Read",      "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "glob",       "tool": "Glob",      "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "grep",       "tool": "Grep",      "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "web-fetch",  "tool": "WebFetch",  "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "web-search", "tool": "WebSearch", "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "edit",       "tool": "Edit",      "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "write",      "tool": "Write",     "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "coverage-script",     "tool": "Bash", "match": {"command": "packet_coverage\\.mjs"}, "carries_model": true,  "default_tier": "floor", "ask": false},
+    {"class": "model-select-script", "tool": "Bash", "match": {"command": "model_select\\.mjs"},    "carries_model": true,  "default_tier": "floor", "ask": false},
+    {"class": "reviewer-script",     "tool": "Bash", "match": {"command": "peer_review\\.py\\s+(open|round)\\b"}, "carries_model": true, "default_tier": "floor", "ask": false},
+    {"class": "git",        "tool": "Bash", "match": {"command": "^\\s*(cd\\s+\\S+\\s*&&\\s*)?git\\b"}, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "shell",      "tool": "Bash", "match": null, "carries_model": false, "default_tier": "none", "ask": false},
+    {"class": "explore-subagent", "tool": "Agent", "match": {"subagent_type": "(^|:)[Ee]xplore$"},        "carries_model": true, "default_tier": "light", "ask": false},
+    {"class": "docs-subagent",    "tool": "Agent", "match": {"subagent_type": "(^|:)docs$"},               "carries_model": true, "default_tier": "light", "ask": false},
+    {"class": "review-subagent",  "tool": "Agent", "match": {"subagent_type": "review"},                   "carries_model": true, "default_tier": "floor", "ask": false},
+    {"class": "build-subagent",   "tool": "Agent", "match": {"subagent_type": "^(general-purpose|claude|Plan)$"}, "carries_model": true, "default_tier": "floor", "ask": true}
+  ]
+}
