@@ -44,7 +44,7 @@ CLAIM_CHECKS = "claim-checks.jsonl"
 # commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
 # one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
 # override for runners that set it.
-COS_RUN_CMD = re.compile(r"""route\.py["']?\s+cos-run\s+(?:start\s+["']?([^\s"']+)|(end))\b""")
+SEGMENT = re.compile(r"\|\||&&|;|\||\n")   # F14: only a standalone invocation counts, parsed as a shell would
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -238,6 +238,42 @@ def decide(answers):
     return {"tier": tier, "rule": rule, "booleans": a, "thresholds": THRESHOLDS}
 
 
+def cos_run_command(command):
+    """('start', id), ('end', None) or None: a standalone `[python3] .../route.py cos-run start <id> | end`
+    invocation in the command, found by parsing each shell segment's arguments. A mention inside a search
+    argument, a quoted string, a comment or a heredoc is not an invocation (F14, review 20261014-082908)."""
+    import shlex
+    found = None
+    kept, terminator = [], None                      # a heredoc body is text, not commands
+    for ln in str(command).split("\n"):
+        if terminator is not None:
+            if ln.strip() == terminator:
+                terminator = None
+            continue
+        kept.append(ln)
+        m = re.search(r"<<-?\s*(['\"]?)(\w+)\1", ln)
+        if m:
+            terminator = m.group(2)
+    for seg in SEGMENT.split("\n".join(kept)):
+        if seg.lstrip().startswith("#"):
+            continue
+        try:
+            toks = shlex.split(seg, comments=True)
+        except ValueError:
+            continue
+        for i, t in enumerate(toks):
+            if not t.endswith("route.py") or (i > 0 and not re.search(r"(^|/)python3?(\.\d+)?$", toks[i - 1])):
+                continue
+            if i > 1 and not toks[i - 2].startswith("-") and not re.search(r"(^|/)python3?(\.\d+)?$", toks[i - 1]):
+                continue
+            rest = toks[i + 1:]
+            if rest[:2] == ["cos-run", "end"]:
+                found = ("end", None)
+            elif rest[:2] == ["cos-run", "start"] and len(rest) > 2 and rest[2].strip():
+                found = ("start", rest[2].strip())
+    return found
+
+
 def cos_run_id(path):
     """The live run id for this session: COS_RUN_ID if set, else the last cos-run start in the session
     ledger that no cos-run end has closed. Never invented."""
@@ -307,9 +343,9 @@ def cmd_pre_tool_use(h):
         append(path, {"ts": now(), "event": "session_start", "routing": "on", "ontology_version": table["version"],
                       "ledger_source": ledger_dir()[1], "source": "lazy"})
     if tool == "Bash":                          # CS-007: the run id's start and end are commands the hook watches go by
-        m = COS_RUN_CMD.search(str(tin.get("command", "")))
+        m = cos_run_command(tin.get("command", ""))
         if m:
-            append(path, {"ts": now(), "event": "cos_run_start", "cos_run": m.group(1)} if m.group(1) else {"ts": now(), "event": "cos_run_end"})
+            append(path, {"ts": now(), "event": "cos_run_start", "cos_run": m[1]} if m[0] == "start" else {"ts": now(), "event": "cos_run_end"})
     c = classify(table, tool, tin)
     line = {"ts": now(), "class": c["class"], "tool": tool, "routed": False, "tool_use_id": h.get("tool_use_id")}
     run = cos_run_id(path)                      # this session's live run, or COS_RUN_ID; never invented
@@ -585,7 +621,14 @@ def selftest():
     assert decide({"risky": 0.69, "docs_only": 0.95})["tier"] == "light"
     assert decide({"trust_boundary": 0.30})["rule"] == "trust_boundary"
     assert decide({"docs_only": 0.60, "has_tests": 0.50})["tier"] == "standard"
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes and 4 rule boundaries, all passed")
+    assert cos_run_command('python3 "$P/scripts/route.py" cos-run start 2026-10-14-x') == ("start", "2026-10-14-x")
+    assert cos_run_command("cd /p && python3 plugins/model-router/scripts/route.py cos-run end") == ("end", None)
+    assert cos_run_command("rg -n 'route.py cos-run end' plugins") is None
+    assert cos_run_command("echo route.py cos-run start fake") is None
+    assert cos_run_command("# python3 route.py cos-run end") is None
+    assert cos_run_command("cat <<'EOF'\npython3 route.py cos-run end\nEOF\n") is None
+    assert cos_run_command("cat <<EOF\nx\nEOF\npython3 route.py cos-run end") == ("end", None)
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 7 cos-run command shapes, all passed")
     return 0
 
 
