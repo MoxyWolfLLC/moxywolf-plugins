@@ -152,6 +152,18 @@ class Selector(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("declares no item FX-009", r.stderr)
         self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
 
+    def test_a_goal_plan_item_is_read_by_position(self):
+        # F1 (review 20261013-193610): goals/<id>/PLAN.md numbers its items and declares no links
+        plan = self.root / "goals" / "g1" / "PLAN.md"; plan.parent.mkdir(parents=True)
+        plan.write_text("# Plan\n\n1. First thing\n   - a passes\n2. Second thing\n   - b passes\n")
+        pk = packet(self.d, self.base, self.head, items=["g1/2"]); self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), str(plan), answers={})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(ms["inputs"]["links_introduced"], [{"item": "g1/2", "links_introduced": "(plan item, no links declared) Second thing"}])
+        pk["items"] = ["g1/3"]; self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), str(plan), answers={})
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("declares no item g1/3 (2 items)", r.stderr)
+
     def test_a_trust_boundary_item_is_never_below_floor(self):
         for extra in ({"docs_only": 1}, {"docs_only": 1, "has_tests": 1}, {"cross_file": 1}):
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"trust_boundary": 1, **extra})

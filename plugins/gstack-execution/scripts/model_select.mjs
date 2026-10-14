@@ -85,8 +85,20 @@ export function readAtHead(repoPath, head, rel) {
 // section only, bounded by the next heading of any level, and an item the design file does not
 // declare, or declares without the line, is refused: a recommendation over inputs the contract
 // names but the script did not read is not a recommendation.
-export function linksIntroduced(items, designText) {
+export function linksIntroduced(items, designText, isPlan = false) {
   const out = [];
+  if (isPlan) {
+    // F1 (review 20261013-193610): a goal item is `<goal>/<n>`, the n-th top-level numbered entry of
+    // goals/<id>/PLAN.md (as goal_run.py counts them, by position), and a plan declares no links;
+    // the entry's own title stands in, labelled as such, so the model reads what the plan says.
+    const entries = [...designText.matchAll(/^(\d+)\.\s+(\S.*)$/gm)].map(m => m[2].trim());
+    for (const item of items) {
+      const n = Number((item.match(/^[a-z0-9][a-z0-9-]*\/(\d+)$/) ?? [])[1]);
+      if (!n || n > entries.length) throw new Error(`the plan declares no item ${item} (${entries.length} items)`);
+      out.push({ item, links_introduced: `(plan item, no links declared) ${entries[n - 1]}` });
+    }
+    return out;
+  }
   for (const item of items) {
     const esc = item.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
     const head = designText.match(new RegExp(`^### ${esc} [^\\n]*$`, 'm'));
@@ -101,13 +113,13 @@ export function linksIntroduced(items, designText) {
 
 // What the model reads: the criteria, the files they name (their head, at the packet's head commit,
 // when that commit tracks them), and the item's "Links introduced".
-export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path, head = packet.repos?.[0]?.head) {
+export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path, head = packet.repos?.[0]?.head, isPlan = false) {
   const crits = (packet.acceptance_criteria ?? []).map(c => String(c).replace(/\s+/g, ' ').trim());
   // a path is the first token inside backticks when it has a slash or an extension: `scripts/x.mjs recommend <packet>` names scripts/x.mjs
   const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`]+)`/g)].map(m => m[1].trim().split(/\s+/)[0])
                                               .filter(t => /^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$/.test(t) && (t.includes('/') || /\.[a-z0-9]{1,5}$/.test(t)))))];
   const files = paths.map((rel) => readAtHead(repoPath, head, rel));
-  const links = linksIntroduced(packet.items ?? [], designText);
+  const links = linksIntroduced(packet.items ?? [], designText, isPlan);
   return { items: packet.items ?? [], criteria_count: crits.length, criteria: crits, paths_named: paths,
            files_read: files.filter(f => f.exists).length, files, links_introduced: links };
 }
@@ -207,7 +219,8 @@ async function recommend(packetPath, designPath) {
   }
   const designText = fs.readFileSync(designPath, 'utf8');
   let inputs;
-  try { inputs = inputsFrom(packet, designText); } catch (e) { console.error(`model selection refused: ${e.message}`); process.exit(2); }
+  const isPlan = /(?:^|\/)goals\/[a-z0-9][a-z0-9-]*\/PLAN\.md$/.test(designPath.replace(/\\/g, '/'));
+  try { inputs = inputsFrom(packet, designText, packet.repos?.[0]?.path, packet.repos?.[0]?.head, isPlan); } catch (e) { console.error(`model selection refused: ${e.message}`); process.exit(2); }
   const wanted = process.env.GSTACK_MODEL_ROUTING === 'route' ? 'route' : 'shadow';
   const write = (fields) => {
     packet.model_selection = { model: MODEL, checked_at: new Date().toISOString(), inputs, ...fields,
