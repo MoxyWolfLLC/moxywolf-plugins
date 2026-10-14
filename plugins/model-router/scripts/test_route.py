@@ -324,28 +324,43 @@ class Hooks(unittest.TestCase):
 
     # ---- CS-007: department on the line, security at the floor, the after-action report ----
 
-    def test_a_department_launch_carries_its_department_and_the_run_id_from_the_marker_in_cwd(self):
-        # the unknown of review 20261014-082908: a shell export never reaches the hook process, so the id travels
-        # as a marker file under the cwd the host passes to every hook, written by `route.py cos-run start`
+    def cos_run(self, verb, *rest, sid=None):
+        """The /cos step runs `route.py cos-run ...` as a Bash call; the hook sees that call go by."""
+        cmd = f'python3 "$PLUGIN/scripts/route.py" cos-run {verb} ' + " ".join(rest)
+        sid, self.sid = self.sid, (sid or self.sid)
+        r = self.call("Bash", {"command": cmd})
+        self.sid = sid
+        return r
+
+    def test_a_department_launch_carries_its_department_and_the_run_id_of_its_own_session(self):
+        # the unknown of review 20261014-082908: a shell export never reaches the hook process, and F12: a
+        # project-wide marker mixes sessions. The hook records the `cos-run start` command it sees, per session.
         r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "start", "2026-10-14-margin"], capture_output=True, text=True, cwd=str(self.root))
-        self.assertEqual(r.returncode, 0, r.stderr); self.assertTrue((self.root / ".gstack" / "cos-run.json").exists())
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("recorded by the model-router hook", r.stdout)
+        self.assertFalse((self.root / ".gstack").exists())      # no shared file anywhere
+        self.cos_run("start", "2026-10-14-margin")
+        self.assertEqual((self.ledger()[-2]["event"], self.ledger()[-2]["cos_run"], self.ledger()[-1]["class"]), ("cos_run_start", "2026-10-14-margin", "shell"))
         Stub.answers = {"docs_only": 0.2}
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.updated(r)["model"], "sonnet")
         last = self.ledger()[-1]
         self.assertEqual((last["class"], last["department"], last["cos_run"], last["decided_by"]), ("department-subagent", "finance", "2026-10-14-margin", "jev"))
         self.assertEqual((last["applied_model"], last["floor_rule"]), ("sonnet", False))
-        r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "show"], capture_output=True, text=True, cwd=str(self.root))
-        self.assertEqual(r.stdout.strip(), "2026-10-14-margin")
-        r = subprocess.run([sys.executable, str(SCRIPT), "cos-run", "end"], capture_output=True, text=True, cwd=str(self.root))
-        self.assertEqual(r.returncode, 0); self.assertFalse((self.root / ".gstack" / "cos-run.json").exists())
-        r = self.call("Read", {"file_path": "/x"})     # no marker, no env: no cos_run; the hook never invents one
+        # F12: a second session in the same project starts its own run; neither sees the other's
+        self.cos_run("start", "2026-10-14-hiring", sid="s9")
+        r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
+        self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-margin")
+        self.cos_run("end", sid="s9")
+        r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
+        self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-margin")   # s9's end did not end s1's run
+        self.sid = "s9"
+        r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
+        self.assertNotIn("cos_run", self.ledger()[-1]); self.sid = "s1"
+        # end, then a call without a run; the hook never invents one
+        self.cos_run("end")
+        r = self.call("Read", {"file_path": "/x"})
         self.assertNotIn("cos_run", self.ledger()[-1])
-        # a stale marker (a crashed run) is ignored
-        (self.root / ".gstack" / "cos-run.json").write_text(json.dumps({"cos_run": "old", "started": "2026-01-01T00:00:00Z"}))
-        self.call("Read", {"file_path": "/x"})
-        self.assertNotIn("cos_run", self.ledger()[-1])
-        # a caller's explicit model is the applied model, and never a floor rule
+        # COS_RUN_ID in the environment is an explicit override for runners
         r = self.call("Agent", {**FIXTURE_CALL["department-subagent"][1], "model": "haiku"}, COS_RUN_ID="env-run")
         self.assertEqual(self.updated(r), None)
         last = self.ledger()[-1]

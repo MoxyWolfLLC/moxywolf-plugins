@@ -9,7 +9,7 @@ Three hooks and two commands, stdlib only:
   route.py session-end     (hook JSON on stdin)  appends the session summary line
   route.py score --dir D                         counts a ledger directory
   route.py aar --dir D --date YYYY-MM-DD         one day's after-action report (CS-007)
-  route.py cos-run start <id> | end | show       the live /cos run id, a marker file under cwd (CS-007)
+  route.py cos-run start <id> | end              the live /cos run id, recorded by the hook in the session ledger (CS-007)
   route.py --selftest
 
 The hard limit: a hook cannot change the model answering the current turn. Only a subagent launch
@@ -40,8 +40,11 @@ FLOOR_LOCKED_DEPARTMENTS = {"security"}   # CS-007: the security department neve
 DEPARTMENTS = ("finance", "people", "it-operations", "security", "pmo", "operations", "corporate-strategy",
                "customer-experience", "sales-department", "marketing-department")
 CLAIM_CHECKS = "claim-checks.jsonl"
-COS_RUN_FILE = Path(".gstack") / "cos-run.json"   # CS-007: /cos step 1 writes it, step 7 removes it; the hook reads it from cwd
-COS_RUN_MAX_AGE = 12 * 3600                         # a marker older than this is a crashed run, not a live one
+# CS-007: the run id is session state. The hook watches the `route.py cos-run start <id>` and `cos-run end`
+# commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
+# one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
+# override for runners that set it.
+COS_RUN_CMD = re.compile(r"""route\.py["']?\s+cos-run\s+(?:start\s+["']?([^\s"']+)|(end))\b""")
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -235,33 +238,28 @@ def decide(answers):
     return {"tier": tier, "rule": rule, "booleans": a, "thresholds": THRESHOLDS}
 
 
-def cos_run_id(cwd):
-    """The live /cos run id: the marker file under cwd (host-supported state, since a shell export in one
-    tool call never reaches the hook process of a later one), else COS_RUN_ID for runners that set it."""
-    try:
-        m = json.loads((Path(cwd or ".") / COS_RUN_FILE).read_text(encoding="utf-8"))
-        started = datetime.strptime(m["started"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        if m.get("cos_run") and (datetime.now(timezone.utc) - started).total_seconds() <= COS_RUN_MAX_AGE:
-            return m["cos_run"]
-    except (OSError, ValueError, KeyError, TypeError):
-        pass
-    return os.environ.get("COS_RUN_ID") or None
+def cos_run_id(path):
+    """The live run id for this session: COS_RUN_ID if set, else the last cos-run start in the session
+    ledger that no cos-run end has closed. Never invented."""
+    if os.environ.get("COS_RUN_ID"):
+        return os.environ["COS_RUN_ID"]
+    run = None
+    for l in read_lines(path):
+        if l.get("event") == "cos_run_start":
+            run = l.get("cos_run") or None
+        elif l.get("event") == "cos_run_end":
+            run = None
+    return run
 
 
 def cmd_cos_run(argv):
-    """route.py cos-run start <id> | end | show, in the project directory /cos runs in."""
-    f = Path.cwd() / COS_RUN_FILE
-    if argv[:1] == ["start"] and len(argv) > 1 and argv[1]:
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_text(json.dumps({"cos_run": argv[1], "started": now()}) + "\n", encoding="utf-8")
-        print(f"cos-run {argv[1]} started; marker {f}"); return 0
+    """route.py cos-run start <id> | end. The command is the signal: the PreToolUse hook records it in the
+    session ledger as it runs. Outside a hooked session it only prints."""
+    if argv[:1] == ["start"] and len(argv) > 1 and argv[1].strip():
+        print(f"cos-run {argv[1].strip()} started (recorded by the model-router hook in this session's ledger)"); return 0
     if argv[:1] == ["end"]:
-        try: f.unlink()
-        except FileNotFoundError: pass
         print("cos-run ended"); return 0
-    if argv[:1] == ["show"]:
-        print(cos_run_id(Path.cwd()) or "no live cos-run"); return 0
-    print("usage: route.py cos-run start <id> | end | show", file=sys.stderr); return 2
+    print("usage: route.py cos-run start <id> | end", file=sys.stderr); return 2
 
 
 # ---- hooks ----
@@ -308,9 +306,13 @@ def cmd_pre_tool_use(h):
     if not path.exists():   # a cloud session whose SessionStart fired before the plugin's hooks registered
         append(path, {"ts": now(), "event": "session_start", "routing": "on", "ontology_version": table["version"],
                       "ledger_source": ledger_dir()[1], "source": "lazy"})
+    if tool == "Bash":                          # CS-007: the run id's start and end are commands the hook watches go by
+        m = COS_RUN_CMD.search(str(tin.get("command", "")))
+        if m:
+            append(path, {"ts": now(), "event": "cos_run_start", "cos_run": m.group(1)} if m.group(1) else {"ts": now(), "event": "cos_run_end"})
     c = classify(table, tool, tin)
     line = {"ts": now(), "class": c["class"], "tool": tool, "routed": False, "tool_use_id": h.get("tool_use_id")}
-    run = cos_run_id(h.get("cwd"))             # CS-007: /cos step 1 wrote the marker; the hook never invents one
+    run = cos_run_id(path)                      # this session's live run, or COS_RUN_ID; never invented
     if run:
         line["cos_run"] = run
     if tool == "Agent":

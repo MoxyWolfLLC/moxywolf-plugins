@@ -16,6 +16,3 @@ graphify-out/
 
 # Synergy Engine prep loop runtime state
 plugins/synergy-engine/.loop-state/
-
-# CS-007: the live /cos run marker, never committed
-.gstack/cos-run.json
