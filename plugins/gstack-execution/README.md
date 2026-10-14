@@ -63,6 +63,15 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `measure.py` | Records what each gstack run cost (builder tokens from the session transcript, counted once per message; reviewer tokens as each CLI reports them) as an Obsidian note, and scores XE-012's predictions per vocabulary version. `release` calls it when `GSTACK_MEASURE_DIR` is set |
 | `vocab_check.py` | Checks that DESIGN.md's item statuses and the contracts use the vocabulary in `references/vocabulary.json`, the one home for every outcome, status and round shape the dispatcher enforces |
 
+## Agents
+
+| Agent | Model | Tools | What it returns |
+|---|---|---|---|
+| `explore` | Haiku | Read, Glob, Grep | Where a symbol is defined, who calls it, which files an area touches: `path:line` and a verbatim quote, with a count of what it opened. No shell, no judgement |
+| `docs` | Haiku | WebFetch, WebSearch, Read | The passage from a reference, changelog or spec, quoted, with its URL and version. No recommendation |
+
+Reading is the cheap half of a build and the expensive half of a context window. Both agents run on Haiku with no shell because an agent that can loop on `grep \| head` burns tokens examining everything and reporting nothing. `/gstack-build` sends its mapping to them before it edits. The department agents in other plugins stay on the session's model: they produce judgements, which is the part that needs it.
+
 ## What a review is, and is not
 
 Reviewer routing is a table of `{family, model, floor}`. **A reviewer sharing the builder's model family is refused before it runs** — a harness swap is not an independent mind, and a record that cannot tell the two apart is worth less than no record. A fallback to a second reviewer is permitted only across families, and is recorded *as* a fallback, because a fallback nobody recorded is a silent downgrade.
