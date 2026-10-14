@@ -360,6 +360,8 @@ class Hooks(unittest.TestCase):
         for cmd in ("rg -n 'route.py cos-run end' plugins", "grep route.py cos-run end file", "echo route.py cos-run start fake",
                     "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end'", "echo 'a; python3 route.py cos-run end; b'",
                     "echo \"x || python3 route.py cos-run start q; y\"", "printf '%s' \"x && python3 route.py cos-run start z\"",
+                    "echo ';' python3 route.py cos-run end ';'", "echo \\; python3 route.py cos-run end", 'echo "&&" python3 route.py cos-run start z',
+                    "echo '|' python3 route.py cos-run end",
                     "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
                     "python3 -c \"print(1)\" route.py cos-run end"):
             self.call("Bash", {"command": cmd})

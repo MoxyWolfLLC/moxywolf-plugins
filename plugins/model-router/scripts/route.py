@@ -254,18 +254,23 @@ def cos_run_command(command):
         m = re.search(r"<<-?\s*(['\"]?)(\w+)\1", ln)
         if m:
             terminator = m.group(2)
-    lex = shlex.shlex("\n".join(kept), posix=True, punctuation_chars=";&|\n()")   # quotes and escapes are honored first
+    # non-posix mode keeps the quotes on a token, so a quoted ';' is "';'" and only a bare operator is a boundary;
+    # an operator after an odd run of backslashes is escaped text (round 3 of review 20261014-085739)
+    lex = shlex.shlex("\n".join(kept), posix=False, punctuation_chars=";&|\n()")
     lex.whitespace = " \t\r"; lex.commenters = "#"
     try:
         tokens = list(lex)
     except ValueError:
         return None
-    segments, cur = [], []
+    unquote = lambda t: t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t
+    segments, cur, prev = [], [], ""
     for t in tokens:
-        if t in SHELL_OPS:
+        escaped = (len(prev) - len(prev.rstrip("\\"))) % 2 == 1
+        if t in SHELL_OPS and not escaped:
             if cur: segments.append(cur); cur = []
         else:
-            cur.append(t)
+            cur.append(unquote(t))
+        prev = t
     if cur:
         segments.append(cur)
     for toks in segments:
@@ -643,10 +648,13 @@ def selftest():
     assert cos_run_command("echo 'a; python3 route.py cos-run end'") is None
     assert cos_run_command("echo 'a; python3 route.py cos-run end; b'") is None
     assert cos_run_command("ls\npython3 route.py cos-run end") == ("end", None)
+    assert cos_run_command("echo ';' python3 route.py cos-run end ';'") is None
+    assert cos_run_command("echo \\; python3 route.py cos-run end") is None
+    assert cos_run_command('echo "&&" python3 route.py cos-run start z') is None
     assert cos_run_command("# python3 route.py cos-run end") is None
     assert cos_run_command("cat <<'EOF'\npython3 route.py cos-run end\nEOF\n") is None
     assert cos_run_command("cat <<EOF\nx\nEOF\npython3 route.py cos-run end") == ("end", None)
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 12 cos-run command shapes, all passed")
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 15 cos-run command shapes, all passed")
     return 0
 
 
