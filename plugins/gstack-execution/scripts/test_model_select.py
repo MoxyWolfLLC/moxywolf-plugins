@@ -1,0 +1,267 @@
+#!/usr/bin/env python3
+"""MR-001.9: model_select.mjs is executed as a subprocess against a stub gateway, never only its
+rule table in isolation, and the dispatcher's two hooks (open refuses a packet without the field,
+record-release appends the outcome) run on real review directories.
+"""
+import argparse
+import contextlib
+import http.server
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import unittest
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SCRIPT = HERE / "model_select.mjs"
+PLUGIN = HERE.parent
+sys.path.insert(0, str(HERE))
+import peer_review as pr  # noqa: E402
+
+DESIGN = """# Fixture
+
+### FX-001 — A fixture item
+
+**Status:** planned.
+
+**Links introduced:** one field on the packet.
+
+1. `scripts/a.py` returns x + 1.
+2. `test_a.py` passes.
+"""
+
+
+class Stub(http.server.BaseHTTPRequestHandler):
+    """The gateway's evaluation-model endpoint. Answers come from `Stub.answers`, keyed by question."""
+    answers = {}
+    seen = []
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        Stub.seen.append(body)
+        out = {"answers": {k: {"type": "boolean", "probability": 0.9 if Stub.answers.get(k) else 0.1}
+                           for k in body["questions"]},
+               "usage": {"inputTokens": 12, "outputTokens": 1}}
+        raw = json.dumps(out).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def log_message(self, *a):
+        pass
+
+
+def repo():
+    d = Path(tempfile.mkdtemp(prefix="mr001-"))
+    sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
+    sh("init", "-q"); sh("config", "user.email", "t@t"); sh("config", "user.name", "t")
+    sh("remote", "add", "origin", "https://github.com/fixture-org/fixture-repo.git")
+    (d / "a.py").write_text("def f(x):\n    return x\n"); sh("add", "."); sh("commit", "-qm", "base"); base = sh("rev-parse", "HEAD")
+    (d / "a.py").write_text("def f(x):\n    return x + 1\n"); sh("commit", "-qam", "head"); head = sh("rev-parse", "HEAD")
+    return d, base, head
+
+
+def packet(d, base, head, **extra):
+    pk = {"items": ["FX-001"], "outcome": "f adds one", "acceptance_criteria": ["`scripts/a.py` returns x + 1.", "`test_a.py` passes."],
+          "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1", "exclusions": [],
+          "tests": {"commands": [], "results": "", "environment": "test"}, "release_owner": "fixture-human",
+          "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True,
+                       "allowed_tools": ["codex", "claude"]}}
+    pk.update(extra)
+    return pk
+
+
+class Selector(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if not shutil.which("node"):
+            raise AssertionError("node is not installed; the selector cannot be tested, and that is a failure, not a skip")
+        if not (PLUGIN / "node_modules" / "ai").is_dir():
+            raise AssertionError(f"`ai` is not installed; run `npm ci` in {PLUGIN}. A skipped selector test is not a pass.")
+        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.endpoint = f"http://127.0.0.1:{cls.server.server_address[1]}"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+
+    def setUp(self):
+        self.d, self.base, self.head = repo()
+        self.root = Path(tempfile.mkdtemp(prefix="mr001-root-"))
+        self.pfile = self.root / "packet.json"
+        self.design = self.root / "DESIGN.md"; self.design.write_text(DESIGN)
+        self.pfile.write_text(json.dumps(packet(self.d, self.base, self.head)))
+        Stub.answers = {}; Stub.seen = []
+
+    def run_select(self, *args, answers=None, **env):
+        Stub.answers = answers or {}
+        e = {k: v for k, v in os.environ.items() if k not in {"AI_GATEWAY_API_KEY", "GSTACK_AIGATEWAY_ENV", "JEV_ENDPOINT", "GSTACK_MODEL_ROUTING"}}
+        e.update(AI_GATEWAY_API_KEY="k-env", JEV_ENDPOINT=self.endpoint, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), **env)
+        r = subprocess.run(["node", str(SCRIPT), *args], capture_output=True, text=True, env=e, cwd=str(HERE))
+        return r, json.loads(self.pfile.read_text()).get("model_selection")
+
+    def ledger(self):
+        f = self.root / "reviews" / "model-selection" / "fixture-org-fixture-repo.jsonl"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        return f
+
+    # ---- MR-001.1 and .2: questions reach the model with the inputs; the rule table decides ----
+
+    def test_each_rule_row_from_fixed_answers(self):
+        cases = [({"trust_boundary": 1}, "floor", "trust_boundary"),
+                 ({"cross_file": 1, "docs_only": 1}, "floor", "cross_file"),
+                 ({"docs_only": 1}, "light", "docs_only"),
+                 ({"docs_only": 1, "has_tests": 1}, "standard", "default"),
+                 ({}, "standard", "default"),
+                 ({"has_tests": 1}, "standard", "default")]
+        for answers, tier, rule in cases:
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual((ms["status"], ms["mode"], ms["tier"], ms["rule"]), ("checked", "shadow", tier, rule), ms)
+            self.assertEqual(set(ms["answers"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
+        body = Stub.seen[-1]
+        self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
+        self.assertEqual(body["state"]["criteria_count"], 2)
+        self.assertIn("scripts/a.py", body["state"]["paths_named"])
+        self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
+
+    def test_a_trust_boundary_item_is_never_below_floor(self):
+        for extra in ({"docs_only": 1}, {"docs_only": 1, "has_tests": 1}, {"cross_file": 1}):
+            r, ms = self.run_select("recommend", str(self.pfile), answers={"trust_boundary": 1, **extra})
+            self.assertEqual((ms["tier"], ms["rule"]), ("floor", "trust_boundary"), ms)
+
+    # ---- MR-001.3: shadow writes the field; open refuses a packet without it ----
+
+    def test_shadow_writes_the_packet_field_and_open_refuses_a_packet_without_it(self):
+        saved = pr.REVIEW_DIR, pr.choose_reviewer
+        pr.REVIEW_DIR = self.root / "reviews"
+        pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("codex", False)
+        try:
+            with self.assertRaises(pr.ReviewError) as cm, contextlib.redirect_stdout(io.StringIO()):
+                pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
+            self.assertEqual(cm.exception.outcome, "model_selection_missing")
+            self.assertFalse(list((self.root / "reviews").glob("2*")), "a refused open leaves no review directory")
+            r, ms = self.run_select("recommend", str(self.pfile), answers={})
+            self.assertEqual(ms["mode"], "shadow")
+            with contextlib.redirect_stdout(io.StringIO()):
+                st = pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
+            self.assertEqual(st["model_selection"], {"status": "checked", "mode": "shadow", "tier": "standard", "rule": "default", "override": None})
+            # a packet claiming no item (a selftest, a goal test) is not an item review and opens as before
+            pk = packet(self.d, self.base, self.head); del pk["items"]; self.pfile.write_text(json.dumps(pk))
+            with contextlib.redirect_stdout(io.StringIO()):
+                st2 = pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
+            self.assertIsNone(st2["model_selection"])
+        finally:
+            pr.REVIEW_DIR, pr.choose_reviewer = saved
+
+    # ---- MR-001.4: record-release appends the outcome from state.json ----
+
+    def test_record_release_appends_a_ledger_line_with_the_outcome(self):
+        saved = pr.REVIEW_DIR, pr.github_get
+        pr.REVIEW_DIR = self.root / "reviews"
+        try:
+            d = pr.REVIEW_DIR / "20260101-000000-abcdef0-fixture"; d.mkdir(parents=True)
+            pk = packet(self.d, self.base, self.head, model_selection={"status": "checked", "mode": "shadow", "tier": "light", "rule": "docs_only",
+                                                                       "answers": {"docs_only": {"probability": 0.9}}, "declared_tier": None})
+            pr.save(d, "packet.json", pk, "gate_output")
+            state = {"review_id": d.name, "outcome": "fixes_verified", "rounds_used": 2, "release_owner": "fixture-human",
+                     "model_selection": {"status": "checked", "mode": "shadow", "tier": "light", "rule": "docs_only", "override": None}}
+            pr.save(d, "state.json", state, "gate_output")
+            pr.save(d, "round-1.json", {"findings": [{"id": "F1", "severity": "blocking"}, {"id": "F2", "severity": "follow_up"}],
+                                        "unknowns_raised": ["u1"]}, "gate_output")
+            pr.save(d, "round-2.json", {"findings": [], "unknowns_raised": []}, "gate_output")
+            pr.save(d, "release.json", {"repos": pk["repos"], "release_owner": "fixture-human", "target": "main",
+                                        "requested_at": "2026-01-01T00:00:00Z"}, "gate_output")
+            pr.github_get = lambda name, path: ({"merged": True, "merged_at": "2026-01-01T01:00:00Z", "merge_commit_sha": "m" * 40,
+                                                 "html_url": "https://github.com/fixture-org/fixture-repo/pull/7",
+                                                 "head": {"sha": self.head}, "base": {"ref": "main", "repo": {"full_name": "fixture-org/fixture-repo"}},
+                                                 "merged_by": {"login": "fixture-human", "type": "User"}}
+                                                if path.startswith("pulls/") else [])
+            saved_pr = pr.passing_review
+            pr.passing_review = lambda dd: (state, pk)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    pr.cmd_record_release(argparse.Namespace(review_id=d.name, repo=str(self.d), pr=7))
+            finally:
+                pr.passing_review = saved_pr
+            lines = [json.loads(l) for l in self.ledger().read_text().splitlines()]
+            self.assertEqual(len(lines), 1)
+            line = lines[0]
+            self.assertEqual(line["review_id"], d.name)
+            self.assertEqual(line["recommendation"], {"tier": "light", "rule": "docs_only", "mode": "shadow"})
+            self.assertEqual(line["declared_tier"], "floor")      # shadow: the build ran on the floor
+            self.assertEqual(line["outcome"], {"rounds_used": 2, "blocking_findings": 1, "unknowns_raised": 1,
+                                               "release_outcome": "human_merge_recorded"})
+            self.assertIsNone(line["override"])
+        finally:
+            pr.REVIEW_DIR, pr.github_get = saved
+
+    # ---- MR-001.5 and .6: score prints zeros; route is refused until the history is there ----
+
+    def test_score_prints_zeros_on_an_empty_ledger(self):
+        r, _ = self.run_select("score", "--repo", str(self.d))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("0 lines, 0 scored, 0 overridden", r.stdout)
+        for t in ("floor", "standard", "light"):
+            self.assertIn(f"{t:<8} 0 items, 0 cleared", r.stdout)
+        self.assertIn("agreement 0 over 0 standard/light recommendations", r.stdout)
+
+    def _lines(self, n, ok):
+        """n scored lines recommending `standard`, `ok` of them cleared."""
+        out = []
+        for i in range(n):
+            cleared = i < ok
+            out.append({"review_id": f"r{i}", "recommendation": {"tier": "standard", "rule": "default", "mode": "shadow"},
+                        "declared_tier": "floor", "override": None,
+                        "outcome": {"rounds_used": 1 if cleared else 3, "blocking_findings": 0 if cleared else 2,
+                                    "unknowns_raised": 0, "release_outcome": "agent_merge_autonomous"}})
+        return "\n".join(json.dumps(l) for l in out) + "\n"
+
+    def test_route_is_refused_with_insufficient_history_until_twenty_lines_at_point_nine(self):
+        for n, ok, expect in ((19, 19, False), (20, 17, False), (20, 18, True)):
+            self.ledger().write_text(self._lines(n, ok))
+            r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+            if expect:
+                self.assertEqual((r.returncode, ms["mode"]), (0, "route"), (n, ok, r.stderr))
+                self.assertNotIn("route_refused", ms)
+            else:
+                self.assertEqual((r.returncode, ms["mode"]), (5, "shadow"), (n, ok, r.stderr))
+                self.assertEqual(ms["route_refused"]["reason"], "insufficient_history")
+                self.assertEqual(ms["route_refused"]["lines"], n)
+                self.assertIn("insufficient_history", r.stderr)
+                self.assertIn(f"{n} scored lines", r.stderr)
+        r, _ = self.run_select("score", "--repo", str(self.d))
+        self.assertIn("standard 20 items, 18 cleared", r.stdout)
+        self.assertIn("agreement 0.9 over 20", r.stdout)
+
+    # ---- MR-001.7: an override wins, is recorded, and may not go below light ----
+
+    def test_an_override_wins_and_is_recorded_and_a_bad_one_is_refused(self):
+        pk = packet(self.d, self.base, self.head, model_selection={"override": {"tier": "floor", "reason": "touches the token path"}})
+        self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), answers={"docs_only": 1})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((ms["tier"], ms["applied_tier"], ms["override"]["reason"]), ("light", "floor", "touches the token path"))
+        for bad in ({"tier": "haiku", "reason": "cheaper"}, {"tier": "light"}, {"tier": "nano", "reason": "x"}):
+            pk["model_selection"] = {"override": bad}; self.pfile.write_text(json.dumps(pk))
+            r, ms = self.run_select("recommend", str(self.pfile), answers={})
+            self.assertEqual(r.returncode, 2, (bad, r.stderr))
+            self.assertIn("override", r.stderr)
+        # the overridden item is counted apart from the scored ones
+        self.ledger().write_text(json.dumps({"review_id": "o", "recommendation": {"tier": "light", "rule": "docs_only", "mode": "shadow"},
+                                             "declared_tier": "floor", "override": {"tier": "floor", "reason": "x"},
+                                             "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "x"}}) + "\n")
+        r, _ = self.run_select("score", "--repo", str(self.d))
+        self.assertIn("1 lines, 0 scored, 1 overridden", r.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -48,7 +48,8 @@ def redact(text):
 # handler output. The idea is from morluto/rea at 7a6defa (MIT), no code copied.
 PROVENANCE_OF={'node':'executor','packet':'executor','snapshots':'repository','correction':'executor',
                'dependencies':'handler_output','candidates':'handler_output','correction_diagnostics':'handler_output',
-               'correction.diagnostics':'handler_output'}   # F1 (review 20261013-124809): the one handler-written field inside the executor's record
+               'correction.diagnostics':'handler_output',
+               'model_selection':'handler_output'}   # MR-001.6: Jev's answers are model output, labelled untrusted; F1 (review 20261013-124809): the one handler-written field inside the executor's record
 
 
 def provenance_of(payload):
@@ -376,7 +377,7 @@ def worker(node,packet,dependencies,root,correction=None):
         work=Path(td)
         try:
             snaps=peer.snapshot(repos,work)
-            payload={'node':node,'packet':packet,'dependencies':dependencies,'candidates':candidates(dependencies),'snapshots':[str(p) for _,p in snaps]}
+            payload={'node':node,'packet':packet,'dependencies':dependencies,'candidates':candidates(dependencies),'snapshots':[str(p) for _,p in snaps],'model_selection':packet.get('model_selection')}   # MR-001.6: a launched handler reads the tier
             if correction:payload['correction']=correction
             payload['provenance']=provenance_of(payload)   # EV-010.1: a command handler reads input.json with every key labelled
             if node['kind']=='proof':

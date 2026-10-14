@@ -1567,7 +1567,7 @@ Review `20261013-145740-4e9098c-ty8oskkl` reached `fixes_verified` 10/10 and its
 
 ### MR-001 — Jev recommends the builder's model for an item, and routes only after its recommendations have been scored against outcomes
 
-**Status:** planned. Declared 2026-10-13 from the four-links intake, at Dorian's instruction ("I want it as a design item"); awaiting his approval before any code.
+**Status:** building. Declared 2026-10-13 from the four-links intake, at Dorian's instruction ("I want it as a design item") and approved by him the same day ("Approve #208"); design committed as `c16482b` (PR #208, merged `20a2093`).
 
 **Links introduced:** `model_selection` on the review packet, written by `model_select.mjs` and never by the builder: the inputs it read, Jev's answers verbatim, the rule that fired, the tier it recommends, the mode it ran in (`shadow` or `route`), and any human override with its reason. One line per item in `<review_root()>/model-selection/<owner>-<repo>.jsonl`, appended by `record-release` with the review's outcome beside the recommendation: rounds used, blocking findings across rounds, unknowns raised, release outcome. The reader's assumption is that a recommendation and the outcome written next to it belong to the same item. That holds because both lines carry the review id, and `record-release` writes the outcome from `state.json`, not from anything the builder said.
 

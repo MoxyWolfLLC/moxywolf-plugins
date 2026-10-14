@@ -2218,6 +2218,16 @@ def cmd_open(a):
                           f"{lines}\nWiden the packet, or pass --accept-narrow-packet with a reason "
                           "recorded in exclusions.")
 
+    # MR-001.3: an item review carries the model recommendation, in shadow or route mode, before it
+    # opens. A packet that claims no DESIGN item (a selftest, a goal test) is not an item review.
+    ms = packet.get("model_selection")
+    if packet.get("items") and not ms:
+        raise ReviewError("model_selection_missing",
+                          "the packet claims DESIGN items but carries no model_selection; run "
+                          "`node scripts/model_select.mjs recommend <packet> DESIGN.md` (MR-001.3)")
+    model_selection = ({"status": ms.get("status"), "mode": ms.get("mode"), "tier": ms.get("tier"),
+                        "rule": ms.get("rule"), "override": ms.get("override")} if ms else None)
+
     unevidenced, evidenced = off_repo_verdict(packet)
     if unevidenced and not getattr(a, "accept_off_repo_criterion", False):
         lines = "\n".join(f"  [{u['matched']}] {u['criterion'][:160]}" for u in unevidenced)
@@ -2269,6 +2279,7 @@ def cmd_open(a):
              "ledger_status": ledger_status, "open_failures": open_failures,
              "open_failures_overridden": reason if open_failures else None,
              "unknowns_open": unknowns_open_count(packet["repos"]),   # EV-011.6
+             "model_selection": model_selection,                      # MR-001.3
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     for r in packet["repos"]:
@@ -2814,7 +2825,37 @@ def cmd_record_release(a):
     save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
          "human_instruction" if agent else "repository_artifact",
          examined_by=None)
+    line = model_selection_line(d, state, packet, name, a.pr, decision)
+    if line:
+        decision["model_selection_ledger"] = line
     print(json.dumps(decision, indent=2))
+
+
+def model_selection_line(d, state, packet, name, pr_number, decision):
+    """MR-001.4: one ledger line per released item, the recommendation beside the outcome. The
+    outcome is read from the round records and state.json, never from anything the builder said.
+    A review whose packet carries no model_selection (written before MR-001) leaves no line."""
+    ms = packet.get("model_selection")
+    if not ms or ms.get("status") != "checked":
+        return None
+    blocking = unknowns = 0
+    for n in range(1, state.get("rounds_used", 0) + 1):
+        rec = load(d, f"round-{n}.json") or {}
+        blocking += sum(1 for f in rec.get("findings") or [] if f.get("severity") == "blocking")
+        unknowns += len(rec.get("unknowns_raised") or [])
+    line = {"review_id": state["review_id"], "repo": name, "pr": pr_number,
+            "recorded_at": decision["recorded_at"],
+            "recommendation": {"tier": ms.get("tier"), "rule": ms.get("rule"), "mode": ms.get("mode")},
+            # shadow mode: the build ran on the floor unless the builder declared otherwise
+            "declared_tier": ms.get("declared_tier") or ("floor" if ms.get("mode") == "shadow" else ms.get("applied_tier")),
+            "override": ms.get("override"),
+            "outcome": {"rounds_used": state.get("rounds_used", 0), "blocking_findings": blocking,
+                        "unknowns_raised": unknowns, "release_outcome": decision["outcome"]}}
+    f = review_root() / "model-selection" / f"{name.replace('/', '-')}.jsonl"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    with open(f, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(line, sort_keys=True) + "\n")
+    return str(f)
 
 
 # ---------- selftest ----------

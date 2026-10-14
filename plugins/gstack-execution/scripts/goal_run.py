@@ -319,6 +319,9 @@ def next_step(repo, goal_id, base="origin/main"):
     item = remaining[0]
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
                   "max_rounds": state["max_rounds"],
+                  # MR-001.6: a launched builder reads the routing mode here; the tier itself comes from
+                  # model_select.mjs once the item's packet exists
+                  "model_routing": "route" if os.environ.get("GSTACK_MODEL_ROUTING") == "route" else "shadow",
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
