@@ -1,0 +1,17 @@
+{
+  "name": "diagram-design",
+  "version": "0.1.0",
+  "description": "Pointer to diagram-design (cathrynlavery/diagram-design, MIT): an agent skill that draws forty-five diagram types as one self-contained HTML file with inline SVG in an editorial style, with a brand profile pulled from a website URL and importers for Mermaid, draw.io and Excalidraw. It moves fast and ships its own Claude Code marketplace, so it is installed upstream rather than re-homed here (same posture as rea and understand-anything). This entry documents when to reach for it vs. Excalidraw and Mermaid, the install, and how the brand profiles are made.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "keywords": [
+    "diagrams",
+    "svg",
+    "brand",
+    "hero-image",
+    "pointer",
+    "diagram-design",
+    "moxywolf"
+  ]
+}
