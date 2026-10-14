@@ -68,6 +68,11 @@ Every Vercel-deployed repo carries `.github/workflows/endform-e2e.yml` (template
 
 When a command in this plugin shells out to a CLI: Codex runs **Astra (`gpt-6-astra`) or higher** (`-m gpt-6-astra`), Claude Code runs **Opus 5 or higher** (`--model opus`, which resolves to `claude-opus-5`; Fable qualifies). `scripts/peer_review.py` enforces this and reports `model_below_floor`; the plan-review protocol carries the flags in its commands. Set by Dorian 2026-09-11.
 
+Two more lines on models, from the 2026-10-13 fit note (`diagram-and-advisor-fit-2026-10-13.md`):
+
+- **Agents by what they do, not one model for all.** A read-only exploration agent (map the repo, find call sites, pull a reference) runs on Haiku with no Bash, because an agent that can loop on `grep | head` is a check that examines everything and reports nothing. A builder runs on the floor above. A reviewer is cross-vendor. Apply it to a department or Explore-class agent when it is next edited: `model: haiku` in its frontmatter, Bash out of its tools if it only reads.
+- **The advisor is the loop's three gates inside one session.** Claude Code's advisor tool consults a stronger model before a plan locks, when the same error recurs, and before "done": the gates this plugin runs as design approval, the XE-034 failure ledger and peer review. For a build session on Sonnet, `"advisorModel": "opus"` (or `fable` with access) in settings is the recommended line. It does not replace the review: same vendor, same transcript, nothing on disk. Whether Cowork honors `advisorModel` is unverified.
+
 ## Environment Requirements
 
 This plugin works within Cowork's sandboxed Bash environment. It needs:
