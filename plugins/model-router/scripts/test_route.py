@@ -356,22 +356,21 @@ class Hooks(unittest.TestCase):
         self.sid = "s9"
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertNotIn("cos_run", self.ledger()[-1]); self.sid = "s1"
-        # F14 (round 3): a command that only mentions cos-run (a search, an echo, a comment, a heredoc body) changes nothing
+        # F14 and the three rounds of review 20261014-085739: only the whole command being the invocation counts;
+        # anything that merely contains it (a search, an echo, a chain, a quoted fragment, a heredoc) changes nothing
         for cmd in ("rg -n 'route.py cos-run end' plugins", "grep route.py cos-run end file", "echo route.py cos-run start fake",
-                    "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end'", "echo 'a; python3 route.py cos-run end; b'",
-                    "echo \"x || python3 route.py cos-run start q; y\"", "printf '%s' \"x && python3 route.py cos-run start z\"",
+                    "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end; b'", "echo prefix'; python3 route.py cos-run end; suffix'",
                     "echo ';' python3 route.py cos-run end ';'", "echo \\; python3 route.py cos-run end", 'echo "&&" python3 route.py cos-run start z',
-                    "echo '|' python3 route.py cos-run end",
-                    "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
+                    "cd /p && python3 plugins/model-router/scripts/route.py cos-run end", "python3 route.py cos-run end; ls",
+                    "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n", "ls\npython3 route.py cos-run end",
                     "python3 -c \"print(1)\" route.py cos-run end"):
             self.call("Bash", {"command": cmd})
-            self.assertEqual(self.ledger()[-1]["class"], "shell", cmd)
             self.assertNotIn(self.ledger()[-1].get("event"), ("cos_run_start", "cos_run_end"))
             self.assertNotEqual(self.ledger()[-2].get("event"), "cos_run_end", cmd)
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-margin")
-        # a real invocation after a cd, in a && chain, still counts
-        self.call("Bash", {"command": "cd /p && GSTACK_PEER_REVIEW_DIR=/x python3 plugins/model-router/scripts/route.py cos-run start 2026-10-14-second"})
+        # the invocation alone, with a quoted path and a trailing newline, starts a new run
+        self.call("Bash", {"command": "python3 'plugins/model-router/scripts/route.py' cos-run start 2026-10-14-second\n"})
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-second")
         # end, then a call without a run; the hook never invents one

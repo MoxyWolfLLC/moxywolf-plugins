@@ -44,7 +44,7 @@ CLAIM_CHECKS = "claim-checks.jsonl"
 # commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
 # one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
 # override for runners that set it.
-SHELL_OPS = {";", "&&", "||", "|", "&", "\n", "(", ")", ";;", "|&"}   # F14 and the fresh review's F1: boundaries found after quoting
+COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?\s+)?(?:"[^"\s]*route\.py"|'[^'\s]*route\.py'|[^\s"']*route\.py)\s+cos-run\s+(?:start\s+([A-Za-z0-9._-]+)|(end))\s*$""")
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -239,57 +239,15 @@ def decide(answers):
 
 
 def cos_run_command(command):
-    """('start', id), ('end', None) or None: a standalone `[python3] .../route.py cos-run start <id> | end`
-    invocation in the command, found by parsing each shell segment's arguments. A mention inside a search
-    argument, a quoted string, a comment or a heredoc is not an invocation (F14, review 20261014-082908)."""
-    import shlex
-    found = None
-    kept, terminator = [], None                      # a heredoc body is text, not commands
-    for ln in str(command).split("\n"):
-        if terminator is not None:
-            if ln.strip() == terminator:
-                terminator = None
-            continue
-        kept.append(ln)
-        m = re.search(r"<<-?\s*(['\"]?)(\w+)\1", ln)
-        if m:
-            terminator = m.group(2)
-    # non-posix mode keeps the quotes on a token, so a quoted ';' is "';'" and only a bare operator is a boundary;
-    # an operator after an odd run of backslashes is escaped text (round 3 of review 20261014-085739)
-    lex = shlex.shlex("\n".join(kept), posix=False, punctuation_chars=";&|\n()")
-    lex.whitespace = " \t\r"; lex.commenters = "#"
-    try:
-        tokens = list(lex)
-    except ValueError:
+    """('start', id), ('end', None) or None. The whole Bash command must be the invocation and nothing else:
+    an optional python3, the script path (quoted or not, no spaces), then `cos-run start <id>` or `cos-run end`.
+    No chaining, no prefix, no suffix. Three rounds of review 20261014-085739 showed that recognizing the
+    invocation inside a larger command means reimplementing shell quoting; /cos runs it as its own command,
+    so the hook accepts only that shape and a mention anywhere else is text."""
+    m = COS_RUN_FULL.match(str(command))
+    if not m:
         return None
-    unquote = lambda t: t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'" else t
-    segments, cur, prev = [], [], ""
-    for t in tokens:
-        escaped = (len(prev) - len(prev.rstrip("\\"))) % 2 == 1
-        if t in SHELL_OPS and not escaped:
-            if cur: segments.append(cur); cur = []
-        else:
-            cur.append(unquote(t))
-        prev = t
-    if cur:
-        segments.append(cur)
-    for toks in segments:
-        # the executable position: after leading VAR=value assignments and the usual wrappers, the first word
-        while toks and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0]) or toks[0] in ("nohup", "exec", "env", "time", "command")):
-            toks = toks[1:]
-        if not toks:
-            continue
-        if re.search(r"(^|/)python3?(\.\d+)?$", toks[0]) and len(toks) > 1 and toks[1].endswith("route.py"):
-            rest = toks[2:]
-        elif toks[0].endswith("route.py"):
-            rest = toks[1:]
-        else:
-            continue
-        if rest[:2] == ["cos-run", "end"]:
-            found = ("end", None)
-        elif rest[:2] == ["cos-run", "start"] and len(rest) > 2 and rest[2].strip():
-            found = ("start", rest[2].strip())
-    return found
+    return ("start", m.group(1)) if m.group(1) else ("end", None)
 
 
 def cos_run_id(path):
@@ -640,21 +598,14 @@ def selftest():
     assert decide({"trust_boundary": 0.30})["rule"] == "trust_boundary"
     assert decide({"docs_only": 0.60, "has_tests": 0.50})["tier"] == "standard"
     assert cos_run_command('python3 "$P/scripts/route.py" cos-run start 2026-10-14-x') == ("start", "2026-10-14-x")
-    assert cos_run_command("cd /p && python3 plugins/model-router/scripts/route.py cos-run end") == ("end", None)
-    assert cos_run_command("rg -n 'route.py cos-run end' plugins") is None
-    assert cos_run_command("echo route.py cos-run start fake") is None
-    assert cos_run_command("echo python3 route.py cos-run end") is None
-    assert cos_run_command("GSTACK_PEER_REVIEW_DIR=/x nohup python3 scripts/route.py cos-run start r9") == ("start", "r9")
-    assert cos_run_command("echo 'a; python3 route.py cos-run end'") is None
-    assert cos_run_command("echo 'a; python3 route.py cos-run end; b'") is None
-    assert cos_run_command("ls\npython3 route.py cos-run end") == ("end", None)
-    assert cos_run_command("echo ';' python3 route.py cos-run end ';'") is None
-    assert cos_run_command("echo \\; python3 route.py cos-run end") is None
-    assert cos_run_command('echo "&&" python3 route.py cos-run start z') is None
-    assert cos_run_command("# python3 route.py cos-run end") is None
-    assert cos_run_command("cat <<'EOF'\npython3 route.py cos-run end\nEOF\n") is None
-    assert cos_run_command("cat <<EOF\nx\nEOF\npython3 route.py cos-run end") == ("end", None)
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 15 cos-run command shapes, all passed")
+    assert cos_run_command("python3 plugins/model-router/scripts/route.py cos-run end\n") == ("end", None)
+    assert cos_run_command("scripts/route.py cos-run start r9") == ("start", "r9")
+    for text in ("cd /p && python3 route.py cos-run end", "rg -n 'route.py cos-run end' plugins", "echo python3 route.py cos-run end",
+                 "echo ';' python3 route.py cos-run end ';'", "echo prefix'; python3 route.py cos-run end; suffix'",
+                 "python3 route.py cos-run end; ls", "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
+                 "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py cos-run start 'two words'", "ls\npython3 route.py cos-run end"):
+        assert cos_run_command(text) is None, text
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 14 cos-run command shapes, all passed")
     return 0
 
 
