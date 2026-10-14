@@ -44,7 +44,10 @@ CLAIM_CHECKS = "claim-checks.jsonl"
 # commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
 # one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
 # override for runners that set it.
-COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?\s+)?(?:"[^"\s]*route\.py"|'[^'\s]*route\.py'|[^\s"']*route\.py)\s+cos-run\s+(?:start\s+([A-Za-z0-9._-]+)|(end))\s*$""")
+# the path is letters, digits and _ . / ~ $ { } : @ + = - only (so `${CLAUDE_PLUGIN_ROOT}/...` fits), quoted or not;
+# a comment mark, an operator, a backtick or $( can't appear anywhere in the command
+_PATH = r"[A-Za-z0-9_./~${}:@+=-]*route\.py"
+COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?\s+)?(?:"%s"|'%s'|%s)\s+cos-run\s+(?:start\s+([A-Za-z0-9._-]+)|(end))\s*$""" % (_PATH, _PATH, _PATH))
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -598,14 +601,16 @@ def selftest():
     assert decide({"trust_boundary": 0.30})["rule"] == "trust_boundary"
     assert decide({"docs_only": 0.60, "has_tests": 0.50})["tier"] == "standard"
     assert cos_run_command('python3 "$P/scripts/route.py" cos-run start 2026-10-14-x') == ("start", "2026-10-14-x")
+    assert cos_run_command('python3 "${CLAUDE_PLUGIN_ROOT}/../model-router/scripts/route.py" cos-run end') == ("end", None)
     assert cos_run_command("python3 plugins/model-router/scripts/route.py cos-run end\n") == ("end", None)
     assert cos_run_command("scripts/route.py cos-run start r9") == ("start", "r9")
     for text in ("cd /p && python3 route.py cos-run end", "rg -n 'route.py cos-run end' plugins", "echo python3 route.py cos-run end",
                  "echo ';' python3 route.py cos-run end ';'", "echo prefix'; python3 route.py cos-run end; suffix'",
                  "python3 route.py cos-run end; ls", "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
-                 "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py cos-run start 'two words'", "ls\npython3 route.py cos-run end"):
+                 "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py cos-run start 'two words'", "ls\npython3 route.py cos-run end",
+                 "#route.py cos-run end", "'#route.py' cos-run end", "`x`route.py cos-run end", "$(x)route.py cos-run end"):
         assert cos_run_command(text) is None, text
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 14 cos-run command shapes, all passed")
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 19 cos-run command shapes, all passed")
     return 0
 
 
