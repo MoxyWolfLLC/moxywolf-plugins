@@ -81,6 +81,24 @@ export function readAtHead(repoPath, head, rel) {
   return { path: rel, exists: true, at: head, lines: lines.length, head: lines.slice(0, FILE_HEAD_LINES).join('\n') };
 }
 
+// F2 (review 20261013-182804, round 2): an item's "Links introduced" is read from that item's own
+// section only, bounded by the next heading of any level, and an item the design file does not
+// declare, or declares without the line, is refused: a recommendation over inputs the contract
+// names but the script did not read is not a recommendation.
+export function linksIntroduced(items, designText) {
+  const out = [];
+  for (const item of items) {
+    const esc = item.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+    const head = designText.match(new RegExp(`^### ${esc} [^\\n]*$`, 'm'));
+    if (!head) throw new Error(`the design file declares no item ${item}`);
+    const body = designText.slice(head.index + head[0].length).split(/^#{2,3} /m)[0];
+    const m = body.match(/^\*\*Links introduced:\*\* ([^\n]+)/m);
+    if (!m) throw new Error(`item ${item} has no "Links introduced" line in its own section`);
+    out.push({ item, links_introduced: m[1].trim() });
+  }
+  return out;
+}
+
 // What the model reads: the criteria, the files they name (their head, at the packet's head commit,
 // when that commit tracks them), and the item's "Links introduced".
 export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path, head = packet.repos?.[0]?.head) {
@@ -89,13 +107,7 @@ export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.pat
   const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`]+)`/g)].map(m => m[1].trim().split(/\s+/)[0])
                                               .filter(t => /^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$/.test(t) && (t.includes('/') || /\.[a-z0-9]{1,5}$/.test(t)))))];
   const files = paths.map((rel) => readAtHead(repoPath, head, rel));
-  const links = [];
-  if (designText) {
-    for (const item of packet.items ?? []) {
-      const m = designText.match(new RegExp(`^### ${item.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&')} [^\\n]*\\n[\\s\\S]*?\\*\\*Links introduced:\\*\\* ([^\\n]+)`, 'm'));
-      if (m) links.push({ item, links_introduced: m[1].trim() });
-    }
-  }
+  const links = linksIntroduced(packet.items ?? [], designText);
   return { items: packet.items ?? [], criteria_count: crits.length, criteria: crits, paths_named: paths,
            files_read: files.filter(f => f.exists).length, files, links_introduced: links };
 }
@@ -194,7 +206,8 @@ async function recommend(packetPath, designPath) {
     }
   }
   const designText = fs.readFileSync(designPath, 'utf8');
-  const inputs = inputsFrom(packet, designText);
+  let inputs;
+  try { inputs = inputsFrom(packet, designText); } catch (e) { console.error(`model selection refused: ${e.message}`); process.exit(2); }
   const wanted = process.env.GSTACK_MODEL_ROUTING === 'route' ? 'route' : 'shadow';
   const write = (fields) => {
     packet.model_selection = { model: MODEL, checked_at: new Date().toISOString(), inputs, ...fields,

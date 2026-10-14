@@ -138,6 +138,18 @@ class Selector(unittest.TestCase):
         # F2 (review 20261013-182804): the design file is required
         r = subprocess.run(["node", str(SCRIPT), "recommend", str(self.pfile)], capture_output=True, text=True, cwd=str(HERE))
         self.assertEqual(r.returncode, 2); self.assertIn("Links introduced", r.stderr)
+        # round 2: the line is read from the item's own section only, and a missing item or line is refused
+        self.design.write_text(DESIGN.replace("**Links introduced:** one field on the packet.\n\n", ""))   # FX-001 loses its line; FX-002 has none
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("no \"Links introduced\" line in its own section", r.stderr)
+        # FX-001 without a line, FX-002 with one: FX-002's line is not FX-001's
+        self.design.write_text(DESIGN.replace("**Links introduced:** one field on the packet.\n\n", "") + "\n### FX-002 — Another item\n\n**Links introduced:** the next item's line.\n")
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("FX-001", r.stderr)
+        pk = packet(self.d, self.base, self.head, items=["FX-009"]); self.pfile.write_text(json.dumps(pk))
+        self.design.write_text(DESIGN)
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("declares no item FX-009", r.stderr)
         self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
 
     def test_a_trust_boundary_item_is_never_below_floor(self):
