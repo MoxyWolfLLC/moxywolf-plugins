@@ -1,0 +1,18 @@
+{
+  "name": "model-router",
+  "version": "0.1.0",
+  "description": "v0.1.0: MR-003. Every tool call is classified by code against a committed ontology (references/call-ontology.json); only calls that carry a model choice (subagent launches, LLM-backed scripts) are routed, by the table or by Jev at the MR-002 bars; every call is written to a per-session ledger under $GSTACK_PEER_REVIEW_DIR/model-routing/ and route.py score counts it. A hook never blocks a call. The hard limit: a hook cannot change the model answering the current turn, only a subagent launch is rewritten.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "hooks": "./hooks/hooks.json",
+  "keywords": [
+    "model-routing",
+    "jev",
+    "ontology",
+    "cost",
+    "hooks",
+    "gstack",
+    "moxywolf"
+  ]
+}
