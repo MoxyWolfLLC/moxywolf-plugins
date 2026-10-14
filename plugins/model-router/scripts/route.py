@@ -444,6 +444,11 @@ def aar(d, date):
     calls = [l for l in lines if "class" in l]
     checks_file = d / CLAIM_CHECKS
     checks = [l for l in read_lines(checks_file) if str(l.get("ts", "")).startswith(date)] if checks_file.exists() else []
+    # the MR-001 ledger beside this directory: one line per released item, written by model_selection_line() in
+    # plugins/gstack-execution/scripts/peer_review.py at record-release, with recorded_at, recommendation {tier, rule,
+    # mode}, declared_tier (the tier the build said it ran on, from the packet), override and outcome
+    # {blocking_findings, rounds_used, unknowns_raised, release_outcome}. This reader attributes a line by its
+    # declared_tier only; a line without one is counted as untagged.
     sel_dir = d.parent / "model-selection"
     sel_files = sorted(sel_dir.glob("*.jsonl")) if sel_dir.exists() else []
     sel = [l for f in sel_files for l in read_lines(f) if str(l.get("recorded_at", "")).startswith(date)]
