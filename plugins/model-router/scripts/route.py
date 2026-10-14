@@ -261,16 +261,21 @@ def cos_run_command(command):
             toks = shlex.split(seg, comments=True)
         except ValueError:
             continue
-        for i, t in enumerate(toks):
-            if not t.endswith("route.py") or (i > 0 and not re.search(r"(^|/)python3?(\.\d+)?$", toks[i - 1])):
-                continue
-            if i > 1 and not toks[i - 2].startswith("-") and not re.search(r"(^|/)python3?(\.\d+)?$", toks[i - 1]):
-                continue
-            rest = toks[i + 1:]
-            if rest[:2] == ["cos-run", "end"]:
-                found = ("end", None)
-            elif rest[:2] == ["cos-run", "start"] and len(rest) > 2 and rest[2].strip():
-                found = ("start", rest[2].strip())
+        # the executable position: after leading VAR=value assignments and the usual wrappers, the first word
+        while toks and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0]) or toks[0] in ("nohup", "exec", "env", "time", "command")):
+            toks = toks[1:]
+        if not toks:
+            continue
+        if re.search(r"(^|/)python3?(\.\d+)?$", toks[0]) and len(toks) > 1 and toks[1].endswith("route.py"):
+            rest = toks[2:]
+        elif toks[0].endswith("route.py"):
+            rest = toks[1:]
+        else:
+            continue
+        if rest[:2] == ["cos-run", "end"]:
+            found = ("end", None)
+        elif rest[:2] == ["cos-run", "start"] and len(rest) > 2 and rest[2].strip():
+            found = ("start", rest[2].strip())
     return found
 
 
@@ -561,8 +566,8 @@ def aar(d, date):
         fails = sum(1 for c in checks if c.get("model") == model and not c.get("passed"))
         if len(md) >= TOO_FEW and fails:
             candidates.append((fails / len(md), 1, f"the routing default that sends department dispatches to {model}: {fails} claim-check failures over {len(md)} dispatches"))
-    if per_class.get("unclassified", {}).get("calls", 0) >= TOO_FEW:
-        n = per_class["unclassified"]["calls"]
+    n = per_class.get("unclassified", {}).get("calls", 0)
+    if len(calls) >= TOO_FEW and n:            # the bar is over the calls observed, the mistakes are the unclassified ones
         candidates.append((n / max(len(calls), 1), 0, f"the ontology: {n} of {len(calls)} calls were unclassified; add the missing class"))
     if candidates:   # the worst rate wins; on a tie the narrower gate (a department before a model before the ontology)
         candidates.sort(reverse=True)
@@ -625,10 +630,13 @@ def selftest():
     assert cos_run_command("cd /p && python3 plugins/model-router/scripts/route.py cos-run end") == ("end", None)
     assert cos_run_command("rg -n 'route.py cos-run end' plugins") is None
     assert cos_run_command("echo route.py cos-run start fake") is None
+    assert cos_run_command("echo python3 route.py cos-run end") is None
+    assert cos_run_command("GSTACK_PEER_REVIEW_DIR=/x nohup python3 scripts/route.py cos-run start r9") == ("start", "r9")
+    assert cos_run_command("echo 'a; python3 route.py cos-run end'") is None
     assert cos_run_command("# python3 route.py cos-run end") is None
     assert cos_run_command("cat <<'EOF'\npython3 route.py cos-run end\nEOF\n") is None
     assert cos_run_command("cat <<EOF\nx\nEOF\npython3 route.py cos-run end") == ("end", None)
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 7 cos-run command shapes, all passed")
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 10 cos-run command shapes, all passed")
     return 0
 
 

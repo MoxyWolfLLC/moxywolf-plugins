@@ -358,6 +358,7 @@ class Hooks(unittest.TestCase):
         self.assertNotIn("cos_run", self.ledger()[-1]); self.sid = "s1"
         # F14 (round 3): a command that only mentions cos-run (a search, an echo, a comment, a heredoc body) changes nothing
         for cmd in ("rg -n 'route.py cos-run end' plugins", "grep route.py cos-run end file", "echo route.py cos-run start fake",
+                    "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end'", "printf '%s' \"x && python3 route.py cos-run start z\"",
                     "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
                     "python3 -c \"print(1)\" route.py cos-run end"):
             self.call("Bash", {"command": cmd})
@@ -367,7 +368,7 @@ class Hooks(unittest.TestCase):
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-margin")
         # a real invocation after a cd, in a && chain, still counts
-        self.call("Bash", {"command": "cd /p && python3 plugins/model-router/scripts/route.py cos-run start 2026-10-14-second"})
+        self.call("Bash", {"command": "cd /p && GSTACK_PEER_REVIEW_DIR=/x python3 plugins/model-router/scripts/route.py cos-run start 2026-10-14-second"})
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
         self.assertEqual(self.ledger()[-1]["cos_run"], "2026-10-14-second")
         # end, then a call without a run; the hook never invents one
@@ -479,6 +480,15 @@ class Hooks(unittest.TestCase):
         self.assertIn("| pmo | 12 | haiku | 6/12 (50%) | 6 over 12 dispatches | 0 over 12 runs |", out)
         self.assertIn("Decision: change the pmo department's return contract or claim-check form: 6 send-backs over 12 dispatches.", out)
         self.assertEqual(out.count("Decision:"), 1)
+        # the ontology candidate's bar is over the calls observed: 20 calls with 2 unclassified is a decision on its own day
+        d2 = self.root / "mr2"; d2.mkdir()
+        rows = [json.dumps({"ts": "2026-10-15T01:00:00Z", "class": "read-file", "tool": "Read", "routed": False})] * 18 + \
+               [json.dumps({"ts": "2026-10-15T01:00:00Z", "class": "unclassified", "tool": "Teleport", "routed": False})] * 2
+        (d2 / "20261015-s1.jsonl").write_text("\n".join(rows) + "\n")
+        out = self.aar(d2, "2026-10-15")
+        self.assertIn("Decision: change the ontology: 2 of 20 calls were unclassified; add the missing class.", out)
+        (d2 / "20261015-s1.jsonl").write_text("\n".join(rows[:9]) + "\n")   # under ten calls: a lead, no decision
+        self.assertIn("Decision: none this day; the counts are below the bar.", self.aar(d2, "2026-10-15"))
 
     def test_hooks_json_declares_the_three_events_running_route_py(self):
         h = json.loads((HERE.parent / "hooks" / "hooks.json").read_text())["hooks"]
