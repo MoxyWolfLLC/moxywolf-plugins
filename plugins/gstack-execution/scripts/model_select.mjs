@@ -66,10 +66,19 @@ export function decide(answers) {
   return { tier: row.tier, rule: row.rule, booleans: a };
 }
 
-// What the model reads: the criteria, the paths they name, and the item's "Links introduced".
-export function inputsFrom(packet, designText) {
+export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model reads the named files, not only their names
+
+// What the model reads: the criteria, the files they name (their head, at the packet's head commit,
+// when they exist in the repository), and the item's "Links introduced".
+export function inputsFrom(packet, designText, repoPath = packet.repos?.[0]?.path) {
   const crits = (packet.acceptance_criteria ?? []).map(c => String(c).replace(/\s+/g, ' ').trim());
   const paths = [...new Set(crits.flatMap(c => [...c.matchAll(/`([^`\s]+\.[a-z0-9]{1,5}|[^`\s]*\/[^`\s]+)`/g)].map(m => m[1])))];
+  const files = paths.map((rel) => {
+    const f = repoPath ? path.join(repoPath, rel) : null;
+    if (!f || !fs.existsSync(f) || !fs.statSync(f).isFile()) return { path: rel, exists: false };
+    const lines = fs.readFileSync(f, 'utf8').split('\n');
+    return { path: rel, exists: true, lines: lines.length, head: lines.slice(0, FILE_HEAD_LINES).join('\n') };
+  });
   const links = [];
   if (designText) {
     for (const item of packet.items ?? []) {
@@ -77,7 +86,8 @@ export function inputsFrom(packet, designText) {
       if (m) links.push({ item, links_introduced: m[1].trim() });
     }
   }
-  return { items: packet.items ?? [], criteria_count: crits.length, criteria: crits, paths_named: paths, links_introduced: links };
+  return { items: packet.items ?? [], criteria_count: crits.length, criteria: crits, paths_named: paths,
+           files_read: files.filter(f => f.exists).length, files, links_introduced: links };
 }
 
 export function repoId(repoPath) {
@@ -102,34 +112,56 @@ export function readLedger(file) {
 }
 
 // MR-001.5: cleared means at most two rounds and no blocking finding. Counted, never characterised.
+// Only shadow lines score (MR-001.6 asks for shadow history): a line written in route mode ran on
+// the recommended tier, so its outcome says nothing about whether the recommendation was safe.
 export function scoreLines(lines) {
   const per = Object.fromEntries(TIERS.map(t => [t, { items: 0, cleared: 0, not_cleared: 0 }]));
-  let overridden = 0, cheapOk = 0, cheap = 0;
+  let overridden = 0, routed = 0, cheapOk = 0, cheap = 0;
   for (const l of lines) {
     if (l.override) { overridden += 1; continue; }
+    if (l.recommendation?.mode !== 'shadow') { routed += 1; continue; }
     const t = l.recommendation?.tier;
     if (!per[t]) continue;
     const ok = (l.outcome?.rounds_used ?? 99) <= 2 && (l.outcome?.blocking_findings ?? 99) === 0;
     per[t].items += 1; per[t][ok ? 'cleared' : 'not_cleared'] += 1;
     if (t !== 'floor') { cheap += 1; if (ok) cheapOk += 1; }
   }
-  const scored = lines.length - overridden;
-  return { lines: lines.length, scored, overridden, per_tier: per,
-           agreement: cheap ? Number((cheapOk / cheap).toFixed(3)) : 0, cheap_recommended: cheap };
+  const scored = lines.length - overridden - routed;
+  // agreement is compared unrounded (F4: 0.8996 printed as 0.9 must not pass 0.90); printed to 3 places
+  return { lines: lines.length, scored, overridden, routed, per_tier: per,
+           agreement: cheap ? cheapOk / cheap : 0, cheap_recommended: cheap };
 }
 
 export function routeAllowed(summary) {
   const ok = summary.scored >= ROUTE_MIN_LINES && summary.agreement >= ROUTE_MIN_AGREEMENT;
-  return { ok, lines: summary.scored, agreement: summary.agreement, needs_lines: ROUTE_MIN_LINES, needs_agreement: ROUTE_MIN_AGREEMENT };
+  return { ok, lines: summary.scored, agreement: Number(summary.agreement.toFixed(3)), needs_lines: ROUTE_MIN_LINES, needs_agreement: ROUTE_MIN_AGREEMENT };
 }
 
-function printScore(s, file) {
-  console.log(`ledger ${file}: ${s.lines} lines, ${s.scored} scored, ${s.overridden} overridden`);
+// MR-001.4: a review that never reached record-release has no line. The score names how many such
+// reviews of this repository exist under the review root, so a thin ledger is not read as a full one.
+export function openReviews(repoPath, ledgerLines, env = process.env) {
+  const root = reviewRoot(env);
+  const seen = new Set(ledgerLines.map(l => l.review_id));
+  let skipped = 0;
+  let dirs = [];
+  try { dirs = fs.readdirSync(root); } catch { return 0; }
+  for (const d of dirs) {
+    const pf = path.join(root, d, 'packet.json');
+    if (!fs.existsSync(pf) || seen.has(d)) continue;
+    let pk;
+    try { pk = JSON.parse(fs.readFileSync(pf, 'utf8')); } catch { continue; }
+    if (pk.model_selection?.status === 'checked' && (pk.repos ?? []).some(r => path.resolve(r.path) === path.resolve(repoPath))) skipped += 1;
+  }
+  return skipped;
+}
+
+function printScore(s, file, skipped) {
+  console.log(`ledger ${file}: ${s.lines} lines, ${s.scored} scored, ${s.overridden} overridden, ${s.routed} routed (not scored), ${skipped} open or abandoned reviews skipped`);
   for (const t of TIERS) {
     const p = s.per_tier[t];
     console.log(`  ${t.padEnd(8)} ${p.items} items, ${p.cleared} cleared in at most 2 rounds with no blocking finding, ${p.not_cleared} did not`);
   }
-  console.log(`agreement ${s.agreement} over ${s.cheap_recommended} standard/light recommendations`);
+  console.log(`agreement ${Number(s.agreement.toFixed(3))} over ${s.cheap_recommended} standard/light recommendations`);
 }
 
 async function recommend(packetPath, designPath) {
@@ -207,8 +239,8 @@ async function main() {
     const i = rest.indexOf('--repo');
     if (i < 0 || !rest[i + 1]) { console.error('usage: model_select.mjs score --repo <path>'); process.exit(2); }
     const file = ledgerPath(rest[i + 1]);
-    const s = scoreLines(readLedger(file));
-    printScore(s, file);
+    const lines = readLedger(file);
+    printScore(scoreLines(lines), file, openReviews(rest[i + 1], lines));
     return;
   }
   console.error('usage: model_select.mjs recommend <packet.json> [DESIGN.md] | score --repo <path>');

@@ -131,6 +131,9 @@ class Selector(unittest.TestCase):
         self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
         self.assertEqual(body["state"]["criteria_count"], 2)
         self.assertIn("scripts/a.py", body["state"]["paths_named"])
+        # F1 (review 20261013-175825): the named files are read, not only named; a.py exists at the head, scripts/a.py does not
+        self.assertEqual(body["state"]["files_read"], 0)
+        self.assertEqual([f["exists"] for f in body["state"]["files"]], [False, False])
         self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
 
     def test_a_trust_boundary_item_is_never_below_floor(self):
@@ -209,7 +212,7 @@ class Selector(unittest.TestCase):
     def test_score_prints_zeros_on_an_empty_ledger(self):
         r, _ = self.run_select("score", "--repo", str(self.d))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("0 lines, 0 scored, 0 overridden", r.stdout)
+        self.assertIn("0 lines, 0 scored, 0 overridden, 0 routed (not scored), 0 open or abandoned reviews skipped", r.stdout)
         for t in ("floor", "standard", "light"):
             self.assertIn(f"{t:<8} 0 items, 0 cleared", r.stdout)
         self.assertIn("agreement 0 over 0 standard/light recommendations", r.stdout)
@@ -225,7 +228,53 @@ class Selector(unittest.TestCase):
                                     "unknowns_raised": 0, "release_outcome": "agent_merge_autonomous"}})
         return "\n".join(json.dumps(l) for l in out) + "\n"
 
+    def test_a_named_file_that_exists_is_read_at_its_head(self):
+        pk = packet(self.d, self.base, self.head, acceptance_criteria=["`a.py` returns x + 1.", "`test_a.py` passes."])
+        self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), answers={})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = {f["path"]: f for f in ms["inputs"]["files"]}
+        self.assertEqual(ms["inputs"]["files_read"], 1)
+        self.assertEqual((files["a.py"]["exists"], files["a.py"]["lines"]), (True, 3))
+        self.assertIn("return x + 1", files["a.py"]["head"])
+        self.assertEqual(files["test_a.py"], {"path": "test_a.py", "exists": False})
+
+    def test_a_selector_that_did_not_run_does_not_open(self):
+        # F2 (review 20261013-175825): the gate is a checked recommendation, not the field's presence
+        pk = packet(self.d, self.base, self.head, model_selection={"status": "unavailable", "mode": "shadow", "why": "no key"})
+        self.pfile.write_text(json.dumps(pk))
+        saved = pr.REVIEW_DIR, pr.choose_reviewer
+        pr.REVIEW_DIR = self.root / "reviews"
+        pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("codex", False)
+        try:
+            with self.assertRaises(pr.ReviewError) as cm, contextlib.redirect_stdout(io.StringIO()):
+                pr.cmd_open(argparse.Namespace(builder="claude", packet=str(self.pfile), max_rounds=3, timeout=30))
+            self.assertEqual(cm.exception.outcome, "model_selection_missing")
+            self.assertIn("unavailable", str(cm.exception))
+        finally:
+            pr.REVIEW_DIR, pr.choose_reviewer = saved
+
+    def test_score_counts_open_reviews_it_skipped_and_routed_lines_apart(self):
+        # a review directory with a checked packet for this repo and no ledger line is skipped, and said so
+        d = self.root / "reviews" / "20260101-000000-abcdef0-open"; d.mkdir(parents=True)
+        (d / "packet.json").write_text(json.dumps(packet(self.d, self.base, self.head, model_selection={"status": "checked", "mode": "shadow", "tier": "light"})))
+        other = self.root / "reviews" / "20260101-000000-abcdef0-other"; other.mkdir()
+        (other / "packet.json").write_text(json.dumps({"repos": [{"path": "/elsewhere"}], "model_selection": {"status": "checked"}}))
+        self.ledger().write_text(self._lines(2, 2) + json.dumps({"review_id": "routed", "recommendation": {"tier": "light", "rule": "docs_only", "mode": "route"},
+                                                                  "declared_tier": "light", "override": None,
+                                                                  "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "x"}}) + "\n")
+        r, _ = self.run_select("score", "--repo", str(self.d))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("3 lines, 2 scored, 0 overridden, 1 routed (not scored), 1 open or abandoned reviews skipped", r.stdout)
+
     def test_route_is_refused_with_insufficient_history_until_twenty_lines_at_point_nine(self):
+        # F4 (review 20261013-175825): the gate reads shadow lines only and compares agreement unrounded
+        self.ledger().write_text(self._lines(20, 18).replace('"shadow"', '"route"'))
+        r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+        self.assertEqual((r.returncode, ms["mode"], ms["route_refused"]["lines"]), (5, "shadow", 0), r.stderr)
+        self.ledger().write_text(self._lines(1000, 899))        # 0.899, which prints as 0.899 and must not pass 0.90
+        r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")
+        self.assertEqual((r.returncode, ms["route_refused"]["agreement"]), (5, 0.899), r.stderr)
         for n, ok, expect in ((19, 19, False), (20, 17, False), (20, 18, True)):
             self.ledger().write_text(self._lines(n, ok))
             r, ms = self.run_select("recommend", str(self.pfile), answers={}, GSTACK_MODEL_ROUTING="route")

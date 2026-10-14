@@ -1643,7 +1643,10 @@ def validate(raw, packet, prior=None, dispositions=None):
         if not isinstance(f, dict):
             raise ReviewError("malformed_output", "finding must be an object")
         need = OUTPUT_SCHEMA["properties"]["findings"]["items"]["required"]
-        if any(k not in f for k in need) or f["severity"] not in SEVERITIES or type(f["line"]) is not int or any(not isinstance(f.get(k), str) or not f[k].strip() for k in need if k != "line"):
+        # review 20261013-175825 round 1: an embedded_instruction finding bears on no criterion, so
+        # an empty `criterion` is its honest value, not a malformed one; every other field stays nonblank
+        blank_ok = {"criterion"} if f.get("category") == "embedded_instruction" else set()
+        if any(k not in f for k in need) or f["severity"] not in SEVERITIES or type(f["line"]) is not int or any(not isinstance(f.get(k), str) or (k not in blank_ok and not f[k].strip()) for k in need if k != "line"):
             raise ReviewError("malformed_output", f"bad finding {f.get('id')}")
         if not FINDING_ID.match(f["id"]):
             raise ReviewError("malformed_output", f"finding id must match {FINDING_ID.pattern}: {f['id'][:40]!r}")
@@ -2221,9 +2224,12 @@ def cmd_open(a):
     # MR-001.3: an item review carries the model recommendation, in shadow or route mode, before it
     # opens. A packet that claims no DESIGN item (a selftest, a goal test) is not an item review.
     ms = packet.get("model_selection")
-    if packet.get("items") and not ms:
+    if packet.get("items") and (not ms or ms.get("status") != "checked"):
+        # F2 (review 20261013-175825): a selector that wrote broken/unavailable/unusable carried no
+        # recommendation; the field's presence is not the gate, a checked recommendation is
         raise ReviewError("model_selection_missing",
-                          "the packet claims DESIGN items but carries no model_selection; run "
+                          f"the packet claims DESIGN items but carries no checked model_selection "
+                          f"(status {ms.get('status') if ms else 'absent'!r}); run "
                           "`node scripts/model_select.mjs recommend <packet> DESIGN.md` (MR-001.3)")
     model_selection = ({"status": ms.get("status"), "mode": ms.get("mode"), "tier": ms.get("tier"),
                         "rule": ms.get("rule"), "override": ms.get("override")} if ms else None)

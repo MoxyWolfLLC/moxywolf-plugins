@@ -73,6 +73,28 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 
 Reading is the cheap half of a build and the expensive half of a context window. Both agents run on Haiku with no shell because an agent that can loop on `grep \| head` burns tokens examining everything and reporting nothing. `/gstack-build` sends its mapping to them before it edits. The department agents in other plugins stay on the session's model: they produce judgements, which is the part that needs it.
 
+## Which model builds an item (MR-001)
+
+`model_select.mjs recommend <packet> DESIGN.md` asks Jev four typed questions about the item, verbatim as the script lists them, and records the answers:
+
+| Question | True when |
+|---|---|
+| `trust_boundary` | the item changes code on a trust boundary: authentication, authorization, payment, credentials or secrets, the agent's GitHub token or app, a repository ruleset, a CI workflow, or anything that decides what an agent may do |
+| `cross_file` | building it needs reasoning across more than one source file at once |
+| `docs_only` | it is documentation, configuration, a status line or a version move only |
+| `has_tests` | its criteria name executable tests the build must add or make pass |
+
+A rule table in the script, not the model, maps the answers to a tier, first row that holds:
+
+| Rule | Condition | Tier |
+|---|---|---|
+| `trust_boundary` | trust_boundary | `floor` (Opus 5 or higher) |
+| `cross_file` | cross_file | `floor` |
+| `docs_only` | docs_only and not has_tests | `light` (Sonnet) |
+| `default` | anything else | `standard` (Sonnet with an Opus advisor) |
+
+Two modes. `shadow`, the default: the build runs on the floor and the recommendation is only recorded; `open` refuses an item packet without a checked one. `route`, with `GSTACK_MODEL_ROUTING=route`: the tier is the one the build is told to run on, refused with `insufficient_history` until the ledger holds 20 scored shadow lines at agreement 0.90. `record-release` appends each released item's outcome beside its recommendation in `$GSTACK_PEER_REVIEW_DIR/model-selection/<owner>-<repo>.jsonl`; `model_select.mjs score --repo <path>` prints per-tier counts, overridden and routed lines apart, how many open or abandoned reviews it skipped, and `agreement` (the share of `standard` and `light` recommendations whose item cleared in at most two rounds with no blocking finding). A person's `model_selection.override: {tier, reason}` wins in both modes. Nothing here changes which model reviews.
+
 ## What a review is, and is not
 
 Reviewer routing is a table of `{family, model, floor}`. **A reviewer sharing the builder's model family is refused before it runs** — a harness swap is not an independent mind, and a record that cannot tell the two apart is worth less than no record. A fallback to a second reviewer is permitted only across families, and is recorded *as* a fallback, because a fallback nobody recorded is a silent downgrade.
