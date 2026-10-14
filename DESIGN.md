@@ -1487,6 +1487,16 @@ Prompt Master (`nidhinjs/prompt-master` at `2bd9251`, MIT) is markdown only, but
 7. The Maintenance section’s audit record gains a dated entry for this edit, per its own rule.
 8. The prompt-coach rule in the Team Plugins project memory lists the checks the guide now carries, and still exempts one-off conversational prompts.
 
+### XE-037 — The coverage scorer reads every repository's item ids, not only two-letter ones
+
+**Status:** building. Declared 2026-10-13 at Dorian's word ("convert"), when the release handoff for cki I-087, I-089 and I-088 each refused `coverage not_run`: `packet_coverage.mjs` reads items as `### XX-NNN — title` with numbered criteria, and cki's `DESIGN.md` kept its 75 items in a table under one-letter ids (`I-NNN`). cki's table is converted to headings in the same act (cki r66). The scorer's prefix pattern is `[A-Z]{2}`, which no cki item can match even as a heading, so the handoff gate was never reachable there, and three merges went on Dorian's merge word posted on the pull request instead of a handoff record.
+
+**Links introduced:** none. The item id in a coverage report keeps the form the design file uses.
+
+1. `declaredCriteria()` accepts an item heading whose id prefix is one to three capital letters (`I-087`, `XE-010`, `CSO-001`) and whose title separator is an em dash or a spaced en dash; everything else about the heading and criteria grammar is unchanged.
+2. A test proves a one-letter id under an en dash and a three-letter id under an em dash are read with their numbered criteria counted, and that a four-letter prefix is outside the grammar and not scored.
+3. The existing tests pass unchanged; the plugin version moves.
+
 ### XE-034 — A check that failed stays failed until the same check passes
 
 **Status:** done. Merged to `main` in `f1aa6b7` (PR #188, head `22761fc`) on 6 October 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113. Review `20261006-163016-d8ac320-huziz66a` (codex/gpt-6-astra, `fixes_verified`, 3 rounds, 10/10, coverage `covered`): round 1 found command-line `-o pipefail` undone by `+o pipefail` and two repositories colliding in one ledger file, both fixed in `e44830a`; round 2 found relative origins still colliding, fixed in `4baab24` and `22761fc`. An earlier review, `20261006-162216-c6ccd11-456j0wnv`, found the `-ec` bypass (fixed in `deeec92`) and criterion 10's bare filename (amended). Declared 2026-10-06 from the jev-opus intake (`Taskade/Team Plugins/06 – Engineering/jev-opus-fit-2026-10-06.md`), approved by Dorian.
