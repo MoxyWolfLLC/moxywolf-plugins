@@ -59,7 +59,8 @@ function declaredCriteria(designPath) {
   // never examined -- and the one criterion it existed to catch, XE-005 #6, was among the dropped.
   // A false pass over unexamined input, inside the check built to prevent exactly that.
   const END = '$(?![\\s\\S])';
-  const itemRe = new RegExp(`^### ([A-Z]{2}-\\d+) — (.+?)$([\\s\\S]*?)(?=^#{2,3} |${END})`, 'gm');
+  // XE-037: an id prefix of one to three capitals (I-087, XE-010, CSO-001); the separator an em dash or a spaced en dash
+  const itemRe = new RegExp(`^### ([A-Z]{1,3}-\\d+) [—–] (.+?)$([\\s\\S]*?)(?=^#{2,3} |${END})`, 'gm');
   for (const m of design.matchAll(itemRe)) {
     const body = m[3];
     const critRe = new RegExp(`^\\d+\\.\\s+([\\s\\S]+?)(?=^\\d+\\.\\s|\\n\\n\\*\\*|\\n\\n##|${END})`, 'gm');
