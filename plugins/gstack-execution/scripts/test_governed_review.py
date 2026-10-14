@@ -530,15 +530,32 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual(rec["release_lane"]["lane"], "closed")
 
     def test_a_wide_release_is_refused_when_its_gates_do_not_hold(self):
-        # F2 (review 20261013-202943): the wide instruction is earned, not claimed
+        # F2 (review 20261013-202943, then 20261013-204622): the wide instruction is earned, not
+        # claimed, and the ledger is read at release time: a check that fails after open counts
         self.commit_change("scripts/helper.py", "x = 1\n")
         self.open(); self.response(); self.round()
-        state_file = self.root / "reviews" / self.rid / "state.json"
-        state = json.loads(state_file.read_text()); state["ledger_status"] = "overridden"; state_file.write_text(json.dumps(state))
+        ledger = Path(__file__).with_name("check_ledger.py")
+        check = [sys.executable, str(ledger), "run", "--repo", str(self.repo), "--", "test", "-f", "ok"]   # same check fails, then passes
+        r = subprocess.run(check, env=self.env, capture_output=True, text=True, cwd=str(self.repo))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         r = self.call("release", self.rid)
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("release_blocked", r.stdout + r.stderr); self.assertIn("not clear", r.stdout + r.stderr)
+        self.assertIn("release_blocked", r.stdout + r.stderr); self.assertIn("open failure", r.stdout + r.stderr)
         self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+        # the same check passing clears it, and the release goes through
+        (self.repo / "ok").write_text("")
+        r = subprocess.run(check, env=self.env, capture_output=True, text=True, cwd=str(self.repo))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        (self.repo / "ok").unlink()                       # release wants a clean worktree
+        r = self.call("release", self.rid)
+        self.assertTrue((self.root / "reviews" / self.rid / "release.json").exists(), r.stdout + r.stderr)
+
+    def test_a_quoted_pathname_still_matches_its_closed_glob(self):
+        # F1 (review 20261013-204622): a non-ASCII workflow name is quoted by git without -z
+        self.commit_change(".github/workflows/d\u00e9ploiement.yml", "on: push\n")
+        L = self.lane()
+        self.assertEqual(L["lane"], "closed")
+        self.assertEqual([m["path"] for m in L["matched"]], [".github/workflows/d\u00e9ploiement.yml"])
 
     def test_an_unreadable_diff_is_refused_not_contained(self):
         self.packet["repos"][0]["head"] = "0" * 40

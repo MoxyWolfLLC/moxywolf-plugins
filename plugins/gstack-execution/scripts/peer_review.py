@@ -574,16 +574,25 @@ def release_lane(repos, table=None):
         sources.append(source)
         lanes = t.get("lanes") or {}
         wide_callers = int(t.get("wide_callers", WIDE_CALLERS))
+        # F1 (review 20261013-204622): -z, so a pathname is bytes between NULs, never git's quoted
+        # and escaped rendering that a glob cannot match
         try:
-            raw = git(r["path"], "diff", "--name-status", f"{r['base']}..{r['head']}")
+            raw = git(r["path"], "diff", "--name-status", "-z", f"{r['base']}..{r['head']}")
         except Exception as e:
             raise ReviewError("malformed_packet", f"{r['path']}: cannot read the diff {r['base'][:7]}..{r['head'][:7]}: {e}")
         entries = []
-        for line in raw.splitlines():
-            parts = line.split("\t")
-            if len(parts) < 2:
+        fields = [f for f in raw.split("\0")]
+        pos = 0
+        while pos < len(fields):
+            status = fields[pos]
+            if not status:
+                pos += 1
                 continue
-            status, paths = parts[0], parts[1:]
+            n = 2 if status[:1] in "RC" else 1          # a rename or copy carries two pathnames
+            paths = fields[pos + 1:pos + 1 + n]
+            pos += 1 + n
+            if len(paths) < n or not all(paths):
+                continue
             effects = []
             if status.startswith("D"):
                 effects.append("deletes_tracked_file")
@@ -639,12 +648,26 @@ def lane_instruction(lane_record):
     return text
 
 
-def wide_gates(state, links, open_unknowns_now):
+def ledger_status_now(repos):
+    """The failure ledger as it is NOW, not as it was at open (F2, review 20261013-204622): a check
+    that failed after the review opened is still a failed check."""
+    import check_ledger
+    root = review_root()
+    open_failures, missing = [], 0
+    for r in repos:
+        found = check_ledger.issues_for(r["path"], root)
+        missing += found is None
+        open_failures += list(found or ())
+    return "overridden" if open_failures else ("none" if missing else "clear"), open_failures
+
+
+def wide_gates(state, links, open_unknowns_now, repos):
     """F2 (review 20261013-202943): the wide lane's gates are checked, not claimed. Returns the ones
     that do not hold, each a sentence, so the refusal names them."""
     failed = []
-    if state.get("ledger_status") not in {"clear", "none"}:
-        failed.append(f"the failure ledger is {state.get('ledger_status')}, not clear")
+    status, open_failures = ledger_status_now(repos)
+    if status not in {"clear", "none"}:
+        failed.append(f"the failure ledger has {len(open_failures)} open failure(s) now, not clear")
     if not state.get("coverage_checked"):
         failed.append("coverage was not checked")
     if links.get("outcome") != "links_verified":
@@ -2775,7 +2798,7 @@ def cmd_release(a):
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
     if (state.get("release_lane") or {}).get("lane") == "wide":
-        failed = wide_gates(state, links, open_unknowns_now)
+        failed = wide_gates(state, links, open_unknowns_now, packet["repos"])
         if failed:
             raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
