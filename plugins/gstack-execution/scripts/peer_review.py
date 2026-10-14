@@ -543,20 +543,19 @@ LANE_TABLE_REPO = ".gstack/release-lanes.json"
 WIDE_CALLERS = 5
 
 
-def lane_table(repos):
-    """The one table in force: a repository's own `.gstack/release-lanes.json` at its reviewed head
-    replaces the default whole (never merged, so a reader finds one table); else the plugin's."""
-    for r in repos:
-        try:
-            text = git(r["path"], "show", f"{r['head']}:{LANE_TABLE_REPO}")
-        except Exception:
-            continue
-        try:
-            t = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise ReviewError("malformed_packet", f"{r['path']}: {LANE_TABLE_REPO} at {r['head'][:7]} is not JSON: {e}")
-        return t, f"{Path(r['path']).name}:{LANE_TABLE_REPO}@{r['head'][:7]}"
-    return json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8")), "default"
+def lane_table(repo):
+    """The table in force for ONE repository: its own `.gstack/release-lanes.json` at its reviewed
+    head replaces the default whole (never merged, so a reader finds one table); else the plugin's.
+    F3 (review 20261013-202943): each repository is judged by its own table, never its neighbour's."""
+    try:
+        text = git(repo["path"], "show", f"{repo['head']}:{LANE_TABLE_REPO}")
+    except Exception:
+        return json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8")), "default"
+    try:
+        t = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ReviewError("malformed_packet", f"{repo['path']}: {LANE_TABLE_REPO} at {repo['head'][:7]} is not JSON: {e}")
+    return t, f"{Path(repo['path']).name}:{LANE_TABLE_REPO}@{repo['head'][:7]}"
 
 
 def _lane_matches(path, globs):
@@ -566,14 +565,15 @@ def _lane_matches(path, globs):
 def release_lane(repos, table=None):
     """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
     cannot be read is refused, never defaulted to `contained`."""
-    if table is None:
-        table, source = lane_table(repos)
-    else:
-        source = "given"
-    lanes = table.get("lanes") or {}
-    wide_callers = int(table.get("wide_callers", WIDE_CALLERS))
-    matched = []
+    matched, sources = [], []
     for r in repos:
+        if table is None:
+            t, source = lane_table(r)
+        else:
+            t, source = table, "given"
+        sources.append(source)
+        lanes = t.get("lanes") or {}
+        wide_callers = int(t.get("wide_callers", WIDE_CALLERS))
         try:
             raw = git(r["path"], "diff", "--name-status", f"{r['base']}..{r['head']}")
         except Exception as e:
@@ -589,7 +589,10 @@ def release_lane(repos, table=None):
                 effects.append("deletes_tracked_file")
             if status.startswith("R"):
                 effects.append("renames_tracked_file")
-            entries.append((paths[-1], effects, r))
+            # F1 (review 20261013-202943): a rename touches both its source and its destination;
+            # a migration renamed out of its folder is still a change to a migration
+            for path in paths:
+                entries.append((path, list(effects), r))
         # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
         stems = {path: Path(path).stem for path, _, _ in entries if Path(path).stem not in {"__init__", "index"}}
         counts = {path: 0 for path in stems}
@@ -621,7 +624,34 @@ def release_lane(repos, table=None):
                         matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name})
     lane = max((m["lane"] for m in matched), key=LANES.index, default="contained")
     decided_by = sorted({m["decided_by"] for m in matched if m["lane"] == lane}) or ["none"]
-    return {"lane": lane, "decided_by": decided_by, "matched": [m for m in matched if m["lane"] == lane], "table": source}
+    return {"lane": lane, "decided_by": decided_by, "matched": [m for m in matched if m["lane"] == lane],
+            "table": sources[0] if len(sources) == 1 else sources}
+
+
+def lane_instruction(lane_record):
+    """F6 (review 20261013-202943): the closed instruction names what closed the lane."""
+    lane = (lane_record or {}).get("lane") or "contained"
+    text = LANE_INSTRUCTION[lane]
+    if lane == "closed":
+        what = "; ".join(f"{m['repo']}: {m.get('effect') or m['path']}" + (f" ({m['path']})" if m.get("effect") else "")
+                         for m in lane_record.get("matched") or ()) or "nothing recorded"
+        text = text.replace("The lane is closed:", f"The lane is closed by {what}:")
+    return text
+
+
+def wide_gates(state, links, open_unknowns_now):
+    """F2 (review 20261013-202943): the wide lane's gates are checked, not claimed. Returns the ones
+    that do not hold, each a sentence, so the refusal names them."""
+    failed = []
+    if state.get("ledger_status") not in {"clear", "none"}:
+        failed.append(f"the failure ledger is {state.get('ledger_status')}, not clear")
+    if not state.get("coverage_checked"):
+        failed.append("coverage was not checked")
+    if links.get("outcome") != "links_verified":
+        failed.append(f"links are {links.get('outcome')}, not verified")
+    if any(u.get("needs") == "repository" for u in open_unknowns_now):
+        failed.append("an open unknown still needs the repository")
+    return failed
 
 
 LANE_INSTRUCTION = {
@@ -2437,6 +2467,7 @@ def cmd_round(a):
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
+              "release_lane": state.get("release_lane"),   # GA-010.3, on every round record, error rounds included (F5)
               "vocabulary_version": VOCAB_VERSION}
     try:
         # resolved BEFORE the data_use gate, not after. Availability changes between open and round,
@@ -2530,12 +2561,13 @@ def cmd_round(a):
                               "reviewer opened 0 of %d offered files; its verdict rests on the "
                               "packet alone" % record["examined"]["offered_count"])
         out = validate(raw, packet, prior, dispositions)
+        # GA-010.3: a reviewer key may never land on an executor-written field; the lane is state's
+        out.pop("release_lane", None)
         record.update(out)
         # Bind each finding to the content at the reviewed head, not merely to a name.
         record["subjects"] = bind_subjects(out["findings"], packet["repos"])
         # EV-012.6: a location is reported once across the review; a repeat is listed, not counted
         seen_locations = {(e["file"], e["line"]) for e in state.get("embedded_locations") or []}
-        record["release_lane"] = state.get("release_lane")   # GA-010.3: carried, never moved by a reviewer
         record["embedded_instructions"] = [{"id": f["id"], "file": f["file"], "line": f["line"]}
                                            for f in out["findings"] if f["category"] == "embedded_instruction"]
         new_locs = []
@@ -2742,6 +2774,10 @@ def cmd_release(a):
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
+    if (state.get("release_lane") or {}).get("lane") == "wide":
+        failed = wide_gates(state, links, open_unknowns_now)
+        if failed:
+            raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "unknowns_open": open_unknowns_now,
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
@@ -2750,7 +2786,7 @@ def cmd_release(a):
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
               "release_lane": state.get("release_lane"),   # GA-010.4
-              "instruction": LANE_INSTRUCTION[(state.get("release_lane") or {}).get("lane") or "contained"]}
+              "instruction": lane_instruction(state.get("release_lane"))}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])

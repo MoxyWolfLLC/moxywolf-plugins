@@ -422,6 +422,7 @@ class ReleaseLanes(GovernedReview):
         if delete:
             self.git("rm", "-q", rel)
         elif rename_to:
+            (self.repo / rename_to).parent.mkdir(parents=True, exist_ok=True)
             self.git("mv", rel, rename_to)
         else:
             p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text); self.git("add", rel)
@@ -485,6 +486,60 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual((L["lane"], [m["path"] for m in L["matched"]]), ("closed", ["docs/a.md"]))
         self.assertTrue(L["table"].endswith(".gstack/release-lanes.json@" + self.head[:7]), L["table"])
 
+    def test_a_readme_only_change_is_contained(self):
+        self.base = self.head; self.packet["repos"][0]["base"] = self.base
+        self.commit_change("README.md", "# fixture\n")
+        L = self.lane()
+        self.assertEqual((L["lane"], L["matched"]), ("contained", []))
+
+    def test_a_migration_renamed_out_of_its_folder_is_still_closed(self):
+        # F1 (review 20261013-202943): a rename touches its source too
+        self.commit_change("db/migrations/0001.sql", "x\n")
+        self.base = self.head; self.packet["repos"][0]["base"] = self.base
+        self.commit_change("db/migrations/0001.sql", rename_to="archive/0001.sql")
+        L = self.lane()
+        self.assertEqual(L["lane"], "closed")
+        self.assertIn("db/migrations/0001.sql", [m["path"] for m in L["matched"]])
+
+    def test_each_repository_is_judged_by_its_own_table(self):
+        # F3 (review 20261013-202943): A's permissive table must not cover B's docs change
+        other = self.root / "other"; other.mkdir()
+        g = lambda *a: subprocess.run(["git", "-C", str(other), *a], check=True, capture_output=True, text=True).stdout.strip()
+        g("init", "-q"); g("config", "user.name", "F"); g("config", "user.email", "f@x"); g("config", "core.hooksPath", "/dev/null")
+        (other / ".gstack").mkdir(); (other / ".gstack" / "release-lanes.json").write_text(json.dumps({"lanes": {"closed": {"paths": ["docs/**"], "effects": []}, "wide": {"paths": [], "effects": []}}}))
+        (other / "a.txt").write_text("a"); g("add", "."); g("commit", "-qm", "base"); obase = g("rev-parse", "HEAD")
+        (other / "docs").mkdir(); (other / "docs" / "x.md").write_text("x"); g("add", "."); g("commit", "-qm", "docs"); ohead = g("rev-parse", "HEAD")
+        self.commit_change(".gstack/release-lanes.json", json.dumps({"lanes": {"closed": {"paths": [], "effects": []}, "wide": {"paths": [], "effects": []}}}))
+        self.commit_change("db/migrations/0009.sql", "x\n")      # permissive table: nothing closes here
+        self.packet["repos"].append({"path": str(other), "base": obase, "head": ohead})
+        L = self.lane()
+        self.assertEqual(L["lane"], "closed")
+        self.assertEqual([(m["repo"], m["path"]) for m in L["matched"]], [("other", "docs/x.md")])
+        self.assertEqual(len(L["table"]), 2)
+        self.packet["repos"].reverse()
+        self.assertEqual(self.lane()["lane"], "closed")           # order does not change the lane
+
+    def test_an_error_round_still_carries_the_lane(self):
+        # F5 (review 20261013-202943)
+        self.commit_change("db/migrations/0010.sql", "x\n")
+        self.open()
+        self.env["REVIEW_RESPONSE"] = "not json at all"
+        r, out = self.round()
+        self.assertNotEqual(r.returncode, 0)
+        rec = json.loads((self.root / "reviews" / self.rid / "round-1.json").read_text())
+        self.assertEqual(rec["release_lane"]["lane"], "closed")
+
+    def test_a_wide_release_is_refused_when_its_gates_do_not_hold(self):
+        # F2 (review 20261013-202943): the wide instruction is earned, not claimed
+        self.commit_change("scripts/helper.py", "x = 1\n")
+        self.open(); self.response(); self.round()
+        state_file = self.root / "reviews" / self.rid / "state.json"
+        state = json.loads(state_file.read_text()); state["ledger_status"] = "overridden"; state_file.write_text(json.dumps(state))
+        r = self.call("release", self.rid)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("release_blocked", r.stdout + r.stderr); self.assertIn("not clear", r.stdout + r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+
     def test_an_unreadable_diff_is_refused_not_contained(self):
         self.packet["repos"][0]["head"] = "0" * 40
         with self.assertRaises(peer.ReviewError) as cm:
@@ -516,6 +571,7 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual(rec["release_lane"]["lane"], "closed")
         self.assertIn("DR-113 does not apply", rec["instruction"])
         self.assertIn("does not merge", rec["instruction"])
+        self.assertIn("closed by repo: db/migrations/0005.sql", rec["instruction"])   # F6: names what matched
 
     def test_release_on_a_wide_lane_names_its_gates(self):
         self.commit_change("scripts/helper.py", "x = 1\n")
