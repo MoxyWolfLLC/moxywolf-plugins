@@ -44,7 +44,9 @@ class Stub(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         Stub.seen.append(body)
-        out = {"answers": {k: {"type": "boolean", "probability": 0.9 if Stub.answers.get(k) else 0.1}
+        # an int or bool answer is 0.9 / 0.1; a float is the probability verbatim (MR-002 boundary cases)
+        out = {"answers": {k: {"type": "boolean", "probability": Stub.answers[k] if isinstance(Stub.answers.get(k), float)
+                               else (0.9 if Stub.answers.get(k) else 0.1)}
                            for k in body["questions"]},
                "usage": {"inputTokens": 12, "outputTokens": 1}}
         raw = json.dumps(out).encode()
@@ -59,7 +61,7 @@ class Stub(http.server.BaseHTTPRequestHandler):
 
 
 def repo():
-    d = Path(tempfile.mkdtemp(prefix="mr001-"))
+    d = Path(tempfile.mkdtemp(prefix="mr001-")).resolve()   # macOS: /var is /private/var, and record-release resolves --repo
     sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
     sh("init", "-q"); sh("config", "user.email", "t@t"); sh("config", "user.name", "t")
     sh("remote", "add", "origin", "https://github.com/fixture-org/fixture-repo.git")
@@ -126,9 +128,9 @@ class Selector(unittest.TestCase):
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual((ms["status"], ms["mode"], ms["tier"], ms["rule"], ms["routing"]), ("checked", "shadow", tier, rule, "advice"), ms)
-            self.assertEqual(set(ms["answers"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
+            self.assertEqual(set(ms["answers"]), {"trust_boundary", "cross_file", "docs_only", "has_tests", "risky"})
         body = Stub.seen[-1]
-        self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests"})
+        self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests", "risky"})
         self.assertEqual(body["state"]["criteria_count"], 2)
         self.assertIn("scripts/a.py", body["state"]["paths_named"])
         self.assertEqual(body["state"]["paths_named"], ["scripts/a.py", "test_a.py"])
@@ -163,6 +165,26 @@ class Selector(unittest.TestCase):
         pk["items"] = ["g1/3"]; self.pfile.write_text(json.dumps(pk))
         r, ms = self.run_select("recommend", str(self.pfile), str(plan), answers={})
         self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("declares no item g1/3 (2 items)", r.stderr)
+
+    # ---- MR-002: the risk axis and the asymmetric bars, at their boundaries ----
+
+    def test_risky_forces_the_floor_first_and_the_bars_are_asymmetric(self):
+        cases = [({"risky": 0.70, "docs_only": 0.95}, "floor", "risky"),
+                 ({"risky": 0.69, "docs_only": 0.95}, "light", "docs_only"),
+                 ({"trust_boundary": 0.30}, "floor", "trust_boundary"),
+                 ({"trust_boundary": 0.29}, "standard", "default"),
+                 ({"cross_file": 0.30}, "floor", "cross_file"),
+                 ({"docs_only": 0.60, "has_tests": 0.10}, "light", "docs_only"),
+                 ({"docs_only": 0.59, "has_tests": 0.10}, "standard", "default"),
+                 ({"docs_only": 0.95, "has_tests": 0.50}, "standard", "default"),
+                 ({"docs_only": 0.95, "has_tests": 0.49}, "light", "docs_only")]
+        for answers, tier, rule in cases:
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual((ms["tier"], ms["rule"]), (tier, rule), (answers, ms))
+            self.assertEqual(ms["thresholds"], {"risky": 0.70, "upgrade": 0.30, "downgrade": 0.60, "has_tests": 0.50})
+        self.assertIn("bars: risky 0.7, upgrade 0.3, downgrade 0.6, has_tests 0.5", r.stdout)
+        self.assertEqual(Stub.seen[-1]["questions"]["risky"]["instructions"][:46], "Does this item change code that touches produc")
 
     def test_a_trust_boundary_item_is_never_below_floor(self):
         for extra in ({"docs_only": 1}, {"docs_only": 1, "has_tests": 1}, {"cross_file": 1}):
@@ -245,6 +267,7 @@ class Selector(unittest.TestCase):
         for t in ("floor", "standard", "light"):
             self.assertIn(f"{t:<8} 0 items, 0 cleared", r.stdout)
         self.assertIn("agreement 0 over 0 standard/light recommendations", r.stdout)
+        self.assertIn("by rule  risky 0 fired 0 cleared, trust_boundary 0 fired 0 cleared, cross_file 0 fired 0 cleared, docs_only 0 fired 0 cleared, default 0 fired 0 cleared", r.stdout)
 
     def _lines(self, n, ok):
         """n scored lines recommending `standard`, `ok` of them cleared."""
@@ -313,6 +336,8 @@ class Selector(unittest.TestCase):
         # F4 (review 20261013-182804): the routed light item is in light's row; it is not in agreement
         self.assertIn("light    1 items, 1 cleared in at most 2 rounds with no blocking finding, 0 did not, 1 of them routed", r.stdout)
         self.assertIn("standard 2 items, 2 cleared", r.stdout)
+        # MR-002.4: the per-rule row counts every non-overridden line under the rule that fired for it
+        self.assertIn("docs_only 1 fired 1 cleared, default 2 fired 2 cleared", r.stdout)
         self.assertIn("agreement 1 over 2 standard/light recommendations", r.stdout)
 
     def test_route_is_refused_with_insufficient_history_until_twenty_lines_at_point_nine(self):

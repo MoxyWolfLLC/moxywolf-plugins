@@ -9,7 +9,7 @@
 // stdlib Python that runs offline on purpose. `peer_review.py open` reads the field this writes and
 // `record-release` appends the outcome beside it (MR-001.4); this script never touches the review.
 //
-// The model answers four typed questions. A rule table HERE maps the answers to a tier. The model
+// The model answers five typed questions. A rule table HERE maps the answers to a tier. The model
 // never names a model: a router whose output is free text cannot be scored row by row.
 //
 // ponytail: one request per item, four booleans. A recommendation costs under a cent.
@@ -23,6 +23,14 @@ const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
 export const TIERS = ['floor', 'standard', 'light'];   // most capable first; nothing selects below `light`
 export const ROUTE_MIN_LINES = 20;
 export const ROUTE_MIN_AGREEMENT = 0.90;
+// MR-002.2 and .3: one bar per answer. Spending more needs less certainty than spending less, because
+// a wrong cheap pick costs a failed build and a wrong dear pick costs a few cents.
+export const RISKY_BAR = 0.70;      // at or above: `floor`, before any other row
+export const UPGRADE_BAR = 0.30;    // trust_boundary and cross_file select `floor` at this
+export const DOWNGRADE_BAR = 0.60;  // docs_only selects `light` at this, with has_tests below HAS_TESTS_BAR
+export const HAS_TESTS_BAR = 0.50;
+export const THRESHOLDS = { risky: RISKY_BAR, upgrade: UPGRADE_BAR, downgrade: DOWNGRADE_BAR, has_tests: HAS_TESTS_BAR };
+const BARS = { risky: RISKY_BAR, trust_boundary: UPGRADE_BAR, cross_file: UPGRADE_BAR, docs_only: DOWNGRADE_BAR, has_tests: HAS_TESTS_BAR };
 
 // MR-001.1: the questions, listed here and in the contract, asked verbatim.
 export const QUESTIONS = {
@@ -50,10 +58,18 @@ export const QUESTIONS = {
     criteria: { true: 'A criterion names a test file, suite or CI check by name.',
                 false: 'No criterion names an executable test.' },
   },
+  // MR-002.1: the risk axis, from the Jev Model Router intake.
+  risky: {
+    type: 'boolean',
+    instructions: 'Does this item change code that touches production data, money, credentials or secrets, or an irreversible action: a migration, a deletion of tracked files, a send, a payment, a merge to a protected branch?',
+    criteria: { true: 'At least one criterion, named path or introduced link changes such code or performs such an action.',
+                false: 'Nothing in the item touches production data, money, credentials, secrets or an irreversible action.' },
+  },
 };
 
 // MR-001.2: deterministic, in this order. The first row whose condition holds fires.
 export const RULES = [
+  { rule: 'risky',          tier: 'floor',    when: (a) => a.risky },            // MR-002.2: first
   { rule: 'trust_boundary', tier: 'floor',    when: (a) => a.trust_boundary },
   { rule: 'cross_file',     tier: 'floor',    when: (a) => a.cross_file },
   { rule: 'docs_only',      tier: 'light',    when: (a) => a.docs_only && !a.has_tests },
@@ -61,9 +77,10 @@ export const RULES = [
 ];
 
 export function decide(answers) {
-  const a = Object.fromEntries(Object.keys(QUESTIONS).map(k => [k, (answers[k]?.probability ?? 0) >= 0.5]));
+  // each answer is read against its own bar (MR-002.3), so `booleans` says which bars were cleared
+  const a = Object.fromEntries(Object.keys(QUESTIONS).map(k => [k, (answers[k]?.probability ?? 0) >= BARS[k]]));
   const row = RULES.find(r => r.when(a));
-  return { tier: row.tier, rule: row.rule, booleans: a };
+  return { tier: row.tier, rule: row.rule, booleans: a, thresholds: THRESHOLDS };
 }
 
 export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model reads the named files, not only their names
@@ -151,6 +168,7 @@ export function readLedger(file) {
 // the recommended tier, so its outcome says nothing about whether the recommendation was safe.
 export function scoreLines(lines) {
   const per = Object.fromEntries(TIERS.map(t => [t, { items: 0, cleared: 0, not_cleared: 0, routed: 0 }]));
+  const perRule = Object.fromEntries(RULES.map(r => [r.rule, { items: 0, cleared: 0 }]));   // MR-002.4
   let overridden = 0, routed = 0, cheapOk = 0, cheap = 0, shadow = 0;
   for (const l of lines) {
     if (l.override) { overridden += 1; continue; }
@@ -158,13 +176,15 @@ export function scoreLines(lines) {
     if (!per[t]) continue;
     const ok = (l.outcome?.rounds_used ?? 99) <= 2 && (l.outcome?.blocking_findings ?? 99) === 0;
     per[t].items += 1; per[t][ok ? 'cleared' : 'not_cleared'] += 1;
+    const rule = l.recommendation?.rule;
+    if (perRule[rule]) { perRule[rule].items += 1; if (ok) perRule[rule].cleared += 1; }
     if (l.recommendation?.mode !== 'shadow') { routed += 1; per[t].routed += 1; continue; }
     shadow += 1;
     if (t !== 'floor') { cheap += 1; if (ok) cheapOk += 1; }
   }
   const scored = shadow;
   // agreement is compared unrounded (F4: 0.8996 printed as 0.9 must not pass 0.90); printed to 3 places
-  return { lines: lines.length, scored, overridden, routed, per_tier: per,
+  return { lines: lines.length, scored, overridden, routed, per_tier: per, per_rule: perRule,
            agreement: cheap ? cheapOk / cheap : 0, cheap_recommended: cheap };
 }
 
@@ -197,6 +217,7 @@ function printScore(s, file, skipped) {
     const p = s.per_tier[t];
     console.log(`  ${t.padEnd(8)} ${p.items} items, ${p.cleared} cleared in at most 2 rounds with no blocking finding, ${p.not_cleared} did not, ${p.routed} of them routed`);
   }
+  console.log(`  by rule  ${RULES.map(r => `${r.rule} ${s.per_rule[r.rule].items} fired ${s.per_rule[r.rule].cleared} cleared`).join(', ')}`);
   console.log(`agreement ${Number(s.agreement.toFixed(3))} over ${s.cheap_recommended} standard/light recommendations`);
 }
 
@@ -270,12 +291,13 @@ async function recommend(packetPath, designPath) {
   }
   const d = decide(r.answers ?? {});
   const applied = override ? override.tier : d.tier;
-  write({ status: 'checked', mode, answers: r.answers, booleans: d.booleans, rule: d.rule, tier: d.tier,
+  write({ status: 'checked', mode, answers: r.answers, booleans: d.booleans, rule: d.rule, tier: d.tier, thresholds: d.thresholds,
           applied_tier: applied, credential_source: cred.source, input_tokens: r.usage?.inputTokens ?? 0,
           ...(route_refused ? { route_refused } : {}) });
   console.log(`model selection (${mode}): tier ${d.tier} by rule ${d.rule}` +
               (override ? `; override to ${override.tier}: ${override.reason}` : '') +
-              `\n  ${Object.entries(d.booleans).map(([k, v]) => `${k}=${v}`).join('  ')}`);
+              `\n  ${Object.entries(d.booleans).map(([k, v]) => `${k}=${v}`).join('  ')}` +
+              `\n  bars: risky ${RISKY_BAR}, upgrade ${UPGRADE_BAR}, downgrade ${DOWNGRADE_BAR}, has_tests ${HAS_TESTS_BAR}`);
   process.exit(route_refused ? 5 : 0);
 }
 
