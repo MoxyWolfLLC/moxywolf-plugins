@@ -8,6 +8,8 @@ Three hooks and two commands, stdlib only:
   route.py pre-tool-use    (hook JSON on stdin)  classifies the call; may return updatedInput
   route.py session-end     (hook JSON on stdin)  appends the session summary line
   route.py score --dir D                         counts a ledger directory
+  route.py aar --dir D --date YYYY-MM-DD         one day's after-action report (CS-007)
+  route.py cos-run start <id> | end              the live /cos run id, recorded by the hook in the session ledger (CS-007)
   route.py --selftest
 
 The hard limit: a hook cannot change the model answering the current turn. Only a subagent launch
@@ -33,6 +35,21 @@ MODEL_ID = os.environ.get("GSTACK_COVERAGE_MODEL", "typesafe-ai/jev")
 GATEWAY = "https://ai-gateway.vercel.sh/v4/ai"
 JEV_TIMEOUT = 8
 FLOOR_LOCKED = {"review-subagent"}   # MR-003.7: never moved below floor, whatever Jev says
+FLOOR_RULES = {"risky", "trust_boundary", "cross_file"}
+FLOOR_LOCKED_DEPARTMENTS = {"security"}   # CS-007: the security department never drops below floor either
+DEPARTMENTS = ("finance", "people", "it-operations", "security", "pmo", "operations", "corporate-strategy",
+               "customer-experience", "sales-department", "marketing-department")
+CLAIM_CHECKS = "claim-checks.jsonl"
+# CS-007: the run id is session state. The hook watches the `route.py cos-run start <id>` and `cos-run end`
+# commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
+# one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
+# override for runners that set it.
+# the path is letters, digits and _ . / ~ $ { } : @ + = - only (so `${CLAUDE_PLUGIN_ROOT}/...` fits), quoted or not;
+# a comment mark, an operator, a backtick or $( can't appear anywhere in the command
+_PATH = r"[A-Za-z0-9_./~${}:@+=-]*route\.py"
+# horizontal whitespace only between tokens: a newline inside the invocation is two shell commands, not one
+COS_RUN_FULL = re.compile(r"""^\s*(?:python3?(?:\.\d+)?[ \t]+)?(?:"%s"|'%s'|%s)[ \t]+cos-run[ \t]+(?:start[ \t]+([A-Za-z0-9._-]+)|(end))[ \t]*\n?\s*$""" % (_PATH, _PATH, _PATH))
+TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
 # MR-002's bars, copied under the same names; nothing is imported from gstack-execution.
@@ -225,6 +242,42 @@ def decide(answers):
     return {"tier": tier, "rule": rule, "booleans": a, "thresholds": THRESHOLDS}
 
 
+def cos_run_command(command):
+    """('start', id), ('end', None) or None. The whole Bash command must be the invocation and nothing else:
+    an optional python3, the script path (quoted or not, no spaces), then `cos-run start <id>` or `cos-run end`.
+    No chaining, no prefix, no suffix. Three rounds of review 20261014-085739 showed that recognizing the
+    invocation inside a larger command means reimplementing shell quoting; /cos runs it as its own command,
+    so the hook accepts only that shape and a mention anywhere else is text."""
+    m = COS_RUN_FULL.match(str(command))
+    if not m:
+        return None
+    return ("start", m.group(1)) if m.group(1) else ("end", None)
+
+
+def cos_run_id(path):
+    """The live run id for this session: COS_RUN_ID if set, else the last cos-run start in the session
+    ledger that no cos-run end has closed. Never invented."""
+    if os.environ.get("COS_RUN_ID"):
+        return os.environ["COS_RUN_ID"]
+    run = None
+    for l in read_lines(path):
+        if l.get("event") == "cos_run_start":
+            run = l.get("cos_run") or None
+        elif l.get("event") == "cos_run_end":
+            run = None
+    return run
+
+
+def cmd_cos_run(argv):
+    """route.py cos-run start <id> | end. The command is the signal: the PreToolUse hook records it in the
+    session ledger as it runs. Outside a hooked session it only prints."""
+    if argv[:1] == ["start"] and len(argv) > 1 and argv[1].strip():
+        print(f"cos-run {argv[1].strip()} started (recorded by the model-router hook in this session's ledger)"); return 0
+    if argv[:1] == ["end"]:
+        print("cos-run ended"); return 0
+    print("usage: route.py cos-run start <id> | end", file=sys.stderr); return 2
+
+
 # ---- hooks ----
 
 def hook_input():
@@ -269,10 +322,19 @@ def cmd_pre_tool_use(h):
     if not path.exists():   # a cloud session whose SessionStart fired before the plugin's hooks registered
         append(path, {"ts": now(), "event": "session_start", "routing": "on", "ontology_version": table["version"],
                       "ledger_source": ledger_dir()[1], "source": "lazy"})
+    if tool == "Bash":                          # CS-007: the run id's start and end are commands the hook watches go by
+        m = cos_run_command(tin.get("command", ""))
+        if m:
+            append(path, {"ts": now(), "event": "cos_run_start", "cos_run": m[1]} if m[0] == "start" else {"ts": now(), "event": "cos_run_end"})
     c = classify(table, tool, tin)
     line = {"ts": now(), "class": c["class"], "tool": tool, "routed": False, "tool_use_id": h.get("tool_use_id")}
+    run = cos_run_id(path)                      # this session's live run, or COS_RUN_ID; never invented
+    if run:
+        line["cos_run"] = run
     if tool == "Agent":
         line["subagent_type"] = tin.get("subagent_type")
+        if c["class"] == "department-subagent":
+            line["department"] = str(tin.get("subagent_type", "")).split(":", 1)[0]
     if not c["carries_model"]:
         append(path, line); return 0
     tier = c["default_tier"] if c["default_tier"] != "none" else None
@@ -287,8 +349,9 @@ def cmd_pre_tool_use(h):
             tier, decided_by = d["tier"], "jev"
         else:
             line["jev"] = "unavailable"; line["jev_error"] = r["error"]
-    if c["class"] in FLOOR_LOCKED and tier != "floor":
-        line["floor_locked_from"] = tier; tier = "floor"
+    floor_rule = (decided_by == "jev" and line.get("rule") in FLOOR_RULES) or (decided_by == "table" and tier == "floor")
+    if (c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS) and tier != "floor":
+        line["floor_locked_from"] = tier; tier = "floor"; floor_rule = True
     if tier is None:                      # unclassified Agent with Jev unavailable: unchanged
         append(path, line); return 0
     line.update(tier=tier, decided_by=decided_by, model=table["tiers"][tier])
@@ -296,9 +359,12 @@ def cmd_pre_tool_use(h):
         line["note"] = "script selects its own model"
         append(path, line); return 0
     if tin.get("model"):                  # MR-001.7: a caller's explicit choice stands and is recorded
-        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {table['tiers'][tier]})")
+        # F2/F5 (review 20261014-082908): the model the launch actually used, and whether a floor rule put it there,
+        # are written here, not inferred by a reader later
+        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {table['tiers'][tier]})",
+                    applied_model=tin["model"], floor_rule=False)
         append(path, line); return 0
-    line["routed"] = True
+    line.update(routed=True, applied_model=table["tiers"][tier], floor_rule=floor_rule)
     append(path, line)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": table["tiers"][tier]}}}))
     return 0
@@ -346,7 +412,7 @@ def score_dir(d):
             bump(per_tier[l["tier"]], l)
     return {"files": len(files), "lines": len(lines), "calls": len(calls), "per_class": dict(sorted(per_class.items())),
             "per_tier": per_tier, "unclassified": per_class.get("unclassified", {}).get("calls", 0),
-            "sessions": sum(1 for l in lines if l.get("event") == "session_start")}
+            "sessions": len({f.name for f in files if any(l.get("event") == "session_start" for l in read_lines(f))})}   # F1 follow-up: distinct sessions, not SessionStart events
 
 
 def print_score(s, d):
@@ -358,6 +424,139 @@ def print_score(s, d):
         print(f"  tier {t:<9} {row(s['per_tier'][t])}")
 
 
+# ---- CS-007: the after-action report ----
+
+def rate(n, d, per=None):
+    """'n/d (p)' with the too-few mark; a rate is never printed without its denominator. With `per`,
+    a count over a denominator that is not a share ('4 over 1 reviews')."""
+    if not d:
+        return f"{n}/0 (no observations)"
+    s = f"{n} over {d} {per}" if per else f"{n}/{d} ({n / d:.0%})"
+    return s + (f", too few to read (n={d} < {TOO_FEW}), a lead" if d < TOO_FEW else "")
+
+
+def aar(d, date):
+    """Read one day's routing records (by timestamp, across session files that may span days), claim-check
+    lines and model-selection lines. Counts over usage, never causes. Every model attribution comes from a
+    tag written at the time (applied_model, declared_tier); nothing is inferred after the fact."""
+    d = Path(d)
+    session_files = sorted(f for f in d.glob("*.jsonl") if f.name != CLAIM_CHECKS) if d.exists() else []
+    lines = [l for f in session_files for l in read_lines(f) if str(l.get("ts", "")).startswith(date)]   # F3: by ts, not file name
+    calls = [l for l in lines if "class" in l]
+    checks_file = d / CLAIM_CHECKS
+    checks = [l for l in read_lines(checks_file) if str(l.get("ts", "")).startswith(date)] if checks_file.exists() else []
+    # the MR-001 ledger beside this directory: one line per released item, written by model_selection_line() in
+    # plugins/gstack-execution/scripts/peer_review.py at record-release, with recorded_at, recommendation {tier, rule,
+    # mode}, declared_tier (the tier the build said it ran on, from the packet), override and outcome
+    # {blocking_findings, rounds_used, unknowns_raised, release_outcome}. This reader attributes a line by its
+    # declared_tier only; a line without one is counted as untagged.
+    sel_dir = d.parent / "model-selection"
+    sel_files = sorted(sel_dir.glob("*.jsonl")) if sel_dir.exists() else []
+    sel = [l for f in sel_files for l in read_lines(f) if str(l.get("recorded_at", "")).startswith(date)]
+    read = {"files": len(session_files) + (1 if checks_file.exists() else 0) + len(sel_files), "lines": len(lines) + len(checks) + len(sel)}
+    table = load_table_safely()[0]
+    tiers = (table or {}).get("tiers", {"floor": "opus", "standard": "sonnet", "light": "haiku"})
+    tier_of = {m: t for t, m in tiers.items()}
+
+    launches = [l for l in calls if l.get("tool") == "Agent" and l.get("applied_model")]   # F2: what actually ran, written at launch
+    dispatches = [l for l in launches if l.get("department")]
+    out = [f"# After-action report for {date}", "",
+           f"Read {read['files']} files and {read['lines']} lines dated {date}: {len(calls)} calls across {len(session_files)} session ledgers, "
+           f"{len(dispatches)} department dispatches, {len(checks)} claim checks, {len(sel)} model-selection lines."]
+    if read["lines"] == 0:
+        out.append("Zero lines read. That is not a clean day; it is a day with no record.")
+    out += ["", "Note: harder tasks go to stronger models by design. MR-001 and MR-002 send trust-boundary, cross-file and risky "
+            "work to the floor, so a stronger model's higher failure rate is expected before it is evidence. Every rate below is "
+            "printed over its usage count; counts under 10 are leads, not findings; nothing here names a cause.", ""]
+
+    out += ["## By class", "", "| class | calls | routed | Jev consults | unclassified |", "|---|---|---|---|---|"]
+    per_class = {}
+    for l in calls:
+        p = per_class.setdefault(l["class"], {"calls": 0, "routed": 0, "jev": 0, "unclassified": 0})
+        p["calls"] += 1; p["routed"] += bool(l.get("routed")); p["jev"] += ("answers" in l or l.get("jev") == "unavailable")
+        p["unclassified"] += l["class"] == "unclassified"
+    for c, p in sorted(per_class.items()):
+        out.append(f"| {c} | {p['calls']} | {p['routed']} | {p['jev']} | {p['unclassified']} |")
+    if not per_class:
+        out.append("| (none) | 0 | 0 | 0 | 0 |")
+
+    # by model: usage is launches that actually ran on it; mistakes are checks and findings tagged with it at write time
+    out += ["", "## By model", "", "| model | launches | department dispatches | sent there by a floor rule | claim-check failures / dispatches | checks passed / checks | blocking findings / reviews |", "|---|---|---|---|---|---|---|"]
+    untagged_checks = sum(1 for c in checks if not c.get("model") or not c.get("department"))
+    untagged_sel = sum(1 for l in sel if l.get("declared_tier") not in tiers)                 # F4: no fallback to the recommendation
+    for tier in TIERS:
+        model = tiers[tier]
+        ml = [l for l in launches if l["applied_model"] == model]
+        md = [l for l in dispatches if l["applied_model"] == model]
+        floor_rule = sum(1 for l in ml if l.get("floor_rule"))                                   # F5: the tag written at launch
+        mchecks = [c for c in checks if c.get("model") == model]
+        fails = sum(1 for c in mchecks if not c.get("passed"))
+        msel = [l for l in sel if l.get("declared_tier") == tier]
+        blocking = sum(int((l.get("outcome") or {}).get("blocking_findings", 0) or 0) for l in msel)
+        out.append(f"| {model} ({tier}) | {len(ml)} | {len(md)} | {rate(floor_rule, len(ml))} | {rate(fails, len(md), 'dispatches')} | "
+                   f"{rate(len(mchecks) - fails, len(mchecks))} | {rate(blocking, len(msel), 'reviews')} |")
+    out.append(f"\nUntagged, counted apart: {untagged_checks} claim-check lines without a model or department; "
+               f"{untagged_sel} model-selection lines without a declared tier.")
+
+    # by department: dispatches are the usage; send-backs are failed checks over dispatches
+    out += ["", "## By department", "", "| department | dispatches | models used | checks passed / checks | send-backs / dispatches | escalations / runs |", "|---|---|---|---|---|---|"]
+    runs, dep_rows = {}, {}
+    for l in dispatches:
+        r = runs.setdefault(l.get("cos_run") or "(no cos_run)", {"departments": set(), "models": set(), "failed": {}})
+        r["departments"].add(l["department"]); r["models"].add(l["applied_model"])
+        dp = dep_rows.setdefault(l["department"], {"dispatches": 0, "models": set(), "checks": 0, "passed": 0, "send_backs": 0, "escalations": 0})
+        dp["dispatches"] += 1; dp["models"].add(l["applied_model"])
+    for c in checks:
+        dep = c.get("department") or "(untagged)"
+        r = runs.setdefault(c.get("cos_run") or "(no cos_run)", {"departments": set(), "models": set(), "failed": {}})
+        r["departments"].add(dep)
+        dp = dep_rows.setdefault(dep, {"dispatches": 0, "models": set(), "checks": 0, "passed": 0, "send_backs": 0, "escalations": 0})
+        dp["checks"] += 1; dp["passed"] += bool(c.get("passed"))
+        if not c.get("passed"):
+            dp["send_backs"] += 1
+            r["failed"][dep] = r["failed"].get(dep, 0) + 1
+    for r in runs.values():                         # an escalation is a second failed check for one department in one run
+        for dep, n in r["failed"].items():
+            if n >= 2:
+                dep_rows[dep]["escalations"] += 1
+    for dep, p in sorted(dep_rows.items()):
+        dep_runs = sum(1 for rr in runs.values() if dep in rr["departments"])
+        out.append(f"| {dep} | {p['dispatches']} | {', '.join(sorted(p['models'])) or '(none)'} | {rate(p['passed'], p['checks'])} | "
+                   f"{rate(p['send_backs'], p['dispatches'], 'dispatches')} | {rate(p['escalations'], dep_runs, 'runs')} |")
+    if not dep_rows:
+        out.append("| (none) | 0 | (none) | 0/0 (no observations) | 0/0 (no observations) | 0/0 (no observations) |")
+
+    out += ["", "## Runs", ""]
+    for rid, r in sorted(runs.items()):
+        esc = [dp for dp, n in r["failed"].items() if n >= 2]
+        outcome = "escalated (" + ", ".join(sorted(esc)) + ")" if esc else ("sent back once" if r["failed"] else "done")
+        out.append(f"- {rid}: {', '.join(sorted(r['departments']))}; models {', '.join(sorted(r['models'])) or '(none)'}; {outcome}")
+    if not runs:
+        out.append("- (no runs)")
+
+    # one decision: the worst rate over at least TOO_FEW observations of its own usage
+    out += ["", "## Decision", ""]
+    candidates = []
+    for dep, p in dep_rows.items():
+        if p["dispatches"] >= TOO_FEW and p["send_backs"]:
+            candidates.append((p["send_backs"] / p["dispatches"], 2, f"the {dep} department's return contract or claim-check form: {p['send_backs']} send-backs over {p['dispatches']} dispatches"))
+    for tier in TIERS:
+        model = tiers[tier]
+        md = [l for l in dispatches if l["applied_model"] == model]
+        fails = sum(1 for c in checks if c.get("model") == model and not c.get("passed"))
+        if len(md) >= TOO_FEW and fails:
+            candidates.append((fails / len(md), 1, f"the routing default that sends department dispatches to {model}: {fails} claim-check failures over {len(md)} dispatches"))
+    n = per_class.get("unclassified", {}).get("calls", 0)
+    if len(calls) >= TOO_FEW and n:            # the bar is over the calls observed, the mistakes are the unclassified ones
+        candidates.append((n / max(len(calls), 1), 0, f"the ontology: {n} of {len(calls)} calls were unclassified; add the missing class"))
+    if candidates:   # the worst rate wins; on a tie the narrower gate (a department before a model before the ontology)
+        candidates.sort(reverse=True)
+        out.append(f"Decision: change {candidates[0][2]}.")
+    else:
+        out.append("Decision: none this day; the counts are below the bar.")
+    return "\n".join(out) + "\n"
+
+
 # ---- entry ----
 
 def main(argv):
@@ -366,6 +565,12 @@ def main(argv):
     cmd = argv[0]
     if cmd == "--selftest":
         return selftest()
+    if cmd == "cos-run":
+        return cmd_cos_run(argv[1:])
+    if cmd == "aar":
+        d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
+        date = argv[argv.index("--date") + 1] if "--date" in argv else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        print(aar(d, date), end=""); return 0
     if cmd == "score":
         d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
         print_score(score_dir(d), d); return 0
@@ -395,13 +600,24 @@ def selftest():
     assert classify(table, "Bash", {"command": "git status"})["class"] == "git"
     assert classify(table, "Bash", {"command": "ls"})["class"] == "shell"
     assert classify(table, "Agent", {"subagent_type": "gstack-execution:explore"})["class"] == "explore-subagent"
-    assert classify(table, "Agent", {"subagent_type": "finance:finance"})["class"] == "unclassified"
+    assert classify(table, "Agent", {"subagent_type": "finance:finance"})["class"] == "department-subagent"
     assert classify(table, "Teleport", {})["class"] == "unclassified"
     assert decide({"risky": 0.70, "docs_only": 0.95})["tier"] == "floor"
     assert decide({"risky": 0.69, "docs_only": 0.95})["tier"] == "light"
     assert decide({"trust_boundary": 0.30})["rule"] == "trust_boundary"
     assert decide({"docs_only": 0.60, "has_tests": 0.50})["tier"] == "standard"
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes and 4 rule boundaries, all passed")
+    assert cos_run_command('python3 "$P/scripts/route.py" cos-run start 2026-10-14-x') == ("start", "2026-10-14-x")
+    assert cos_run_command('python3 "${CLAUDE_PLUGIN_ROOT}/../model-router/scripts/route.py" cos-run end') == ("end", None)
+    assert cos_run_command("python3 plugins/model-router/scripts/route.py cos-run end\n") == ("end", None)
+    assert cos_run_command("scripts/route.py cos-run start r9") == ("start", "r9")
+    for text in ("cd /p && python3 route.py cos-run end", "rg -n 'route.py cos-run end' plugins", "echo python3 route.py cos-run end",
+                 "echo ';' python3 route.py cos-run end ';'", "echo prefix'; python3 route.py cos-run end; suffix'",
+                 "python3 route.py cos-run end; ls", "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
+                 "python3 -c \"print(1)\" route.py cos-run end", "python3 route.py cos-run start 'two words'", "ls\npython3 route.py cos-run end",
+                 "#route.py cos-run end", "'#route.py' cos-run end", "`x`route.py cos-run end", "$(x)route.py cos-run end",
+                 "python3 route.py\ncos-run end", "python3 route.py cos-run\nend", "python3 route.py cos-run start\nr1", "python3\nroute.py cos-run end"):
+        assert cos_run_command(text) is None, text
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 23 cos-run command shapes, all passed")
     return 0
 
 

@@ -165,13 +165,14 @@ Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chie
 
 ```
 ## <YYYY-MM-DD> <short ask>
+- Run: <cos_run, the COS_RUN_ID step 1 minted>
 - Ask: <Dorian's words>
 - Sent to: <departments>, <parallel or in order>
 - Outcome: done | proposed | escalated (<reason, when escalated>)
 - Decision: <what Dorian decided, or "pending">
 ```
 
-Know what this log is. It's a record you wrote from memory of the run, not one captured by code, so treat it as a summary. The session transcript is the full trace. Moving to Managed Agents tracing is the planned upgrade.
+Know what this log is. It's a record you wrote from memory of the run, not one captured by code, so treat it as a summary. The session transcript is the full trace. The `Run:` line joins it to the code-captured records: the model-router ledger (every dispatch with its department and model) and `claim-checks.jsonl` (every check with its department, model and result), which the after-action report reads (CS-007). Moving to Managed Agents tracing is the planned upgrade.
 
 ## What you report
 

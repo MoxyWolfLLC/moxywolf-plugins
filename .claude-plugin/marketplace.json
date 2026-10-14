@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.135.0",
+  "version": "1.136.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -497,7 +497,7 @@
       "name": "model-router",
       "source": "./plugins/model-router",
       "description": "MR-003. Classifies every tool call by code against a committed ontology and routes only the calls that carry a model choice (subagent launches) by the table or by Jev at the MR-002 bars; records every call to a per-session ledger under $GSTACK_PEER_REVIEW_DIR/model-routing/ with a score command. Never blocks a call. Rides into every project regardless of gstack.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -946,7 +946,7 @@
       "name": "chief-of-staff",
       "source": "./plugins/chief-of-staff",
       "description": "Routes an ask to the department agents that own it, runs them in parallel, checks what they return, and brings Dorian a result, a proposal or a decision memo.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "author": {
         "name": "MoxyWolf LLC"
       },

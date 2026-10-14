@@ -210,11 +210,31 @@ def run(doc, sources):
     return out
 
 
+def ledger_line(a, out):
+    """CS-007.4: {ts, cos_run, department, model, doc, passed, failing_lines} appended to
+    $GSTACK_PEER_REVIEW_DIR/model-routing/claim-checks.jsonl (or ~/.gstack/model-routing/), the file
+    route.py aar reads. One line per run; written only when both --department and --cos-run are given."""
+    import os
+    from datetime import datetime, timezone
+    root = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    d = Path(root) / "model-routing" if root else Path.home() / ".gstack" / "model-routing"
+    d.mkdir(parents=True, exist_ok=True)
+    line = {"ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "cos_run": a.cos_run, "department": a.department,
+            "model": a.model or None, "doc": Path(a.doc).name, "passed": bool(out["labeled"]) and not out["failed"],
+            "failing_lines": [f["line"] for f in out["failures"]], "sha256": out["sha256"]}
+    with open(d / "claim-checks.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(line, sort_keys=True) + "\n")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--doc", required=True)
     ap.add_argument("--source", action="append", default=[], metavar="NAME=FILE")
     ap.add_argument("--json", action="store_true")
+    # CS-007: with both --department and --cos-run the receipt also lands as one code-captured ledger line
+    ap.add_argument("--department", help="the department whose result this is (CS-007)")
+    ap.add_argument("--cos-run", help="the /cos run id, set at step 1 (CS-007)")
+    ap.add_argument("--model", help="the model the dispatch ran on; absent is recorded as absent, never guessed (CS-007)")
     a = ap.parse_args()
     try:
         raw = Path(a.doc).read_bytes()
@@ -231,6 +251,11 @@ def main():
         return 2
     out = run(raw.decode("utf-8-sig", "replace"), sources)   # -sig: a byte-order mark isn't part of the first line
     out["sha256"] = hashlib.sha256(raw).hexdigest()
+    if a.department and a.cos_run:
+        try:
+            ledger_line(a, out)
+        except OSError as e:   # the check still prints its receipt; the ledger miss is said, not hidden
+            print(f"claim-check: ledger line not written: {e}", file=sys.stderr)
     if a.json:
         print(json.dumps(out, indent=1))
     else:
