@@ -527,6 +527,162 @@ def caller_files(repos, changed, cap, exclude=()):
     return hits[:cap], dropped
 
 
+# ---- GA-010: a release lane is decided by what the change touches ----
+#
+# DR-113 lets the agent merge on a clean cross-vendor review. It never said what the agent may
+# merge: a passing review of a migration merged like a README fix. The strong variable is what a
+# wrong change costs to undo, so the lane is decided by path and effect, by code, at the reviewed
+# head, before any model reads the diff. `closed` is a lane, not a threshold: thresholds get
+# adjusted and closed lanes do not. Confidence is the weakest input, being the only one the model
+# can influence, so nothing a reviewer returns can move the lane.
+import fnmatch
+
+LANES = ("contained", "wide", "closed")            # least to most restrictive
+LANE_TABLE_DEFAULT = Path(__file__).resolve().parents[1] / "skills" / "gstack-execution" / "references" / "release-lanes.json"
+LANE_TABLE_REPO = ".gstack/release-lanes.json"
+WIDE_CALLERS = 5
+
+
+def lane_table(repo):
+    """The table in force for ONE repository: its own `.gstack/release-lanes.json` at its reviewed
+    head replaces the default whole (never merged, so a reader finds one table); else the plugin's.
+    F3 (review 20261013-202943): each repository is judged by its own table, never its neighbour's."""
+    try:
+        text = git(repo["path"], "show", f"{repo['head']}:{LANE_TABLE_REPO}")
+    except Exception:
+        return json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8")), "default"
+    try:
+        t = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ReviewError("malformed_packet", f"{repo['path']}: {LANE_TABLE_REPO} at {repo['head'][:7]} is not JSON: {e}")
+    return t, f"{Path(repo['path']).name}:{LANE_TABLE_REPO}@{repo['head'][:7]}"
+
+
+def _lane_matches(path, globs):
+    return any(fnmatch.fnmatch(path, g) or fnmatch.fnmatch("/" + path, g) for g in globs)
+
+
+def release_lane(repos, table=None):
+    """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
+    cannot be read is refused, never defaulted to `contained`."""
+    matched, sources = [], []
+    for r in repos:
+        if table is None:
+            t, source = lane_table(r)
+        else:
+            t, source = table, "given"
+        sources.append(source)
+        lanes = t.get("lanes") or {}
+        wide_callers = int(t.get("wide_callers", WIDE_CALLERS))
+        # F1 (review 20261013-204622): -z, so a pathname is bytes between NULs, never git's quoted
+        # and escaped rendering that a glob cannot match
+        try:
+            raw = git(r["path"], "diff", "--name-status", "-z", f"{r['base']}..{r['head']}")
+        except Exception as e:
+            raise ReviewError("malformed_packet", f"{r['path']}: cannot read the diff {r['base'][:7]}..{r['head'][:7]}: {e}")
+        entries = []
+        fields = [f for f in raw.split("\0")]
+        pos = 0
+        while pos < len(fields):
+            status = fields[pos]
+            if not status:
+                pos += 1
+                continue
+            n = 2 if status[:1] in "RC" else 1          # a rename or copy carries two pathnames
+            paths = fields[pos + 1:pos + 1 + n]
+            pos += 1 + n
+            if len(paths) < n or not all(paths):
+                continue
+            effects = []
+            if status.startswith("D"):
+                effects.append("deletes_tracked_file")
+            if status.startswith("R"):
+                effects.append("renames_tracked_file")
+            # F1 (review 20261013-202943): a rename touches both its source and its destination;
+            # a migration renamed out of its folder is still a change to a migration
+            for path in paths:
+                entries.append((path, list(effects), r))
+        # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
+        stems = {path: Path(path).stem for path, _, _ in entries if Path(path).stem not in {"__init__", "index"}}
+        counts = {path: 0 for path in stems}
+        if stems:
+            try:
+                tracked = git(r["path"], "ls-files").split()
+            except Exception:
+                tracked = []
+            changed_names = {path for path, _, _ in entries}
+            for f in tracked:
+                if f in changed_names or Path(f).suffix not in CALLER_SUFFIXES:
+                    continue
+                try:
+                    body = (Path(r["path"]) / f).read_text(errors="replace")
+                except OSError:
+                    continue
+                for path, st in stems.items():
+                    if st in body:
+                        counts[path] += 1
+        for path, effects, repo in entries:
+            if counts.get(path, 0) > wide_callers:
+                effects.append("many_callers")
+            for lane in ("closed", "wide"):
+                spec = lanes.get(lane) or {}
+                if _lane_matches(path, spec.get("paths") or ()):
+                    matched.append({"lane": lane, "decided_by": "path", "path": path, "repo": Path(repo["path"]).name})
+                for eff in effects:
+                    if eff in (spec.get("effects") or ()):
+                        matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name})
+    lane = max((m["lane"] for m in matched), key=LANES.index, default="contained")
+    decided_by = sorted({m["decided_by"] for m in matched if m["lane"] == lane}) or ["none"]
+    return {"lane": lane, "decided_by": decided_by, "matched": [m for m in matched if m["lane"] == lane],
+            "table": sources[0] if len(sources) == 1 else sources}
+
+
+def lane_instruction(lane_record):
+    """F6 (review 20261013-202943): the closed instruction names what closed the lane."""
+    lane = (lane_record or {}).get("lane") or "contained"
+    text = LANE_INSTRUCTION[lane]
+    if lane == "closed":
+        what = "; ".join(f"{m['repo']}: {m.get('effect') or m['path']}" + (f" ({m['path']})" if m.get("effect") else "")
+                         for m in lane_record.get("matched") or ()) or "nothing recorded"
+        text = text.replace("The lane is closed:", f"The lane is closed by {what}:")
+    return text
+
+
+def ledger_status_now(repos):
+    """The failure ledger as it is NOW, not as it was at open (F2, review 20261013-204622): a check
+    that failed after the review opened is still a failed check."""
+    import check_ledger
+    root = review_root()
+    open_failures, missing = [], 0
+    for r in repos:
+        found = check_ledger.issues_for(r["path"], root)
+        missing += found is None
+        open_failures += list(found or ())
+    return "overridden" if open_failures else ("none" if missing else "clear"), open_failures
+
+
+def wide_gates(state, links, open_unknowns_now, repos):
+    """F2 (review 20261013-202943): the wide lane's gates are checked, not claimed. Returns the ones
+    that do not hold, each a sentence, so the refusal names them."""
+    failed = []
+    status, open_failures = ledger_status_now(repos)
+    if status not in {"clear", "none"}:
+        failed.append(f"the failure ledger has {len(open_failures)} open failure(s) now, not clear")
+    if not state.get("coverage_checked"):
+        failed.append("coverage was not checked")
+    if links.get("outcome") != "links_verified":
+        failed.append(f"links are {links.get('outcome')}, not verified")
+    if any(u.get("needs") == "repository" for u in open_unknowns_now):
+        failed.append("an open unknown still needs the repository")
+    return failed
+
+
+LANE_INSTRUCTION = {
+    "contained": "Merge the exact reviewed head through the pull request, then run record-release. Under DR-113 the agent merges on its own; a change to a CODEOWNERS path also needs the Release Owner's approving review, which GitHub enforces. This command never merges or accepts an approval flag.",
+    "wide": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
+    "closed": "The lane is closed: DR-113 does not apply, and the agent does not merge. The Release Owner merges under their own login, or instructs the agent on the pull request (merge-instruction). This command never merges or accepts an approval flag.",
+}
+
 # ---- XE-018: the files a change names, and CI results the dispatcher fetched itself ----
 #
 # Callers are files that name a changed file. The other direction was missing: a workflow calling
@@ -903,7 +1059,8 @@ def _other_reviews_line(unknowns_open, review_id):
 
 
 def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None,
-                  coverage="not_run", ledger=None, embedded_prior=(), unknowns_open=None, review_id=None, mis_cited=()):
+                  coverage="not_run", ledger=None, embedded_prior=(), unknowns_open=None, review_id=None, mis_cited=(),
+                  release_lane=None):
     """Write the review surface. Returns (path, stats).
 
     prior_findings matter on a fix-verification round: when a blocker is DISPROVED rather than
@@ -1023,7 +1180,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         f"# What this review can see (coverage: {coverage}"
         + (f", ledger: {ledger}" if ledger else "") + ")\n"
         f"unknowns open: {'not tracked' if unknowns_open is None else len(unknowns_open)}; "
-        f"embedded instructions reported in prior rounds: {len(embedded_prior or ())}\n\n"
+        f"embedded instructions reported in prior rounds: {len(embedded_prior or ())}; "
+        f"release lane: {release_lane or 'not decided'}\n\n"
         f"- `{PROVENANCE_FILE}` — where every entry here came from and whether it is untrusted text\n"
         f"- `CHANGE.diff` — the full diff under review, from the review's base\n"
         + ("- `ROUND.diff` — only what changed since the previous round\n" if rounds else "") +
@@ -2234,6 +2392,8 @@ def cmd_open(a):
     model_selection = ({"status": ms.get("status"), "mode": ms.get("mode"), "tier": ms.get("tier"),
                         "rule": ms.get("rule"), "override": ms.get("override")} if ms else None)
 
+    lane = release_lane(packet["repos"])        # GA-010.2: by code, from the diff, before any model reads it
+
     unevidenced, evidenced = off_repo_verdict(packet)
     if unevidenced and not getattr(a, "accept_off_repo_criterion", False):
         lines = "\n".join(f"  [{u['matched']}] {u['criterion'][:160]}" for u in unevidenced)
@@ -2286,6 +2446,7 @@ def cmd_open(a):
              "open_failures_overridden": reason if open_failures else None,
              "unknowns_open": unknowns_open_count(packet["repos"]),   # EV-011.6
              "model_selection": model_selection,                      # MR-001.3
+             "release_lane": lane,                                    # GA-010.2
              "heads": [[r["head"] for r in packet["repos"]]]}
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     for r in packet["repos"]:
@@ -2329,6 +2490,7 @@ def cmd_round(a):
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
+              "release_lane": state.get("release_lane"),   # GA-010.3, on every round record, error rounds included (F5)
               "vocabulary_version": VOCAB_VERSION}
     try:
         # resolved BEFORE the data_use gate, not after. Availability changes between open and round,
@@ -2353,6 +2515,7 @@ def cmd_round(a):
                                          ledger=state.get("ledger_status") or "none",
                                          embedded_prior=state.get("embedded_locations") or [],
                                          mis_cited=mis_cited_subjects(prior),
+                                         release_lane=(state.get("release_lane") or {}).get("lane"),   # GA-010.3
                                          unknowns_open=open_unknowns(packet["repos"]), review_id=a.review_id,
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
@@ -2421,6 +2584,8 @@ def cmd_round(a):
                               "reviewer opened 0 of %d offered files; its verdict rests on the "
                               "packet alone" % record["examined"]["offered_count"])
         out = validate(raw, packet, prior, dispositions)
+        # GA-010.3: a reviewer key may never land on an executor-written field; the lane is state's
+        out.pop("release_lane", None)
         record.update(out)
         # Bind each finding to the content at the reviewed head, not merely to a name.
         record["subjects"] = bind_subjects(out["findings"], packet["repos"])
@@ -2632,6 +2797,10 @@ def cmd_release(a):
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
+    if (state.get("release_lane") or {}).get("lane") == "wide":
+        failed = wide_gates(state, links, open_unknowns_now, packet["repos"])
+        if failed:
+            raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
               "unknowns_open": open_unknowns_now,
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
@@ -2639,7 +2808,8 @@ def cmd_release(a):
                         "mis_cited_fixed": links.get("mis_cited_fixed", 0)},   # EV-013.2
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
-              "instruction": "Merge the exact reviewed head through the pull request, then run record-release. Under DR-113 the agent merges on its own; a change to a CODEOWNERS path also needs the Release Owner's approving review, which GitHub enforces. This command never merges or accepts an approval flag."}
+              "release_lane": state.get("release_lane"),   # GA-010.4
+              "instruction": lane_instruction(state.get("release_lane"))}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
@@ -2820,12 +2990,18 @@ def cmd_record_release(a):
         elif merger.get("login") != AGENT_LOGIN:
             raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr}, isn't "
                               f"{AGENT_LOGIN}, and no merge instruction from {state['release_owner']} on it covers this pull request")
+        elif (state.get("release_lane") or {}).get("lane") == "closed":
+            # GA-010.5: the closed lane never opens on its own. A merge that happened is a fact to keep,
+            # so the record is written, naming the lane and what matched, with no authority.
+            decision.update({"merged_by": merger.get("login"), "outcome": "agent_merge_out_of_lane",
+                             "lane": "closed", "matched": state["release_lane"].get("matched")})
         else:
             # GA-009: with no instruction on the pull request, the agent's own merge stands on the owner's
             # standing authorization (DR-113). Everything above still held: a passing review at this exact
             # head, and a handoff written before the merge.
             decision.update({"merged_by": merger.get("login"), "authorized_by": state["release_owner"],
                              "authority": AUTONOMOUS_MERGE_AUTHORITY, "outcome": "agent_merge_autonomous"})
+    decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
     save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,

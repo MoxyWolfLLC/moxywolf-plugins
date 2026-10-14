@@ -129,7 +129,7 @@ def test_an_embedded_instruction_is_recorded_and_leaves_the_verdict_alone():
         # the next round's surface says so in its first lines
         surf, _ = surface(d, base, head, embedded_prior=st["embedded_locations"], unknowns_open=[])
         assert (surf / "SURFACE.md").read_text().splitlines()[1] == \
-            "unknowns open: 0; embedded instructions reported in prior rounds: 1"
+            "unknowns open: 0; embedded instructions reported in prior rounds: 1; release lane: not decided"
     finally:
         pr.REVIEW_DIR, pr.examined_report, pr.run_reviewer, pr.choose_reviewer = saved
 

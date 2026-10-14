@@ -18,6 +18,8 @@ written handoff.** Under DR-113 (Dorian, 2026-09-30) the agent merges on its own
 `tests` is green; GitHub holds any `CODEOWNERS` path for the named human's approval. The named human
 owns the outcome either way, including the merges they never read.
 
+**What the agent may merge is a lane, not a score (GA-010).** `open` decides a release lane from what the change touches, by path and effect at the reviewed head, before any model reads the diff: `contained` merges under DR-113 as before; `wide` (shared code, renames, files many callers name) merges only with every gate clean; `closed` (migrations, payment and billing paths, credentials, the agent's identity, workflows, rulesets, deletions of tracked files) never opens on its own, whatever the review said. A closed lane is a lane, not a threshold set high: thresholds get adjusted and closed lanes do not. An agent merge of a closed-lane review without an instruction is recorded as `agent_merge_out_of_lane`. The table is `references/release-lanes.json`; a repository may replace it whole with `.gstack/release-lanes.json`.
+
 | Skill / command | risk_tier | gate / note |
 |---|---|---|
 | `gstack-build` | side-effectful-gated | Authorized feature-branch edits/commits/pushes and PR preparation; passing review prepares a handoff, the merge (the agent's under DR-113, or the human's) is recorded before done. No protected push. |

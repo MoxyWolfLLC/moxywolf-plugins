@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "note": "GA-010: a release lane is decided by what the change touches, by code, at the reviewed head. The most restrictive lane any path or effect matches wins. closed never opens on its own under DR-113. A repository may replace this table whole with .gstack/release-lanes.json; the two are never merged.",
+  "lanes": {
+    "closed": {
+      "paths": [
+        "**/migrations/**",
+        "**/supabase/migrations/**",
+        "**/payment*/**",
+        "**/billing*/**",
+        "**/stripe*/**",
+        "**/agent_token.py",
+        "**/*.env",
+        ".github/workflows/**",
+        "**/.github/workflows/**",
+        "**/rulesets/**",
+        "CODEOWNERS",
+        "**/CODEOWNERS"
+      ],
+      "effects": [
+        "deletes_tracked_file"
+      ]
+    },
+    "wide": {
+      "paths": [
+        "**/scripts/**",
+        "**/lib/**",
+        "**/packages/**",
+        "**/schema*/**"
+      ],
+      "effects": [
+        "renames_tracked_file",
+        "many_callers"
+      ]
+    }
+  },
+  "wide_callers": 5
+}

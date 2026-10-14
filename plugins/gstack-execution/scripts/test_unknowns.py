@@ -547,7 +547,7 @@ def test_the_surface_first_lines_show_the_open_count():
                                coverage="covered", ledger="none", unknowns_open=[{"id": f"u{i}", "revision": 1, "needs": "human", "question": "q"} for i in range(3)])
     first = (surf / "SURFACE.md").read_text().splitlines()
     assert first[0] == "# What this review can see (coverage: covered, ledger: none)"
-    assert first[1] == "unknowns open: 3; embedded instructions reported in prior rounds: 0"
+    assert first[1] == "unknowns open: 3; embedded instructions reported in prior rounds: 0; release lane: not decided"
 
 
 if __name__ == "__main__":
