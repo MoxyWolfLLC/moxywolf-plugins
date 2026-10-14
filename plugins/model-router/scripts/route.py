@@ -44,7 +44,7 @@ CLAIM_CHECKS = "claim-checks.jsonl"
 # commands go by (it sees every Bash call) and records them in the session's own ledger, so two sessions in
 # one project never share a run (F12, review 20261014-082908). COS_RUN_ID in the environment is an explicit
 # override for runners that set it.
-SEGMENT = re.compile(r"\|\||&&|;|\||\n")   # F14: only a standalone invocation counts, parsed as a shell would
+SHELL_OPS = {";", "&&", "||", "|", "&", "\n", "(", ")", ";;", "|&"}   # F14 and the fresh review's F1: boundaries found after quoting
 TOO_FEW = 10                          # CS-007.6: a rate under this many observations is a lead, not a finding
 PROMPT_HEAD = 4000
 
@@ -254,13 +254,21 @@ def cos_run_command(command):
         m = re.search(r"<<-?\s*(['\"]?)(\w+)\1", ln)
         if m:
             terminator = m.group(2)
-    for seg in SEGMENT.split("\n".join(kept)):
-        if seg.lstrip().startswith("#"):
-            continue
-        try:
-            toks = shlex.split(seg, comments=True)
-        except ValueError:
-            continue
+    lex = shlex.shlex("\n".join(kept), posix=True, punctuation_chars=";&|\n()")   # quotes and escapes are honored first
+    lex.whitespace = " \t\r"; lex.commenters = "#"
+    try:
+        tokens = list(lex)
+    except ValueError:
+        return None
+    segments, cur = [], []
+    for t in tokens:
+        if t in SHELL_OPS:
+            if cur: segments.append(cur); cur = []
+        else:
+            cur.append(t)
+    if cur:
+        segments.append(cur)
+    for toks in segments:
         # the executable position: after leading VAR=value assignments and the usual wrappers, the first word
         while toks and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0]) or toks[0] in ("nohup", "exec", "env", "time", "command")):
             toks = toks[1:]
@@ -633,10 +641,12 @@ def selftest():
     assert cos_run_command("echo python3 route.py cos-run end") is None
     assert cos_run_command("GSTACK_PEER_REVIEW_DIR=/x nohup python3 scripts/route.py cos-run start r9") == ("start", "r9")
     assert cos_run_command("echo 'a; python3 route.py cos-run end'") is None
+    assert cos_run_command("echo 'a; python3 route.py cos-run end; b'") is None
+    assert cos_run_command("ls\npython3 route.py cos-run end") == ("end", None)
     assert cos_run_command("# python3 route.py cos-run end") is None
     assert cos_run_command("cat <<'EOF'\npython3 route.py cos-run end\nEOF\n") is None
     assert cos_run_command("cat <<EOF\nx\nEOF\npython3 route.py cos-run end") == ("end", None)
-    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 10 cos-run command shapes, all passed")
+    print(f"route.py selftest: examined {len(table['classes'])} ontology classes, 4 rule boundaries and 12 cos-run command shapes, all passed")
     return 0
 
 

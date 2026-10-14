@@ -358,7 +358,8 @@ class Hooks(unittest.TestCase):
         self.assertNotIn("cos_run", self.ledger()[-1]); self.sid = "s1"
         # F14 (round 3): a command that only mentions cos-run (a search, an echo, a comment, a heredoc body) changes nothing
         for cmd in ("rg -n 'route.py cos-run end' plugins", "grep route.py cos-run end file", "echo route.py cos-run start fake",
-                    "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end'", "printf '%s' \"x && python3 route.py cos-run start z\"",
+                    "echo python3 route.py cos-run end", "echo 'a; python3 route.py cos-run end'", "echo 'a; python3 route.py cos-run end; b'",
+                    "echo \"x || python3 route.py cos-run start q; y\"", "printf '%s' \"x && python3 route.py cos-run start z\"",
                     "# python3 route.py cos-run end", "cat <<'EOF'\npython3 route.py cos-run end\nEOF\n",
                     "python3 -c \"print(1)\" route.py cos-run end"):
             self.call("Bash", {"command": cmd})
