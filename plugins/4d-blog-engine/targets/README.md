@@ -91,6 +91,7 @@ hub_links_site_slug: frontierfounder              # the { site } arg the adapter
 | Target | Domain | Status | Render contract |
 |---|---|---|---|
 | frontier-founder | thefrontierfounder.com | wired | ld-json-body-block |
+| opencontrols | opencontrols.ai | wired | ld-json-body-block |
 | stigviewer | stigviewer.com | register-only | csv-row |
 | moxywolf-website | moxywolf.com | register-only | confirm on wiring |
 | prfaq | (confirm) | register-only | confirm on wiring |
