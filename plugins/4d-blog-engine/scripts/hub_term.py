@@ -37,8 +37,14 @@ def run(cmd, cwd):
     return r.returncode, (r.stdout + r.stderr)
 
 
+def ts(s):
+    """A single-quoted TypeScript string literal."""
+    return "'" + s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n") + "'"
+
+
 def pattern_for(term):
-    words = [re.escape(w) for w in term.lower().split()]
+    """Regex source for a /.../i literal: words joined by \\s+, optional plural, '/' escaped."""
+    words = [re.escape(w).replace("/", "\\/") for w in term.lower().split()]
     words[-1] += "s?"
     return r"\s+".join(words)
 
@@ -57,6 +63,8 @@ def edit(hub, term, owner, site_url, path):
                 return None
         except re.error:
             continue
+    if not re.fullmatch(r"[A-Za-z_]\w*", owner):
+        raise ship.Refusal(f"owner '{owner}' isn't a plain identifier; SITES keys must be")
     if MARKER not in src:
         raise ship.Refusal(f"{m} has no '{MARKER.strip()}' marker; add the entry by hand")
     sites = re.search(r"export const SITES = \{(.*?)\} as const", src, re.S)
@@ -64,16 +72,17 @@ def edit(hub, term, owner, site_url, path):
         raise ship.Refusal(f"{m} has no SITES object")
     if not re.search(rf"^\s*{re.escape(owner)}:", sites.group(1), re.M):
         src = src.replace(sites.group(0), sites.group(0).replace(
-            "} as const", f"  {owner}: '{site_url}',\n}} as const"), 1)
-    entry = f"  {{\n    pattern: /{pattern_for(term)}/i,\n    owner: '{owner}',\n    path: '{path}',\n  }},\n"
+            "} as const", f"  {owner}: {ts(site_url)},\n}} as const"), 1)
+    entry = f"  {{\n    pattern: /{pattern_for(term)}/i,\n    owner: {ts(owner)},\n    path: {ts(path)},\n  }},\n"
+    said = ts(f"See the {term}.")
     src = src.replace(MARKER, entry + MARKER, 1)
     other = "stigviewer" if owner != "stigviewer" else "frontierfounder"
-    case = (f"test('{term} links to {path}', () => {{\n"
-            f"  const segs = segmentText('See the {term}.', new Set(), '{owner}')\n"
+    case = (f"test({ts(f'{term} links to {path}')}, () => {{\n"
+            f"  const segs = segmentText({said}, new Set(), {ts(owner)})\n"
             f"  const link = segs!.find((s) => s.type === 'link') as any\n"
-            f"  assert.equal(link.href, '{path}')\n"
-            f"  const cross = segmentText('See the {term}.', new Set(), '{other}')!.find((s) => s.type === 'link') as any\n"
-            f"  assert.equal(cross.href, '{site_url.rstrip('/')}{path}')\n"
+            f"  assert.equal(link.href, {ts(path)})\n"
+            f"  const cross = segmentText({said}, new Set(), {ts(other)})!.find((s) => s.type === 'link') as any\n"
+            f"  assert.equal(cross.href, {ts(site_url.rstrip('/') + path)})\n"
             f"}})\n\n")
     test = test.replace(TEST_MARKER, case + TEST_MARKER, 1) if TEST_MARKER in test else test + "\n" + case
     return src, test
@@ -98,8 +107,12 @@ def register(hub, term, owner, site_url, path):
     ship.git(hub, "add", *[f for f in FILES if (hub / f).exists()])
     ship.git(hub, "commit", "-m", f"Add {owner} hub term: {term}",
              "-m", f"Links '{term}' to {path} on {owner}. Registered by hub_term.py (BP-001).")
-    sha = ship.push(hub, ship.git(hub, "rev-parse", "--abbrev-ref", "HEAD"))
-    return f"registered at {sha}"
+    branch = ship.git(hub, "rev-parse", "--abbrev-ref", "HEAD")
+    sha = ship.push(hub, branch)
+    local = ship.pull_back(hub, branch)
+    if local != sha:
+        raise ship.Refusal(f"pushed {sha} but the pulled-back {branch} is {local}")
+    return f"registered at {sha}; {branch} pulled back, remote == local"
 
 
 def pin(repo, site, file):

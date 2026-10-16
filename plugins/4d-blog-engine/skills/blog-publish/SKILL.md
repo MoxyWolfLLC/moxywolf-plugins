@@ -9,8 +9,8 @@ description: >
   branch is protected, pulls the local clone back, and reports done only when the live page shows
   the post with its hub link (BP-001). When LinkedIn derivatives are present it can
   optionally publish them through the writer's own logged-in browser, with an explicit
-  confirmation before every irreversible action. Do not use it to run the pipeline, and it refuses
-  unsigned posts unless --force is given.
+  confirmation before every irreversible action. Do not use it to run the pipeline. It refuses
+  every unsigned post; there is no override.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__form_input]
 ---
 
@@ -18,10 +18,10 @@ allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp_
 
 ## When this skill applies
 
-This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and commits with an auto-generated Summary + Description, and ships it with scripts/ship.py: push as the moxywolf-agent app, a pull request merged on green checks when the default branch is protected, pull-back, and a live-page check for the hub link (BP-001). The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. After the post is live, an opt-in step can post a #general Slack @channel nudge asking the team to reshare it. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and commits with an auto-generated Summary + Description, and ships it with scripts/ship.py: push as the moxywolf-agent app, a pull request merged on green checks when the default branch is protected, pull-back, and a live-page check for the hub link (BP-001). The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words and takes no manual step after saying go. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. After the post is live, an opt-in step can post a #general Slack @channel nudge asking the team to reshare it. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing an unsigned post (always refused), or pushing to anywhere other than the configured publishing repo.
 
 
-> **Read this when:** the user runs `/4d-blog-engine:blog-publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and create a commit on the default branch — without making the writer type a single git command and without the YAML-breaking quote bug. Then ship it with `scripts/ship.py` (push, pull request and merge when protected, pull-back, live check).
+> **Read this when:** the user runs `/4d-blog-engine:blog-publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and commit and ship it — without making the writer type a single git command and without the YAML-breaking quote bug. Then ship it with `scripts/ship.py` (push, pull request and merge when protected, pull-back, live check).
 
 ## Design principles (read first)
 
@@ -34,7 +34,7 @@ This skill should be used when the user runs /4d-blog-engine:blog-publish or ask
 
 6. **The piece directory at `<blog-project-dir>/Posts/<slug>/` stays untouched.** Forensic archive (delegation, description, discernment, diligence artifacts).
 
-7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, commit. Site rebuild fires from the real diff once the writer pushes.
+7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, commit. Site rebuild fires from the real diff once `ship.py` pushes it.
 5. **The post file in `<piece>/04-diligence/blog.md` is the source of truth.** Never re-edit it. The transform writes to the repo path; the source stays untouched.
 
 ## STEP 0 — Resolve the piece slug
@@ -132,7 +132,7 @@ REPO=$(echo "$REMOTE_URL" | sed -E 's@.*github\.com[:/]@@; s@\.git$@@' | cut -d/
 
 Store as `OWNER` and `REPO`.
 
-## STEP 3 — Verify Phase 4 signed (or --force)
+## STEP 3 — Verify Phase 4 signed
 
 Read `<PIECE_DIR>/changelog.md`. Search for a line matching:
 
@@ -143,8 +143,7 @@ Verified — <initials>, <YYYY-MM-DD>
 The date must be today or earlier.
 
 - **If the line exists:** proceed.
-- **If missing AND `--force` flag NOT passed:** halt with *"Piece `<SLUG>` has not been signed. Run `/4d-blog-engine:blog-diligence` and complete the Release Owner sign-off, or pass `--force` to publish anyway (not recommended)."*
-- **If missing AND `--force` passed:** proceed but record `forced: true` in the changelog log entry.
+- **If missing:** halt with *"Piece `<SLUG>` has not been signed. Run `/4d-blog-engine:blog-diligence` and complete the Release Owner sign-off."* There is no override: an unsigned post never reaches `ship.py` (BP-001).
 
 Also verify `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md` exists. If not, halt: *"Staged draft missing at `<blog-project-dir>/drafts/<SLUG>.md`. Re-run `/4d-blog-engine:blog-diligence` to re-stage from the signed Phase 4 artifact."*
 
@@ -473,17 +472,18 @@ git commit --no-verify -m "$COMMIT_SUBJECT" -m "$COMMIT_BODY"
 
 ```bash
 BRANCH=$(git -C "$PUBLISHING_REPO_DIR" rev-parse --abbrev-ref HEAD)
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH"
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH" \
+  --state "$PIECE_DIR/state.md"
+HEAD_SHA=$(git -C "$PUBLISHING_REPO_DIR" rev-parse HEAD)   # the SHA push just verified on the remote
 # protected default branch only:
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" merge --repo "$PUBLISHING_REPO_DIR" --slug "$OWNER/$REPO" --branch "$BRANCH" \
-  --base "$DEFAULT_BRANCH" --checks "<required_checks, comma-separated>" \
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" merge --repo "$PUBLISHING_REPO_DIR" --slug "$OWNER/$REPO" \
+  --branch "$BRANCH" --head "$HEAD_SHA" --base "$DEFAULT_BRANCH" --checks "<required_checks, comma-separated>" \
   --title "$COMMIT_SUBJECT" --body "$COMMIT_BODY" --state "$PIECE_DIR/state.md"
-# unprotected: after push, pull back is the push itself; check git status -sb shows level
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" verify-live --url "<post_url_pattern with the slug>" --hub-path "<hub path>" \
   --term "<hub_term>" --deadline 900 --state "$PIECE_DIR/state.md"
 ```
 
-Each exits 0 on success and 1 with `refused: <reason>` on stderr. A refusal stops the publish: report the script's reason in the writer's words and leave the piece unpublished. `merge` writes `published_pr` and `published_merge` into `state.md`; `verify-live` writes `live_verified_at`, and only on exit 0. A post is published when `verify-live` exits 0, not before.
+Each exits 0 on success and 1 with `refused: <reason>` on stderr. A refusal stops the publish: report the script's reason in the writer's words and leave the piece unpublished. `push` writes `published_pr: none` and `published_merge: <pushed SHA>` (an unprotected target's publish is the push itself); `merge` overwrites them with the pull request number and the merge SHA; `verify-live` writes `live_verified_at`, and only on exit 0. A post is published when `verify-live` exits 0, not before.
 
 **Capture the commit SHA for the success message:**
 

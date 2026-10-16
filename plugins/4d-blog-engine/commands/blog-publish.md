@@ -49,7 +49,7 @@ The plugin handles copy + commit + create-the-dir-if-missing automatically.
 
 **What the skill never does:**
 
-- Publish an unsigned post (use `--force` only if you really know what you're doing).
+- Publish an unsigned post. There is no override.
 - Post to LinkedIn, Twitter, or Facebook on your behalf. The skill ships the source files into the repo; the paste-and-post step on each platform stays manual, by design.
 - Push under a person's login. Git on GitHub runs as the `moxywolf-agent` app.
 - Bypass a protected branch. It opens a pull request and merges only on green required checks.

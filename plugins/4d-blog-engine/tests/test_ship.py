@@ -51,7 +51,7 @@ class FakeGitHub:
         if method == "GET" and "/pulls?" in path:
             return [self.pr] if self.pr else []
         if method == "POST" and path.endswith("/pulls"):
-            head = sh(self.repos.clone, "git", "rev-parse", data["head"])
+            head = ship.remote_sha(self.repos.clone, data["head"])  # what GitHub sees: the pushed head
             self.pr = {"number": 7, "head": {"sha": head}}
             return self.pr
         if "/check-runs" in path:
@@ -78,6 +78,19 @@ class Push(unittest.TestCase):
         head = r.commit("post")
         self.assertEqual(ship.push(r.clone, "publish/x"), head)
         self.assertEqual(ship.remote_sha(r.clone, "publish/x"), head)
+
+    def test_cli_push_state_records_the_unprotected_publish(self):
+        r = Repos()
+        sh(r.clone, "git", "switch", "-qc", "publish/x")
+        head = r.commit("post")
+        with tempfile.TemporaryDirectory() as d:
+            st = Path(d) / "state.md"
+            st.write_text("---\nslug: s\n---\n")
+            self.assertEqual(ship.main(["push", "--repo", str(r.clone), "--branch", "publish/x",
+                                        "--state", str(st)]), 0)
+            text = st.read_text()
+        self.assertIn("published_pr: none\n", text)
+        self.assertIn(f"published_merge: {head}\n", text)
 
     def test_push_failure_is_a_refusal(self):
         r = Repos()
@@ -118,6 +131,36 @@ class Merge(unittest.TestCase):
             self.merge(gh, deadline=0)
         self.assertFalse([c for c in gh.calls if c[0] == "PUT"])
 
+    def cli(self, gh, head):
+        orig = ship.agent_api
+        ship.agent_api = gh
+        try:
+            return ship.main(["merge", "--repo", str(self.r.clone), "--slug", "o/r", "--branch", "publish/x",
+                              "--base", "main", "--head", head, "--checks", "unit,e2e", "--deadline", "0"])
+        finally:
+            ship.agent_api = orig
+
+    def test_cli_merges_the_head_it_was_given_not_the_moved_branch(self):
+        self.r.commit("after-push")  # local branch moves; origin still has the pushed head
+        gh = FakeGitHub(self.r, [[run("unit"), run("e2e", i=2)]])
+        self.assertEqual(self.cli(gh, self.head), 0)
+        put = [c for c in gh.calls if c[0] == "PUT"][0]
+        self.assertEqual(put[2]["sha"], self.head)
+        self.assertIn("check-runs", [c for c in gh.calls if "check-runs" in c[1]][0][1])
+        self.assertIn(self.head, [c for c in gh.calls if "check-runs" in c[1]][0][1])
+
+    def test_cli_refuses_a_head_the_pull_request_does_not_carry(self):
+        moved = self.r.commit("after-push")
+        gh = FakeGitHub(self.r, [[run("unit"), run("e2e", i=2)]])
+        self.assertEqual(self.cli(gh, moved), 1)
+        self.assertFalse([c for c in gh.calls if c[0] == "PUT"])
+
+    def test_cli_requires_head(self):
+        with self.assertRaises(SystemExit) as e:
+            ship.main(["merge", "--repo", "r", "--slug", "o/r", "--branch", "b", "--base", "main",
+                       "--checks", "unit"])
+        self.assertEqual(e.exception.code, 2)
+
     def test_latest_run_of_a_check_wins(self):
         gh = FakeGitHub(self.r, [[run("unit", conclusion="failure", i=1), run("unit", i=3), run("e2e", i=2)]])
         self.merge(gh)
@@ -144,6 +187,17 @@ class VerifyLive(unittest.TestCase):
         with self.assertRaisesRegex(ship.Refusal, "hub_link_missing"):
             ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
                              get=lambda u: (200, '<a href="/series/permission-engineering">Read the series</a>'))
+
+    def test_whitespace_and_plural_still_count(self):
+        ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
+                         get=lambda u: (200, PAGE.replace("auditable decision record",
+                                                          "Auditable\n  decision records")))
+
+    def test_term_only_inside_longer_anchor_text_is_hub_link_missing(self):
+        with self.assertRaisesRegex(ship.Refusal, "hub_link_missing"):
+            ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
+                             get=lambda u: (200, '<a href="/series/permission-engineering">'
+                                                 'an auditable decision record format</a>'))
 
     def test_404_is_not_live(self):
         with self.assertRaisesRegex(ship.Refusal, "not_live"):

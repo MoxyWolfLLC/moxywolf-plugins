@@ -18,9 +18,20 @@ class NoManualPush(unittest.TestCase):
     def test_found_the_docs(self):
         self.assertGreater(len(DOCS), 10)
 
-    def test_no_push_origin_anywhere(self):
-        hits = [str(p.relative_to(ROOT)) for p in DOCS if "Push origin" in p.read_text()]
+    def test_no_manual_push_anywhere(self):
+        manual = re.compile(r"Push origin|Push button|click\s+Push|GitHub Desktop to (deploy|push|publish)"
+                            r"|(writer|you|Dorian)\s+(then\s+)?push(es)?\b", re.I)
+        hits = [f"{p.relative_to(ROOT)}: {m.group(0)}" for p in DOCS for m in manual.finditer(p.read_text())]
         self.assertEqual(hits, [])
+
+    def test_no_unsigned_override(self):
+        s = text("skills/blog-publish/SKILL.md") + text("commands/blog-publish.md")
+        self.assertNotIn("--force", s)
+
+    def test_merge_is_pinned_to_the_pushed_head(self):
+        s = text("skills/blog-publish/SKILL.md")
+        self.assertIn('--head "$HEAD_SHA"', s)
+        self.assertRegex(s, r'ship\.py" push(?:[^\n]*\\\n)*[^\n]*--state')  # across continuations
 
 
 class NamesItsScripts(unittest.TestCase):

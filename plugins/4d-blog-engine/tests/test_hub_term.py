@@ -61,7 +61,13 @@ class Register(unittest.TestCase):
     def setUp(self):
         self.calls = []
         self.fail_on = None
-        self._run = hub_term.run
+        self._run, self._pull = hub_term.run, ship.pull_back
+        self.pulled = []
+
+        def pull(repo, branch):
+            self.pulled.append(branch)
+            return self._pull(repo, branch)
+        ship.pull_back = pull
 
         def fake(cmd, cwd):
             self.calls.append(cmd)
@@ -69,7 +75,7 @@ class Register(unittest.TestCase):
         hub_term.run = fake
 
     def tearDown(self):
-        hub_term.run = self._run
+        hub_term.run, ship.pull_back = self._run, self._pull
 
     def reg(self, h, term="auditable decision record"):
         return hub_term.register(h.path, term, "opencontrols", "https://opencontrols.ai",
@@ -89,11 +95,31 @@ class Register(unittest.TestCase):
         head = sh(h.path, "git", "rev-parse", "HEAD")
         self.assertIn(head, out)
         self.assertEqual(ship.remote_sha(h.path, "main"), head)
+        self.assertEqual(self.pulled, ["main"])
+        self.assertIn("pulled back", out)
+
+    def test_apostrophe_and_slash_are_escaped(self):
+        h = Hub()
+        self.reg(h, "owner's read/write record")
+        src = (h.path / "src/map.ts").read_text()
+        self.assertIn("pattern: /owner's\\s+read\\/write\\s+records?/i,", src)
+        test = (h.path / "test/hub-links.test.ts").read_text()
+        self.assertIn("segmentText('See the owner\\'s read/write record.'", test)
+        self.assertIn("test('owner\\'s read/write record links to", test)
+        self.assertNotIn("'See the owner's", test)
+
+    def test_owner_must_be_an_identifier(self):
+        h = Hub()
+        with self.assertRaisesRegex(ship.Refusal, "identifier"):
+            hub_term.register(h.path, "x y", "open-controls", "https://o.ai", "/s")
+        self.assertEqual(self.calls, [])
 
     def test_the_new_pattern_matches_the_term_and_its_plural(self):
         pat = hub_term.pattern_for("Auditable Decision Record")
         self.assertTrue(re.fullmatch(pat, "auditable decision records", re.I))
         self.assertTrue(re.fullmatch(pat, "Auditable  decision record", re.I))
+        self.assertTrue(re.fullmatch(hub_term.pattern_for("owner's read/write record"),
+                                     "owner's read/write records", re.I))
 
     def test_existing_term_is_a_no_op(self):
         h = Hub()

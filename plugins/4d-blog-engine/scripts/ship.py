@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """BP-001: ship a Release-Owner-signed post. The writer never pushes, merges or pulls.
 
-  ship.py push        --repo <path> --branch <name>
-  ship.py merge       --repo <path> --slug <owner/name> --branch <name> --base <name>
+  ship.py push        --repo <path> --branch <name> [--state <state.md>]
+  ship.py merge       --repo <path> --slug <owner/name> --branch <name> --base <name> --head <sha>
                       --checks <a,b> [--title T] [--body B] [--deadline S] [--state <state.md>]
   ship.py verify-live --url <post url> --hub-path <path> --term <hub term>
                       [--deadline S] [--state <state.md>]
@@ -11,13 +11,18 @@ Exit codes: 0 done; 1 refused, with the reason on stderr; 2 usage.
 
 push    pushes the branch, then requires `git ls-remote` to equal local HEAD. A push to GitHub runs
         through gstack-execution's agent_token.py (GA-005), so it acts as moxywolf-agent; a push to
-        any other remote (a local bare repository in the tests) runs plain git.
+        any other remote (a local bare repository in the tests) runs plain git. With --state (an
+        unprotected target, where the push is the publish) it writes published_pr: none and
+        published_merge: <the pushed SHA>.
 merge   opens (or reuses) the pull request, waits until every named check has completed, merges
         pinned to the head it was given only when every one concluded success, then pulls the base
-        branch back into the local clone with --ff-only and requires remote == local. A check that
+        branch back into the local clone with --ff-only and requires remote == local. --head is the
+        SHA push printed; it's passed through unchanged, so a branch that moved after the push can't
+        be merged in its place. A check that
         never appears before the deadline is a failure, never a pass.
 verify-live fetches the live post until it answers 200, then requires an <a> whose href ends in the
-        hub path and whose text contains the hub term. It writes live_verified_at only on success.
+        hub path and whose whole text (whitespace collapsed, case ignored) is the hub term or its
+        plural. It writes live_verified_at only on success.
 
 ponytail: stdlib only; the GitHub calls go through one `api` function so the tests can serve fixtures
 without reaching GitHub (XE-019).
@@ -174,8 +179,9 @@ def verify_live(url, hub_path, term, deadline=600, poll=20, get=fetch):
         time.sleep(poll)
     p = _Anchors()
     p.feed(html)
-    want = hub_path.rstrip("/")
-    if not any(h.split("#")[0].split("?")[0].rstrip("/").endswith(want) and term.lower() in t.lower()
+    want, norm = hub_path.rstrip("/"), (lambda x: " ".join(x.split()).lower())
+    terms = {norm(term), norm(term) + "s"}
+    if not any(h.split("#")[0].split("?")[0].rstrip("/").endswith(want) and norm(t) in terms
                for h, t in p.links):
         raise Refusal(f"hub_link_missing: {url} has no link to {hub_path} on the term '{term}'")
 
@@ -199,8 +205,9 @@ def main(argv=None):
     a = sub.add_parser("push")
     a.add_argument("--repo", required=True)
     a.add_argument("--branch", required=True)
+    a.add_argument("--state")
     m = sub.add_parser("merge")
-    for f in ("--repo", "--slug", "--branch", "--base", "--checks"):
+    for f in ("--repo", "--slug", "--branch", "--base", "--head", "--checks"):
         m.add_argument(f, required=True)
     m.add_argument("--title", default="Publish")
     m.add_argument("--body", default="Published via /4d-blog-engine:blog-publish (BP-001).")
@@ -214,11 +221,13 @@ def main(argv=None):
     args = ap.parse_args(argv)
     try:
         if args.cmd == "push":
-            print(f"pushed {args.branch}: remote == local == {push(args.repo, args.branch)}")
+            sha = push(args.repo, args.branch)
+            if args.state:
+                set_state(args.state, {"published_pr": "none", "published_merge": sha})
+            print(f"pushed {args.branch}: remote == local == {sha}")
         elif args.cmd == "merge":
-            head = git(args.repo, "rev-parse", args.branch)
             checks = [c.strip() for c in args.checks.split(",") if c.strip()]
-            n, sha = merge(agent_api, args.repo, args.slug, args.branch, args.base, head, checks,
+            n, sha = merge(agent_api, args.repo, args.slug, args.branch, args.base, args.head, checks,
                            args.title, args.body, args.deadline)
             if args.state:
                 set_state(args.state, {"published_pr": n, "published_merge": sha})
