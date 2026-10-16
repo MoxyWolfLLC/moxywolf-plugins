@@ -40,10 +40,24 @@ pillar_schema: [Article, FAQPage, Organization]   # richer than a post's BlogPos
 linking_map_dir: content/blog/_clusters           # where linking maps are committed
 auto_linker: "@moxywolf/hub-links/<adapter>"      # rehype | remark | html | react — the wired hub-links adapter
 hub_links_site_slug: frontierfounder              # the { site } arg the adapter is called with
+auto_linker_file: src/components/PostBody/index.tsx   # where the renderer passes { site } (hub_term.py pin checks it)
+# --- shipping (BP-001) ---
+default_branch_protected: false                   # true: /blog-publish ships through a pull request
+required_checks: []                               # check names ship.py merge waits for; each must conclude success
 ---
 ```
 
 ## Field notes
+
+- **default_branch_protected / required_checks** (BP-001) — `ship.py` reads them.
+  `true` sends the commit to `publish/<slug>` and through a pull request that
+  merges only when every named check concluded `success`. List the checks that
+  verify the post, not every check GitHub requires: a check that is skipped by
+  design (a database preview on a content-only change) never concludes `success`.
+  If a push is refused as protected while the field says `false`, `ship.py` says
+  which field is wrong.
+- **auto_linker_file** (BP-001) — the file where the renderer calls the hub-links
+  adapter. `hub_term.py pin` checks it passes `site: '<hub_links_site_slug>'`.
 
 - **status** — `wired` means the descriptor fully drives publish (frontmatter,
   JSON-LD, canonical, hero) and the site already renders it. `register-only`

@@ -4,12 +4,13 @@ description: >
   Ships a Phase-4-signed post to the writer's blog. Use it for /4d-blog-engine:blog-publish or any
   variant of "publish this post", "ship the blog", "push the post to my site", "deploy the post".
   It takes the signed draft, applies the typographer's-quote transform (frontmatter and JSON-LD
-  preserved verbatim), normalizes status to published, bumps dateModified, and prepares a commit
-  in the local publishing repo. It never pushes: the writer clicks "Push origin" in GitHub
-  Desktop, so the plugin needs no GitHub token. When LinkedIn derivatives are present it can
+  preserved verbatim), normalizes status to published, bumps dateModified, commits, and ships:
+  it pushes as the moxywolf-agent app, opens and merges a pull request when the target's default
+  branch is protected, pulls the local clone back, and reports done only when the live page shows
+  the post with its hub link (BP-001). When LinkedIn derivatives are present it can
   optionally publish them through the writer's own logged-in browser, with an explicit
-  confirmation before every irreversible action. Do not use it to run the pipeline, and it refuses
-  unsigned posts unless --force is given.
+  confirmation before every irreversible action. Do not use it to run the pipeline. It refuses
+  every unsigned post; there is no override.
 allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp__cowork__request_cowork_directory, mcp__Claude_in_Chrome__tabs_context_mcp, mcp__Claude_in_Chrome__navigate, mcp__Claude_in_Chrome__browser_batch, mcp__Claude_in_Chrome__computer, mcp__Claude_in_Chrome__read_page, mcp__Claude_in_Chrome__get_page_text, mcp__Claude_in_Chrome__find, mcp__Claude_in_Chrome__form_input]
 ---
 
@@ -17,15 +18,15 @@ allowed-tools: [Read, Write, Edit, Bash, AskUserQuestion, Glob, ToolSearch, mcp_
 
 ## When this skill applies
 
-This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and prepares a commit in the local publishing repo via bash git (git add + git commit with auto-generated Summary + Description). The plugin does NOT push — the writer clicks "Push origin" in GitHub Desktop to deploy. This avoids any GitHub-token configuration in the plugin; GitHub Desktop's existing auth handles the push. The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words; the only manual step is clicking GitHub Desktop's Push button after the plugin reports the commit is prepared. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. After the post is live, an opt-in step can post a #general Slack @channel nudge asking the team to reshare it. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing unsigned posts without --force (refuse), or pushing to anywhere other than the configured publishing repo.
+This skill should be used when the user runs /4d-blog-engine:blog-publish or asks any variant of "publish this post," "ship the blog," "push the post to my site," "deploy the post," "get this on the live site." It takes a Phase-4-signed post (staged as a clean draft at <blog-project-dir>/drafts/<slug>.md by the sign-off step), applies a reliable typographer's-quote transform via scripts/smart_quotes.py (preserves YAML frontmatter and JSON-LD verbatim), normalizes status to published, bumps dateModified to today, and commits with an auto-generated Summary + Description, and ships it with scripts/ship.py: push as the moxywolf-agent app, a pull request merged on green checks when the default branch is protected, pull-back, and a live-page check for the hub link (BP-001). The local drafts/ folder is the draft state — there is no --draft flag and no content/draft/ folder in the publishing repo. /blog-publish always ships from drafts/ to content/blog/ with status=published. The writer types no git words and takes no manual step after saying go. Optionally, when LinkedIn derivatives are present, it can publish them to the channel chosen in /blog-social through Claude in Chrome running in the writer's own logged-in LinkedIn (opt-in, with an explicit confirmation before every irreversible publish). On a personal profile that's the feed Post plus its first comment; on a Company/Showcase Page it's the Article-led trio — Article first, then the teaser Post, then a first comment with the freshly-captured Article URL substituted in. After the post is live, an opt-in step can post a #general Slack @channel nudge asking the team to reshare it. Do NOT use this skill for: running the pipeline (use /4d-blog-engine:blog-pipeline), publishing an unsigned post (always refused), or pushing to anywhere other than the configured publishing repo.
 
 
-> **Read this when:** the user runs `/4d-blog-engine:blog-publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and create a commit on the default branch — without making the writer type a single git command and without the YAML-breaking quote bug. The writer then clicks "Push origin" in GitHub Desktop to deploy.
+> **Read this when:** the user runs `/4d-blog-engine:blog-publish [<slug>]`. Your job is to take a Phase-4-signed piece, copy its publication-ready files into the configured publishing repo with the typographer's-quote transform applied correctly, normalize status to `published`, and commit and ship it — without making the writer type a single git command and without the YAML-breaking quote bug. Then ship it with `scripts/ship.py` (push, pull request and merge when protected, pull-back, live check).
 
 ## Design principles (read first)
 
-1. **The writer never writes a commit message, never picks a branch, never types a git command.** The plugin auto-generates the Summary and Description and creates the commit on the default branch. The writer's only action is clicking GitHub Desktop's "Push origin" button — one click to deploy.
-2. **The plugin commits but does not push.** Bash git from the sandbox runs `git add` + `git commit` only. The push happens through GitHub Desktop (which the writer is assumed to have installed for managing their blog repo). This split eliminates the need for any GitHub token configuration in the plugin — the writer's existing GitHub Desktop auth handles the push.
+1. **The writer never writes a commit message, never picks a branch, never types a git command.** The plugin auto-generates the Summary and Description, creates the commit, and ships it. The writer's signature in `changelog.md` is the only approval publishing needs (BP-001).
+2. **The plugin ships; the writer never pushes** (BP-001). `scripts/ship.py` pushes through gstack-execution's `agent_token.py`, so git on GitHub acts as the `moxywolf-agent` app (GA-005), never under a person's login. When the target descriptor says `default_branch_protected: true`, the commit goes on `publish/<SLUG>` and `ship.py merge` opens the pull request, waits for the descriptor's `required_checks`, merges pinned to the pushed head only when every one concluded success, and pulls the default branch back into the local clone. `ship.py verify-live` then fetches the live post and requires the hub link. Run git and `ship.py` from the device's macOS shell (Desktop Commander), because minting the app token needs GitHub's `/app` endpoints, which the cloud proxy refuses.
 3. **Auto-generated commit messages.** Summary: `Publish: <title>` (≤72 chars). Description: a short structured body naming the files written, the status, and the slug. The writer never types either.
 3. **The typographer's-quote transform is vendored, not improvised.** Use `scripts/smart_quotes.py` — it explicitly preserves YAML frontmatter and JSON-LD `<script>` blocks. Never write ad-hoc Python that touches the file's quote characters.
 4. **The publishing repo must be reachable** — either mounted in the session so we can read `.git/config` to find the remote URL, or the writer supplies the remote URL directly. `blog-start` handles the mount; if missed, this skill mounts on demand.
@@ -33,7 +34,7 @@ This skill should be used when the user runs /4d-blog-engine:blog-publish or ask
 
 6. **The piece directory at `<blog-project-dir>/Posts/<slug>/` stays untouched.** Forensic archive (delegation, description, discernment, diligence artifacts).
 
-7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, commit. Site rebuild fires from the real diff once the writer pushes.
+7. **Byte-identical republish silently bumps `dateModified`.** Don't show the writer a dialog about "empty commit vs dateModified bump" — that's an implementation detail. Always pick: bump `dateModified` to today, transform, commit. Site rebuild fires from the real diff once `ship.py` pushes it.
 5. **The post file in `<piece>/04-diligence/blog.md` is the source of truth.** Never re-edit it. The transform writes to the repo path; the source stays untouched.
 
 ## STEP 0 — Resolve the piece slug
@@ -131,7 +132,7 @@ REPO=$(echo "$REMOTE_URL" | sed -E 's@.*github\.com[:/]@@; s@\.git$@@' | cut -d/
 
 Store as `OWNER` and `REPO`.
 
-## STEP 3 — Verify Phase 4 signed (or --force)
+## STEP 3 — Verify Phase 4 signed
 
 Read `<PIECE_DIR>/changelog.md`. Search for a line matching:
 
@@ -142,8 +143,7 @@ Verified — <initials>, <YYYY-MM-DD>
 The date must be today or earlier.
 
 - **If the line exists:** proceed.
-- **If missing AND `--force` flag NOT passed:** halt with *"Piece `<SLUG>` has not been signed. Run `/4d-blog-engine:blog-diligence` and complete the Release Owner sign-off, or pass `--force` to publish anyway (not recommended)."*
-- **If missing AND `--force` passed:** proceed but record `forced: true` in the changelog log entry.
+- **If missing:** halt with *"Piece `<SLUG>` has not been signed. Run `/4d-blog-engine:blog-diligence` and complete the Release Owner sign-off."* There is no override: an unsigned post never reaches `ship.py` (BP-001).
 
 Also verify `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md` exists. If not, halt: *"Staged draft missing at `<blog-project-dir>/drafts/<SLUG>.md`. Re-run `/4d-blog-engine:blog-diligence` to re-stage from the signed Phase 4 artifact."*
 
@@ -308,7 +308,7 @@ Only show the "Files going in" media line(s) when `MEDIA_FILES` is non-empty. Li
 
 Wait for the writer's reply. Accept "go" / "yes" / "publish" as confirmation. Anything else cancels.
 
-(The plugin handles the commit. The writer clicks "Push origin" in GitHub Desktop after the commit is prepared.)
+(The plugin handles the commit, the push, the pull request and the merge. The writer's "go" here is the last thing they do.)
 
 ## STEP 8 — Run the typographer's-quote transform via the vendored script
 
@@ -395,8 +395,15 @@ the target descriptor `${CLAUDE_PLUGIN_ROOT}/targets/<target>.md` for
    spokes. Leave it to `/blog-pillar edit`.
 6. **register-only target:** also print the descriptor's site-side gaps that block
    a clean render.
+7. **Pin hub-links in the target** (BP-001). Before the commit, run
+   `python3 "$CLAUDE_PLUGIN_ROOT/scripts/hub_term.py" pin --repo "$PUBLISHING_REPO_DIR" --site <hub_links_site_slug> --file <auto_linker_file>`.
+   It moves the target's hub-links pin to the current hub-links head with the repo's own
+   package manager and checks the renderer passes the descriptor's site slug. Stage the
+   lockfile with the post, so the term, the pin and the post land in one commit. Exit 1
+   halts the publish and shows the script's reason: a renderer passing the wrong site is
+   fixed in the renderer, never worked around.
 
-## STEP 10 — Copy files, then auto-commit (no push)
+## STEP 10 — Copy files, commit, and ship
 
 First, copy the transformed post and the hero into the repo:
 
@@ -459,7 +466,27 @@ Slug:   $SLUG"
 git commit --no-verify -m "$COMMIT_SUBJECT" -m "$COMMIT_BODY"
 ```
 
-**Do NOT push from the sandbox.** The push happens through GitHub Desktop, by the writer, with one click. After a successful commit, surface a clear next-step instruction in the success message (STEP 12).
+**Branch first when the default branch is protected.** If the descriptor says `default_branch_protected: true`, run `git switch -c publish/$SLUG` from an up-to-date default branch before the `git add` above, so the commit never lands on the default branch.
+
+**Then ship it** (BP-001), from the device's macOS shell:
+
+```bash
+BRANCH=$(git -C "$PUBLISHING_REPO_DIR" rev-parse --abbrev-ref HEAD)
+if [ "<default_branch_protected>" = true ]; then
+  PUSH_OUT=$(python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH") || exit 1
+  HEAD_SHA=${PUSH_OUT##* }   # the SHA push verified on the remote; never a later rev-parse
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" merge --repo "$PUBLISHING_REPO_DIR" --slug "$OWNER/$REPO" \
+    --branch "$BRANCH" --head "$HEAD_SHA" --base "$DEFAULT_BRANCH" --checks "<required_checks, comma-separated>" \
+    --title "$COMMIT_SUBJECT" --body "$COMMIT_BODY" --state "$PIECE_DIR/state.md" || exit 1
+else
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH" \
+    --state "$PIECE_DIR/state.md" || exit 1
+fi
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" verify-live --url "<post_url_pattern with the slug>" --hub-path "<hub path>" \
+  --term "<hub_term>" --deadline 900 --state "$PIECE_DIR/state.md"
+```
+
+Each exits 0 on success and 1 with `refused: <reason>` on stderr. A refusal stops the publish: report the script's reason in the writer's words and leave the piece unpublished. On an unprotected target `push --state` writes `published_pr: none` and `published_merge: <pushed SHA>` (the push is the publish). On a protected target `push` writes nothing, so a failed check leaves the previous publication record intact, and `merge --state` writes the pull request number and the merge SHA only after the merge. Either write resets `live_verified_at: pending`; `verify-live` sets it, and only on exit 0. A post is published when `verify-live` exits 0, not before.
 
 **Capture the commit SHA for the success message:**
 
@@ -467,7 +494,7 @@ git commit --no-verify -m "$COMMIT_SUBJECT" -m "$COMMIT_BODY"
 COMMIT_SHA=$(cd "$PUBLISHING_REPO_DIR" && git rev-parse --short HEAD)
 ```
 
-The commit is local-only until the writer pushes. The success message uses this SHA to identify the prepared commit.
+The success message uses this SHA; after `merge` it reports the merge SHA instead.
 
 ### Byte-identical content edge case
 
@@ -489,7 +516,7 @@ LOCKFILE="$PUBLISHING_REPO_DIR/.git/index.lock"
 
 Retry up to **two** times. If still failing after the second retry, surface this — only after recovery attempts have failed:
 
-> *Something inside your blog repo is holding a lock — usually that's GitHub Desktop scanning the folder. Quit GitHub Desktop entirely (`Cmd+Q`), then re-run `/4d-blog-engine:blog-publish <SLUG>`. The plugin will create the commit, then you can reopen GitHub Desktop and click Push.*
+> *Something inside your blog repo is holding a lock — usually that's GitHub Desktop scanning the folder. Quit GitHub Desktop entirely (`Cmd+Q`), then re-run `/4d-blog-engine:blog-publish <SLUG>`.*
 
 This message ONLY shows up after silent recovery fails. The vast majority of publishes succeed silently on the first try.
 
@@ -507,7 +534,7 @@ Capture the new commit SHA for the success message:
 COMMIT_SHA=$(cd "$PUBLISHING_REPO_DIR" && git rev-parse --short HEAD)
 ```
 
-This SHA is local-only until the writer pushes. The success message uses it to identify the prepared commit.
+The success message uses it until `merge` reports the merge SHA.
 
 ## STEP 11 — Update piece state
 
@@ -673,39 +700,31 @@ Record in `<PIECE_DIR>/state.md`'s process log: `<ISO> — Slack amplification p
 
 ## STEP 12 — Report back
 
-```
-✓ Commit prepared for "<title>".
+Report only after `verify-live` exits 0:
 
-Local commit: <COMMIT_SHA> (on branch <DEFAULT_BRANCH>)
-Files staged:
+```
+✓ Published "<title>".
+
+Live:    <post URL> (hub link to <hub path> verified at <live_verified_at>)
+Merged:  <OWNER>/<REPO> #<published_pr> as <published_merge>   (or: pushed <COMMIT_SHA> to <DEFAULT_BRANCH>)
+Local:   <DEFAULT_BRANCH> pulled back, remote == local
+Files:
   - <POSTS_SUBFOLDER>/<SLUG>.md
   - <IMAGES_SUBFOLDER>/<SLUG>.png
-<for each media file in MEDIA_FILES, one line each:>
-  - <MEDIA_SUBFOLDER>/<basename>
-<if SOCIAL_FILES non-empty, one summary line:>
-  - <SOCIAL_SUBFOLDER>/<SLUG>/ (N social posts + M scorecards)
-
-One last step — push to deploy:
-
-  1. Open GitHub Desktop.
-  2. The top toolbar will show "Push origin" with a "1" badge.
-  3. Click it.
-
-That's it. Your site rebuild fires from the push — most hosting
-(GitHub Pages, Vercel, Netlify) deploys in 1-5 minutes.
-
-Predicted live URL: <computed URL or "(check your hosting dashboard for the actual URL)">
+  - <lockfile>   (hub-links pin, when it moved)
+<media and social lines as in STEP 7>
 ```
+
+When any `ship.py` step refuses, report what it said and what's left undone instead. Never tell the writer to push.
 
 ## What this skill does NOT do
 
 - It does not post to Twitter/X or Facebook on your behalf, and does not auto-post anything without an explicit opt-in. The skill ships the *source-of-truth* social derivative files (`<piece>/04-diligence/social/*.md`) into the repo at `<SOCIAL_SUBFOLDER>/<SLUG>/`, so downstream automation (or a teammate) can read them straight from GitHub. Paste-and-post stays the default, by design (see the whitepaper's Diligence ethos). The **one** exception is the opt-in STEP 11b: when the writer explicitly asks, it publishes the chosen LinkedIn channel's derivatives through Claude in Chrome in the writer's own logged-in LinkedIn — stopping for a final OK before every irreversible publish. On a personal profile that's the feed Post plus its first comment. On a Company/Showcase Page it's the Article-led trio in order (Article → teaser Post → first comment with the captured Article URL). If LinkedIn won't let the Article be authored as the Page in that session, the path stops and hands off rather than posting as the wrong actor.
-- It does not push to the remote. The writer clicks "Push origin" in GitHub Desktop after the plugin reports the commit is prepared. GitHub Desktop handles auth.
-- It does not open a pull request. The commit targets the default branch directly.
-- It does not configure any GitHub token, PAT, or auth setup. The push is GitHub Desktop's job, with whatever auth the writer already has.
+- It does not push under a person's login. Git on GitHub runs as the `moxywolf-agent` app through `agent_token.py`; a repository the app isn't installed on is reported as a gap.
+- It does not bypass a protected branch. It opens a pull request and merges only on green required checks.
 - It does not delete the source draft at `<BLOG_PROJECT_DIR>/drafts/<SLUG>.md`. The draft stays as the canonical local copy. Re-running `/blog-publish <slug>` re-publishes it.
 - It does not delete files in `<PIECE_DIR>/04-diligence/`. The piece directory remains the forensic archive.
-- It does not trigger your site's rebuild. The push (which the writer does via GitHub Desktop) triggers your hosting webhook; nothing in this plugin touches the hosting.
+- It does not trigger your site's rebuild directly. The merge triggers your hosting webhook; `verify-live` waits for the result.
 - It does not rewrite source images. The hero PNG goes into the repo as-is.
 - It does not modify the source post's quotes. The transform writes to the repo path; the source stays untouched.
 

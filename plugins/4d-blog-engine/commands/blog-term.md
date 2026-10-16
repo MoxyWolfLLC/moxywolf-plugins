@@ -54,7 +54,12 @@ inventory of what auto-links everywhere.
 4. **De-dupe** — scan existing `HUB_LINKS`; warn if the new pattern overlaps an
    existing term, and confirm intended ordering (entries are tested in array
    order — put the most specific first).
-5. **Insert** the entry just before the `// future pillar terms` comment:
+5. **Register** with `scripts/hub_term.py register` (BP-001), from the device's
+   macOS shell: `python3 "$CLAUDE_PLUGIN_ROOT/scripts/hub_term.py" register --hub-links <GitHub root>/hub-links --term "<term>" --owner <owner> --site-url <SITES url for owner> --path <path>`. It derives the pattern (the
+   phrase, whitespace-tolerant, optional plural; check it against step 3 and add a
+   tighter pattern with `edit` if it's too loose), inserts the entry just before the
+   `// future pillar terms` comment, adds a test, builds, tests, and commits, pushes
+   and pulls back as `moxywolf-agent`. The entry it writes looks like:
    ```ts
    {
      pattern: /<derived>/i,
@@ -62,11 +67,10 @@ inventory of what auto-links everywhere.
      path: '<path>',
    },
    ```
-6. **Rebuild** — in the `hub-links` repo: `npm install` if `node_modules` is
-   absent, then `npm run build`. Confirm `npm test` stays green.
-7. **Report** — the term is live only after the package is committed, pushed, and
-   tagged, and each site rebuilds (the plugin-sync bumps the dep). Print the
-   commit one-liner and remind the writer to push (per the repo's commit norm).
+6. **Report** — print the script's line (`registered at <sha>` or `already
+   registered`). The term links on a site once that site's hub-links pin moves;
+   `/blog-publish` runs `hub_term.py pin` on its target, and the next publish on
+   any other target does the same.
 
 ### `edit "<term>"`
 
@@ -97,7 +101,6 @@ not delete a pillar.
 - Does not build the hub *page* (site-code).
 - Does not create a pillar or its per-pillar linking map (use `/blog-pillar` —
   which calls this same registration as one of its steps).
-- Does not commit, push, or tag — the writer commits/pushes the `hub-links`
-  change and tags a release (per the repo's commit norm), after which the sites
-  pick the term up on their next build.
+- Does not ask the writer to commit, push or tag. `hub_term.py` commits and
+  pushes `add`; `edit` and `remove` go through the same commit, push and pull-back.
 - Does not draft a post (use `/blog-pipeline`).

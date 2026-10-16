@@ -728,7 +728,7 @@ What the board looked like when this was written, counted through the Atlassian 
 
 ### SM-001 — Session start and end run on the graph, not on a copy of it
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the handoff-ref-to-subject link. A handoff names a commit, a pull request, a design item, a review ID or a Jira key, and the next session assumes it still means what it meant. Every ref is re-resolved at the next session start. The source-precedence link: where a source and the handoff disagree, the briefing assumes the source is right. Criterion 4 makes that visible every time rather than silent.
 
@@ -1849,7 +1849,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-002 — The morning brief dispatches the day
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the scheduled task’s ID, which re-resolves through `list_triggers`.
 
@@ -1860,7 +1860,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-003 — The weekly scorecard keeps the roster honest
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** none beyond CS-001’s decision log.
 
@@ -1939,6 +1939,40 @@ What's not taken. We won't parse the prose log for correlations, because it's wr
 10. Every AAR ends with one decision, under a heading `Decision`, and only one: a named gate or spec to change (an ontology class, a bar, a department's return contract, a claim-check form, a routing default), with the counts that argue for it, or the line `Decision: none this day; the counts are below the bar` when every pattern is a lead. `/cos` carries the decision into its report as a proposal for Dorian; the AAR never applies it. The fixture test asserts the heading, exactly one decision, and the none form on an empty day.
 11. `plugins/chief-of-staff/.claude-plugin/plugin.json` and `plugins/model-router/.claude-plugin/plugin.json` each move a minor version, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_route.py` and `test_claim_check.py` among the suites it ran, and reports no failures.
 
+## Thirteenth objective: blog publishing
+
+Opened 2026-10-16. The first OpenControls post ran the 4d-blog-engine pipeline end to end, and two steps came back to Dorian that shouldn't have. `/blog-publish` prepared a commit and told him to click Push origin. And the new pillar's hub term wasn't registered until after the post was ready, as three changes in two repositories (hub-links `d9ad2d7`; oc-website PR #88 for the lockfile pin and the renderer's site slug). His words, in the after-action report for 2026-10-15: "Both of those are errors in the way we work and need to be automated."
+
+**Settled decisions**
+
+- **The Release Owner's signature is the approval to publish** (Dorian, 2026-10-16). Once `changelog.md` carries `Verified — <initials>, <date>`, shipping the signed post is the agent's job, not his. Nothing ships without that line.
+- **Git work runs as the `moxywolf-agent` app** (GA-005), through `gstack-execution/scripts/agent_token.py exec`. A repository the app isn't installed on is reported as a gap. No person's token.
+- **A protected default branch is met with a pull request, never a bypass.** The agent opens it, waits for the target's required checks, and merges pinned to the head it pushed.
+- **The scripts decide; the skills call them.** Pushing, merging, pulling back, registering a hub term and verifying the live page are deterministic and tested. The skill prose names the script and its exit codes.
+
+### BP-001 — `/blog-publish` ships the post itself, and the hub term links before the post is done
+
+**Status:** building.
+
+**Links introduced:** five things get read by something else.
+
+- Three new descriptor fields in `plugins/4d-blog-engine/targets/<target>.md` frontmatter: `default_branch_protected` (true or false), `required_checks` (the check names the default branch requires), and `auto_linker_file` (the repo path where the renderer passes its `site` to hub-links). `targets/README.md` documents them. `ship.py` and `hub_term.py` read them. A reader assumes the descriptor is current; it holds because `ship.py` refuses when a push to a branch the descriptor calls unprotected is refused as protected, and says which field is wrong.
+- `plugins/4d-blog-engine/scripts/ship.py` with subcommands `push`, `merge` and `verify-live`, and documented exit codes. `blog-publish/SKILL.md` reads the exit codes.
+- `plugins/4d-blog-engine/scripts/hub_term.py` with subcommands `register` (hub-links) and `pin` (a consuming target repo). The orchestrator's STEP 1.5 and `commands/blog-term.md` call it.
+- Three new fields in a piece's `state.md` frontmatter: `published_pr`, `published_merge`, `live_verified_at`. `/blog-status` reads them. A reader assumes `live_verified_at` means the live page showed the post and its hub link; it holds because only `ship.py verify-live` writes it, and only on exit 0.
+- A hub-links test case per registered term in `hub-links/test/hub-links.test.ts`, written by `hub_term.py register`. The hub-links suite reads it.
+
+1. `ship.py push --repo <path> --branch <name>` pushes through `agent_token.py exec`, then checks `git ls-remote` equals local `HEAD`. A mismatch exits non-zero and names both SHAs. Tested in `plugins/4d-blog-engine/tests/test_ship.py` against a local bare repository, with no network.
+2. When the descriptor says `default_branch_protected: true`, `/blog-publish` commits on `publish/<slug>`, never on the default branch. `ship.py merge --repo <owner>/<name> --branch <name> --head <sha> --checks <names>` opens the pull request, polls the named checks until each is completed, merges pinned to `<head>` only when every named check concluded `success`, and exits non-zero naming the check otherwise. A check that never appears before the deadline is a failure, never a pass. Tested with an injected API client that serves fixture responses; the test can't reach GitHub (XE-019).
+3. After a merge, `ship.py` pulls the default branch back into the local clone with `--ff-only` and prints remote and local SHAs, which must match. Tested against the bare-repository fixture.
+4. `ship.py verify-live --url <post url> --hub-path <path> --term <hub term> --deadline <seconds>` fetches the page until it returns 200 or the deadline passes, then requires an `<a>` whose `href` ends in `<hub-path>` and whose text matches `<term>` case-insensitively. A 200 without the link exits non-zero with `hub_link_missing`. Tested on fixture HTML: linked, unlinked, 404.
+5. `hub_term.py register --hub-links <path> --term <phrase> --owner <site> --site-url <url> --path <hub path>` adds the site to `SITES` if it's missing, adds one `HUB_LINKS` entry before the `future pillar terms` marker, adds a test asserting the relative link on the owner and the absolute link elsewhere, runs the package's build and test, and commits, pushes and pulls back through `agent_token.py`. A term that already exists exits 0 without a change. A failing test exits non-zero and commits nothing. Tested in `tests/test_hub_term.py` on a copy of a fixture `map.ts`, with build, test and git stubbed.
+6. `hub_term.py pin --repo <path> --site <slug> --file <auto_linker_file>` updates the hub-links pin with the repo's own package manager (`pnpm update @moxywolf/hub-links --lockfile-only` for a pnpm lockfile) and checks that `<file>` passes `site: '<slug>'`. A mismatch exits non-zero naming the file and both slugs; it never rewrites the renderer on its own. Tested on fixture files.
+7. `skills/blog-publish/SKILL.md` no longer tells the writer to push or click Push origin. It runs `ship.py push`, then `merge` when the target is protected, then `verify-live`, and reports done only on `verify-live` exit 0, writing the three `state.md` fields. A refusal is reported with the script's output and the item stays unpublished. The orchestrator's STEP 1.5 and `commands/blog-term.md` call `hub_term.py register`, and `/blog-publish` calls `hub_term.py pin` on the target before its commit, so the term, the pin and the post land in one pull request. A docs test asserts that "Push origin" appears in none of the 4d-blog-engine skill or command files, and that each names its script.
+8. `targets/opencontrols.md` and `targets/frontier-founder.md` carry the three new fields, filled from what each repository actually does. `4d-blog-engine` moves a minor version and the marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_ship.py` and `test_hub_term.py` among the suites it ran and reports no failures.
+
+**What's not taken.** Social posting stays manual. The skill still never posts to LinkedIn, X or Facebook. Waiting on Vercel's production deploy is `verify-live`'s deadline, not a separate integration.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -1989,6 +2023,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-16: Thirteenth objective and BP-001 declared on Dorian's instruction ("start `/gstack-build` on both as one item against `4d-blog-engine` in moxywolf-plugins"), from the two findings he added to the OpenControls after-action report for 2026-10-15: `/blog-publish` asked him to push, and the hub term was registered by hand after publish.
 
 - 2026-10-14: CS-007 amended on Dorian's words before any code ("Record usage counts, not only mistakes"; "Tag each mistake with model and department when it's logged"; "End each AAR with one decision"). Rates over calls beside every mistake count; model and department written on the claim-check line at dispatch time, never inferred later; the hard-task selection effect (floor rules send the hard work to the strong models) stated on every report with the floor-rule share per model; patterns under 10 observations are leads; one decision closes every AAR. His reason: today's ledgers hold 50, 14 and 3 entries, too few to prove anything, so early patterns are leads and a report without a decision is a report nobody acts on.
 
