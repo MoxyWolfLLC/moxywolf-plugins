@@ -91,6 +91,7 @@ class Push(unittest.TestCase):
             text = st.read_text()
         self.assertIn("published_pr: none\n", text)
         self.assertIn(f"published_merge: {head}\n", text)
+        self.assertIn("live_verified_at: pending", text)
 
     def test_push_failure_is_a_refusal(self):
         r = Repos()
@@ -155,6 +156,23 @@ class Merge(unittest.TestCase):
         self.assertEqual(self.cli(gh, moved), 1)
         self.assertFalse([c for c in gh.calls if c[0] == "PUT"])
 
+    def test_protected_republish_with_a_failing_check_keeps_the_previous_record(self):
+        prior = "---\nslug: s\npublished_pr: 88\npublished_merge: abc\nlive_verified_at: 2026-10-16T00:00:00Z\n---\n"
+        with tempfile.TemporaryDirectory() as d:
+            st = Path(d) / "state.md"
+            st.write_text(prior)
+            gh = FakeGitHub(self.r, [[run("unit"), run("e2e", conclusion="failure", i=2)]])
+            orig = ship.agent_api
+            ship.agent_api = gh
+            try:
+                rc = ship.main(["merge", "--repo", str(self.r.clone), "--slug", "o/r", "--branch", "publish/x",
+                                "--base", "main", "--head", self.head, "--checks", "unit,e2e",
+                                "--deadline", "0", "--state", str(st)])
+            finally:
+                ship.agent_api = orig
+            self.assertEqual(rc, 1)
+            self.assertEqual(st.read_text(), prior)
+
     def test_cli_requires_head(self):
         with self.assertRaises(SystemExit) as e:
             ship.main(["merge", "--repo", "r", "--slug", "o/r", "--branch", "b", "--base", "main",
@@ -188,10 +206,16 @@ class VerifyLive(unittest.TestCase):
             ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
                              get=lambda u: (200, '<a href="/series/permission-engineering">Read the series</a>'))
 
-    def test_whitespace_and_plural_still_count(self):
+    def test_whitespace_and_case_still_count(self):
         ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
                          get=lambda u: (200, PAGE.replace("auditable decision record",
-                                                          "Auditable\n  decision records")))
+                                                          "Auditable\n  decision RECORD")))
+
+    def test_extra_trailing_character_is_hub_link_missing(self):
+        for text in ("auditable decision records", "auditable decision record."):
+            with self.assertRaisesRegex(ship.Refusal, "hub_link_missing"):
+                ship.verify_live("u", "/series/permission-engineering", "auditable decision record", deadline=0,
+                                 get=lambda u: (200, PAGE.replace("auditable decision record", text)))
 
     def test_term_only_inside_longer_anchor_text_is_hub_link_missing(self):
         with self.assertRaisesRegex(ship.Refusal, "hub_link_missing"):

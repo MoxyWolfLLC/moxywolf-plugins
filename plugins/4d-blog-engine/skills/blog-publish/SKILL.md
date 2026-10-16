@@ -472,18 +472,21 @@ git commit --no-verify -m "$COMMIT_SUBJECT" -m "$COMMIT_BODY"
 
 ```bash
 BRANCH=$(git -C "$PUBLISHING_REPO_DIR" rev-parse --abbrev-ref HEAD)
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH" \
-  --state "$PIECE_DIR/state.md"
-HEAD_SHA=$(git -C "$PUBLISHING_REPO_DIR" rev-parse HEAD)   # the SHA push just verified on the remote
-# protected default branch only:
-python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" merge --repo "$PUBLISHING_REPO_DIR" --slug "$OWNER/$REPO" \
-  --branch "$BRANCH" --head "$HEAD_SHA" --base "$DEFAULT_BRANCH" --checks "<required_checks, comma-separated>" \
-  --title "$COMMIT_SUBJECT" --body "$COMMIT_BODY" --state "$PIECE_DIR/state.md"
+if [ "<default_branch_protected>" = true ]; then
+  PUSH_OUT=$(python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH") || exit 1
+  HEAD_SHA=${PUSH_OUT##* }   # the SHA push verified on the remote; never a later rev-parse
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" merge --repo "$PUBLISHING_REPO_DIR" --slug "$OWNER/$REPO" \
+    --branch "$BRANCH" --head "$HEAD_SHA" --base "$DEFAULT_BRANCH" --checks "<required_checks, comma-separated>" \
+    --title "$COMMIT_SUBJECT" --body "$COMMIT_BODY" --state "$PIECE_DIR/state.md" || exit 1
+else
+  python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" push --repo "$PUBLISHING_REPO_DIR" --branch "$BRANCH" \
+    --state "$PIECE_DIR/state.md" || exit 1
+fi
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/ship.py" verify-live --url "<post_url_pattern with the slug>" --hub-path "<hub path>" \
   --term "<hub_term>" --deadline 900 --state "$PIECE_DIR/state.md"
 ```
 
-Each exits 0 on success and 1 with `refused: <reason>` on stderr. A refusal stops the publish: report the script's reason in the writer's words and leave the piece unpublished. `push` writes `published_pr: none` and `published_merge: <pushed SHA>` (an unprotected target's publish is the push itself); `merge` overwrites them with the pull request number and the merge SHA; `verify-live` writes `live_verified_at`, and only on exit 0. A post is published when `verify-live` exits 0, not before.
+Each exits 0 on success and 1 with `refused: <reason>` on stderr. A refusal stops the publish: report the script's reason in the writer's words and leave the piece unpublished. On an unprotected target `push --state` writes `published_pr: none` and `published_merge: <pushed SHA>` (the push is the publish). On a protected target `push` writes nothing, so a failed check leaves the previous publication record intact, and `merge --state` writes the pull request number and the merge SHA only after the merge. Either write resets `live_verified_at: pending`; `verify-live` sets it, and only on exit 0. A post is published when `verify-live` exits 0, not before.
 
 **Capture the commit SHA for the success message:**
 

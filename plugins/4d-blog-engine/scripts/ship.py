@@ -12,8 +12,9 @@ Exit codes: 0 done; 1 refused, with the reason on stderr; 2 usage.
 push    pushes the branch, then requires `git ls-remote` to equal local HEAD. A push to GitHub runs
         through gstack-execution's agent_token.py (GA-005), so it acts as moxywolf-agent; a push to
         any other remote (a local bare repository in the tests) runs plain git. With --state (an
-        unprotected target, where the push is the publish) it writes published_pr: none and
-        published_merge: <the pushed SHA>.
+        unprotected target, where the push is the publish) it writes published_pr: none,
+        published_merge: <the pushed SHA> and live_verified_at: pending. A protected target's push
+        omits --state, so a merge that never happens leaves the previous record alone.
 merge   opens (or reuses) the pull request, waits until every named check has completed, merges
         pinned to the head it was given only when every one concluded success, then pulls the base
         branch back into the local clone with --ff-only and requires remote == local. --head is the
@@ -21,8 +22,7 @@ merge   opens (or reuses) the pull request, waits until every named check has co
         be merged in its place. A check that
         never appears before the deadline is a failure, never a pass.
 verify-live fetches the live post until it answers 200, then requires an <a> whose href ends in the
-        hub path and whose whole text (whitespace collapsed, case ignored) is the hub term or its
-        plural. It writes live_verified_at only on success.
+        hub path and whose whole text, whitespace collapsed and case ignored, equals the hub term. It writes live_verified_at only on success.
 
 ponytail: stdlib only; the GitHub calls go through one `api` function so the tests can serve fixtures
 without reaching GitHub (XE-019).
@@ -180,8 +180,7 @@ def verify_live(url, hub_path, term, deadline=600, poll=20, get=fetch):
     p = _Anchors()
     p.feed(html)
     want, norm = hub_path.rstrip("/"), (lambda x: " ".join(x.split()).lower())
-    terms = {norm(term), norm(term) + "s"}
-    if not any(h.split("#")[0].split("?")[0].rstrip("/").endswith(want) and norm(t) in terms
+    if not any(h.split("#")[0].split("?")[0].rstrip("/").endswith(want) and norm(t) == norm(term)
                for h, t in p.links):
         raise Refusal(f"hub_link_missing: {url} has no link to {hub_path} on the term '{term}'")
 
@@ -223,14 +222,14 @@ def main(argv=None):
         if args.cmd == "push":
             sha = push(args.repo, args.branch)
             if args.state:
-                set_state(args.state, {"published_pr": "none", "published_merge": sha})
+                set_state(args.state, {"published_pr": "none", "published_merge": sha, "live_verified_at": "pending"})
             print(f"pushed {args.branch}: remote == local == {sha}")
         elif args.cmd == "merge":
             checks = [c.strip() for c in args.checks.split(",") if c.strip()]
             n, sha = merge(agent_api, args.repo, args.slug, args.branch, args.base, args.head, checks,
                            args.title, args.body, args.deadline)
             if args.state:
-                set_state(args.state, {"published_pr": n, "published_merge": sha})
+                set_state(args.state, {"published_pr": n, "published_merge": sha, "live_verified_at": "pending"})
             print(f"merged #{n} as {sha}; {args.base} pulled back, remote == local")
         else:
             verify_live(args.url, args.hub_path, args.term, args.deadline)
