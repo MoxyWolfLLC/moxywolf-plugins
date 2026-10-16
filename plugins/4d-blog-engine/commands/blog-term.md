@@ -15,7 +15,8 @@ cross-property file — the published `@moxywolf/hub-links` package:
 Each entry keys a term to its **owning property** and a **path**; the adapters
 wired into every site render a relative link on the owner and an absolute
 cross-property link everywhere else (see DR-079). This command edits that array
-safely, rebuilds `dist`, and tells the writer what to commit. **Never hand-edit
+safely through `hub_term.py`, which rebuilds `dist`, runs the tests, then commits,
+pushes and pulls back. **Never hand-edit
 `dist/` — rebuild it.**
 
 Load `references/linking-map-template.md` and the target registry (`targets/*.md`)

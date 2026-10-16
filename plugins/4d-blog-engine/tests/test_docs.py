@@ -25,7 +25,8 @@ class NoManualPush(unittest.TestCase):
 
     def test_no_manual_push_anywhere(self):
         manual = re.compile(r"Push origin|Push button|click\s+Push|GitHub Desktop to (deploy|push|publish)"
-                            r"|(writer|you|Dorian)\s+(then\s+)?(commits?\s*/\s*)?push(es)?\b", re.I)
+                            r"|(writer|you|Dorian)\s+(then\s+)?(commits?\s*/\s*)?push(es)?\b"
+                            r"|tells\s+the\s+writer\s+what\s+to\s+(commit|push|tag)", re.I)
         hits = [f"{p.relative_to(ROOT)}: {m.group(0)}" for p in DOCS for m in manual.finditer(p.read_text())]
         self.assertEqual(hits, [])
 
