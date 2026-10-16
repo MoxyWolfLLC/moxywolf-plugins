@@ -1,5 +1,5 @@
 ---
-description: Add, edit, list, or remove a cross-property pillar term in the shared @moxywolf/hub-links map — the single file that controls what auto-links across every MoxyWolf blog. Rebuilds dist; the writer commits/pushes/tags.
+description: Add, edit, list, or remove a cross-property pillar term in the shared @moxywolf/hub-links map — the single file that controls what auto-links across every MoxyWolf blog. hub_term.py builds, tests, commits, pushes and pulls back hub-links itself.
 argument-hint: '[list | add "<term>" | edit "<term>" | remove "<term>"]'
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion]
 ---
