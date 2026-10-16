@@ -19,6 +19,9 @@ pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: content/blog/_clusters
 auto_linker: "@moxywolf/hub-links/rehype"         # rehypeHubLinks wired in src/components/PostBody/index.tsx
 hub_links_site_slug: frontierfounder              # the { site } arg passed to the adapter
+auto_linker_file: src/components/PostBody/index.tsx
+default_branch_protected: false                   # MoxyWolfLLC/FrontierFounder main, checked 2026-10-16
+required_checks: []
 ---
 
 # Target — The Frontier Founder

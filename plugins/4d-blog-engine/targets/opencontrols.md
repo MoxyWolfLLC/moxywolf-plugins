@@ -19,6 +19,9 @@ pillar_schema: [Article, FAQPage, Organization]
 linking_map_dir: content/blog/_clusters
 auto_linker: "@moxywolf/hub-links/rehype"         # rehypeHubLinks in src/components/PostBody/index.tsx
 hub_links_site_slug: opencontrols                 # the { site } arg passed to the adapter
+auto_linker_file: src/components/PostBody/index.tsx
+default_branch_protected: true
+required_checks: [unit, e2e]                      # GitHub also requires "Supabase Preview", which skips on content-only PRs
 ---
 
 # Target — OpenControls
@@ -72,8 +75,10 @@ oc-website before it links.
 
 ## Publishing
 
-`main` is protected: two required checks (`unit`, `e2e`). Publish on a branch,
-open a PR, merge when green. Pushing straight to `main` is refused.
+`main` is protected. GitHub requires `e2e` and `Supabase Preview` (the second
+skips on a content-only change); `unit` runs on every PR. `/blog-publish` ships
+through `ship.py merge`, which waits for `unit` and `e2e` to conclude success.
+Pushing straight to `main` is refused.
 
 ## Hero
 

@@ -181,9 +181,13 @@ Record the resolved folder.
   slug, set `hub_url` from the descriptor's `pillar_route_pattern`, ask the **hub
   term** (the phrase whose first mention auto-links to the hub), create the
   linking map from `references/linking-map-template.md` in the target's
-  `linking_map_dir`, and **register the term in `GitHub/hub-links/src/map.ts`**
-  (`{ pattern, owner: <hub_links_site_slug>, path }`) so the link actually fires
-  cross-property — then flag that `@moxywolf/hub-links` needs a rebuild + tag.
+  `linking_map_dir`, and **register the term** with `scripts/hub_term.py register`
+  (BP-001), run from the device's macOS shell:
+  `python3 "$CLAUDE_PLUGIN_ROOT/scripts/hub_term.py" register --hub-links <GitHub root>/hub-links --term "<term>" --owner <owner> --site-url <SITES url for owner> --path <path>`.
+  It adds the site and the `{ pattern, owner: <hub_links_site_slug>, path }` entry,
+  adds a test, builds and tests hub-links, and commits, pushes and pulls back as
+  `moxywolf-agent`. Exit 1 halts the pipeline with the script's reason. Nobody is
+  asked to rebuild, push or tag; `/blog-publish` pins the new head in the target.
   Record `pillar: <slug>`. This post is the pillar's first spoke.
 
 **4. Record to state.** Write `target`, `target_status`, `content_folder`,
@@ -366,7 +370,7 @@ Every phase updates `current_phase` and appends to `gates_passed` when its gate 
 
 ## Hard rules
 
-- **Never auto-commit or auto-push.** The plugin writes to disk; the user commits via GitHub Desktop.
+- **Never publish an unsigned post.** After the Release Owner signs, `/blog-publish` commits, pushes, merges and verifies the live page itself (BP-001); the writer never pushes.
 - **Never auto-publish to LinkedIn.** Phase 4 writes the article and teaser to disk; the user posts them by hand.
 - **Never fabricate citations.** Tier 1-3 sources only; `[F]` data is forbidden in body; unverifiable claims get `[CITATION NEEDED]`.
 - **Never skip the Release Owner Gate.** The gate is the whole point of the framework.

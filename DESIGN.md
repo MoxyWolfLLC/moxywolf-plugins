@@ -728,7 +728,7 @@ What the board looked like when this was written, counted through the Atlassian 
 
 ### SM-001 — Session start and end run on the graph, not on a copy of it
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the handoff-ref-to-subject link. A handoff names a commit, a pull request, a design item, a review ID or a Jira key, and the next session assumes it still means what it meant. Every ref is re-resolved at the next session start. The source-precedence link: where a source and the handoff disagree, the briefing assumes the source is right. Criterion 4 makes that visible every time rather than silent.
 
@@ -1849,7 +1849,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-002 — The morning brief dispatches the day
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the scheduled task’s ID, which re-resolves through `list_triggers`.
 
@@ -1860,7 +1860,7 @@ The three sources describe the same parts: a context file, specialist subagents,
 
 ### CS-003 — The weekly scorecard keeps the roster honest
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** none beyond CS-001’s decision log.
 
@@ -1952,7 +1952,7 @@ Opened 2026-10-16. The first OpenControls post ran the 4d-blog-engine pipeline e
 
 ### BP-001 — `/blog-publish` ships the post itself, and the hub term links before the post is done
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** five things get read by something else.
 

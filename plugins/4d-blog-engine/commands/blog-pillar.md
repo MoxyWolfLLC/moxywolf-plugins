@@ -49,14 +49,13 @@ This is the same list STEP 1.5 shows for "existing pillar."
    `<repo>/<linking_map_dir>/<pillar_slug>.md` and fill the frontmatter +
    "The why" + "The hub" sections. Set `hub_status: planned`, `hub_owner` (ask).
 5. **Register the hub term in the shared map** — this is what actually makes the
-   link fire, across every property. Add a `HubLink` entry to
-   `GitHub/hub-links/src/map.ts`:
-   `{ pattern: /<term>/i, owner: '<target hub_links_site_slug>', path: '<pillar path>' }`
-   — derive a tolerant, case-insensitive `pattern` from the hub term, and `path`
-   is the hub page's path on its owner. Then flag that `@moxywolf/hub-links` must
-   be rebuilt (`npm run build`), committed, pushed, and tagged, after which each
-   site picks the term up on its next build (the plugin-sync bumps the dep). The
-   term is **inert until this entry exists**. Never hand-edit `dist/` — rebuild it.
+   link fire, across every property. Run `scripts/hub_term.py register` (BP-001)
+   from the device's macOS shell:
+   `python3 "$CLAUDE_PLUGIN_ROOT/scripts/hub_term.py" register --hub-links <GitHub root>/hub-links --term "<hub term>" --owner <target hub_links_site_slug> --site-url <SITES url for owner> --path <pillar path>`.
+   It adds the site and the entry, adds a test, builds and tests hub-links, and
+   commits, pushes and pulls back as `moxywolf-agent`. A term already registered
+   is a no-op. `/blog-publish` pins the new hub-links head in the target, so the
+   term links on the post's own deploy. Never hand-edit `dist/`.
 6. Report the hub route that still needs building if the target has no pillar
    route yet (e.g. FrontierFounder), and whether the target's `auto_linker` is
    wired.
@@ -91,7 +90,6 @@ parses by heading.
 
 - Does not draft a post (use `/blog-pipeline` or `/blog-delegate`).
 - Does not build the hub *page* route (site-code, Phase C).
-- Does not commit or release — it edits the per-pillar linking map and the shared
-  `hub-links/src/map.ts`, but the writer commits/pushes both (per the repo's
-  commit norm) and rebuilds + tags `@moxywolf/hub-links` so the sites pick up the
-  new term.
+- Does not commit the per-pillar linking map — that lands with the pillar's first
+  spoke in `/blog-publish`. The hub-links change is committed and pushed by
+  `hub_term.py`.
