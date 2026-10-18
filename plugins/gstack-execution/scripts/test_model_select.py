@@ -413,7 +413,7 @@ class Selector(unittest.TestCase):
         self.assertEqual(ms["jev_tier"], "floor")
         lines = self.council_ledger()
         self.assertEqual((len(lines), lines[0]["id"], lines[0]["caller"], lines[0]["outcome"]), (1, q["line_id"], "model_select", None))
-        self.assertIn("council full, split: typesafe-ai/jev floor, perplexity/pplx-decider-v1.2 light, openai/gpt-6-luna-decisions light", r.stdout)
+        self.assertIn("council full, answers split: typesafe-ai/jev floor, perplexity/pplx-decider-v1.2 light, openai/gpt-6-luna-decisions light", r.stdout)
 
     def test_a_voice_down_is_recorded_and_jev_down_is_unusable(self):
         Stub.down = {V[2]}

@@ -14,14 +14,24 @@ voices picked; for a predicate or a score, the median. No majority is a tie, ret
 Code decides what an answer means: this script carries no bar, no tier and no policy. The caller's
 rule table does, and it registers the rule that scores an outcome in OUTCOME_RULES below.
 
-Stdlib only. The env JEV_ENDPOINT replaces the gateway base URL so tests run against a stub.
-ponytail: one request body, built once, posted to each slug unchanged; three threads; a JSONL file.
+Availability is a property of answers, not of HTTP: a voice that returns 200 and refuses, or answers
+out of shape, is unavailable for that question (review 20261018-100213 F1). The request bytes are
+serialized once and sent to each slug with only the leading `model` member different (F9). The
+whole call, connection and body read, is bounded by one deadline per voice (F5). The ledger is
+append-and-rewrite under one file lock (F3).
+
+Stdlib only. The env JEV_ENDPOINT replaces the gateway base URL so tests run against a stub. The key
+resolves from AI_GATEWAY_API_KEY, then the file GSTACK_AIGATEWAY_ENV names, then the vault paths
+`plugins/council/scripts/jev_route.py` already knows.
+ponytail: one request body, built once; three daemon threads; a JSONL file under flock.
 """
 import argparse
+import fcntl
 import json
 import os
 import statistics
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -73,6 +83,19 @@ def ledger_dir():
     return d
 
 
+class ledger_lock:
+    """One flock for every append and every read-modify-replace of the ledger (F3)."""
+
+    def __enter__(self):
+        self.fh = open(ledger_dir() / ".lock", "a")
+        fcntl.flock(self.fh, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self.fh, fcntl.LOCK_UN)
+        self.fh.close()
+
+
 def voices():
     raw = os.environ.get("GSTACK_DECIDERS")
     return [v.strip() for v in raw.split(",") if v.strip()] if raw else list(DECIDERS)
@@ -80,34 +103,59 @@ def voices():
 
 # ---------- the wire ----------
 
-def post(model, body, key, timeout_ms):
-    """One /v1/decisions call. Returns {status, latency_ms, response|error}."""
+def request_bytes(model, payload):
+    """The body for one voice: the shared payload bytes with `model` as the leading member and
+    nothing else different (F9). `payload` is `json.dumps(body)` done once; it starts with '{'."""
+    return b'{"model": ' + json.dumps(model).encode() + b", " + payload.encode()[1:]
+
+
+def post(model, payload, key, deadline):
+    """One /v1/decisions call bounded by `deadline` (a time.monotonic() instant) covering the
+    connection and the whole body read (F5). Returns {status, latency_ms, response|error}."""
     req = urllib.request.Request(
-        os.environ.get("JEV_ENDPOINT", GATEWAY).rstrip("/") + "/v1/decisions",
-        data=json.dumps(dict(body, model=model)).encode(),
+        os.environ.get("JEV_ENDPOINT", GATEWAY).rstrip("/") + "/v1/decisions", data=request_bytes(model, payload),
         headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"}, method="POST")
-    t = time.time()
+    t = time.monotonic()
+    out = {}
     try:
-        with urllib.request.urlopen(req, timeout=timeout_ms / 1000) as r:
-            out = {"status": r.status, "response": json.loads(r.read().decode())}
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TimeoutError("deadline passed before the call")
+        with urllib.request.urlopen(req, timeout=left) as r:
+            chunks = []
+            while True:
+                if time.monotonic() > deadline:
+                    raise TimeoutError("deadline passed while reading the body")
+                c = r.read(65536)
+                if not c:
+                    break
+                chunks.append(c)
+            out = {"status": r.status, "response": json.loads(b"".join(chunks).decode())}
     except urllib.error.HTTPError as e:
-        out = {"status": e.code, "error": e.read().decode(errors="replace")[:500]}
-    except Exception as e:  # timeout, refused, bad JSON
-        out = {"status": "error", "error": f"{type(e).__name__}: {e}"[:500]}
-    out["latency_ms"] = int((time.time() - t) * 1000)
+        out = {"status": e.code, "error": e.read(2000).decode(errors="replace")[:500]}
+    except TimeoutError as e:
+        out = {"status": "timeout", "error": str(e)}
+    except Exception as e:  # socket timeout, refused, bad JSON
+        name = type(e).__name__
+        out = {"status": "timeout" if "timed out" in str(e) else "error", "error": f"{name}: {e}"[:500]}
+    out["latency_ms"] = int((time.monotonic() - t) * 1000)
     return out
 
 
-def ask_all(body, key, timeout_ms, slugs):
+def ask_all(payload, key, timeout_ms, slugs):
+    """Every voice at once, each on a daemon thread, all abandoned at the deadline (F5)."""
+    deadline = time.monotonic() + timeout_ms / 1000
     results = {}
 
     def one(m):
-        results[m] = post(m, body, key, timeout_ms)
-    ts = [threading.Thread(target=one, args=(m,)) for m in slugs]
-    for t in ts:
+        results[m] = post(m, payload, key, deadline)
+    ts = {m: threading.Thread(target=one, args=(m,), daemon=True) for m in slugs}
+    for t in ts.values():
         t.start()
-    for t in ts:
-        t.join()
+    for m, t in ts.items():
+        t.join(max(0.0, deadline - time.monotonic()))
+        if t.is_alive() or m not in results:
+            results[m] = {"status": "timeout", "error": f"no answer within {timeout_ms} ms", "latency_ms": timeout_ms}
     return results
 
 
@@ -117,10 +165,20 @@ def unit(p):
     return isinstance(p, (int, float)) and not isinstance(p, bool) and 0.0 <= p <= 1.0
 
 
-def answer_for(q, resp):
-    """The voice's answer to question q, or ('unavailable', why). Well-formedness checks are the
-    ones jev_route.well_formed applies, re-expressed for the /v1/decisions shape."""
-    by_name = {a.get("name"): a for a in (resp or {}).get("answers") or [] if isinstance(a, dict)}
+def envelope(resp):
+    """The response's answers by name, or (None, why) when the envelope is not the documented
+    shape: an object whose `answers` is a list of objects (F4)."""
+    if not isinstance(resp, dict):
+        return None, "malformed response: not an object"
+    ans = resp.get("answers")
+    if not isinstance(ans, list) or not all(isinstance(a, dict) for a in ans):
+        return None, "malformed response: answers is not a list of objects"
+    return {a.get("name"): a for a in ans}, None
+
+
+def answer_for(q, by_name):
+    """The voice's answer to question q, or (None, why). Well-formedness checks are the ones
+    jev_route.well_formed applies, re-expressed for the /v1/decisions shape."""
     a = by_name.get(q["name"])
     if a is None:
         return None, "missing"
@@ -163,6 +221,16 @@ def majority(q, answers):
     return {"majority": med, "tie": False, "agreed": all(abs(x - med) <= AGREE_BAND for x in xs)}
 
 
+def agrees(q, answer, maj):
+    """Does one voice's answer agree with the majority? (per-voice agreement, F2)"""
+    if maj is None:
+        return None
+    if q["type"] == "choice":
+        return answer["choice"] == maj
+    v = answer["probability" if q["type"] == "predicate" else "score"]
+    return abs(v - maj) <= AGREE_BAND
+
+
 def validate_questions(qs):
     if not isinstance(qs, list) or not qs:
         raise ValueError("questions must be a non-empty list")
@@ -179,6 +247,13 @@ def validate_questions(qs):
             raise ValueError(f"{q['name']}: score needs 2 to 10 levels")
 
 
+def quorum_of(answers):
+    """full when every question has at least two available voices, degraded when every question
+    has one, unavailable when any question has none (F1)."""
+    low = min(a["available"] for a in answers.values())
+    return "full" if low >= 2 else ("degraded" if low == 1 else "unavailable")
+
+
 # ---------- commands ----------
 
 def cmd_ask(a):
@@ -187,40 +262,57 @@ def cmd_ask(a):
     validate_questions(qs)
     key, source = gateway_key()
     slugs = [v.strip() for v in a.voices.split(",")] if a.voices else voices()
-    body = {"input": text, "questions": qs}
+    payload = json.dumps({"input": text, "questions": qs})
     line_id = uuid.uuid4().hex[:12]
     voice_rows, by_q = [], {q["name"]: {} for q in qs}
-    if key:
-        raw = ask_all(body, key, a.timeout_ms, slugs)
-    else:
-        raw = {m: {"status": "no_key", "error": source, "latency_ms": 0} for m in slugs}
+    raw = ask_all(payload, key, a.timeout_ms, slugs) if key else {m: {"status": "no_key", "error": source, "latency_ms": 0} for m in slugs}
     for m in slugs:
         r = raw[m]
-        resp = r.get("response") if r.get("status") == 200 else None
-        gw = ((resp or {}).get("provider_metadata") or {}).get("gateway") or {}
-        row = {"model": m, "status": r.get("status"), "latency_ms": r["latency_ms"],
-               "cost": gw.get("cost"), "input_tokens": ((resp or {}).get("usage") or {}).get("input_tokens")}
-        if resp is None:
-            row["unavailable"] = f"HTTP {r['status']}" if isinstance(r.get("status"), int) else (r.get("error") or str(r.get("status")))
-            if r.get("error"):
-                row["error"] = r["error"]
+        row = {"model": m, "status": r.get("status"), "latency_ms": r["latency_ms"], "cost": None, "input_tokens": None,
+               "answered": 0, "questions": len(qs)}
+        try:
+            resp = r.get("response") if r.get("status") == 200 else None
+            transport = f"HTTP {r['status']}" if isinstance(r.get("status"), int) else (r.get("error") or str(r.get("status")))
+            by_name, why = envelope(resp) if resp is not None else (None, transport)
+            if by_name is not None:
+                gw = resp.get("provider_metadata") if isinstance(resp.get("provider_metadata"), dict) else {}
+                gw = gw.get("gateway") if isinstance(gw.get("gateway"), dict) else {}
+                row["cost"] = gw.get("cost")
+                usage = resp.get("usage") if isinstance(resp.get("usage"), dict) else {}
+                row["input_tokens"] = usage.get("input_tokens")
+            reasons = []
+            for q in qs:
+                ans, qwhy = answer_for(q, by_name) if by_name is not None else (None, why)
+                if ans is None:
+                    reasons.append(qwhy)
+                    by_q[q["name"]][m] = {"unavailable": qwhy}
+                else:
+                    row["answered"] += 1
+                    by_q[q["name"]][m] = ans
+        except Exception as e:  # a voice that breaks the reader is unavailable, never a crash (F4)
+            reasons = [f"internal: {type(e).__name__}: {e}"[:200]]
+            for q in qs:
+                by_q[q["name"]][m] = {"unavailable": reasons[0]}
+            row["answered"] = 0
+        if row["answered"] == 0:
+            row["unavailable"] = reasons[0] if reasons else "no answer"
+        if r.get("error") and isinstance(r.get("status"), int) and r["status"] != 200:
+            row["error"] = r["error"]
+            row["unavailable"] = f"HTTP {r['status']}"
         voice_rows.append(row)
-        for q in qs:
-            ans, why = answer_for(q, resp) if resp is not None else (None, row["unavailable"])
-            by_q[q["name"]][m] = ans if ans is not None else {"unavailable": why}
     answers = {}
     for q in qs:
         avail = {m: v for m, v in by_q[q["name"]].items() if "unavailable" not in v}
-        answers[q["name"]] = {"type": q["type"], **majority(q, avail), "by_voice": by_q[q["name"]],
-                              "available": len(avail)}
-    n_avail = sum(1 for r in voice_rows if "unavailable" not in r)
-    quorum = "full" if n_avail >= 2 else ("degraded" if n_avail == 1 else "unavailable")
+        maj = majority(q, avail)
+        answers[q["name"]] = {"type": q["type"], **maj, "by_voice": by_q[q["name"]], "available": len(avail),
+                              "agrees": {m: agrees(q, v, maj["majority"]) for m, v in avail.items()}}
+    quorum = quorum_of(answers)
     line = {"id": line_id, "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "caller": a.caller, "ref": a.ref, "questions": [{"name": q["name"], "type": q["type"]} for q in qs],
             "voices": voice_rows, "answers": answers, "quorum": quorum, "credential": source if key else None,
             "outcome": None}
     f = ledger_dir() / (datetime.now(timezone.utc).strftime("%Y%m") + ".jsonl")
-    with open(f, "a", encoding="utf-8") as fh:          # DC-001.4: written before the output prints
+    with ledger_lock(), open(f, "a", encoding="utf-8") as fh:          # DC-001.4: written before the output prints
         fh.write(json.dumps(line, sort_keys=True) + "\n")
     out = dict(line, ledger=str(f))
     del out["outcome"]
@@ -239,17 +331,19 @@ def _lines(since=None):
 
 def cmd_outcome(a):
     result = json.loads(a.result)
-    for f in sorted(ledger_dir().glob("*.jsonl")):
-        rows = [json.loads(r) for r in f.read_text(encoding="utf-8").splitlines() if r.strip()]
-        hit = [r for r in rows if r.get("id") == a.line]
-        if not hit:
-            continue
-        hit[0]["outcome"] = result                    # answers untouched; only the outcome is filled
-        tmp = f.with_suffix(".tmp")
-        tmp.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows), encoding="utf-8")
-        os.replace(tmp, f)
-        print(json.dumps({"id": a.line, "ledger": str(f), "outcome": result}))
-        return 0
+    with ledger_lock():                                               # F3: no append lands between read and replace
+        for f in sorted(ledger_dir().glob("*.jsonl")):
+            rows = [json.loads(r) for r in f.read_text(encoding="utf-8").splitlines() if r.strip()]
+            hit = [r for r in rows if r.get("id") == a.line]
+            if not hit:
+                continue
+            hit[0]["outcome"] = result                    # answers untouched; only the outcome is filled
+            fd, tmp = tempfile.mkstemp(prefix=f.stem + ".", suffix=".tmp", dir=str(f.parent))
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
+            os.replace(tmp, f)
+            print(json.dumps({"id": a.line, "ledger": str(f), "outcome": result}))
+            return 0
     print(f"no ledger line {a.line} under {ledger_dir()}", file=sys.stderr)
     return 2
 
@@ -294,9 +388,13 @@ def rule_model_select(line):
 OUTCOME_RULES = {"model_select": rule_model_select}
 
 
+def _voice_row():
+    return {"calls": 0, "answers": 0, "unavailable": 0, "agree_n": 0, "agree_d": 0, "tie_n": 0, "cost": [], "latency": [], "scored": 0, "right": 0}
+
+
 def score_rows(lines, caller=None):
-    """Per caller and voice: calls, unavailable, agreement, ties, cost, latency; over lines with an
-    outcome, matches by the caller's rule. Zeros are zeros; a caller with no rule says so."""
+    """Per caller and voice: calls, answers, unavailable answers, agreement with the majority, ties,
+    cost, latency; over lines with an outcome, matches by the caller's rule (F2). Zeros are zeros."""
     by = {}
     for _, l in lines:
         if caller and l["caller"] != caller:
@@ -309,14 +407,24 @@ def score_rows(lines, caller=None):
             c["questions"] += 1
             c["agreed_q"] += bool(q.get("agreed"))
             c["tie_q"] += bool(q.get("tie"))
+            for m, v in q["by_voice"].items():
+                r = c["voices"].setdefault(m, _voice_row())
+                if "unavailable" in v:
+                    r["unavailable"] += 1
+                    continue
+                r["answers"] += 1
+                if q.get("tie"):
+                    r["tie_n"] += 1
+                ag = (q.get("agrees") or {}).get(m)
+                if ag is not None:
+                    r["agree_d"] += 1
+                    r["agree_n"] += bool(ag)
         for v in l["voices"]:
-            r = c["voices"].setdefault(v["model"], {"calls": 0, "unavailable": 0, "cost": [], "latency": [], "scored": 0, "right": 0})
+            r = c["voices"].setdefault(v["model"], _voice_row())
             r["calls"] += 1
-            if "unavailable" in v:
-                r["unavailable"] += 1
-            else:
-                if v.get("cost") is not None:
-                    r["cost"].append(float(v["cost"]))
+            if v.get("cost") is not None:
+                r["cost"].append(float(v["cost"]))
+            if "unavailable" not in v:
                 r["latency"].append(v["latency_ms"])
         if l.get("outcome") is not None:
             c["with_outcome"] += 1
@@ -325,14 +433,14 @@ def score_rows(lines, caller=None):
                 for who, ok in rule(l).items():
                     if ok is None:
                         continue
-                    tgt = c["majority"] if who == "majority" else c["voices"].setdefault(who, {"calls": 0, "unavailable": 0, "cost": [], "latency": [], "scored": 0, "right": 0})
+                    tgt = c["majority"] if who == "majority" else c["voices"].setdefault(who, _voice_row())
                     tgt["scored"] += 1
                     tgt["right"] += bool(ok)
     return by
 
 
-def rate(d):
-    return (d["right"] / d["scored"]) if d["scored"] else 0.0
+def rate(d, n="right", dd="scored"):
+    return (d[n] / d[dd]) if d[dd] else 0.0
 
 
 def cmd_score(a):
@@ -340,7 +448,7 @@ def cmd_score(a):
     if not by:
         print(f"decisions ledger {ledger_dir()}: 0 lines" + (f" for caller {a.caller}" if a.caller else ""))
         if a.caller:
-            print(f"  {a.caller}: 0 calls, 0 with outcome, 0 agreed questions, 0 ties; majority 0 right of 0 scored; no voices seen")
+            print(f"  {a.caller}: 0 calls, 0 with outcome, 0 of 0 questions agreed, 0 ties; majority 0 right of 0 scored; no voices seen")
         return 0
     for name, c in sorted(by.items()):
         print(f"{name}: {c['calls']} calls, {c['with_outcome']} with outcome, {c['agreed_q']} of {c['questions']} questions agreed, "
@@ -348,18 +456,21 @@ def cmd_score(a):
         for m, v in sorted(c["voices"].items()):
             mc = statistics.mean(v["cost"]) if v["cost"] else 0.0
             ml = statistics.median(v["latency"]) if v["latency"] else 0
-            print(f"  {m}: {v['calls']} calls, {v['unavailable']} unavailable, {v['right']} right of {v['scored']} scored "
-                  f"(rate {rate(v):.3f}), mean cost {mc:.7f}, median latency {ml} ms")
+            print(f"  {m}: {v['calls']} calls, {v['answers']} answers, {v['unavailable']} unavailable answers, "
+                  f"agreed with the majority {v['agree_n']} of {v['agree_d']} (rate {rate(v, 'agree_n', 'agree_d'):.3f}), "
+                  f"in a tie {v['tie_n']} of {v['answers']} (rate {rate(v, 'tie_n', 'answers'):.3f}), "
+                  f"{v['right']} right of {v['scored']} scored (rate {rate(v):.3f}), mean cost {mc:.7f}, median latency {ml} ms")
         print(f"  majority: {c['majority']['right']} right of {c['majority']['scored']} scored (rate {rate(c['majority']):.3f})")
     return 0
 
 
 def gate_status(caller, lines=None):
-    """DC-001.6: pass when the caller has at least GATE_MIN_LINES lines with outcomes and at least two
-    voices each, and the majority's rate is at least Jev's. A majority scored over nothing has
-    examined nothing and does not pass (EV-001)."""
-    rows = [l for _, l in (lines if lines is not None else _lines()) if l["caller"] == caller and l.get("outcome") is not None
-            and sum(1 for v in l["voices"] if "unavailable" not in v) >= 2]
+    """DC-001.6: pass when the caller has at least GATE_MIN_LINES lines with outcomes in which every
+    question had at least two available voices, and the majority's rate is at least Jev's. A
+    majority scored over nothing has examined nothing and does not pass (EV-001)."""
+    rows = [l for _, l in (lines if lines is not None else _lines())
+            if l["caller"] == caller and l.get("outcome") is not None
+            and l["answers"] and min(q.get("available", 0) for q in l["answers"].values()) >= 2]
     c = score_rows([(None, l) for l in rows], caller).get(caller)
     maj = c["majority"] if c else {"scored": 0, "right": 0}
     jev = (c or {}).get("voices", {}).get(DECIDERS[0], {"scored": 0, "right": 0})

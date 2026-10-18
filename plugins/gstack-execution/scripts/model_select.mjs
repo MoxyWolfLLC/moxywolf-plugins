@@ -403,7 +403,7 @@ async function recommend(packetPath, designPath) {
           ...(route_refused ? { route_refused } : {}), ...(quorum_refused ? { quorum_refused } : {}) });
   console.log(`model selection (${mode}): tier ${d.tier} by rule ${d.rule}` +
               (override ? `; override to ${override.tier}: ${override.reason}` : '') +
-              `\n  council ${council.quorum}, ${agreed ? 'agreed' : 'split'}: ` + voices.map(v => `${v.model} ${v.tier ?? 'unavailable'}`).join(', ') +
+              `\n  council ${council.quorum}, ${agreed ? 'answers agreed' : 'answers split'}: ` + voices.map(v => `${v.model} ${v.tier ?? 'unavailable'}`).join(', ') +
               (d.booleans ? `\n  ${Object.entries(d.booleans).map(([k, v]) => `${k}=${v}`).join('  ')}` : '') +
               `\n  bars: risky ${RISKY_BAR}, upgrade ${UPGRADE_BAR}, downgrade ${DOWNGRADE_BAR}, has_tests ${HAS_TESTS_BAR}`);
   process.exit(route_refused || quorum_refused ? 5 : 0);

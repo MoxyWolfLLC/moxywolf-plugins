@@ -1,6 +1,6 @@
 # Decider council probe, 2026-10-18 (DC-001 criterion 8)
 
-Sent from the Release Owner's Mac (macOS shell; the Cowork device VM's proxy refuses `ai-gateway.vercel.sh` with 403) with `urllib`, no SDK, key from the vault's `aigateway.env`. One body, `POST https://ai-gateway.vercel.sh/v1/decisions`, the `model` field changed per voice and nothing else. The five questions are MR-002's, verbatim as `model_select.mjs` lists them; the `input` is a one-paragraph description of DC-001 itself.
+Sent from the Release Owner's Mac (macOS shell; the Cowork device VM's proxy refuses `ai-gateway.vercel.sh` with 403) with `urllib`, no SDK, key from the vault's `aigateway.env`. One body, `POST https://ai-gateway.vercel.sh/v1/decisions`, the `model` field changed per voice and nothing else. The five questions carry MR-002's five names with short one-sentence instructions written for the probe; they are not the production payload. `model_select.mjs` sends longer instructions with the yes/no criteria appended (`councilQuestions()`), and the first production request went out when the selector ran on this item's own packet (council ledger line `7f38d63e26ab`, 2026-10-18, all three voices `floor`). The `input` is a one-paragraph description of DC-001 itself. (Corrected after review 20261018-100213 F8; the first version of this file called the questions verbatim.)
 
 ## Result
 
