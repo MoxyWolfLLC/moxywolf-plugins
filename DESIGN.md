@@ -1988,7 +1988,7 @@ Opened 2026-10-18. Four scripts in this repository already ask a decision model 
 
 ### DC-001 — The decider council: three voices on one wire, a majority, and a ledger every caller writes to
 
-**Status:** planned. Declared 2026-10-18 at Dorian's instruction; awaiting his approval before any code.
+**Status:** building. Declared 2026-10-18 at Dorian's instruction and approved by him the same day ("approved", PR #227, merged `195f18f`). Probe (criterion 8) recorded in `docs/evidence/decision-quorum-probe-2026-10-18.md`: all three voices answered.
 
 **Links introduced:** `plugins/council/scripts/decider_council.py`, called by path from any plugin, and `/decide` in the council plugin, which calls it for a person or a skill (the precedent is `ship.py` naming `gstack-execution/scripts/agent_token.py` by path). Its output object: per question, each voice's answer verbatim (or `unavailable` with the reason), the `majority` answer, `agreed` (every available voice gave the same choice, or every number within `AGREE_BAND` of the median), `tie` (true when no majority exists), per-voice `cost` and latency. The shared ledger `$GSTACK_PEER_REVIEW_DIR/decisions/<YYYYMM>.jsonl` (falling back to `~/.gstack/decisions/`), one line per call: `ts`, `caller`, `ref` (what the caller was deciding about, a review id, an item id, a session id), the question names and types, the output object, and an empty `outcome` the caller fills in later with `decider_council.py outcome --line <id> --result <json>`. The reader's assumption is that every voice answered the same questions about the same input. That holds because the body is built once and sent to each slug unchanged, and criterion 9 pins it byte for byte.
 

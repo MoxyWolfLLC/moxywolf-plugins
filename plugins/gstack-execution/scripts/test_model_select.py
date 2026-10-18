@@ -36,19 +36,31 @@ DESIGN = """# Fixture
 """
 
 
+V = ["typesafe-ai/jev", "perplexity/pplx-decider-v1.2", "openai/gpt-6-luna-decisions"]
+
+
 class Stub(http.server.BaseHTTPRequestHandler):
-    """The gateway's evaluation-model endpoint. Answers come from `Stub.answers`, keyed by question."""
+    """The gateway's /v1/decisions endpoint (DC-001), answering per model slug. `Stub.answers` is keyed
+    by question and applies to every voice; `Stub.per_voice[slug]` overrides it for one voice; a slug in
+    `Stub.down` answers 500."""
     answers = {}
+    per_voice = {}
+    down = set()
     seen = []
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         Stub.seen.append(body)
+        m = body["model"]
+        if m in Stub.down:
+            raw = json.dumps({"error": {"message": "down"}}).encode()
+            self.send_response(500); self.send_header("Content-Length", str(len(raw))); self.end_headers(); self.wfile.write(raw); return
+        table = Stub.per_voice.get(m, Stub.answers)
         # an int or bool answer is 0.9 / 0.1; a float is the probability verbatim (MR-002 boundary cases)
-        out = {"answers": {k: {"type": "boolean", "probability": Stub.answers[k] if isinstance(Stub.answers.get(k), float)
-                               else (0.9 if Stub.answers.get(k) else 0.1)}
-                           for k in body["questions"]},
-               "usage": {"inputTokens": 12, "outputTokens": 1}}
+        out = {"model": m, "answers": [{"type": "predicate", "name": q["name"],
+                                        "probability": table[q["name"]] if isinstance(table.get(q["name"]), float) else (0.9 if table.get(q["name"]) else 0.1)}
+                                       for q in body["questions"]],
+               "usage": {"input_tokens": 12, "output_tokens": 0}, "provider_metadata": {"gateway": {"cost": "0.00001"}}}
         raw = json.dumps(out).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -58,6 +70,11 @@ class Stub(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+
+def state_of(body):
+    """The inputs the council carried as `input` (a JSON string), and the questions by name."""
+    return json.loads(body["input"]), {q["name"]: q for q in body["questions"]}
 
 
 def repo():
@@ -85,8 +102,8 @@ class Selector(unittest.TestCase):
     def setUpClass(cls):
         if not shutil.which("node"):
             raise AssertionError("node is not installed; the selector cannot be tested, and that is a failure, not a skip")
-        if not (PLUGIN / "node_modules" / "ai").is_dir():
-            raise AssertionError(f"`ai` is not installed; run `npm ci` in {PLUGIN}. A skipped selector test is not a pass.")
+        if not (PLUGIN.parent / "council" / "scripts" / "decider_council.py").is_file():
+            raise AssertionError("the decider council script is missing; the selector cannot be tested, and that is a failure, not a skip")
         cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Stub)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.endpoint = f"http://127.0.0.1:{cls.server.server_address[1]}"
@@ -101,7 +118,7 @@ class Selector(unittest.TestCase):
         self.pfile = self.root / "packet.json"
         self.design = self.root / "DESIGN.md"; self.design.write_text(DESIGN)
         self.pfile.write_text(json.dumps(packet(self.d, self.base, self.head)))
-        Stub.answers = {}; Stub.seen = []
+        Stub.answers = {}; Stub.per_voice = {}; Stub.down = set(); Stub.seen = []
 
     def run_select(self, *args, answers=None, **env):
         Stub.answers = answers or {}
@@ -130,13 +147,18 @@ class Selector(unittest.TestCase):
             self.assertEqual((ms["status"], ms["mode"], ms["tier"], ms["rule"], ms["routing"]), ("checked", "shadow", tier, rule, "advice"), ms)
             self.assertEqual(set(ms["answers"]), {"trust_boundary", "cross_file", "docs_only", "has_tests", "risky"})
         body = Stub.seen[-1]
-        self.assertEqual(set(body["questions"]), {"trust_boundary", "cross_file", "docs_only", "has_tests", "risky"})
-        self.assertEqual(body["state"]["criteria_count"], 2)
-        self.assertIn("scripts/a.py", body["state"]["paths_named"])
-        self.assertEqual(body["state"]["paths_named"], ["scripts/a.py", "test_a.py"])
+        state, questions = state_of(body)
+        self.assertEqual(set(questions), {"trust_boundary", "cross_file", "docs_only", "has_tests", "risky"})
+        self.assertEqual(state["criteria_count"], 2)
+        self.assertIn("scripts/a.py", state["paths_named"])
+        self.assertEqual(state["paths_named"], ["scripts/a.py", "test_a.py"])
         # F1 (review 20261013-175825): the named files are read, not only named; a.py exists at the head, scripts/a.py does not
-        self.assertEqual(body["state"]["files_read"], 0)
-        self.assertEqual([f["exists"] for f in body["state"]["files"]], [False, False])
+        self.assertEqual(state["files_read"], 0)
+        self.assertEqual([f["exists"] for f in state["files"]], [False, False])
+        # DC-001.1: the three voices received one body, identical but for `model`, on /v1/decisions
+        last3 = Stub.seen[-3:]
+        self.assertEqual(sorted(b["model"] for b in last3), sorted(V))
+        self.assertEqual(len({json.dumps({k: v for k, v in b.items() if k != "model"}, sort_keys=True) for b in last3}), 1)
         # F2 (review 20261013-182804): the design file is required
         r = subprocess.run(["node", str(SCRIPT), "recommend", str(self.pfile)], capture_output=True, text=True, cwd=str(HERE))
         self.assertEqual(r.returncode, 2); self.assertIn("Links introduced", r.stderr)
@@ -152,7 +174,7 @@ class Selector(unittest.TestCase):
         self.design.write_text(DESIGN)
         r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
         self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("declares no item FX-009", r.stderr)
-        self.assertEqual(body["state"]["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
+        self.assertEqual(state["links_introduced"], [{"item": "FX-001", "links_introduced": "one field on the packet."}])
 
     def test_a_goal_plan_item_is_read_by_position(self):
         # F1 (review 20261013-193610): goals/<id>/PLAN.md numbers its items and declares no links
@@ -184,7 +206,7 @@ class Selector(unittest.TestCase):
             self.assertEqual((ms["tier"], ms["rule"]), (tier, rule), (answers, ms))
             self.assertEqual(ms["thresholds"], {"risky": 0.70, "upgrade": 0.30, "downgrade": 0.60, "has_tests": 0.50})
         self.assertIn("bars: risky 0.7, upgrade 0.3, downgrade 0.6, has_tests 0.5", r.stdout)
-        self.assertEqual(Stub.seen[-1]["questions"]["risky"]["instructions"][:46], "Does this item change code that touches produc")
+        self.assertEqual(state_of(Stub.seen[-1])[1]["risky"]["instructions"][:46], "Does this item change code that touches produc")
 
     def test_a_trust_boundary_item_is_never_below_floor(self):
         for extra in ({"docs_only": 1}, {"docs_only": 1, "has_tests": 1}, {"cross_file": 1}):
@@ -222,8 +244,13 @@ class Selector(unittest.TestCase):
         pr.REVIEW_DIR = self.root / "reviews"
         try:
             d = pr.REVIEW_DIR / "20260101-000000-abcdef0-fixture"; d.mkdir(parents=True)
+            # a council line this recommendation came from (DC-001.7): record-release fills its outcome too
+            Stub.answers = {"docs_only": 1}
+            r0, ms0 = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1})
+            self.assertEqual(r0.returncode, 0, r0.stderr)
             pk = packet(self.d, self.base, self.head, model_selection={"status": "checked", "mode": "shadow", "tier": "light", "rule": "docs_only",
-                                                                       "answers": {"docs_only": {"probability": 0.9}}, "declared_tier": None})
+                                                                       "answers": {"docs_only": {"probability": 0.9}}, "declared_tier": None,
+                                                                       "quorum": {"line_id": ms0["quorum"]["line_id"]}})
             pr.save(d, "packet.json", pk, "gate_output")
             state = {"review_id": d.name, "outcome": "fixes_verified", "rounds_used": 2, "release_owner": "fixture-human",
                      "model_selection": {"status": "checked", "mode": "shadow", "tier": "light", "rule": "docs_only", "override": None}}
@@ -255,6 +282,10 @@ class Selector(unittest.TestCase):
                                                "release_outcome": "human_merge_recorded"})
             self.assertIsNone(line["override"])
             self.assertEqual(line["routing"], "advice")     # MR-001.6 as amended: nothing launched this build
+            council = [json.loads(l) for f in (self.root / "reviews" / "decisions").glob("*.jsonl") for l in f.read_text().splitlines() if l]
+            self.assertEqual(len(council), 1)
+            self.assertEqual(council[0]["outcome"], line["outcome"], "the council line did not get the release outcome")
+            self.assertEqual(council[0]["answers"]["docs_only"]["majority"], 0.9, "the council line's answers changed")
         finally:
             pr.REVIEW_DIR, pr.github_get = saved
 
@@ -365,6 +396,70 @@ class Selector(unittest.TestCase):
         self.assertIn("agreement 0.9 over 20", r.stdout)
 
     # ---- MR-001.7: an override wins, is recorded, and may not go below light ----
+
+    # ---- DC-001.7: the selector calls the council; shadow reads Jev, quorum reads the majority, a tie is the dearer tier ----
+
+    def council_ledger(self):
+        return [json.loads(l) for f in (self.root / "reviews" / "decisions").glob("*.jsonl") for l in f.read_text().splitlines() if l]
+
+    def test_the_selector_calls_the_council_and_records_every_voice(self):
+        Stub.per_voice = {V[1]: {"docs_only": 1}, V[2]: {"docs_only": 1}}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"trust_boundary": 1})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        q = ms["quorum"]
+        self.assertEqual((ms["mode"], ms["tier"], ms["rule"], ms["answers_from"]), ("shadow", "floor", "trust_boundary", V[0]), ms)
+        self.assertEqual((q["status"], q["agreed"], q["tie"], q["majority_tier"]), ("full", False, False, "light"))
+        self.assertEqual({v["model"]: v["tier"] for v in q["voices"]}, {V[0]: "floor", V[1]: "light", V[2]: "light"})
+        self.assertEqual(ms["jev_tier"], "floor")
+        lines = self.council_ledger()
+        self.assertEqual((len(lines), lines[0]["id"], lines[0]["caller"], lines[0]["outcome"]), (1, q["line_id"], "model_select", None))
+        self.assertIn("council full, split: typesafe-ai/jev floor, perplexity/pplx-decider-v1.2 light, openai/gpt-6-luna-decisions light", r.stdout)
+
+    def test_a_voice_down_is_recorded_and_jev_down_is_unusable(self):
+        Stub.down = {V[2]}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1})
+        self.assertEqual((r.returncode, ms["status"], ms["tier"]), (0, "checked", "light"), r.stderr)
+        down = [v for v in ms["quorum"]["voices"] if v["model"] == V[2]][0]
+        self.assertEqual(down["unavailable"], "HTTP 500"); self.assertNotIn("tier", down)
+        Stub.down = {V[0]}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1})
+        self.assertEqual((r.returncode, ms["status"]), (4, "unusable"), r.stderr)
+        self.assertIn("typesafe-ai/jev was unavailable: HTTP 500", ms["why"])
+        self.assertEqual({v["model"]: v.get("tier") for v in ms["quorum"]["voices"]}, {V[0]: None, V[1]: "light", V[2]: "light"})
+
+    def test_quorum_is_refused_without_history_and_reads_the_majority_with_it(self):
+        Stub.per_voice = {V[1]: {"docs_only": 1}, V[2]: {"docs_only": 1}}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"trust_boundary": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual((r.returncode, ms["mode"], ms["tier"], ms["quorum_refused"]["reason"], ms["quorum_refused"]["lines"]), (5, "shadow", "floor", "insufficient_history", 0), r.stderr)
+        self.write_council_history(20)
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"trust_boundary": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual((r.returncode, ms["mode"], ms["tier"], ms["rule"], ms["majority_rule"], ms["answers_from"]), (0, "quorum", "light", "quorum_majority", "docs_only", "quorum_majority"), r.stderr)
+        self.assertNotIn("quorum_refused", ms)
+        # the other direction: two dear voices beat one cheap voice
+        Stub.per_voice = {V[1]: {"cross_file": 1}, V[2]: {"cross_file": 1}}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual((ms["tier"], ms["rule"], ms["majority_rule"], ms["jev_tier"]), ("floor", "quorum_majority", "cross_file", "light"), ms)
+        # a tie (one voice left) falls to the dearer tier any voice gave
+        Stub.per_voice = {}; Stub.down = {V[0], V[2]}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual((r.returncode, ms["tier"], ms["rule"], ms["quorum"]["status"], ms["quorum"]["tie"]), (0, "light", "quorum_tie", "degraded", True), r.stderr)
+        Stub.per_voice = {V[1]: {"risky": 1}}
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual((ms["tier"], ms["rule"]), ("floor", "quorum_tie"), ms)
+
+    def write_council_history(self, n):
+        """n scored council lines for model_select where the majority and Jev both said a cheap tier and the item cleared."""
+        d = self.root / "reviews" / "decisions"; d.mkdir(parents=True, exist_ok=True)
+        qs = ["trust_boundary", "cross_file", "docs_only", "has_tests", "risky"]
+        with open(d / "202610.jsonl", "a") as fh:
+            for i in range(n):
+                answers = {q: {"type": "predicate", "majority": 0.1, "agreed": True, "tie": False, "available": 3,
+                               "by_voice": {m: {"probability": 0.1} for m in V}} for q in qs}
+                fh.write(json.dumps({"id": f"h{i:03d}", "ts": "2026-10-18T00:00:00+00:00", "caller": "model_select", "ref": f"h{i}",
+                                     "questions": [{"name": q, "type": "predicate"} for q in qs],
+                                     "voices": [{"model": m, "status": 200, "latency_ms": 1, "cost": "0.00001", "input_tokens": 1} for m in V],
+                                     "answers": answers, "quorum": "full", "credential": "env",
+                                     "outcome": {"rounds_used": 1, "blocking_findings": 0}}) + "\n")
 
     def test_an_override_wins_and_is_recorded_and_a_bad_one_is_refused(self):
         pk = packet(self.d, self.base, self.head, model_selection={"override": {"tier": "floor", "reason": "touches the token path"}})

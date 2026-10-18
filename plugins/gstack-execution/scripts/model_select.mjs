@@ -12,14 +12,24 @@
 // The model answers five typed questions. A rule table HERE maps the answers to a tier. The model
 // never names a model: a router whose output is free text cannot be scored row by row.
 //
-// ponytail: one request per item, four booleans. A recommendation costs under a cent.
+// DC-001: the questions go to the decider council (plugins/council/scripts/decider_council.py), three
+// decision models from three vendors on the gateway's /v1/decisions wire. In `shadow` and `route` the
+// rule table reads Jev's answers, as before, and every voice is recorded beside it. In `quorum` mode,
+// allowed only once the council's gate says the majority is at least as right as Jev alone for this
+// caller, the table reads the majority; a tie (one voice left) falls to the dearer tier.
+//
+// ponytail: one request per item, five booleans, three voices. A recommendation costs a few cents at most.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolveCredential } from './packet_coverage.mjs';
 
-const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';   // the voice the shadow/route table reads
+// DC-001.7: the council script, called by path (the precedent is ship.py naming agent_token.py by path)
+export const DECIDER = process.env.GSTACK_DECIDER_SCRIPT ?? path.resolve(HERE, '..', '..', 'council', 'scripts', 'decider_council.py');
+export const CALLER = 'model_select';
 export const TIERS = ['floor', 'standard', 'light'];   // most capable first; nothing selects below `light`
 export const ROUTE_MIN_LINES = 20;
 export const ROUTE_MIN_AGREEMENT = 0.90;
@@ -81,6 +91,54 @@ export function decide(answers) {
   const a = Object.fromEntries(Object.keys(QUESTIONS).map(k => [k, (answers[k]?.probability ?? 0) >= BARS[k]]));
   const row = RULES.find(r => r.when(a));
   return { tier: row.tier, rule: row.rule, booleans: a, thresholds: THRESHOLDS };
+}
+
+// DC-001.7: the five questions on the council's wire. A predicate's instructions carry the criteria
+// text the old boolean form kept beside it, so a voice reads the same question Jev always has.
+export function councilQuestions() {
+  return Object.entries(QUESTIONS).map(([name, q]) => ({
+    type: 'predicate', name,
+    instructions: `${q.instructions} Answer yes when: ${q.criteria.true} Answer no when: ${q.criteria.false}`,
+  }));
+}
+
+export const DEAREST = (tiers) => TIERS.find(t => tiers.includes(t)) ?? null;   // floor over standard over light
+
+// Ask the council. Returns the parsed output of `decider_council.py ask`, or {error}.
+export function askCouncil(inputs, env = process.env, ref = 'packet') {
+  const args = [DECIDER, 'ask', '--caller', CALLER, '--ref', ref, '--input', '-', '--questions', JSON.stringify(councilQuestions()), '--compact'];
+  let out;
+  try {
+    out = execFileSync('python3', args, { input: JSON.stringify(inputs), encoding: 'utf8', env, maxBuffer: 16 << 20, stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch (e) {
+    // exit 1 is the council's own "every voice unavailable"; its stdout is still the record
+    if (e.stdout) { try { return JSON.parse(e.stdout); } catch { /* fall through */ } }
+    return { error: `${e.code ?? ''} ${(e.stderr || e.message || '').toString().trim()}`.trim() };
+  }
+  try { return JSON.parse(out); } catch (e) { return { error: `council output was not JSON: ${e.message}` }; }
+}
+
+// Per voice and for the majority: {probability} answers in the shape decide() reads, or null when a
+// voice missed any of the five.
+export function voiceAnswers(council, who) {
+  const a = {};
+  for (const k of Object.keys(QUESTIONS)) {
+    const q = council.answers?.[k];
+    const v = who === 'majority' ? q?.majority : q?.by_voice?.[who]?.probability;
+    if (typeof v !== 'number') return null;
+    a[k] = { probability: v };
+  }
+  return a;
+}
+
+export function councilGate(env = process.env) {
+  try {
+    const out = execFileSync('python3', [DECIDER, 'gate', '--caller', CALLER], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] });
+    return JSON.parse(out);
+  } catch (e) {
+    if (e.stdout) { try { return JSON.parse(e.stdout); } catch { /* fall through */ } }
+    return { ok: false, reason: 'gate_unavailable', why: (e.stderr || e.message || '').toString().trim() };
+  }
 }
 
 export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model reads the named files, not only their names
@@ -242,7 +300,8 @@ async function recommend(packetPath, designPath) {
   let inputs;
   const isPlan = /(?:^|\/)goals\/[a-z0-9][a-z0-9-]*\/PLAN\.md$/.test(designPath.replace(/\\/g, '/'));
   try { inputs = inputsFrom(packet, designText, packet.repos?.[0]?.path, packet.repos?.[0]?.head, isPlan); } catch (e) { console.error(`model selection refused: ${e.message}`); process.exit(2); }
-  const wanted = process.env.GSTACK_MODEL_ROUTING === 'route' ? 'route' : 'shadow';
+  const requested = process.env.GSTACK_MODEL_ROUTING;
+  const wanted = requested === 'route' ? 'route' : requested === 'quorum' ? 'quorum' : 'shadow';
   const write = (fields) => {
     packet.model_selection = { model: MODEL, checked_at: new Date().toISOString(), inputs, ...fields,
                                ...(override !== undefined ? { override } : {}),
@@ -253,8 +312,17 @@ async function recommend(packetPath, designPath) {
     fs.writeFileSync(packetPath, JSON.stringify(packet, null, 2) + '\n');
   };
 
+  const cred = resolveCredential();
+  if (!cred.key) {
+    write({ status: cred.status, mode: wanted === 'route' ? 'shadow' : wanted, why: cred.why, consulted: cred.consulted });
+    console.error(`model selection ${cred.status}: ${cred.why}`);
+    process.exit(cred.status === 'unavailable' ? 0 : 4);
+  }
+  const env = { ...process.env, AI_GATEWAY_API_KEY: cred.key };
+
   // MR-001.6: route only on a scored history. Checked before the model is asked, so a refusal costs nothing.
-  let mode = wanted, route_refused = null;
+  // DC-001.6: quorum only once the council's gate passes for this caller; otherwise the table reads Jev.
+  let mode = wanted, route_refused = null, quorum_refused = null;
   if (wanted === 'route') {
     const file = ledgerPath(packet.repos[0].path);
     const gate = routeAllowed(scoreLines(readLedger(file)));
@@ -263,42 +331,82 @@ async function recommend(packetPath, designPath) {
       route_refused = { reason: 'insufficient_history', ...gate, ledger: file };
       console.error(`route refused: insufficient_history (${gate.lines} scored lines, agreement ${gate.agreement}; needs ${gate.needs_lines} at ${gate.needs_agreement}). Running in shadow mode.`);
     }
+  } else if (wanted === 'quorum') {
+    const gate = councilGate(env);
+    if (!gate.ok) {
+      mode = 'shadow';
+      quorum_refused = gate;
+      console.error(`quorum refused: ${gate.reason} (${gate.lines ?? 0} scored council lines, majority ${gate.majority_rate ?? 0} against jev ${gate.jev_rate ?? 0}; needs ${gate.needs_lines ?? 20} with the majority at or above jev). Running in shadow mode.`);
+    }
   }
 
-  let ai;
-  try { ai = await import('ai'); } catch (e) {
-    write({ status: 'broken', mode, why: `the selector could not load its dependency \`ai\`: ${e.code ?? ''} ${e.message}`.trim() });
-    console.error("model selection broken: `ai` did not load. Run `npm ci` in plugins/gstack-execution.");
+  if (!fs.existsSync(DECIDER)) {
+    write({ status: 'broken', mode, why: `the decider council script is missing at ${DECIDER}` });
+    console.error(`model selection broken: ${DECIDER} is missing (the council plugin ships it)`);
     process.exit(3);
   }
-  const cred = resolveCredential();
-  if (!cred.key) {
-    write({ status: cred.status, mode, why: cred.why, consulted: cred.consulted });
-    console.error(`model selection ${cred.status}: ${cred.why}`);
-    process.exit(cred.status === 'unavailable' ? 0 : 4);
-  }
-  process.env.AI_GATEWAY_API_KEY = cred.key;
-  const model = process.env.JEV_ENDPOINT
-    ? ai.createGateway({ baseURL: process.env.JEV_ENDPOINT }).evaluationModel(MODEL)
-    : MODEL;
-  let r;
-  try {
-    r = await ai.experimental_evaluate({ model, state: inputs, questions: QUESTIONS, maxRetries: 1 });
-  } catch (e) {
-    write({ status: 'unusable', mode, why: `the gateway refused or failed the call: ${e.message}`, credential_source: cred.source });
-    console.error(`model selection unusable: ${e.message}`);
+  const council = askCouncil(inputs, env, (packet.items ?? []).join(',') + '@' + (packet.repos?.[0]?.head ?? '').slice(0, 7));
+  if (council.error) {
+    write({ status: 'unusable', mode, why: `the decider council failed: ${council.error}`, credential_source: cred.source });
+    console.error(`model selection unusable: ${council.error}`);
     process.exit(4);
   }
-  const d = decide(r.answers ?? {});
+  // every voice is recorded, with the tier the table would have given it (DC-001.3)
+  const voices = (council.voices ?? []).map(v => {
+    const a = voiceAnswers(council, v.model);
+    return { model: v.model, status: v.status, latency_ms: v.latency_ms, cost: v.cost ?? null,
+             ...(v.unavailable ? { unavailable: v.unavailable } : {}),
+             answers: a, ...(a ? { tier: decide(a).tier, rule: decide(a).rule } : {}) };
+  });
+  const majorityAnswers = voiceAnswers(council, 'majority');
+  const agreed = Object.keys(QUESTIONS).every(k => council.answers?.[k]?.agreed === true);
+  const tie = Object.keys(QUESTIONS).some(k => council.answers?.[k]?.tie === true);
+  const quorum = { line_id: council.id, ledger: council.ledger, status: council.quorum, agreed, tie, voices,
+                   majority_answers: majorityAnswers, ...(majorityAnswers ? { majority_tier: decide(majorityAnswers).tier, majority_rule: decide(majorityAnswers).rule } : {}) };
+
+  const jevAnswers = voiceAnswers(council, MODEL);
+  if (!jevAnswers && mode !== 'quorum') {
+    // DC-001.3: Jev unavailable is `unusable` as before; the other voices are still on the record
+    const why = council.answers ? (Object.values(council.answers).map(q => q.by_voice?.[MODEL]?.unavailable).find(Boolean) ?? 'no answer') : 'no answers';
+    write({ status: 'unusable', mode, why: `${MODEL} was unavailable: ${why}`, credential_source: cred.source, quorum,
+            ...(route_refused ? { route_refused } : {}), ...(quorum_refused ? { quorum_refused } : {}) });
+    console.error(`model selection unusable: ${MODEL} ${why}`);
+    process.exit(4);
+  }
+
+  let d, source;
+  if (mode === 'quorum') {
+    const tiers = voices.filter(v => v.tier).map(v => v.tier);
+    if (tie || !majorityAnswers) {
+      // DC-001.7: a tie is not a decision; it falls to the dearer tier any voice gave (Dorian's one exception to majority)
+      if (!tiers.length) {
+        write({ status: 'unusable', mode, why: 'no voice answered', credential_source: cred.source, quorum, quorum_refused });
+        console.error('model selection unusable: no voice answered'); process.exit(4);
+      }
+      d = { tier: DEAREST(tiers), rule: 'quorum_tie', booleans: null, thresholds: THRESHOLDS };
+      source = 'quorum_tie';
+    } else {
+      const m = decide(majorityAnswers);
+      d = { ...m, rule: 'quorum_majority', majority_rule: m.rule };
+      source = 'quorum_majority';
+    }
+  } else {
+    d = decide(jevAnswers);
+    source = MODEL;
+  }
   const applied = override ? override.tier : d.tier;
-  write({ status: 'checked', mode, answers: r.answers, booleans: d.booleans, rule: d.rule, tier: d.tier, thresholds: d.thresholds,
-          applied_tier: applied, credential_source: cred.source, input_tokens: r.usage?.inputTokens ?? 0,
-          ...(route_refused ? { route_refused } : {}) });
+  write({ status: 'checked', mode, answers: mode === 'quorum' ? (majorityAnswers ?? jevAnswers) : jevAnswers, answers_from: source,
+          booleans: d.booleans, rule: d.rule, ...(d.majority_rule ? { majority_rule: d.majority_rule } : {}), tier: d.tier, thresholds: d.thresholds,
+          applied_tier: applied, credential_source: cred.source,
+          input_tokens: (council.voices ?? []).reduce((n, v) => n + (v.input_tokens ?? 0), 0),
+          quorum, jev_tier: jevAnswers ? decide(jevAnswers).tier : null,
+          ...(route_refused ? { route_refused } : {}), ...(quorum_refused ? { quorum_refused } : {}) });
   console.log(`model selection (${mode}): tier ${d.tier} by rule ${d.rule}` +
               (override ? `; override to ${override.tier}: ${override.reason}` : '') +
-              `\n  ${Object.entries(d.booleans).map(([k, v]) => `${k}=${v}`).join('  ')}` +
+              `\n  council ${council.quorum}, ${agreed ? 'agreed' : 'split'}: ` + voices.map(v => `${v.model} ${v.tier ?? 'unavailable'}`).join(', ') +
+              (d.booleans ? `\n  ${Object.entries(d.booleans).map(([k, v]) => `${k}=${v}`).join('  ')}` : '') +
               `\n  bars: risky ${RISKY_BAR}, upgrade ${UPGRADE_BAR}, downgrade ${DOWNGRADE_BAR}, has_tests ${HAS_TESTS_BAR}`);
-  process.exit(route_refused ? 5 : 0);
+  process.exit(route_refused || quorum_refused ? 5 : 0);
 }
 
 async function main() {

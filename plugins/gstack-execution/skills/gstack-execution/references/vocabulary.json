@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -680,6 +680,48 @@
       "group": "review_outcome",
       "skos:prefLabel": "agent_merge_out_of_lane",
       "skos:definition": "record-release found the agent merged a closed-lane review with no instruction on the pull request; the record is written with the lane and what matched and no authority, because a merge that happened is a fact to keep (GA-010.5)"
+    },
+    {
+      "id": "decider_council",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "decider council",
+      "skos:definition": "three decision models from three vendors (typesafe-ai/jev, perplexity/pplx-decider-v1.2, openai/gpt-6-luna-decisions) asked the same typed questions on the AI Gateway's /v1/decisions wire by plugins/council/scripts/decider_council.py; every call is on one ledger with its caller and outcome (DC-001)"
+    },
+    {
+      "id": "quorum",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "quorum",
+      "skos:definition": "on a review packet, model_selection.quorum: the decider council's record for this recommendation (ledger line id, status full/degraded/unavailable, agreed, tie, every voice's answers and tier, the majority's); also the model-selection mode in which the rule table reads the majority instead of Jev, allowed only once the council's gate passes for the caller (DC-001.7)"
+    },
+    {
+      "id": "tie",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "tie",
+      "skos:definition": "the decider council found no majority: a choice no more than half the available voices picked, or fewer than two voices answered; returned as a tie, never as a pick (DC-001.3)"
+    },
+    {
+      "id": "degraded",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "degraded",
+      "skos:definition": "the decider council had one voice available, so its answer stands with no majority behind it (DC-001.3)"
+    },
+    {
+      "id": "quorum_majority",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "quorum_majority",
+      "skos:definition": "model_selection.rule in quorum mode: the tier the MR-002 table gives the majority's answers; majority_rule names the row that fired (DC-001.7)"
+    },
+    {
+      "id": "quorum_tie",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "quorum_tie",
+      "skos:definition": "model_selection.rule in quorum mode when the council tied: the dearest tier any available voice's answers gave, because a tie is not a decision (DC-001.7)"
     }
   ]
 }

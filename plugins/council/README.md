@@ -49,6 +49,7 @@ prints the source label and path the loader resolved.
 | `/council-config` | View or modify model lineup, router mode, and settings |
 | `/council-stats` | View performance metrics, routing accuracy, and deliberation history |
 | `/council-optimize` | Run the autoresearch loop to self-improve deliberation prompts |
+| `/decide <question>` | Ask the decider council one typed question (predicate, `--choices`, or `--levels`) and see each voice, the majority and the ledger receipt |
 
 ### /deliberate Options
 
@@ -100,6 +101,24 @@ prints the source label and path the loader resolved.
 | deliberation-engine | 6 (Active) | Core 3-stage pipeline with vault context injection, smart-router gate, MoA deep mode, templates, autoresearch, and post-deliberation vault writes |
 | pattern-memory | 6 (Active) | Persistent learning with vault sync — logs outcomes, tracks value-added, detects self-preference bias, stores optimization experiments, syncs to Obsidian vault every 5th deliberation |
 | smart-router | 5 (Active) | Learned routing — heuristic fallback → data-driven rules after 20+ deliberations |
+
+## The decider council (DC-001)
+
+The deliberation council above puts language models in a room over an open question. The decider council is its sibling for typed questions: yes or no (`predicate`, answered as a probability), pick one (`choice`), or rate against ordered levels (`score`). Three decision models from three vendors answer, so no vendor grades its own work: `typesafe-ai/jev`, `perplexity/pplx-decider-v1.2` and `openai/gpt-6-luna-decisions`, the `DECIDERS` constant in `scripts/decider_council.py` (`GSTACK_DECIDERS` overrides it). One request body, built once, goes to each slug unchanged on the AI Gateway's OpenAI-compatible `POST /v1/decisions`, concurrently, each bounded by `DECIDER_TIMEOUT_MS` (8000). The live probe of 2026-10-18 (`docs/evidence/decision-quorum-probe-2026-10-18.md`) saw all three answer in the documented shape at about $0.00002, $0.000008 and $0.00009 per call.
+
+**Majority wins** (Dorian, 2026-10-18). For a choice, the value more than half the available voices picked; for a predicate or a score, the median. No majority (a three-way split, or fewer than two voices) is returned as `tie`, never as a pick. A voice that times out, errors, refuses, or answers out of shape is `unavailable` for that question and is not counted. One voice left is `quorum: degraded`; none is `unavailable`.
+
+**Code decides what an answer means.** The script returns probabilities and the majority and carries no bar, tier or policy. The caller's rule table turns answers into an action, and registers the function that scores an outcome in `OUTCOME_RULES` (today: `model_select`, gstack-execution's builder-tier selector, the first caller).
+
+**Every call is on one ledger**, `$GSTACK_PEER_REVIEW_DIR/decisions/<YYYYMM>.jsonl` (else `~/.gstack/decisions/`): caller, ref, each voice's answer verbatim, the majority, cost, latency, and an `outcome` the caller fills later with `decider_council.py outcome --line <id> --result '<json>'`. `decider_council.py score [--caller <name>]` prints, per caller and voice, calls, unavailable, agreement, ties, mean cost, median latency, and over lines with an outcome how often each voice and the majority were right by the caller's rule. `decider_council.py gate --caller <name>` exits 0 only when the caller has 20 lines with outcomes and at least two voices each, and the majority is at least as right as Jev alone; until then callers act on Jev's answer, as they did before. A decider that has not been scored watches before it steers.
+
+```bash
+# from any plugin, by path
+python3 plugins/council/scripts/decider_council.py ask --caller my_plugin --ref item-7 --input facts.txt \
+  --questions '[{"type":"choice","name":"lane","instructions":"Which lane?","choices":[{"value":"closed"},{"value":"narrow"},{"value":"wide"}]}]'
+```
+
+The output is JSON: `id` and `ledger` (the receipt), `voices` (model, status, latency, cost, `unavailable`), `answers` (per question: `majority`, `agreed`, `tie`, `available`, `by_voice`), and `quorum` (`full`, `degraded`, `unavailable`). Tests: `scripts/test_decider_council.py`, against a stub `/v1/decisions` that answers per slug.
 
 ## How It Works
 
