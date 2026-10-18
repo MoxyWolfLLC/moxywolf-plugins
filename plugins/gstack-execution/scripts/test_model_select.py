@@ -286,6 +286,26 @@ class Selector(unittest.TestCase):
             self.assertEqual(len(council), 1)
             self.assertEqual(council[0]["outcome"], line["outcome"], "the council line did not get the release outcome")
             self.assertEqual(council[0]["answers"]["docs_only"]["majority"], 0.9, "the council line's answers changed")
+            rel = json.loads((d / "release-fixture-org-fixture-repo-7.json").read_text())
+            self.assertEqual(rel["council_outcome"], {"status": "written", "line_id": ms0["quorum"]["line_id"]})
+            self.assertTrue(rel["model_selection_ledger"].endswith("fixture-org-fixture-repo.jsonl"))
+            # review 20261018-104726 F3: an outcome write that fails is on the saved record too
+            d2 = pr.REVIEW_DIR / "20260101-000000-abcdef0-fixtur2"; d2.mkdir()
+            pk2 = dict(pk, model_selection=dict(pk["model_selection"], quorum={"line_id": "nope"}))
+            pr.save(d2, "packet.json", pk2, "gate_output")
+            pr.save(d2, "state.json", dict(state, review_id=d2.name), "gate_output")
+            pr.save(d2, "round-1.json", {"findings": [], "unknowns_raised": []}, "gate_output")
+            pr.save(d2, "round-2.json", {"findings": [], "unknowns_raised": []}, "gate_output")
+            pr.save(d2, "release.json", {"repos": pk["repos"], "release_owner": "fixture-human", "target": "main", "requested_at": "2026-01-01T00:00:00Z"}, "gate_output")
+            pr.passing_review = lambda dd: (dict(state, review_id=d2.name), pk2)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    pr.cmd_record_release(argparse.Namespace(review_id=d2.name, repo=str(self.d), pr=7))
+            finally:
+                pr.passing_review = saved_pr
+            rel2 = json.loads((d2 / "release-fixture-org-fixture-repo-7.json").read_text())
+            self.assertEqual(rel2["council_outcome"]["status"], "unwritten")
+            self.assertIn("no ledger line nope", rel2["council_outcome"]["why"])
         finally:
             pr.REVIEW_DIR, pr.github_get = saved
 

@@ -3004,12 +3004,14 @@ def cmd_record_release(a):
     decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
-    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
-         "human_instruction" if agent else "repository_artifact",
-         examined_by=None)
     line = model_selection_line(d, state, packet, name, a.pr, decision)
     if line:
         decision["model_selection_ledger"] = line
+    # saved after the ledger writes (review 20261018-104726 F3), so the record carries the ledger path
+    # and the council outcome's status, written or not, instead of only printing them
+    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
+         "human_instruction" if agent else "repository_artifact",
+         examined_by=None)
     print(json.dumps(decision, indent=2))
 
 

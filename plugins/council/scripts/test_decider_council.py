@@ -227,6 +227,35 @@ class DeciderCouncil(unittest.TestCase):
         self.assertIn([l for l in lines if l["id"] == first["id"]][0]["outcome"]["w"], (1, 2))
         self.assertFalse(list((self.root / "reviews" / "decisions").glob("*.tmp")), "a temp file was left behind")
 
+    def test_a_choice_distribution_must_cover_the_offered_choices_and_rank_the_pick_first(self):
+        # review 20261018-104726 F1: jev_route.well_formed parity
+        Stub.answers = same({"risky": 0.8, "lane": "b", "size": 2})
+        Stub.envelope = {
+            V[1]: {"answers": [{"type": "predicate", "name": "risky", "probability": 0.8},
+                               {"type": "choice", "name": "lane", "choice": "a", "probabilities": [{"value": "a", "probability": 0.1}, {"value": "b", "probability": 0.9}, {"value": "c", "probability": 0.0}]},
+                               {"type": "score", "name": "size", "score": 2}]},
+            V[2]: {"answers": [{"type": "predicate", "name": "risky", "probability": 0.8},
+                               {"type": "choice", "name": "lane", "choice": "b", "probabilities": [{"value": "b", "probability": 0.5}, {"value": "zzz", "probability": 0.5}]},
+                               {"type": "score", "name": "size", "score": 2}]}}
+        _, out = self.ask()
+        self.assertEqual(out["answers"]["lane"]["by_voice"][V[1]], {"unavailable": "choice is not the most probable"})
+        self.assertEqual(out["answers"]["lane"]["by_voice"][V[2]], {"unavailable": "probabilities do not cover the offered choices"})
+        # the same voices' other answers stand
+        self.assertEqual(out["answers"]["risky"]["available"], 3)
+        self.assertEqual(out["answers"]["lane"]["available"], 1)
+
+    def test_one_malformed_answer_costs_that_question_only(self):
+        # review 20261018-104726 F2: choice: [] used to raise and erase the voice's other answers
+        Stub.answers = same({"risky": 0.8, "lane": "b", "size": 2})
+        Stub.envelope = {V[1]: {"answers": [{"type": "predicate", "name": "risky", "probability": 0.2},
+                                            {"type": "choice", "name": "lane", "choice": []},
+                                            {"type": "score", "name": "size", "score": 1}]}}
+        _, out = self.ask()
+        self.assertEqual(out["answers"]["lane"]["by_voice"][V[1]], {"unavailable": "choice not offered"})
+        self.assertEqual(out["answers"]["risky"]["by_voice"][V[1]]["probability"], 0.2)
+        self.assertEqual(out["answers"]["risky"]["majority"], 0.8)        # median of 0.8, 0.8, 0.2
+        self.assertEqual([v for v in out["voices"] if v["model"] == V[1]][0]["answered"], 2)
+
     def test_a_malformed_answer_is_unavailable(self):
         Stub.answers = same({"risky": 0.8, "lane": "b", "size": 2}); Stub.answers[V[1]] = {"risky": 1.7, "lane": "zzz", "size": 9}
         _, out = self.ask()

@@ -47,7 +47,9 @@ GATEWAY = "https://ai-gateway.vercel.sh"
 DECIDERS = ["typesafe-ai/jev", "perplexity/pplx-decider-v1.2", "openai/gpt-6-luna-decisions"]
 DECIDER_TIMEOUT_MS = 8000
 AGREE_BAND = 0.15          # numbers within this of the median count as agreement
-GATE_MIN_LINES = 20        # DC-001.6
+GATE_MIN_LINES = 20        # DC-001.6: lines with outcomes and two available voices per question
+GATE_BASELINE = DECIDERS[0]   # DC-001.6: the voice the majority must be at least as right as (Jev alone)
+GATE_MIN_MARGIN = 0.0         # DC-001.6: majority rate must be >= baseline rate + this
 QUESTION_TYPES = ("predicate", "choice", "score")
 
 
@@ -195,8 +197,22 @@ def answer_for(q, by_name):
         if not all(unit(p) for p in ps) or abs(sum(ps) - 1) > 0.01:
             return None, "probabilities do not sum to 1"
     if q["type"] == "choice":
+        # jev_route.well_formed, re-expressed: the pick is an offered value, the distribution (when
+        # the model returns one) covers exactly the offered values, and the pick is a top one
         offered = {c["value"] for c in q["choices"]}
-        return (a, None) if a.get("choice") in offered else (None, "choice not offered")
+        pick = a.get("choice")
+        if isinstance(pick, list) or isinstance(pick, dict) or pick not in offered:
+            return None, "choice not offered"
+        if probs is not None:
+            try:
+                dist = {x["value"]: x["probability"] for x in probs}
+            except (KeyError, TypeError):
+                return None, "malformed probabilities"
+            if len(dist) != len(probs) or set(dist) != offered:
+                return None, "probabilities do not cover the offered choices"
+            if dist[pick] < max(dist.values()) - 1e-9:
+                return None, "choice is not the most probable"
+        return a, None
     n = len(q["levels"])
     s = a.get("score")
     ok = isinstance(s, (int, float)) and not isinstance(s, bool) and 0 <= s <= n - 1
@@ -280,20 +296,20 @@ def cmd_ask(a):
                 row["cost"] = gw.get("cost")
                 usage = resp.get("usage") if isinstance(resp.get("usage"), dict) else {}
                 row["input_tokens"] = usage.get("input_tokens")
-            reasons = []
-            for q in qs:
+        except Exception as e:  # an envelope that breaks the reader is an unavailable voice, never a crash (F4)
+            by_name, why = None, f"internal: {type(e).__name__}: {e}"[:200]
+        reasons = []
+        for q in qs:
+            try:
                 ans, qwhy = answer_for(q, by_name) if by_name is not None else (None, why)
-                if ans is None:
-                    reasons.append(qwhy)
-                    by_q[q["name"]][m] = {"unavailable": qwhy}
-                else:
-                    row["answered"] += 1
-                    by_q[q["name"]][m] = ans
-        except Exception as e:  # a voice that breaks the reader is unavailable, never a crash (F4)
-            reasons = [f"internal: {type(e).__name__}: {e}"[:200]]
-            for q in qs:
-                by_q[q["name"]][m] = {"unavailable": reasons[0]}
-            row["answered"] = 0
+            except Exception as e:  # one malformed answer costs that question only (review 20261018-104726 F2)
+                ans, qwhy = None, f"malformed answer: {type(e).__name__}"
+            if ans is None:
+                reasons.append(qwhy)
+                by_q[q["name"]][m] = {"unavailable": qwhy}
+            else:
+                row["answered"] += 1
+                by_q[q["name"]][m] = ans
         if row["answered"] == 0:
             row["unavailable"] = reasons[0] if reasons else "no answer"
         if r.get("error") and isinstance(r.get("status"), int) and r["status"] != 200:
@@ -473,8 +489,8 @@ def gate_status(caller, lines=None):
             and l["answers"] and min(q.get("available", 0) for q in l["answers"].values()) >= 2]
     c = score_rows([(None, l) for l in rows], caller).get(caller)
     maj = c["majority"] if c else {"scored": 0, "right": 0}
-    jev = (c or {}).get("voices", {}).get(DECIDERS[0], {"scored": 0, "right": 0})
-    ok = len(rows) >= GATE_MIN_LINES and maj["scored"] > 0 and rate(maj) >= rate(jev)
+    jev = (c or {}).get("voices", {}).get(GATE_BASELINE, {"scored": 0, "right": 0})
+    ok = len(rows) >= GATE_MIN_LINES and maj["scored"] > 0 and rate(maj) >= rate(jev) + GATE_MIN_MARGIN
     return {"ok": ok, "lines": len(rows), "needs_lines": GATE_MIN_LINES, "majority_rate": round(rate(maj), 3),
             "majority_scored": maj["scored"], "jev_rate": round(rate(jev), 3), "jev_scored": jev["scored"],
             **({} if ok else {"reason": "insufficient_history"})}
