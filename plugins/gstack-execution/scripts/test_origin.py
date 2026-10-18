@@ -18,7 +18,7 @@ class Origin(unittest.TestCase):
         self.d = Path(tempfile.mkdtemp())
 
     def test_vocabulary_defines_the_origins_and_carries_the_bump(self):
-        self.assertEqual(pr.VOCAB_VERSION, "1.10.0")   # EV-010 through EV-013, MR-001 and GA-010 added concepts
+        self.assertEqual(pr.VOCAB_VERSION, "1.11.0")   # EV-010 through EV-013, MR-001, GA-010 and DC-001 added concepts; plugins/gstack-execution/scripts/vocab_check.py resolves them
         self.assertEqual(pr.ORIGINS,
                          {"repository_artifact", "gate_output", "human_instruction", "external_text", "unexamined"})
 

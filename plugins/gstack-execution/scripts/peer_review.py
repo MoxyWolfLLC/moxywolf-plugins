@@ -3004,12 +3004,14 @@ def cmd_record_release(a):
     decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
-    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
-         "human_instruction" if agent else "repository_artifact",
-         examined_by=None)
     line = model_selection_line(d, state, packet, name, a.pr, decision)
     if line:
         decision["model_selection_ledger"] = line
+    # saved after the ledger writes (review 20261018-104726 F3), so the record carries the ledger path
+    # and the council outcome's status, written or not, instead of only printing them
+    save(d, f"release-{name.replace('/', '-')}-{a.pr}.json", decision,
+         "human_instruction" if agent else "repository_artifact",
+         examined_by=None)
     print(json.dumps(decision, indent=2))
 
 
@@ -3038,7 +3040,29 @@ def model_selection_line(d, state, packet, name, pr_number, decision):
     f.parent.mkdir(parents=True, exist_ok=True)
     with open(f, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(line, sort_keys=True) + "\n")
+    council_outcome(ms, line["outcome"], decision)
     return str(f)
+
+
+DECIDER_COUNCIL = HERE.parent.parent / "council" / "scripts" / "decider_council.py"
+
+
+def council_outcome(ms, outcome, decision):
+    """DC-001.7: the council line this recommendation came from gets the same outcome, so the
+    council's score can read every voice against it. A packet without a council line (written
+    before DC-001) writes nothing; a council script that is missing or refuses is recorded on the
+    decision, never raised: the release record is the thing being written here."""
+    line_id = (ms.get("quorum") or {}).get("line_id")
+    if not line_id:
+        return
+    if not DECIDER_COUNCIL.is_file():
+        decision["council_outcome"] = {"status": "unwritten", "why": f"{DECIDER_COUNCIL} is missing"}
+        return
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(review_root()))
+    r = subprocess.run([sys.executable, str(DECIDER_COUNCIL), "outcome", "--line", line_id, "--result", json.dumps(outcome)],
+                       capture_output=True, text=True, env=env)
+    decision["council_outcome"] = ({"status": "written", "line_id": line_id} if r.returncode == 0
+                                   else {"status": "unwritten", "line_id": line_id, "why": (r.stderr or r.stdout).strip()[:300]})
 
 
 # ---------- selftest ----------
