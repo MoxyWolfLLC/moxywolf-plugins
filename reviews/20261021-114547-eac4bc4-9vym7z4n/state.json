@@ -1,0 +1,110 @@
+{
+  "review_id": "20261021-114547-eac4bc4-9vym7z4n",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "gemini",
+  "reviewer_family": "gemini",
+  "reviewer_is_fallback": true,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 1,
+  "outcome": "review_unavailable",
+  "coverage_checked": false,
+  "coverage_status": "not_run",
+  "coverage_overridden": false,
+  "off_repo_evidence": [
+    {
+      "criterion": "The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit, done 2026-10-21 and quoted with the file's hash in `docs/evidence/SM-007-vault-loader-stub-2026-10-21.md`, plus a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.",
+      "matched": "vault",
+      "evidence": "docs/evidence/SM-007-vault-loader-stub-2026-10-21.md"
+    }
+  ],
+  "off_repo_overridden": [],
+  "ledger_status": "none",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "cross_file",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/project-init/scripts/project_mirror.py",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/project-init/SKILL.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-start/SKILL.md",
+        "repo": "review-host"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "eac4bc4eff7ff1924aff5a078541ec33935d92ec"
+    ],
+    [
+      "eac4bc4eff7ff1924aff5a078541ec33935d92ec"
+    ]
+  ],
+  "origin": "gate_output",
+  "reviewer_intended": "gemini"
+}

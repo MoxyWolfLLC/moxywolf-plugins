@@ -370,6 +370,16 @@ If a writable repo has no README (or just a create-next-app boilerplate), and th
 - **Session changed code that no README section covers.** That's a signal of a README gap. Add a short new section if the change is small; otherwise flag the gap as follow-up work.
 - **Project has no writable GitHub repos listed.** Skip Step 5c entirely. Don't ask the user to point at a repo — the project instructions are the source of truth.
 
+### Step 5d: Mirror the authoritative files into the claude.ai Project (SM-007)
+
+After the handoff is written, run the plan from the plugin's scripts folder:
+
+```bash
+python3 <plugin>/scripts/project_mirror.py plan --surfaces "<Taskade>/[project]/00 – Project Hub/project-surfaces.json" --taskade "<Taskade root>"
+```
+
+For each path under `write`, `project_write` the file into the attached Project at that same relative path (`local_path` is the disk file), then `record --path <p> --sha <sha256>` so the sidecar `00 – Project Hub/.project-mirror.json` catches up. Paths under `unchanged` are never rewritten: every doc change busts the prompt cache for every chat in the Project. Report `mirrored: N written, M unchanged, K missing` with the paths in Step 8. When the `Projects` tool is absent, print `project mirror: SKIP, no Project attached` and continue. Disk is the only author; nothing is read back from the Project here.
+
 ### Step 6: Update Cowork session-memory (if warranted)
 
 If the session produced significant new context that future Claude sessions should know without reading the handoff (operating norms, durable architecture decisions, gotchas that apply across all projects), update the Cowork session-memory layer:
@@ -417,6 +427,7 @@ Top of stack for next session:
 
 [N] local commits this session — pushed / awaiting push (state in the handoff).
 [N] procedural reminders captured.
+mirrored: [N] written, [M] unchanged, [K] missing   (Step 5d, SM-007; or SKIP, no Project attached)
 
 [If FOR is set (baton-pass):]
 🪝 **Ping [FOR, title-cased] in Slack** so they know to pick this up.

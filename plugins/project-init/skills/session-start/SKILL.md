@@ -93,6 +93,8 @@ Parse to extract:
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
 
+**Project mirror fallback (SM-007).** The four authoritative files (`cowork-project-instructions.md`, `project-surfaces.json`, `cowork-session-handoff.md`, `_Shared Files/_shared-memory/INDEX.md`) are mirrored into the attached claude.ai Project as docs at the same relative path under `Taskade/`. Read from disk first, as above. When the Taskade root isn't mounted, the file is absent, or the read fails (a Drive-locked file answers `Resource deadlock avoided`), read the same relative path with the `Projects` tool's `project_read` and record the source. When both are readable and they differ, disk wins and the briefing says the mirror is behind. When the `Projects` tool is absent, the fallback is `SKIP: no Project attached`, never an error. Disk is the only author; never write a Project copy back to disk.
+
 ### Step 3: Ensure the three standard roots are available
 
 Follow the **Folder access — works online (cloud) or offline (on-computer)** convention above; it's mode-agnostic, so the same procedure runs either way.
@@ -209,6 +211,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - GitHub — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 - Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 
+**Project mirror** (SM-007; one line per authoritative file)
+- [path] — source: disk | project-doc (mirrored [sidecar date]) | SKIP: [reason]   [— mirror behind disk]
+
 **Active subfolders**
 - Taskade/[active-taskade-subfolder]
 - GitHub/[repo-1] — [description]
@@ -314,6 +319,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to task-board / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
 - **One of the three standard roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
+- **Taskade mount missing or a read fails with `Resource deadlock avoided`.** Read the same relative path with `project_read` and say so on the Project mirror line (SM-007). Only when both disk and Project fail is the file missing.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
 - **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
 - **No Jira label declared in the Project Instructions.** Don't query the board and never widen to it. Add the one-line "No Jira label declared" note (Step 4b case 3). Never infer a label from the project or repo names.

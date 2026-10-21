@@ -31,6 +31,10 @@ Take the skeleton from the vault spec (section 1 for Taskade projects, section 2
 
 > Copy this into Cowork → Settings → Project Instructions for **<PROJECT_NAME>**, replacing the full text currently there. The full instructions stay on disk; this stub just points at them, so you paste it once and never re-paste when rules change.
 
+## STEP 4b — Mirror the authoritative files into the claude.ai Project (SM-007)
+
+Ensure `Taskade/<SUBFOLDER>/00 – Project Hub/project-surfaces.json` carries a `project_docs` key; when absent, add the default four: `<SUBFOLDER>/00 – Project Hub/cowork-project-instructions.md`, `<SUBFOLDER>/00 – Project Hub/project-surfaces.json`, `<SUBFOLDER>/00 – Project Hub/cowork-session-handoff.md`, `_Shared Files/_shared-memory/INDEX.md`. Then run `python3 <plugin>/scripts/project_mirror.py plan --surfaces <that file> --taskade <Taskade root>`; `project_write` each path under `write` into the attached Project at the same relative path, and `record --path <p> --sha <sha256>` each one. Never rewrite an `unchanged` path. With no `Projects` tool, print `project mirror: SKIP, no Project attached`. Report `mirrored: N written, M unchanged, K missing` in STEP 5.
+
 ## STEP 5 — Report
 
 State, concisely: which directives applied vs were already current (cite each by ID, e.g. D1), the `spec_version` this project is now aligned to, and a reminder that the stub still needs pasting into Cowork settings (the one manual, possibly per-machine step; the on-disk edits are on Drive and apply everywhere at once).

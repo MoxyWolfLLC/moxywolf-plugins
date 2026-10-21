@@ -1,0 +1,124 @@
+{
+  "round": 1,
+  "started": "2026-10-21T11:46:02",
+  "repos": [
+    {
+      "path": "/root/review-host",
+      "base": "0adb943279538f20adb1d019e2fc94fcec811d02",
+      "head": "eac4bc4eff7ff1924aff5a078541ec33935d92ec",
+      "review_base": "0adb943279538f20adb1d019e2fc94fcec811d02"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/project-init/scripts/project_mirror.py",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/project-init/SKILL.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "review-host"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-start/SKILL.md",
+        "repo": "review-host"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.11.0",
+  "evidence": {
+    "requested": 1,
+    "read": 0,
+    "head_matched": 0,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_runs": [
+    {
+      "run_id": 39654778678,
+      "read": false,
+      "head_matches": null,
+      "conclusion": null
+    }
+  ],
+  "surface": {
+    "changed": 11,
+    "callers": 25,
+    "callers_withheld": 50,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 25,
+    "dependencies_withheld": 47,
+    "criterion_files": [
+      "changed/0-review-host/docs/evidence/SM-007-vault-loader-stub-2026-10-21.md",
+      "changed/0-review-host/plugins/project-init/scripts/project_mirror.py",
+      "changed/0-review-host/plugins/project-init/tests/test_project_mirror.py"
+    ],
+    "criterion_dirs": [],
+    "provenance": {
+      "entries": 64,
+      "untrusted": 62
+    }
+  },
+  "reviewer": "gemini",
+  "reviewer_family": "gemini",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "error": "gemini exited 146: t.streamWithRetries (file:///root/.npm-global/lib/node_modules/@google/gemini-cli/bundle/chunk-DKZARV6U.js:333829:29)\n    at async Turn.run (file:///root/.npm-global/lib/node_modules/@google/gemini-cli/bundle/chunk-DKZARV6U.js:334873:24) {\n  status: 402\n}\n{\n  \"session_id\": \"ebaee48f-1479-4524-a2a6-1a990fcfeef6\",\n  \"error\": {\n    \"type\": \"Error\",\n    \"message\": \"{\\\"error\\\":{\\\"message\\\":\\\"{\\\\n  \\\\\\\"error\\\\\\\": {\\\\n    \\\\\\\"code\\\\\\\": 402,\\\\n    \\\\\\\"message\\\\\\\": \\\\\\\"Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing. Learn more at https://ai.google.dev/gemini-api/docs/billing#prepay. \\\\\\\",\\\\n    \\\\\\\"status\\\\\\\": \\\\\\\"RESOURCE_EXHAUSTED\\\\\\\"\\\\n  }\\\\n}\\\\n\\\",\\\"code\\\":402,\\\"status\\\":\\\"Payment Required\\\"}}\",\n    \"code\": 402\n  }\n}",
+  "outcome": "review_unavailable",
+  "origin": "external_text",
+  "examined_by": "unexamined"
+}

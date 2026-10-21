@@ -1,0 +1,269 @@
+{
+  "items": [
+    "SM-007"
+  ],
+  "outcome": "SM-007: a project's four authoritative files are mirrored into the attached claude.ai Project as docs at the same relative path, decided by sha256 against a sidecar so an unchanged doc is never rewritten; /session-end and /refresh-project-instructions write, /session-start falls back to project_read when the Taskade mount is missing or a read fails. Disk stays the only author.",
+  "acceptance_criteria": [
+    "`project-surfaces.json` declares `project_docs`: the list of paths, relative to the Taskade root, that are mirrored. `/init-project` and `/refresh-project-instructions` write the default four when the key is absent: `<project>/00 \u2013 Project Hub/cowork-project-instructions.md`, `<project>/00 \u2013 Project Hub/project-surfaces.json`, `<project>/00 \u2013 Project Hub/cowork-session-handoff.md`, `_Shared Files/_shared-memory/INDEX.md`. Nothing else is mirrored.",
+    "`plugins/project-init/scripts/project_mirror.py plan --surfaces <path> --taskade <root>` reads each declared file, compares its sha256 to the sidecar, and prints JSON: `write` (paths whose hash differs or is unrecorded), `unchanged`, `missing` (declared but not on disk, with the reason). It opens nothing in the Project and writes nothing. `record --surfaces <path> --taskade <root> --path <p> --sha <h>` updates the sidecar after a successful `project_write`. The script is the single producer of the decision (XE-008).",
+    "`/refresh-project-instructions` (new Step 4b) and `/session-end` (new Step 5d, after the handoff is written) run `plan`, call `project_write` for each path in `write` at that same relative path, then `record` each one. They report `mirrored: N written, M unchanged, K missing` with the paths. An unchanged file is never rewritten, because every doc change busts the prompt cache for every chat in the Project.",
+    "`/session-start` reads the three instruction files from disk as it does today. When the Taskade root is not mounted, the file is absent, or the read fails, it reads the same relative path with `project_read` and prints the source on SM-001's coverage line: `source: project-doc (mirrored <sidecar date>)`, or `SKIP: not on disk, not in Project` when both fail. The fallback never silently replaces disk: when both are readable and differ, disk wins and the briefing says the mirror is behind.",
+    "A session with no attached Project (the `Projects` tool absent) prints `project mirror: SKIP, no Project attached` in both directions, and nothing fails (EV-001).",
+    "`plugins/project-init/tests/test_project_mirror.py` runs the script against a temp tree: a first `plan` lists every declared file under `write`; `record` then a second `plan` lists them under `unchanged`; editing one file moves exactly that path back to `write`; a declared path that isn't on disk lands in `missing` with its reason; the script never reads or writes outside the Taskade root and the sidecar. `run_all_tests.py` discovers it.",
+    "The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit, done 2026-10-21 and quoted with the file's hash in `docs/evidence/SM-007-vault-loader-stub-2026-10-21.md`, plus a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.",
+    "`project-init` gets a minor version bump and the changelog names SM-007."
+  ],
+  "repos": [
+    {
+      "path": "/root/review-host",
+      "base": "0adb943279538f20adb1d019e2fc94fcec811d02",
+      "head": "eac4bc4eff7ff1924aff5a078541ec33935d92ec",
+      "review_base": "0adb943279538f20adb1d019e2fc94fcec811d02"
+    }
+  ],
+  "changed_behavior": "New plugins/project-init/scripts/project_mirror.py (plan, record) and tests/test_project_mirror.py. session-end SKILL.md gains Step 5d and a report line; refresh-project-instructions.md gains STEP 4b; session-start SKILL.md gains a Project mirror fallback note before Step 3, a Project mirror briefing block, and an edge case; project-init SKILL.md Step 3 writes project_docs. project-init 0.40.0 (plugin.json, marketplace entry, README), marketplace 1.140.0, DESIGN.md SM-007 status building. At eac4bc4: DESIGN.md criterion 7 names docs/evidence/SM-007-vault-loader-stub-2026-10-21.md, which quotes the vault edit (spec_version 7).",
+  "exclusions": [
+    "Constraints and settled decisions in DESIGN.md apply as written.",
+    "Criterion 7's vault edit is outside this repository; its evidence is docs/evidence/SM-007-vault-loader-stub-2026-10-21.md at the reviewed head. The per-project /refresh-project-instructions runs are a recorded follow-up, not part of this change.",
+    "Criteria 3, 4 and 5 are skill prose: the review surface is the SKILL.md and command text, not an executable; the project_write/project_read calls are made by the model following that text. The real-tree exercise in tests.results is the evidence that the prose and the script agree.",
+    "SM-001's coverage line (criterion 4 names it) does not exist yet, because SM-001 arrow 1 is still building; the source is printed on a new 'Project mirror' briefing block instead, one line per file, which is where the coverage line will absorb it.",
+    "The project_docs key is written by /init-project and /refresh-project-instructions as prose steps; the script defaults to the four when the key is absent so a project whose surfaces file predates this item still mirrors.",
+    "test_session_record.py fails on macOS under the default TMPDIR because /tmp is a symlink there; it fails identically on origin/main and passes with TMPDIR=/private/tmp, and passes on CI (ubuntu). Not touched by this change."
+  ],
+  "links": "**Links introduced:** the disk-path-to-Project-doc link: each mirrored file lives in the attached claude.ai Project at the same path it has under `Taskade/`, so a reader that knows one knows the other. The sidecar-hash link: `00 \u2013 Project Hub/.project-mirror.json` records, per path, the sha256 of the content last written to the Project; a hash equal to the disk file means the Project copy is current.",
+  "tests": {
+    "commands": [
+      "python3 plugins/gstack-execution/scripts/check_ledger.py run --repo . -- python3 -I plugins/project-init/tests/test_project_mirror.py",
+      "python3 plugins/gstack-execution/scripts/check_ledger.py run --repo . -- python3 plugins/gstack-execution/scripts/run_all_tests.py",
+      "python3 plugins/project-init/scripts/project_mirror.py plan --surfaces '<Taskade>/MoxyWolf LLC/00 \u2013 Project Hub/project-surfaces.json' --taskade '<Taskade>' ; 4x project_write (Projects tool) ; 4x project_mirror.py record ; plan again",
+      "python3 plugins/gstack-execution/scripts/version_bump.py --base origin/main --head HEAD",
+      "TMPDIR=/private/tmp python3 plugins/project-init/tests/test_session_record.py"
+    ],
+    "results": "test_project_mirror: Ran 5 tests, OK, RC=0 through the ledger. run_all_tests on macOS: examined 85 checks: 84 passed, 1 failed (test_session_record.py, pre-existing /tmp-symlink failure, identical on origin/main, OK with TMPDIR=/private/tmp). Real tree: first plan listed the four files under write with bytes 13491/599/6505/34785 matching the hand-seeded Project docs; after four project_write and four record calls, plan printed write 0, unchanged 4, missing 0. version_bump: PASS at 7f5b25a (FAIL at 10385d6 until the top-level marketplace moved to 1.140.0). CI tests workflow at 7f5b25a: run 39653137520 (pull_request) success, run 39653132422 (push) success; at eac4bc4 (reviewed head): run 39654778678 (pull_request) success, run 39654770705 (push) success.",
+    "environment": "macOS, Python 3.14.3, local clone ~/GitHub/moxywolf-plugins via Desktop Commander; the real-tree exercise against the Google Drive Taskade root; project_write from the Cowork cloud session attached to the MoxyWolf LLC Project; CI on ubuntu-latest, Python 3.11.",
+    "ci_runs": [
+      {
+        "repo": "/root/review-host",
+        "run_id": 39654778678
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "gemini"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/root/review-host/reviews"
+    ]
+  },
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-10-21T18:35:07.615Z",
+    "inputs": {
+      "items": [
+        "SM-007"
+      ],
+      "criteria_count": 8,
+      "criteria": [
+        "`project-surfaces.json` declares `project_docs`: the list of paths, relative to the Taskade root, that are mirrored. `/init-project` and `/refresh-project-instructions` write the default four when the key is absent: `<project>/00 \u2013 Project Hub/cowork-project-instructions.md`, `<project>/00 \u2013 Project Hub/project-surfaces.json`, `<project>/00 \u2013 Project Hub/cowork-session-handoff.md`, `_Shared Files/_shared-memory/INDEX.md`. Nothing else is mirrored.",
+        "`plugins/project-init/scripts/project_mirror.py plan --surfaces <path> --taskade <root>` reads each declared file, compares its sha256 to the sidecar, and prints JSON: `write` (paths whose hash differs or is unrecorded), `unchanged`, `missing` (declared but not on disk, with the reason). It opens nothing in the Project and writes nothing. `record --surfaces <path> --taskade <root> --path <p> --sha <h>` updates the sidecar after a successful `project_write`. The script is the single producer of the decision (XE-008).",
+        "`/refresh-project-instructions` (new Step 4b) and `/session-end` (new Step 5d, after the handoff is written) run `plan`, call `project_write` for each path in `write` at that same relative path, then `record` each one. They report `mirrored: N written, M unchanged, K missing` with the paths. An unchanged file is never rewritten, because every doc change busts the prompt cache for every chat in the Project.",
+        "`/session-start` reads the three instruction files from disk as it does today. When the Taskade root is not mounted, the file is absent, or the read fails, it reads the same relative path with `project_read` and prints the source on SM-001's coverage line: `source: project-doc (mirrored <sidecar date>)`, or `SKIP: not on disk, not in Project` when both fail. The fallback never silently replaces disk: when both are readable and differ, disk wins and the briefing says the mirror is behind.",
+        "A session with no attached Project (the `Projects` tool absent) prints `project mirror: SKIP, no Project attached` in both directions, and nothing fails (EV-001).",
+        "`plugins/project-init/tests/test_project_mirror.py` runs the script against a temp tree: a first `plan` lists every declared file under `write`; `record` then a second `plan` lists them under `unchanged`; editing one file moves exactly that path back to `write`; a declared path that isn't on disk lands in `missing` with its reason; the script never reads or writes outside the Taskade root and the sidecar. `run_all_tests.py` discovers it.",
+        "The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit and a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.",
+        "`project-init` gets a minor version bump and the changelog names SM-007."
+      ],
+      "paths_named": [
+        "project-surfaces.json",
+        "plugins/project-init/scripts/project_mirror.py",
+        "plugins/project-init/tests/test_project_mirror.py",
+        "run_all_tests.py",
+        "project-instructions-loader-stub.md"
+      ],
+      "files_read": 0,
+      "files": [
+        {
+          "path": "project-surfaces.json",
+          "exists": false
+        },
+        {
+          "path": "plugins/project-init/scripts/project_mirror.py",
+          "exists": false
+        },
+        {
+          "path": "plugins/project-init/tests/test_project_mirror.py",
+          "exists": false
+        },
+        {
+          "path": "run_all_tests.py",
+          "exists": false
+        },
+        {
+          "path": "project-instructions-loader-stub.md",
+          "exists": false
+        }
+      ],
+      "links_introduced": [
+        {
+          "item": "SM-007",
+          "links_introduced": "the disk-path-to-Project-doc link: each mirrored file lives in the attached claude.ai Project at the same path it has under `Taskade/`, so a reader that knows one knows the other. The sidecar-hash link: `00 \u2013 Project Hub/.project-mirror.json` records, per path, the sha256 of the content last written to the Project; a hash equal to the disk file means the Project copy is current."
+        }
+      ]
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.12
+      },
+      "cross_file": {
+        "probability": 0.95
+      },
+      "docs_only": {
+        "probability": 0.04
+      },
+      "has_tests": {
+        "probability": 0.95
+      },
+      "risky": {
+        "probability": 0.35
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": false,
+      "cross_file": true,
+      "docs_only": false,
+      "has_tests": true,
+      "risky": false
+    },
+    "rule": "cross_file",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 5129,
+    "quorum": {
+      "line_id": "e79099b25f11",
+      "ledger": "/Users/doriancougias/.gstack/decisions/202610.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 745,
+          "cost": "0.000068964",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.12
+            },
+            "cross_file": {
+              "probability": 0.95
+            },
+            "docs_only": {
+              "probability": 0.04
+            },
+            "has_tests": {
+              "probability": 0.95
+            },
+            "risky": {
+              "probability": 0.35
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 846,
+          "cost": "0.00002938",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.012674881353776944
+            },
+            "cross_file": {
+              "probability": 0.9065448296526127
+            },
+            "docs_only": {
+              "probability": 0.006886591168009194
+            },
+            "has_tests": {
+              "probability": 0.9984805264037669
+            },
+            "risky": {
+              "probability": 0.008190985105594047
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 844,
+          "cost": "0.0002018",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.05
+            },
+            "cross_file": {
+              "probability": 1
+            },
+            "docs_only": {
+              "probability": 0
+            },
+            "has_tests": {
+              "probability": 1
+            },
+            "risky": {
+              "probability": 0
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.05
+        },
+        "cross_file": {
+          "probability": 0.95
+        },
+        "docs_only": {
+          "probability": 0.006886591168009194
+        },
+        "has_tests": {
+          "probability": 0.9984805264037669
+        },
+        "risky": {
+          "probability": 0.008190985105594047
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "cross_file"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice",
+    "declared_model": "claude-fable-5-1"
+  },
+  "vocabulary_version": "1.11.0",
+  "origin": "gate_output"
+}
