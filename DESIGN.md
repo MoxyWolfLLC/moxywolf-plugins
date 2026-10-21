@@ -996,6 +996,25 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 5. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.33.0, and the top-level marketplace version moves with it, per CI-002.
 6. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
 
+### SM-007 — A project's authoritative files have a second reader, never a second author
+
+**Status:** planned.
+
+**Links introduced:** the disk-path-to-Project-doc link: each mirrored file lives in the attached claude.ai Project at the same path it has under `Taskade/`, so a reader that knows one knows the other. The sidecar-hash link: `00 – Project Hub/.project-mirror.json` records, per path, the sha256 of the content last written to the Project; a hash equal to the disk file means the Project copy is current.
+
+Premise: scheduled runs, phone sessions and any session whose Mac is asleep can't mount Taskade, and a mounted read can still fail (`Resource deadlock avoided`, 2026-10-21, on this project's handoff). Those sessions then run on nothing, or on Drive-connector reads that lag behind sync. The claude.ai Project attached to each MoxyWolf project is readable from every session with no mount. Disk stays the only author; the Project is a mirror and nothing writes back from it.
+
+1. `project-surfaces.json` declares `project_docs`: the list of paths, relative to the Taskade root, that are mirrored. `/init-project` and `/refresh-project-instructions` write the default four when the key is absent: `<project>/00 – Project Hub/cowork-project-instructions.md`, `<project>/00 – Project Hub/project-surfaces.json`, `<project>/00 – Project Hub/cowork-session-handoff.md`, `_Shared Files/_shared-memory/INDEX.md`. Nothing else is mirrored.
+2. `plugins/project-init/scripts/project_mirror.py plan --surfaces <path> --taskade <root>` reads each declared file, compares its sha256 to the sidecar, and prints JSON: `write` (paths whose hash differs or is unrecorded), `unchanged`, `missing` (declared but not on disk, with the reason). It opens nothing in the Project and writes nothing. `record --surfaces <path> --taskade <root> --path <p> --sha <h>` updates the sidecar after a successful `project_write`. The script is the single producer of the decision (XE-008).
+3. `/refresh-project-instructions` (new Step 4b) and `/session-end` (new Step 5d, after the handoff is written) run `plan`, call `project_write` for each path in `write` at that same relative path, then `record` each one. They report `mirrored: N written, M unchanged, K missing` with the paths. An unchanged file is never rewritten, because every doc change busts the prompt cache for every chat in the Project.
+4. `/session-start` reads the three instruction files from disk as it does today. When the Taskade root is not mounted, the file is absent, or the read fails, it reads the same relative path with `project_read` and prints the source on SM-001's coverage line: `source: project-doc (mirrored <sidecar date>)`, or `SKIP: not on disk, not in Project` when both fail. The fallback never silently replaces disk: when both are readable and differ, disk wins and the briefing says the mirror is behind.
+5. A session with no attached Project (the `Projects` tool absent) prints `project mirror: SKIP, no Project attached` in both directions, and nothing fails (EV-001).
+6. `plugins/project-init/tests/test_project_mirror.py` runs the script against a temp tree: a first `plan` lists every declared file under `write`; `record` then a second `plan` lists them under `unchanged`; editing one file moves exactly that path back to `write`; a declared path that isn't on disk lands in `missing` with its reason; the script never reads or writes outside the Taskade root and the sidecar. `run_all_tests.py` discovers it.
+7. The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit and a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.
+8. `project-init` gets a minor version bump and the changelog names SM-007.
+
+Not in scope: mirroring deliverables, DRs or any file outside the declared list; two-way sync; replacing the loader stub. Baseline: the MoxyWolf LLC Project was seeded by hand with the four files on 2026-10-21, before this item, so criterion 6's first `plan` on it reports four under `write` (no sidecar yet) and rewrites them once.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -2060,6 +2079,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-21: SM-007 declared on Dorian's approval ("Approve"), from the unified Chat/Cowork rollout question: cloud-only sessions can't mount Taskade, and a mounted read of this project's handoff failed with `Resource deadlock avoided` the same morning. The claude.ai Project becomes a read-only mirror of four declared files; disk stays the only author.
 
 - 2026-10-18: DC-001 is done: merged in `60a3e4c` (PR #228, head `77110c2`) under DR-113 and recorded as `agent_merge_autonomous`, lane `wide`. The first production council calls are on the ledger. The next step in the objective is DC-002, built only after the council's score has rows to read.
 
