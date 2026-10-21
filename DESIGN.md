@@ -1010,7 +1010,7 @@ Premise: scheduled runs, phone sessions and any session whose Mac is asleep can'
 4. `/session-start` reads the three instruction files from disk as it does today. When the Taskade root is not mounted, the file is absent, or the read fails, it reads the same relative path with `project_read` and prints the source on SM-001's coverage line: `source: project-doc (mirrored <sidecar date>)`, or `SKIP: not on disk, not in Project` when both fail. The fallback never silently replaces disk: when both are readable and differ, disk wins and the briefing says the mirror is behind.
 5. A session with no attached Project (the `Projects` tool absent) prints `project mirror: SKIP, no Project attached` in both directions, and nothing fails (EV-001).
 6. `plugins/project-init/tests/test_project_mirror.py` runs the script against a temp tree: a first `plan` lists every declared file under `write`; `record` then a second `plan` lists them under `unchanged`; editing one file moves exactly that path back to `write`; a declared path that isn't on disk lands in `missing` with its reason; the script never reads or writes outside the Taskade root and the sidecar. `run_all_tests.py` discovers it.
-7. The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit and a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.
+7. The vault loader-stub spec (`project-instructions-loader-stub.md`) gets one line telling a session without a mount to `project_read` the three files; that's a vault edit, done 2026-10-21 and quoted with the file's hash in `docs/evidence/SM-007-vault-loader-stub-2026-10-21.md`, plus a `/refresh-project-instructions` run per project, outside this repo, recorded here so it isn't forgotten.
 8. `project-init` gets a minor version bump and the changelog names SM-007.
 
 Not in scope: mirroring deliverables, DRs or any file outside the declared list; two-way sync; replacing the loader stub. Baseline: the MoxyWolf LLC Project was seeded by hand with the four files on 2026-10-21, before this item, so criterion 6's first `plan` on it reports four under `write` (no sidecar yet) and rewrites them once.
@@ -2079,6 +2079,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-21: SM-007 criterion 7 amended on Dorian's choice ("Do the vault edit now") to name `docs/evidence/SM-007-vault-loader-stub-2026-10-21.md`, so the reviewer has in-repo evidence for an edit outside the repo (XE-025). The vault edit itself is in that file.
 
 - 2026-10-21: SM-007 declared on Dorian's approval ("Approve"), from the unified Chat/Cowork rollout question: cloud-only sessions can't mount Taskade, and a mounted read of this project's handoff failed with `Resource deadlock avoided` the same morning. The claude.ai Project becomes a read-only mirror of four declared files; disk stays the only author.
 
