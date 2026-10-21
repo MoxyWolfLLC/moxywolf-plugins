@@ -96,6 +96,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.40.0**: SM-007, the four authoritative files are mirrored into the attached claude.ai Project (`scripts/project_mirror.py` plans by sha256 against a sidecar; `/session-end` and `/refresh-project-instructions` write; `/session-start` falls back to `project_read` when the mount is missing or a read fails). Disk stays the only author.
 - **0.39.0**: `/init-goal-mode` treats Node repositories as installable (GO-002.7) and flags builds that fetch from the network.
 - **0.38.0**: `/init-goal-mode` names the repository's check pin file (GO-005.7) and the Preview-variables rule for hosted previews (GO-005.8).
 - **0.37.0**: `/init-goal-mode <owner>/<repo>` checks whether a repository is ready for goal mode (GO-008) and says who closes each gap. Read-only.

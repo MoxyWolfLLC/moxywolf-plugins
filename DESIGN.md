@@ -998,7 +998,7 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 
 ### SM-007 — A project's authoritative files have a second reader, never a second author
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the disk-path-to-Project-doc link: each mirrored file lives in the attached claude.ai Project at the same path it has under `Taskade/`, so a reader that knows one knows the other. The sidecar-hash link: `00 – Project Hub/.project-mirror.json` records, per path, the sha256 of the content last written to the Project; a hash equal to the disk file means the Project copy is current.
 

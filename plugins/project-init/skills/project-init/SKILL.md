@@ -182,6 +182,8 @@ template_source: _Templates/Cowork Project Instructions Template.md
 
 The frontmatter is for the saved file only.
 
+Also write `project_docs` into `00 – Project Hub/project-surfaces.json` (create the file with `workspace.path` = `Taskade/[TASKADE_SUBFOLDER]` if it doesn't exist) listing the default four authoritative files; `/session-end` and `/refresh-project-instructions` mirror exactly those into the attached claude.ai Project (SM-007).
+
 ### Step 3.5: Compose the loader stub (what goes into Cowork settings)
 
 **Do NOT paste the full instructions into Cowork's settings.** The full file on disk (Step 3) is the single source of truth; the Cowork → Settings → Project Instructions field gets a thin **loader stub** that points at it. This kills the paste-drift failure mode where the embedded copy and the on-disk file fall out of sync (the on-disk file gets edited, the embedded paste never does). The stub carries only what must be in-context *before the first tool call* and can't wait for a file read: the mounts, the file-write-path override, and the imperative to read the full file + team-shared memory first.
