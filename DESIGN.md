@@ -1516,6 +1516,20 @@ The packet's `tests` field is the builder's account of what ran. Nothing ties a 
 9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a minor version and the top-level marketplace version moves (CI-002).
 10. In CI, `plugins/gstack-execution/scripts/run_all_tests.py`, run by `.github/workflows/tests.yml`, reports a nonzero count of what it examined, names `test_check_ledger.py` among the suites it ran, and reports no failures.
 
+### XE-038 — A push that would fail the version gate is refused before it leaves the machine
+
+**Status:** planned.
+
+**Links introduced:** none beyond the existing one between a changed plugin and its version sites, which `version_bump.py` already owns; this item only moves where that check runs.
+
+Premise: M-043 (2026-10-05) made "run `version_bump.py` before asking for an approval" a rule in the goal-mode lessons, and on 2026-10-21 SM-007 still pushed `10385d6` with the top-level marketplace version unmoved; CI run 39652681978 caught it. A rule read at session start was not in front of the agent at the push, so the check moves to the push itself (SM-003 criterion 5: a repeat can't go back into the same rule file).
+
+1. `/gstack-build` Step 4 runs `python3 <plugin>/scripts/version_bump.py --base origin/<base> --head HEAD` before every `git push` and refuses to push on `FAIL`, printing the script's lines verbatim. `<base>` is `main`, or the goal branch in a goal run.
+2. The same refusal applies on every push in Step 5's fix loop, not only the first.
+3. A repository without `version_bump.py` (any repository but `moxywolf-plugins`) prints `version gate: SKIP, no version_bump.py in this repository` and pushes; it never fails for that reason (EV-001).
+4. A test drives the Step 4 helper against a fixture repo: a plugin file changed with no version move refuses; moving the plugin, its marketplace entry and the top-level version passes; a repo with no script skips with the line in criterion 3.
+5. `gstack-execution` gets a minor version bump and the changelog names XE-038.
+
 ### EV-010 — Text that came from the thing under review is marked as such before a model reads it
 
 **Status:** done. Merged to `main` in `8b7e260` (PR #198, head `751d723`) on 13 October 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113. Review `20261013-134525-f82aa4d-frby4qq4` (openrouter-gpt/gpt-6-astra, `fixes_verified`, 3 rounds, 20/20, coverage `covered`): round 1 found F1 the peer-node adapter dropping `category`, fixed in `a34145d` with F3 (id uniqueness across categories) and F2 (evidence/ sent to API reviewers); round 2 had no blocker and two CI criteria unmet for want of a passing job's output, met in `751d723` by the dispatcher keeping a passing job's report lines as `evidence/ci-<run>-job-<id>.summary.txt`; round 3 clean. An earlier review `20261013-124809-dcb80a9-duv7_0b3` (same reviewer) ended `rounds_exhausted` after three rounds whose findings were all fixed: F1 nested diagnostics provenance, F2 model-handler rule and claim nodes, F3 human evidence as a recorded observation, F4 locked ledger writes, F5 one-word vocabulary ids, F6 derived raiser bounded to this branch's open review, F7 zero-open listing, F16 and F17 reviewer text kept out of executor-labelled files. CI `tests` green at every reviewed head (run 38467865997 at the merged head). Declared 2026-10-13 from the REA intake and approved by Dorian the same day ("I approve #196"); design committed as `be80ad8` (PR #196). Built as declared with three recorded departures: `test_peer_review.py` is new (EV-010.5 named it; it did not exist); the `unknown` concept EV-011.8 calls existing was added; `--raised-by` is optional and derived from the newest open review of the branch when absent (EV-011.1 names no such flag).
@@ -2060,6 +2074,8 @@ Write failing behavioral tests before implementation. Exercise real dispatcher a
 Test stale approvals, incomplete acceptance, dropped blockers, failed branches, changed inputs, interrupted runs, and duplicate release attempts. No production release is required to prove refusal behavior.
 
 ## Amendments log
+
+- 2026-10-21: XE-038 declared on Dorian's approval ("Declare the check item"), from the MoxyWolf LLC session-end mistake review: SM-007's first push failed CI on the top-level marketplace version (run 39652681978), a repeat of M-043, so the version gate moves from a rule into the push step.
 
 - 2026-10-18: DC-001 is done: merged in `60a3e4c` (PR #228, head `77110c2`) under DR-113 and recorded as `agent_merge_autonomous`, lane `wide`. The first production council calls are on the ledger. The next step in the objective is DC-002, built only after the council's score has rows to read.
 
