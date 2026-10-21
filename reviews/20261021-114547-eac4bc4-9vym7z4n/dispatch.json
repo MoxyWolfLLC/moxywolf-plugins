@@ -1,0 +1,13 @@
+{
+  "pid": 1145,
+  "started": "2026-10-21T11:46:02",
+  "started_epoch": 1792608362,
+  "rounds_at_dispatch": 0,
+  "log": "/root/review-host/peer-reviews/20261021-114547-eac4bc4-9vym7z4n/dispatch.log",
+  "argv": [
+    "/root/review-host/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20261021-114547-eac4bc4-9vym7z4n"
+  ],
+  "origin": "gate_output"
+}
