@@ -10,15 +10,15 @@ Bring the current project's instructions up to date with the canonical loader-st
 
 ## STEP 1 — Load the vault spec (the source of truth)
 
-Read `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md`. It holds the loader-stub skeleton (section 1, or section 2 for vault-only projects) and the on-disk reconciliation directives (section 3). If the file is missing, **stop** and tell the user — do not fall back to an inline copy; this file is authoritative. Note its `spec_version`.
+Read `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md`. It holds the loader-stub skeleton (section 1 for Taskade projects, section 2 for vault-only, section 2b for org-shared projects in `GitHub/Projects`) and the on-disk reconciliation directives (section 3). If the file is missing, **stop** and tell the user — do not fall back to an inline copy; this file is authoritative. Note its `spec_version`.
 
 ## STEP 2 — Identify this project
 
-Determine the project's display name (`PROJECT_NAME`) and active Taskade subfolder (`SUBFOLDER`) from the project's own context: its current Cowork instructions, the mounted Taskade folder, and the `Project Setup` block of its on-disk `cowork-project-instructions.md`. If the project is vault-only (no Taskade subfolder), note that and use the section-2 paths. If you can't resolve the subfolder confidently, ask via AskUserQuestion rather than guess.
+Determine the project's display name (`PROJECT_NAME`), its workspace and, for a Taskade project, its subfolder (`SUBFOLDER`) from the project's own context: its current Cowork instructions, the mounted project folder, and the `Project Setup` block of its on-disk `cowork-project-instructions.md`. Org-shared projects live in `GitHub/Projects/<PROJECT_NAME>/` and are never stored in Taskade; use the section-2b paths. If the project is vault-only, use the section-2 paths. If you can't resolve the subfolder confidently, ask via AskUserQuestion rather than guess.
 
 ## STEP 3 — Apply the reconciliation directives (surgical)
 
-Open `Taskade/<SUBFOLDER>/00 – Project Hub/cowork-project-instructions.md` (or the vault path for vault-only projects). For each directive in the vault spec's section 3, in order:
+Open the project's `00 – Project Hub/cowork-project-instructions.md` in its workspace: `GitHub/Projects/<PROJECT_NAME>/` (org-shared), `Taskade/<SUBFOLDER>/`, or the vault path for vault-only projects. For an org-shared project, pull `GitHub/Projects` fast-forward-only first, and commit and push the edited file afterwards (that project's folder only, as the `moxywolf-agent` app), then pull back. For each directive in the vault spec's section 3, in order:
 
 - Find the stale shape it describes. If present, replace exactly the matched bullet/line with the directive's current text, using the Edit tool. Change nothing else.
 - If the file is already current for that directive (idempotency check), make no change.
@@ -27,7 +27,7 @@ Never rewrite untouched sections. Never regenerate the file from the template. I
 
 ## STEP 4 — Stamp + emit the loader stub
 
-Take the skeleton from the vault spec (section 1 for Taskade projects, section 2 for vault-only), substitute `<PROJECT_NAME>` and `<SUBFOLDER>`, and output the result **verbatim in a fenced code block**. Above it, tell the user:
+Take the skeleton from the vault spec (section 1 for Taskade projects, section 2 for vault-only, section 2b for org-shared), substitute `<PROJECT_NAME>` and `<SUBFOLDER>`, and output the result **verbatim in a fenced code block**. Above it, tell the user:
 
 > Copy this into Cowork → Settings → Project Instructions for **<PROJECT_NAME>**, replacing the full text currently there. The full instructions stay on disk; this stub just points at them, so you paste it once and never re-paste when rules change.
 

@@ -13,7 +13,7 @@ The skill assumes the three standard MoxyWolf roots are mounted in Cowork → Fo
 It then:
 
 1. Asks for the project name
-2. Opens the **native Finder picker** so the user can select the active Taskade subfolder (no typing) — or marks the project as vault-only
+2. Asks whether the project is shared with the organization. **Org-shared projects live in `GitHub/Projects/<NAME>/`** (the `MoxyWolfLLC/Projects` repo, scaffolded from `Directory Template`) and never get stored in Taskade; the new folder is committed, pushed and pulled back. Personal projects get a Taskade subfolder picked with the **native Finder picker** (no typing); vault-only projects use `MoxyWolf Vault/Projects/<NAME>/`
 3. Asks how many GitHub repos this project uses, then opens the **native Finder picker** once per repo so the user can select each repo subfolder under `GitHub/` (no typing). Asks for a one-line description per repo.
 4. Asks which `#project/…` scope(s) the project's tasks carry on the team Jira board (MOXY) — and the exact Jira label(s) those issues carry on MOXY, stored as written (or `none`)
 5. Reads the canonical template from `MoxyWolf Vault/_Templates/Cowork Project Instructions Template.md`

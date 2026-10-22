@@ -4,7 +4,8 @@ description: >
   Scaffolds Project Instructions for a project that does not have them yet. Use it for "set up a
   new project", "init a new project", "new Cowork project", "start a new project", or
   /init-project. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade)
-  are mounted, then gathers the active Taskade subfolder and the active GitHub repo folders and
+  are mounted, then asks where the project lives (org-shared projects live in GitHub/Projects,
+  never Taskade; personal projects in Taskade; or vault-only), gathers the active GitHub repo folders and
   writes tailored instructions following the MoxyWolf template, with shared-knowledge writes
   routed to the vault. The full instructions are saved on disk as the single source of truth, and
   a thin loader stub goes in Cowork's settings field so the embedded copy cannot drift. If the
@@ -17,10 +18,22 @@ description: >
 
 ## When this skill applies
 
-This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the active Taskade subfolder and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
+This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the three standard MoxyWolf roots (MoxyWolf Vault, GitHub, Taskade) are mounted in Cowork, then interactively gathers the project's workspace (org-shared projects live in `GitHub/Projects/<NAME>/`, never in Taskade; personal projects in a Taskade subfolder; or vault-only) and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
 
 
-Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the same three roots — MoxyWolf Vault, GitHub, and Taskade — and the Project Instructions just declare *which* subfolder of Taskade is the active project and *which* subfolder of GitHub is the active repo. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
+Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the same three roots — MoxyWolf Vault, GitHub, and Taskade — and the Project Instructions just declare *where* the project's workspace lives and *which* subfolder of GitHub is the active repo.
+
+## Project workspace types
+
+Every project has exactly one workspace folder, written below as `[WORKSPACE]`. It holds `00 – Project Hub/` and the numbered folders.
+
+| Type | `[WORKSPACE]` | Who it's for |
+|---|---|---|
+| **Org-shared** | `GitHub/Projects/[PROJECT_NAME]` | Projects shared with the organization. They live in the `MoxyWolfLLC/Projects` repo (local clone `GitHub/Projects`), scaffolded from `GitHub/Projects/Directory Template/`. **They never get stored in Taskade.** MW Plugins is the reference instance. |
+| **Personal (Taskade)** | `Taskade/[TASKADE_SUBFOLDER]` | Projects that aren't shared with the organization. |
+| **Vault-only** | `MoxyWolf Vault/Projects/[PROJECT_NAME]` | No workspace folder outside the vault. |
+
+The Taskade root stays mounted for every type, because team-shared memory (`Taskade/_Shared Files/_shared-memory/`) lives there. An org-shared project just doesn't put any of its own files in it. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
 
 ## When to use
 
@@ -40,8 +53,8 @@ The one case this skill legitimately handles for an existing project is the user
 
 **Run this before asking anything, including the project name.** The failure mode this prevents: running `/init-project` again on an already-initialized project silently overwrites its on-disk `cowork-project-instructions.md` — including any hand-written `## Project-Specific Overrides` — with a freshly-generated file, and along the way asks "which project are we initializing" even when the answer (e.g. "Team Plugins") is already sitting in the current session's mounted context. Never let Step 3's write execute without this guard having run first.
 
-1. **Resolve the current project from context — the same way `/session-start` does — before asking the user anything.** Check, in order: (a) an explicit project name if the user already stated one this turn, (b) the launch directory / currently mounted Taskade subfolder for this Cowork session (a mounted path matching `.../Taskade/<NAME>/...` or `.../MoxyWolf Vault/Projects/<NAME>/...` resolves to project `<NAME>`), (c) otherwise, no project resolves yet — that's fine, skip to step 4.
-2. **If a project resolved in step 1, check whether it already has saved instructions:** does `Taskade/<NAME>/00 – Project Hub/cowork-project-instructions.md` (or `MoxyWolf Vault/Projects/<NAME>/00 – Project Hub/cowork-project-instructions.md` for vault-only) exist?
+1. **Resolve the current project from context — the same way `/session-start` does — before asking the user anything.** Check, in order: (a) an explicit project name if the user already stated one this turn, (b) the launch directory / currently mounted project folder for this Cowork session (a mounted path matching `.../GitHub/Projects/<NAME>/...` (where `<NAME>` isn't `Directory Template`), `.../Taskade/<NAME>/...` or `.../MoxyWolf Vault/Projects/<NAME>/...` resolves to project `<NAME>`), (c) otherwise, no project resolves yet — that's fine, skip to step 4.
+2. **If a project resolved in step 1, check whether it already has saved instructions:** does `<NAME>/00 – Project Hub/cowork-project-instructions.md` exist under any of the three workspace roots: `GitHub/Projects/`, `Taskade/`, or `MoxyWolf Vault/Projects/`?
 3. **If it exists: stop.** Do not proceed to "Inputs to collect" or ask "which project are we initializing" — the project name is already known (`<NAME>`), and re-running this skill would overwrite the very file that answers that question. Tell the user, in one line, that `<NAME>` already has saved Project Instructions. Then ask via AskUserQuestion:
    - **`Run /refresh-project-instructions instead`** (default/recommended) — the surgical, non-destructive path that applies pending team-wide fixes without touching anything else. If chosen, hand off to that command's procedure directly.
    - **`Show me the current file`** — read and display it; don't modify anything.
@@ -79,25 +92,28 @@ Gather inputs in this order, one decision at a time:
 
 Only reached if **Step 0** found no already-initialized project in context. Ask via AskUserQuestion for the project name in kebab-case or original casing as the user prefers (e.g., "Nexus", "SAMS", "Frontier Founder", "STIGViewer"). Free-text via the "Other" option is fine here. This is the canonical project identifier and appears throughout the instructions. If the answer names a project that turns out to already have saved instructions, apply Step 0's stop-and-redirect logic (its point 5) before continuing.
 
-(Tip: if the user has already picked the Taskade folder before answering this, default the suggested project name to the picked folder's basename — they can still override.)
+(Tip: if the user has already picked the workspace folder before answering this, default the suggested project name to the picked folder's basename. They can still override.)
 
-### 2. Active Taskade subfolder — Finder picker
+### 2. Project workspace
 
-Do **not** ask the user to type the folder name. Instead:
+Ask via AskUserQuestion: *"Is this project shared with the organization?"* Options:
+   - **`Org-shared: GitHub/Projects`** (default). Workspace is `GitHub/Projects/[PROJECT_NAME]`.
+   - **`Personal: Taskade`**. Workspace is a Taskade subfolder, picked in 2b.
+   - **`Vault-only`**. Workspace is `MoxyWolf Vault/Projects/[PROJECT_NAME]`.
 
-a. First, ask via AskUserQuestion whether this project uses Taskade. Options:
-   - **`Yes — pick the Taskade subfolder now`** (default)
-   - **`No — vault-only project`** (the project will then write into `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead)
+Store the answer as `[WORKSPACE_TYPE]` (`org-shared`, `taskade` or `vault-only`) and the path as `[WORKSPACE]`. Set `[TASKADE_SUBFOLDER]` to `none` for org-shared and vault-only projects. **An org-shared project never gets a Taskade folder**, not even an empty one.
 
-b. If "Yes": identify the subfolder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** so the native picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `Taskade/` root (or `ls` it offline) and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
+a. **Org-shared.** Pull the Projects clone first (`git -C GitHub/Projects pull --ff-only`; if it's dirty or diverged, stop and tell the user instead of touching it). If `GitHub/Projects/[PROJECT_NAME]/` already exists, use it as is. Otherwise copy the template without overwriting anything: `cp -Rn "GitHub/Projects/Directory Template/" "GitHub/Projects/[PROJECT_NAME]/"`. Nothing is committed yet; Step 3 commits the scaffold together with the instructions. Confirm back: "Got it, workspace `GitHub/Projects/[PROJECT_NAME]` (org-shared)."
 
-c. If the picker is dismissed / the chip menu is declined or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output.
+b. **Personal (Taskade).** Do **not** ask the user to type the folder name. Identify the subfolder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** so the native picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `Taskade/` root (or `ls` it offline) and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
 
-The full path is always `Taskade/[TASKADE_SUBFOLDER]`.
+c. (Taskade only.) If the picker is dismissed / the chip menu is declined or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output. The full path is always `Taskade/[TASKADE_SUBFOLDER]`.
+
+d. **Vault-only.** Nothing to pick. The workspace is `MoxyWolf Vault/Projects/[PROJECT_NAME]`.
 
 ### 3. GitHub repo count
 
-Ask via AskUserQuestion: how many local GitHub repos under `GitHub/` does this project use? Options: `0`, `1`, `2`, `3 or more`.
+Ask via AskUserQuestion: how many local GitHub repos under `GitHub/` does this project use? Options: `0`, `1`, `2`, `3 or more`. For an org-shared project, don't count `GitHub/Projects` itself; Step 2 adds it automatically.
 
 ### 4. GitHub repo subfolder(s) — Finder picker, one per repo
 
@@ -157,7 +173,13 @@ Replace placeholders with the user's answers:
   - **none:** write `none`.
 - The `[JIRA_LABEL]` placeholder in the *Project Setup* block's `Jira label(s):` line: the label(s) exactly as confirmed, each in backticks and comma-separated, or `none`. Never derive it from `[KANBAN_SLUG]`.
 
-If the project's Active Taskade subfolder is `none` (vault-only project), replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
+**Org-shared projects** (`[WORKSPACE_TYPE]` = `org-shared`):
+- Replace section 1's heading and body, and the *File Write Path — MANDATORY OVERRIDE* section, to point at `GitHub/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`. Say plainly in section 1 that this project is org-shared and none of its files go in Taskade.
+- In *Project Setup*, write `**Active Taskade subfolder:** none` and add `` **Workspace:** org-shared, `GitHub/Projects/[PROJECT_NAME]` (repo `MoxyWolfLLC/Projects`) ``.
+- Add `GitHub/Projects` to the active repo list with the description "project workspace repo (org-shared)", READ/WRITE like any other listed repo, so the commit & push workflow covers the workspace too.
+- Leave *Mounted Roots* unchanged; the Taskade root stays mounted for team-shared memory.
+
+If the project is vault-only, replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
 
 ### Step 3: Save the filled instructions
 
@@ -165,6 +187,7 @@ If the project's Active Taskade subfolder is `none` (vault-only project), replac
 
 Write the result to the project's Project Hub:
 
+- Org-shared project: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md`
 - Taskade-based project: `Taskade/[TASKADE_SUBFOLDER]/00 – Project Hub/cowork-project-instructions.md`
 - Vault-only project: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md`
 
@@ -182,6 +205,10 @@ template_source: _Templates/Cowork Project Instructions Template.md
 
 The frontmatter is for the saved file only.
 
+Also write `[WORKSPACE]/00 – Project Hub/project-surfaces.json` (vault-only: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00-Hub/project-surfaces.json`), following MW Plugins' file as the reference shape. Set `workspace.type` to `github` (org-shared), `taskade` or `vault`, and `workspace.path` to `[WORKSPACE]`. For org-shared projects, list `GitHub/Projects` under `repositories` with role `project workspace repo`.
+
+**Org-shared projects are committed and pushed.** The workspace only reaches the organization once it's on `MoxyWolfLLC/Projects`. After both files are written, commit the new `GitHub/Projects/[PROJECT_NAME]/` folder (scaffold, instructions and surfaces file) as one commit, push it with the same mechanics the template's *Commit & push workflow* uses (the `moxywolf-agent` GitHub App, `agent_token.py exec`, GA-005), verify the push landed (`git ls-remote`), then pull back so the local clone matches the remote. Stage only that project's folder, never `git add -A` at the repo root: other projects share this repo.
+
 ### Step 3.5: Compose the loader stub (what goes into Cowork settings)
 
 **Do NOT paste the full instructions into Cowork's settings.** The full file on disk (Step 3) is the single source of truth; the Cowork → Settings → Project Instructions field gets a thin **loader stub** that points at it. This kills the paste-drift failure mode where the embedded copy and the on-disk file fall out of sync (the on-disk file gets edited, the embedded paste never does). The stub carries only what must be in-context *before the first tool call* and can't wait for a file read: the mounts, the file-write-path override, and the imperative to read the full file + team-shared memory first.
@@ -190,7 +217,7 @@ The frontmatter is for the saved file only.
 
 `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md`
 
-Use section 1 (Taskade-based projects) or section 2 (vault-only projects). Substitute `<PROJECT_NAME>` and `<SUBFOLDER>` with this project's values; everything else is constant. Sourcing the skeleton from the vault means a change to the stub format (or a new team-wide rule) is a vault edit + a `/refresh-project-instructions` run per project — never a plugin update. If the spec file is missing, stop and tell the user rather than inventing a skeleton; that file is authoritative.
+Use section 1 (Taskade-based projects), section 2 (vault-only projects) or section 2b (org-shared projects in `GitHub/Projects`). Substitute `<PROJECT_NAME>` and `<SUBFOLDER>` with this project's values; everything else is constant. Sourcing the skeleton from the vault means a change to the stub format (or a new team-wide rule) is a vault edit + a `/refresh-project-instructions` run per project — never a plugin update. If the spec file is missing, stop and tell the user rather than inventing a skeleton; that file is authoritative.
 
 ### Step 4: Display the loader stub for copy-paste
 
@@ -204,7 +231,8 @@ If the user has not yet mounted all three standard roots in this Cowork project,
 
 ## Output
 
-- Full instructions saved to the project's `00 – Project Hub/cowork-project-instructions.md` (the single source of truth)
+- Full instructions saved to the project's `00 – Project Hub/cowork-project-instructions.md` (the single source of truth), plus `project-surfaces.json`
+- Org-shared projects: the commit hash pushed to `MoxyWolfLLC/Projects`, verified on the remote
 - The thin **loader stub** displayed in chat as a code block (this is what gets pasted into Cowork settings)
 - Computer-link to the saved full file
 - A reminder to mount any missing standard roots (MoxyWolf Vault, GitHub, Taskade) — on-computer via Cowork → Folders, in the cloud via the desktop app's **Add folder** button
@@ -218,6 +246,9 @@ If the user explicitly asks to override this routing for a specific project, sav
 
 ## Edge cases
 
+- **Org-shared project folder already exists in `GitHub/Projects/`** but has no saved instructions. Use it; `cp -Rn` only fills in missing template folders and never overwrites.
+- **`GitHub/Projects` clone is dirty or behind and can't fast-forward.** Stop before scaffolding and report what git said. Never stash, reset or force anything in a shared repo.
+- **The user asks for an org-shared project in Taskade.** Don't. Org-shared projects live in `GitHub/Projects`; say so in one line and offer the personal (Taskade) type if the project isn't actually shared.
 - **Active Taskade subfolder doesn't exist yet.** Normally impossible because the user picks an existing folder via the native Finder picker. Only happens in the free-text fallback path; in that case ask the user whether to create the folder (with the standard numbered subfolder structure) or whether they'll create it manually. Don't proceed with saving until the folder exists.
 - **GitHub repo subfolder doesn't exist locally.** Normally impossible via the picker. Only happens via the "Type a custom name" fallback — accept the name and flag it in the output. The user may be planning to clone the repo. Don't block on it.
 - **User dismisses the Finder picker (on-computer) or declines the chip menu (cloud).** Treat as "skip" — fall back to the AskUserQuestion free-text path for that one input and continue.
@@ -228,7 +259,7 @@ If the user explicitly asks to override this routing for a specific project, sav
 
 ## Notes
 
-- The plugin reads from the vault but writes to the project's Taskade (or vault Projects) folder — never to the vault's `_Templates/` directory itself.
+- The plugin reads from the vault but writes to the project's workspace folder (`GitHub/Projects`, Taskade, or vault Projects), never to the vault's `_Templates/` directory itself.
 - When the project name has spaces or special casing (e.g., "Frontier Founder"), preserve that casing in the output. Use kebab-case only for filenames if needed.
 - The Active Taskade subfolder name often matches the project name but doesn't have to — preserve whatever capitalization the actual folder uses.
 - The displayed code block can be long. That's expected — the user is going to paste it whole.

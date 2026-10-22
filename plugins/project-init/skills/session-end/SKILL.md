@@ -38,15 +38,15 @@ If the user wants an explicit dated archive in addition to the canonical file, t
 
 If the user passed a project name with the slash command (e.g. `/session-end Nexus`), use it directly. Otherwise, in order:
 
-a. Check the currently-mounted folders. If exactly one Taskade subfolder is mounted (e.g. `Taskade/Nexus`), assume that's the project. Confirm via a single AskUserQuestion before proceeding.
+a. Check the currently-mounted folders. If exactly one project folder is mounted (e.g. `GitHub/Projects/MW Plugins` or `Taskade/Nexus`), assume that's the project. Confirm via a single AskUserQuestion before proceeding.
 
-b. If none is obviously mounted, scan `Taskade/` and `MoxyWolf Vault/Projects/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Sort by recency of modification of the saved instructions file. Present the top ~6 candidates via AskUserQuestion.
+b. If none is obviously mounted, scan `GitHub/Projects/` (org-shared; skip `Directory Template`), `Taskade/` and `MoxyWolf Vault/Projects/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Sort by recency of modification of the saved instructions file. Present the top ~6 candidates via AskUserQuestion.
 
 c. If the user passes a name that doesn't match any folder, list available project folders and ask them to pick (don't create new ones — that's `/init-project`'s job).
 
 ### Step 2: Read the saved Project Instructions (for context)
 
-Read `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` (or `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` for vault-only projects).
+Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, `Taskade/[PROJECT_NAME]` for a personal one, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Org-shared projects are never stored in Taskade. Every handoff path below uses the same `[WORKSPACE]`.
 
 This gives you:
 
@@ -113,10 +113,11 @@ A short quoted paragraph the user can paste into a fresh Cowork chat as the firs
 
 **Always end this paragraph with a final sentence pointing to the full handoff file's path**, so next-Cowork knows where to read the full detail rather than working from the opening-line alone. Use the path relative to the mounted Cowork roots:
 
+- Org-shared project: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
 - Taskade-based project: `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
 - Vault-only project: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
 
-The pointer sentence should be formatted exactly as: *"The full handoff is at `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`."* (backticks around the path). This wording is what `/session-start` looks for — keep it predictable.
+The pointer sentence should be formatted exactly as: *"The full handoff is at `[WORKSPACE]/00 – Project Hub/cowork-session-handoff.md`."* (backticks around the path). This wording is what `/session-start` looks for — keep it predictable.
 
 Example: *"Picking up after the multi-axis classifier landed. Two commits to push (Bloom's importer + term-def backfill), then run the term-def backfill, then we can spec variant morphology. The full handoff is at `Taskade/Nexus/00 – Project Hub/cowork-session-handoff.md`."*
 
@@ -260,7 +261,7 @@ Description:
 > *"[one- to three-sentence orientation paragraph]. The full handoff is at `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`."*
 ```
 
-(For vault-only projects, substitute `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md` for the path.)
+(For org-shared projects, substitute `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`; for vault-only projects, `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.)
 
 ### Step 5: Write the handoff file
 
@@ -270,7 +271,9 @@ Use the `Write` tool to write the composed document to:
 [project's Taskade subfolder]/00 – Project Hub/cowork-session-handoff.md
 ```
 
-For vault-only projects: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.
+For org-shared projects: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`. For vault-only projects: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.
+
+**Org-shared projects: commit and push the handoff.** It lives in the `MoxyWolfLLC/Projects` repo, so teammates only see it once it's pushed. Stage that project's folder only (`git add "[PROJECT_NAME]/"`, never `git add -A` at the repo root, since other projects share the repo), commit, push as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005), verify with `git ls-remote`, then pull back so the local clone matches. If the push is rejected because a teammate pushed first, `git pull --ff-only` can't help: pull with rebase only when the rebase touches nothing but this project's folder; otherwise stop and report. Report the handoff commit's hash in the end-of-session summary.
 
 Always overwrite. Drive versioning preserves the previous version. Don't ask the user to confirm overwrite — the canonical file is meant to be replaced each session.
 
