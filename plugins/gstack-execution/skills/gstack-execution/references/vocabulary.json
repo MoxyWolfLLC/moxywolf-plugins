@@ -530,6 +530,7 @@
         "sources": [
           "repository",
           "ci_log",
+          "ledger_receipt",
           "handler_output",
           "fetched",
           "executor"
@@ -610,6 +611,20 @@
       "group": "state_field",
       "skos:prefLabel": "mis_cited_fixed",
       "skos:definition": "in a verify report and a release record's links, the count of findings disposed fixed whose cited line did not exist at the reviewed head; each is unverifiable, settled by the later round that verified the fix, never stale (EV-013)"
+    },
+    {
+      "id": "ledger_runs",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "packet_field",
+      "skos:prefLabel": "ledger_runs",
+      "skos:definition": "tests.ledger_runs: the failure-ledger runs a packet cites, each {repo, run_id}; the dispatcher reads each line and its receipt from the ledger itself and puts them under evidence/, never the packet's own text (EV-014)"
+    },
+    {
+      "id": "receipt_verified",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "state_field",
+      "skos:prefLabel": "receipt_verified",
+      "skos:definition": "on a ledger run in a round record and on the surface, true when the run's receipt was found and its sha256 equals the one its ledger line recorded when the run ended; a receipt that matches the likely-secret pattern is withheld but still verified (EV-014)"
     },
     {
       "id": "model_selection",
