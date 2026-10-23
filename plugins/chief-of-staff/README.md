@@ -14,7 +14,7 @@ The Chief of Staff runs in the main session, not as a subagent, because it has t
 ## What it reads
 
 - `MoxyWolf Vault/_Shared Knowledge/Operating Norms/chief-of-staff-context.md`: the context card, which is the only home for MoxyWolf's company facts.
-- It writes one log entry per run to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`.
+- It writes one log entry per run to `<workspace>/00 – Project Hub/chief-of-staff-log.md`, the attached project's workspace from `project-surfaces.json` (`GitHub/Projects/MoxyWolf LLC` by default).
 
 ## The claim check
 

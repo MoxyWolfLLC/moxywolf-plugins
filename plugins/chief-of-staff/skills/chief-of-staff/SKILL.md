@@ -161,7 +161,7 @@ When the memo is about departments that disagree, two more rules hold:
 
 ## The decision log
 
-Every `/cos` run appends one entry to `Taskade/<project>/00 – Project Hub/chief-of-staff-log.md`, where `<project>` is the attached project. With no project attached, it goes to `Taskade/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
+Every `/cos` run appends one entry to `<workspace>/00 – Project Hub/chief-of-staff-log.md`, where `<workspace>` is the attached project's `workspace.path` from its `project-surfaces.json` (`GitHub/Projects/<project>` for an org-shared project, `Taskade/<project>` for a personal one). With no project attached, it goes to `GitHub/Projects/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`; MoxyWolf LLC moved there from Taskade on 2026-10-23, and the old Taskade folder is frozen. On a cloud run with no computer linked, read and write the file in `MoxyWolfLLC/Projects` through the GitHub connector. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
 
 ```
 ## <YYYY-MM-DD> <short ask>
