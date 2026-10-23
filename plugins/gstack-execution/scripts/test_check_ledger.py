@@ -5,6 +5,7 @@ The ledger is written by running check_ledger.py as a subprocess, the way a buil
 gate is exercised through peer_review.cmd_open, the entry point `open` uses.
 """
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -141,6 +142,68 @@ def test_relative_origins_resolve_to_the_repository_they_name():
     assert ledger(a, root, sys.executable, "-c", SUITE) == 1
     assert ledger(b, root, sys.executable, "-c", SUITE) == 0
     assert issues(a, root)[0] == 1
+
+
+LEDGER_PY = LEDGER
+
+
+def run(d, root, code):
+    """One ledger run of `python -c code`; returns (exit code, stdout, the run's ledger line)."""
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(root))
+    r = subprocess.run([sys.executable, LEDGER_PY, "run", "--repo", str(d), "--", sys.executable, "-c", code],
+                       cwd=str(d), env=env, capture_output=True, text=True)
+    return r.returncode, r.stdout, cl.read(cl.ledger_path(d, "build/x", root))[-1]
+
+
+def receipt_of(d, root, line):
+    return cl.receipts_dir(cl.ledger_path(d, "build/x", root)) / f"{line['id']}.log"
+
+
+def test_a_run_keeps_a_receipt_whose_hash_is_on_its_line():
+    d, _, _, root = fixture()
+    rc, out, line = run(d, root, "import sys; print('nice: 2309 elements'); print('warn', file=sys.stderr)")
+    assert rc == 0 and out == "nice: 2309 elements\n", out   # still passed through to the console
+    data = receipt_of(d, root, line).read_bytes()
+    assert b"nice: 2309 elements" in data and b"warn" in data
+    assert line["receipt"] == {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data), "truncated": False}
+
+
+
+def test_a_long_run_is_truncated_and_says_so():
+    d, _, _, root = fixture()
+    _, _, line = run(d, root, "print('a' * 50000); print('z' * 50000)")
+    data = receipt_of(d, root, line).read_bytes()
+    assert line["receipt"]["truncated"] is True and len(data) == line["receipt"]["bytes"] < 70000
+    assert data.startswith(b"a" * 1000) and data.rstrip().endswith(b"z" * 1000) and b"bytes omitted" in data
+    assert hashlib.sha256(data).hexdigest() == line["receipt"]["sha256"]
+
+
+
+def test_a_failing_run_keeps_its_exit_code_and_its_receipt():
+    d, _, _, root = fixture()
+    rc, _, line = run(d, root, "import sys; print('boom'); sys.exit(4)")
+    assert rc == 4 and line["exit_code"] == 4 and b"boom" in receipt_of(d, root, line).read_bytes()
+
+
+
+def test_the_receipt_keeps_stdout_and_stderr_in_arrival_order():
+    d, _, _, root = fixture()
+    code = ("import sys, time\n"
+            "for i in range(6):\n"
+            "    s = sys.stdout if i % 2 == 0 else sys.stderr\n"
+            "    s.write(f'line{i}\\n'); s.flush(); time.sleep(0.05)")
+    _, _, line = run(d, root, code)
+    got = [l for l in receipt_of(d, root, line).read_text().splitlines() if l.startswith("line")]
+    assert got == [f"line{i}" for i in range(6)], got
+
+
+def test_an_old_line_without_a_receipt_still_reads():
+    d, _, _, root = fixture()
+    _, _, line = run(d, root, "print('x')")
+    p = cl.ledger_path(d, "build/x", root)
+    p.write_text(json.dumps({k: v for k, v in line.items() if k != "receipt"}) + "\n")
+    assert cl.read(p)[0]["id"] == line["id"] and "receipt" not in cl.read(p)[0]
+    assert issues(d, root)[0] == 0
 
 
 def open_review(d, base, head, root, reason=None, ledger_runs=None):

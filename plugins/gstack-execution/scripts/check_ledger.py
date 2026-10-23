@@ -27,9 +27,9 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import subprocess
 import sys
-import threading
 import time
 import uuid
 from pathlib import Path
@@ -191,21 +191,20 @@ def _run_teed(argv, out):
         print(msg, end="", file=sys.stderr)
         out.write(msg.encode())
         return 127
-    lock = threading.Lock()
-
-    def pump(src, dst):
-        for chunk in iter(lambda: src.read1(65536), b""):
-            with lock:
-                dst.write(chunk)
-                dst.flush()
-                out.write(chunk)
-
-    threads = [threading.Thread(target=pump, args=(proc.stdout, sys.stdout.buffer)),
-               threading.Thread(target=pump, args=(proc.stderr, sys.stderr.buffer))]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    # F4 (review 20261022-225013): one loop observes both pipes and writes each chunk to the console
+    # and the receipt before it reads the next, so the receipt keeps the order the chunks arrived in.
+    sel = selectors.DefaultSelector()
+    sel.register(proc.stdout, selectors.EVENT_READ, sys.stdout.buffer)
+    sel.register(proc.stderr, selectors.EVENT_READ, sys.stderr.buffer)
+    while sel.get_map():
+        for key, _ in sel.select():
+            chunk = os.read(key.fd, 65536)
+            if not chunk:
+                sel.unregister(key.fileobj)
+                continue
+            key.data.write(chunk)
+            key.data.flush()
+            out.write(chunk)
     return proc.wait()
 
 
