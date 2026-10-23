@@ -128,7 +128,8 @@ def test_a_receipt_that_imitates_the_enclosure_cannot_close_it():
 def test_the_ci_log_net_catches_a_jwt_with_a_short_payload():
     import ci_log_receipt as clr
     assert clr.LIKELY_SECRET.search("token eyJhbGciOiJIUzI1NiJ9.e30.ZRrHA1JJJW8opsbCGfG_HACGpVUMN_a9IV7pAx_Zmeo")
-    for jwt in ("Bearer eyJhbGciOiJIUzI1NiJ9.e30.YQ", "eyJ.e30.x", "x=eyJ0eXAi.eyJzdWIiOjF9.s"):
+    for jwt in ("Bearer eyJhbGciOiJIUzI1NiJ9.e30.YQ", "eyJ.e30.x", "x=eyJ0eXAi.eyJzdWIiOjF9.s", "Bearer eyJ.e30.----",
+                "eyJ-.-.-", "(eyJhbGci.e30.ab-)"):
         assert clr.LIKELY_SECRET.search(jwt), jwt
     assert not clr.LIKELY_SECRET.search("eyJ alone, and a.b.c without the prefix")
 

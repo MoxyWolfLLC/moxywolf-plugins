@@ -23,7 +23,9 @@ FAILURE_SIGNAL = re.compile(r"(?im)\b(error|fail(ed|ure|ing)?|fatal|traceback|ex
 LIKELY_SECRET = re.compile(r"(?i)(-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
                            r"|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9\-]{10,}"
                            # EV-014.4: a Supabase secret key, and a JWT (three base64url parts, the first `eyJ`)
-                           r"|sb_secret_[A-Za-z0-9_\-]{16,}|eyJ[A-Za-z0-9_\-]*\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)\b"
+                           r"|sb_secret_[A-Za-z0-9_\-]{16,})\b"
+                           # F1 (review 20261022-225013 round 3): no trailing \b, since a base64url part may end in '-'
+                           r"|(?<![A-Za-z0-9_\-])eyJ[A-Za-z0-9_\-]*\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"
                            r"|\b(password|secret|api[_-]?key|token)\s*[:=]\s*['\"]?[^\s'\"*]{8,})")
 
 
