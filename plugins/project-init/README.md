@@ -96,6 +96,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.40.0**: Org-shared projects live in `GitHub/Projects/<NAME>/` (the `MoxyWolfLLC/Projects` repo) and never get stored in Taskade. `/init-project` asks which of the three workspace types a project is (org-shared, personal Taskade, vault-only), scaffolds org-shared projects from `Directory Template`, writes `project-surfaces.json`, then commits, pushes and pulls back the new folder. `/session-start`, `/session-end` and `/refresh-project-instructions` resolve and write org-shared projects there, and `/session-start` Step 3b fast-forwards every org-shared clone (`GitHub/Projects` plus each listed repo) at the start of every session; a clone with local changes, local commits or no upstream is left alone and reported. Pairs with loader-stub spec v8 (section 2b).
 - **0.39.0**: `/init-goal-mode` treats Node repositories as installable (GO-002.7) and flags builds that fetch from the network.
 - **0.38.0**: `/init-goal-mode` names the repository's check pin file (GO-005.7) and the Preview-variables rule for hosted previews (GO-005.8).
 - **0.37.0**: `/init-goal-mode <owner>/<repo>` checks whether a repository is ready for goal mode (GO-008) and says who closes each gap. Read-only.

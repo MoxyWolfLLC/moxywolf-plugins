@@ -5,7 +5,7 @@ description: This skill should be used when the user says "start a session for [
 
 # Session Start
 
-Start or resume a Cowork session for an existing MoxyWolf project. Mount the three standard roots (MoxyWolf Vault, GitHub, Taskade) for this session, read the project's saved Project Instructions to learn the active Taskade subfolder and GitHub repo(s), then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
+Start or resume a Cowork session for an existing MoxyWolf project. Mount the three standard roots (MoxyWolf Vault, GitHub, Taskade) for this session, read the project's saved Project Instructions to learn its workspace (org-shared `GitHub/Projects`, a Taskade subfolder, or the vault) and GitHub repo(s), bring an org-shared project's local clones up to date, then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
 
 ## When to use
 
@@ -66,6 +66,7 @@ This skill **never shows a project picker.** It resolves the project on its own 
 1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. An explicit argument always wins. If the argument doesn't match any project folder, don't ask — fall through to method 3 and note the unmatched argument in the briefing.
 
 2. **Auto-detect from the launch directory.** Inspect the user's selected folder path from the session environment and parse it for a project segment:
+   - `.../GitHub/Projects/<NAME>/...` where `<NAME>` is not `Directory Template` → project is `<NAME>` (org-shared)
    - `.../MoxyWolf Vault/Projects/<NAME>/...` → project is `<NAME>`
    - `.../Taskade/<NAME>/...` where `<NAME>` is not `_Shared Files` → project is `<NAME>`
    - `.../GitHub/<REPO>/...` → look up which project's `cowork-project-instructions.md` lists `<REPO>` as an active GitHub repo; if exactly one match, use it.
@@ -74,7 +75,7 @@ This skill **never shows a project picker.** It resolves the project on its own 
 
 3. **Fall back to auto-selecting the most recently active project** when neither (1) nor (2) produces a project (e.g. the user launched from the vault root, the Taskade root, or the GitHub root). Do **not** ask the user which project — pick it automatically:
 
-   a. Scan `Taskade/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Also scan `MoxyWolf Vault/Projects/` for vault-only projects with the same file.
+   a. Scan `GitHub/Projects/` (org-shared projects), `Taskade/` (personal projects) and `MoxyWolf Vault/Projects/` (vault-only projects) for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Skip `GitHub/Projects/Directory Template/`.
 
    b. Rank the candidates by recency of activity: the most recent `cowork-session-handoff.md` (`session_ended` timestamp) wins; for projects with no handoff, fall back to the modification time of the saved instructions file. The single most-recently-active project is the resolved project.
 
@@ -82,11 +83,12 @@ This skill **never shows a project picker.** It resolves the project on its own 
 
 ### Step 2: Read the saved Project Instructions
 
-Read `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` (or `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` for vault-only projects).
+Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is the folder Step 1 resolved: `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, `Taskade/[PROJECT_NAME]` for a personal one, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Every later step that reads the handoff, `04 – Backlog & Sprints/` or DRs uses the same `[WORKSPACE]`. Org-shared projects never live in Taskade, so don't look for one there.
 
 Parse to extract:
 
-- The active Taskade subfolder name (or `none` for vault-only projects)
+- The workspace type: **org-shared** when the project resolved under `GitHub/Projects/` (or its *Project Setup* has a `Workspace:` line naming `GitHub/Projects`), otherwise Taskade or vault-only
+- The active Taskade subfolder name (or `none` for org-shared and vault-only projects)
 - The list of active GitHub repos (subfolder names + descriptions) — there may be 0, 1, or many
 - The **Jira label(s)** — the `Jira label(s):` bullet in the *Project Setup* block: the exact label or labels this project's issues carry on the team Jira board (MOXY), or `none`. Record whether it is present, `none`, or absent — Step 4b uses it to scope the board query, as written. Also record the `Kanban project tag(s):` value for display only. A label is never derived from the `#project/` tag or from any name: MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm`, so no mapping rule is right for every project (SM-002).
 - Any `## Project-Specific Overrides` block at the bottom
@@ -101,6 +103,21 @@ Follow the **Folder access — works online (cloud) or offline (on-computer)** c
 2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's exact absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
 Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
+
+### Step 3b: Bring org-shared clones up to date
+
+**Org-shared projects only; skip for Taskade and vault-only projects.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
+
+The clones to update are `GitHub/Projects` (the workspace repo, always) plus every active GitHub repo listed in the instructions. For each, on the user's computer (`device_bash` online, plain bash on-computer):
+
+1. `git fetch`, then check the state: current branch, upstream, `git status --porcelain`, and ahead/behind counts.
+2. **Clean, on a branch with an upstream, and only behind:** `git pull --ff-only`. Use the same auth as pushes, `agent_token.py exec -- git pull --ff-only` (GA-005), when plain git can't authenticate.
+3. **Anything else, leave it alone and report it:** uncommitted changes, ahead or diverged, detached HEAD, no upstream, or a failed fetch. Never stash, reset, rebase, merge or force to make a pull work. Local work outranks freshness.
+4. Read the result from git's own exit status, unpiped (check 3). A pull that printed nothing isn't proof it ran.
+
+If git fails with `Operation not permitted` on a `.lock` file, the GitHub folder hasn't been allowed deletes yet. Ask once with `device_request_delete_permission` for the GitHub root, then retry. If declined, report the clones as not updated and carry on.
+
+Record one line per clone for the briefing: `updated <old>..<new> (N commits)`, `already current`, or `skipped: <reason>`. This step never blocks the session.
 
 ### Step 4: Gather context (parallel)
 
@@ -137,10 +154,10 @@ b. **Project task board (project-scoped, dual-source)** — Surface only tasks t
 
 c. **Project map (MOC) + recent decision records** — The durable front door to a project is its vault Map of Content; the recent-DR list is the fresh slice on top of it. Read both.
 
-   First resolve the **vault project folder**, which may not match the Taskade project name (e.g. Taskade `Team Plugins` ↔ vault `Moxywolf Plugins`). If a `project-memory.md` pointer exists in the Taskade `00 – Project Hub/`, read it — it names the vault folder and the MOC path. Otherwise match `MoxyWolf Vault/Projects/<name>/` by best name match. Record the mapping if it isn't 1:1.
+   First resolve the **vault project folder**, which may not match the workspace project name (e.g. workspace `MW Plugins` ↔ vault `Moxywolf Plugins`). Read `memory.path` from `[WORKSPACE]/00 – Project Hub/project-surfaces.json` when it exists. Otherwise, if a `project-memory.md` pointer exists in `[WORKSPACE]/00 – Project Hub/`, read it — it names the vault folder and the MOC path. Otherwise match `MoxyWolf Vault/Projects/<name>/` by best name match. Record the mapping if it isn't 1:1.
 
    - **MOC index** — read `MoxyWolf Vault/Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md`. Capture what the project is (one line) plus its newest 2-3 Recent Activity entries. If it doesn't exist yet, note "no MOC index yet" and continue.
-   - **Recent decision records** — search the vault project folder (and the Taskade subfolder) for `DR-*.md` modified in the last 14 days; title + one-line summary from each frontmatter, cap at 5 items.
+   - **Recent decision records** — search the vault project folder (and `[WORKSPACE]`) for `DR-*.md` modified in the last 14 days; title + one-line summary from each frontmatter, cap at 5 items.
 
 d. **Open GitHub PRs and recent issues** — For each repo in the parsed GitHub repo list, query the GitHub MCP for:
    - All open PRs (title, author, last-updated)
@@ -210,7 +227,12 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 
 **Active subfolders**
-- Taskade/[active-taskade-subfolder]
+- [GitHub/Projects/[PROJECT_NAME] (org-shared) | Taskade/[active-taskade-subfolder] | MoxyWolf Vault/Projects/[PROJECT_NAME]]
+
+[Org-shared projects only:]
+**Clones** (Step 3b)
+- GitHub/Projects: [updated abc1234..def5678 (N commits) | already current | skipped: <reason>]
+- GitHub/[repo-1]: [same]
 - GitHub/[repo-1] — [description]
 - GitHub/[repo-2] — [description]   (if applicable)
 
@@ -246,7 +268,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Project map** (durable front door)
 - MOC: `Projects/[VAULT_PROJECT]/00-Hub/[VAULT_PROJECT] Index.md` — [one line: what the project is, from the MOC]. Open it for the full map, or ask "what do we know about X here?" for a scoped memory search.
 - Latest: [top 2-3 Recent Activity highlights from the MOC]
-[If a Taskade `project-memory.md` pointer was found, add: "- Memory pointer present in the Taskade hub."]
+[If a `project-memory.md` pointer was found, add: "- Memory pointer present in the project hub."]
 [If no MOC index exists yet, replace this whole block with: "**Project map** — _(no MOC index yet in 00-Hub — consider creating one)_".]
 
 **Recent decisions (last 14 days)**
@@ -320,6 +342,8 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **Jira label declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
 - **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
 - **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
+- **Org-shared project (workspace in `GitHub/Projects`).** Read everything from `GitHub/Projects/[PROJECT_NAME]/`; there's no Taskade folder for it, and a missing one isn't an error. Run Step 3b before reading anything.
+- **An org-shared clone can't fast-forward** (dirty, ahead, diverged, detached, no upstream, fetch failed). Leave it exactly as it is, show `skipped: <reason>` in the Clones line, and read from it as it stands. Tell the user what git reported; don't fix it unasked.
 - **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path. Skip Taskade-subfolder references in the briefing.
 - **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
 - **Verification discipline reports `NOT LOADED`.** Surface it and carry on — it is a heads-up, not a gate. But do not quietly drop the line on later sessions if it stays absent: a warning that decays into silence is how the original problem returns. The checks themselves live in `gstack-execution`'s `skills/gstack-execution/references/verification-checks.md`; if the hook cannot be made to fire, read that file directly rather than working without them.
@@ -330,7 +354,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 
 - This skill complements `/init-project` and `/session-end`. `/init-project` configures a project once; `/session-end` writes the per-session handoff at the end of each session; `/session-start` reads that handoff to brief next-session Claude in one step.
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
-- The skill reads but does not write. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
+- The skill reads but does not write, with one exception: Step 3b fast-forwards an org-shared project's local clones, and only when that can't touch local work. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
 - The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled with the resolved project's declared Jira label — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
 - The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
