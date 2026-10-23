@@ -337,6 +337,7 @@ def load_packet(path, allow_unchanged=False):
         if r["base"] == r["head"] and not allow_unchanged:
             raise ReviewError("missing_commits", f"base == head in {r['path']}; nothing to review")
     resolve_ci_runs(packet)
+    resolve_ledger_runs(packet)
     packet.setdefault("prior_findings", [])
     return packet
 
@@ -817,6 +818,82 @@ def resolve_ci_runs(packet):
     return packet
 
 
+def resolve_ledger_runs(packet):
+    """EV-014.2: tests.ledger_runs names runs the way ci_runs does, {repo, run_id}, with repo matched
+    against the packet's repositories. Whether the run exists is checked at open."""
+    tests = packet.get("tests")
+    runs = tests.get("ledger_runs") if isinstance(tests, dict) else None
+    if not runs:
+        return packet
+    repos = packet.get("repos") or []
+    names = {r["path"] for r in repos} | {Path(r["path"]).name for r in repos}
+    for e in runs:
+        if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not e["repo"] \
+                or not isinstance(e.get("run_id"), str) or not re.fullmatch(r"[0-9a-f]{12}", e["run_id"]):
+            raise ReviewError("malformed_packet", f"tests.ledger_runs entry must be {{repo, run_id}} with a "
+                              f"12-hex run id: {e!r}")
+        e["repo"] = as_repo_ref(e["repo"])
+        if repos and e["repo"] not in names:
+            raise ReviewError("malformed_packet", f"tests.ledger_runs names {e['repo']!r}, which is not a "
+                              f"repository in this packet (repos: {sorted(r['path'] for r in repos)})")
+    return packet
+
+
+def _packet_repo(repos, ref):
+    return next((r for r in repos if ref in (r["path"], Path(r["path"]).name)), None)
+
+
+def fetch_ledger_evidence(repos, ledger_runs, surf):
+    """EV-014.3-4: each named ledger run, read from the ledger by the dispatcher, its receipt re-hashed
+    and checked for secrets, written to evidence/ledger-<id>.json and .log. Nothing here raises: a run
+    that can't be read is written as unread with the reason."""
+    import check_ledger
+    from ci_log_receipt import LIKELY_SECRET
+    out = []
+    for entry in ledger_runs or ():
+        entry = entry if isinstance(entry, dict) else {}
+        rid = str(entry.get("run_id"))
+        rec = {"origin": "gate_output", "repo": entry.get("repo"), "run_id": rid, "read": False,
+               "receipt_verified": False}
+        try:
+            repo = _packet_repo(repos, entry.get("repo"))
+            if repo is None:
+                raise ValueError("repo is not a repository in this packet")
+            line, f = check_ledger.find_run(repo["path"], rid, review_root())
+            if line is None:
+                raise ValueError("no such run on this repository's ledger")
+            identity = line.get("identity") or {}
+            if LIKELY_SECRET.search(" ".join(map(str, identity.get("argv") or []))):   # EV-014.4: the command too
+                identity = {**identity, "argv": ["[command withheld: it matches the likely-secret pattern]"]}
+            rec.update(read=True, identity=identity, head=line.get("head"),
+                       reviewed_head=repo["head"], head_matches=line.get("head") == repo["head"],
+                       exit_code=line.get("exit_code"), started=line.get("started"), ended=line.get("ended"))
+            receipt = line.get("receipt")
+            if not receipt:
+                raise ValueError("the run has no receipt (recorded before EV-014)")
+            log = check_ledger.receipts_dir(f) / f"{rid}.log"
+            if not log.is_file():
+                raise ValueError("the receipt file is missing")
+            data = log.read_bytes()
+            if hashlib.sha256(data).hexdigest() != receipt.get("sha256"):
+                raise ValueError("the receipt does not match the sha256 on its ledger line")
+            rec.update(receipt_verified=True, receipt_sha256=receipt["sha256"], receipt_bytes=len(data),
+                       truncated=bool(receipt.get("truncated")))
+            hit = LIKELY_SECRET.search(data.decode("utf-8", "replace"))
+            if hit:
+                rec["withheld"] = "the receipt matches the likely-secret pattern; the match is not shown"
+            else:
+                (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
+                (surf / EVIDENCE_DIR / f"ledger-{rid}.log").write_bytes(data)
+                rec["shown"] = f"{EVIDENCE_DIR}/ledger-{rid}.log"
+        except Exception as e:
+            rec["error"] = str(e)
+        (surf / EVIDENCE_DIR).mkdir(exist_ok=True)
+        (surf / EVIDENCE_DIR / f"ledger-{rid}.json").write_text(json.dumps(rec, indent=2))
+        out.append(rec)
+    return out
+
+
 FAILED_CONCLUSIONS = ("failure", "timed_out")
 REDUCER_MODEL = os.environ.get("GSTACK_REDUCER_MODEL", "deepseek/deepseek-v4.1-flash")
 
@@ -1059,6 +1136,7 @@ def _other_reviews_line(unknowns_open, review_id):
 
 
 def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), ci_runs=(), archive_dir=None,
+                  ledger_runs=(),
                   coverage="not_run", ledger=None, embedded_prior=(), unknowns_open=None, review_id=None, mis_cited=(),
                   release_lane=None):
     """Write the review surface. Returns (path, stats).
@@ -1135,6 +1213,13 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
              "criterion_files": named_paths,
              "criterion_dirs": [{"dir": d, "files": n, "binary": b, "withheld": w} for _, d, n, b, w in dirs]}
     ci = fetch_ci_evidence(repos, ci_runs, surf, archive_dir)
+    lr = fetch_ledger_evidence(repos, ledger_runs, surf)
+    for c in lr:   # EV-014: the record is the dispatcher's reading of the ledger; the receipt is command output
+        prov[f"{EVIDENCE_DIR}/ledger-{c['run_id']}.json"] = provenance("fetched")
+        if c.get("shown"):
+            prov[c["shown"]] = provenance("ledger_receipt")
+    stats["ledger_runs"] = [{k: c.get(k) for k in ("run_id", "read", "head_matches", "exit_code",
+                                                    "receipt_verified", "withheld", "error")} for c in lr]
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     for c in ci:   # the run record was fetched from GitHub; a job's log or receipt is CI output
         prov[f"{EVIDENCE_DIR}/ci-{c['run_id']}.json"] = provenance("fetched")
@@ -1174,6 +1259,16 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
            + f", log sha256 {j['log']['sha256'][:16]}" if j["log"]["read"]
            else f"log could not be read ({j['log'].get('error')})")
         for c in ci for j in c.get("jobs") or () if "log" in j) or "  (no failed jobs)"
+    ledger_list = "\n".join(
+        f"  - `{EVIDENCE_DIR}/ledger-{c['run_id']}.json`: "
+        + (f"could not be read ({c.get('error')})" if not c["read"] else
+           (("run at the reviewed head" if c.get("head_matches")
+             else f"run at {str(c.get('head'))[:12]}, NOT the reviewed head, so not evidence for it")
+            + f", exit {c.get('exit_code')}, `{' '.join((c.get('identity') or {}).get('argv') or [])[:200]}`"
+            + (f"; output `{c['shown']}`, sha256 verified" if c.get("shown")
+               else f"; output WITHHELD: {c['withheld']}" if c.get("withheld")
+               else f"; output not verified: {c.get('error')}")))
+        for c in lr) or "  (no ledger runs named in the packet)"
     caller_list = "\n".join(f"  - `{surface_prefix(idx[id(r)], r, 'callers')}{n}`" for r, n in callers) \
                   or "  (none reference the changed files)"
     (surf / "SURFACE.md").write_text(
@@ -1189,7 +1284,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         f"- `{SURFACE_KINDS[1]}/` — {len(callers)} files that reference a changed file by name\n"
         f"- `{SURFACE_KINDS[2]}/` — {len(deps)} files the change or a criterion names\n"
         f"- `dirs/` — {len(dirs)} directories an acceptance criterion names, every tracked text file in each\n"
-        f"- `{EVIDENCE_DIR}/` — {len(ci)} CI runs, fetched by the dispatcher, not the builder\n"
+        f"- `{EVIDENCE_DIR}/` — {len(ci)} CI runs and {len(lr)} ledger runs, read by the dispatcher, not the builder\n"
         f"- withheld by the {cap}-file cap: {dropped}\n"
         f"- dependencies withheld by the same cap: {deps_dropped}\n"
         f"- files an acceptance criterion names by path: {len(named_paths)}, all here and outside the cap\n\n"
@@ -1214,6 +1309,13 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         "conclusion `success` in a run whose `head_matches` is true ran and passed at the reviewed "
         "head. A passing job's own report lines (what it examined, each suite's verdict) are in "
         "`evidence/ci-<run>-job-<id>.summary.txt`, with the full log's sha256.\n\n"
+        "## Ledger runs\n\n"
+        f"{ledger_list}\n\n"
+        "Each was read from the failure ledger by the dispatcher, not from the builder's packet text, and its "
+        "output (`ledger-<id>.log`) re-hashed against the sha256 the ledger line recorded when the run ended. "
+        "A ledger run is the builder's own run on the builder's machine, not an independent execution. One with "
+        "exit 0, `head_matches` true and a verified receipt counts as evidence for a criterion that needs a "
+        "command to succeed, as a passing CI step does; say why if one does not settle a criterion (EV-014).\n\n"
         "## Failed jobs\n\n"
         f"{log_list}\n\n"
         "A receipt's quotes were checked byte for byte by the dispatcher, not the builder, against the "
@@ -2420,6 +2522,11 @@ def cmd_open(a):
                           f"{lines}\nRerun the same check through check_ledger.py until it passes, or pass "
                           "--accept-open-failure \"<reason>\".")
     ledger_status = "overridden" if open_failures else ("none" if missing else "clear")
+    for e in (packet.get("tests") or {}).get("ledger_runs") or ():   # EV-014.2
+        repo = _packet_repo(packet["repos"], e["repo"])
+        if check_ledger.find_run(repo["path"], e["run_id"], root)[0] is None:
+            raise ReviewError("malformed_packet", f"tests.ledger_runs names run {e['run_id']}, which is not on "
+                              f"{repo['path']}'s ledger under {root}")
 
     reviewer, is_fallback = choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)
     unusable = surface_unusable(packet, reviewer)   # before the review directory exists: a crash here leaves nothing behind
@@ -2520,10 +2627,12 @@ def cmd_round(a):
                                          prior_findings=(prior or {}).get("findings", []),
                                          criteria=packet["acceptance_criteria"],
                                          ci_runs=(packet.get("tests") or {}).get("ci_runs"),
+                                         ledger_runs=(packet.get("tests") or {}).get("ledger_runs"),   # EV-014
                                          archive_dir=d / "ci-logs")   # XE-027 F1: outlives the surface
         record["evidence"] = surf_stats.pop("evidence")   # XE-018.6
         record["ci_logs"] = surf_stats.pop("ci_logs")     # XE-027 F1
         record["ci_runs"] = surf_stats.pop("ci_runs")     # EV-011: what a `ci:` evidence reference resolves against
+        record["ledger_runs"] = surf_stats.pop("ledger_runs")   # EV-014
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)

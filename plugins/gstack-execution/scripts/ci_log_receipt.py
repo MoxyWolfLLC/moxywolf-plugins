@@ -21,7 +21,9 @@ TAIL_BYTES = 64 * 1024
 FAILURE_SIGNAL = re.compile(r"(?im)\b(error|fail(ed|ure|ing)?|fatal|traceback|exception|panic|assert(ion)?error)\b|##\[error\]")
 # ponytail: a coarse net. A hit sends nothing to the reducer, so a false positive only costs the saving.
 LIKELY_SECRET = re.compile(r"(?i)(-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
-                           r"|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9\-]{10,})\b"
+                           r"|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9\-]{10,}"
+                           # EV-014.4: a Supabase secret key, and a JWT (three base64url parts, the first `eyJ`)
+                           r"|sb_secret_[A-Za-z0-9_\-]{16,}|eyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})\b"
                            r"|\b(password|secret|api[_-]?key|token)\s*[:=]\s*['\"]?[^\s'\"*]{8,})")
 
 
