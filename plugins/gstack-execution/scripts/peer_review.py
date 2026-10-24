@@ -725,8 +725,29 @@ def criterion_files(repos, criteria):
     return out
 
 
+def ts_aliases(root, name, tracked):
+    """The `compilerOptions.paths` of the tsconfig.json nearest above `name`, as [(prefix, [dirs])]
+    with dirs relative to the repository: `"@/*": ["./*"]` in web/tsconfig.json is ("@/", ["web"]).
+    Without it a Next.js page's `@/components/x` imports never reach the surface (wfa-web-v1 items 4
+    and 5, F1 both times). ponytail: only the `X/*` -> `Y/*` form, and a tsconfig with comments is
+    skipped; add a JSONC reader and `extends` when a repository needs them."""
+    d = Path(name).parent
+    while (d / "tsconfig.json").as_posix() not in tracked:
+        if str(d) == ".":
+            return []
+        d = d.parent
+    try:
+        opts = json.loads((Path(root) / d / "tsconfig.json").read_text()).get("compilerOptions") or {}
+    except (OSError, ValueError):
+        return []
+    base = d / opts.get("baseUrl", ".")
+    return [(k[:-1], [os.path.normpath(base / v[:-1]) for v in vs if v.endswith("/*")])
+            for k, vs in (opts.get("paths") or {}).items() if k.endswith("/*")]
+
+
 def dependency_files(repos, changed, criteria, exclude, cap):
-    """Files a changed file names by path or imports relatively, and files a criterion names.
+    """Files a changed file names by path or imports (relatively or through a tsconfig path alias),
+    and files a criterion names.
     Returns ([(repo, name, why)], withheld). Criterion-named files come first and don't count
     against the cap (XE-035): they are what the verdict needs."""
     named, hits, seen = [], [], set(exclude)
@@ -770,6 +791,12 @@ def dependency_files(repos, changed, criteria, exclude, cap):
                 for ext in DEP_EXTS:
                     if base + ext in tracked:
                         add(r, base + ext, f"imported by {name}"); break
+            for prefix, dirs in ts_aliases(r["path"], name, tracked):
+                for spec in re.findall(r"""['"]""" + re.escape(prefix) + r"""([^'"\s]+)['"]""", body):
+                    for base in (os.path.normpath(os.path.join(d, spec)) for d in dirs):
+                        hit = next((base + e for e in DEP_EXTS if base + e in tracked), None)
+                        if hit:
+                            add(r, hit, f"imported by {name}"); break
     return named + hits[:cap], max(0, len(hits) - cap)
 
 

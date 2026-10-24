@@ -24,6 +24,31 @@ def pr(base="goal/g1", head="build/item-1", number=5, head_sha="a" * 40, base_sh
     return {"number": number, "base": {"ref": base, "sha": base_sha}, "head": {"ref": head, "sha": head_sha}}
 
 
+PNPM_PACKAGE = ('{"name":"cand-web","version":"1.0.0","private":true,"packageManager":"pnpm@10.34.8",'
+                '"dependencies":{"ms":"2.1.3"},"scripts":{"build":"node build.js"}}\n')
+PNPM_LOCK = """lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      ms:
+        specifier: 2.1.3
+        version: 2.1.3
+
+packages:
+
+  ms@2.1.3:
+    resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
+
+snapshots:
+
+  ms@2.1.3: {}
+"""
 NODE_LOCK = """{
   "name": "cand",
   "version": "1.0.0",
@@ -425,6 +450,107 @@ class Sandbox(unittest.TestCase):
         results = json.loads(r.stdout.strip().splitlines()[-1])
         self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
         self.assertFalse((cand / "out.txt").exists())
+
+    def test_a_pnpm_project_in_a_subfolder_installs_and_runs_offline(self):
+        """GO-002.9: a pnpm app in web/ with no package.json at the root. Its packages install from
+        web/'s manifests in their own container; in the sandbox, still offline, the goal test runs
+        `pnpm --dir web install --frozen-lockfile --offline` and the build the way wfa-web-v1's do."""
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main, cand = t / "main", t / "cand"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_p.py::P.test_build` (outcome)\n")
+        (main / "goals" / "g1" / "tests" / "test_p.py").write_text(
+            "import os, subprocess, unittest\n\n\nclass P(unittest.TestCase):\n"
+            "    def test_build(self):\n        c = os.environ['GOAL_CANDIDATE']\n"
+            "        i = subprocess.run(['pnpm', '--dir', 'web', 'install', '--frozen-lockfile', '--offline', '--prod=false'],"
+            " cwd=c, capture_output=True, text=True, timeout=300)\n"
+            "        self.assertEqual(i.returncode, 0, i.stdout + i.stderr)\n"
+            "        b = subprocess.run(['pnpm', '--dir', 'web', 'run', '-s', 'build'], cwd=c, capture_output=True, text=True, timeout=300)\n"
+            "        self.assertEqual(b.returncode, 0, b.stdout + b.stderr)\n"
+            "        n = subprocess.run(['node', '-e', 'fetch(\"https://example.com\").then(()=>console.log(\"online\"),()=>console.log(\"offline\"))'],"
+            " capture_output=True, text=True, timeout=60)\n"
+            "        self.assertEqual((b.stdout.strip(), n.stdout.strip()), ('2 days = 172800000', 'offline'))\n")
+        (cand / "web").mkdir(parents=True)
+        (cand / "web" / "package.json").write_text(PNPM_PACKAGE)
+        (cand / "web" / "pnpm-lock.yaml").write_text(PNPM_LOCK)
+        (cand / "web" / "build.js").write_text("const ms = require('ms'); const fs = require('fs');\n"
+                                               "fs.mkdirSync('out', {recursive: true}); fs.writeFileSync('out/x', '1');\n"
+                                               "console.log('2 days = ' + ms('2 days'));\n")
+        os.chmod(t, 0o755)
+        deps = gc.install_deps(cand)
+        self.addCleanup(shutil.rmtree, deps, True)
+        r = subprocess.run(gc.sandbox_cmd(main, cand, "g1", deps), capture_output=True, text=True, timeout=900)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_build": "passed"}, r.stderr[-2000:])
+        self.assertFalse((cand / "web" / "out").exists())    # the build wrote into the sandbox's copy
+
+    def test_a_pnpm_project_must_pin_one_exact_pnpm(self):
+        def project(root, folder, pin):
+            (root / folder).mkdir(parents=True, exist_ok=True)
+            (root / folder / "package.json").write_text(json.dumps({"name": "x", **({"packageManager": pin} if pin else {})}))
+            (root / folder / "pnpm-lock.yaml").write_text(PNPM_LOCK)
+        for pins in ([None], ["pnpm@10"], ["npm@10.0.0"], ["pnpm@10.34.8", "pnpm@9.15.0"]):
+            with self.subTest(pins=pins):
+                t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+                for i, pin in enumerate(pins):
+                    project(t, f"app{i}", pin)
+                with self.assertRaises(SystemExit):
+                    gc.install_deps(t, run=lambda *a, **k: self.fail("installed without one exact pnpm"))
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        project(t, "web", "pnpm@10.34.8"); project(t, "web/node_modules/x", None); project(t, ".cache", None)
+        project(t, "apps/site", "pnpm@10.34.8+sha512.abc123")
+        self.assertEqual(gc.pnpm_projects(t), [("apps/site", "10.34.8"), ("web", "10.34.8")])
+        (t / "web" / "pnpm-lock.yaml").unlink(); (t / "web" / "pnpm-lock.yaml").symlink_to(t / "apps" / "site" / "pnpm-lock.yaml")
+        with self.assertRaises(SystemExit):
+            gc.pnpm_projects(t)
+
+    def test_the_pnpm_install_container_gets_its_manifests_only(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        (t / "web").mkdir()
+        (t / "web" / "package.json").write_text(PNPM_PACKAGE); (t / "web" / "pnpm-lock.yaml").write_text(PNPM_LOCK)
+        for f in (".npmrc", "secret.env", "src.js"):
+            (t / "web" / f).write_text("x")
+        (t / "README.md").write_text("x")
+        seen = {}
+        def run(cmd, **k):
+            seen["cmd"] = cmd
+            root = Path(cmd[cmd.index("-v") + 1].split(":")[0])
+            seen["files"] = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        deps = gc.install_deps(t, run=run); self.addCleanup(shutil.rmtree, deps, True)
+        self.assertEqual(seen["files"], ["web/.npmrc", "web/package.json", "web/pnpm-lock.yaml"])
+        self.assertEqual(seen["cmd"].count("-v"), 1)
+        self.assertEqual(seen["cmd"][seen["cmd"].index("-w") + 1], "/deps/web")
+        self.assertIn("COREPACK_HOME=/deps/.corepack", seen["cmd"])
+        self.assertEqual(seen["cmd"][seen["cmd"].index(gc.IMAGE) + 1:seen["cmd"].index(gc.IMAGE) + 6],
+                         ["corepack", "pnpm@10.34.8", "install", "--frozen-lockfile", "--ignore-scripts"])
+        self.assertEqual(json.loads((deps / gc.PNPM_MANIFEST).read_text()), {"pnpm": "10.34.8", "folders": ["web"]})
+
+    def test_writable_copies_a_pnpm_node_modules_and_puts_the_pinned_pnpm_on_path(self):
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        cand, deps, tmp = t / "cand", t / "deps", t / "tmp"
+        (cand / "web").mkdir(parents=True); (cand / "web" / "package.json").write_text(PNPM_PACKAGE)
+        (deps / "web" / "node_modules" / "ms").mkdir(parents=True)
+        (deps / "web" / "node_modules" / "ms" / "index.js").write_text("module.exports = 1")
+        (deps / ".corepack" / "v1").mkdir(parents=True)
+        (deps / gc.PNPM_MANIFEST).write_text(json.dumps({"pnpm": "10.34.8", "folders": ["web"]}))
+        tmp.mkdir()
+        path = os.environ.get("PATH", "")
+        self.addCleanup(os.environ.__setitem__, "PATH", path)
+        copy = Path(gc.writable(str(cand), deps=str(deps), tmp=str(tmp)))
+        self.assertEqual(copy, tmp / "candidate")
+        self.assertFalse((copy / "web" / "node_modules").is_symlink())    # a link makes pnpm rebuild it
+        self.assertTrue((copy / "web" / "node_modules" / "ms" / "index.js").is_file())
+        self.assertTrue((tmp / ".corepack" / "v1").is_dir())
+        shim = (tmp / "bin" / "pnpm").read_text()
+        self.assertIn('exec corepack pnpm@10.34.8 "$@"', shim)
+        self.assertIn("COREPACK_ENABLE_NETWORK=0", shim)
+        self.assertTrue(os.environ["PATH"].startswith(str(tmp / "bin") + os.pathsep))
+        self.assertTrue(os.access(tmp / "bin" / "pnpm", os.X_OK))
 
     def test_a_symlinked_install_file_is_refused(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)

@@ -58,6 +58,24 @@ class SurfaceEvidenceTests(unittest.TestCase):
         self.assertIn("imported by db/listing.test.ts", text)
         self.assertIn("named in an acceptance criterion", text)
 
+    def test_tsconfig_path_alias_imports_are_carried(self):
+        # wfa-web-v1: a Next.js page imports "@/components/meters", which web/tsconfig.json maps to web/.
+        self.write("web/tsconfig.json", '{"compilerOptions": {"paths": {"@/*": ["./*"]}}}\n')
+        self.write("web/components/meters.tsx", "export const Meter = 1;\n")
+        self.write("web/lib/data.ts", "export const get = 1;\n")
+        self.write("components/meters.tsx", "export {};\n")   # same tail outside web/: not the one imported
+        self.sh("add", "."); self.sh("commit", "-qm", "web base")
+        self.repos[0]["base"] = self.sh("rev-parse", "HEAD")
+        self.write("web/app/jobs/page.tsx", 'import { Meter } from "@/components/meters";\nimport { get } from "@/lib/data";\n')
+        self.sh("add", "."); self.sh("commit", "-qm", "page")
+        self.repos[0]["head"] = self.sh("rev-parse", "HEAD")
+        surf, stats = self.surface(criteria=[])
+        deps = surf / "dependencies" / "0-app"
+        self.assertTrue((deps / "web/components/meters.tsx").exists())
+        self.assertTrue((deps / "web/lib/data.ts").exists())
+        self.assertFalse((deps / "components/meters.tsx").exists())
+        self.assertIn("imported by web/app/jobs/page.tsx", (surf / "SURFACE.md").read_text())
+
     def test_cap_reports_what_it_withheld(self):
         surf, stats = self.surface(criteria=self.criteria, cap=1)
         # XE-035: scripts/local-supabase.ts is named by a criterion, so it sits outside the cap. The
