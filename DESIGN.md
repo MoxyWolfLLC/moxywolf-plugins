@@ -1015,6 +1015,32 @@ Opened 2026-10-24. Dorian ran `/session-start` on MWE-NER, an org-shared project
 
 Not covered: the gate log at `Taskade/_Shared Files/_gate-log/`, and team rules whose content says deliverables or design mirrors land in Taskade. Each is its own decision.
 
+### SM-008 — The gate log and every deliverable home follow the project's workspace
+
+**Status:** planned. Approved by Dorian on 2026-10-24.
+
+**Links introduced:** the gate-log link, the workspace link and the Project-mirror link. Every gate home names `GitHub/Projects/_gate-log/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main and that a recorded row reaches teammates only once it's pushed. Every home that sends a deliverable or a design mirror resolves the destination from the project's `project-surfaces.json` `workspace.path` (`GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one), never from a hardcoded `Taskade/<project>`. `/refresh-project-instructions` and `/session-end` write named copies into the attached claude.ai Project, and the loader stub reads them only when disk can't be read.
+
+Opened 2026-10-24, from SM-007's *Not covered* line and review `20261024-135830-1660de2-5rezzu36` follow-up F1. SM-007 moved the team rules out of Taskade. Three things still send an org-shared session there: the gate log at `Taskade/_Shared Files/_gate-log/`, the rules and plugin homes that say deliverables and `DESIGN.md` mirrors land in `Taskade/<project>`, and the session-start note that says only org-shared projects fast-forward `GitHub/Projects`. A fourth turned up while refreshing MW Plugins' stub: the stub's fallback says the instructions are mirrored to the claude.ai Project by `/session-end` and `/refresh-project-instructions`, and neither does it, so the fallback reads an empty Project.
+
+The trade-off to approve: Taskade is a Drive folder, so a row written there reached everyone at once. In a repo, a row is shared only when it's committed and pushed. Criterion 3 makes that step explicit, the same way SM-007 criterion 4 did for team rules.
+
+1. `GitHub/Projects/_gate-log/` holds `record_decision.py`, `override_report.py`, `README.md` and `gate-decisions.jsonl`, each byte-identical to its Taskade copy at the moment of the move (checked by hash, and the JSONL row count reported before and after). The commit in `MoxyWolfLLC/Projects` stages only `_gate-log/`. Both scripts already default to the log beside themselves, so neither changes. The Taskade folder stays in place until step 5's retirement, with nothing new written to it.
+2. No skill, governance file, README or charter in this repo names `Taskade/_Shared Files/_gate-log` as the place to record a decision; each names `GitHub/Projects/_gate-log/`. Homes: root `README.md`, `CHARTER.md`, `plugins/frontier-founder-smb/GOVERNANCE.md`, its `README.md`, its eight gated skills (`campaign-creator`, `handle-complaint`, `invoice-chase`, `job-post-builder`, `plan-payroll`, `review-contract`, `run-campaign`, `ticket-deflector`), `plugins/marketing-department/GOVERNANCE.md` and `plugins/sales-department/GOVERNANCE.md`. Exempt, because they record what was: `DESIGN.md` history, `PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md`, `docs/evidence/`, and `plugin.json` and `marketplace.json` changelogs.
+3. Each gate home in criterion 2 says that after `record_decision.py` writes the row, the session commits only `_gate-log/gate-decisions.jsonl` in `GitHub/Projects`, pushes as `moxywolf-agent`, checks `ls-remote` and pulls back, and that a row whose push didn't land is reported as local only, never as recorded for the team.
+4. The team rule `feedback_high_stakes_gate_decisions_logged.md` and its `INDEX.md` line name `GitHub/Projects/_gate-log/` and carry criterion 3's push step. Committed in `MoxyWolfLLC/Projects`, `_shared-memory/` only.
+5. `/gstack-build` (the loop diagram, Step 1 and Step 6's mirror line), `/gstack-design-doc` (description, argument, inputs, write step and report), the `gstack-execution` skill table, `references/design-doc-template.md`, `references/plan-review-protocol.md`, `references/design-doc-editor.html`'s visible help text and the plugin `README.md` say the mirror goes to `<workspace>/06 – Engineering/DESIGN-<repo>.md`, where `<workspace>` is the project's workspace from its instructions. `/gstack-design-doc`'s `--taskade` argument becomes `--workspace`. The editor's internal `taskadePath` key keeps its name, because nothing outside the page reads it.
+6. The team rules `feedback_deliverables_land_in_taskade_not_chat.md` and `feedback_all_coding_via_gstack_build.md`, and their `INDEX.md` lines, say deliverables and mirrors land in the project's workspace from its instructions, naming both shapes. The file names stay, so no link breaks. Committed with criterion 4.
+7. `project-init/skills/session-start/SKILL.md`'s closing write-policy note says Step 3b fast-forwards `GitHub/Projects` for every project type, and an org-shared project's listed repos as well. The matching edge case says "a clone", not "an org-shared clone".
+8. `/refresh-project-instructions` and `/session-end` write `cowork-project-instructions.md`, `project-surfaces.json` and `cowork-session-handoff.md` from the project's Hub, plus `GitHub/Projects/_shared-memory/INDEX.md`, into the attached claude.ai Project with `project_write`, at the workspace-relative paths the loader stub names. With no Project attached, each reports "not mirrored: no Project attached". Neither ever writes a Project copy back to disk.
+9. A test greps every tracked text file outside criterion 2's exemptions for both old paths, `Taskade/_Shared Files/_shared-memory` and `Taskade/_Shared Files/_gate-log`, and the gstack homes for `Taskade/<project>/06`, then prints how many files it examined and how many hits it found. Zero examined is a failure (EV-001), and a positive control proves the check catches each string.
+10. `project-init` and `gstack-execution` get minor bumps, `frontier-founder-smb`, `marketing-department` and `sales-department` patch bumps, each with a changelog line, and the marketplace version moves with them (CI-002).
+11. In CI, `run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+12. SM-007 is marked `done` in this document, citing review `20261024-135830-1660de2-5rezzu36` and merge `e136d48` (PR #236, `agent_merge_autonomous`).
+13. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
+
+Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-log/`, which waits on every teammate's Mac having project-init 0.41.0 or later and a `~/GitHub/Projects` clone; and `vault-code-learn`'s `--project` mode, which still reads instructions only from `Taskade/<project>`. Each is its own decision.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -2097,6 +2123,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-24: SM-008 declared on Dorian's approval, from SM-007's *Not covered* line and review follow-up F1: the gate log moves to `GitHub/Projects/_gate-log/`, deliverable and design-mirror homes follow the project's workspace, session-start's write-policy note is corrected, the claude.ai Project mirror the loader stub promises is built, and SM-007 is marked done.
 - 2026-10-24: SM-007 declared on Dorian's approval. `/session-start` on the org-shared MWE-NER asked for the Taskade folder only to read the team rules, so the rules moved to `GitHub/Projects/_shared-memory/` and the plugin homes follow.
 - 2026-10-22: EV-014 declared on Dorian's approval, from goal `nice-join-data` in workforce-automation: ledger runs were runtime evidence the reviewer could never read, so items 1 and 2 lost reviews with no defect found.
 
