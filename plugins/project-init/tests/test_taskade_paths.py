@@ -6,13 +6,15 @@ project's workspace from its instructions, never to a hardcoded `Taskade/<projec
 
 Every tracked file whose bytes decode as text is examined, whatever its extension. Exempt are the
 records of what was, scoped as narrowly as criterion 2 allows: in DESIGN.md only the SM-007 and
-SM-008 sections and the Amendments log; in plugin.json and marketplace.json only `description`
-values, which carry the changelogs; the conformance plan and docs/evidence as whole dated records;
+SM-008 sections and the Amendments log; in plugin.json and marketplace.json only the changelog
+clauses inside a `description`, each of which starts at a version tag (`v0.41.0: ...`), while the
+description's untagged lead, its current text, is scanned; the conformance plan and docs/evidence as whole dated records;
 and this test and SM-007's, which name the strings on purpose. Zero examined fails (EV-001).
 
 ponytail: `git ls-files` plus a substring scan. No AST, no config.
 """
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -38,18 +40,27 @@ def text_of(path):
         return None
 
 
-def without_descriptions(node):
+VERSION_TAG = re.compile(r"(?=\bv\d+\.\d+\.\d+\b)")
+
+
+def current_text(description):
+    """A description minus its changelog clauses: every segment that starts at a version tag."""
+    return "".join(seg for seg in VERSION_TAG.split(description) if not re.match(r"v\d+\.\d+\.\d+\b", seg))
+
+
+def without_changelogs(node):
     if isinstance(node, dict):
-        return {k: without_descriptions(v) for k, v in node.items() if k != "description"}
+        return {k: current_text(v) if k == "description" and isinstance(v, str) else without_changelogs(v)
+                for k, v in node.items()}
     if isinstance(node, list):
-        return [without_descriptions(v) for v in node]
+        return [without_changelogs(v) for v in node]
     return node
 
 
 def scannable_lines(rel, text):
     """(line number, line) pairs subject to the check, after the history exemptions."""
     if rel.endswith("plugin.json") or rel.endswith("marketplace.json"):
-        stripped = json.dumps(without_descriptions(json.loads(text)), indent=1, ensure_ascii=False)
+        stripped = json.dumps(without_changelogs(json.loads(text)), indent=1, ensure_ascii=False)
         return list(enumerate(stripped.splitlines(), 1))
     if rel == "DESIGN.md":
         out, exempt = [], False
@@ -109,7 +120,8 @@ class TaskadePaths(unittest.TestCase):
             files = {
                 "Makefile": f"log: {old}\n",                                   # no extension
                 "notes.rst": f"see {old}\n",                                   # unlisted extension
-                "plugins/x/.claude-plugin/plugin.json": json.dumps({"description": old, "homepage": old}),
+                "plugins/x/.claude-plugin/plugin.json": json.dumps({"description": f"Current text. v1.2.0: was {old}.", "homepage": "h"}),
+                "plugins/y/.claude-plugin/plugin.json": json.dumps({"description": f"Reads {old}. v1.2.0: earlier."}),
                 "DESIGN.md": f"## Items\n### SM-008 x\n{old}\n### XX-001 y\n{old}\n## Amendments log\n- {old}\n",
                 "docs/evidence/e.md": old,
                 "blob.bin": "\0" + old,
@@ -120,9 +132,9 @@ class TaskadePaths(unittest.TestCase):
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
             examined, hits = scan(root)
-        self.assertEqual(examined, 4)
+        self.assertEqual(examined, 5)
         self.assertEqual(sorted(h.split(":")[0] for h in hits),
-                         ["DESIGN.md", "Makefile", "notes.rst", "plugins/x/.claude-plugin/plugin.json"])
+                         ["DESIGN.md", "Makefile", "notes.rst", "plugins/y/.claude-plugin/plugin.json"])
         self.assertIn("DESIGN.md:5:", " ".join(hits))
 
 
