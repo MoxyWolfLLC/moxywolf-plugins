@@ -998,7 +998,7 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 
 ### SM-007 — Team rules live in the Projects repo, and only a Taskade project mounts Taskade
 
-**Status:** building. Approved by Dorian on 2026-10-24.
+**Status:** done. Approved by Dorian on 2026-10-24. Reviewed in `20261024-135830-1660de2-5rezzu36` and merged as `e136d48` (PR #236) by `moxywolf-agent[bot]`, recorded as `agent_merge_autonomous` under DR-113. The review's follow-up F1, session-start's write-policy note, is fixed in SM-008.
 
 **Links introduced:** the team-rules link. Every skill, command and project instruction that reads or writes team rules names `GitHub/Projects/_shared-memory/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main.
 
@@ -1017,7 +1017,7 @@ Not covered: the gate log at `Taskade/_Shared Files/_gate-log/`, and team rules 
 
 ### SM-008 — The gate log and every deliverable home follow the project's workspace
 
-**Status:** planned. Approved by Dorian on 2026-10-24.
+**Status:** building. Approved by Dorian on 2026-10-24.
 
 **Links introduced:** the gate-log link, the workspace link and the Project-mirror link. Every gate home names `GitHub/Projects/_gate-log/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main and that a recorded row reaches teammates only once it's pushed. Every home that sends a deliverable or a design mirror resolves the destination from the project's `project-surfaces.json` `workspace.path` (`GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one), never from a hardcoded `Taskade/<project>`. `/refresh-project-instructions` and `/session-end` write named copies into the attached claude.ai Project, and the loader stub reads them only when disk can't be read.
 

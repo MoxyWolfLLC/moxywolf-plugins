@@ -31,9 +31,20 @@ Take the skeleton from the vault spec (section 1 for Taskade projects, section 2
 
 > Copy this into Cowork → Settings → Project Instructions for **<PROJECT_NAME>**, replacing the full text currently there. The full instructions stay on disk; this stub just points at them, so you paste it once and never re-paste when rules change.
 
+## STEP 4b — Mirror to the claude.ai Project
+
+Write four files into the claude.ai Project attached to this session, with the Projects tool's `project_write`, each at the workspace-relative path the loader stub names, so a session with no disk mount (a scheduled run, a phone or web session, a Mac that's asleep) can still read them (SM-008):
+
+- `<WORKSPACE>/00 – Project Hub/cowork-project-instructions.md`
+- `<WORKSPACE>/00 – Project Hub/project-surfaces.json`
+- `<WORKSPACE>/00 – Project Hub/cowork-session-handoff.md`
+- `GitHub/Projects/_shared-memory/INDEX.md`
+
+`<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, `Taskade/<SUBFOLDER>` for a personal one, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
+
 ## STEP 5 — Report
 
-State, concisely: which directives applied vs were already current (cite each by ID, e.g. D1), the `spec_version` this project is now aligned to, and a reminder that the stub still needs pasting into Cowork settings (the one manual, possibly per-machine step; the on-disk edits are on Drive and apply everywhere at once).
+State, concisely: which directives applied vs were already current (cite each by ID, e.g. D1), the `spec_version` this project is now aligned to, the STEP 4b mirror result (the paths written, or `not mirrored: no Project attached`), and a reminder that the stub still needs pasting into Cowork settings (the one manual, possibly per-machine step; the on-disk edits are on Drive and apply everywhere at once).
 
 ## Notes
 

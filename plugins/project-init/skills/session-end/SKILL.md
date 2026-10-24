@@ -289,6 +289,17 @@ Create the `Session Handoffs/` subfolder if it doesn't exist. Use the user's loc
 
 The archive copy has identical content to the canonical file; it's just a dated record for cases where Drive versioning isn't trusted.
 
+### Step 5b2: Mirror the project files to the claude.ai Project
+
+Write four files into the claude.ai Project attached to this session, with the Projects tool's `project_write`, each at the workspace-relative path the loader stub names, so a session with no disk mount (a scheduled run, a phone or web session, a Mac that's asleep) can still read them (SM-008):
+
+- `<WORKSPACE>/00 – Project Hub/cowork-project-instructions.md`
+- `<WORKSPACE>/00 – Project Hub/project-surfaces.json`
+- `<WORKSPACE>/00 – Project Hub/cowork-session-handoff.md`
+- `GitHub/Projects/_shared-memory/INDEX.md`
+
+`<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, `Taskade/<SUBFOLDER>` for a personal one, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
+
 ### Step 5c: Update each writable GitHub repo's README.md if warranted
 
 For every GitHub repo flagged **READ/WRITE** in the project's saved `cowork-project-instructions.md`, keep that repo's `README.md` as a living document. The point: never have to remember to update a repo's GitHub landing page by hand. Each session-end pass scans for changes that should propagate to README, drafts the edits, writes the file, and surfaces the change as a separate commit block in the handoff.
@@ -430,6 +441,8 @@ Top of stack for next session:
 README updates written + committed:
 - [repo-name]/README.md — [one-line summary of what changed]
 (Committed and pushed directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005).)
+
+Project mirror: [the four paths written, or `not mirrored: no Project attached`, or the files skipped and why]
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md

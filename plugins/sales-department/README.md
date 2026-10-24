@@ -37,4 +37,5 @@ Dorian Cougias is the Release Owner Gate. This is an instruction-level gate, not
 
 ## Version History
 
+- 0.1.1 (2026-10-24): SM-008. The gate log is at `GitHub/Projects/_gate-log/`, and a recorded row is committed, pushed and pulled back to reach the team.
 - 0.1.0 (2026-10-07): CS-004. The department agent, the head skill and its sources, and `GOVERNANCE.md`.
