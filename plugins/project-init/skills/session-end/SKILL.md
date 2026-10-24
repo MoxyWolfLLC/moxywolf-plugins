@@ -83,7 +83,7 @@ Items should be ordered by what next-session Claude should do **first**. Pushing
 
 #### c. Commit & push state
 
-Per the team-shared rule `Taskade/_Shared Files/_shared-memory/feedback_repos_writable_commits_via_github_desktop.md`, **Claude commits directly** during the session — so by session-end the working tree is normally clean and the session's work already sits in atomic local commits. This section records the **push state**, not draft commit messages:
+Per the team-shared rule `GitHub/Projects/_shared-memory/feedback_repos_writable_commits_via_github_desktop.md`, **Claude commits directly** during the session — so by session-end the working tree is normally clean and the session's work already sits in atomic local commits. This section records the **push state**, not draft commit messages:
 
 - List the commits made AND pushed this session (short hash + summary line each), and name the repo, so next-session Claude knows what landed. Claude commits and pushes directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005) — nothing is left for the human to push.
 - If the working tree still has genuinely uncommitted changes (rare — e.g. a change Claude deliberately left for the human to commit, or a repo not writable from the sandbox), write a full commit block for it: file list, plain-text summary line (under ~72 chars, imperative), description body in a fenced block, ready for the fallback hand-off path.
@@ -97,7 +97,7 @@ A bulleted list of cross-session memory references and project-specific gotchas.
 
 Source order, applied in this order:
 
-1. **Team-shared memory INDEX (authoritative).** Read `Taskade/_Shared Files/_shared-memory/INDEX.md` first. Any general behavioral rule the next session should follow must already exist as a file in that directory. If a rule belongs in team-shared memory but isn't there yet, write the file at Step 6 BEFORE citing it in the handoff. Never cite a memory file that doesn't currently exist, has been renamed, or whose content has been revised away from the rule you're transcribing.
+1. **Team-shared memory INDEX (authoritative).** Read `GitHub/Projects/_shared-memory/INDEX.md` first. Any general behavioral rule the next session should follow must already exist as a file in that directory. If a rule belongs in team-shared memory but isn't there yet, write the file at Step 6 BEFORE citing it in the handoff. Never cite a memory file that doesn't currently exist, has been renamed, or whose content has been revised away from the rule you're transcribing.
 2. **Cross-check stale handoff reminders.** Compare the previous handoff's procedural reminders (if any) against the current team-shared INDEX. If a reminder cited a file that no longer exists, or cites a rule that has been reversed since the prior handoff was written, DROP it. Don't propagate it forward. Stale-reminder propagation is the failure mode this step exists to prevent.
 3. **Local Cowork session-memory** (`feedback_*` and `reference_*` files Claude wrote to its own per-Mac memory) — fine to cite as secondary sources, but team-shared wins on conflict.
 4. **The vault's Operating Norms folder** — for project-process rules.
@@ -167,7 +167,7 @@ A lesson written down is not a lesson applied: a rule read once at session start
 1. **Gather from evidence, not recall.** Examine: review rounds opened this session (`$GSTACK_PEER_REVIEW_DIR`) whose outcome was not `no_blocking_findings` or `fixes_verified`, or which carried findings; test and CI runs this session that failed; and turns where the user corrected you. Print one coverage line per source with its record count. A source you could not reach is `SKIP <reason>`, never zero. Zero mistakes from examined sources is printed as zero.
 2. **One entry per mistake:** a sentence on what happened, `caught_by` (`user`, `reviewer`, `test`, `ci`, `self`), and an evidence ref (review ID, run ID, or the date and a short quote of the correction).
 3. **One disposition per entry.** `became_check` names the test or check that now fails on a recurrence, or the planned `DESIGN.md` item that will build it (declare it with the user's approval if it does not exist). `became_rule` names the file the rule went into, and that file must be loaded at the point of action: a skill, command, a reference it cites, or the shared team rules. Never the handoff or a session-start memory file. `one_off` stays in the handoff only. `evaluation_case` names the regression case that now fails on a recurrence; a repeated failure should become one where it can (SM-004).
-4. **Before writing a rule, look for it.** Search the target file, the project's memory files and `Taskade/_Shared Files/_shared-memory/`. Update a matching rule in place and name it; do not add a near-duplicate.
+4. **Before writing a rule, look for it.** Search the target file, the project's memory files and `GitHub/Projects/_shared-memory/`. Update a matching rule in place and name it; do not add a near-duplicate.
 5. **A repeat escalates.** If the mistake repeats a ledger entry, write `repeats: <id>`. It cannot be `one_off`, and it cannot be `became_rule` into the same file again: that rule did not hold, so move it to a check or a different point of action.
 6. **No mistakes found.** Still run the command below with an empty rows file. It exits 3: it creates the ledger with its header if the project has none, writes no rows, and reports 0 rows as not a pass. Exit 3 does not block the handoff; write the handoff line with the coverage counts (see the template) and carry on.
 7. **Validate, then write.** Otherwise put the new rows in a scratch file and run `python3 <project-init>/scripts/mistake_ledger.py "MoxyWolf Vault/Projects/<project>/11-Knowledge/mistake-ledger.md" --append <rows.md>`. It validates the existing ledger and the new rows together and writes the ledger only if the whole is clean, creating it with the header row if absent. On any `FAIL` the ledger is left unchanged: fix the rows and rerun before writing the handoff. Never edit the ledger by hand around the check. A worked example is `references/mistake-ledger-seed.md`, the Moxywolf Plugins ledger as SM-003 seeded it.
@@ -252,7 +252,7 @@ Description:
 
 ## Procedural reminders for next-Claude
 
-- **[Reminder title]:** [body]. (Memory: `Taskade/_Shared Files/_shared-memory/feedback_xxx.md` — verified present at session-end.)
+- **[Reminder title]:** [body]. (Memory: `GitHub/Projects/_shared-memory/feedback_xxx.md` — verified present at session-end.)
 - **[Reminder title — no current team-shared file applies]:** [body]. (session-specific)
 - ...
 
@@ -381,6 +381,8 @@ If the session produced significant new context that future Claude sessions shou
 - New `project_*.md` for project-state changes
 - New `reference_*.md` for durable references
 - Update `MEMORY.md` index
+
+- A rule the whole team should follow goes in `GitHub/Projects/_shared-memory/` with `scope: team-shared` and a one-line entry in its `INDEX.md`. Then, on the user's computer: commit only `_shared-memory/` in `GitHub/Projects`, push as the `moxywolf-agent` app (`agent_token.py exec -- git push`), check that `git ls-remote origin refs/heads/main` equals `git rev-parse HEAD`, and pull back. Teammates see a rule only once it is on the remote (SM-007). If the push doesn't land, say so in the handoff and the Step 8 report: the rule is local only, not shared.
 
 This step is optional — only do it if the handoff alone won't carry the weight. Most session-end runs don't need a memory update.
 

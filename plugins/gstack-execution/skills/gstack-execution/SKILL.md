@@ -19,7 +19,7 @@ Software development execution adapted from [gstack](https://github.com/garrytan
 
 ## Core Principle
 
-**All coding goes through `/gstack-build`** (Dorian, 2026-09-11; canonical rule in `Taskade/_Shared Files/_shared-memory/feedback_all_coding_via_gstack_build.md`). A request to write or change code starts by reading the repo's `DESIGN.md`; if the ask is not covered, the doc is amended with approval before any code; every push is verified on the remote and pulled back into the local clone; nothing is done until the other tool has reviewed it clean.
+**All coding goes through `/gstack-build`** (Dorian, 2026-09-11; canonical rule in `GitHub/Projects/_shared-memory/feedback_all_coding_via_gstack_build.md`). A request to write or change code starts by reading the repo's `DESIGN.md`; if the ask is not covered, the doc is amended with approval before any code; every push is verified on the remote and pulled back into the local clone; nothing is done until the other tool has reviewed it clean.
 
 Product Orchestrator is the board of directors. This plugin is the factory floor. It doesn't debate what to build. It builds, reviews, tests, and ships what the board decided.
 

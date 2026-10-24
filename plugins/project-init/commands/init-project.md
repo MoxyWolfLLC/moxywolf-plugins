@@ -4,11 +4,11 @@ description: Set up a new Cowork project — confirm the three standard roots, g
 
 Run the project-init skill to initialize a new Cowork project.
 
-The skill assumes the three standard MoxyWolf roots are mounted in Cowork → Folders:
+The skill assumes these MoxyWolf roots are mounted in Cowork → Folders:
 
 1. **MoxyWolf Vault**
 2. **GitHub**
-3. **Taskade**
+3. **Taskade** (personal Taskade projects only; org-shared and vault-only projects don't need it)
 
 It then:
 
@@ -20,6 +20,6 @@ It then:
 6. Substitutes placeholders (`[PROJECT_NAME]`, `[TASKADE_SUBFOLDER]`, `[REPO_SUBFOLDER]`, `[KANBAN_SLUG]`) with the user's answers
 7. Saves the filled-in Project Instructions to the project's `00 – Project Hub/` folder
 8. Displays the result for the user to paste into Cowork's Project Instructions field
-9. Reminds the user to mount any of the three standard roots that aren't already mounted
+9. Reminds the user to mount any root this project needs that isn't already mounted
 
 If the user passed arguments after `/init-project`, treat them as a project name hint but still confirm interactively. Otherwise invoke the project-init skill which collects all required information through AskUserQuestion.

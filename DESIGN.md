@@ -998,7 +998,7 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 
 ### SM-007 — Team rules live in the Projects repo, and only a Taskade project mounts Taskade
 
-**Status:** planned. Approved by Dorian on 2026-10-24.
+**Status:** building. Approved by Dorian on 2026-10-24.
 
 **Links introduced:** the team-rules link. Every skill, command and project instruction that reads or writes team rules names `GitHub/Projects/_shared-memory/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main.
 

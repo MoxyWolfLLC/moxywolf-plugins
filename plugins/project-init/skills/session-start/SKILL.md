@@ -5,7 +5,7 @@ description: This skill should be used when the user says "start a session for [
 
 # Session Start
 
-Start or resume a Cowork session for an existing MoxyWolf project. Mount the three standard roots (MoxyWolf Vault, GitHub, Taskade) for this session, read the project's saved Project Instructions to learn its workspace (org-shared `GitHub/Projects`, a Taskade subfolder, or the vault) and GitHub repo(s), bring an org-shared project's local clones up to date, then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
+Start or resume a Cowork session for an existing MoxyWolf project. Mount the roots this project needs (MoxyWolf Vault and GitHub always, Taskade only for a Taskade-based project) for this session, read the project's saved Project Instructions to learn its workspace (org-shared `GitHub/Projects`, a Taskade subfolder, or the vault) and GitHub repo(s), bring an org-shared project's local clones up to date, then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
 
 ## When to use
 
@@ -22,13 +22,13 @@ The skill assumes the project has already been initialized via `/init-project` a
 
 ## Standard mounted roots
 
-Every MoxyWolf Cowork project assumes these three roots:
+Every MoxyWolf Cowork project needs the first two roots. The third is needed only by a personal project whose workspace is a Taskade folder (SM-007):
 
 1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
 2. **GitHub** — `/Users/doriancougias/GitHub`
-3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade`
+3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade` (Taskade-based projects only)
 
-The skill mounts these three constants every time. The Project Instructions assume them.
+The skill mounts the MoxyWolf Vault and GitHub every time, and Taskade only when Step 2 resolves a Taskade workspace. Team-shared rules live in `GitHub/Projects/_shared-memory/`, so an org-shared or vault-only project never needs the Taskade root; don't request it for one.
 
 ## Folder access — works online (cloud) or offline (on-computer)
 
@@ -75,7 +75,7 @@ This skill **never shows a project picker.** It resolves the project on its own 
 
 3. **Fall back to auto-selecting the most recently active project** when neither (1) nor (2) produces a project (e.g. the user launched from the vault root, the Taskade root, or the GitHub root). Do **not** ask the user which project — pick it automatically:
 
-   a. Scan `GitHub/Projects/` (org-shared projects), `Taskade/` (personal projects) and `MoxyWolf Vault/Projects/` (vault-only projects) for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Skip `GitHub/Projects/Directory Template/`.
+   a. Scan `GitHub/Projects/` (org-shared projects), `Taskade/` (personal projects, only when the Taskade root is already mounted; never request it just to scan) and `MoxyWolf Vault/Projects/` (vault-only projects) for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Skip `GitHub/Projects/Directory Template/`.
 
    b. Rank the candidates by recency of activity: the most recent `cowork-session-handoff.md` (`session_ended` timestamp) wins; for projects with no handoff, fall back to the modification time of the saved instructions file. The single most-recently-active project is the resolved project.
 
@@ -95,18 +95,20 @@ Parse to extract:
 
 If the file doesn't exist, abort with: *"No saved Project Instructions found for [PROJECT_NAME]. Run `/init-project` first to set this project up."*
 
-### Step 3: Ensure the three standard roots are available
+### Step 3: Ensure the required roots are available
 
 Follow the **Folder access — works online (cloud) or offline (on-computer)** convention above; it's mode-agnostic, so the same procedure runs either way.
 
-1. **Detect (Step A).** For each of the three roots, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
+The required roots are the MoxyWolf Vault and GitHub, plus Taskade when Step 2 found a Taskade workspace. For an org-shared or vault-only project, don't detect or request Taskade; record it as "not needed".
+
+1. **Detect (Step A).** For each required root, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
 2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's exact absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
-Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing Taskade root means the team-shared `_shared-memory/INDEX.md` can't be read).
+Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing GitHub root means the team-shared `GitHub/Projects/_shared-memory/INDEX.md` can't be read).
 
 ### Step 3b: Bring org-shared clones up to date
 
-**Org-shared projects only; skip for Taskade and vault-only projects.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
+**Every project type fast-forwards `GitHub/Projects`**, because the team-shared rules live there (SM-007): run the steps below on that clone alone for a Taskade or vault-only project, before Step 4f reads the INDEX. A clone that can't be fast-forwarded is reported and read as it is. **Org-shared projects also update every listed repo.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
 
 The clones to update are `GitHub/Projects` (the workspace repo, always) plus every active GitHub repo listed in the instructions. For each, on the user's computer (`device_bash` online, plain bash on-computer):
 
@@ -188,7 +190,7 @@ e. **Shared team services probe** — Check the team-shared OpenRouter API key f
 
    This probe is project-agnostic — the OpenRouter key is shared infrastructure that every council/research-pipeline/product-orchestrator invocation needs regardless of which project session-start was called from. The cost is one bash call and a few-line file read, so run it unconditionally. The probe doesn't read or echo the key value itself — only the resolution status — so the key never leaves the file via the briefing.
 
-f. **Team-shared behavioral memory (authoritative rules)** — Read `Taskade/_Shared Files/_shared-memory/INDEX.md` and parse the entries listed under each section heading. This directory is the canonical source for cross-plugin team-wide behavioral rules — Git/commit workflow, lockfile precautions, plain-text commit-message formatting, the moxywolf-plugins-Claude-authors-commit rule, etc. Surface the parsed entries in the Step 5 briefing under a "Team-shared rules in effect" section so next-Claude SEES the rules rather than having to remember to look them up.
+f. **Team-shared behavioral memory (authoritative rules)** — Read `GitHub/Projects/_shared-memory/INDEX.md` and parse the entries listed under each section heading. This directory is the canonical source for cross-plugin team-wide behavioral rules — Git/commit workflow, lockfile precautions, plain-text commit-message formatting, the moxywolf-plugins-Claude-authors-commit rule, etc. Surface the parsed entries in the Step 5 briefing under a "Team-shared rules in effect" section so next-Claude SEES the rules rather than having to remember to look them up.
 
    **Then cross-check the handoff's "Procedural reminders for next-Claude" section against the INDEX.** If a handoff reminder cites a memory file that is no longer in the INDEX (renamed, deleted) or whose current content reverses the reminder's claim, mark the reminder as **STALE** in the briefing's reminders list. Stale-handoff propagation is the documented failure mode this step exists to prevent — see the 2026-06-02 case where a 2026-05-21 handoff carried forward a "never run git from the sandbox" reminder that had actually been reversed on 2026-05-20, and next-session Claude (me) followed the stale handoff instead of the current memory. The cross-check at session-start is the second line of defense — `/session-end` does its own cross-check at write time (belt and braces).
 
@@ -224,7 +226,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Mounted folders**
 - MoxyWolf Vault — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 - GitHub — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
-- Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
+- Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added) | not needed (org-shared or vault-only project)]
 
 **Active subfolders**
 - [GitHub/Projects/[PROJECT_NAME] (org-shared) | Taskade/[active-taskade-subfolder] | MoxyWolf Vault/Projects/[PROJECT_NAME]]
@@ -282,7 +284,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 - [repo-name]
   - #456 [title] — [author], updated [date]
 
-**Team-shared rules in effect** (from `Taskade/_Shared Files/_shared-memory/INDEX.md`)
+**Team-shared rules in effect** (from `GitHub/Projects/_shared-memory/INDEX.md`)
 - [Rule title from INDEX] ([filename]) — [the INDEX entry's one-line summary]
 - ...
 [If the file at the canonical path is missing, write: "⚠ Team-shared memory INDEX not found at expected path — procedural-rule situation is undefined for this session." and skip the rules list.]
@@ -335,7 +337,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **No `cowork-session-handoff.md` file.** Treat as "no previous handoff" and skip the handoff sections of the briefing. The task-board / DRs / GitHub MCP sections still surface project state. This is normal for projects predating `/session-end` or for a project's first session.
 - **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to task-board / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
-- **One of the three standard roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
+- **One of the required roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
 - **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
 - **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
 - **No Jira label declared in the Project Instructions.** Don't query the board and never widen to it. Add the one-line "No Jira label declared" note (Step 4b case 3). Never infer a label from the project or repo names.
