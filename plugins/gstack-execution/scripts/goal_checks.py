@@ -24,6 +24,7 @@ push that moved it starts a fresh run; otherwise it posts the verdict as a check
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -41,44 +42,131 @@ IMAGE = "node:22-bookworm@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c
 DEPS_FILES = ("package.json", "package-lock.json", ".npmrc")
 
 
+PNPM_FILES = ("package.json", "pnpm-lock.yaml", ".npmrc", "pnpm-workspace.yaml")
+PNPM_PIN = re.compile(r"pnpm@(\d+\.\d+\.\d+)(?:\+sha\d+\.[0-9a-f]+)?")
+PNPM_MANIFEST = ".pnpm-projects.json"      # in the deps folder: which folders got a node_modules, and the pnpm
+PNPM_STORE = "/tmp/store"   # the install's store path; the sandbox names the same one, or pnpm purges node_modules
+
+
+def pnpm_projects(candidate_dir):
+    """GO-002.9: [(folder, pnpm version)] for every folder one or two levels below the candidate's root
+    with its own pnpm-lock.yaml (a web app in web/, say; a root-level pnpm workspace is goal_local's). Each
+    must pin pnpm exactly in its package.json "packageManager", and all must pin the same version,
+    because the sandbox puts one pnpm on PATH. Raises SystemExit, naming the folder, otherwise."""
+    cand = Path(candidate_dir)
+    out = []
+    for lock in sorted([*cand.glob("*/pnpm-lock.yaml"), *cand.glob("*/*/pnpm-lock.yaml")]):
+        rel = lock.parent.relative_to(cand)
+        if "node_modules" in rel.parts or any(part.startswith(".") for part in rel.parts):
+            continue
+        links = [f for f in PNPM_FILES if (lock.parent / f).is_symlink()]
+        if links:
+            raise SystemExit(f"refused: {', '.join(f'{rel.as_posix()}/{f}' for f in links)} in the candidate is a "
+                             "symlink; the install takes regular files only")
+        try:
+            pin = json.loads((lock.parent / "package.json").read_text()).get("packageManager")
+        except (OSError, ValueError, AttributeError):
+            pin = None
+        m = PNPM_PIN.fullmatch(pin) if isinstance(pin, str) else None
+        if not m:
+            raise SystemExit(f'refused: {rel.as_posix()}/package.json must pin pnpm, as "packageManager": "pnpm@x.y.z"')
+        out.append((rel.as_posix(), m.group(1)))
+    if len({v for _, v in out}) > 1:
+        raise SystemExit("refused: the candidate's pnpm projects pin different pnpm versions: "
+                         + ", ".join(f"{d} pnpm@{v}" for d, v in out))
+    return out
+
+
+def install_container(deps, workdir, env, command):
+    """The networked install container: the deps folder and nothing else, no capabilities, uid 65534."""
+    return ["docker", "run", "--rm", "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges", "--user", "65534:65534", "--pids-limit", "512",
+            "--memory", "2g", "-e", "HOME=/tmp", *[a for k, v in env for a in ("-e", f"{k}={v}")], "-w", workdir,
+            "-v", f"{deps.resolve()}:/deps", IMAGE, *command]
+
+
 def install_deps(candidate_dir, run=subprocess.run):
     """GO-002.6: a Node candidate's dependencies, installed from its lockfile in a container of their
     own that has the network and nothing else: no checkout, no secret, no goal test, only the three
     files that say what to install, and `npm ci --ignore-scripts` so no package runs code while it
-    installs. Returns the folder to mount read-only at /deps, or None for a candidate with no
-    package-lock.json. Raises SystemExit, naming the failure, when the install fails."""
+    installs. GO-002.9: the same for each pnpm project in a subfolder, from its own manifest files
+    only (PNPM_FILES), with its pinned pnpm through corepack, `--ignore-scripts`, hoisted. Returns the
+    folder to mount read-only at /deps, or None for a candidate with neither. Raises SystemExit,
+    naming the failure, when an install fails."""
     cand = Path(candidate_dir)
     links = [f for f in DEPS_FILES if (cand / f).is_symlink()]
     if links:   # review F1: a link could point the networked container at a file outside these three
         raise SystemExit(f"refused: {', '.join(links)} in the candidate is a symlink; the install takes regular files only")
-    if not (cand / "package-lock.json").is_file():
+    projects = pnpm_projects(cand)
+    npm = (cand / "package-lock.json").is_file()
+    if not npm and not projects:
         return None
     deps = Path(tempfile.mkdtemp(prefix="goal-deps-"))
-    for f in DEPS_FILES:
-        if (cand / f).is_file():
-            shutil.copyfile(cand / f, deps / f, follow_symlinks=False)
+    if npm:
+        for f in DEPS_FILES:
+            if (cand / f).is_file():
+                shutil.copyfile(cand / f, deps / f, follow_symlinks=False)
     os.chmod(deps, 0o777)                  # the container runs as uid 65534
-    r = run(["docker", "run", "--rm", "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL",
-             "--security-opt", "no-new-privileges", "--user", "65534:65534", "--pids-limit", "512",
-             "--memory", "2g", "-e", "HOME=/tmp", "-e", "npm_config_cache=/tmp/npm", "-w", "/deps",
-             "-v", f"{deps.resolve()}:/deps", IMAGE,
-             "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
-            capture_output=True, text=True, timeout=1200)
-    if r.returncode != 0:
-        raise SystemExit(f"npm ci failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
+    if npm:
+        r = run(install_container(deps, "/deps", [("npm_config_cache", "/tmp/npm")],
+                                  ["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"]),
+                capture_output=True, text=True, timeout=1200)
+        if r.returncode != 0:
+            raise SystemExit(f"npm ci failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
+    for rel, version in projects:
+        folder = deps / rel
+        folder.mkdir(parents=True, exist_ok=True)
+        for f in PNPM_FILES:
+            if (cand / rel / f).is_file():
+                shutil.copyfile(cand / rel / f, folder / f, follow_symlinks=False)
+        for d in [folder, *folder.relative_to(deps).parents]:
+            os.chmod(deps / d, 0o777)
+        r = run(install_container(deps, f"/deps/{rel}", [("COREPACK_HOME", "/deps/.corepack")],
+                                  ["corepack", f"pnpm@{version}", "install", "--frozen-lockfile", "--ignore-scripts",
+                                   "--config.node-linker=hoisted", "--store-dir", PNPM_STORE]),
+                capture_output=True, text=True, timeout=1200)
+        if r.returncode != 0:
+            raise SystemExit(f"pnpm install of {rel}/ failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
+    if projects:
+        (deps / PNPM_MANIFEST).write_text(json.dumps({"pnpm": projects[0][1], "folders": [d for d, _ in projects]}))
     return deps
 
 
-def writable(candidate):
-    """Inside the sandbox: a Node candidate (one with a package.json) runs from a copy on the container's
-    /tmp, with the installed dependencies linked in read-only when there are any, because a build writes
-    into its own folder and the candidate's mount is read-only. Any other candidate runs where it is."""
-    if not Path(candidate, "package.json").is_file():
+def writable(candidate, deps="/deps", tmp="/tmp"):
+    """Inside the sandbox: a Node candidate (one with a package.json, or with pnpm projects installed for
+    it) runs from a copy on the container's /tmp, with the installed dependencies linked in read-only
+    when there are any, because a build writes into its own folder and the candidate's mount is
+    read-only. Any other candidate runs where it is.
+
+    GO-002.9: each pnpm project's node_modules is copied into the copy, not linked: pnpm recreates a
+    node_modules it reaches through a symlink, and /deps is read-only. A `pnpm` on PATH runs the pinned
+    version through corepack from the copied cache, offline, so `pnpm install --frozen-lockfile
+    --offline` finds everything in place and changes nothing."""
+    manifest = Path(deps, PNPM_MANIFEST)
+    if not Path(candidate, "package.json").is_file() and not manifest.is_file():
         return candidate
-    copy = Path("/tmp/candidate")
+    copy = Path(tmp, "candidate")
     shutil.copytree(candidate, copy, ignore=shutil.ignore_patterns(".git", "node_modules"), symlinks=True)
-    if Path("/deps/node_modules").is_dir():      # review F2: a dependency-free build still gets the copy
-        (copy / "node_modules").symlink_to("/deps/node_modules")
+    if Path(deps, "node_modules").is_dir():      # review F2: a dependency-free build still gets the copy
+        (copy / "node_modules").symlink_to(Path(deps, "node_modules"))
+    if manifest.is_file():
+        m = json.loads(manifest.read_text())
+        if not PNPM_PIN.fullmatch(f"pnpm@{m['pnpm']}"):
+            raise SystemExit(f"refused: {PNPM_MANIFEST} names no pnpm version")
+        for rel in m["folders"]:
+            if Path(deps, rel, "node_modules").is_dir():
+                shutil.copytree(Path(deps, rel, "node_modules"), copy / rel / "node_modules", symlinks=True)
+        if Path(deps, ".corepack").is_dir():
+            shutil.copytree(Path(deps, ".corepack"), Path(tmp, ".corepack"), symlinks=True)
+        bindir = Path(tmp, "bin")
+        bindir.mkdir(exist_ok=True)
+        shim = bindir / "pnpm"
+        shim.write_text("#!/bin/sh\n"
+                        f"export COREPACK_HOME={tmp}/.corepack COREPACK_ENABLE_NETWORK=0 "
+                        f"npm_config_node_linker=hoisted npm_config_store_dir={PNPM_STORE}\n"
+                        f'exec corepack pnpm@{m["pnpm"]} "$@"\n')
+        shim.chmod(0o755)
+        os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"   # run_test passes PATH on
     return str(copy)
 
 
