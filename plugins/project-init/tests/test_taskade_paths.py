@@ -83,9 +83,11 @@ def hits_in(rel, line):
 
 
 def scan(root):
-    out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout
+    # -z: without it git quotes any path with a non-ASCII byte ("06 – Engineering"), and the quoted
+    # name matches no file on disk, so the file would be skipped silently.
+    out = subprocess.run(["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True).stdout
     examined, hits = 0, []
-    for rel in out.splitlines():
+    for rel in (r.decode("utf-8") for r in out.split(b"\0") if r):
         if rel in SELF or rel in WHOLE_RECORDS or rel.startswith(RECORD_PREFIXES):
             continue
         p = root / rel
@@ -120,6 +122,7 @@ class TaskadePaths(unittest.TestCase):
             files = {
                 "Makefile": f"log: {old}\n",                                   # no extension
                 "notes.rst": f"see {old}\n",                                   # unlisted extension
+                "06 – Engineering/spec.md": f"see {old}\n",                     # name git would quote
                 "plugins/x/.claude-plugin/plugin.json": json.dumps({"description": f"Current text. v1.2.0: was {old}.", "homepage": "h"}),
                 "plugins/y/.claude-plugin/plugin.json": json.dumps({"description": f"Reads {old}. v1.2.0: earlier."}),
                 "DESIGN.md": f"## Items\n### SM-008 x\n{old}\n### XX-001 y\n{old}\n## Amendments log\n- {old}\n",
@@ -132,9 +135,10 @@ class TaskadePaths(unittest.TestCase):
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
             examined, hits = scan(root)
-        self.assertEqual(examined, 5)
+        self.assertEqual(examined, 6)
         self.assertEqual(sorted(h.split(":")[0] for h in hits),
-                         ["DESIGN.md", "Makefile", "notes.rst", "plugins/y/.claude-plugin/plugin.json"])
+                         ["06 – Engineering/spec.md", "DESIGN.md", "Makefile", "notes.rst",
+                          "plugins/y/.claude-plugin/plugin.json"])
         self.assertIn("DESIGN.md:5:", " ".join(hits))
 
 
