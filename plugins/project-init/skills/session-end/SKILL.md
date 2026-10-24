@@ -411,7 +411,7 @@ Run this last, after every step that can change a mirrored file (Step 5's handof
 Write four files into the claude.ai Project attached to this session, with the Projects tool's `project_write`, each at the workspace-relative path the loader stub names, so a session with no disk mount (a scheduled run, a phone or web session, a Mac that's asleep) can still read them (SM-008):
 
 - `<WORKSPACE>/00 – Project Hub/cowork-project-instructions.md`
-- `<WORKSPACE>/00 – Project Hub/project-surfaces.json`
+- `<WORKSPACE>/00 – Project Hub/project-surfaces.json` (vault-only: `MoxyWolf Vault/Projects/<PROJECT_NAME>/00-Hub/project-surfaces.json`, where `/init-project` writes it and the loader stub reads it)
 - `<WORKSPACE>/00 – Project Hub/cowork-session-handoff.md`
 - `GitHub/Projects/_shared-memory/INDEX.md`
 
