@@ -1,6 +1,6 @@
 ---
 name: session-start
-description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the three standard MoxyWolf roots, reads the project's saved Project Instructions, and surfaces a briefing — project-scoped tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
+description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the roots the project needs (MoxyWolf Vault and GitHub, plus Taskade only for a Taskade-based project), reads the project's saved Project Instructions, and surfaces a briefing — project-scoped tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
 ---
 
 # Session Start
@@ -327,7 +327,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 
 ## Output
 
-- Three standard roots confirmed mounted (or, for any missing, the user prompted to Add folder / approve the mount per the Folder access convention)
+- Required roots confirmed mounted (Vault and GitHub; Taskade only for a Taskade-based project, otherwise reported as not needed) (or, for any missing, the user prompted to Add folder / approve the mount per the Folder access convention)
 - A structured briefing in chat covering the project's current state
 - A focus question to start the work
 
@@ -358,6 +358,6 @@ If no handoff was found, options pull from the project-scoped task board only:
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write, with one exception: Step 3b fast-forwards an org-shared project's local clones, and only when that can't touch local work. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
 - The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled with the resolved project's declared Jira label — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
-- The standard roots are constants. Don't ask the user to confirm which roots to mount — always mount the same three.
+- The standard roots are constants. Don't ask the user to confirm which roots to mount — always the MoxyWolf Vault and GitHub, plus Taskade only when the workspace is a Taskade folder.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.

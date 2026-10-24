@@ -1,5 +1,5 @@
 ---
-description: Set up a new Cowork project — confirm the three standard roots, gather the active Taskade and GitHub subfolders, generate tailored Project Instructions
+description: Set up a new Cowork project — confirm the roots it needs (Vault and GitHub; Taskade only for a personal project), gather the active Taskade and GitHub subfolders, generate tailored Project Instructions
 ---
 
 Run the project-init skill to initialize a new Cowork project.
