@@ -62,8 +62,12 @@ per-skill frontmatter.
 
 - The Release Owner gate (named human signs with initials + date, decision
   recorded to the shared gate log via
-  `Taskade/_Shared Files/_gate-log/record_decision.py` as
-  action/approver/ISO-8601-timestamp/outcome, never auto-approve, never sign on
+  `GitHub/Projects/_gate-log/record_decision.py` as
+  action/approver/ISO-8601-timestamp/outcome, then shared: in `GitHub/Projects`,
+  commit only `_gate-log/gate-decisions.jsonl`, push as the `moxywolf-agent`
+  app, check that `git ls-remote origin refs/heads/main` equals
+  `git rev-parse HEAD`, and pull back (a row whose push didn't land is
+  reported as local only), never auto-approve, never sign on
   the owner's behalf, watch the override rate) was inserted at the irreversible
   action point in eight skills:
   `invoice-chase`, `plan-payroll`, `handle-complaint` (refund path),

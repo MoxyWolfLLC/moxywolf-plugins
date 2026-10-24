@@ -404,6 +404,19 @@ If `/obsidian-update` finds nothing extractable (quick clarification session, ca
 
 If the `obsidian-update` skill is unavailable in this Cowork install (rare — both plugins ship in the MoxyWolf marketplace), log a one-line warning in the final report and continue. Don't abort the session-end wrap-up because the vault update step is unavailable.
 
+### Step 7b: Mirror the project files to the claude.ai Project
+
+Run this last, after every step that can change a mirrored file (Step 5's handoff, Step 5c's README notes in the handoff, Step 6's team rules and INDEX, Step 7's vault update), so the Project holds the session's final copies.
+
+Write four files into the claude.ai Project attached to this session, with the Projects tool's `project_write`, each at the workspace-relative path the loader stub names, so a session with no disk mount (a scheduled run, a phone or web session, a Mac that's asleep) can still read them (SM-008):
+
+- `<WORKSPACE>/00 – Project Hub/cowork-project-instructions.md`
+- `<WORKSPACE>/00 – Project Hub/project-surfaces.json` (vault-only: `MoxyWolf Vault/Projects/<PROJECT_NAME>/00-Hub/project-surfaces.json`, where `/init-project` writes it and the loader stub reads it)
+- `<WORKSPACE>/00 – Project Hub/cowork-session-handoff.md`
+- `GitHub/Projects/_shared-memory/INDEX.md`
+
+`<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, `Taskade/<SUBFOLDER>` for a personal one, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
+
 ### Step 8: Report what was written
 
 Output a short summary in chat:
@@ -430,6 +443,8 @@ Top of stack for next session:
 README updates written + committed:
 - [repo-name]/README.md — [one-line summary of what changed]
 (Committed and pushed directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005).)
+
+Project mirror: [the four paths written, or `not mirrored: no Project attached`, or the files skipped and why]
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md

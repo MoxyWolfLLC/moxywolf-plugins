@@ -20,7 +20,7 @@ commit → push → verify ls-remote → pull back into the local clone
    ↓ clean
 prepare revision-bound handoff → the agent merges the reviewed head (DR-113; a CODEOWNERS path also waits for the owner's GitHub approval) → record-release verifies merge
    ↓
-mark done through a separate authorized branch/PR → mirror to Taskade
+mark done through a separate authorized branch/PR → mirror to the project workspace
    ↓
 next item, only when asked
 ```
@@ -35,9 +35,9 @@ Before any DESIGN.md or E2E write/commit, create `build/<item-id>-<slug>` from u
 
 ## Step 1: The design document
 
-`DESIGN.md` at the repo root is canonical; `Taskade/<project>/06 – Engineering/DESIGN-<repo>.md` is a mirror, rewritten on every doc commit. Template: `references/design-doc-template.md`.
+`DESIGN.md` at the repo root is canonical; `<workspace>/06 – Engineering/DESIGN-<repo>.md` is a mirror, rewritten on every doc commit, where `<workspace>` is the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one). Template: `references/design-doc-template.md`.
 
-- **Missing:** do not write code. Run `/gstack-design-doc` (drafts the document, publishes it as an editable artifact, and on **Mark approved** writes it to the repo and Taskade, commits on the Step 0 feature branch, pushes, pulls back). For anything larger than one item, run `/gstack-plan-review` on the draft first. Then continue.
+- **Missing:** do not write code. Run `/gstack-design-doc` (drafts the document, publishes it as an editable artifact, and on **Mark approved** writes it to the repo and the workspace mirror, commits on the Step 0 feature branch, pushes, pulls back). For anything larger than one item, run `/gstack-plan-review` on the draft first. Then continue.
 - **Present:** read it in full. Match `$ARGUMENTS` to an item by ID or by meaning.
 
 ## Step 2: The gate: covered, or amend first
@@ -174,7 +174,7 @@ Either way, record each repository's GitHub merge:
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/agent_token.py" exec -- python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" record-release <review-id> --repo <path> --pr <number>
 ```
 
-The recorder requires the exact reviewed head. A merge by the named human's GitHub `User` identity is `human_merge_recorded`. A merge by the app with a matching instruction posted before it is `agent_merge_on_instruction`, carrying the words and the comment link. A merge by `moxywolf-agent[bot]` with no such instruction is `agent_merge_autonomous`, citing DR-113 (GA-009). A merge by any other bot with no instruction is refused as an unrequested agent merge. A merge before the handoff is refused either way. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review, never a direct main push; under the one-approval-per-change rule it usually rides with the next change. Mirror the committed design to Taskade and pull back as in Step 4. Changed implementation requires a new review and handoff.
+The recorder requires the exact reviewed head. A merge by the named human's GitHub `User` identity is `human_merge_recorded`. A merge by the app with a matching instruction posted before it is `agent_merge_on_instruction`, carrying the words and the comment link. A merge by `moxywolf-agent[bot]` with no such instruction is `agent_merge_autonomous`, citing DR-113 (GA-009). A merge by any other bot with no instruction is refused as an unrequested agent merge. A merge before the handoff is refused either way. Only after every repository's merge is recorded may the item be marked `done` with the review ID and merge SHA. Make that administrative DESIGN.md update through a separate authorized branch/PR, with its own applicable review, never a direct main push; under the one-approval-per-change rule it usually rides with the next change. Mirror the committed design to the project workspace's `06 – Engineering` and pull back as in Step 4. Changed implementation requires a new review and handoff.
 
 These are governance controls, not an OS security sandbox: local review files are agent-writable, and the instruction comment is written by the agent quoting the owner, so it records what the agent acted on rather than proving the owner said it. Personal credentials stay outside agent authority, and the protected-branch ruleset is configured externally. See [GOVERNANCE.md](../GOVERNANCE.md).
 

@@ -37,6 +37,7 @@ Forked from Anthropic's Small Business plugin (Cowork marketplace). MoxyWolf re-
 
 ## Versioning
 
+- **0.3.3** — SM-008: the eight gated skills record to `GitHub/Projects/_gate-log/record_decision.py`, then commit, push and pull back the row; an unpushed row is reported as local only.
 - **0.3.0** — design lane rewritten: `canva-creator` renamed to `campaign-creator` and rebuilt for claude.ai/design (in-session generation; dropped the Canva template/asset/autofill/export/rate-limit machinery); Clarify campaign staging via `create-or-update-campaign`; `run-campaign` and `content-strategy` references updated.
 - **0.2.0** — full skill migration: all 31 skills re-homed onto the new stack (PayPal→Stripe, Square dropped, HubSpot→Clarify, Canva→claude.ai/design) via a controlled transform pass; CRM reference model rewritten to Clarify's schema-first tools (`get-schema`, `query-data`, `create-or-update-records`, `merge-records`, `add-comment`). Design lane and `.mcp.json` placement pending.
 - **0.1.0** — fork scaffold: branding, connector manifest (Clarify/Stripe/QuickBooks/DocuSign/Google/Slack), README, rewritten `smb-router` + `smb-onboard`.
@@ -45,4 +46,4 @@ Forked from Anthropic's Small Business plugin (Cowork marketplace). MoxyWolf re-
 
 This plugin conforms to the [MoxyWolf AI Governance Manifesto](../../PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md). Every skill declares a risk tier, and high-stakes actions route through a named Release Owner who signs before anything irreversible ships. See [`GOVERNANCE.md`](GOVERNANCE.md) for the per-skill tier table.
 
-Money, e-signature, and customer-reaching actions (invoices, payroll, refunds, DocuSign envelopes, campaign sends) stop at a Release Owner gate — a named human signs before anything irreversible ships, and each decision is recorded to the shared gate log (`Taskade/_Shared Files/_gate-log/`) so the override rate is auditable.
+Money, e-signature, and customer-reaching actions (invoices, payroll, refunds, DocuSign envelopes, campaign sends) stop at a Release Owner gate — a named human signs before anything irreversible ships, and each decision is recorded to the shared gate log (`GitHub/Projects/_gate-log/`) so the override rate is auditable. To share each row, in `GitHub/Projects`, commit only `_gate-log/gate-decisions.jsonl`, push as the `moxywolf-agent` app, check that `git ls-remote origin refs/heads/main` equals `git rev-parse HEAD`, and pull back; a row whose push didn't land is reported as local only.

@@ -25,7 +25,7 @@ Build smart, not big: let the machine run as fast as the stakes allow, keep a na
 
 ## Technical Constraints
 - Each plugin carries a `GOVERNANCE.md` with a per-skill risk tier (`read-only` | `generate` | `side-effectful-gated` | `high-stakes`) and passes the five conformance tests in the plan.
-- High-stakes gate decisions are recorded via `Taskade/_Shared Files/_gate-log/record_decision.py`; `override_report.py` produces the override-rate and response-time rollup.
+- High-stakes gate decisions are recorded via `GitHub/Projects/_gate-log/record_decision.py`; `override_report.py` produces the override-rate and response-time rollup. To share a row, in `GitHub/Projects`, commit only `_gate-log/gate-decisions.jsonl`, push as the `moxywolf-agent` app, check that `git ls-remote origin refs/heads/main` equals `git rev-parse HEAD`, and pull back; a row whose push didn't land is reported as local only.
 - Reference patterns to copy from: `4d-blog-engine` (the Release Owner gate), `research-pipeline` / `academic-pipeline` (provenance and citation verification).
 
 ## Architectural Boundaries

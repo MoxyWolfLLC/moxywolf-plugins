@@ -1,7 +1,7 @@
 ---
-description: Create or refresh a repo's DESIGN.md as an editable artifact; on approval it is written to the repo (canonical) and the Taskade project folder (mirror), committed, pushed, verified, and pulled back
+description: Create or refresh a repo's DESIGN.md as an editable artifact; on approval it is written to the repo (canonical) and the project's workspace folder (mirror), committed, pushed, verified, and pulled back
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Artifact
-argument-hint: [--repo <path>] [--taskade <project folder>] [--from <prd/spec paths ...>] [notes about the goal ...]
+argument-hint: [--repo <path>] [--workspace <project folder>] [--from <prd/spec paths ...>] [notes about the goal ...]
 ---
 
 Produce the design document that `/gstack-build` gates on. Format and structure: `references/design-doc-template.md` (Goal, Constraints and settled decisions, Items with checkable acceptance criteria, Amendments log). The user edits it as an artifact and approves it there; nothing is written to disk until they do.
@@ -13,7 +13,7 @@ Raw slash-command arguments: `$ARGUMENTS`
 Two directories are required:
 
 - **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `~/GitHub/<repo>`.
-- **Taskade project folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--taskade`, else the project's declared Taskade folder.
+- **Project workspace folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--workspace`, else the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one).
 
 Check both against `get_device_info().connectedFolders` (or, on-computer, by probing the paths). For any that is not mounted, request it with `device_request_folder_access` in one call. If the request is unavailable or declined, ask the user for the directories with AskUserQuestion (free text is fine) and re-check. Do not proceed with only one of the two; the mirror is part of the contract.
 
@@ -37,7 +37,7 @@ Before the editor is published, run `/gstack-plan-review critics=2 target=design
 
 ## Step 4: Publish the editor
 
-Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath","markdown","approved":false,"savedAt":null,"review":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
+Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath" (the workspace folder; the key keeps its old name),"markdown","approved":false,"savedAt":null,"review":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
 
 Tell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.
 
@@ -48,7 +48,7 @@ When the user says it is approved (or a republish notice arrives, or they ask yo
 Then, in this order:
 
 1. Before any write or commit, reuse the authorized feature branch supplied by `/gstack-build`. For standalone design work, create or reuse a design feature branch from up-to-date main. Never write or commit the design on main or another protected branch.
-2. Write `markdown` to `<repo>/DESIGN.md` and to `<taskade>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
+2. Write `markdown` to `<repo>/DESIGN.md` and to `<workspace>/06 – Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 – Engineering`).
 3. Commit the repo copy alone on that feature branch: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.
 4. Push that feature branch as the `moxywolf-agent` app, `agent_token.py exec -- git push origin <branch>`, which cannot push to a protected target; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.
 5. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.
@@ -63,7 +63,7 @@ DESIGN DOC
 Repo:     {path}  →  DESIGN.md @ {sha}  (remote == local: yes)
 Branch:   {feature branch}  PR: {URL or pending creation}
 Release:  {pending review | ready_for_human_release | human_merge_recorded}
-Taskade:  {path}/06 – Engineering/DESIGN-{repo}.md
+Mirror:   {workspace}/06 – Engineering/DESIGN-{repo}.md
 Artifact: {title}  version {n}  approved {savedAt}
 Items:    {N planned, N building, N review, N done}
 Next:     /gstack-build {first planned item id}

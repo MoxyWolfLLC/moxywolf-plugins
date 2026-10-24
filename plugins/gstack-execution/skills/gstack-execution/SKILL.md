@@ -27,8 +27,8 @@ Product Orchestrator is the board of directors. This plugin is the factory floor
 
 | Command | What It Does | Cowork Compatibility |
 |---------|-------------|---------------------|
-| `/gstack-design-doc` | Create or refresh a repo's `DESIGN.md` as an editable artifact; on approval, written to the repo (canonical) and Taskade `06 – Engineering` (mirror), committed, pushed, verified, pulled back; asks for either directory if it is not mounted | Full — Artifact tool + git |
-| `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to Taskade), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, human release handoff, record merge before marking done | Full — git + the other tool's CLI for the review |
+| `/gstack-design-doc` | Create or refresh a repo's `DESIGN.md` as an editable artifact; on approval, written to the repo (canonical) and the project workspace's `06 – Engineering` (mirror), committed, pushed, verified, pulled back; asks for either directory if it is not mounted | Full — Artifact tool + git |
+| `/gstack-build` | **The coding loop.** Design doc first (`DESIGN.md`, canonical in the repo, mirrored to the project workspace), build one item against its acceptance criteria or amend the doc with approval first, feature branch → push → verify → pull back, `/gstack-peer-review` until clean, human release handoff, record merge before marking done | Full — git + the other tool's CLI for the review |
 | `/gstack-goal-new` | Draft a goal (GO-007): brief and plan by the agent, goal tests and holdout by the gpt family, the plain-English reading by the gemini family; opens the goal pull request for Dorian's approval | Git + `codex` CLI + OpenRouter |
 | `/gstack-goal` | Run an approved goal (GO-003): each plan item through `/gstack-build` onto `goal/<id>`, then one goal pull request into `main` | Git + the other tool's CLI for the reviews |
 | `/gstack-review` | Pre-landing code review with structural checklist | Full — git + grep |
