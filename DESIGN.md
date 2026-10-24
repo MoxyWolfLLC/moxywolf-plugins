@@ -996,6 +996,25 @@ The first live `/session-review` ran on the session that built SM-004, and its c
 5. `plugins/project-init/.claude-plugin/plugin.json` moves from 0.33.0, and the top-level marketplace version moves with it, per CI-002.
 6. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
 
+### SM-007 — Team rules live in the Projects repo, and only a Taskade project mounts Taskade
+
+**Status:** building. Approved by Dorian on 2026-10-24.
+
+**Links introduced:** the team-rules link. Every skill, command and project instruction that reads or writes team rules names `GitHub/Projects/_shared-memory/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main.
+
+Opened 2026-10-24. Dorian ran `/session-start` on MWE-NER, an org-shared project, and it asked for the Taskade folder. The only reason was the team rules at `Taskade/_Shared Files/_shared-memory/`. The rules moved to `GitHub/Projects/_shared-memory/` the same day (Projects `e3f178c`); project instructions, handoffs and the vault homes were changed by hand (Projects `45a09c5`), and the Taskade INDEX is now a redirect. This item moves the plugin homes.
+
+1. No skill, command, README or reference in this repo names `Taskade/_Shared Files/_shared-memory` as a place to read or write team rules; each names `GitHub/Projects/_shared-memory/`. Homes: `project-init/skills/session-start/SKILL.md`, `project-init/skills/session-end/SKILL.md`, `project-init/skills/project-init/SKILL.md`, `project-init/commands/` (every file that names the path), `gstack-execution/commands/gstack-build.md`, `gstack-execution/skills/gstack-execution/SKILL.md`, `obsidian-update/skills/personal-os/SKILL.md` and the root `README.md`. `plugin.json` and `marketplace.json` changelogs are exempt, because they record what was.
+2. `/session-start` mounts the Taskade root only when the resolved workspace is a Taskade folder. An org-shared or vault-only project mounts the MoxyWolf Vault and GitHub, and the briefing reports Taskade as "not needed". The most-recently-active fallback scans `Taskade/` only when it is already mounted.
+3. `/session-start` fast-forwards `GitHub/Projects` before it reads the team-rules INDEX for every project type, not only org-shared ones. A clone with local work, local commits or no upstream is reported and read as it is, never stashed, reset or forced.
+4. `/session-end` writes a new or changed team rule into `GitHub/Projects/_shared-memory/` and its INDEX, commits only that folder, pushes as `moxywolf-agent`, verifies `ls-remote` and pulls back. A rule whose push did not land is reported in the handoff as local only, never as shared.
+5. `/init-project` asks for the Taskade root only for a personal (Taskade) project, and no longer says the Taskade root stays mounted for every type.
+6. A test in the repo asserts that none of the homes in criterion 1 names the old path, and reports how many files it examined; zero examined is a failure, per EV-001.
+7. `project-init` gets a minor version bump, `gstack-execution` and `obsidian-update` patch bumps, each with a changelog line, and the top-level marketplace version moves with them, per CI-002.
+8. In CI, `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures.
+
+Not covered: the gate log at `Taskade/_Shared Files/_gate-log/`, and team rules whose content says deliverables or design mirrors land in Taskade. Each is its own decision.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -2078,6 +2097,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-24: SM-007 declared on Dorian's approval. `/session-start` on the org-shared MWE-NER asked for the Taskade folder only to read the team rules, so the rules moved to `GitHub/Projects/_shared-memory/` and the plugin homes follow.
 - 2026-10-22: EV-014 declared on Dorian's approval, from goal `nice-join-data` in workforce-automation: ledger runs were runtime evidence the reviewer could never read, so items 1 and 2 lost reviews with no defect found.
 
 - 2026-10-18: DC-001 is done: merged in `60a3e4c` (PR #228, head `77110c2`) under DR-113 and recorded as `agent_merge_autonomous`, lane `wide`. The first production council calls are on the ledger. The next step in the objective is DC-002, built only after the council's score has rows to read.

@@ -4,7 +4,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Agent
 argument-hint: [--builder claude|codex] [--repo <path>] [item-id | what to build ...]
 ---
 
-Every piece of coding at MoxyWolf goes through this loop (rule set by Dorian 2026-09-11, canonical in `Taskade/_Shared Files/_shared-memory/`). It exists so that code follows a written design, the design is amended before the code drifts from it, every push lands on the remote and back in the local clone, and nothing is called done until the other tool has reviewed it clean.
+Every piece of coding at MoxyWolf goes through this loop (rule set by Dorian 2026-09-11, canonical in `GitHub/Projects/_shared-memory/`). It exists so that code follows a written design, the design is amended before the code drifts from it, every push lands on the remote and back in the local clone, and nothing is called done until the other tool has reviewed it clean.
 
 ```
 create/reuse the authorized feature branch before any commit

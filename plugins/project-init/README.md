@@ -8,7 +8,7 @@ This plugin handles three phases of a MoxyWolf Cowork project:
 
 ### `/init-project` — first-time setup
 
-When you start a new Cowork project, run `/init-project` to scaffold the Project Instructions. It assumes the three standard MoxyWolf roots are mounted in Cowork → Folders:
+When you start a new Cowork project, run `/init-project` to scaffold the Project Instructions. It assumes these MoxyWolf roots are mounted in Cowork → Folders (Taskade only for a personal Taskade project; team rules live in `GitHub/Projects/_shared-memory/`):
 
 1. **MoxyWolf Vault**
 2. **GitHub**
@@ -24,7 +24,7 @@ When you open a new Cowork session on an already-configured project, run `/sessi
 
 - Resolves which project (uses the argument or lists candidates)
 - Reads the saved `cowork-project-instructions.md` to learn the active Taskade subfolder and GitHub repo(s)
-- Ensures the three standard roots are mounted for this session — on-computer via `mcp__cowork__request_cowork_directory`, in the cloud by detecting mounts with `mcp__remote-devices__get_device_info` and prompting the user to **Add folder** for any missing root
+- Ensures the roots the project needs are mounted for this session (Vault and GitHub always, Taskade only for a Taskade-based project) — on-computer via `mcp__cowork__request_cowork_directory`, in the cloud by detecting mounts with `mcp__remote-devices__get_device_info` and prompting the user to **Add folder** for any missing root
 - **Reads `cowork-session-handoff.md`** (written by the previous session's `/session-end`) and surfaces its "What landed", "Open work", and "Suggested opening line" at the top of the briefing
 - Surfaces a focused briefing: handoff state, kanban P0/P1 tasks, recent decisions, open GitHub PRs and issues
 - Asks what you want to focus on first, with options pulled from the handoff first (then kanban)
@@ -73,7 +73,7 @@ Checks one repository against the seven things goal mode needs in its own `main`
 
 A filled-in Project Instructions document covering:
 
-- **Mounted roots** — the three constants (MoxyWolf Vault, GitHub, Taskade) every project mounts
+- **Mounted roots** — MoxyWolf Vault and GitHub for every project, plus Taskade for a personal Taskade project
 - **Project Setup** — declares the active Taskade subfolder and active GitHub repo subfolder(s) for *this* project
 - **Three-directory model** — Taskade subfolder (read/write), MoxyWolf Vault (read for shared knowledge), GitHub repo(s) (read-only)
 - **File-write override** — prevents the project-name/project-name nesting bug Cowork sometimes produces
@@ -85,7 +85,7 @@ A filled-in Project Instructions document covering:
 ## Requirements
 
 - The MoxyWolf Vault must contain the canonical template at `_Templates/Cowork Project Instructions Template.md`. If it's missing, the skill stops and asks you to recreate it from a known-good project.
-- The three standard roots (MoxyWolf Vault, GitHub, Taskade) should be mounted in Cowork → Folders. If any are missing the skill still generates the instructions, but flags the missing mount.
+- The MoxyWolf Vault and GitHub roots (plus Taskade for a personal Taskade project) should be mounted in Cowork → Folders. If any are missing the skill still generates the instructions, but flags the missing mount.
 - The active Taskade subfolder must exist (or you can have the skill create it during setup).
 
 ## Why shared knowledge routes to the vault
