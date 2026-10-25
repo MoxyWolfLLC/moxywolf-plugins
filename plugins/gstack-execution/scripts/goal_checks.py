@@ -36,9 +36,11 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import goal_envelope as ge  # noqa: E402
 
-# GO-002.6: one image for every governed repository, pinned by digest: Debian bookworm with Python 3.11
-# (the harness) and Node 22 LTS (a Node candidate). A new digest is a change Dorian approves.
-IMAGE = "node:22-bookworm@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7"
+# GO-002.6: one image for every governed repository, pinned by digest: Playwright 1.64.1 on Ubuntu noble,
+# with Python 3.12 (the harness), Node 24 (a Node candidate) and Playwright's browsers in /ms-playwright
+# (amended 2026-10-25, a goal test that drives a page). A new digest is a change Dorian approves.
+# ponytail: one Playwright version; a repo pinning another @playwright/test finds no browser build.
+IMAGE = "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea"
 DEPS_FILES = ("package.json", "package-lock.json", ".npmrc")
 
 
