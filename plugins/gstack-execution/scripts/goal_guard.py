@@ -199,6 +199,10 @@ def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr)
     problems += checks_green("main", head, checks, pr)
     problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
                  for c in FINAL_CHECKS if (checks.get(c) or (None,))[0] != "success"]
+    import goal_checks                                  # review F6: the holdout reached for this pull request
+    bound = goal_checks.provenance({"pr": pr.get("number"), "base_ref": "main", "base": pr.get("base")})
+    problems += [f"{c} at {head[:12]} was reached for {checks[c][1] or 'nothing named'}, not {bound}"
+                 for c in FINAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
     if problems:
         raise Refused("; ".join(problems))
 

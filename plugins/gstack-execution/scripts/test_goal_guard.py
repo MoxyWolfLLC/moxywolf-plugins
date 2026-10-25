@@ -253,13 +253,18 @@ class Ledger(tgr.RunnerFixture):
         bound = f"pr=50;base_ref=main;base={'c' * 40}"
         mpr = {"number": 50, "head": final, "base_ref": "main", "base": "c" * 40}
         green = {"tests": ("success", None), "goal-envelope": ("success", bound), "goal-tests": ("success", bound),
-                 "goal-holdout": ("success", None)}
+                 "goal-holdout": ("success", bound)}
         at = lambda h: dict(CLEAN, heads=[[h]])
         self.assertEqual(self.act("merge", "main", head=final, review=at(tested), checks=green, pr=mpr)["by"], "GO-011.2")
         for review, checks, pr, why in (
                 (at(final), green, mpr, "isn't pinned"),                                  # the holdout in the surface
                 (dict(at(tested), outcome="blocking_findings"), green, mpr, "not clean"),
-                (at(tested), {**green, "goal-holdout": ("failure", None)}, mpr, "goal-holdout at .* is failure"),
+                (at(tested), {**green, "goal-holdout": ("failure", bound)}, mpr, "goal-holdout at .* is failure"),
+                (at(tested), {**green, "goal-holdout": ("success", None)}, mpr, "goal-holdout .* reached for nothing named"),
+                (at(tested), {**green, "goal-holdout": ("success", "pr=60;base_ref=main;base=" + "c" * 40)}, mpr,
+                 "goal-holdout .* reached for pr=60"),                                    # another PR's no-op pass
+                (at(tested), {**green, "goal-holdout": ("success", "pr=50;base_ref=main;base=" + "d" * 40)}, mpr,
+                 "goal-holdout .* reached for pr=50;base_ref=main;base=dddd"),            # an older main
                 (at(tested), green, dict(mpr, number=51), "only the goal pull request #50")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
                 self.act("merge", "main", head=final, review=review, checks=checks, pr=pr)
