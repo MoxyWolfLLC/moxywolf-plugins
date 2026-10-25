@@ -284,6 +284,23 @@ class Ledger(tgr.RunnerFixture):
             self.act("merge", "main", head=final, review=at(sneaky), checks=green, pr=mpr)
         self.assertEqual(self.act("merge", "main", head=final, review=at(stripped), checks=green, pr=mpr)["by"], "GO-011.2")
 
+    def test_the_finalize_pull_request_merges_without_a_review_only_when_it_carries_the_record(self):  # GO-011 review 3 F1
+        self.start()
+        tested = self.git("rev-parse", "goal/g1")
+        self.git("switch", "-q", "-c", "goal-finalize/g1", "goal/g1")
+        rec = self.commit("record", {"goal-runs/g1/RESULT.md": "r\n", gr.holdout_path("g1"): "h\n"})
+        sneak = self.commit("sneak", {"helper.py": "x = 1\n"})
+        self.git("switch", "-q", "main")
+        s = gr.load("g1"); s["results"].append({"head": tested}); s["finalize_pr"] = 40; gr.save(s)
+        fpr = lambda h: {"number": 40, "head": h, "base_ref": "goal/g1", "base": tested}
+        ok = {"goal-envelope": ("success", None)}
+        self.assertEqual(self.act("merge", "goal/g1", head=rec, checks=ok, pr=fpr(rec))["by"], "GO-003.7 finalize")
+        for head, checks, why in ((sneak, ok, "isn't one commit on"), (rec, {}, "goal-envelope at .* is missing")):
+            with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
+                self.act("merge", "goal/g1", head=head, checks=checks, pr=fpr(head))
+        with self.assertRaisesRegex(gr.Refused, "changes .*helper.py"):
+            gguard.finalize_merge_allowed("goal/g1", sneak, rec, ["helper.py"], [rec], {"goal-runs/g1/RESULT.md"}, ok, fpr(sneak))
+
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()
         self.act("pr.open", "goal/g1<-build/GX-1-a")

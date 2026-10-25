@@ -358,6 +358,14 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused(f"a sync's head is one empty commit on main's tip {tip[:12]}; {head[:12]} isn't")
         gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
         return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
+    if klass == "merge" and resource == state["branch"] and pr and pr.get("number") == state.get("finalize_pr"):
+        if head is None or checks is None:
+            raise Refused("the finalize merge names its head and the checks at that head")
+        gguard.finalize_merge_allowed(state["branch"], head, state["results"][-1]["head"],
+                                      [f for f in ge.git(repo, "diff", "--name-only", state["results"][-1]["head"], head).split() if f],
+                                      ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()[1:],
+                                      {f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)}, checks, pr)
+        return {"allowed": klass, "resource": resource, "by": "GO-003.7 finalize"}
     if klass == "merge" and resource == "main" and state.get("final_pr"):
         if head is None or review is None or checks is None or pr is None:
             raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
@@ -385,7 +393,9 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
 
 
 def final_review_scope(repo, goal_id, state, review, head, pr):
-    """Problems with what the whole-goal review covered (review F1): its packet names every plan item
+    """Problems with what the whole-goal review covered (review F1): its packet (peer_review.py open
+    writes packet.json with review_base = base, and fix rounds keep it; its self-test checks that)
+    names every plan item
     of this goal, one repository, and a base that is where main and the goal head meet, so the
     reviewed diff is the whole goal and not one item's."""
     packet = review.get("packet") or {}
@@ -902,8 +912,7 @@ def _main(argv, repo=gb.ROOT):
                 checks = gguard.latest_checks(get(f"repos/{name}/commits/{opts['--head']}/check-runs?per_page=100")["check_runs"])
                 p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
                 pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
-                if "--sync" in opts:
-                    ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
+                ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
                                  head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts)))
             return 0
