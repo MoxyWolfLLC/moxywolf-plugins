@@ -237,6 +237,39 @@ class Ledger(tgr.RunnerFixture):
             with self.subTest(head=head), self.assertRaisesRegex(gr.Refused, "one empty commit on main's tip"):
                 self.act("merge", "goal/g1", head=head, checks=GREEN, pr=dict(PR, head=head), sync=True)
 
+    def test_the_goal_pull_request_merges_into_main_as_the_bot_after_a_clean_whole_goal_review(self):  # GO-011.2
+        self.start()
+        tested = self.git("rev-parse", "goal/g1")
+        self.git("switch", "-q", "goal/g1")
+        final = self.commit("finalize", {"goal-runs/g1/RESULT.md": "r\n", gr.holdout_path("g1"): "h\n"})
+        self.git("switch", "-q", "-c", "stripped", final)
+        self.git("rm", "-q", gr.holdout_path("g1")); self.git("commit", "-q", "-m", "review surface")
+        stripped = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "-c", "sneaky", final)                  # strips the holdout and slips in a change
+        self.git("rm", "-q", gr.holdout_path("g1"))
+        sneaky = self.commit("more", {"helper.py": "x = 1\n"})
+        self.git("switch", "-q", "main")
+        s = gr.load("g1"); s["results"].append({"head": tested}); s.update(final_pr=50, finalized_head=final); gr.save(s)
+        bound = f"pr=50;base_ref=main;base={'c' * 40}"
+        mpr = {"number": 50, "head": final, "base_ref": "main", "base": "c" * 40}
+        green = {"tests": ("success", None), "goal-envelope": ("success", bound), "goal-tests": ("success", bound),
+                 "goal-holdout": ("success", None)}
+        at = lambda h: dict(CLEAN, heads=[[h]])
+        self.assertEqual(self.act("merge", "main", head=final, review=at(tested), checks=green, pr=mpr)["by"], "GO-011.2")
+        for review, checks, pr, why in (
+                (at(final), green, mpr, "isn't pinned"),                                  # the holdout in the surface
+                (dict(at(tested), outcome="blocking_findings"), green, mpr, "not clean"),
+                (at(tested), {**green, "goal-holdout": ("failure", None)}, mpr, "goal-holdout at .* is failure"),
+                (at(tested), green, dict(mpr, number=51), "only the goal pull request #50")):
+            with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
+                self.act("merge", "main", head=final, review=review, checks=checks, pr=pr)
+        s = gr.load("g1"); s["resyncs"] = [{"from": tested, "to": final}]; gr.save(s)   # review F2: a sync after the review
+        with self.assertRaisesRegex(gr.Refused, "isn't pinned"):
+            self.act("merge", "main", head=final, review=at(tested), checks=green, pr=mpr)
+        with self.assertRaisesRegex(gr.Refused, "isn't pinned"):
+            self.act("merge", "main", head=final, review=at(sneaky), checks=green, pr=mpr)
+        self.assertEqual(self.act("merge", "main", head=final, review=at(stripped), checks=green, pr=mpr)["by"], "GO-011.2")
+
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()
         self.act("pr.open", "goal/g1<-build/GX-1-a")

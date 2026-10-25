@@ -13,8 +13,8 @@ A goal that merged into `main` has passed its goal tests, its holdout and a cros
    - **Fix now** when the change doesn't alter what the product does: wording, labels, layout, styling, a broken or missing link, contrast, focus or another accessibility fix, an error message that's unclear. Build it through `/gstack-build` (its own cross-vendor review, no goal), verify it on its Preview, and add it to the re-test list.
    - **Next goal** when it changes what the product does: a new page or field, different data, a changed rule, a removed feature. Draft it with him through `/gstack-goal-new`, quoting his note as the outcome's starting point.
    - When it's unclear which, it's the next goal. Never quietly widen a fix.
-5. **Re-test.** When the fixes have merged, publish a short sheet with only the tasks that changed, the same way, and send it once.
-6. **Production.** When every task on the latest sheet is marked worked, or he says to ship, ask him once whether to promote to Production, naming what goes out. Promote only on his yes. Domains and DNS stay his call the same way.
+5. **Re-test.** When the fixes have merged, publish a short sheet with the tasks that changed and any he left unanswered, the same way, and send it once.
+6. **Production.** A task's standing mark is its latest one across every sheet for the goal; unanswered isn't worked, and a task sent to the next goal stays as he marked it. When every task's standing mark is worked, or he says to ship, ask him once whether to promote to Production, naming what goes out. Promote only on his yes. Domains and DNS stay his call the same way.
 7. **Record.** Write `goal-runs/<id>/USABILITY.md` in the run's goal-runs folder (`GSTACK_GOAL_RUN_DIR/<id>/`): the sheets' links, each task with his mark and note, what was fixed (PR and review IDs), what became a goal (its ID), and the Production decision with his words.
 
 Ask Dorian nothing else. The sheet is the question.

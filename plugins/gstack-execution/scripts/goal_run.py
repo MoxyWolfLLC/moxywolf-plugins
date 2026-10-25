@@ -358,6 +358,14 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused(f"a sync's head is one empty commit on main's tip {tip[:12]}; {head[:12]} isn't")
         gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
         return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
+    if klass == "merge" and resource == "main" and state.get("final_pr"):
+        if head is None or review is None or checks is None or pr is None:
+            raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
+        if pr.get("number") != state["final_pr"]:
+            raise Refused(f"only the goal pull request #{state['final_pr']} merges into main, not #{pr.get('number')}")
+        gguard.final_merge_allowed(head, state.get("finalized_head"), review,
+                                   final_review_pinned(repo, goal_id, state, review), checks, pr)
+        return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
             raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
@@ -373,6 +381,24 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
         state["spent"].append(row["id"])
         save(state)
     return {"allowed": klass, "resource": resource, "by": row and row["id"]}
+
+
+def final_review_pinned(repo, goal_id, state, review):
+    """GO-011.2 and review F2: the whole-goal review's last head is the goal head without its holdout.
+    Before any resync that's the head where the goal tests passed (the finalize commit's parent); once
+    main has been synced in, it's a commit whose one parent is the current goal head and which only
+    deletes the holdout, so whatever the sync brought is in the reviewed surface."""
+    last = (review.get("heads") or [[]])[-1]
+    if not state.get("resyncs"):
+        return state["results"][-1]["head"] in last
+    for h in last:
+        p = subprocess.run(["git", "-C", str(repo), "rev-list", "--parents", "-n", "1", h], capture_output=True, text=True)
+        if p.returncode or p.stdout.split()[1:] != [state["finalized_head"]]:
+            continue
+        d = ge.git(repo, "diff", "--name-status", state["finalized_head"], h).split("\n")
+        if [x for x in d if x] == [f"D\t{holdout_path(goal_id)}"]:
+            return True
+    return False
 
 
 def current_item(state, item):

@@ -150,7 +150,7 @@ def merge_allowed(branch, target, head, review, checks, pr):
     import goal_checks
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
-                      f"request's, with Dorian's approval (GO-003.7)")
+                      f"request's, after propose (GO-011.2)")
     problems = [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),
@@ -178,6 +178,29 @@ def checks_green(target, head, checks, pr):
     problems += [f"{c} at {head[:12]} was reached for {(checks.get(c) or (None, None))[1] or 'nothing named'}, not {bound}"
                  for c in GOAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
     return problems
+
+
+FINAL_CHECKS = ("goal-holdout",)
+
+
+def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr):
+    """GO-011.2: the goal pull request into main merges as the bot, pinned to the recorded goal head,
+    after a clean whole-goal cross-vendor review pinned to that head without its holdout
+    (`review_pinned`, which goal_run.final_review_pinned works out) and with tests, goal-envelope,
+    goal-tests and goal-holdout green there for this pull request into main."""
+    problems = [m for ok, m in [
+        (head == finalized_head, f"{head[:12]} isn't the recorded goal head {str(finalized_head)[:12]}"),
+        (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
+         f"the review ended {review.get('outcome')}, not clean"),
+        (review.get("coverage_checked") is True and review.get("coverage_status") == "covered"
+         and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
+        (review_pinned, f"the review isn't pinned to {head[:12]} without its holdout"),
+    ] if not ok]
+    problems += checks_green("main", head, checks, pr)
+    problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
+                 for c in FINAL_CHECKS if (checks.get(c) or (None,))[0] != "success"]
+    if problems:
+        raise Refused("; ".join(problems))
 
 
 def sync_allowed(branch, target, head, checks, pr, changed):
