@@ -353,6 +353,10 @@ _h(sys.stdin.readline().strip(), sys.__stdout__, sys.argv[1], sys.argv[2], sys.a
 """
 
 
+# GO-002.6 (amended 2026-10-25): the sandbox image's browsers, the one variable a test's clean environment keeps.
+BROWSERS = {k: os.environ[k] for k in ("PLAYWRIGHT_BROWSERS_PATH",) if k in os.environ}
+
+
 def run_test(repo_root, goal_dir, test_id, timeout=300):
     """Run one goal unittest against the candidate in repo_root: 'passed', 'failed', or 'not_run' when
     the named test couldn't be loaded or didn't run exactly once (missing file or name, a file that
@@ -372,7 +376,7 @@ def run_test(repo_root, goal_dir, test_id, timeout=300):
         return "not_run"
     nonce, root = secrets.token_hex(16), str(Path(repo_root).resolve())
     with tempfile.TemporaryDirectory(prefix="goal-test-") as cwd:
-        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1", **BROWSERS}
         try:
             r = subprocess.run([sys.executable, "-I", "-B", "-c", _HARNESS, str(test_file), name, root], cwd=cwd,
                                input=nonce + "\n", env=env, capture_output=True, text=True, timeout=timeout)
@@ -411,7 +415,7 @@ def run_holdout(repo_root, source, timeout=1200, detail=False):
     which a traceback of exec'd text doesn't carry), so a failure can be diagnosed once the run is over."""
     nonce, root = secrets.token_hex(16), str(Path(repo_root).resolve())
     with tempfile.TemporaryDirectory(prefix="goal-holdout-") as cwd:
-        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1"}
+        env = {"PATH": os.environ.get("PATH", ""), "HOME": cwd, "GOAL_CANDIDATE": root, "PYTHONDONTWRITEBYTECODE": "1", **BROWSERS}
         try:
             r = subprocess.run([sys.executable, "-I", "-B", "-c", _HARNESS, "-", "*", root], cwd=cwd,
                                input=nonce + "\n" + source, env=env, capture_output=True, text=True, timeout=timeout)
