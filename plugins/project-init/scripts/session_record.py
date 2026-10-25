@@ -739,6 +739,7 @@ CLASSES = {"check", "rule", "skill", "tooling", "policy", "one_off", "evaluation
 STATUSES = {"verified", "not_found", "mismatch", "ambiguous", "resolver_unavailable", "resolver_error", "observed_unverified"}
 PROMPT_VERSION = "sm004-review-1"
 NO_PROMOTION = "No promotion: this review changes no rule, skill, prompt, memory or policy; every proposal waits for Dorian."
+CONSENT_ITEM = re.compile(r"[A-Z]{2,4}-\d{3}")      # SM-009: an item id, never free text
 PROPOSAL_FIELDS = ("proposal_id", "evidence_event_ids", "classification", "scope", "expected_benefit", "risk", "reversibility", "owner")
 EVENT_REF = re.compile(r"\bev:([0-9a-f]{12,64})\b")
 
@@ -1119,6 +1120,9 @@ def cmd_publish(a):
         raise Refused(f"{dest} is inside a Git working tree; publishing there is refused")
     if not LOGIN.match(a.confirmed_by or ""):
         raise Refused("--confirmed-by must be a GitHub login")
+    standing = getattr(a, "standing_consent", None)
+    if standing is not None and not CONSENT_ITEM.fullmatch(standing):
+        raise Refused("--standing-consent must name the DESIGN.md item that records the instruction, e.g. SM-009")
     if a.confirm != approval_digest(env) or a.confirm != env.get("approval_digest"):
         raise Refused("the confirmed digest isn't the one prepare showed for these files, audience and exceptions")
     if digest(cand)[0] != env["content_sha256"]:
@@ -1127,7 +1131,9 @@ def cmd_publish(a):
     if {"name": "gitleaks", "version": version, "config_sha256": GITLEAKS_CONFIG_SHA256} != env["scanner"]:
         raise Refused("the scanner isn't the one the owner confirmed")
     confirmed = {"confirmed_by": a.confirmed_by, "confirmed_at": now(), "confirmation_scope": "storage-and-audience",
-                 "candidate_content_sha256": env["content_sha256"], "approval_digest": a.confirm, "audience": env["audience"]}
+                 "candidate_content_sha256": env["content_sha256"], "approval_digest": a.confirm, "audience": env["audience"],
+                 # SM-009: a standing instruction stands in for the per-session question; the digest still binds the bytes
+                 "consent": "standing" if standing else "per-session", "consent_ref": standing}
     write_private(cand / "confirmation-attestation.json", json.dumps(confirmed, indent=2) + "\n")
     write_private(cand / "scan-attestation.json", json.dumps(env["scanner"], indent=2) + "\n")
     receipt = {**confirmed, "confirmed_files": env["files"], "binary_exceptions": env["binary_exceptions"],
@@ -1212,15 +1218,20 @@ def published(d):
         review = (d / "review" / "review.md").read_text()
     except (OSError, ValueError, AttributeError, TypeError) as e:      # a damaged copy is refused, never a traceback
         raise Refused(f"{d} can't be read as a published folder: {type(e).__name__}: {e}")
+    consent = receipt.get("consent", "per-session")
+    ref = receipt.get("consent_ref")
+    if consent not in ("standing", "per-session") or (consent == "standing" and not CONSENT_ITEM.fullmatch(str(ref or ""))):
+        raise Refused("the receipt's consent fields aren't standing with an item id, or per-session")
     return {"session": sid, "publication": pid, "audience": audience, "confirmed_by": who,
-            "confirmed_at": receipt.get("confirmed_at"), "review": review}
+            "confirmed_at": receipt.get("confirmed_at"), "review": review,
+            "consent": f"standing consent {ref}" if consent == "standing" else "per-session consent"}
 
 
 def cmd_read(a):
     """Print a published folder's review once published() has checked it. Needs no staging."""
     p = published(a.publication)
     print(f"session {p['session']}\npublication {p['publication']}\naudience {p['audience']}\n"
-          f"confirmed by {p['confirmed_by']} at {p['confirmed_at']}\n"
+          f"confirmed by {p['confirmed_by']} at {p['confirmed_at']} ({p['consent']})\n"
           f"verified: every file matches hashes.sha256 and the receipt\n")
     print(p["review"], end="" if p["review"].endswith("\n") else "\n")
 
@@ -1244,7 +1255,7 @@ def cmd_list(a):
             print(f"refused  {flat(k.name)}  {flat(e)}")
             continue
         good += 1
-        print(f"verified  {flat(k.name)}  publication {flat(p['publication'])}  session {flat(p['session'])}  confirmed by {flat(p['confirmed_by'])}")
+        print(f"verified  {flat(k.name)}  publication {flat(p['publication'])}  session {flat(p['session'])}  confirmed by {flat(p['confirmed_by'])}  ({p['consent']})")
     print(f"examined {len(kids)} folder(s): {good} verified, {len(kids) - good} refused")
     return 0 if good == len(kids) else 1
 
@@ -1271,6 +1282,7 @@ def main(argv=None):
     pp.add_argument("--audience", required=True); pp.add_argument("--allow-binary", action="append", default=[], metavar="SHA256:NAME")
     pu = sub.add_parser("publish"); pu.add_argument("--publication", required=True); pu.add_argument("--confirm", required=True)
     pu.add_argument("--confirmed-by", required=True); pu.add_argument("--dest", required=True)
+    pu.add_argument("--standing-consent", metavar="ITEM", help="SM-009: the DESIGN.md item recording a standing instruction to publish")
     rd = sub.add_parser("read"); rd.add_argument("publication")
     ls = sub.add_parser("list"); ls.add_argument("folder")
     a = ap.parse_args(argv)

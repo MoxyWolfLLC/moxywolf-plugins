@@ -131,7 +131,7 @@ Question 1 — **"Who authored this handoff?"** (header: "Author")
 Options, in this order:
 - `Dorian`
 - `Michael`
-- `Phil`
+- `Dorian C`
 - `Steven`
 
 Question 2 — **"Is this a baton-pass to a teammate, or are you just stopping for the day?"** (header: "Handoff target")
@@ -139,10 +139,10 @@ Options, in this order:
 - `Just stopping for the day` *(default — writes no `for` field)*
 - `Dorian`
 - `Michael`
-- `Phil`
+- `Dorian C`
 - `Steven`
 
-Normalize both answers to lowercase first names (`dorian`, `michael`, `phil`, `steven`). Store them as `AUTHOR` and `FOR`. If the user answered "Just stopping for the day" to Question 2, leave `FOR` unset — the `for:` key is omitted entirely from the frontmatter in that case (it is NOT written as `for: null` or `for: ""`).
+Normalize both answers to lowercase names (`dorian`, `michael`, `dorian-c`, `steven`). `Dorian C` is a different person from `Dorian` and normalizes to `dorian-c`, never to `dorian` (SM-009). Store them as `AUTHOR` and `FOR`. If the user answered "Just stopping for the day" to Question 2, leave `FOR` unset — the `for:` key is omitted entirely from the frontmatter in that case (it is NOT written as `for: null` or `for: ""`).
 
 If the user picks the same person for both Question 1 and Question 2, treat that as "just stopping for the day" — you don't baton-pass to yourself. Drop the `FOR` value silently; no need to re-prompt.
 
@@ -151,7 +151,7 @@ If the user picks the same person for both Question 1 and Question 2, treat that
 The slash command accepts three optional flags that skip the prompt:
 
 - `--author=<name>` — sets the author without asking. Example: `/session-end Nexus --author=michael`.
-- `--handoff-to=<name>` — sets the baton-pass target without asking. Example: `/session-end Nexus --handoff-to=phil`. Implies an active baton-pass.
+- `--handoff-to=<name>` — sets the baton-pass target without asking. Example: `/session-end Nexus --handoff-to=dorian-c`. Implies an active baton-pass.
 - `--solo` — explicitly marks a non-handoff session. Skips Question 2 (writes no `for` field) but still asks Question 1 unless `--author` is also passed.
 
 Combining flags is fine: `/session-end Nexus --author=dorian --handoff-to=michael` skips both prompts. If a flag value isn't one of the four known names, fall back to asking the corresponding question rather than writing a bad value.
@@ -179,9 +179,9 @@ A lesson written down is not a lesson applied: a rule read once at session start
 
 ### Step 3.7: Review this session with code (SM-006)
 
-Run the session review exactly as `commands/session-review.md` steps 1 to 4 describe, with no prompt from the person: `session_record.py capture --from-hook <session_id>` (the capture hook fired when `/session-end` was typed, so the record ends there), then `review-prompt`, then the review draft in staging, then `review-finalize`. Never run `publish-prepare` or `publish` here; publishing stays a separate step on the person's word.
+Run the session review exactly as `commands/session-review.md` steps 1 to 4 describe, with no prompt from the person: `session_record.py capture --from-hook <session_id>` (the capture hook fired when `/session-end` was typed, so the record ends there), then `review-prompt`, then the review draft in staging, then `review-finalize`. In a local session, never run `publish-prepare` or `publish` here; publishing stays a separate step on the person's word.
 
-**In a cloud session**, staging is deleted with the session, so this review is too. Say so in one line and ask once whether to keep it. On the person's word, publish it and copy the published folder into the project's vault folder `11-Knowledge/session-records/` exactly as `commands/session-review.md` describes under *In a cloud session*, then run `session_record.py read` on the copy on the linked computer. With no computer linked, say the review stays in this session and is lost when it ends.
+**In a cloud session**, staging is deleted with the session, so this review is too. Keep it without asking: Dorian's standing instruction (SM-009, 2026-10-24) covers every project, so publish it with `--standing-consent SM-009` and copy the published folder into the project's vault folder `11-Knowledge/session-records/` exactly as `commands/session-review.md` describes under *In a cloud session*, then run `session_record.py read` on the copy on the linked computer. With no computer linked, say the review stays in this session and is lost when it ends.
 
 - Keep the review folder path and its `validation_status` for the handoff and the Step 8 report.
 - If the session was already captured, the capture is reused and says the line it ends at; say that the review covers the session only up to that line.
@@ -474,7 +474,7 @@ Keep it factual. Dorian can open the file in Obsidian to review the full handoff
 - **No writable GitHub repos listed in project instructions.** Skip Step 5c entirely — don't ask the user to nominate a repo. Project instructions are the source of truth for repo posture.
 - **Writable repo's README would need from-scratch authoring.** Step 5c can initialize a README using the canonical 16-section structure if the session produced substantive material. If the session didn't, flag "Author initial README" as Open work and continue.
 - **User declined or canceled the Step 3.5 prompt.** Default to `author: dorian` and no `for:` field. Mention the fallback in the Step 8 report (*"Author defaulted to Dorian — pass `--author=<name>` next time to override."*) so the user knows it happened. Don't block the handoff write on a missing answer; the handoff itself is the load-bearing artifact.
-- **Flag value isn't one of the four known names** (e.g. `--author=mike` or `--handoff-to=phillip`). Fall back to asking the corresponding question. Don't silently rewrite the value — the four canonical lowercase names (`dorian`, `michael`, `phil`, `steven`) are the only acceptable values, so the user needs to confirm.
+- **Flag value isn't one of the four known names** (e.g. `--author=mike` or `--handoff-to=dorianc`). Fall back to asking the corresponding question. Don't silently rewrite the value — the four canonical lowercase names (`dorian`, `michael`, `dorian-c`, `steven`) are the only acceptable values, so the user needs to confirm.
 - **Author and baton-pass target are the same person.** Treat as "just stopping for the day"; drop the `FOR` and omit the `for:` field. Don't re-prompt.
 
 ## Why this filename, why this shape

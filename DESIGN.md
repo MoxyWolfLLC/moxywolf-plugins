@@ -1017,7 +1017,7 @@ Not covered: the gate log at `Taskade/_Shared Files/_gate-log/`, and team rules 
 
 ### SM-008 — The gate log and every deliverable home follow the project's workspace
 
-**Status:** building. Approved by Dorian on 2026-10-24.
+**Status:** done. Approved by Dorian on 2026-10-24. Merged as `6358b51` (PR #238, head `209d3ae`) by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113, after review `20261024-162820-1800419-3nnw71qr` (codex/gpt-6-astra, `fixes_verified`, 2 rounds). Earlier reviews on the branch: `20261024-152459-b6851af-skagaovm` (`rounds_exhausted`, criterion 8's evidence was off-repo, see XE-039), `20261024-155646-e8ecd41-psyej_hf` (`fixes_verified`) and `20261024-161453-6fdc1ed-lrcmr66k` (`no_blocking_findings`). Criterion 13's mirror is Projects `6d83fd6`.
 
 **Links introduced:** the gate-log link, the workspace link and the Project-mirror link. Every gate home names `GitHub/Projects/_gate-log/`, and assumes the local `GitHub/Projects` clone is current with `MoxyWolfLLC/Projects` main and that a recorded row reaches teammates only once it's pushed. Every home that sends a deliverable or a design mirror resolves the destination from the project's `project-surfaces.json` `workspace.path` (`GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one), never from a hardcoded `Taskade/<project>`. `/refresh-project-instructions` and `/session-end` write named copies into the attached claude.ai Project, and the loader stub reads them only when disk can't be read.
 
@@ -1040,6 +1040,23 @@ The trade-off to approve: Taskade is a Drive folder, so a row written there reac
 13. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
 
 Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-log/`, which waits on every teammate's Mac having project-init 0.41.0 or later and a `~/GitHub/Projects` clone; and `vault-code-learn`'s `--project` mode, which still reads instructions only from `Taskade/<project>`. Each is its own decision.
+
+### SM-009 — Session end keeps a cloud review without asking, and its roster names Dorian C
+
+**Status:** building. Approved by Dorian on 2026-10-24: "Replace Phil with Dorian C, as a separate name from Dorian, in the session-end author and handoff lists for *all* projects. I also saved 'always keep' as a standing preference for *all* projects, so later sessions shouldn't ask. - change whatever plugins you need to for this to take effect".
+
+**Links introduced:** a standing-consent link. A cloud session's review is published on a standing instruction recorded in this item, not on a per-session confirmation, and the published record names that instruction as its consent.
+
+Two corrections Dorian gave while `/session-end` ran on MW Plugins: "We need to replace Phil with Dorian C (different than Dorian) in these lists", and the question about keeping a cloud session's review "need never be asked again -- *always* do that."
+
+1. `/session-end` Step 3.5's author and handoff-target lists, the lowercase names it normalizes to, and the flag edge case name `Dorian`, `Michael`, `Dorian C` and `Steven`; `Phil` is gone. `Dorian C` normalizes to `dorian-c`, distinct from `dorian`.
+2. In a cloud session, `/session-end` Step 3.7 and `/session-review` publish the review and copy it into the project's vault `11-Knowledge/session-records/` without asking, then run `session_record.py read` on the copy on the linked computer. Gitleaks still runs on the final bytes and any finding still stops the publish. With no computer linked, they say the review is lost when the session ends. Evidence of the copy and read-back on the linked computer: `docs/evidence/SM-009-cloud-review-kept-2026-10-24.md`.
+3. `publish` takes `--standing-consent <item id>`. The skill still passes the approval digest `publish-prepare` printed, so the digest still binds the files, audience and scanner; the attestation and receipt record `consent: standing` and the item ID (`consent: per-session` without the flag), and `read` and `list` say which. SM-004's owner-only staging and the gitleaks gate are unchanged.
+4. A test covers both: the session-end roster has the four names and no `phil`, and a publish with `--standing-consent SM-009` writes the consent fields, `read` reports them, a malformed item ID is refused, and a gitleaks finding still refuses it.
+5. Because the plugins are shared, the change applies to every project once synced. Until then, a team rule in `GitHub/Projects/_shared-memory/` and its INDEX line say the same two things, committed in `MoxyWolfLLC/Projects` with `_shared-memory/` staged alone.
+6. `project-init` gets a minor bump with a changelog line, and the marketplace version moves with it (CI-002).
+
+Not covered: `daily-ops`, `obsidian-update`'s personal-os and `team-kanban` also name Phil. Whether their rosters change too is Dorian's call.
 
 ## Sixth objective: trust boundaries
 
@@ -1716,6 +1733,20 @@ The design follows MR-001. A rule table decides by code, and the model only answ
 10. All hook tests in `plugins/model-router/scripts/test_route.py` run the hooks as subprocesses with the hook JSON on stdin, the way the host calls them, and do not import functions from `route.py`. `plugins/model-router/README.md` describes the ontology, the table path and the Jev path, the ledger, the hard limit, and how to add a class. `.claude-plugin/marketplace.json` gains the `model-router` entry.
 11. `plugins/model-router/.claude-plugin/plugin.json` is at 0.1.0 and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_route.py` among the suites it ran, and reports no failures.
 
+
+### XE-039 — The off-repo check also catches a criterion that names a file outside the repos
+
+**Status:** planned. Declared on Dorian's approval, 2026-10-24.
+
+**Links introduced:** none beyond XE-025's criterion-to-evidence link; this widens the words that create it.
+
+M-053 repeated M-012. SM-008 criterion 8 required the Project mirror to use "the workspace-relative paths the loader stub names". The loader stub is a vault file. The packet didn't carry it, XE-025's `OFF_REPO` pattern didn't match those words, and review `20261024-152459-b6851af-skagaovm` ended `rounds_exhausted` with that criterion unmet. A fresh review passed once the stub's sections were quoted into the packet.
+
+1. `OFF_REPO` also matches a criterion that names a file by a vault path (`MoxyWolf Vault/`, `_Shared Knowledge/`), a `Taskade/` path, an absolute path outside every packet repo, or a document the repo itself calls authoritative but doesn't hold (the loader stub spec, `github-app.env`). The refusal and the override are XE-025's, unchanged.
+2. A criterion that names such a file opens only when it also names an in-repo evidence file that exists at the pinned head, or when the packet's `exclusions` quote the file's relevant text and say where it was read from; the state records which.
+3. `test_off_repo_criterion.py` gains SM-008 criterion 8's exact text: refused with no evidence, opened with an evidence path, opened with a quoting exclusion.
+4. `gstack-execution` gets a version bump with a changelog line, and the marketplace version moves with it (CI-002).
+
 ## Eleventh objective: goal mode
 
 Opened 2026-10-01. Dorian asked how gstack becomes a goal-oriented agent: he co-designs a goal once, the agent runs everything after it, and he isn't in the loop for each step. He's granting more trust and wants judgment calls taken to the council more often, not to him. The proposal went to the council (record `d_20261001_001`, four model families, chair Claude Sonnet 5.5) and Dorian approved its staged form the same day. Write-up: `Taskade/Team Plugins/06 – Engineering/goal-mode-proposal-2026-10-01.md`.
@@ -2124,6 +2155,9 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-24: SM-009 approved by Dorian for all projects; criterion 3 keeps the approval digest and records standing consent beside it, and criterion 6 adds a team rule so the change holds before the plugins sync.
+- 2026-10-24: SM-009 declared on Dorian's instruction at session end: the session-end roster replaces Phil with Dorian C, and a cloud session's review is always kept without asking. Criteria await his approval before code.
+- 2026-10-24: SM-008 is done (merge `6358b51`, review `20261024-162820-1800419-3nnw71qr`). XE-039 declared on Dorian's approval at session end, as the check mistake M-053 needs: it repeated M-012, so a rule wasn't enough.
 - 2026-10-24: SM-008 declared on Dorian's approval, from SM-007's *Not covered* line and review follow-up F1: the gate log moves to `GitHub/Projects/_gate-log/`, deliverable and design-mirror homes follow the project's workspace, session-start's write-policy note is corrected, the claude.ai Project mirror the loader stub promises is built, and SM-007 is marked done.
 - 2026-10-24: SM-007 declared on Dorian's approval. `/session-start` on the org-shared MWE-NER asked for the Taskade folder only to read the team rules, so the rules moved to `GitHub/Projects/_shared-memory/` and the plugin homes follow.
 - 2026-10-22: EV-014 declared on Dorian's approval, from goal `nice-join-data` in workforce-automation: ledger runs were runtime evidence the reviewer could never read, so items 1 and 2 lost reviews with no defect found.
