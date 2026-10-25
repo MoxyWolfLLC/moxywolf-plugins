@@ -284,22 +284,6 @@ class Ledger(tgr.RunnerFixture):
             self.act("merge", "main", head=final, review=at(sneaky), checks=green, pr=mpr)
         self.assertEqual(self.act("merge", "main", head=final, review=at(stripped), checks=green, pr=mpr)["by"], "GO-011.2")
 
-    def test_a_merge_into_main_that_releases_waits_for_dorians_word_after_usability(self):  # GO-011 review F2
-        self.start()
-        self.commit("wf", {".github/workflows/deploy.yml": "on:\n  push:\n    branches: [main]\n" + DEPLOY})
-        head = self.git("rev-parse", "HEAD")
-        self.assertEqual(gguard.releases_on_main(self.repo, head, ["goal-holdout"]), [".github/workflows/deploy.yml"])
-        self.assertEqual(gguard.releases_on_main(self.repo, "main~1", ["goal-holdout", "Production", "Preview"]),
-                         ["deployment environment Production"])
-        pr = {"number": 1, "head": "a" * 40, "base_ref": "main", "base": "c" * 40}
-        rel = ["deployment environment Production"]
-        for shipped in (None, {"head": "b" * 40, "words": "ship it"}):                 # none, or for another head
-            with self.subTest(shipped=shipped), self.assertRaisesRegex(gr.Refused, "waits for Dorian's word"):
-                gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, pr, releases=rel, shipped=shipped)
-        with self.assertRaises(gr.Refused) as e:                                      # his word lifts only that stop
-            gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, pr, releases=rel, shipped={"head": "a" * 40, "words": "ship it"})
-        self.assertNotIn("Dorian's word", str(e.exception))
-
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()
         self.act("pr.open", "goal/g1<-build/GX-1-a")

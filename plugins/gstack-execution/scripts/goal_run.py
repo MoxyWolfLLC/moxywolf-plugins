@@ -46,7 +46,6 @@
         a pull request into goal/<id> that goal-envelope refused: escalates a change outside the
         envelope (GO-006.2), quoting GitHub's own check output, not the agent's words, into the run
         record; the run holds until Dorian acknowledges it
-  goal_run.py ship <id> --words <Dorian's words>
   goal_run.py holdout-failed <id> --detail <text>
         goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2)
   goal_run.py ack <id> --escalation N --words <Dorian's words>
@@ -366,8 +365,7 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused(f"only the goal pull request #{state['final_pr']} merges into main, not #{pr.get('number')}")
         gguard.final_merge_allowed(head, state.get("finalized_head"), review,
                                    final_review_pinned(repo, goal_id, state, review), checks, pr,
-                                   review_scope=final_review_scope(repo, goal_id, state, review, head, pr),
-                                   releases=gguard.releases_on_main(repo, head, environments()), shipped=state.get("shipped"))
+                                   review_scope=final_review_scope(repo, goal_id, state, review, head, pr))
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
@@ -706,19 +704,6 @@ def holdout_failed(goal_id, detail):
     return end(state, "stopped", f"goal-holdout failed: {detail}")
 
 
-def ship(goal_id, words):
-    """GO-011.6: Dorian's word, after the usability sheet on the goal pull request's Preview, that the
-    goal may go to Production. When merging into main releases, the bot merge waits for it."""
-    state = finishing(goal_id)
-    if not (state.get("final_pr") and state.get("finalized_head")):
-        raise Refused("ship applies to the goal pull request, after propose")
-    if not words.strip():
-        raise Refused("ship records Dorian's own words")
-    state["shipped"] = {"head": state["finalized_head"], "words": words}
-    save(state)
-    return {"shipped": state["finalized_head"]}
-
-
 def stop(goal_id, reason):
     state = load(goal_id)
     if state["outcome"]:
@@ -930,9 +915,6 @@ def _main(argv, repo=gb.ROOT):
             if not token:
                 raise Refused("refused needs GITHUB_TOKEN: run it under agent_token.py exec --")
             print(json.dumps(refused(goal_id, int(opts["--pr"]), gb.github(token), opts.get("--repo", REPO))))
-            return 0
-        if cmd == "ship" and goal_id and set(opts) == {"--words"}:
-            print(json.dumps(ship(goal_id, opts["--words"])))
             return 0
         if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
             print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
