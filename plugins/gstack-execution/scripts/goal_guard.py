@@ -150,7 +150,7 @@ def merge_allowed(branch, target, head, review, checks, pr):
     import goal_checks
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
-                      f"request's, with Dorian's approval (GO-003.7)")
+                      f"request's, after propose (GO-011.2)")
     problems = [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),
@@ -178,6 +178,51 @@ def checks_green(target, head, checks, pr):
     problems += [f"{c} at {head[:12]} was reached for {(checks.get(c) or (None, None))[1] or 'nothing named'}, not {bound}"
                  for c in GOAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
     return problems
+
+
+FINAL_CHECKS = ("goal-holdout",)
+
+
+def finalize_merge_allowed(branch, head, tested, changed, parents, record_files, checks, pr):
+    """GO-003.7: the finalize pull request merges into the goal branch as the bot without a review, so
+    the holdout never enters a review surface. It may carry only the run record and the approved
+    holdout, as one commit on the head where the goal tests passed, with goal-envelope green there."""
+    problems = []
+    if (pr.get("head"), pr.get("base_ref")) != (head, branch):
+        problems.append(f"PR #{pr.get('number')} is at {str(pr.get('head'))[:12]} into {pr.get('base_ref')}, not {head[:12]} into {branch}")
+    if parents != [tested]:
+        problems.append(f"{head[:12]} isn't one commit on {tested[:12]}, where the goal tests passed")
+    if set(changed) != set(record_files):
+        problems.append(f"{head[:12]} changes {sorted(changed)}, not only {sorted(record_files)}")
+    if (checks.get("goal-envelope") or (None,))[0] != "success":
+        problems.append(f"goal-envelope at {head[:12]} is {(checks.get('goal-envelope') or ('missing',))[0] or 'missing'}, not success")
+    if problems:
+        raise Refused("; ".join(problems))
+
+
+def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr, review_scope=()):
+    """GO-011.2: the goal pull request into main merges as the bot, pinned to the recorded goal head,
+    after a clean whole-goal cross-vendor review pinned to that head without its holdout
+    (`review_pinned`, which goal_run.final_review_pinned works out) and with tests, goal-envelope,
+    goal-tests and goal-holdout green there for this pull request into main."""
+    problems = [m for ok, m in [
+        (head == finalized_head, f"{head[:12]} isn't the recorded goal head {str(finalized_head)[:12]}"),
+        (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
+         f"the review ended {review.get('outcome')}, not clean"),
+        (review.get("coverage_checked") is True and review.get("coverage_status") == "covered"
+         and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
+        (review_pinned, f"the review isn't pinned to {head[:12]} without its holdout"),
+    ] if not ok]
+    problems += list(review_scope)                     # review F1: the whole goal, from main
+    problems += checks_green("main", head, checks, pr)
+    problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
+                 for c in FINAL_CHECKS if (checks.get(c) or (None,))[0] != "success"]
+    import goal_checks                                  # review F6: the holdout reached for this pull request
+    bound = goal_checks.provenance({"pr": pr.get("number"), "base_ref": "main", "base": pr.get("base")})
+    problems += [f"{c} at {head[:12]} was reached for {checks[c][1] or 'nothing named'}, not {bound}"
+                 for c in FINAL_CHECKS if checks.get(c) and checks[c][0] == "success" and checks[c][1] != bound]
+    if problems:
+        raise Refused("; ".join(problems))
 
 
 def sync_allowed(branch, target, head, checks, pr, changed):

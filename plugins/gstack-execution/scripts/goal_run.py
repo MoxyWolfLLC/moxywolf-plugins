@@ -358,6 +358,23 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused(f"a sync's head is one empty commit on main's tip {tip[:12]}; {head[:12]} isn't")
         gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
         return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
+    if klass == "merge" and resource == state["branch"] and pr and pr.get("number") == state.get("finalize_pr"):
+        if head is None or checks is None:
+            raise Refused("the finalize merge names its head and the checks at that head")
+        gguard.finalize_merge_allowed(state["branch"], head, state["results"][-1]["head"],
+                                      [f for f in ge.git(repo, "diff", "--name-only", state["results"][-1]["head"], head).split() if f],
+                                      ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()[1:],
+                                      {f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)}, checks, pr)
+        return {"allowed": klass, "resource": resource, "by": "GO-003.7 finalize"}
+    if klass == "merge" and resource == "main" and state.get("final_pr"):
+        if head is None or review is None or checks is None or pr is None:
+            raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
+        if pr.get("number") != state["final_pr"]:
+            raise Refused(f"only the goal pull request #{state['final_pr']} merges into main, not #{pr.get('number')}")
+        gguard.final_merge_allowed(head, state.get("finalized_head"), review,
+                                   final_review_pinned(repo, goal_id, state, review), checks, pr,
+                                   review_scope=final_review_scope(repo, goal_id, state, review, head, pr))
+        return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
             raise Refused("an item merge names its pull request, its head, its review and the checks at that head")
@@ -373,6 +390,42 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
         state["spent"].append(row["id"])
         save(state)
     return {"allowed": klass, "resource": resource, "by": row and row["id"]}
+
+
+def final_review_scope(repo, goal_id, state, review, head, pr):
+    """Problems with what the whole-goal review covered (review F1): its packet (peer_review.py open
+    writes packet.json with review_base = base, and fix rounds keep it; its self-test checks that)
+    names every plan item
+    of this goal, one repository, and a base that is where main and the goal head meet, so the
+    reviewed diff is the whole goal and not one item's."""
+    packet = review.get("packet") or {}
+    want = {f"{goal_id}/{i['n']}" for i in state["items"]}
+    problems = []
+    if not want <= set(packet.get("items") or []):
+        problems.append(f"the review's packet doesn't name every item of {goal_id} ({sorted(want - set(packet.get('items') or []))} missing)")
+    repos = packet.get("repos") or []
+    meet = subprocess.run(["git", "-C", str(repo), "merge-base", str(pr.get("base")), head], capture_output=True, text=True).stdout.strip()
+    if len(repos) != 1 or not meet or repos[0].get("review_base", repos[0].get("base")) != meet:   # review F8
+        problems.append(f"the review's base isn't {meet[:12] or 'where main and the goal head meet'}, so it isn't the whole goal")
+    return problems
+
+
+def final_review_pinned(repo, goal_id, state, review):
+    """GO-011.2 and review F2: the whole-goal review's last head is the goal head without its holdout.
+    Before any resync that's the head where the goal tests passed (the finalize commit's parent); once
+    main has been synced in, it's a commit whose one parent is the current goal head and which only
+    deletes the holdout, so whatever the sync brought is in the reviewed surface."""
+    last = (review.get("heads") or [[]])[-1]
+    if not state.get("resyncs"):
+        return state["results"][-1]["head"] in last
+    for h in last:
+        p = subprocess.run(["git", "-C", str(repo), "rev-list", "--parents", "-n", "1", h], capture_output=True, text=True)
+        if p.returncode or p.stdout.split()[1:] != [state["finalized_head"]]:
+            continue
+        d = ge.git(repo, "diff", "--name-status", state["finalized_head"], h).split("\n")
+        if [x for x in d if x] == [f"D\t{holdout_path(goal_id)}"]:
+            return True
+    return False
 
 
 def current_item(state, item):
@@ -531,7 +584,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
     pr = post(f"repos/{repo_name}/pulls", {
         "title": f"Goal {goal_id}", "head": state["branch"], "base": "main",
         "body": record(goal_id) + "\nThis pull request reaches main only with goal-envelope, goal-tests and goal-holdout "
-                                  "green, a fresh cross-vendor review, and Dorian's approving review at its head (GO-003.7)."})
+                                  "green and a fresh whole-goal cross-vendor review with no blocking findings; then it merges as the bot (GO-011.2)."})
     state["final_pr"] = pr["number"]
     save(state)
     return {"final_pr": pr["number"]}
@@ -850,6 +903,8 @@ def _main(argv, repo=gb.ROOT):
                 if not rdir or not f.is_file():
                     raise Refused(f"no review record {opts['--review']} under GSTACK_PEER_REVIEW_DIR")
                 review = json.loads(f.read_text())
+                pk = f.with_name("packet.json")
+                review["packet"] = json.loads(pk.read_text()) if pk.is_file() else None
             ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
             get, name = gb.github(token), opts.get("--repo", REPO)
             checks = pr = None
@@ -857,8 +912,7 @@ def _main(argv, repo=gb.ROOT):
                 checks = gguard.latest_checks(get(f"repos/{name}/commits/{opts['--head']}/check-runs?per_page=100")["check_runs"])
                 p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
                 pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
-                if "--sync" in opts:
-                    ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
+                ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
                                  head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts)))
             return 0

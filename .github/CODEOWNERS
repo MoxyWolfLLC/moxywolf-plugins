@@ -19,4 +19,6 @@
 /plugins/gstack-execution/scripts/goal_guard.py @dorianatmoxywolf
 # GO-001: a goal's brief, plan, tests and run record change only with his approval.
 /goals/ @dorianatmoxywolf
-/goal-runs/ @dorianatmoxywolf
+# A goal's own goal-runs/<id>/ (run record, carried holdout) is not owned: the goal PR into main merges on
+# green goal checks and a clean whole-goal review (GO-011.2). The holdout still matches goals/<id>/holdout.sha256.
+/goal-runs/README.md @dorianatmoxywolf
