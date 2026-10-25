@@ -250,21 +250,27 @@ class Ledger(tgr.RunnerFixture):
         sneaky = self.commit("more", {"helper.py": "x = 1\n"})
         self.git("switch", "-q", "main")
         s = gr.load("g1"); s["results"].append({"head": tested}); s.update(final_pr=50, finalized_head=final); gr.save(s)
-        bound = f"pr=50;base_ref=main;base={'c' * 40}"
-        mpr = {"number": 50, "head": final, "base_ref": "main", "base": "c" * 40}
+        main = self.git("rev-parse", "main")
+        bound = f"pr=50;base_ref=main;base={main}"
+        mpr = {"number": 50, "head": final, "base_ref": "main", "base": main}
+        meet = self.git("merge-base", "main", final)
+        whole = {"items": ["g1/1", "g1/2", "g1/3"], "repos": [{"path": str(self.repo), "base": meet, "head": tested}]}
         green = {"tests": ("success", None), "goal-envelope": ("success", bound), "goal-tests": ("success", bound),
                  "goal-holdout": ("success", bound)}
-        at = lambda h: dict(CLEAN, heads=[[h]])
+        at = lambda h, packet=whole: dict(CLEAN, heads=[[h]], packet=packet)
         self.assertEqual(self.act("merge", "main", head=final, review=at(tested), checks=green, pr=mpr)["by"], "GO-011.2")
         for review, checks, pr, why in (
                 (at(final), green, mpr, "isn't pinned"),                                  # the holdout in the surface
                 (dict(at(tested), outcome="blocking_findings"), green, mpr, "not clean"),
                 (at(tested), {**green, "goal-holdout": ("failure", bound)}, mpr, "goal-holdout at .* is failure"),
                 (at(tested), {**green, "goal-holdout": ("success", None)}, mpr, "goal-holdout .* reached for nothing named"),
-                (at(tested), {**green, "goal-holdout": ("success", "pr=60;base_ref=main;base=" + "c" * 40)}, mpr,
+                (at(tested), {**green, "goal-holdout": ("success", f"pr=60;base_ref=main;base={main}")}, mpr,
                  "goal-holdout .* reached for pr=60"),                                    # another PR's no-op pass
                 (at(tested), {**green, "goal-holdout": ("success", "pr=50;base_ref=main;base=" + "d" * 40)}, mpr,
                  "goal-holdout .* reached for pr=50;base_ref=main;base=dddd"),            # an older main
+                (at(tested, dict(whole, items=["g1/3"])), green, mpr, r"doesn't name every item .*g1/1"),  # review F1: one item's review
+                (at(tested, dict(whole, repos=[dict(whole["repos"][0], base="e" * 40)])), green, mpr, "base isn't"),
+                (at(tested, None), green, mpr, "doesn't name every item"),
                 (at(tested), green, dict(mpr, number=51), "only the goal pull request #50")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
                 self.act("merge", "main", head=final, review=review, checks=checks, pr=pr)
@@ -274,6 +280,20 @@ class Ledger(tgr.RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "isn't pinned"):
             self.act("merge", "main", head=final, review=at(sneaky), checks=green, pr=mpr)
         self.assertEqual(self.act("merge", "main", head=final, review=at(stripped), checks=green, pr=mpr)["by"], "GO-011.2")
+
+    def test_a_merge_into_main_that_releases_to_production_waits_for_dorian_unless_the_brief_holds_it(self):  # GO-011 review F2
+        self.start()
+        brief = tgr.BRIEF + "\n## Stop conditions\n- deploy.yml and production deploy on the merge into main\n"
+        self.commit("wf", {".github/workflows/deploy.yml": "on:\n  push:\n    branches: [main]\n" + DEPLOY})
+        head = self.git("rev-parse", "HEAD")
+        self.assertEqual(gguard.releases_on_main(self.repo, head, brief, ["goal-holdout"]), [".github/workflows/deploy.yml"])
+        self.assertEqual(gguard.releases_on_main(self.repo, "main~1", tgr.BRIEF, ["goal-holdout", "Production", "Preview"]),
+                         ["deployment environment Production"])
+        held = brief + "- Production is held: the host promotes only on Dorian's word; main deploys to a protected address\n"
+        self.assertEqual(gguard.releases_on_main(self.repo, head, held, ["Production"]), [])
+        with self.assertRaisesRegex(gr.Refused, "releases .*Dorian's call"):
+            gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, {"number": 1, "head": "a" * 40, "base_ref": "main"},
+                                       releases=["deployment environment Production"])
 
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()

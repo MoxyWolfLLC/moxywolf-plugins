@@ -363,8 +363,11 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
         if pr.get("number") != state["final_pr"]:
             raise Refused(f"only the goal pull request #{state['final_pr']} merges into main, not #{pr.get('number')}")
+        brief = (run_dir(goal_id) / "goal" / "GOAL.md").read_text()
         gguard.final_merge_allowed(head, state.get("finalized_head"), review,
-                                   final_review_pinned(repo, goal_id, state, review), checks, pr)
+                                   final_review_pinned(repo, goal_id, state, review), checks, pr,
+                                   review_scope=final_review_scope(repo, goal_id, state, review, head, pr),
+                                   releases=gguard.releases_on_main(repo, head, brief, environments()))
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
@@ -381,6 +384,22 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
         state["spent"].append(row["id"])
         save(state)
     return {"allowed": klass, "resource": resource, "by": row and row["id"]}
+
+
+def final_review_scope(repo, goal_id, state, review, head, pr):
+    """Problems with what the whole-goal review covered (review F1): its packet names every plan item
+    of this goal, one repository, and a base that is where main and the goal head meet, so the
+    reviewed diff is the whole goal and not one item's."""
+    packet = review.get("packet") or {}
+    want = {f"{goal_id}/{i['n']}" for i in state["items"]}
+    problems = []
+    if not want <= set(packet.get("items") or []):
+        problems.append(f"the review's packet doesn't name every item of {goal_id} ({sorted(want - set(packet.get('items') or []))} missing)")
+    repos = packet.get("repos") or []
+    meet = subprocess.run(["git", "-C", str(repo), "merge-base", str(pr.get("base")), head], capture_output=True, text=True).stdout.strip()
+    if len(repos) != 1 or not meet or repos[0].get("base") != meet:
+        problems.append(f"the review's base isn't {meet[:12] or 'where main and the goal head meet'}, so it isn't the whole goal")
+    return problems
 
 
 def final_review_pinned(repo, goal_id, state, review):
@@ -876,6 +895,8 @@ def _main(argv, repo=gb.ROOT):
                 if not rdir or not f.is_file():
                     raise Refused(f"no review record {opts['--review']} under GSTACK_PEER_REVIEW_DIR")
                 review = json.loads(f.read_text())
+                pk = f.with_name("packet.json")
+                review["packet"] = json.loads(pk.read_text()) if pk.is_file() else None
             ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
             get, name = gb.github(token), opts.get("--repo", REPO)
             checks = pr = None
