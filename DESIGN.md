@@ -1043,7 +1043,7 @@ Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-
 
 ### SM-009 — Session end keeps a cloud review without asking, and its roster names Dorian C
 
-**Status:** planned. Declared on Dorian's instruction at session end, 2026-10-24. The criteria below wait for his approval before any code.
+**Status:** building. Approved by Dorian on 2026-10-24: "Replace Phil with Dorian C, as a separate name from Dorian, in the session-end author and handoff lists for *all* projects. I also saved 'always keep' as a standing preference for *all* projects, so later sessions shouldn't ask. - change whatever plugins you need to for this to take effect".
 
 **Links introduced:** a standing-consent link. A cloud session's review is published on a standing instruction recorded in this item, not on a per-session confirmation, and the published record names that instruction as its consent.
 
@@ -1051,9 +1051,10 @@ Two corrections Dorian gave while `/session-end` ran on MW Plugins: "We need to 
 
 1. `/session-end` Step 3.5's author and handoff-target lists, the lowercase names it normalizes to, and the flag edge case name `Dorian`, `Michael`, `Dorian C` and `Steven`; `Phil` is gone. `Dorian C` normalizes to `dorian-c`, distinct from `dorian`.
 2. In a cloud session, `/session-end` Step 3.7 and `/session-review` publish the review and copy it into the project's vault `11-Knowledge/session-records/` without asking, then run `session_record.py read` on the copy on the linked computer. Gitleaks still runs on the final bytes and any finding still stops the publish. With no computer linked, they say the review is lost when the session ends.
-3. `publish` accepts the standing instruction in place of a per-session `--confirm`: the publication records `consent: standing`, this item's ID and the date, so the record says it wasn't confirmed by digest. SM-004's owner-only staging and the gitleaks gate are unchanged.
-4. A test covers both: the roster has the four names and no `phil`, and a cloud-session publish with standing consent writes the consent fields and still refuses on a gitleaks finding.
-5. `project-init` gets a minor bump with a changelog line, and the marketplace version moves with it (CI-002).
+3. `publish` takes `--standing-consent <item id>`. The skill still passes the approval digest `publish-prepare` printed, so the digest still binds the files, audience and scanner; the attestation and receipt record `consent: standing` and the item ID (`consent: per-session` without the flag), and `read` and `list` say which. SM-004's owner-only staging and the gitleaks gate are unchanged.
+4. A test covers both: the session-end roster has the four names and no `phil`, and a publish with `--standing-consent SM-009` writes the consent fields, `read` reports them, a malformed item ID is refused, and a gitleaks finding still refuses it.
+5. Because the plugins are shared, the change applies to every project once synced. Until then, a team rule in `GitHub/Projects/_shared-memory/` and its INDEX line say the same two things, committed in `MoxyWolfLLC/Projects` with `_shared-memory/` staged alone.
+6. `project-init` gets a minor bump with a changelog line, and the marketplace version moves with it (CI-002).
 
 Not covered: `daily-ops`, `obsidian-update`'s personal-os and `team-kanban` also name Phil. Whether their rosters change too is Dorian's call.
 
@@ -2154,6 +2155,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-24: SM-009 approved by Dorian for all projects; criterion 3 keeps the approval digest and records standing consent beside it, and criterion 6 adds a team rule so the change holds before the plugins sync.
 - 2026-10-24: SM-009 declared on Dorian's instruction at session end: the session-end roster replaces Phil with Dorian C, and a cloud session's review is always kept without asking. Criteria await his approval before code.
 - 2026-10-24: SM-008 is done (merge `6358b51`, review `20261024-162820-1800419-3nnw71qr`). XE-039 declared on Dorian's approval at session end, as the check mistake M-053 needs: it repeated M-012, so a rule wasn't enough.
 - 2026-10-24: SM-008 declared on Dorian's approval, from SM-007's *Not covered* line and review follow-up F1: the gate log moves to `GitHub/Projects/_gate-log/`, deliverable and design-mirror homes follow the project's workspace, session-start's write-policy note is corrected, the claude.ai Project mirror the loader stub promises is built, and SM-007 is marked done.
