@@ -523,9 +523,9 @@ class PublishBase(Base):
         prep["candidate_content_sha256"] = prep["approval_digest"]      # what the owner confirms
         return self.cap_dir().parent / "publications" / prep["publication_id"], prep
 
-    def publish(self, pub, digest, dest=None):
+    def publish(self, pub, digest, dest=None, *extra):
         return quiet(sr.main, ["publish", "--publication", str(pub), "--confirm", digest,
-                               "--confirmed-by", "dorianatmoxywolf", "--dest", str(dest or self.dest)])
+                               "--confirmed-by", "dorianatmoxywolf", "--dest", str(dest or self.dest), *extra])
 
     def draft(self, **over):
         d = self.staging / "drafts" / "d1"
@@ -559,6 +559,45 @@ class PublishBase(Base):
         (d / "packet.json").write_text(json.dumps({"repos": [{"path": str(r), "head": h} for r, h in zip(repos, heads)]}))
         os.environ["GSTACK_PEER_REVIEW_DIR"] = str(base); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
         return lambda repo_, rev: sr.resolve({"kind": "review_id", "identifier": d.name, "repository": repo_, "expected_revision": rev}, {})["status"]
+
+
+class StandingConsent(PublishBase):
+    """SM-009: a cloud review is kept on a standing instruction, recorded as such; gitleaks still gates it."""
+
+    def test_standing_consent_is_recorded_and_read_reports_it(self):
+        self.captured()
+        pub, prep = self.prepare()
+        rc, out, err = self.publish(pub, prep["candidate_content_sha256"], None, "--standing-consent", "SM-009")
+        self.assertEqual(rc, 0, err)
+        published = Path(json.loads(out)["published"])
+        receipt = json.loads((published / "publish-receipt.json").read_text())
+        self.assertEqual((receipt["consent"], receipt["consent_ref"]), ("standing", "SM-009"))
+        self.assertEqual(receipt["approval_digest"], prep["approval_digest"])      # the digest still binds the bytes
+        rc, out, err = quiet(sr.main, ["read", str(published)])
+        self.assertEqual(rc, 0, err); self.assertIn("(standing consent SM-009)", out)
+
+    def test_without_the_flag_consent_is_per_session(self):
+        self.captured()
+        pub, prep = self.prepare()
+        rc, out, err = self.publish(pub, prep["candidate_content_sha256"])
+        self.assertEqual(rc, 0, err)
+        receipt = json.loads((Path(json.loads(out)["published"]) / "publish-receipt.json").read_text())
+        self.assertEqual((receipt["consent"], receipt["consent_ref"]), ("per-session", None))
+
+    def test_a_malformed_item_id_is_refused(self):
+        self.captured()
+        pub, prep = self.prepare()
+        rc, _, err = self.publish(pub, prep["candidate_content_sha256"], None, "--standing-consent", "always, trust me")
+        self.assertEqual(rc, 2); self.assertIn("--standing-consent must name", err)
+        self.assertFalse(self.dest.exists() and any(self.dest.iterdir()))
+
+    def test_gitleaks_still_refuses_under_standing_consent(self):
+        stripe = "sk_live_" + "4eC39HqLyjWDarjtT1zdp7dc"
+        self.captured(asst(f"the stripe key {stripe} is in prod"))
+        pub, prep = self.prepare()
+        rc, _, err = self.publish(pub, prep["candidate_content_sha256"], None, "--standing-consent", "SM-009")
+        self.assertEqual(rc, 2); self.assertIn("gitleaks found", err)
+        self.assertFalse(self.dest.exists() and any(self.dest.iterdir()))
 
 
 class Publishing(PublishBase):
