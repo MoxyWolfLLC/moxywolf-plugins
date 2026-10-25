@@ -10,8 +10,8 @@ The goal id is lowercase words joined by hyphens. An approved goal never changes
 
 Work in a checkout of the governed repository, on a branch `build/goal-<id>` made from `origin/main`, and run the scripts from that checkout: `python3 plugins/gstack-execution/scripts/<script> ...`. Every exit but 0 means stop and fix what it names.
 
-1. **The outcome.** Agree it with Dorian in one exchange: what's true when the goal is done, and what it must never do. Pick the one DESIGN.md objective it serves. If it needs the charter loosened, stop. That's a DESIGN.md amendment for him, not a goal (GO-001.5).
-2. **Brief and plan.** Write `GOAL.md` and `PLAN.md` yourself in the README's formats.
+1. **The outcome, co-authored (GO-011.1).** Dorian gives the outcome in a few sentences. Draft the brief as a live doc he can edit and comment on (Claude Docs; load the docs skill first): his outcome in his words, what it must never do, the Scenarios in plain words, and the plan items one line each. Send him the link once. Read his edits and comments, fold them in, and ask in the doc, not in chat, about anything his edits leave open. Go on only when he says the draft is right. Pick the one DESIGN.md objective it serves. If it needs the charter loosened, stop. That's a DESIGN.md amendment for him, not a goal (GO-001.5).
+2. **Brief and plan.** Turn the agreed doc into `GOAL.md` and `PLAN.md` in the README's formats, keeping his wording for the outcome and the never-do's. A brief that changes anything he agreed goes back to the doc first.
    - **Scenarios and Goal tests.** Each goal test has its own Scenario. At least one test is an `outcome` test and one an `invariant`.
    - **Allowed paths.** These are the files the items change, plus the touched plugins' `plugin.json` and `.claude-plugin/marketplace.json`. Never a `CODEOWNERS` path.
    - **Stop conditions.** Include "the marketplace's top-level version moves on the goal branch" (GO-004.1). Name every deployment environment the repository reports other than `goal-holdout` (`agent_token.py api GET repos/<owner>/<repo>/environments`; on a Vercel repository that's `Preview` and `Production`) as Dorian's call, for example "a deploy to Preview or Production beyond the host's own builds on a push and on the merge into main". `goal_run.py start` refuses a goal whose stop conditions leave one out, and an approved goal can't be edited, so a miss costs a new goal folder.
@@ -21,12 +21,12 @@ Work in a checkout of the governed repository, on a branch `build/goal-<id>` mad
 4. **Holdout.** `goal_new.py holdout goals/<id>` asks the same family for the holdout. It writes the file to `~/.goal-holdouts/<id>.py` (mode 600, outside every repository), writes only its hash to `holdout.sha256`, and prints the file path. The file stays there until the run's finalize step, which code (never the agent) reads, checks against the approved hash and carries into the goal pull request (GO-002.8). Never open, print or copy the holdout file.
 5. **Check.** `goal_brief.py check goals/<id>`, then `goal_brief.py baseline goals/<id>`. Outcome tests must fail on `main` and invariant tests must pass. A test on the wrong side means the brief or plan was unclear: fix it and redo steps 3 and 4.
 6. **Reading.** `goal_new.py read goals/<id>` asks the gemini family for the plain-English reading of every goal test. It prints the `## Plain-English reading` section with its `Read by:` line. The builder of the run will be neither family (GO-003.3), so it builds as `claude`.
-7. **Pull request.** Commit `goals/<id>/` alone, push as the bot (`agent_token.py exec -- git push`), and open the pull request into `main` titled `Goal: <outcome in a few words> (<id>)`.
-   - **The body.** The outcome, the plan's items in one line each, the spend cap, and the reading from step 6 as printed.
+7. **Pull request.** Commit `goals/<id>/` alone with the trailer `Co-Authored-By: Dorian C <dorianc@moxywolf.com>` (the brief is his as much as yours), push as the bot (`agent_token.py exec -- git push`), and open the pull request into `main` titled `Goal: <outcome in a few words> (<id>)`.
+   - **The body.** The outcome, the plan's items in one line each, the spend cap, the live doc's link, a line saying the brief was co-authored with Dorian, and the reading from step 6 as printed.
    - **What to tell Dorian, in one message:** the pull request link, and that it needs his approving review. Nothing else is his to do: there is no secret to set.
 8. **After he approves:** merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`. Leave the holdout file where step 4 put it; the run's finalize step needs it.
 
-Goals come from the open work under each objective, the session handoff and the project's Jira label. Drafting one asks Dorian nothing beyond step 1 and the approval in step 7.
+Goals come from Dorian, from the open work under each objective, from the session handoff, from the project's Jira label, from a failed holdout (GO-011.3) and from usability findings that change what the product does (GO-011.5). Drafting one asks Dorian nothing beyond the live doc in step 1 and the approval in step 7.
 
 ## Any repository: local mode (GO-010)
 
@@ -37,4 +37,4 @@ Goal mode runs in any GitHub repository the moxywolf-agent app can reach, with n
 - Allowed paths never include `.github/`, `goals/` or `goal-runs/`; local mode treats those as the gate.
 - Push and open the pull request with `agent_token.py exec --repo <owner>/<repo>`. Dorian's approval of that pull request is the approval of the goal.
 
-Tell Dorian once, in the pull request message, that this repository runs in local mode: the checks run on his Mac and his approval of the final pull request is the gate GitHub would otherwise enforce.
+Tell Dorian once, in the pull request message, that this repository runs in local mode: the checks run on his Mac, and the goal's final pull request merges when they and the whole-goal review pass (GO-011.2), as it would in a set-up repository.

@@ -1,0 +1,20 @@
+---
+description: Dorian's usability test of a finished goal (GO-011) — a guided task sheet on the Preview, his answers read back, small fixes made and re-tested, behaviour changes turned into the next goal, and Production asked only after he signs off
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
+argument-hint: <goal-id>
+---
+
+A goal that merged into `main` has passed its goal tests, its holdout and a cross-vendor review. Those prove it does what the brief says. This command checks that a person can use it. Dorian tests; the agent prepares, reads and fixes. Production waits for him (GO-011.6).
+
+1. **The Preview.** Find the deployment the host built from `main`'s merge commit for the goal (on Vercel, the project's deployment for that SHA). Check that it serves the goal's pages before asking anyone to look: status 200 through the protection bypass, the e2e specs passing against it. A Preview that doesn't serve is a fix first, not a sheet. Dorian is a member of the team, so he opens a protected Preview signed in; never turn protection off.
+2. **The tasks.** Write five to eight tasks from `goals/<id>/GOAL.md`'s Scenarios, each as something a person does, in plain words, with where to start: "From the home page, find which AI skills can do an Incident Response task." Cover every page or path the goal changed, and one task that goes wrong on purpose (an unknown code, an empty search) so he sees the error states. No task needs the code or the terminal.
+3. **The sheet.** Publish it as an Artifact page with a shared store (load `artifact-capabilities` first; per-viewer browser storage isn't enough, the agent must read his answers back). Title: `Usability: <goal outcome in a few words>`. At the top: the Preview link, what the goal changed in two sentences, and "about 15 minutes". Each task has three buttons, worked, confusing and broken, a note field, and saves as he goes. A last field asks "Anything else?" and a final button says "Done". Send him the link once, with one sentence on what it's for. Don't follow up while he hasn't started; a reminder only if he asks for one.
+4. **Read and triage (GO-011.5).** When he presses Done, read every answer from the store. For each task marked confusing or broken, or a note that names a problem:
+   - **Fix now** when the change doesn't alter what the product does: wording, labels, layout, styling, a broken or missing link, contrast, focus or another accessibility fix, an error message that's unclear. Build it through `/gstack-build` (its own cross-vendor review, no goal), verify it on its Preview, and add it to the re-test list.
+   - **Next goal** when it changes what the product does: a new page or field, different data, a changed rule, a removed feature. Draft it with him through `/gstack-goal-new`, quoting his note as the outcome's starting point.
+   - When it's unclear which, it's the next goal. Never quietly widen a fix.
+5. **Re-test.** When the fixes have merged, publish a short sheet with only the tasks that changed, the same way, and send it once.
+6. **Production.** When every task on the latest sheet is marked worked, or he says to ship, ask him once whether to promote to Production, naming what goes out. Promote only on his yes. Domains and DNS stay his call the same way.
+7. **Record.** Write `goal-runs/<id>/USABILITY.md` in the run's goal-runs folder (`GSTACK_GOAL_RUN_DIR/<id>/`): the sheets' links, each task with his mark and note, what was fixed (PR and review IDs), what became a goal (its ID), and the Production decision with his words.
+
+Ask Dorian nothing else. The sheet is the question.

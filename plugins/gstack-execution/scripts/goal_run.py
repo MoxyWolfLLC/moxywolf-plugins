@@ -531,7 +531,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
     pr = post(f"repos/{repo_name}/pulls", {
         "title": f"Goal {goal_id}", "head": state["branch"], "base": "main",
         "body": record(goal_id) + "\nThis pull request reaches main only with goal-envelope, goal-tests and goal-holdout "
-                                  "green, a fresh cross-vendor review, and Dorian's approving review at its head (GO-003.7)."})
+                                  "green and a fresh whole-goal cross-vendor review with no blocking findings; then it merges as the bot (GO-011.2)."})
     state["final_pr"] = pr["number"]
     save(state)
     return {"final_pr": pr["number"]}

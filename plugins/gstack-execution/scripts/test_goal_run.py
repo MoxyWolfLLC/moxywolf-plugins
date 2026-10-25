@@ -391,7 +391,7 @@ class Runner(RunnerFixture):
         compare["files"].pop()
         self.assertEqual(gr.propose("g1", get, post, repo=self.repo, environments=self.envs, base="main"), {"final_pr": 12})
         self.assertEqual((posts[-1][1]["head"], posts[-1][1]["base"]), ("goal/g1", "main"))
-        self.assertIn("Dorian's approving review", posts[-1][1]["body"])
+        self.assertIn("merges as the bot (GO-011.2)", posts[-1][1]["body"])
 
         merged_pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": final}, "merged": True, "merge_commit_sha": "f" * 40}
         with self.assertRaisesRegex(gr.Refused, "is #12, not #13"):
