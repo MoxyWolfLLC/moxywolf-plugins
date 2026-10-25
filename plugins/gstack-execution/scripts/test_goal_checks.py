@@ -98,9 +98,28 @@ class Decisions(unittest.TestCase):
     def test_tests_that_report_nothing_or_no_goal_fail(self):
         repo = self.goal_repo()
         self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", self.fake_run({}))["title"], "examined no goal tests")
-        bad = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 1, "", "Traceback")
+        # The sandbox image is present (ensure_image's inspect succeeds); the test run itself crashes.
+        bad = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0 if cmd[:3] == ["docker", "image", "inspect"] else 1, "", "Traceback")
         self.assertEqual(gc.tests(pr(), repo, "m" * 40, "/c", bad)["title"], "the goal tests did not report")
         self.assertIn("not on main", gc.tests(pr(base="goal/g9"), repo, "m" * 40, "/c", bad)["title"])
+
+    def test_the_sandbox_image_is_built_once_from_its_dockerfile(self):
+        calls = []
+        def run(rc_inspect, rc_build):
+            def f(cmd, **kw):
+                calls.append(cmd)
+                return subprocess.CompletedProcess(cmd, rc_inspect if cmd[1] == "image" else rc_build, "", "boom")
+            return f
+        self.assertEqual(gc.ensure_image(run(0, 1)), gc.IMAGE)
+        self.assertEqual([c[:2] for c in calls], [["docker", "image"]])      # present: nothing built
+        calls.clear()
+        self.assertEqual(gc.ensure_image(run(1, 0)), gc.IMAGE)
+        build = calls[1]
+        self.assertEqual(build[:4], ["docker", "build", "-t", gc.IMAGE])
+        self.assertEqual(build[5], str(gc.SANDBOX_DOCKERFILE))
+        with self.assertRaises(SystemExit):
+            gc.ensure_image(run(1, 1))
+        self.assertTrue(gc.IMAGE.startswith("goal-sandbox:"))
 
     def test_a_pull_request_that_isnt_a_goals_passes_both_checks(self):
         p = pr(base="main", head="build/x")

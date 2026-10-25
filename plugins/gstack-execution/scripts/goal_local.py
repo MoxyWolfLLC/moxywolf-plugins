@@ -90,6 +90,7 @@ def deps_for(cand):
         raise SystemExit("refused: pnpm-lock.yaml in the candidate is a symlink; the install takes regular files only")
     if lock.is_file():
         return pnpm_deps(cand)
+    gc.ensure_image()
     return gc.install_deps(cand)
 
 
