@@ -259,6 +259,8 @@ class Ledger(tgr.RunnerFixture):
                  "goal-holdout": ("success", bound)}
         at = lambda h, packet=whole: dict(CLEAN, heads=[[h]], packet=packet)
         self.assertEqual(self.act("merge", "main", head=final, review=at(tested), checks=green, pr=mpr)["by"], "GO-011.2")
+        fix_round = dict(whole, repos=[dict(whole["repos"][0], base="e" * 40, review_base=meet)])   # review F8
+        self.assertEqual(self.act("merge", "main", head=final, review=at(tested, fix_round), checks=green, pr=mpr)["by"], "GO-011.2")
         for review, checks, pr, why in (
                 (at(final), green, mpr, "isn't pinned"),                                  # the holdout in the surface
                 (dict(at(tested), outcome="blocking_findings"), green, mpr, "not clean"),
@@ -271,6 +273,7 @@ class Ledger(tgr.RunnerFixture):
                 (at(tested, dict(whole, items=["g1/3"])), green, mpr, r"doesn't name every item .*g1/1"),  # review F1: one item's review
                 (at(tested, dict(whole, repos=[dict(whole["repos"][0], base="e" * 40)])), green, mpr, "base isn't"),
                 (at(tested, None), green, mpr, "doesn't name every item"),
+                (at(tested, dict(whole, repos=[dict(whole["repos"][0], base=meet, review_base="e" * 40)])), green, mpr, "base isn't"),
                 (at(tested), green, dict(mpr, number=51), "only the goal pull request #50")):
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
                 self.act("merge", "main", head=final, review=review, checks=checks, pr=pr)
@@ -281,19 +284,21 @@ class Ledger(tgr.RunnerFixture):
             self.act("merge", "main", head=final, review=at(sneaky), checks=green, pr=mpr)
         self.assertEqual(self.act("merge", "main", head=final, review=at(stripped), checks=green, pr=mpr)["by"], "GO-011.2")
 
-    def test_a_merge_into_main_that_releases_to_production_waits_for_dorian_unless_the_brief_holds_it(self):  # GO-011 review F2
+    def test_a_merge_into_main_that_releases_waits_for_dorians_word_after_usability(self):  # GO-011 review F2
         self.start()
-        brief = tgr.BRIEF + "\n## Stop conditions\n- deploy.yml and production deploy on the merge into main\n"
         self.commit("wf", {".github/workflows/deploy.yml": "on:\n  push:\n    branches: [main]\n" + DEPLOY})
         head = self.git("rev-parse", "HEAD")
-        self.assertEqual(gguard.releases_on_main(self.repo, head, brief, ["goal-holdout"]), [".github/workflows/deploy.yml"])
-        self.assertEqual(gguard.releases_on_main(self.repo, "main~1", tgr.BRIEF, ["goal-holdout", "Production", "Preview"]),
+        self.assertEqual(gguard.releases_on_main(self.repo, head, ["goal-holdout"]), [".github/workflows/deploy.yml"])
+        self.assertEqual(gguard.releases_on_main(self.repo, "main~1", ["goal-holdout", "Production", "Preview"]),
                          ["deployment environment Production"])
-        held = brief + "- Production is held: the host promotes only on Dorian's word; main deploys to a protected address\n"
-        self.assertEqual(gguard.releases_on_main(self.repo, head, held, ["Production"]), [])
-        with self.assertRaisesRegex(gr.Refused, "releases .*Dorian's call"):
-            gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, {"number": 1, "head": "a" * 40, "base_ref": "main"},
-                                       releases=["deployment environment Production"])
+        pr = {"number": 1, "head": "a" * 40, "base_ref": "main", "base": "c" * 40}
+        rel = ["deployment environment Production"]
+        for shipped in (None, {"head": "b" * 40, "words": "ship it"}):                 # none, or for another head
+            with self.subTest(shipped=shipped), self.assertRaisesRegex(gr.Refused, "waits for Dorian's word"):
+                gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, pr, releases=rel, shipped=shipped)
+        with self.assertRaises(gr.Refused) as e:                                      # his word lifts only that stop
+            gguard.final_merge_allowed("a" * 40, "a" * 40, CLEAN, True, {}, pr, releases=rel, shipped={"head": "a" * 40, "words": "ship it"})
+        self.assertNotIn("Dorian's word", str(e.exception))
 
     def test_the_final_pull_request_into_main_is_granted_once(self):
         self.start()

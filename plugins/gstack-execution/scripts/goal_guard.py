@@ -183,24 +183,17 @@ def checks_green(target, head, checks, pr):
 FINAL_CHECKS = ("goal-holdout",)
 
 
-HELD = re.compile(r"^\s*-\s*production is held\b", re.I | re.M)
-
-
-def releases_on_main(repo, ref, brief, environments):
+def releases_on_main(repo, ref, environments):
     """What a merge into main would release (GO-011.6, review F2): a workflow that runs only on a push
-    to main (assess lets one through when the Stop conditions name it), and a deployment environment
-    named for production, such as the one a host's Git integration reports. Empty when the brief's
-    Stop conditions say how Production is held ("- Production is held: ..."), a line Dorian approved
-    with the goal. The host's own settings aren't visible here; the brief's line is the record."""
-    stops = gb.sections(brief).get("Stop conditions", "")
-    if HELD.search(stops):
-        return []
+    to main, and a deployment environment named for production, such as the one a host's Git
+    integration reports. When this isn't empty the goal pull request merges only after Dorian's
+    word on the usability sheet, recorded by goal_run.py ship."""
     out = [f".github/workflows/{n}" for n, t in sorted(workflows(repo, ref).items())
            if EVENTS.findall(t) and main_only(t, set(EVENTS.findall(t)))]
     return out + [f"deployment environment {e}" for e in sorted(set(environments) - CHECK_ENVS) if "prod" in e.lower()]
 
 
-def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr, review_scope=(), releases=()):
+def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr, review_scope=(), releases=(), shipped=None):
     """GO-011.2: the goal pull request into main merges as the bot, pinned to the recorded goal head,
     after a clean whole-goal cross-vendor review pinned to that head without its holdout
     (`review_pinned`, which goal_run.final_review_pinned works out) and with tests, goal-envelope,
@@ -214,9 +207,9 @@ def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr,
         (review_pinned, f"the review isn't pinned to {head[:12]} without its holdout"),
     ] if not ok]
     problems += list(review_scope)                     # review F1: the whole goal, from main
-    if releases:                                       # review F2: Production stays Dorian's call
-        problems.append(f"merging into main releases ({', '.join(releases)}); say how Production is held in the "
-                        f"brief's Stop conditions, or the merge is Dorian's call (GO-011.6)")
+    if releases and (shipped or {}).get("head") != head:   # review F2: Production stays Dorian's call
+        problems.append(f"merging into main releases ({', '.join(releases)}), so it waits for Dorian's word after the "
+                        f"usability sheet on the Preview of {head[:12]}, recorded with goal_run.py ship (GO-011.6)")
     problems += checks_green("main", head, checks, pr)
     problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
                  for c in FINAL_CHECKS if (checks.get(c) or (None,))[0] != "success"]
