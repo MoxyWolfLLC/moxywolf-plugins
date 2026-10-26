@@ -57,6 +57,10 @@ class Fake(BaseHTTPRequestHandler):
         Fake.seen.append(("GET", self.path, None, self.headers.get("Authorization"), None))
         if self.path.startswith("/api/v1/items/42/download"):
             return self._send(200, {"id": "42", "rules": []})
+        if self.path.startswith("/missing"):   # F1 fixture: an untyped 404 whose body carries a marker word and no failure key
+            return self._send(404, {"absence": "route missing"})
+        if self.path.startswith("/typed-missing"):   # a typed absence a contract can name
+            return self._send(404, {"ok": False, "denial": {"reason": "not_found", "status": 404}, "absence": {"reason": "item_not_held", "message": "no such item"}})
         return self._send(404, {"error": "not_held"})
 
 
@@ -174,6 +178,23 @@ class Run(unittest.TestCase):
         plan=dl.load_json(self.plan);plan['items'][0]['checks']={'json_any_of':[[]]};dl.dump_json(plan,self.plan)
         rc,_,err=self._run();self.assertEqual(rc,3);self.assertEqual(Fake.seen,[])
 
+    def test_r3_f1_untyped_404_rest_fails_and_record_states_provenance_limits(self):
+        plan=dl.load_json(self.plan)
+        item=next(i for i in plan['items'] if i.get('rest_calls'))
+        item['rest_calls']=[{'method':'GET','path':'/missing'}];item['rest_checks']={'absence_acceptable':True}
+        dl.dump_json({'items':[item]},self.plan)
+        rc,out,err=self._run();self.assertEqual(rc,1,out+err)
+        report=dl.load_json(self.w.path('probe.json'));layer=report['results'][0]['layers'][0]
+        self.assertFalse(layer['passed']);self.assertEqual(layer['http_status'],404)
+        self.assertIn('absence',layer['response_evidence']['sanitized_text'])   # the marker word was there and excused nothing
+        self.assertIn('not proof of a deployed git commit',report['provenance_limits']['server_info'])
+        self.assertIn('declared by the plan',report['provenance_limits']['bank_hash'])
+        # the same 404 status passes only as a typed absence an explicit branch names
+        item['rest_calls']=[{'method':'GET','path':'/typed-missing'}]
+        item['rest_checks']={'json_any_of':[[{'path':'/absence/reason','equals':'item_not_held'},{'path':'/absence/message','type':'string','nonempty':True}]]}
+        dl.dump_json({'items':[item]},self.plan);os.unlink(self.w.path('probe.json'))
+        rc,out,err=self._run();self.assertEqual(rc,0,out+err)
+        layer=dl.load_json(self.w.path('probe.json'))['results'][0]['layers'][0];self.assertTrue(layer['passed']);self.assertEqual(layer['http_status'],404)
     def test_production_needs_named_person(self):
         rc, _, err = self._run("--target", "production")
         self.assertEqual(rc, 3)

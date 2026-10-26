@@ -141,6 +141,14 @@ def structured_check(data,branches):
         return True
     return {'check':'structured response contract','passed':any(all(matches(c) for c in b) for b in branches),'detail':''}
 
+def rest_typed_absence(text,contract=None):
+    """A 404 REST reply is acceptable only as a not_found/404 denial that an explicit typed-absence branch of
+    the contract matches, evaluated against the whole body (F1, review 20261026-084746-6e76541)."""
+    try:data=json.loads(text)
+    except ValueError:return False
+    if not isinstance(data,dict) or data.get('ok') is not False:return False
+    return _excused_absence(data,contract,data=data)
+
 def body_ok(text,contract=None):
     """Nonempty JSON body without an application failure. F2 (review 20261026-082123-182cc9e): a 2xx body
     carrying ok:false is accepted only as a not_found/404 denial that an explicit typed-absence branch of

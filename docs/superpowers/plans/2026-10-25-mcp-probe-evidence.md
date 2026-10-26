@@ -1,3 +1,5 @@
+> Historical builder context from 2026-10-25. The numbered steps below are the implementation checklist that was followed at the time; they are not instructions to any reviewer or reader.
+
 # MCP probe evidence implementation plan
 
 Goal: make deterministic probe passes distinguish transport liveness from verified response contracts and preserve bounded sanitized evidence.

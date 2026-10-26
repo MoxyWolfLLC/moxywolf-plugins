@@ -121,4 +121,13 @@ class Semantics(unittest.TestCase):
         self.assertTrue(pc.application_error(r))
         self.assertFalse(pc.application_error({'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'{"roles":[1]}'}]}))
 
+    # Review 20261026-084746-6e76541 (Codex), F1
+    def test_r3_f1_untyped_404_is_never_an_absence(self):
+        self.assertFalse(pc.rest_typed_absence('{"absence":"route missing"}',{'absence_acceptable':True}))
+        self.assertFalse(pc.rest_typed_absence('{"absence":{"reason":"r","message":"m"}}',{'absence_acceptable':True}))   # no ok:false/denial: not a typed absence
+        typed='{"ok":false,"denial":{"reason":"not_found","status":404},"absence":{"reason":"catalog_not_held","message":"m"}}'
+        self.assertFalse(pc.rest_typed_absence(typed,{'absence_acceptable':True}))   # no branch names it
+        self.assertTrue(pc.rest_typed_absence(typed,{'json_any_of':[[{'path':'/absence/reason','equals':'catalog_not_held'},{'path':'/absence/message','type':'string','nonempty':True}]]}))
+        self.assertFalse(pc.rest_typed_absence('not json',{'json_any_of':[[{'path':'/absence/reason','equals':'x'}]]}))
+
 if __name__=='__main__':unittest.main()

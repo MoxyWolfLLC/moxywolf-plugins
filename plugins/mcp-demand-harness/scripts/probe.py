@@ -231,7 +231,9 @@ def run(a) -> int:
             status, text = client.rest(call)
             rc = item.get("rest_checks", {})
             checks = grade(text, rc, markers)
-            ok = 200 <= status < 300 or (status == 404 and rc.get("absence_acceptable") and any(m in text for m in markers))
+            # F1 (review 20261026-084746-6e76541): a 404 passes only as the typed absence an explicit
+            # branch matches, never on a marker word in the body (absence_acceptable alone excuses nothing)
+            ok = 200 <= status < 300 or (status == 404 and pc.rest_typed_absence(text, rc))
             checks.insert(0, {"check": f"HTTP {call.get('method', 'GET')} {call['path']}", "passed": bool(ok), "detail": str(status)})
             checks.append({'check':'nonempty JSON body without application error','passed':pc.body_ok(text,rc),'detail':''})
             if 'json_any_of' in rc:
@@ -245,6 +247,10 @@ def run(a) -> int:
 
     out = {
         "tool": "probe",
+        "provenance_limits": {   # F2 (review 20261026-084746-6e76541): the record itself states what its links prove
+            "server_info": "serverInfo.version is a surface digest reported by the server; it is not proof of a deployed git commit",
+            "bank_hash": "declared by the plan, not independently verified against the bank file",
+            "client_revisions": "local working-tree HEADs where the probe ran, not the server's revision"},
         "plan_hash": plan_hash,
         "bank_hash": plan.get('bank_hash'),
         "bank_hash_source": "plan_declaration",
