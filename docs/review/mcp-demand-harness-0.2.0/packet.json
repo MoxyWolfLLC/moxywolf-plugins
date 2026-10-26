@@ -8,17 +8,17 @@
   "Each layer keeps a response receipt: sha256 of the canonical original, up to 16384 chars of sanitized text, truncated/redacted flags; known run credentials, secret-named keys, bearer/GitHub/JWT-shaped strings are redacted best-effort",
   "The run record carries plan/profile sha256, the plan's declared bank hash, harness source hashes, local repo revisions and observed serverInfo; an existing output path or an empty executable selection is refused before any request",
   "demandlib validates json_any_of in payload and rest sections; probe_checks is imported lazily inside validate_bank, not at module scope",
-  "All 75 tests pass against local HTTP fixtures with no network"
+  "All 78 tests pass against local HTTP fixtures with no network (ledger run a8cb94c3f411 at c32cd54)"
  ],
  "release_owner": "dorianatmoxywolf",
  "repos": [
   {
    "path": "/Users/doriancougias/GitHub/moxywolf-plugins",
    "base": "caeffa60cb946a085bab233bd96fc8656137edb0",
-   "head": "da4beb39ec1c41717a46ead5106d70bdeed02786"
+   "head": "c32cd542cad34db6eb384f833389a3e4d936bc55"
   }
  ],
- "changed_behavior": "probe.py run: decodes JSON-RPC replies strictly (probe_checks.decode_rpc), adds transport and application-error checks ahead of grade(), evaluates json_any_of, labels layer strength, writes receipts, refuses existing output and empty selection, records hashes/revisions/serverInfo; opens output with 'x'. probe.py plan: exports json_any_of. demandlib.validate_bank: validates json_any_of (lazy import). results.collect_probe/cmd_ingest: probe_strengths and coverage table. Entry points: probe.py plan|run, results.py ingest, bank.py validate. New module probe_checks.py (decode_rpc, envelope, payload, transport_checks, application_error, validate_contract, pointer, structured_check, body_ok, receipt).",
+ "changed_behavior": "probe.py run: decodes JSON-RPC replies strictly (probe_checks.decode_rpc), adds transport and application-error checks ahead of grade(), evaluates json_any_of, labels layer strength, writes receipts, refuses existing output and empty selection, records hashes/revisions/serverInfo; opens output with 'x'. probe.py plan: exports json_any_of. demandlib.validate_bank: validates json_any_of (lazy import). results.collect_probe/cmd_ingest: probe_strengths and coverage table. Entry points: probe.py plan|run, results.py ingest, bank.py validate. New module probe_checks.py (decode_rpc, envelope, payload, transport_checks, application_error, validate_contract, pointer, structured_check, body_ok, receipt). Round-2 changes (c32cd54): transport_checks decides emptiness from structuredContent when present; application_error inspects every JSON envelope (new envelopes(), _excused_absence()); structured_check equals uses json_equal (bool/number kept apart recursively).",
  "exclusions": [
   "Receipt bound of 16384 chars: a known limit, decided separately; do not relitigate here",
   "application_error treats top-level error/isError as reserved keys; documented assumption, not a defect to fix in this review",
@@ -32,8 +32,14 @@
    "python3 -m compileall -q plugins/mcp-demand-harness/scripts plugins/mcp-demand-harness/tests",
    "git diff --check main..b55a9e0"
   ],
-  "results": "75 tests OK in ~5.4s on 2026-10-25 (two runs); compile OK; whitespace clean. New fixture tool names tool_error, rpc_error, server_exception exercise the failure paths through a real subprocess run.",
-  "environment": "macOS, Python 3.13.12, no network; tests bind a local HTTP server"
+  "results": "Round 1 at da4beb3: 75 tests. Round 2 at c32cd54: 78 tests OK (3 regression tests for F1-F3), recorded on the failure ledger as run a8cb94c3f411 with receipt sha256 d4220ac8...; the dispatcher reads that run itself.",
+  "environment": "macOS, Python 3.13.12, no network; tests bind a local HTTP server",
+  "ledger_runs": [
+   {
+    "repo": "/Users/doriancougias/GitHub/moxywolf-plugins",
+    "run_id": "a8cb94c3f411"
+   }
+  ]
  },
  "data_use": {
   "owner": "dorianatmoxywolf",
