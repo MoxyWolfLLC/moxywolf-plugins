@@ -466,6 +466,7 @@ def sandboxed(goal_dir, wt, candidate=None):
     for d in {wt, candidate}:
         os.chmod(d, 0o755)       # review F1: mkdtemp made it 0700, and the container runs as uid 65534
     try:
+        gc.ensure_image()
         r = subprocess.run(gc.sandbox_cmd(wt, candidate, gid, gc.install_deps(candidate)), capture_output=True,
                            text=True, timeout=1800)
         results = json.loads(r.stdout.strip().splitlines()[-1])

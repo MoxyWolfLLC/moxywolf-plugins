@@ -36,11 +36,13 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import goal_envelope as ge  # noqa: E402
 
-# GO-002.6: one image for every governed repository, pinned by digest: Playwright 1.64.1 on Ubuntu noble,
-# with Python 3.12 (the harness), Node 24 (a Node candidate) and Playwright's browsers in /ms-playwright
-# (amended 2026-10-25, a goal test that drives a page). A new digest is a change Dorian approves.
-# ponytail: one Playwright version; a repo pinning another @playwright/test finds no browser build.
-IMAGE = "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea"
+# GO-002.6: one image for every governed repository, built here from goal_sandbox.Dockerfile and named by
+# that file's hash: Playwright 1.64.1 on Ubuntu noble, pinned by digest (Python 3.12 for the harness, Node 24
+# for a Node candidate, Playwright's browsers in /ms-playwright), plus PostgreSQL 16 at a pinned version on
+# PATH (amended 2026-10-25, a goal test that starts its own database). A changed Dockerfile is a new image
+# name and a change Dorian approves.
+SANDBOX_DOCKERFILE = HERE / "goal_sandbox.Dockerfile"
+IMAGE = "goal-sandbox:" + hashlib.sha256(SANDBOX_DOCKERFILE.read_bytes()).hexdigest()[:16]
 DEPS_FILES = ("package.json", "package-lock.json", ".npmrc")
 
 
@@ -86,6 +88,19 @@ def install_container(deps, workdir, env, command):
             "--memory", "2g", "-e", "HOME=/tmp", *[a for k, v in env for a in ("-e", f"{k}={v}")], "-w", workdir,
             "-v", f"{deps.resolve()}:/deps", IMAGE, *command]
 
+
+def ensure_image(run=subprocess.run):
+    """GO-002.6: build the sandbox image from goal_sandbox.Dockerfile once per host, from the Dockerfile alone
+    (an empty build context). A host that already has IMAGE builds nothing. Raises SystemExit naming the
+    failure, since a goal test can't run without it."""
+    if run(["docker", "image", "inspect", IMAGE], capture_output=True, text=True).returncode == 0:
+        return IMAGE
+    with tempfile.TemporaryDirectory(prefix="goal-sandbox-") as ctx:
+        r = run(["docker", "build", "-t", IMAGE, "-f", str(SANDBOX_DOCKERFILE), ctx],
+                capture_output=True, text=True, timeout=1800)
+    if r.returncode != 0:
+        raise SystemExit(f"the goal sandbox image didn't build from {SANDBOX_DOCKERFILE.name}: {(r.stderr or r.stdout)[-1500:]}")
+    return IMAGE
 
 def install_deps(candidate_dir, run=subprocess.run):
     """GO-002.6: a Node candidate's dependencies, installed from its lockfile in a container of their
@@ -237,6 +252,7 @@ def tests(pr, repo, main_sha, candidate_dir, run=subprocess.run):
     if not ge.GOAL_ID.match(gid) or not Path(repo, "goals", gid, "GOAL.md").is_file():
         return verdict(pr, "failure", f"goals/{gid}/ is not on main", "Only an approved goal has goal tests.")
     try:
+        ensure_image(run)
         deps = install_deps(candidate_dir)
     except SystemExit as e:
         return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
@@ -300,6 +316,7 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
                        "The stored secret isn't the holdout Dorian approved; nothing was run.")
     main_tree, cand_tree = sanitized(repo), sanitized(candidate_dir)
     try:
+        ensure_image(run)
         deps = install_deps(cand_tree)           # before the holdout exists anywhere: it's on stdin below
     except SystemExit as e:
         return verdict(pr, "failure", "the candidate's dependencies didn't install", str(e)[-2000:])
