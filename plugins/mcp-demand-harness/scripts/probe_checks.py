@@ -1,0 +1,138 @@
+"""Deterministic response contracts and bounded, best-effort redacted evidence."""
+import hashlib
+import json
+import re
+
+TYPES={'object':dict,'array':list,'string':str,'boolean':bool,'number':(int,float),'null':type(None)}
+
+def decode_rpc(text, expected_id):
+    messages=[line[5:].strip() for line in text.splitlines() if line.startswith('data:')]
+    if not messages:messages=[text]
+    for raw in messages:
+        try:m=json.loads(raw)
+        except ValueError:continue
+        if isinstance(m,dict) and m.get('jsonrpc')=='2.0' and type(m.get('id')) is int and m['id']==expected_id:
+            if 'error' in m:return {'_probe_error':'JSON-RPC error'}
+            if isinstance(m.get('result'),dict):return m['result']
+    return {'_probe_error':'missing, malformed or mismatched JSON-RPC result'}
+
+def envelope(result):
+    structured=result.get('structuredContent')
+    if isinstance(structured,dict):return structured
+    for block in result.get('content',[]):
+        if isinstance(block,dict) and isinstance(block.get('text'),str):
+            try:return json.loads(block['text'])
+            except ValueError:continue
+    return None
+
+def payload(result):
+    value=envelope(result)
+    return value.get('data',value) if isinstance(value,dict) else value
+
+def transport_checks(status, result):
+    content=False
+    if isinstance(result,dict):
+        structured=result.get('structuredContent')
+        content=bool(structured.get('data',structured)) if isinstance(structured,dict) else False
+        for block in result.get('content',[]):
+            if isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip():
+                try:
+                    value=json.loads(block['text'])
+                    if isinstance(value,dict):value=value.get('data',value)
+                    content=content or value not in (None,{},[],"")
+                except ValueError:content=True
+    ok=200<=status<300 and isinstance(result,dict) and not result.get('isError') and '_probe_error' not in result and content
+    return [{'check':'successful HTTP and nonempty MCP result without protocol/tool error','passed':ok,'detail':str(status)}]
+
+def application_error(result,contract=None):
+    """True when the server reports a failure inside a 2xx reply.
+
+    Assumption: `error` and `isError` are reserved keys at the top of the payload.
+    A truthy value under either name is read as an application failure, so a
+    product whose success payload carries a field named `error` (a count, a
+    list of validation notes) would be graded as broken. Rename or nest such a
+    field on the server side, or extend this check with a profile allowance,
+    rather than relaxing the reserved-key rule for everyone.
+    """
+    data=payload(result);env=envelope(result)
+    if isinstance(env,dict) and env.get('ok') is False:
+        denial=env.get('denial',{})
+        allowed=False
+        if isinstance(denial,dict) and denial.get('reason')=='not_found' and denial.get('status')==404:
+            for branch in (contract or {}).get('json_any_of',[]):
+                reason=any(c.get('path')=='/absence/reason' and isinstance(c.get('equals'),str) and bool(c['equals']) for c in branch)
+                explanation=any(c.get('path')=='/absence/message' and c.get('nonempty') is True for c in branch)
+                if reason and explanation and structured_check(data,[branch])['passed']:allowed=True
+        if not allowed:return True
+    if isinstance(data,dict) and (data.get('error') or data.get('isError')):return True
+    for block in result.get('content',[]):
+        if isinstance(block,dict) and isinstance(block.get('text'),str) and re.match(r'(?i)^(error\s*:|exception\s*:|internal server error|traceback \()',block['text'].lstrip()):return True
+    return False
+
+def validate_contract(branches):
+    if not isinstance(branches,list) or not branches:raise ValueError('json_any_of must have branches')
+    for branch in branches:
+        if not isinstance(branch,list) or not branch:raise ValueError('json_any_of branch must have predicates')
+        for c in branch:
+            if not isinstance(c,dict) or set(c)-{'path','type','nonempty','equals'}:raise ValueError('invalid JSON predicate')
+            path=c.get('path')
+            if not isinstance(path,str) or (path and not path.startswith('/')) or re.search(r'~(?![01])',path):raise ValueError('JSON Pointer required')
+            if not (set(c)-{'path'}):raise ValueError('predicate needs an assertion')
+            if 'type' in c and (not isinstance(c['type'],str) or c['type'] not in TYPES):raise ValueError('invalid predicate type')
+            if 'nonempty' in c and c['nonempty'] is not True:raise ValueError('nonempty must be true')
+
+def pointer(data,path):
+    for part in path.split('/')[1:] if path else []:
+        part=part.replace('~1','/').replace('~0','~')
+        if isinstance(data,list):
+            if not re.fullmatch(r'0|[1-9][0-9]*',part):raise ValueError('invalid array index')
+            data=data[int(part)]
+        elif isinstance(data,dict):data=data[part]
+        else:raise ValueError('missing path')
+    return data
+
+def structured_check(data,branches):
+    validate_contract(branches)
+    def matches(c):
+        try:v=pointer(data,c['path'])
+        except (KeyError,IndexError,ValueError,TypeError):return False
+        if 'type' in c:
+            typ=c['type']
+            if not isinstance(v,TYPES[typ]) or (typ=='number' and isinstance(v,bool)):return False
+        if 'nonempty' in c and (not isinstance(v,(dict,list,str)) or not v):return False
+        if 'equals' in c and (type(v)!=type(c['equals']) or v!=c['equals']):return False
+        return True
+    return {'check':'structured response contract','passed':any(all(matches(c) for c in b) for b in branches),'detail':''}
+
+def body_ok(text):
+    try:data=json.loads(text)
+    except ValueError:return False
+    return isinstance(data,(dict,list)) and bool(data) and not (isinstance(data,dict) and (data.get('error') or data.get('isError') or data.get('ok') is False))
+
+def receipt(value, secrets=(), limit=16384):
+    raw=json.dumps(value,sort_keys=True,ensure_ascii=True)
+    def clean(v):
+        if isinstance(v,dict):return {k:('[redacted]' if re.search(r'password|secret|token|authorization|api.?key|cookie',k,re.I) else clean(x)) for k,x in v.items()}
+        if isinstance(v,list):return [clean(x) for x in v]
+        if isinstance(v,str):
+            try:embedded=json.loads(v)
+            except ValueError:embedded=None
+            if isinstance(embedded,(dict,list)):
+                cleaned=clean(embedded)
+                if cleaned!=embedded:v=json.dumps(cleaned,sort_keys=True,ensure_ascii=True)
+            if any(line.startswith('data:') for line in v.splitlines()):
+                lines=[]
+                for line in v.splitlines(keepends=True):
+                    if line.startswith('data:'):
+                        ending='\r\n' if line.endswith('\r\n') else ('\n' if line.endswith('\n') else '')
+                        body=line[5:len(line)-len(ending)] if ending else line[5:]
+                        line='data:'+clean(body)+ending
+                    lines.append(line)
+                v=''.join(lines)
+            for secret in secrets:
+                if secret:v=v.replace(secret,'[redacted]')
+            return re.sub(r'(?i)Bearer\s+[^\s"<>]+|(?:github_pat_|gh[pousr]_)[A-Za-z0-9_]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[redacted]',v)
+        return v
+    text=json.dumps(clean(value),sort_keys=True,ensure_ascii=True)
+    return {'sha256':hashlib.sha256(raw.encode()).hexdigest(),'sanitized_text':text[:limit],
+            'truncated':len(text)>limit,'redacted':text!=raw,'redaction':'best_effort','original_bytes':len(raw.encode())}

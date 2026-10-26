@@ -21,6 +21,16 @@ def errors(b, **kw):
 
 
 class Validate(unittest.TestCase):
+    def test_payload_json_contract_is_validated_and_exportable(self):
+        b=F.bank();q=next(q for q in b['questions'] if q.get('payload'))
+        q['payload']['json_any_of']=[[{'path':'/roles','type':'array','nonempty':True}]]
+        self.assertEqual(errors(b),[])
+        import probe
+        plan=probe.build_plan(b,{'mcp':{'tools':[]}})
+        self.assertIn('json_any_of',next(i for i in plan['items'] if i['bank_id']==q['id'])['checks'])
+        q['payload']['json_any_of']=[[]]
+        self.assertTrue(any('json_any_of' in e for e in errors(b)))
+
     def test_fixture_bank_is_valid(self):
         self.assertEqual(errors(F.bank()), [])
 

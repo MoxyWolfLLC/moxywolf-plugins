@@ -39,11 +39,16 @@ class Fake(BaseHTTPRequestHandler):
             return self._send(404, {"error": "no"})
         m = body.get("method")
         if m == "initialize":
-            return self._send(200, {"jsonrpc": "2.0", "id": body["id"], "result": {"protocolVersion": "2025-06-18"}}, {"mcp-session-id": "s1"})
+            return self._send(200, {"jsonrpc": "2.0", "id": body["id"], "result": {"protocolVersion": "2025-06-18", "serverInfo":{"name":"fixture","version":"surface.fixture"}}}, {"mcp-session-id": "s1"})
         if m == "notifications/initialized":
             return self._send(202, {})
         if self.headers.get("mcp-session-id") != "s1":
             return self._send(400, {"error": "no session"})
+        if m == "tools/call" and body["params"]["name"] in ("tool_error","rpc_error","server_exception"):
+            name=body['params']['name']
+            if name=='rpc_error':return self._send(200,{'jsonrpc':'2.0','id':body['id'],'error':{'message':'failed'}})
+            result={'isError':True,'content':[{'type':'text','text':'roles'}]} if name=='tool_error' else {'content':[{'type':'text','text':'{"error":"exception"}'}]}
+            return self._send(200,{'jsonrpc':'2.0','id':body['id'],'result':result})
         if m == "tools/call" and body["params"]["name"] == "widgets_plan":
             return self._send(200, {"jsonrpc": "2.0", "id": body["id"], "result": {"content": [{"type": "text", "text": "{\"roles\": [\"sysadmin\"]}"}]}}, sse=True)
         return self._send(200, {"jsonrpc": "2.0", "id": body["id"], "result": {"content": [{"type": "text", "text": "not_held"}]}})
@@ -126,6 +131,48 @@ class Run(unittest.TestCase):
         self.assertEqual(methods[:2], ["initialize", "notifications/initialized"], "handshake first, like verify-eval.ts")
         self.assertTrue(all(s[3] == "Bearer test-token" for s in Fake.seen))
         self.assertFalse(any(s[0] in ("PUT", "PATCH", "DELETE") for s in Fake.seen))
+
+    def test_error_results_cannot_pass_a_nonempty_check(self):
+        plan=dl.load_json(self.plan)
+        item=next(i for i in plan['items'] if i.get('mcp_call'))
+        for tool in ('tool_error','rpc_error','server_exception'):
+            item['mcp_call']['tool']=tool;item['checks']={}
+            dl.dump_json({'items':[item]},self.plan)
+            outpath=self.w.path('probe.json')
+            if os.path.exists(outpath):os.unlink(outpath)
+            rc,out,err=self._run()
+            self.assertEqual(rc,1,out+err)
+            record=dl.load_json(outpath)['results'][0]
+            self.assertFalse(record['passed'])
+            if tool=='rpc_error':self.assertIn('failed',record['layers'][0]['response_evidence']['sanitized_text'])
+
+    def test_receipts_and_structured_contract_survive_real_http_run(self):
+        plan=dl.load_json(self.plan)
+        item=next(i for i in plan['items'] if i.get('mcp_call'))
+        item['mcp_call']={'tool':'widgets_plan','arguments':{}}
+        item['checks']={'json_any_of':[[{'path':'/roles','type':'array','nonempty':True}]]}
+        dl.dump_json({'bank_hash':'bank-fixture','items':[item]},self.plan)
+        rc,out,err=self._run();self.assertEqual(rc,0,out+err)
+        report=dl.load_json(self.w.path('probe.json'))
+        self.assertEqual(report['server_info']['version'],'surface.fixture')
+        self.assertEqual(report['bank_hash'],'bank-fixture')
+        self.assertEqual(report['plan_hash'],dl.sha256_file(self.plan))
+        self.assertEqual(report['profile_hash'],dl.sha256_file(self.w.profile))
+        layer=report['results'][0]['layers'][0]
+        self.assertEqual(layer['assertion_strength'],'structured')
+        self.assertIn('sysadmin',layer['response_evidence']['sanitized_text'])
+        self.assertNotIn('test-token',json.dumps(report))
+
+    def test_existing_output_and_empty_selection_refuse_before_traffic(self):
+        dl.dump_json({'baseline':True},self.w.path('probe.json'))
+        rc,_,err=self._run();self.assertEqual(rc,3);self.assertEqual(Fake.seen,[])
+        self.assertEqual(dl.load_json(self.w.path('probe.json')),{'baseline':True})
+        os.unlink(self.w.path('probe.json'))
+        rc,_,err=self._run('--only','no-such-case');self.assertEqual(rc,3);self.assertEqual(Fake.seen,[])
+
+    def test_invalid_contract_is_refused_before_traffic(self):
+        plan=dl.load_json(self.plan);plan['items'][0]['checks']={'json_any_of':[[]]};dl.dump_json(plan,self.plan)
+        rc,_,err=self._run();self.assertEqual(rc,3);self.assertEqual(Fake.seen,[])
 
     def test_production_needs_named_person(self):
         rc, _, err = self._run("--target", "production")
