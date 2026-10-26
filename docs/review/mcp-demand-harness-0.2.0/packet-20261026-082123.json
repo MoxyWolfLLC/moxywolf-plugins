@@ -1,0 +1,143 @@
+{
+ "outcome": "Deterministic MCP/REST probes grade transport and application failures as failures, support structural response contracts, keep bounded redacted response evidence with hashes, and refuse to overwrite prior runs, so a green probe means what it says.",
+ "acceptance_criteria": [
+  "A tools/call reply with a JSON-RPC error, a mismatched id, isError true, or empty data fails the mcp_payload layer; the 0.1.0 'returns something' pass is no longer possible for those",
+  "A 2xx application-error envelope (ok:false) fails unless a json_any_of branch explicitly matches a not_found/404 typed absence with reason and nonempty message; auth, entitlement, rate-limit and 5xx envelopes cannot use a success branch",
+  "json_any_of contracts (JSON Pointer path, type, nonempty, equals; branches = alternatives, predicates = conjunction) are validated before any request and graded against structuredContent.data or JSON text content; REST contracts against the JSON body",
+  "Each layer records assertion_strength in {structured, content, negative_only, liveness}; results.py ingest renders a coverage table and marks pre-0.2.0 reports unknown_legacy",
+  "Each layer keeps a response receipt: sha256 of the canonical original, up to 16384 chars of sanitized text, truncated/redacted flags; known run credentials, secret-named keys, bearer/GitHub/JWT-shaped strings are redacted best-effort",
+  "The run record carries plan/profile sha256, the plan's declared bank hash, harness source hashes, local repo revisions and observed serverInfo; an existing output path or an empty executable selection is refused before any request",
+  "demandlib validates json_any_of in payload and rest sections; probe_checks is imported lazily inside validate_bank, not at module scope",
+  "All 78 tests pass against local HTTP fixtures with no network (ledger run f65df2615777 at 182cc9e)"
+ ],
+ "release_owner": "dorianatmoxywolf",
+ "repos": [
+  {
+   "path": "/Users/doriancougias/GitHub/moxywolf-plugins",
+   "base": "caeffa60cb946a085bab233bd96fc8656137edb0",
+   "head": "182cc9e67e2789a91a4c655790b268d787904df1"
+  }
+ ],
+ "changed_behavior": "probe.py run: decodes JSON-RPC replies strictly (probe_checks.decode_rpc), adds transport and application-error checks ahead of grade(), evaluates json_any_of, labels layer strength, writes receipts, refuses existing output and empty selection, records hashes/revisions/serverInfo; opens output with 'x'. probe.py plan: exports json_any_of. demandlib.validate_bank: validates json_any_of (lazy import). results.collect_probe/cmd_ingest: probe_strengths and coverage table. Entry points: probe.py plan|run, results.py ingest, bank.py validate. New module probe_checks.py (decode_rpc, envelope, payload, transport_checks, application_error, validate_contract, pointer, structured_check, body_ok, receipt). Round-2 changes (c32cd54): transport_checks decides emptiness from structuredContent when present; application_error inspects every JSON envelope (new envelopes(), _excused_absence()); structured_check equals uses json_equal (bool/number kept apart recursively).",
+ "exclusions": [
+  "Receipt bound of 16384 chars: a known limit, decided separately; do not relitigate here",
+  "application_error treats top-level error/isError as reserved keys; documented assumption, not a defect to fix in this review",
+  "Code style of the new module (compressed statements) is noted in INTEGRATION-REVIEW.md; reformatting is a follow-up unless it hides a defect",
+  "Graph-context work on build/gstack-graph-context is out of scope for this packet",
+  "Live runs against STIGViewer production recorded on the stigviewer branch are evidence of behaviour, not part of this diff"
+ ],
+ "tests": {
+  "commands": [
+   "cd plugins/mcp-demand-harness && python3 -m unittest discover -s tests",
+   "python3 -m compileall -q plugins/mcp-demand-harness/scripts plugins/mcp-demand-harness/tests",
+   "git diff --check main..b55a9e0"
+  ],
+  "results": "78 tests OK at 182cc9e, recorded on the failure ledger as run f65df2615777 (exit 0, receipt sha256 de9367e68e3a...). The dispatcher reads that run itself.",
+  "environment": "macOS, Python 3.13.12, no network; tests bind a local HTTP server",
+  "ledger_runs": [
+   {
+    "repo": "/Users/doriancougias/GitHub/moxywolf-plugins",
+    "run_id": "f65df2615777"
+   }
+  ]
+ },
+ "data_use": {
+  "owner": "dorianatmoxywolf",
+  "classification": "internal",
+  "allow_repository": true,
+  "allow_history": true,
+  "allowed_tools": [
+   "claude",
+   "codex"
+  ]
+ },
+ "builder": "claude",
+ "diff_file": "docs/review/mcp-demand-harness-0.2.0/harness-0.2.0.diff",
+ "diff_sha256": "91c3fd63379ee310a7b500f5fe7864a158c54a208333736aea9ae959b64faf06",
+ "note": "Fresh review at 182cc9e covering the complete diff main..182cc9e, including the F1-F3 fixes from c32cd54. Prior review linked in prior_review. Descriptive only; reviewer authority comes from the review contract.",
+ "prior_review": {
+  "review_id": "20261026-080924-da4beb3-htsmx86c",
+  "rounds": [
+   {
+    "round": 1,
+    "head": "da4beb39ec1c41717a46ead5106d70bdeed02786",
+    "outcome": "blocking_findings"
+   },
+   {
+    "round": 2,
+    "head": "c32cd542cad34db6eb384f833389a3e4d936bc55",
+    "outcome": "blocking_findings (F1-F3 resolved, F4 evidence not on surface)"
+   }
+  ],
+  "findings": [
+   {
+    "id": "F1",
+    "severity": "blocking",
+    "file": "plugins/mcp-demand-harness/scripts/probe_checks.py",
+    "line": 43,
+    "what": "Nonempty text can turn empty structured data into a passing MCP result."
+   },
+   {
+    "id": "F2",
+    "severity": "blocking",
+    "file": "plugins/mcp-demand-harness/scripts/probe_checks.py",
+    "line": 24,
+    "what": "Application failures in later JSON text blocks are ignored."
+   },
+   {
+    "id": "F3",
+    "severity": "blocking",
+    "file": "plugins/mcp-demand-harness/scripts/probe_checks.py",
+    "line": 103,
+    "what": "Nested equals assertions conflate JSON booleans with numbers."
+   },
+   {
+    "id": "F4",
+    "severity": "separate",
+    "file": "docs/evidence/mcp-probe-hardening-2026-10-25.md",
+    "line": 20,
+    "what": "The claimed 75-test pass needs execution evidence at the reviewed head."
+   },
+   {
+    "id": "E1",
+    "severity": "follow_up",
+    "file": "docs/review/mcp-demand-harness-0.2.0/README.md",
+    "line": 15,
+    "what": "Untrusted review documentation contains a command to open another review."
+   },
+   {
+    "id": "E2",
+    "severity": "follow_up",
+    "file": "docs/review/mcp-demand-harness-0.2.0/README.md",
+    "line": 19,
+    "what": "Untrusted repository text directs the reviewer's inspection order."
+   },
+   {
+    "id": "E3",
+    "severity": "follow_up",
+    "file": "docs/review/mcp-demand-harness-0.2.0/packet.json",
+    "line": 51,
+    "what": "The repository copy of the packet contains an instruction to the reviewer."
+   }
+  ],
+  "dispositions": {
+   "F1": {
+    "disposition": "fixed",
+    "evidence": "c32cd54 transport_checks decides emptiness from structuredContent; test_f1_text_cannot_make_empty_structured_data_nonempty"
+   },
+   "F2": {
+    "disposition": "fixed",
+    "evidence": "c32cd54 application_error inspects every JSON envelope via envelopes(); test_f2_failure_envelope_in_any_block_is_seen"
+   },
+   "F3": {
+    "disposition": "fixed",
+    "evidence": "c32cd54 json_equal keeps bool and number apart recursively; test_f3_equals_keeps_json_booleans_and_numbers_apart_recursively"
+   },
+   "F4": {
+    "disposition": "fixed",
+    "evidence": "ledger run a8cb94c3f411 at c32cd54, exit 0, 78 tests, receipt sha256 d4220ac8168229121e75593ab93e4f69c6a384e52d2eb50cb6236ed002bee976"
+   }
+  },
+  "why_new_review": "the retained packet of the prior review predates ledger run a8cb94c3f411 and carries no tests.ledger_runs; retained packets are not edited, so a fresh review carries the receipt from the start"
+ }
+}

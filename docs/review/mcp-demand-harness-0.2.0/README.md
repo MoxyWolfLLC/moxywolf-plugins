@@ -42,3 +42,33 @@ surface had no dispatcher-fetched evidence. The repository copy of the
 packet names the run. Two unknowns are open on the same point
 (`9cbf19910719`, `7e1daa59ee6a`). One round remains; it cannot add the run
 without altering the retained packet, which was not done.
+
+## Review record: `20261026-082123-182cc9e-sas80u0x` (fresh, linked to the first)
+
+Opened from `packet-20261026-082123.json`, which names ledger run
+`f65df2615777` (78 tests at `182cc9e`) and carries the first review's id,
+rounds, seven findings and four dispositions under `prior_review`. Builder
+claude, reviewer codex (`gpt-6-astra`, not a fallback). Coverage `not_run`:
+the scorer refuses a packet with no `items` array (exit 2), and no DESIGN.md
+item describes this work, so none was claimed and no override was passed.
+Lane `wide`. Ledger status `clear` at open; the dispatcher read the run,
+matched its head and verified the receipt.
+
+| Round | Reviewed | Outcome | Findings |
+|---|---|---|---|
+| 1 | `182cc9e` | blocking_findings | F1 prose overriding empty JSON-text data (no structuredContent); F2 REST body rejecting a permitted typed absence; F3 reserved `error`/`isError` in secondary envelopes; E1–E4 follow-ups (untrusted-text wording). All three reproduced before fixing |
+| 2 | `613f858` | blocking_findings | F1, F3 resolved, no regressions; F2 not: the REST exception unwrapped `data` where REST contracts are body-relative |
+| 3 | `85d5f4a` | **rounds_exhausted**, zero findings | F2 resolved by static inspection, no regressions; 7 of 8 criteria met |
+
+The unmet criterion is execution evidence at the reviewed head. Ledger
+runs exist at every head (`a8cb94c3f411` @ c32cd54, `f65df2615777` @
+182cc9e, `f33c70792a19` @ 613f858, `331c2d9bb407` @ 85d5f4a, all exit 0),
+but the dispatcher binds `tests.ledger_runs` at open and `round` accepts
+`--ci-run` only, so each fix round's surface showed the open-time run with
+`head_matches: false`. Four unknowns are open on that one question. The
+retained packet was not edited.
+
+Code review verdict on the final diff main..`85d5f4a`: no open findings.
+Release gate: blocked on coverage `not_run` (no DESIGN item to score
+against) and on execution evidence at the reviewed head being absent from
+the review surface.
