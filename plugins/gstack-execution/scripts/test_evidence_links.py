@@ -602,6 +602,59 @@ class LedgerEvidenceCitationTests(LinkTests):
         receipt.write_bytes(receipt.read_bytes() + b"appended\n")
         self.assertEqual(pr.verify_links(d)["outcome"], "links_unverifiable")
 
+    # ---- review 20261026-155917-7b5e323-9ryg2d5g: F1, F2, F3 ----
+
+    def test_a_finding_renamed_to_another_receipt_no_longer_names_its_subject(self):
+        """F1: the stored subject is not the evidence; the finding's own citation must still name it."""
+        _, _, d = self.reviewed_with_citation()
+        rec = pr.load(d, "round-1.json")
+        rec["findings"][1]["file"] = "evidence/ledger-deadbeefdead.log"
+        (d / "round-1.json").write_text(json.dumps(rec))
+        report = pr.verify_links(d)
+        self.assertNotEqual(report["outcome"], "links_verified")
+        self.assertTrue(any("no longer names the ledger subject" in c["detail"] for c in report["checks"] if not c["ok"]), report["checks"])
+
+    def test_round_ledger_metadata_that_disagrees_with_the_subject_is_not_verified(self):
+        """F1: the subject must agree with the round's own ledger record (run, hash)."""
+        _, _, d = self.reviewed_with_citation()
+        rec = pr.load(d, "round-1.json")
+        rec["ledger_runs"][0]["receipt_sha256"] = "0" * 64
+        (d / "round-1.json").write_text(json.dumps(rec))
+        self.assertNotEqual(pr.verify_links(d)["outcome"], "links_verified")
+        rec["ledger_runs"][0]["receipt_sha256"] = pr.load(d, "round-1.json")["subjects"]["F2"]["sha256"]
+        rec["ledger_runs"][0]["receipt_verified"] = False
+        (d / "round-1.json").write_text(json.dumps(rec))
+        self.assertNotEqual(pr.verify_links(d)["outcome"], "links_verified")
+
+    def test_a_withheld_receipt_cannot_be_cited_as_evidence_the_reviewer_saw(self):
+        """F2: a receipt withheld for a likely secret never reached the surface; a citation of it binds to nothing."""
+        line, _ = self.ledger_run("print('key=' + 'sb_' + 'secret_' + 'A' * 30)")
+        self.packet["tests"]["ledger_runs"] = [{"repo": str(self.repo), "run_id": line["id"]}]
+        self.pfile.write_text(json.dumps(self.packet))
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self.cited(line["id"], 1)), "blocking_findings")
+        rec = pr.load(pr.rdir(rid), "round-1.json")
+        self.assertTrue(rec["ledger_runs"][0]["withheld"])
+        s = rec["subjects"]["F2"]
+        self.assertFalse(s["bound"]); self.assertIn("withheld", s["why"])
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        self.assertEqual(pr.verify_links(pr.rdir(rid))["outcome"], "links_unverifiable")
+        legacy = {"path": f"evidence/ledger-{line['id']}.log", "bound": False, "why": "no packet repository holds this path at its reviewed head"}
+        self.assertFalse(pr.bind_ledger_evidence(legacy["path"], 1, rec["ledger_runs"], self.packet["repos"])["bound"])
+
+    def test_a_packet_naming_the_repository_by_short_name_still_binds_and_verifies(self):
+        """F3: tests.ledger_runs may name the repository by its short name; the round keeps the resolved path."""
+        line, _ = self.ledger_run("print('short name'); print('second line')")
+        self.packet["tests"]["ledger_runs"] = [{"repo": self.repo.name, "run_id": line["id"]}]
+        self.pfile.write_text(json.dumps(self.packet))
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self.cited(line["id"], 2)), "blocking_findings")
+        d = pr.rdir(rid); rec = pr.load(d, "round-1.json")
+        self.assertEqual(rec["ledger_runs"][0]["repo"], str(self.repo))
+        self.assertTrue(rec["subjects"]["F2"]["bound"], rec["subjects"]["F2"])
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_verified", [c for c in pr.verify_links(d)["checks"] if not c["ok"]])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -886,6 +886,7 @@ def fetch_ledger_evidence(repos, ledger_runs, surf):
             repo = _packet_repo(repos, entry.get("repo"))
             if repo is None:
                 raise ValueError("repo is not a repository in this packet")
+            rec["repo"] = repo["path"]   # EV-014.9 (review F3): the resolved path, not the packet's short name
             line, f = check_ledger.find_run(repo["path"], rid, review_root())
             if line is None:
                 raise ValueError("no such run on this repository's ledger")
@@ -1249,7 +1250,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
             prov[c["shown"]] = provenance("ledger_receipt")
     stats["ledger_runs"] = [{k: c.get(k) for k in ("run_id", "read", "head_matches", "exit_code",
                                                     "receipt_verified", "withheld", "error",
-                                                    "repo", "receipt_sha256")} for c in lr]   # EV-014.5: the hash a citation binds to
+                                                    "repo", "receipt_sha256", "shown")} for c in lr]   # EV-014.9: what a citation binds to
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     for c in ci:   # the run record was fetched from GitHub; a job's log or receipt is CI output
         prov[f"{EVIDENCE_DIR}/ci-{c['run_id']}.json"] = provenance("fetched")
@@ -2127,10 +2128,20 @@ def bind_ledger_evidence(path, line, ledger_runs, repos=()):
     if not rec or not rec.get("receipt_verified"):
         return {"path": path, "kind": "ledger_evidence", "run_id": rid, "bound": False,
                 "why": "the round did not show a verified receipt for this run"}
-    # A record written before EV-014.5 names neither the repository nor the hash; the ledger line
-    # carries the hash, and the run is looked for on each packet repository's ledger.
+    if rec.get("withheld") or ("shown" in rec and not rec.get("shown")):
+        # Review F2: a receipt withheld from the surface (likely secret) was never shown; a citation
+        # of it names text the reviewer could not have read.
+        return {"path": path, "kind": "ledger_evidence", "run_id": rid, "bound": False,
+                "why": "the receipt was withheld from the surface, so the round showed no such file"}
+    # A record written before EV-014.9 names neither the repository nor the hash; the ledger line
+    # carries the hash, and the run is looked for on each packet repository's ledger. A record that
+    # names the repository by the packet's short spelling (review F3) is resolved the same way.
     text, why = None, "no packet repository holds this run"
-    for repo in ([rec["repo"]] if rec.get("repo") else [r["path"] for r in repos]):
+    named = rec.get("repo")
+    candidates = [r["path"] for r in repos if named in (None, r["path"], Path(r["path"]).name)] or ([named] if named else [])
+    if named and named not in candidates and Path(named).is_dir():
+        candidates.insert(0, named)
+    for repo in candidates:
         text, why = _ledger_evidence_text(repo, rid, rec.get("receipt_sha256"))
         if text is not None:
             break
@@ -2269,6 +2280,15 @@ def verify_links(d):
                 record(tag, False, (s or {}).get("why", "finding was never bound to content"), kind="unverifiable")
                 continue
             if s.get("kind") == "ledger_evidence":
+                # Review F1: the finding's own citation and the round's ledger record must still name the
+                # subject that was recorded, as a repository finding must name its recorded subject.
+                m = _EVIDENCE_LEDGER.match(str(f["file"]).replace("\\", "/"))
+                shown = next((r for r in rec.get("ledger_runs") or () if str(r.get("run_id")) == s["run_id"]), None)
+                if (not m or m.group(1) != s["run_id"] or not shown or not shown.get("receipt_verified")
+                        or shown.get("withheld") or (shown.get("receipt_sha256") and shown["receipt_sha256"] != s.get("sha256"))
+                        or (shown.get("repo") and shown["repo"] != s.get("repo") and Path(shown["repo"]).name != Path(s.get("repo", "")).name)):
+                    record(tag, False, "the finding no longer names the ledger subject recorded for it")
+                    continue
                 text, why = _ledger_evidence_text(s["repo"], s["run_id"], s.get("sha256"))
                 if text is None:
                     unbound += 1
