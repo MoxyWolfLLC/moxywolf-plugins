@@ -37,6 +37,10 @@ def me_result(qid, passed, seq, failed=()):
 
 
 class Parse(unittest.TestCase):
+    def test_probe_retains_assertion_strength_and_flags_legacy(self):
+        r={'results':[{'bank_id':'Q-0005','passed':True,'layers':[{'checks':[],'assertion_strength':'liveness'},{'checks':[]}]}]}
+        self.assertEqual(results.collect_probe(r)[0]['probe_strengths'],['liveness','unknown_legacy'])
+
     def test_mcpjam_reads_iterations_once(self):
         rep = mcpjam_report([mj_case("Q-0001", "passed", [it(1, "passed", ["widgets_search"]), it(2, "passed", ["widgets_search"])])])
         recs, notes = results.collect_any(rep, "mcpjam")

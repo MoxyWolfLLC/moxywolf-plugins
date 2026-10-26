@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 PLUGIN_NAME = "mcp-demand-harness"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "0.2.0"
 BANK_VERSION = 1
 
 QUESTION_ID = re.compile(r"^Q-\d{4,}$")
@@ -43,8 +43,8 @@ SURFACES = ("mcp", "rest")
 STATUSES = ("active", "parked")
 REVIEW_STATUSES = ("accepted", "draft")
 
-PAYLOAD_KEYS = {"tool", "args", "must_contain", "must_not_match", "absence_acceptable"}
-REST_KEYS = {"calls", "must_contain", "must_not_match", "absence_acceptable"}
+PAYLOAD_KEYS = {"tool", "args", "must_contain", "must_not_match", "absence_acceptable", "json_any_of"}
+REST_KEYS = {"calls", "must_contain", "must_not_match", "absence_acceptable", "json_any_of"}
 REST_CALL_KEYS = {"method", "path", "query", "body"}
 
 EXPECT_KEYS = {
@@ -305,6 +305,12 @@ def validate_bank(bank: dict, tool_names: Iterable[str] | None = None, generated
             if not isinstance(payload.get("args", {}), dict):
                 r.error(where, "payload.args must be an object")
             _check_patterns(r, where, "payload.must_not_match", payload.get("must_not_match"))
+            if "json_any_of" in payload:
+                from probe_checks import validate_contract  # probe-only dependency; kept out of module scope
+                try:
+                    validate_contract(payload["json_any_of"])
+                except ValueError as e:
+                    r.error(where, "payload.json_any_of: " + str(e))
 
         rest = q.get("rest")
         if rest is not None:
@@ -327,6 +333,12 @@ def validate_bank(bank: dict, tool_names: Iterable[str] | None = None, generated
                 elif route_ok is not None and not route_ok(path):
                     r.error(where, f"rest call path {path} matches no route in the capability map")
             _check_patterns(r, where, "rest.must_not_match", rest.get("must_not_match"))
+            if "json_any_of" in rest:
+                from probe_checks import validate_contract
+                try:
+                    validate_contract(rest["json_any_of"])
+                except ValueError as e:
+                    r.error(where, "rest.json_any_of: " + str(e))
             if "rest" not in (q.get("surfaces") or []):
                 r.error(where, "a question with rest.calls must list rest in surfaces")
 

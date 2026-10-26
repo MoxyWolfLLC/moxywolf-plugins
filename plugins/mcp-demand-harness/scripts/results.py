@@ -206,7 +206,7 @@ def collect_probe(report) -> list[dict]:
     out = []
     for r in report.get("results", []):
         failed = [c["check"] for layer in r.get("layers", []) for c in layer.get("checks", []) if not c.get("passed")]
-        out.append({"bank_id": r["bank_id"], "harness": "probe", "passed": bool(r.get("passed")), "tools": [], "tool_count": None, "failed_checks": failed})
+        out.append({"bank_id": r["bank_id"], "harness": "probe", "probe_strengths": [layer.get("assertion_strength", "unknown_legacy") for layer in r.get("layers", [])], "passed": bool(r.get("passed")), "tools": [], "tool_count": None, "failed_checks": failed})
     return out
 
 
@@ -279,6 +279,11 @@ def cmd_ingest(a) -> int:
             proposals.append({"bank_id": qid, "action": "tool-gap", "set": {}, "why": "No run used any tool. Record as a candidate missing capability; do not change the bank until a tool exists."})
 
     lines = [f"# Gap report: {bank['product']}", "", f"Ingested {len(recs)} case results across {len(grouped)} questions on {_dt.date.today().isoformat()}.", ""]
+    strengths = Counter(x for r in recs for x in r.get('probe_strengths',[]))
+    if strengths:
+        lines += ['## Probe assertion coverage', '', 'A pass reflects the recorded assertions, not proof of answer quality. Legacy reports have unknown assertion strength.', '', '| Strength | Layers |', '|---|---|']
+        lines += [f'| {kind} | {strengths[kind]} |' for kind in ('structured','content','negative_only','liveness','unknown_legacy') if strengths[kind]]
+        lines += ['']
     if unknown:
         lines += [f"Results for ids not in this bank (stale export?): {', '.join(unknown)}.", ""]
     counts = Counter(r["pattern"] for r in rows)
