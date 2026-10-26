@@ -15,7 +15,7 @@
   {
    "path": "/Users/doriancougias/GitHub/moxywolf-plugins",
    "base": "caeffa60cb946a085bab233bd96fc8656137edb0",
-   "head": "b55a9e0d046cd07c8844d8d95ea541c3e637a2a4"
+   "head": "da4beb39ec1c41717a46ead5106d70bdeed02786"
   }
  ],
  "changed_behavior": "probe.py run: decodes JSON-RPC replies strictly (probe_checks.decode_rpc), adds transport and application-error checks ahead of grade(), evaluates json_any_of, labels layer strength, writes receipts, refuses existing output and empty selection, records hashes/revisions/serverInfo; opens output with 'x'. probe.py plan: exports json_any_of. demandlib.validate_bank: validates json_any_of (lazy import). results.collect_probe/cmd_ingest: probe_strengths and coverage table. Entry points: probe.py plan|run, results.py ingest, bank.py validate. New module probe_checks.py (decode_rpc, envelope, payload, transport_checks, application_error, validate_contract, pointer, structured_check, body_ok, receipt).",
@@ -48,5 +48,5 @@
  "builder": "claude",
  "diff_file": "docs/review/mcp-demand-harness-0.2.0/harness-0.2.0.diff",
  "diff_sha256": "91c3fd63379ee310a7b500f5fe7864a158c54a208333736aea9ae959b64faf06",
- "note": "Prepared for a fresh cross-vendor review (builder claude -> reviewer codex). Not yet opened. The reviewer should read the diff and the repository at head, not this packet's claims."
+ "note": "Opened 2026-10-26 for a fresh cross-vendor review (builder claude -> reviewer codex) against branch head da4beb3; the only change past the frozen b55a9e0 is this review packet directory. The reviewer should read the diff and the repository at head, not this packet's claims."
 }
