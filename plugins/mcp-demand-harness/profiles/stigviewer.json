@@ -1,0 +1,106 @@
+{
+  "product": "stigviewer",
+  "repo_hint": "MoxyWolfLLC/stigviewer",
+  "bank_dir": "apps/web/scripts/eval/demand",
+  "mcp": {
+    "server_name": "stigviewer",
+    "tools_files": [
+      "apps/web/lib/mcp/tools.ts"
+    ],
+    "prompts_files": [
+      "apps/web/lib/mcp/prompts.ts"
+    ],
+    "register_patterns": [
+      "registerMeasuredTool\\(\\s*server,\\s*'([a-z0-9_]+)'",
+      "server\\.registerTool\\(\\s*'([a-z0-9_]+)'"
+    ],
+    "endpoint_call_functions": {
+      "callApiV1": "GET",
+      "postApiV1": "POST"
+    }
+  },
+  "rest": {
+    "route_roots": [
+      "apps/web/app/api/v1"
+    ],
+    "url_prefix": "/api/v1"
+  },
+  "seeds": {
+    "golden_set": "apps/web/scripts/eval/golden-set.ts",
+    "question_inventory": "docs/design/feature/mcp-server/2026-08-16-mcp-icp-question-inventory.md",
+    "personas": "docs/design/feature/content-expansion/product-marketing-context-2026-07-16.md"
+  },
+  "targets": {
+    "staging": {
+      "mcp_url": "https://stigviewer-mcp.vercel.app/api/mcp",
+      "rest_base": "https://stigviewer-mcp.vercel.app"
+    },
+    "production": {
+      "mcp_url": "https://www.stigviewer.com/api/mcp",
+      "rest_base": "https://www.stigviewer.com",
+      "requires_named_approval": true
+    }
+  },
+  "auth": {
+    "token_env": "STIGVIEWER_API_TOKEN",
+    "header": "Authorization",
+    "scheme": "Bearer",
+    "note": "A /api/v1 token from a test org. Eval traffic lands in api_access_logs under that org, which is why evidence_exclusions lists it."
+  },
+  "models": {
+    "mcpjam": "anthropic/claude-sonnet-5",
+    "mcp_eval_provider": "anthropic",
+    "mcp_eval_model": "claude-sonnet-5",
+    "why": "Matches EVAL_MODEL's default in apps/web/scripts/verify-eval.ts so a demand-bank run and the in-repo golden run grade the same model."
+  },
+  "evidence_exclusions": {
+    "org_names": [
+      "MoxyWolf Test Org (Full Grant)",
+      "MoxyWolf Test Org (Stigs Free)",
+      "MoxyWolf Test Organization",
+      "Test Org",
+      "MoxyWolf",
+      "MoxyWolf-MF"
+    ],
+    "why": "Eval runs and team testing are recorded with the same columns as customer traffic. Counting them as demand would make the harness grade its own homework.",
+    "checked": "2026-10-25 against production api_access_logs. The first two are the built-in test tokens in lib/api-auth/validate-token.ts; the rest are the names production rows actually carry for MoxyWolf and test traffic."
+  },
+  "persona_map": {
+    "Compliance planner / ISSO": "compliance-planner",
+    "Security engineer": "security-engineer",
+    "GRC/AI-tooling engineer": "grc-tooling-engineer",
+    "Engineering/compliance leadership": "compliance-leadership",
+    "Workforce/training planner": "workforce-planner"
+  },
+  "inventory_anchor_personas": {
+    "A": "compliance-planner",
+    "B": "compliance-planner",
+    "C": "security-engineer",
+    "D": "workforce-planner",
+    "E": "security-engineer"
+  },
+  "inventory_persona_overrides": {
+    "52": "compliance-planner"
+  },
+  "inventory_input_contracts": {
+    "IN-1": "Finding set: rule ID (V-ID or SV-ID) or CCI plus status, from ACAS/Nessus, Evaluate-STIG, CKLB, XCCDF or eMASS",
+    "IN-2": "Technology inventory: product plus version list",
+    "IN-3": "Assessment scope / CUI boundary: prose or a system list",
+    "IN-4": "Current assessment state: requirement ID plus implementation status",
+    "IN-5": "Role roster: internal job titles, never names",
+    "IN-6": "Contract obligations: required level and flow-down terms, prose"
+  },
+  "tool_personas": {
+    "stigviewer_resolve": "compliance-planner",
+    "stigviewer_coverage": "compliance-planner",
+    "stigviewer_findings": "security-engineer",
+    "stigviewer_triage_findings": "security-engineer",
+    "stigviewer_plan_work": "compliance-planner",
+    "stigviewer_changes": "security-engineer",
+    "stigviewer_search": "security-engineer",
+    "stigviewer_get_node": "grc-tooling-engineer",
+    "stigviewer_catalogs": "grc-tooling-engineer",
+    "stigviewer_workforce": "workforce-planner",
+    "stigviewer_match_roles": "workforce-planner"
+  }
+}

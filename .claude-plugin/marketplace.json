@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.149.0",
+  "version": "1.150.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -988,6 +988,27 @@
         "campaigns",
         "positioning",
         "release-owner-gate"
+      ]
+    },
+    {
+      "name": "mcp-demand-harness",
+      "source": "./plugins/mcp-demand-harness",
+      "description": "Finds out what a product's customers will ask its MCP server and REST gateway, then turns that into tests. Reads the repo for what the server can do, builds one question bank (persona, intent, evidence class, expected tools, required facts, judge rubric), runs a discovery pass before strict tests, and exports native MCPJam v6 suites, mcp-eval datasets, and direct payload and REST probes. Results come back as a gap report and proposals that a named person approves. Ships with a STIGViewer profile.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "engineering",
+      "keywords": [
+        "mcp",
+        "api-gateway",
+        "evals",
+        "mcpjam",
+        "mcp-eval",
+        "icp",
+        "question-bank",
+        "stigviewer",
+        "moxywolf"
       ]
     }
   ]
