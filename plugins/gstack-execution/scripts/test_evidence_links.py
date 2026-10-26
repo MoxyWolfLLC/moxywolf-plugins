@@ -655,6 +655,21 @@ class LedgerEvidenceCitationTests(LinkTests):
         pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
         self.assertEqual(pr.verify_links(d)["outcome"], "links_verified", [c for c in pr.verify_links(d)["checks"] if not c["ok"]])
 
+    def test_round_ledger_metadata_naming_another_repository_with_the_same_basename_is_not_verified(self):
+        """Round 2 F1: the round's repository reference must resolve to the subject's repository; a
+        different path with the same last segment is a different repository."""
+        _, _, d = self.reviewed_with_citation()
+        rec = pr.load(d, "round-1.json")
+        twin = self.tmp / "elsewhere" / self.repo.name; twin.mkdir(parents=True)
+        rec["ledger_runs"][0]["repo"] = str(twin)
+        (d / "round-1.json").write_text(json.dumps(rec))
+        report = pr.verify_links(d)
+        self.assertNotEqual(report["outcome"], "links_verified")
+        self.assertTrue(any("no longer names the ledger subject" in c["detail"] for c in report["checks"] if not c["ok"]), report["checks"])
+        rec["ledger_runs"][0]["repo"] = self.repo.name          # a legacy bare name resolves through the packet
+        (d / "round-1.json").write_text(json.dumps(rec))
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_verified")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

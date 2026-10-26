@@ -2284,9 +2284,15 @@ def verify_links(d):
                 # subject that was recorded, as a repository finding must name its recorded subject.
                 m = _EVIDENCE_LEDGER.match(str(f["file"]).replace("\\", "/"))
                 shown = next((r for r in rec.get("ledger_runs") or () if str(r.get("run_id")) == s["run_id"]), None)
+                # Round 2 F1: the round's repository reference resolves against the round's own packet
+                # repositories (a legacy bare name through the same resolver); it must be the subject's
+                # repository, and two different paths are not one because their last segment agrees.
+                round_repos = rec.get("repos") or packet["repos"]
+                named_repo = (shown or {}).get("repo")
+                resolved = _packet_repo(round_repos, named_repo) if named_repo else None
                 if (not m or m.group(1) != s["run_id"] or not shown or not shown.get("receipt_verified")
                         or shown.get("withheld") or (shown.get("receipt_sha256") and shown["receipt_sha256"] != s.get("sha256"))
-                        or (shown.get("repo") and shown["repo"] != s.get("repo") and Path(shown["repo"]).name != Path(s.get("repo", "")).name)):
+                        or (named_repo and (resolved is None or resolved["path"] != s.get("repo")))):
                     record(tag, False, "the finding no longer names the ledger subject recorded for it")
                     continue
                 text, why = _ledger_evidence_text(s["repo"], s["run_id"], s.get("sha256"))
