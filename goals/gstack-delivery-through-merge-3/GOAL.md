@@ -2,7 +2,7 @@
 Eleventh objective: goal mode
 
 ## Outcome
-Completion approval for the work begun as `gstack-delivery-through-merge` (PR #246, stopped on item 1 at the review limit after an envelope mistake) and `gstack-delivery-through-merge-2` (PR #248, stopped on item 1 after its single permitted pass returned three evidence-shape findings and no code defect). Both run records, PRs #247 and #249, reviews `20261026-115306-aaae2fc-sccuf0td` (3 rounds, fixes_verified at 55d0019) and `20261026-132005-c5c695a-7x5tdx02` (1 round, rounds_exhausted at c5c695a), and every ledger receipt are kept and reused where the head they bind to is unchanged. Spent before this goal: 4 subscription calls, $0 metered, about 2h40m active. The limits below are the remainder of a 20-call cumulative ceiling and a fresh nine active hours, never a reset.
+Completion approval for the work begun as `gstack-delivery-through-merge` (PR #246, stopped on item 1 at the review limit after an envelope mistake) and `gstack-delivery-through-merge-2` (PR #248, stopped on item 1 after its single permitted pass returned three evidence-shape findings and no code defect). Both run records, PRs #247 and #249, reviews `20261026-115306-aaae2fc-sccuf0td` (3 rounds, fixes_verified at 55d0019) and `20261026-132005-c5c695a-7x5tdx02` (1 round, rounds_exhausted at c5c695a), and every ledger receipt are kept and reused where the head they bind to is unchanged. Spent before this goal: 4 subscription calls, $0 metered, about 2h40m active. The limits below give a 20-call cumulative operating stop (4 spent, 16 more under the 80% rule) and nine active hours in this goal, never a reset.
 
 Item 1 resumes from c5c695a with exactly two small changes and one review pass: each of the two graph test files reports its counts on stdout through its own entry point (criterion 3 as written; not waived), so a ledger receipt can show them there. The review is dispatched with the CI runs and head-bound ledger receipts attached from the start, after goal-envelope is green at the pushed head. Items 2 and 3, the whole-goal review, the release companion and synchronization of the required checkout are unchanged from the first brief.
 
@@ -67,7 +67,7 @@ $50
 - openrouter: $50
 
 ## Max calls
-15
+20
 
 ## Max items
 3
@@ -80,7 +80,7 @@ $50
 - a change reaches a hooks folder or any other CODEOWNERS path
 - the marketplace's top-level version moves on the goal branch
 - active agent time exceeds nine hours in this goal; the predecessors' 2h40m stays on their records; time waiting on CI or a reviewer is reported separately and does not reset the limit
-- 80% of the spend cap or of Max calls is reached, as GO-004 already stops: Max calls 15 here means the stop fires at the 12th call in this goal, cumulative 16 across the three goals, which is 80% of the 20-call cumulative ceiling (4 already spent); the ceiling itself is never reached
+- 80% of the spend cap or of Max calls is reached, as GO-004 already stops: Max calls 20 here means the stop fires at the 16th call in this goal, which with the 4 already spent is the 20-call cumulative operating stop; the nominal 24 is never reached
 - a gate-owned file (goal_spend.py, goal_guard.py, goal_envelope.py, a workflow, CODEOWNERS) would have to change to reach the outcome
 - the same required check fails after two repair cycles without a resolved cause
 - a delivered change would need a fourth review pass, counting replacement review IDs and the predecessors': item 1 has used four (`20261026-115306-aaae2fc-sccuf0td` rounds 1 to 3, `20261026-132005-c5c695a-7x5tdx02` round 1), so it gets exactly one pass here, its fifth cumulative; a second pass on item 1 stops the run; items 2 and 3 keep three each
