@@ -92,4 +92,25 @@ class Semantics(unittest.TestCase):
         self.assertTrue(pc.structured_check({'role':{'enabled':True,'n':[1,{'k':'v'}]}},[[{'path':'/role','equals':{'enabled':True,'n':[1,{'k':'v'}]}}]])['passed'])
         self.assertFalse(pc.structured_check({'role':{'enabled':True}},[[{'path':'/role','equals':{'enabled':True,'extra':1}}]])['passed'])
 
+    # Review 20261026-082123-182cc9e (Codex), blocking findings F1-F3
+    def test_r2_f1_prose_cannot_make_empty_json_text_data_nonempty(self):
+        r={'content':[{'type':'text','text':'{"ok":true,"data":null}'},{'type':'text','text':'No records'}]}
+        self.assertFalse(pc.transport_checks(200,r)[0]['passed'])
+        self.assertTrue(pc.transport_checks(200,{'content':[{'type':'text','text':'plain prose answer'}]})[0]['passed'])
+        self.assertTrue(pc.transport_checks(200,{'content':[{'type':'text','text':'{"roles":[1]}'},{'type':'text','text':'a note'}]})[0]['passed'])
+    def test_r2_f2_rest_body_accepts_only_an_explicit_typed_absence(self):
+        body='{"ok":false,"denial":{"reason":"not_found","status":404},"absence":{"reason":"catalog_not_held","message":"none held"}}'
+        contract={'json_any_of':[[{'path':'/absence/reason','equals':'catalog_not_held'},{'path':'/absence/message','type':'string','nonempty':True}]]}
+        self.assertTrue(pc.body_ok(body,contract))
+        self.assertFalse(pc.body_ok(body))
+        self.assertFalse(pc.body_ok(body,{'json_any_of':[[{'path':'/stigs','type':'array'}]]}))
+        for denial in ('{"reason":"rate_limited","status":429}','{"reason":"unauthorized","status":401}','{"reason":"error","status":500}'):
+            self.assertFalse(pc.body_ok('{"ok":false,"denial":'+denial+',"absence":{"reason":"catalog_not_held","message":"m"}}',contract))
+    def test_r2_f3_reserved_error_keys_apply_to_every_envelope(self):
+        r={'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'{"error":"database unavailable"}'}]}
+        self.assertTrue(pc.application_error(r))
+        r={'content':[{'type':'text','text':'{"roles":[1]}'},{'type':'text','text':'{"isError":true}'}]}
+        self.assertTrue(pc.application_error(r))
+        self.assertFalse(pc.application_error({'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'{"roles":[1]}'}]}))
+
 if __name__=='__main__':unittest.main()

@@ -233,7 +233,7 @@ def run(a) -> int:
             checks = grade(text, rc, markers)
             ok = 200 <= status < 300 or (status == 404 and rc.get("absence_acceptable") and any(m in text for m in markers))
             checks.insert(0, {"check": f"HTTP {call.get('method', 'GET')} {call['path']}", "passed": bool(ok), "detail": str(status)})
-            checks.append({'check':'nonempty JSON body without application error','passed':pc.body_ok(text),'detail':''})
+            checks.append({'check':'nonempty JSON body without application error','passed':pc.body_ok(text,rc),'detail':''})
             if 'json_any_of' in rc:
                 try:data=json.loads(text)
                 except ValueError:data=None

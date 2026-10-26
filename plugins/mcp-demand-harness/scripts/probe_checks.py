@@ -38,13 +38,19 @@ def transport_checks(status, result):
             # accompanies explicitly empty structured data does not make the result nonempty.
             content=structured.get('data',structured) not in (None,{},[],"")
         else:
+            # F1 (review 20261026-082123-182cc9e): the first JSON text block is the selected payload (see
+            # envelope()); it decides emptiness. Prose makes a result nonempty only when no block is JSON.
+            json_seen=False;prose=False
             for block in result.get('content',[]):
                 if isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip():
                     try:
                         value=json.loads(block['text'])
-                        if isinstance(value,dict):value=value.get('data',value)
-                        content=content or value not in (None,{},[],"")
-                    except ValueError:content=True
+                        if not json_seen:
+                            json_seen=True
+                            if isinstance(value,dict):value=value.get('data',value)
+                            content=value not in (None,{},[],"")
+                    except ValueError:prose=True
+            if not json_seen:content=prose
     ok=200<=status<300 and isinstance(result,dict) and not result.get('isError') and '_probe_error' not in result and content
     return [{'check':'successful HTTP and nonempty MCP result without protocol/tool error','passed':ok,'detail':str(status)}]
 
@@ -83,6 +89,8 @@ def application_error(result,contract=None):
     """
     for env in envelopes(result):
         if env.get('ok') is False and not _excused_absence(env,contract):return True
+        d=env.get('data',env)   # F3 (review 20261026-082123-182cc9e): reserved keys apply to every envelope, not only the selected one
+        if isinstance(d,dict) and (d.get('error') or d.get('isError')):return True
     data=payload(result)
     if isinstance(data,dict) and (data.get('error') or data.get('isError')):return True
     for block in result.get('content',[]):
@@ -131,10 +139,17 @@ def structured_check(data,branches):
         return True
     return {'check':'structured response contract','passed':any(all(matches(c) for c in b) for b in branches),'detail':''}
 
-def body_ok(text):
+def body_ok(text,contract=None):
+    """Nonempty JSON body without an application failure. F2 (review 20261026-082123-182cc9e): a 2xx body
+    carrying ok:false is accepted only as a not_found/404 denial that an explicit typed-absence branch of
+    `contract` matches, the same rule MCP envelopes get; every other failure stays rejected."""
     try:data=json.loads(text)
     except ValueError:return False
-    return isinstance(data,(dict,list)) and bool(data) and not (isinstance(data,dict) and (data.get('error') or data.get('isError') or data.get('ok') is False))
+    if not isinstance(data,(dict,list)) or not data:return False
+    if isinstance(data,dict):
+        if data.get('error') or data.get('isError'):return False
+        if data.get('ok') is False:return _excused_absence(data,contract)
+    return True
 
 def receipt(value, secrets=(), limit=16384):
     raw=json.dumps(value,sort_keys=True,ensure_ascii=True)

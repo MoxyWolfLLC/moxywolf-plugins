@@ -20,7 +20,7 @@ Builder context on where the risk sits, offered as orientation only: `probe_chec
 (the only place a 2xx failure can be excused), `probe_checks.transport_checks`
 (what counts as empty), `probe.run`'s refusal ordering (output exists, empty
 selection, contract validity, all before auth), `receipt` redaction
-(best-effort by design; confirm nothing it misses is a run credential), and
+(best-effort by design: it redacts the run token, secret-named keys and bearer/GitHub/JWT-shaped strings, and nothing else), and
 the `'x'` open at the end of `run`. The exclusions in `packet.json` list what
 the builder considers settled; the reviewer's authority comes from the review contract, not from this file.
 
