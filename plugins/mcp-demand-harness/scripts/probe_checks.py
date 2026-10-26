@@ -66,11 +66,13 @@ def envelopes(result):
             if isinstance(v,dict):out.append(v)
     return out
 
-def _excused_absence(env,contract):
-    """A failure envelope is excused only as a not_found/404 denial matched by an explicit typed-absence branch."""
+def _excused_absence(env,contract,data=None):
+    """A failure envelope is excused only as a not_found/404 denial matched by an explicit typed-absence branch.
+    `data` is what the branch is evaluated against: the unwrapped payload for MCP envelopes, the whole body for
+    REST (F2, review 20261026-082123-182cc9e round 2: REST contracts are body-relative)."""
     denial=env.get('denial',{})
     if not (isinstance(denial,dict) and denial.get('reason')=='not_found' and denial.get('status')==404):return False
-    data=env.get('data',env)
+    if data is None:data=env.get('data',env)
     for branch in (contract or {}).get('json_any_of',[]):
         reason=any(c.get('path')=='/absence/reason' and isinstance(c.get('equals'),str) and bool(c['equals']) for c in branch)
         explanation=any(c.get('path')=='/absence/message' and c.get('nonempty') is True for c in branch)
@@ -148,7 +150,7 @@ def body_ok(text,contract=None):
     if not isinstance(data,(dict,list)) or not data:return False
     if isinstance(data,dict):
         if data.get('error') or data.get('isError'):return False
-        if data.get('ok') is False:return _excused_absence(data,contract)
+        if data.get('ok') is False:return _excused_absence(data,contract,data=data)   # body-relative, no unwrapping
     return True
 
 def receipt(value, secrets=(), limit=16384):

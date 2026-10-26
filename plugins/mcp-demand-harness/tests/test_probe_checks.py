@@ -106,6 +106,14 @@ class Semantics(unittest.TestCase):
         self.assertFalse(pc.body_ok(body,{'json_any_of':[[{'path':'/stigs','type':'array'}]]}))
         for denial in ('{"reason":"rate_limited","status":429}','{"reason":"unauthorized","status":401}','{"reason":"error","status":500}'):
             self.assertFalse(pc.body_ok('{"ok":false,"denial":'+denial+',"absence":{"reason":"catalog_not_held","message":"m"}}',contract))
+    def test_r2_f2b_rest_absence_is_body_relative_even_with_a_data_field(self):
+        contract={'json_any_of':[[{'path':'/absence/reason','equals':'catalog_not_held'},{'path':'/absence/message','type':'string','nonempty':True}]]}
+        body='{"ok":false,"denial":{"reason":"not_found","status":404},"absence":{"reason":"catalog_not_held","message":"none held"},"data":{}}'
+        self.assertTrue(pc.body_ok(body,contract))
+        nested='{"ok":false,"denial":{"reason":"not_found","status":404},"data":{"absence":{"reason":"catalog_not_held","message":"m"}}}'
+        self.assertFalse(pc.body_ok(nested,contract))   # REST paths are body-relative; nothing is unwrapped
+        mcp={'structuredContent':{'ok':False,'denial':{'reason':'not_found','status':404},'data':{'absence':{'reason':'catalog_not_held','message':'m'}}}}
+        self.assertFalse(pc.application_error(mcp,contract))   # MCP still evaluates against data
     def test_r2_f3_reserved_error_keys_apply_to_every_envelope(self):
         r={'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'{"error":"database unavailable"}'}]}
         self.assertTrue(pc.application_error(r))
