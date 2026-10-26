@@ -1248,7 +1248,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
         if c.get("shown"):
             prov[c["shown"]] = provenance("ledger_receipt")
     stats["ledger_runs"] = [{k: c.get(k) for k in ("run_id", "read", "head_matches", "exit_code",
-                                                    "receipt_verified", "withheld", "error")} for c in lr]
+                                                    "receipt_verified", "withheld", "error",
+                                                    "repo", "receipt_sha256")} for c in lr]   # EV-014.5: the hash a citation binds to
     failed = [j for c in ci for j in c.get("jobs") or () if "log" in j]
     for c in ci:   # the run record was fetched from GitHub; a job's log or receipt is CI output
         prov[f"{EVIDENCE_DIR}/ci-{c['run_id']}.json"] = provenance("fetched")
@@ -2082,7 +2083,68 @@ def _moved_to(repo, head, rel, s):
     return None
 
 
-def bind_subjects(findings, repos):
+_EVIDENCE_LEDGER = re.compile(rf"^(?:\./)?{EVIDENCE_DIR}/ledger-([0-9a-f]+)\.log$")
+
+
+def _ledger_evidence_text(repo, run_id, sha256):
+    """The enclosed receipt text the surface showed for a ledger run, rebuilt from the ledger, or a
+    reason it can't be. The receipt is content-addressed by its ledger line (EV-014.1); the surface
+    file is the enclosure of that receipt, so rebuilding it is reading the same bytes."""
+    import check_ledger
+    from enclosure import enclose
+    line, f = check_ledger.find_run(repo, run_id, review_root())
+    if line is None:
+        return None, "no such run on this repository's ledger"
+    log = check_ledger.receipts_dir(f) / f"{run_id}.log"
+    if not log.is_file():
+        return None, "the receipt file is missing"
+    data = log.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != (line.get("receipt") or {}).get("sha256"):
+        return None, "the receipt does not match the sha256 on its ledger line"
+    if sha256 and digest != sha256:
+        return None, "the receipt is not the one the round showed"
+    return enclose(f"ledger receipt {run_id}", data.decode("utf-8", "replace")), digest
+
+
+def _text_span(text, line, ctx=2):
+    lines = text.splitlines()
+    lo, hi = max(0, line - 1 - ctx), min(len(lines), line + ctx)
+    return {"span": hashlib.sha256("\n".join(lines[lo:hi]).encode()).hexdigest()[:16],
+            "span_lines": [lo + 1, hi], "file_lines": len(lines), "line_exists": 0 < line <= len(lines)}
+
+
+def bind_ledger_evidence(path, line, ledger_runs, repos=()):
+    """EV-014.5: a finding that cites evidence/ledger-<id>.log, a file the dispatcher put on the
+    surface, binds to that round's ledger run: the run id, the receipt hash the round verified, and
+    the cited line's content. A run the round did not show, a receipt that no longer hashes to what
+    the round saw, or a line the receipt does not have, is not bound."""
+    m = _EVIDENCE_LEDGER.match(path.replace("\\", "/"))
+    if not m:
+        return None
+    rid = m.group(1)
+    rec = next((r for r in ledger_runs or () if str(r.get("run_id")) == rid), None)
+    if not rec or not rec.get("receipt_verified"):
+        return {"path": path, "kind": "ledger_evidence", "run_id": rid, "bound": False,
+                "why": "the round did not show a verified receipt for this run"}
+    # A record written before EV-014.5 names neither the repository nor the hash; the ledger line
+    # carries the hash, and the run is looked for on each packet repository's ledger.
+    text, why = None, "no packet repository holds this run"
+    for repo in ([rec["repo"]] if rec.get("repo") else [r["path"] for r in repos]):
+        text, why = _ledger_evidence_text(repo, rid, rec.get("receipt_sha256"))
+        if text is not None:
+            break
+    if text is None:
+        return {"path": path, "kind": "ledger_evidence", "run_id": rid, "bound": False, "why": why}
+    span = _text_span(text, line)
+    if not span["line_exists"]:
+        return {"path": path, "kind": "ledger_evidence", "run_id": rid, "bound": False,
+                "why": f"line {line} is past the end of the receipt ({span['file_lines']} lines)", **span}
+    return {"path": path, "kind": "ledger_evidence", "run_id": rid, "repo": repo,
+            "sha256": why, "line": line, "bound": True, **span}
+
+
+def bind_subjects(findings, repos, ledger_runs=None):
     """One content-bound subject per finding, computed by the dispatcher.
 
     The reviewer claims a location; the dispatcher is the party that knows the pinned
@@ -2092,7 +2154,8 @@ def bind_subjects(findings, repos):
     for f in findings:
         i, rel = _subject_path(f["file"], repos)
         if i is None:
-            subjects[f["id"]] = {"path": rel, "bound": False, "why": "no packet repository holds this path at its reviewed head"}
+            evidence = bind_ledger_evidence(rel, f["line"], ledger_runs)
+            subjects[f["id"]] = evidence or {"path": rel, "bound": False, "why": "no packet repository holds this path at its reviewed head"}
             continue
         r = repos[i]
         span = _span(r["path"], r["head"], rel, f["line"])
@@ -2197,9 +2260,24 @@ def verify_links(d):
         for f in findings:
             s = (subjects or {}).get(f["id"])
             tag = f"round {n} {f['id']} -> {f['file']}:{f['line']}"
+            if s and not s.get("bound") and s.get("kind") is None and _EVIDENCE_LEDGER.match(str(s.get("path", ""))):
+                # EV-014.5: a record written before evidence citations bound. The round's ledger record
+                # says which runs it showed; the receipt hash is on the ledger line. Bind from those now.
+                s = bind_ledger_evidence(s["path"], f["line"], rec.get("ledger_runs"), rec.get("repos") or packet["repos"])
             if not s or not s.get("bound"):
                 unbound += 1
                 record(tag, False, (s or {}).get("why", "finding was never bound to content"), kind="unverifiable")
+                continue
+            if s.get("kind") == "ledger_evidence":
+                text, why = _ledger_evidence_text(s["repo"], s["run_id"], s.get("sha256"))
+                if text is None:
+                    unbound += 1
+                    record(tag, False, why, kind="unverifiable")
+                elif f["line"] != s["line"] or _text_span(text, s["line"])["span"] != s["span"]:
+                    unbound += 1
+                    record(tag, False, "the receipt no longer has the cited lines", kind="unverifiable")
+                else:
+                    record(tag, True, f"ledger receipt {s['run_id']} unchanged (sha256 {s['sha256'][:12]})")
                 continue
             # F3: re-resolve the FINDING's own location and require it to be the subject
             # that was recorded for it. Hashing the subject's stored path against itself
@@ -2728,7 +2806,7 @@ def cmd_round(a):
         out.pop("release_lane", None)
         record.update(out)
         # Bind each finding to the content at the reviewed head, not merely to a name.
-        record["subjects"] = bind_subjects(out["findings"], packet["repos"])
+        record["subjects"] = bind_subjects(out["findings"], packet["repos"], record.get("ledger_runs"))
         # EV-012.6: a location is reported once across the review; a repeat is listed, not counted
         seen_locations = {(e["file"], e["line"]) for e in state.get("embedded_locations") or []}
         record["embedded_instructions"] = [{"id": f["id"], "file": f["file"], "line": f["line"]}

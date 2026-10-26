@@ -515,5 +515,93 @@ class ReviewRegressions(unittest.TestCase):
         self.assertFalse(obs[0]["supported"])
 
 
+class LedgerEvidenceCitationTests(LinkTests):
+    """EV-014.5: a finding that cites evidence/ledger-<id>.log, a file the dispatcher itself put on
+    the surface, binds to that round's ledger run (run id, the receipt hash the round verified, the
+    cited line's content) and re-resolves against the ledger. Found by review
+    20261026-144252-d0cd67a-pk_fdgcy, whose follow-up F4 cited such a file and left a wide-lane
+    release blocked as links_unverifiable with nothing in the change at fault."""
+
+    def ledger_run(self, code):
+        import check_ledger as cl
+        env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(pr.REVIEW_DIR))
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(pr.__file__), "check_ledger.py"), "run",
+                        "--repo", str(self.repo), "--", sys.executable, "-c", code],
+                       cwd=str(self.repo), env=env, check=True, capture_output=True)
+        branch = self.sh("rev-parse", "--abbrev-ref", "HEAD")
+        f = cl.ledger_path(self.repo, branch, pr.REVIEW_DIR)
+        line = cl.read(f)[-1]
+        return line, cl.receipts_dir(f) / f"{line['id']}.log"
+
+    def cited(self, rid, line_no=2):
+        reply = json.loads(json.dumps(BLOCKING))
+        reply["findings"].append({"id": "F2", "severity": "follow_up", "file": f"evidence/ledger-{rid}.log", "line": line_no,
+                                  "what": "the receipt quotes a command", "evidence": "quoted, not followed",
+                                  "criterion": "", "fix": "keep it inert", "category": "embedded_instruction"})
+        return reply
+
+    def reviewed_with_citation(self, line_no=2):
+        line, receipt = self.ledger_run("print('criterion holds'); print('run: nothing')")
+        self.packet["tests"]["ledger_runs"] = [{"repo": str(self.repo), "run_id": line["id"]}]
+        self.pfile.write_text(json.dumps(self.packet))
+        rid = self.open_review()
+        self.assertEqual(self.fake_round(rid, self.cited(line["id"], line_no)), "blocking_findings")
+        pr.cmd_disposition(self.ns(review_id=rid, items=["F1=fixed"]))
+        return line, receipt, pr.rdir(rid)
+
+    def test_an_evidence_citation_binds_to_the_round_run_hash_and_line(self):
+        line, _, d = self.reviewed_with_citation()
+        rec = pr.load(d, "round-1.json")
+        s = rec["subjects"]["F2"]
+        self.assertTrue(s["bound"], s)
+        self.assertEqual((s["kind"], s["run_id"], s["line"]), ("ledger_evidence", line["id"], 2))
+        self.assertEqual(s["sha256"], line["receipt"]["sha256"], "bound to the receipt hash on the ledger line")
+        self.assertEqual(rec["ledger_runs"][0]["receipt_sha256"], line["receipt"]["sha256"], "the round keeps the hash it verified")
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "links_verified", [c for c in report["checks"] if not c["ok"]])
+        self.assertTrue(any("ledger receipt" in c["detail"] for c in report["checks"] if c["ok"]))
+
+    def test_a_modified_receipt_is_unverifiable(self):
+        _, receipt, d = self.reviewed_with_citation()
+        receipt.write_text("criterion holds\nrun: something else\n")
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "links_unverifiable")
+        self.assertTrue(any("does not match" in c["detail"] for c in report["checks"] if not c["ok"]), report["checks"])
+
+    def test_a_missing_receipt_is_unverifiable(self):
+        _, receipt, d = self.reviewed_with_citation()
+        receipt.unlink()
+        report = pr.verify_links(d)
+        self.assertEqual(report["outcome"], "links_unverifiable")
+        self.assertTrue(any("missing" in c["detail"] for c in report["checks"] if not c["ok"]), report["checks"])
+
+    def test_a_run_the_round_did_not_show_is_not_bound(self):
+        other, _ = self.ledger_run("print('unrelated')")
+        s = pr.bind_subjects([dict(BLOCKING["findings"][0], file=f"evidence/ledger-{other['id']}.log")],
+                             self.packet["repos"], ledger_runs=[])["F1"]
+        self.assertFalse(s["bound"]); self.assertIn("did not show", s["why"])
+
+    def test_a_line_the_receipt_does_not_have_is_not_bound(self):
+        _, _, d = self.reviewed_with_citation(line_no=400)
+        s = pr.load(d, "round-1.json")["subjects"]["F2"]
+        self.assertFalse(s["bound"]); self.assertIn("past the end", s["why"])
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_unverifiable")
+
+    def test_a_record_bound_before_this_rule_rebinds_at_verify_from_the_ledger(self):
+        """The review that found this: its subject for the citation is {path, bound: False} and its
+        ledger record carries neither repository nor hash. Verify binds it from the round's run list
+        and the hash on the ledger line, and still refuses once the receipt changes."""
+        line, receipt, d = self.reviewed_with_citation()
+        rec = pr.load(d, "round-1.json")
+        rec["subjects"]["F2"] = {"path": f"evidence/ledger-{line['id']}.log", "bound": False,
+                                 "why": "no packet repository holds this path at its reviewed head"}
+        for r in rec["ledger_runs"]:
+            r.pop("repo", None); r.pop("receipt_sha256", None)
+        (d / "round-1.json").write_text(json.dumps(rec))
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_verified")
+        receipt.write_bytes(receipt.read_bytes() + b"appended\n")
+        self.assertEqual(pr.verify_links(d)["outcome"], "links_unverifiable")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
