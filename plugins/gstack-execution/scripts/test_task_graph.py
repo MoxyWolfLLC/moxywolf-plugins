@@ -817,4 +817,4 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         c=a[1]['own']['provenance'];self.assertEqual(c['correction'],{'source':'executor','untrusted_content':False})
         self.assertEqual(a[1]['outside']['provenance']['correction_diagnostics'],{'source':'handler_output','untrusted_content':True})
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout,verbosity=2))   # goal gstack-delivery-through-merge-3 item 1: counts on stdout

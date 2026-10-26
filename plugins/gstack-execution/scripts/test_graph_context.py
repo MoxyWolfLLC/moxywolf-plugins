@@ -177,4 +177,4 @@ class ContextTests(unittest.TestCase):
     def test_no_manifest_cannot_satisfy_declared_context(self):
         with self.assertRaises(ValueError):gc.materialize({'repos':[]},self.node)
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout,verbosity=2))   # goal gstack-delivery-through-merge-3 item 1: counts on stdout
