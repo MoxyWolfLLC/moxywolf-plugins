@@ -353,7 +353,8 @@ def worker(node,packet,dependencies,root,correction=None):
             if r.returncode:raise ValueError('peer review did not pass: '+(r.stdout+r.stderr)[-2000:])
             return json.loads(r.stdout)
         marker=root/(node['id']+'-review.json')
-        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder'],packet.get('timeout',900)])
+        # The context the reviewer received is part of the contract: a review completed for one handoff is not evidence for another.
+        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder'],packet.get('timeout',900),context['digest'] if context else None])
         if marker.exists():
             opened=read(marker)
             if opened['contract']!=contract:raise ValueError('review contract changed; use a new run for new intent')

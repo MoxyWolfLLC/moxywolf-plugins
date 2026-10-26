@@ -708,6 +708,26 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
         self.assertEqual(state['timeout'],5)
 
+    def test_completed_peer_review_is_not_reused_for_changed_context(self):
+        """Review 20261026-115306-aaae2fc-sccuf0td F1: a resumed peer node must not hand back a
+        completed review that never saw the context now being delivered. Same repository heads,
+        changed context: the retained-review contract refuses, and the report cannot pair the new
+        handoff with the old review."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');head=self.git('rev-parse','HEAD')
+        self.packet['repos'][0]['head']=head
+        self.packet['context']={'schema_version':1,'objective':'first','artifacts':[
+            {'id':'design','kind':'design','revision':head,'status':'accepted','source':'DESIGN.md','content':'criteria','reason':'specification'}]}
+        self.ok(self.builtin_run('review'))
+        marker=json.loads((self.run/'review-0-review.json').read_text())
+        self.packet['context']['objective']='second'       # same heads, different context
+        r=self.builtin_run('review')
+        self.assertNotEqual(r.returncode,0,'a completed review was reused for context it never received')
+        self.assertIn('review contract changed',r.stdout+r.stderr+json.dumps(self.state()))
+        self.assertEqual(json.loads((self.run/'review-0-review.json').read_text()),marker)   # nothing rewritten
+        self.packet['context']['objective']='first'
+        self.ok(self.builtin_run('review'))                 # the original context still resumes
+
     def test_builtin_graphs_materialize_frozen_nodes(self):
         for workflow in ['cso','verify','review']:
             r=self.call('plan','--workflow',workflow,'--packet',str(self.write_packet()))

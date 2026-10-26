@@ -7,3 +7,11 @@
 **Isolation:** passes 6/6 when run alone; the stress scripts in the same cache folder did not reproduce it.
 
 Status: **unresolved**. No retry was added, no assertion weakened, no timeout raised. A green run of the file in this item's receipts is one run that passed, not evidence the cause is gone. Resolution is a separate change with its own review.
+
+## Candidate-to-head comparison (review F2, 20261026-115306-aaae2fc-sccuf0td)
+
+`git diff --stat d389119 -- <runtime subset>` at this item's head, where the subset is `graph_context.py`, `test_graph_context.py`, `task_graph.py`, `test_task_graph.py`, `references/task-graph-contract.md`, `README.md`, `commands/gstack-build.md`, `.claude-plugin/plugin.json`:
+
+- `graph_context.py`, `test_graph_context.py`, `task-graph-contract.md`, `README.md`, `gstack-build.md`, `plugin.json`: identical to the candidate.
+- `task_graph.py`: one line, review F1. The retained-review contract digest now includes the materialized context digest, so a completed peer review is refused for a changed context at unchanged heads (`review contract changed; use a new run for new intent`) instead of being reused. `materialize`/`verify` interfaces and CLI behaviour unchanged.
+- `test_task_graph.py`: two added tests, `test_every_context_refusal_starts_zero_workers_and_makes_no_run_directory` (item criterion 2) and `test_completed_peer_review_is_not_reused_for_changed_context` (F1 regression, reproduced failing before the fix).
