@@ -68,4 +68,28 @@ class Semantics(unittest.TestCase):
         self.assertFalse(pc.body_ok('{}'));self.assertFalse(pc.body_ok('[]'))
         self.assertTrue(pc.body_ok('{"stigs":[{"slug":"rhel_9"}]}'))
 
+    # Review 20261026-080924-da4beb3 (Codex), blocking findings F1-F3
+    def test_f1_text_cannot_make_empty_structured_data_nonempty(self):
+        r={'structuredContent':{'ok':True,'data':None},'content':[{'type':'text','text':'No records'}]}
+        self.assertFalse(pc.transport_checks(200,r)[0]['passed'])
+        r={'structuredContent':{'ok':True,'data':{}},'content':[{'type':'text','text':'{"roles":[1]}'}]}
+        self.assertFalse(pc.transport_checks(200,r)[0]['passed'])
+        self.assertTrue(pc.transport_checks(200,{'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'x'}]})[0]['passed'])
+        self.assertTrue(pc.transport_checks(200,{'content':[{'type':'text','text':'plain prose answer'}]})[0]['passed'])
+    def test_f2_failure_envelope_in_any_block_is_seen(self):
+        r={'content':[{'type':'text','text':'{"roles":[1]}'},{'type':'text','text':'{"ok":false,"denial":{"reason":"rate_limited","status":429}}'}]}
+        self.assertTrue(pc.application_error(r))
+        r={'structuredContent':{'ok':True,'data':{'roles':[1]}},'content':[{'type':'text','text':'{"ok":false,"denial":{"reason":"error","status":500}}'}]}
+        self.assertTrue(pc.application_error(r))
+        absence={'content':[{'type':'text','text':'{"roles":[1]}'},{'type':'text','text':'{"ok":false,"denial":{"reason":"not_found","status":404},"data":{"absence":{"reason":"r","message":"m"}}}'}]}
+        contract={'json_any_of':[[{'path':'/absence/reason','equals':'r'},{'path':'/absence/message','type':'string','nonempty':True}]]}
+        self.assertFalse(pc.application_error(absence,contract))
+        self.assertTrue(pc.application_error(absence,{'json_any_of':[[{'path':'/roles','type':'array'}]]}))
+    def test_f3_equals_keeps_json_booleans_and_numbers_apart_recursively(self):
+        self.assertFalse(pc.structured_check({'role':{'enabled':1}},[[{'path':'/role','equals':{'enabled':True}}]])['passed'])
+        self.assertFalse(pc.structured_check({'flags':[1,0]},[[{'path':'/flags','equals':[True,False]}]])['passed'])
+        self.assertFalse(pc.structured_check({'n':1.0},[[{'path':'/n','equals':1}]])['passed'])
+        self.assertTrue(pc.structured_check({'role':{'enabled':True,'n':[1,{'k':'v'}]}},[[{'path':'/role','equals':{'enabled':True,'n':[1,{'k':'v'}]}}]])['passed'])
+        self.assertFalse(pc.structured_check({'role':{'enabled':True}},[[{'path':'/role','equals':{'enabled':True,'extra':1}}]])['passed'])
+
 if __name__=='__main__':unittest.main()

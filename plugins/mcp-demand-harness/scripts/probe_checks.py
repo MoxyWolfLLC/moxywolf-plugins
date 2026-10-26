@@ -33,16 +33,43 @@ def transport_checks(status, result):
     content=False
     if isinstance(result,dict):
         structured=result.get('structuredContent')
-        content=bool(structured.get('data',structured)) if isinstance(structured,dict) else False
-        for block in result.get('content',[]):
-            if isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip():
-                try:
-                    value=json.loads(block['text'])
-                    if isinstance(value,dict):value=value.get('data',value)
-                    content=content or value not in (None,{},[],"")
-                except ValueError:content=True
+        if isinstance(structured,dict):
+            # F1 (review 20261026-080924-da4beb3): structuredContent is the authoritative payload. Text that
+            # accompanies explicitly empty structured data does not make the result nonempty.
+            content=structured.get('data',structured) not in (None,{},[],"")
+        else:
+            for block in result.get('content',[]):
+                if isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip():
+                    try:
+                        value=json.loads(block['text'])
+                        if isinstance(value,dict):value=value.get('data',value)
+                        content=content or value not in (None,{},[],"")
+                    except ValueError:content=True
     ok=200<=status<300 and isinstance(result,dict) and not result.get('isError') and '_probe_error' not in result and content
     return [{'check':'successful HTTP and nonempty MCP result without protocol/tool error','passed':ok,'detail':str(status)}]
+
+def envelopes(result):
+    """Every JSON envelope a result carries: structuredContent and each parseable text block.
+    F2 (review 20261026-080924-da4beb3): a failure envelope in a later block was invisible before."""
+    out=[]
+    if isinstance(result.get('structuredContent'),dict):out.append(result['structuredContent'])
+    for block in result.get('content',[]):
+        if isinstance(block,dict) and isinstance(block.get('text'),str):
+            try:v=json.loads(block['text'])
+            except ValueError:continue
+            if isinstance(v,dict):out.append(v)
+    return out
+
+def _excused_absence(env,contract):
+    """A failure envelope is excused only as a not_found/404 denial matched by an explicit typed-absence branch."""
+    denial=env.get('denial',{})
+    if not (isinstance(denial,dict) and denial.get('reason')=='not_found' and denial.get('status')==404):return False
+    data=env.get('data',env)
+    for branch in (contract or {}).get('json_any_of',[]):
+        reason=any(c.get('path')=='/absence/reason' and isinstance(c.get('equals'),str) and bool(c['equals']) for c in branch)
+        explanation=any(c.get('path')=='/absence/message' and c.get('nonempty') is True for c in branch)
+        if reason and explanation and structured_check(data,[branch])['passed']:return True
+    return False
 
 def application_error(result,contract=None):
     """True when the server reports a failure inside a 2xx reply.
@@ -54,16 +81,9 @@ def application_error(result,contract=None):
     field on the server side, or extend this check with a profile allowance,
     rather than relaxing the reserved-key rule for everyone.
     """
-    data=payload(result);env=envelope(result)
-    if isinstance(env,dict) and env.get('ok') is False:
-        denial=env.get('denial',{})
-        allowed=False
-        if isinstance(denial,dict) and denial.get('reason')=='not_found' and denial.get('status')==404:
-            for branch in (contract or {}).get('json_any_of',[]):
-                reason=any(c.get('path')=='/absence/reason' and isinstance(c.get('equals'),str) and bool(c['equals']) for c in branch)
-                explanation=any(c.get('path')=='/absence/message' and c.get('nonempty') is True for c in branch)
-                if reason and explanation and structured_check(data,[branch])['passed']:allowed=True
-        if not allowed:return True
+    for env in envelopes(result):
+        if env.get('ok') is False and not _excused_absence(env,contract):return True
+    data=payload(result)
     if isinstance(data,dict) and (data.get('error') or data.get('isError')):return True
     for block in result.get('content',[]):
         if isinstance(block,dict) and isinstance(block.get('text'),str) and re.match(r'(?i)^(error\s*:|exception\s*:|internal server error|traceback \()',block['text'].lstrip()):return True
@@ -91,6 +111,13 @@ def pointer(data,path):
         else:raise ValueError('missing path')
     return data
 
+def json_equal(a,b):
+    """Equality that keeps JSON types apart, recursively: true is not 1 (F3, review 20261026-080924-da4beb3)."""
+    if isinstance(a,bool) or isinstance(b,bool):return isinstance(a,bool) and isinstance(b,bool) and a==b
+    if isinstance(a,dict) and isinstance(b,dict):return a.keys()==b.keys() and all(json_equal(a[k],b[k]) for k in a)
+    if isinstance(a,list) and isinstance(b,list):return len(a)==len(b) and all(json_equal(x,y) for x,y in zip(a,b))
+    return type(a)==type(b) and a==b
+
 def structured_check(data,branches):
     validate_contract(branches)
     def matches(c):
@@ -100,7 +127,7 @@ def structured_check(data,branches):
             typ=c['type']
             if not isinstance(v,TYPES[typ]) or (typ=='number' and isinstance(v,bool)):return False
         if 'nonempty' in c and (not isinstance(v,(dict,list,str)) or not v):return False
-        if 'equals' in c and (type(v)!=type(c['equals']) or v!=c['equals']):return False
+        if 'equals' in c and not json_equal(v,c['equals']):return False
         return True
     return {'check':'structured response contract','passed':any(all(matches(c) for c in b) for b in branches),'detail':''}
 

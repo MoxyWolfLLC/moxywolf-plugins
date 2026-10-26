@@ -48,5 +48,5 @@
  "builder": "claude",
  "diff_file": "docs/review/mcp-demand-harness-0.2.0/harness-0.2.0.diff",
  "diff_sha256": "91c3fd63379ee310a7b500f5fe7864a158c54a208333736aea9ae959b64faf06",
- "note": "Opened 2026-10-26 for a fresh cross-vendor review (builder claude -> reviewer codex) against branch head da4beb3; the only change past the frozen b55a9e0 is this review packet directory. The reviewer should read the diff and the repository at head, not this packet's claims."
+ "note": "Opened 2026-10-26 as review 20261026-080924-da4beb3-htsmx86c (builder claude, reviewer codex). Descriptive only; reviewer authority comes from the review contract."
 }
