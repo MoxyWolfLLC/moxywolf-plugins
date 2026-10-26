@@ -393,6 +393,7 @@ class Sandbox(unittest.TestCase):
             if os.environ.get("CI"):
                 self.fail("CI must run the goal-test sandbox; Docker isn't available")
             self.skipTest("no Docker daemon here; CI runs this test")
+        gc.ensure_image()   # the sandbox image is local-only (built from goal_sandbox.Dockerfile); a fresh host has none
 
     def test_a_goal_test_can_run_a_program_it_writes_in_tmp(self):  # cloud-review-survives' stub gitleaks
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
