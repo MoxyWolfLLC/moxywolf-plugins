@@ -2,9 +2,11 @@
 only sees heads, the goal folder on main and its own ledger, as it would in a real run."""
 import json
 import os
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -932,6 +934,187 @@ class FinalizedRelease(unittest.TestCase):
                 r = self.record(final, ref="feature/x" if case == "other branch" else "goal/g1")
                 self.assertNotEqual(r.returncode, 0, case)
                 self.assertFalse(list((self.root / "reviews" / self.rid).glob("release-*-1.json")), f"{case}: no record written")
+
+
+class EndToEndDemonstration(RunnerFixture):
+    """Goal gstack-delivery-completion-3: the local end-to-end demonstration, run before review dispatch.
+    Temporary repositories and a FAKE GitHub (a dict, served in-process to the runner and over a local
+    HTTP server to peer_review.py, labelled as such) drive the REAL goal_run, goal_delivery, goal_guard
+    and peer_review code through: finalize -> whole-goal review binding -> the GO-011.2 merge decision
+    -> record-release -> the marketplace top-level-version companion -> required-checkout
+    synchronization -> the completion decision. It demonstrates the path; it observes no real merge."""
+
+    REVIEWER = ("import os, sys, pathlib\n"
+                "[f.read_bytes() for f in pathlib.Path.cwd().rglob('*') if f.is_file()]\n"   # it reads the surface it was sent
+                "p = pathlib.Path(sys.argv[sys.argv.index('--output-last-message') + 1]); p.write_text(os.environ['REVIEW_RESPONSE'])\n"
+                "print('model: gpt-6-astra', file=sys.stderr)\n")
+
+    def log(self, *parts):
+        print("DEMO", *parts, flush=True)
+
+    def fake_github(self):
+        """FAKE GitHub: one dict of paths, read by the runner in-process and by peer_review over HTTP."""
+        import http.server, threading
+        gh = self.gh = {}
+        def get(path):                                  # any repos/<owner>/<name>/ prefix: the fake has one repository
+            p = path.split("?", 1)[0]
+            return gh.get(p.split("/", 3)[3] if p.startswith("repos/") and p.count("/") >= 3 else p)
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(h):
+                body = get(h.path.lstrip("/"))
+                h.send_response(200 if body is not None else 404); h.end_headers()
+                h.wfile.write(json.dumps(body).encode() if body is not None else b"{}")
+            def log_message(h, *a):
+                pass
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        return get, f"http://127.0.0.1:{srv.server_port}"
+
+    def review(self, base, head, items, criterion):
+        """A real peer_review open, round and release, the reviewer a fake CLI returning a clean verdict."""
+        packet = {"outcome": criterion, "acceptance_criteria": [criterion], "items": items,
+                  "repos": [{"path": str(self.repo), "base": base, "head": head}], "changed_behavior": criterion,
+                  "exclusions": [], "tests": {"commands": ["demo"], "results": "demo", "environment": "fixture"},
+                  "release_owner": "dorianatmoxywolf", "model_selection": {"status": "checked", "mode": "shadow"},
+                  "coverage": {"status": "checked", "criteria": [{"item": i, "criterion_no": 1, "declared": criterion, "probability": 0.95} for i in items]},
+                  "data_use": {"owner": "dorianatmoxywolf", "classification": "test", "allow_repository": True,
+                               "allow_history": True, "allowed_tools": ["claude", "codex"]}}
+        f = Path(self.tmp.name, f"packet-{head[:7]}.json"); f.write_text(json.dumps(packet))
+        script = Path(__file__).with_name("peer_review.py")
+        run = lambda *a: subprocess.run([sys.executable, str(script), *a], env=self.env, capture_output=True, text=True)
+        r = run("open", "--builder", "claude", "--packet", str(f)); self.assertEqual(r.returncode, 0, r.stderr)
+        rid = json.loads(r.stdout)["review_id"]
+        self.env["REVIEW_RESPONSE"] = json.dumps({"verdict": "no_blocking_findings", "findings": [], "regressions_from_fixes": [],
+                                                  "acceptance": [{"criterion": criterion, "met": True, "evidence": "goalmod.py:1"}],
+                                                  "blocker_resolutions": [], "notes": ""})
+        r = run("round", rid); self.assertEqual(json.loads(r.stdout).get("outcome"), "no_blocking_findings", r.stdout[-800:] + r.stderr[-800:])
+        was = self.git("rev-parse", "--abbrev-ref", "HEAD")
+        self.git("checkout", "-q", "--detach", head)      # release reads the working copy at the reviewed head
+        r = run("release", rid, "--target", "main")    # exits awaiting_human_release by design; the handoff is the point
+        self.git("checkout", "-q", was)
+        self.assertTrue(Path(self.env["GSTACK_PEER_REVIEW_DIR"], rid, "release.json").is_file(), r.stdout[-600:] + r.stderr[-600:])
+        return rid
+
+    def test_finalize_review_merge_release_companion_sync_and_complete(self):
+        get, api = self.fake_github()
+        self.env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(Path(self.tmp.name, "reviews")), GITHUB_TOKEN="ghs_fixture",
+                        GSTACK_GITHUB_API=api, PYTHONDONTWRITEBYTECODE="1")
+        self.env.pop("GSTACK_GOAL_LEDGER", None)
+        binary = Path(self.tmp.name, "bin"); binary.mkdir(); codex = binary / "codex"
+        codex.write_text("#!" + sys.executable + "\n" + self.REVIEWER); codex.chmod(0o755)
+        self.env["PATH"] = str(binary) + os.pathsep + os.environ["PATH"]
+        os.environ["GSTACK_PEER_REVIEW_DIR"] = self.env["GSTACK_PEER_REVIEW_DIR"]; self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
+        self.start(); bare = self.origin()
+        link = Path(self.tmp.name, "origin-link.git"); link.symlink_to(bare)          # the Mac's spelling of the remote
+        mac = Path(self.tmp.name, "mac"); subprocess.run(["git", "clone", "-q", str(link), str(mac)], check=True)
+        base = self.git("rev-parse", "main")
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1); self.rest_built()
+        self.git("push", "-q", "origin", "goal/g1"); tested = self.git("rev-parse", "goal/g1")
+
+        # 1. finalize: the run record and the holdout, one commit on the tested head, merged into goal/g1
+        holds = Path(self.tmp.name, "holdouts"); holds.mkdir(); (holds / "g1.py").write_text(HOLDOUT_SRC)
+        os.environ["GSTACK_GOAL_HOLDOUTS"] = str(holds); self.addCleanup(os.environ.pop, "GSTACK_GOAL_HOLDOUTS", None)
+        posts = []
+        post = lambda path, data: posts.append((path, data)) or {"number": 11 if len(posts) == 1 else 12}
+        self.assertEqual(gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")["finalize_pr"], 11)
+        self.git("fetch", "-q", "origin"); self.git("switch", "-q", "goal/g1")
+        self.git("merge", "-q", "--no-ff", "-m", "Merge pull request #11", "origin/goal-finalize/g1")
+        self.git("push", "-q", "origin", "goal/g1"); final = self.git("rev-parse", "goal/g1"); self.git("switch", "-q", "main")
+        self.gh["pulls/11"] = {"merged": True, "base": {"ref": "goal/g1"}, "merge_commit_sha": final}
+        compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}, {"filename": "goal-runs/g1/holdout.py"}]}
+        self.assertEqual(gr.propose("g1", lambda p: get(p) if "/pulls/" in p else compare, post,
+                                    repo=self.repo, environments=self.envs, base="main"), {"final_pr": 12})
+        self.log("finalize", f"tested {tested[:12]}", f"finalized {final[:12]}", "goal PR #12 proposed")
+
+        # 2. the whole-goal review, pinned to the tested head (no holdout on its surface)
+        rid = self.review(base, tested, ["g1/1", "g1/2", "g1/3"], "the goal is done")
+        st = gr.load("g1")
+        self.assertTrue(gr.final_review_pinned(self.repo, "g1", st, gr._review_record(rid)[0]))
+        self.log("review", rid, "clean at", tested[:12], "pinned without its holdout")
+
+        # the delivery: the goal change (final), the companion, the required checkout
+        bound = f"pr=12;base_ref=main;base={base}"
+        self.gh["pulls/7/reviews/4242"] = {"id": 4242, "state": "APPROVED", "commit_id": "h" * 40, "user": {"login": "d"}}
+        self.gh["environments"] = {"environments": [{"name": "goal-holdout"}]}
+        self.gh["deployments"] = []
+        self.gh["issues/12/comments"] = self.gh["issues/13/comments"] = []
+        self.gh["pulls/12"] = {"number": 12, "merged": False, "head": {"sha": final, "ref": "goal/g1"},
+                                         "base": {"ref": "main", "sha": base, "repo": {"full_name": "o/r"}},
+                                         "mergeable_state": "clean", "html_url": "https://github.com/o/r/pull/12"}
+        self.gh[f"commits/{final}/check-runs"] = {"check_runs": [
+            {"id": i, "name": n, "status": "completed", "conclusion": "success", "external_id": bound}
+            for i, n in enumerate(("tests", "goal-envelope", "goal-tests", "goal-holdout"), 1)]}
+        st = gr.load("g1")
+        st["delivery"] = {"schema_version": 1, "goal": "g1", "approval": {"repo": "o/r", "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "d"},
+                          "max_review_rounds": 2, "active_seconds": 0, "source_bindings": [],
+                          "changes": {"goal": {"repo": "o/r", "path": str(self.repo), "base": base, "head": final, "target": "main",
+                                               "pr": 12, "review_id": rid, "final": True, "merge": None, "release_record": None},
+                                      "marketplace": {"repo": "o/r", "path": str(self.repo), "base": None, "head": None, "target": "main",
+                                                      "pr": 13, "review_id": None, "merge": None, "release_record": None}},
+                          "release_companion": "marketplace",
+                          "required_checkouts": [{"name": "mac", "path": str(mac), "host": socket.gethostname(),
+                                                  "remote": str(link), "branch": "main", "repo": "o/r"}]}
+        gr.save(st); (gr.run_dir("g1") / "spend.jsonl").touch()
+
+        def put(path, data):                            # FAKE GitHub's merge: a real merge into the local origin
+            self.assertTrue(path.endswith("/pulls/12/merge"), path); self.assertEqual(data["sha"], final)
+            self.git("merge", "-q", "--no-ff", "-m", "Merge pull request #12", final); self.git("push", "-q", f"file://{bare}", "main")
+            self.gh["pulls/12"].update(merged=True, merge_commit_sha=self.git("rev-parse", "main"),
+                                                 merged_by={"login": "moxywolf-agent[bot]", "type": "Bot"},
+                                                 merged_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+            return {"merged": True}
+        # peer_review reads the repository's origin as github.com/o/r; the Mac's spelling (the symlink) is untouched
+        for k, v in {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "url.https://github.com/o/r.git.insteadOf",
+                     "GIT_CONFIG_VALUE_0": str(bare)}.items():
+            os.environ[k] = v; self.addCleanup(os.environ.pop, k, None)
+        os.environ.update(GITHUB_TOKEN="ghs_fixture", GSTACK_GITHUB_API=api)
+        self.addCleanup(os.environ.pop, "GITHUB_TOKEN", None); self.addCleanup(os.environ.pop, "GSTACK_GITHUB_API", None)
+
+        # 3-4. the GO-011.2 merge decision, the merge, record-release; the companion isn't open yet
+        out = gr.resume("g1", get, "o/r", put=put)
+        goal = gr.load("g1")["delivery"]["changes"]["goal"]
+        self.log("resume", [s["action"] for s in out["executed"]], "->", out["next"])
+        self.assertEqual([s["action"] for s in out["executed"]][:2], ["merge", "record_release"])
+        self.assertTrue(goal["merge"]["verified"]); self.assertTrue(goal["release_record"]["verified"])
+        rec = json.loads(Path(goal["release_record"]["path"]).read_text())
+        self.assertEqual((rec["head"], rec["reviewed_head"], rec["outcome"]), (final, tested, "agent_merge_autonomous"))
+        self.assertIn("GO-011.2", rec["finalized"]["relation"])
+        self.log("record-release", Path(goal["release_record"]["path"]).name, "head", final[:12], "reviewed", tested[:12], rec["outcome"])
+        self.assertIn("marketplace", json.dumps(out["next"])); self.assertNotEqual(out["delivery_status"], "complete")
+        goal_merge = goal["merge"]["sha"]
+        done = gr.complete("g1", 12, goal_merge, get)    # GO-011.8: the merge is recorded; delivery stays open
+        self.assertEqual(done["merge_recorded"], goal_merge); self.assertIsNone(gr.load("g1")["outcome"])
+        self.log("complete", "goal merge", goal_merge[:12], "recorded; delivery", done["delivery_status"])
+
+        # 5. the companion: main's marketplace top-level version only, its own review, merged outside the run
+        self.commit("release: marketplace top-level version", {".claude-plugin/marketplace.json": json.dumps({"version": "1.0.1"}) + "\n"})
+        companion = self.git("rev-parse", "main"); self.git("reset", "-q", "--hard", goal_merge)
+        rid2 = self.review(goal_merge, companion, ["g1/companion"], "only the top-level version moves")
+        self.git("merge", "-q", "--no-ff", "-m", "Merge pull request #13", companion); self.git("push", "-q", f"file://{bare}", "main")
+        companion_merge = self.git("rev-parse", "main")
+        self.gh["pulls/13"] = {"number": 13, "merged": True, "merge_commit_sha": companion_merge,
+                                         "head": {"sha": companion, "ref": "release/marketplace"},
+                                         "base": {"ref": "main", "sha": goal_merge, "repo": {"full_name": "o/r"}},
+                                         "merged_by": {"login": "moxywolf-agent[bot]", "type": "Bot"},
+                                         "merged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                         "html_url": "https://github.com/o/r/pull/13"}
+        self.gh[f"commits/{companion}/check-runs"] = {"check_runs": []}
+        st = gr.load("g1"); st["delivery"]["changes"]["marketplace"].update(base=goal_merge, head=companion, review_id=rid2); gr.save(st)
+        before = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+
+        # 6-7. the companion's record, the Mac checkout synchronized to both merges, the completion decision
+        out = gr.resume("g1", get, "o/r", put=put)
+        self.log("resume", [s["action"] for s in out["executed"]], "->", out["next"], out["delivery_status"])
+        st = gr.load("g1"); dl = st["delivery"]
+        self.assertTrue(dl["changes"]["marketplace"]["release_record"]["verified"])
+        sync = dl["required_checkouts"][0]["sync"]
+        self.assertEqual(sync["status"], "synced"); self.assertEqual(sorted(sync["contains"]), sorted([goal_merge, companion_merge]))
+        now = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        self.assertEqual(now, companion_merge); self.assertNotEqual(before, now)
+        self.log("sync", "mac", before[:12], "->", now[:12], "contains", goal_merge[:12], companion_merge[:12])
+        self.assertEqual(out["delivery_status"], "complete"); self.assertEqual(st["outcome"], "complete")
+        self.log("completion", st["outcome"], st["reason"])
 
 
 if __name__ == "__main__":
