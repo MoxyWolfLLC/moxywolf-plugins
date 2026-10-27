@@ -809,7 +809,7 @@ def record(goal_id):
             lines.append(f"  - release record: " + (f"{r.get('outcome') or 'recorded'}, {r.get('path')}" if r.get("verified") else "not recorded"))
         for spec in dl.get("required_checkouts") or ():
             s = spec.get("sync") or {}
-            lines.append(f"- checkout {spec.get('name')} ({spec.get('path')}): "
+            lines.append(f"- checkout {spec.get('name')} ({spec.get('path')}), as last recorded, not a fresh observation: "
                          + (f"synced at {str(s.get('sha'))[:12]}" if s.get("status") == "synced"
                             else f"{s.get('status')}: {s.get('reason')}" if s else "not synchronized"))
     if state["merge"]:
@@ -958,6 +958,9 @@ def _review_record(review_id):
     return review, f.parent
 
 
+AUTHORIZED_RELEASE = {"human_merge_recorded", "agent_merge_on_instruction", "agent_merge_autonomous"}
+
+
 def _execute(goal_id, state, action, observed, get, put, repo_name):
     """GO-003.12 / GO-011.8: carry out the one allowed delivery action through the existing gates.
     Returns (state, stop): stop is a reason the loop ends without another action. A merge goes
@@ -1001,6 +1004,12 @@ def _execute(goal_id, state, action, observed, get, put, repo_name):
         merge = ch.get("merge") or {}
         if rec.get("head") != ch["head"] or (merge.get("sha") and rec.get("merge_commit") != merge["sha"]):
             return state, f"{f.name} records {str(rec.get('head'))[:12]} merged as {str(rec.get('merge_commit'))[:12]}, not this change's merge"
+        # review F3 (20261027-124210): a record speaks for this change only when it is this change's review
+        # and repository and its outcome is an authorized merge; an out-of-lane record is kept, and blocks
+        if rec.get("review_id") != ch.get("review_id") or rec.get("repo") != name:
+            return state, f"{f.name} is the record of review {rec.get('review_id')} in {rec.get('repo')}, not {ch.get('review_id')} in {name}"
+        if rec.get("outcome") not in AUTHORIZED_RELEASE:
+            return state, f"{f.name} records {rec.get('outcome')!r}, not an authorized merge; it is kept unchanged and delivery stops here"
         ch["release_record"] = {"verified": True, "path": str(f), "merge_commit": rec.get("merge_commit"), "outcome": rec.get("outcome")}
         save(state)
         return state, None
@@ -1046,8 +1055,11 @@ def resume(goal_id, get, repo_name, put=None):
         # its persisted delivery state is left exactly as it is. It can still be read.
         observed = observe(delivery, get, repo_name)
         _mark_merges(delivery, observed, repo_name); _observe_checkouts(delivery, observed)
-        status = gd.delivery_status(delivery, observed)
-        return {"goal": goal_id, "next": gd.next_action(delivery, observed), **status, "executed": [], "stopped_by": None,
+        status, decision = gd.delivery_status(delivery, observed), gd.next_action(delivery, observed)
+        if decision.get("action") != "complete" and status["delivery_status"] == "complete":
+            status = dict(status, delivery_status="in_progress",
+                          missing=[decision.get("pending") or decision.get("blocked") or f"next action {decision.get('action')}"])
+        return {"goal": goal_id, "next": decision, **status, "executed": [], "stopped_by": None,
                 "refused": refused, "observation_errors": observed["errors"]}
     stop, steps, requested = None, [], set()
     for _ in range(12):   # ponytail: each pass is one action; a delivery has a handful
@@ -1077,7 +1089,11 @@ def resume(goal_id, get, repo_name, put=None):
         state, stop = _execute(goal_id, state, action, observed, get, put, repo_name)
         delivery = state["delivery"]
         steps.append({k: action.get(k) for k in ("action", "change", "checkout") if action.get(k)})
-    if put is not None and status["delivery_status"] == "complete" and not state.get("outcome"):
+    if action.get("action") != "complete" and status["delivery_status"] == "complete":
+        # review F2 (20261027-124210): the decision governs; saved records don't make a pending one complete
+        status = dict(status, delivery_status="in_progress",
+                      missing=[action.get("pending") or action.get("blocked") or f"next action {action.get('action')}"])
+    if put is not None and action.get("action") == "complete" and status["delivery_status"] == "complete" and not state.get("outcome"):
         final = next((c for c in delivery["changes"].values() if c.get("pr") == state.get("final_pr")), None)
         if final and (final.get("merge") or {}).get("verified"):
             state["merge"] = final["merge"]["sha"]

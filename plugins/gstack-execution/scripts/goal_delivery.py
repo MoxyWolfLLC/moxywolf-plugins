@@ -27,6 +27,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import goal_guard   # the merge gate's check reading (checks_green), shared rather than restated
+
 CLEAN_REVIEW = {"no_blocking_findings", "fixes_verified"}
 MERGE_CHECKS = ("tests", "goal-envelope", "goal-tests")
 
@@ -129,7 +131,6 @@ def _check_problems(ch, pr, observed_checks):
     """Repair 2: required checks are green for THIS pull request, target and current base, using the
     existing merge-gate reading (goal_guard.checks_green): each check is (conclusion, external_id),
     and a goal check's binding must name this PR, target and base."""
-    import goal_guard
     checks = {k: (tuple(v) if isinstance(v, (list, tuple)) else (v, None)) for k, v in (observed_checks or {}).items()}
     prd = {"number": pr.get("number"), "head": pr.get("head", {}).get("sha"),
            "base_ref": (pr.get("base") or {}).get("ref"), "base": (pr.get("base") or {}).get("sha")}
@@ -332,8 +333,16 @@ def observe_checkout(checkout, merge_sha):
     head = _git(path, "rev-parse", "HEAD").stdout.strip()
     if _git(path, "merge-base", "--is-ancestor", merge_sha, head).returncode:
         return pending(f"{name} at {head[:12]} does not contain the merge {merge_sha[:12]}")
+    # review F1 (20261027-124210): containing the merge isn't enough; synced means at the live remote
+    # tip. ls-remote reads the remote without writing the checkout.
+    ls = _git(path, "ls-remote", "origin", f"refs/heads/{want}")
+    tip = (ls.stdout.split() or [""])[0]
+    if ls.returncode or not tip:
+        return pending(f"remote unreadable: can't read {want} from {remote}; not synchronized")
+    if tip != head:
+        return pending(f"not at the remote tip: {name} is at {head[:12]}, remote {want} is at {tip[:12]} (behind, ahead or diverged)")
     return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
-            "sha": head, "contains": merge_sha, "git_status": "", "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            "sha": head, "remote_tip": tip, "contains": merge_sha, "git_status": "", "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
 # ---- CLI ----

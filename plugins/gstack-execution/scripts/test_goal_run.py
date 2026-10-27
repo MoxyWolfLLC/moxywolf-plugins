@@ -719,7 +719,7 @@ class ResumeExecutes(Resume):
         self.assertEqual(out["executed"][0]["action"], "merge")
         put2, calls2 = self.writer()
         reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
-        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
         out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put2)   # GitHub had merged it
         self.assertEqual(calls2, [])
         ch = gr.load("g1")["delivery"]["changes"]["implementation"]
@@ -730,7 +730,7 @@ class ResumeExecutes(Resume):
         head = self.delivery_state()
         reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
         f = reviews / "rev-1" / "release-o-r-42.json"
-        f.write_text(json.dumps({"head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
+        f.write_text(json.dumps({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
         before = f.read_bytes()
         put, calls = self.writer()
         for _ in range(2):
@@ -749,7 +749,7 @@ class ResumeExecutes(Resume):
         dl["changes"]["marketplace"] = dict(dl["changes"]["implementation"], pr=43, review_id="rev-2", merge=None, release_record=None)
         dl["release_companion"] = "marketplace"; gr.save(st)
         reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
-        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
         put, calls = self.writer()
         out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)   # #43 isn't observed
         self.assertNotEqual(out["delivery_status"], "complete")
@@ -798,7 +798,7 @@ class Repairs(ResumeExecutes):
         self.assertEqual(calls, [])
         self.assertIn("earlier", out["stopped_by"] or out["next"].get("blocked", "") or out["next"].get("pending", ""))
         reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
-        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
         out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)   # it had landed after all
         self.assertEqual(calls, []); self.assertEqual(out["delivery_status"], "complete")
 
