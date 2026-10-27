@@ -1,7 +1,7 @@
 # Gstack delivery through merge
 1. Scoped evidence reaches existing read-only workers (goal-3 item 1, carried forward by pull request; no review pass)
    - the pull request's head is d0cd67a, the head review `20261026-144252-d0cd67a-pk_fdgcy` passed and PR #251 merged into goal/gstack-delivery-through-merge-3, from the existing branch build/gstack-delivery-through-merge-3-1-scoped-evidence with no new commit
-   - it merges into goal/gstack-delivery-through-merge-4 under DR-113 through goal_run.py may merge against that retained review, with goal-envelope, goal-tests and tests green at d0cd67a for this pull request; no review is dispatched and no peer_review.py release is run for it
+   - it merges into goal/gstack-delivery-through-merge-4 under DR-113 through goal_run.py may merge against that retained review, with goal-envelope, goal-tests and tests green at d0cd67a for this pull request; no review is dispatched; its handoff and release record are written by peer_review.py release and record-release from the retained review after the goal-3 handoff is archived byte for byte as the brief states, with verify reading links_verified before, between and after
    - the merge commit's tree equals d0efc48's tree, and the goal tests at the merged head give the same results goal-3 recorded after its item 1
 2. Persist progress and refresh evidence within bounded recovery (goal-3 item 2 at b321160, one review pass; the code is not changed)
    - goal_delivery.next_action(delivery, observed) returns one allowed phase or action, or a specific blocked or pending state, from the original approval reference, candidate and base, source bindings, checkouts, attempt counts and verified external observations
