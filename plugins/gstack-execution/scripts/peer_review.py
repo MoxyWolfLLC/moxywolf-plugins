@@ -845,6 +845,39 @@ def resolve_ci_runs(packet):
     return packet
 
 
+def apply_ledger_runs(packet, specs):
+    """Goal gstack-delivery-through-merge item 2: a fix round names the ledger runs that are evidence
+    at its new head, REPO=RUN_ID, the way --ci-run names CI runs; given any, they replace
+    tests.ledger_runs for this and later rounds. The retained packet is not rewritten: the rounds
+    carry them (see effective_packet)."""
+    if specs:
+        parsed = []
+        for s in specs:
+            k, sep, v = s.rpartition("=")
+            if not sep or not k:
+                raise ReviewError("malformed_packet", f"--ledger-run must be REPO=RUN_ID: {s!r}")
+            parsed.append({"repo": k, "run_id": v})
+        packet.setdefault("tests", {})["ledger_runs"] = parsed
+        resolve_ledger_runs(packet)
+    return packet
+
+
+def effective_packet(state, packet):
+    """The packet as the review stands now: packet.json as open wrote it (retained, byte for byte,
+    through every round) with the heads the rounds moved to and the evidence runs the rounds named,
+    both kept on state.json. Round n's base is round n-1's head."""
+    heads = state.get("heads") or []      # heads[0] is open's; each round appends its own
+    if heads:
+        for i, r in enumerate(packet.get("repos") or []):
+            if i < len(heads[-1]):
+                r["head"] = heads[-1][i]
+                if (state.get("rounds_used") or 0) >= 2 and len(heads) >= 3 and i < len(heads[-2]):
+                    r["base"] = heads[-2][i]
+    for key, runs in (state.get("evidence_runs") or {}).items():
+        packet.setdefault("tests", {})[key] = runs
+    return packet
+
+
 def resolve_ledger_runs(packet):
     """EV-014.2: tests.ledger_runs names runs the way ci_runs does, {repo, run_id}, with repo matched
     against the packet's repositories. Whether the run exists is checked at open."""
@@ -2191,6 +2224,7 @@ def verify_links(d):
     code, which is the failure this whole command exists to surface.
     """
     state, packet = load(d, "state.json"), load(d, "packet.json")
+    packet = effective_packet(state, packet)
     dispositions = load(d, "dispositions.json") or {}
     checks, examined = [], 0
 
@@ -2703,11 +2737,14 @@ def cmd_round(a):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
+    packet = effective_packet(state, packet)
     if state["outcome"] not in {"opened", "blocking_findings"}:
         raise ReviewError("review_closed", "open a new review after a terminal outcome")
     if state["rounds_used"] >= state["max_rounds"]:
         sys.exit(f"rounds exhausted ({state['max_rounds']}); outcome stays {state['outcome']}")
     round_no = state["rounds_used"] + 1
+    named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
+                         .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
     prior = load(d, f"round-{round_no - 1}.json") if round_no > 1 else None
     dispositions = load(d, "dispositions.json") or {}
     if round_no > 1:
@@ -2730,6 +2767,9 @@ def cmd_round(a):
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     apply_ci_runs(packet, getattr(a, "ci_run", None))
+    # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
+    state["evidence_runs"] = {k: packet.get("tests", {}).get(k) for k in ("ci_runs", "ledger_runs")
+                              if packet.get("tests", {}).get(k)}
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
               "release_lane": state.get("release_lane"),   # GA-010.3, on every round record, error rounds included (F5)
@@ -2769,6 +2809,15 @@ def cmd_round(a):
         record["ci_runs"] = surf_stats.pop("ci_runs")     # EV-011: what a `ci:` evidence reference resolves against
         record["ledger_runs"] = surf_stats.pop("ledger_runs")   # EV-014
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
+        # A run this round names as evidence for its head must be that: read from the ledger, at this
+        # head, with its receipt hashing to its line. One that is not cannot clear the candidate, so the
+        # round stops before the reviewer runs; the record keeps what was found, the review stays open.
+        bad = [c for c in record["ledger_runs"] if c["run_id"] in named_ledger_runs
+               and not (c.get("read") and c.get("head_matches") and c.get("receipt_verified"))]
+        if bad:
+            raise ReviewError("release_blocked", "named ledger run(s) are not evidence at this head: " + "; ".join(
+                f"{c['run_id']}: " + (c.get("error") or ("not at the reviewed head" if not c.get("head_matches") else "receipt not verified"))
+                for c in bad))
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
@@ -2868,9 +2917,10 @@ def cmd_round(a):
     # schema check and the finding-shape check this round already ran on it.
     save(d, f"round-{round_no}.json", record, "external_text",
          examined_by="peer_review round-record schema check" if record.get("outcome") != "review_unavailable" else "unexamined")
-    state.update(rounds_used=round_no, outcome=outcome)
+    # a round refused for its evidence keeps the review where it was; the round is spent
+    state.update(rounds_used=round_no, outcome=state["outcome"] if outcome == "release_blocked" and record.get("error") else outcome)
     state["heads"].append([r["head"] for r in packet["repos"]])
-    save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
+    save(d, "state.json", state, "gate_output")   # packet.json keeps the bytes open wrote
     print(json.dumps({k: record[k] for k in record if k not in ("raw",)}, indent=2))
     return outcome
 
@@ -2943,7 +2993,8 @@ def cmd_dispatch(a):
     argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
     # the round runs with cwd = the review directory, so a relative path is resolved here, against
     # the caller's directory, before it is forwarded (XE-020 review F2; --head had the same defect)
-    for flag, specs in (("--head", getattr(a, "head", []) or []), ("--ci-run", getattr(a, "ci_run", []) or [])):
+    for flag, specs in (("--head", getattr(a, "head", []) or []), ("--ci-run", getattr(a, "ci_run", []) or []),
+                        ("--ledger-run", getattr(a, "ledger_run", []) or [])):
         for spec in specs:
             k, sep, v = spec.rpartition("=")
             argv += [flag, f"{as_repo_ref(k)}={v}" if sep else spec]
@@ -2991,6 +3042,7 @@ def cmd_status(a):
 
 def passing_review(d):
     state, packet = load(d, "state.json"), load_packet(d / "packet.json", allow_unchanged=True)
+    packet = effective_packet(state, packet)
     if state["outcome"] not in {"no_blocking_findings", "fixes_verified"}:
         raise ReviewError("release_blocked", "review has not passed")
     n = state["rounds_used"]
@@ -3409,9 +3461,11 @@ def main():
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
+    r.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     di = sub.add_parser("dispatch"); di.add_argument("review_id"); di.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     di.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
+    di.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
     co = sub.add_parser("collect"); co.add_argument("review_id")
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")

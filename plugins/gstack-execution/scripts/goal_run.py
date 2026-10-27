@@ -39,6 +39,10 @@
         since the start, which stops the run. Resources: vcs.push <branch>; pr.open <base><-<head>;
         merge <target>; net.connect <host>; review.send_code <tool>; external.model_call <model>
   goal_run.py resync <id> --head <sha>
+  goal_run.py resume <id> [--repo owner/name]
+        GO-003.12: pick the delivery up from its persisted record: re-observe GitHub and the review
+        records, record a merge only from GitHub's own answer, and print the next supervisor action with
+        delivery_status; an unreadable budget or authority record blocks; a goal-run token is required
         the goal pull request's head moved because a sync from main merged into goal/<id>
         (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
         keeps the run record and passes the envelope check
@@ -71,6 +75,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -788,9 +793,97 @@ def record(goal_id):
     return "\n".join(lines) + "\n"
 
 
+GITHUB_API = os.environ.get("GSTACK_GITHUB_API", "https://api.github.com").rstrip("/")
+
+
+def _github_get(token):
+    """A reader of GitHub for the delivery: the configured API base (GSTACK_GITHUB_API, so a fixture
+    can stand in), 404 as None, any other failure raised, never read as an answer."""
+    import urllib.request, urllib.error
+    def get(path):
+        req = urllib.request.Request(f"{GITHUB_API}/{path}", headers={
+            "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+    return get
+
+
+def observe(delivery, get, repo_name):
+    """What the delivery can see right now, read from GitHub and the review records, never from a
+    declaration: each change's pull request and the check runs at its candidate head, and each
+    review's recorded outcome. A read that fails is reported as unobserved, not as false."""
+    import goal_delivery as gd
+    observed = {"prs": {}, "checks": {}, "reviews": {}, "checkouts": {}, "errors": []}
+    rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    for cid, ch in (delivery.get("changes") or {}).items():
+        name = ch.get("repo") or repo_name
+        try:
+            pr = get(f"repos/{name}/pulls/{ch['pr']}")
+            if pr is not None:
+                observed["prs"][ch["pr"]] = pr
+            runs = get(f"repos/{name}/commits/{ch['head']}/check-runs") or {}
+            observed["checks"][ch["head"]] = gguard.latest_checks(runs.get("check_runs") or [])
+            observed["checks"][ch["head"]] = {k: v[0] for k, v in observed["checks"][ch["head"]].items()}
+        except Exception as e:   # the observation failed; next_action sees nothing, which is pending
+            observed["errors"].append(f"{cid}: {type(e).__name__}: {e}")
+        if rdir and ch.get("review_id"):
+            f = Path(rdir, ch["review_id"], "state.json")
+            if f.is_file():
+                try:
+                    observed["reviews"][ch["review_id"]] = {"outcome": json.loads(f.read_text()).get("outcome")}
+                except ValueError:
+                    observed["errors"].append(f"{cid}: review record {ch['review_id']} unreadable")
+    for spec in delivery.get("required_checkouts") or ():
+        if (spec.get("sync") or {}).get("status") == "synced":
+            observed["checkouts"][spec["name"]] = spec["sync"]
+    return observed
+
+
+def resume(goal_id, get, repo_name):
+    """GO-003.12: pick the delivery up from its persisted record. Loads the run state, requires the
+    budget and authority records to be readable (unreadable blocks), re-observes GitHub and the
+    local prerequisites, records what was observed into the delivery (a merge is marked verified
+    only by GitHub's own answer), saves, and returns the next supervisor action with the delivery
+    status. It executes nothing here; the executors are the item-3 steps."""
+    import goal_delivery as gd
+    state = load(goal_id)
+    delivery = state.get("delivery")
+    if not isinstance(delivery, dict):
+        raise Refused(f"{goal_id} has no delivery record to resume")
+    d = run_dir(goal_id)
+    for required in ("spend.jsonl", "ledger.jsonl"):
+        f = d / required
+        if not f.is_file():
+            raise Refused(f"{required} is missing: an unreadable budget or authority record blocks further action")
+        try:
+            [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
+        except ValueError as e:
+            raise Refused(f"{required} is unreadable ({e}): the budget or authority record blocks further action")
+    gd.read_delivery(d / "delivery.json") if (d / "delivery.json").is_file() else None
+    observed = observe(delivery, get, repo_name)
+    for cid, ch in delivery["changes"].items():
+        pr = observed["prs"].get(ch["pr"])
+        if pr and pr.get("merged") and (pr.get("merge_commit_sha") == ch["head"] or pr.get("head", {}).get("sha") == ch["head"]):
+            ch["merge"] = {"verified": True, "head": ch["head"], "sha": pr.get("merge_commit_sha"),
+                           "merged_by": (pr.get("merged_by") or {}).get("login"), "merged_at": pr.get("merged_at"),
+                           "observed_from": f"{GITHUB_API}/repos/{ch.get('repo') or repo_name}/pulls/{ch['pr']}"}
+    action = gd.next_action(delivery, observed)
+    status = gd.delivery_status(delivery, observed)
+    delivery["last_observed"] = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "errors": observed["errors"],
+                                 "next": action, "delivery_status": status["delivery_status"]}
+    state["delivery"] = delivery
+    save(state)
+    return {"goal": goal_id, "next": action, **status, "observation_errors": observed["errors"]}
+
+
 def _api(token, method, path, data):
     import urllib.request
-    req = urllib.request.Request("https://api.github.com/" + path, method=method, data=json.dumps(data).encode(),
+    req = urllib.request.Request(f"{GITHUB_API}/" + path, method=method, data=json.dumps(data).encode(),
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                                           "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -857,6 +950,13 @@ def _main(argv, repo=gb.ROOT):
                   environments=environments_of(get, name))
             print(json.dumps({"started": goal_id}))
             return 0
+        if cmd == "resume" and goal_id and set(opts) <= {"--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":
+                raise Refused("resume needs a goal-run token: run it under agent_token.py exec --goal-run --")
+            out = resume(goal_id, _github_get(token), opts.get("--repo", REPO))
+            print(json.dumps(out, indent=1))
+            return 0 if out.get("delivery_status") == "complete" or "action" in out.get("next", {}) else 3
         if cmd == "next" and goal_id and not opts:
             ok, out = next_step(repo, goal_id)
             print(json.dumps(out))
