@@ -325,8 +325,9 @@ class RepairsRound3(unittest.TestCase):
                 if verb != "fetch":                              # observation never fetches
                     self.assertEqual(seen["status"], "sync_pending", f"observe with a failing {verb}")
                     self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
-                self.assertEqual(synced["status"], "sync_pending", f"sync with a failing {verb}")
-                self.assertIn("could not be read", synced["reason"], f"sync names the failed {verb}")
+                if verb != "ls-remote":                          # synchronization reads the tip by fetching, not ls-remote
+                    self.assertEqual(synced["status"], "sync_pending", f"sync with a failing {verb}")
+                    self.assertIn("could not be read", synced["reason"], f"sync names the failed {verb}")
                 self.assertEqual(sc.snapshot(co), before, f"a failing {verb} wrote nothing")
                 self.assertEqual(sc.git(co, "rev-parse", "HEAD"), tip)
 

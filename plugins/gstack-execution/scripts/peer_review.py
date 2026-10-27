@@ -3250,6 +3250,29 @@ AUTONOMOUS_MERGE_AUTHORITY = "DR-113: Dorian's standing authorization of 2026-09
 AGENT_LOGIN = "moxywolf-agent[bot]"  # the only bot DR-113 authorizes; any other bot still needs an instruction
 
 
+def finalized_relation(path, review_state, pr):
+    """Repair 6: the GO-011.2 relationship between a merged goal pull request and its whole-goal review,
+    read from the goal runner rather than restated: the pull request is goal/<id> into main, the head it
+    merged is the finalized head the runner recorded for <id>, and goal_run.final_review_pinned (the
+    merge gate's own reading) says the review is pinned to the tested head without its holdout. Returns
+    what held, or None; an unreadable run record is None, never a pass."""
+    ref, base = (pr.get("head") or {}).get("ref") or "", (pr.get("base") or {}).get("ref")
+    merged = (pr.get("head") or {}).get("sha")
+    if not ref.startswith("goal/") or base != "main" or not merged or not os.environ.get("GSTACK_GOAL_RUN_DIR"):
+        return None
+    goal_id = ref[len("goal/"):]
+    try:
+        import goal_run
+        run = goal_run.load(goal_id)
+        if run.get("finalized_head") != merged or not goal_run.final_review_pinned(Path(path), goal_id, run, review_state):
+            return None
+    except (Exception, SystemExit):
+        return None
+    return {"goal": goal_id, "finalized_head": merged, "tested_head": run["results"][-1]["head"],
+            "relation": "GO-011.2: the goal pull request merged the finalized head the runner recorded; the whole-goal "
+                        "review is pinned to the tested head without its holdout (goal_run.final_review_pinned)"}
+
+
 def cmd_record_release(a):
     """Read GitHub's merge record, never create an approval or perform a merge."""
     d = rdir(a.review_id)
@@ -3267,8 +3290,13 @@ def cmd_record_release(a):
     pr = github_get(name, f"pulls/{a.pr}")
     merger = pr.get("merged_by") or {} if isinstance(pr, dict) else {}
     agent = merger.get("type") == "Bot"
+    # Repair 6 (goal gstack-delivery-completion-3): the goal pull request merges its finalized head, one
+    # commit past the head the whole-goal review passed at. Only that GO-011.2 relationship, as the goal
+    # runner records and reads it, stands in for the exact-head match; every other merge still needs it.
+    finalized = (finalized_relation(path, state, pr) if isinstance(pr, dict) and pr.get("head", {}).get("sha") != repo["head"]
+                 else None)
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
-            pr.get("head", {}).get("sha") != repo["head"] or
+            (pr.get("head", {}).get("sha") != repo["head"] and not finalized) or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
             not (agent or (str(merger.get("login", "")).casefold() == state["release_owner"].casefold()
@@ -3281,7 +3309,8 @@ def cmd_record_release(a):
             raise ReviewError("release_blocked", "merge predates the release handoff")
     except (ValueError, TypeError, KeyError):
         raise ReviewError("release_blocked", "invalid release timestamps")
-    decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": repo["head"],
+    decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": pr["head"]["sha"], "reviewed_head": repo["head"],
+                **({"finalized": finalized} if finalized else {}),
                 "target": prepared["target"], "merge_commit": pr["merge_commit_sha"], "approver": state["release_owner"],
                 "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "merged_at": pr["merged_at"], "source": pr["html_url"], "outcome": "human_merge_recorded"}

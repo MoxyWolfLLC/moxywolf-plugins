@@ -859,15 +859,37 @@ def observe(delivery, get, repo_name):
     return observed
 
 
-def _observe_checkouts(delivery, observed):
-    """Repair 5: each required checkout is read as it is now (goal_delivery.observe_checkout) against
-    the newest verified merge into its branch; a saved synced record is history, not an observation."""
+def _observe_checkouts(delivery, observed, repo_name=None):
+    """Repair 5: each required checkout is read as it is now (goal_delivery.observe_checkout); a saved
+    synced record is history, not an observation. Repair 8: against every verified merge of its own
+    repository into its branch (goal_delivery.required_merges), never another repository's, never only
+    the newest. A checkout that can't be bound to a repository is pending, with the reason."""
     import goal_delivery as gd
     for spec in delivery.get("required_checkouts") or ():
-        merges = [c["merge"]["sha"] for c in delivery["changes"].values()
-                  if (c.get("merge") or {}).get("verified") and c.get("target") == (spec.get("branch") or "main")]
+        try:
+            merges = gd.required_merges(delivery, spec, repo_name)
+        except gd.Blocked as e:
+            observed["checkouts"][spec["name"]] = {"status": "sync_pending", "name": spec["name"], "reason": str(e)}
+            continue
         if merges:
-            observed["checkouts"][spec["name"]] = gd.observe_checkout(spec, merges[-1])
+            observed["checkouts"][spec["name"]] = gd.observe_checkout(spec, merges)
+
+
+def _observe_finalized(goal_id, state, delivery, observed):
+    """Repair 6: for the goal pull request's change (`final`), what GO-011.2 says about its review: is
+    it pinned to the tested head without its holdout (final_review_pinned, the merge gate's own reading)
+    and which head did finalize record. next_action reads this instead of the exact-head rule, for that
+    change only."""
+    for cid, ch in (delivery.get("changes") or {}).items():
+        ev = (observed.get("reviews") or {}).get(cid)
+        if not ch.get("final") or not isinstance(ev, dict):
+            continue
+        try:
+            review, _ = _review_record(ch.get("review_id"))
+            pinned = final_review_pinned(Path(ch.get("path") or "."), goal_id, state, review)
+            ev["finalized"] = {"pinned": bool(pinned), "finalized_head": state.get("finalized_head")}
+        except (Refused, KeyError, IndexError, ValueError, OSError) as e:
+            ev["finalized"] = {"pinned": False, "finalized_head": state.get("finalized_head"), "why": f"{type(e).__name__}: {e}"}
 
 
 def review_evidence(d, ch, errors, cid):
@@ -1015,11 +1037,13 @@ def _execute(goal_id, state, action, observed, get, put, repo_name):
         return state, None
     if kind == "sync_checkout":
         spec = next(s for s in delivery.get("required_checkouts") or () if s.get("name") == action["checkout"])
-        merges = [c["merge"]["sha"] for c in delivery["changes"].values()
-                  if (c.get("merge") or {}).get("verified") and c.get("target") == (spec.get("branch") or "main")]
+        try:
+            merges = gd.required_merges(delivery, spec, repo_name)   # repair 8: this repository's, all of them
+        except gd.Blocked as e:
+            return state, str(e)
         if not merges:
-            return state, f"no verified merge into {spec.get('branch') or 'main'} to synchronize {spec.get('name')} to"
-        spec["sync"] = gd.sync_checkout(spec, merges[-1])
+            return state, f"no verified merge of {spec.get('repo') or spec.get('remote')} into {spec.get('branch') or 'main'} to synchronize {spec.get('name')} to"
+        spec["sync"] = gd.sync_checkout(spec, merges)
         save(state)
         return state, None if spec["sync"]["status"] == "synced" else spec["sync"]["reason"]
     return state, None
@@ -1054,7 +1078,8 @@ def resume(goal_id, get, repo_name, put=None):
         # Repair 3: an ended or held run advances nothing: no merge, release record or sync, and
         # its persisted delivery state is left exactly as it is. It can still be read.
         observed = observe(delivery, get, repo_name)
-        _mark_merges(delivery, observed, repo_name); _observe_checkouts(delivery, observed)
+        _mark_merges(delivery, observed, repo_name); _observe_checkouts(delivery, observed, repo_name)
+        _observe_finalized(goal_id, state, delivery, observed)
         status, decision = gd.delivery_status(delivery, observed), gd.next_action(delivery, observed)
         if decision.get("action") != "complete" and status["delivery_status"] == "complete":
             status = dict(status, delivery_status="in_progress",
@@ -1065,7 +1090,8 @@ def resume(goal_id, get, repo_name, put=None):
     for _ in range(12):   # ponytail: each pass is one action; a delivery has a handful
         observed = observe(delivery, get, repo_name)
         _mark_merges(delivery, observed, repo_name)
-        _observe_checkouts(delivery, observed)
+        _observe_checkouts(delivery, observed, repo_name)
+        _observe_finalized(goal_id, state, delivery, observed)
         action = gd.next_action(delivery, observed)
         status = gd.delivery_status(delivery, observed)
         state["delivery"] = delivery

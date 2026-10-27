@@ -8,18 +8,19 @@ observed (GitHub, git, the ledger) and never what a model declared.
   goal_delivery.py reserve-review --delivery FILE --change-id ID --review-id ID
       Record one review attempt for the change, under the cumulative limit; exhaustion exits
       nonzero and writes nothing. Prints {"reserved": true, "attempts_used": N}.
-  goal_delivery.py sync-checkout --checkout FILE --merge SHA
+  goal_delivery.py sync-checkout --checkout FILE --merge SHA[,SHA...]
       Fast-forward the required checkout FILE names ({name, path, host, remote, branch}) to the
-      branch tip containing SHA, or change nothing. Prints {"status": "synced", ...} and exits 0,
+      branch tip containing every SHA, or change nothing. Prints {"status": "synced", ...} and exits 0,
       or {"status": "sync_pending", "name", "reason", ...} and exits 3.
   goal_delivery.py status --delivery FILE
-      Prints {"delivery_status": "complete" | "in_progress" | "sync_pending" | "blocked", ...}.
+      Observes each required checkout against its repository's required merges, then prints {"delivery_status": "complete" | "in_progress" | "sync_pending" | "blocked", ...}.
 
 Library: next_action(delivery, observed), reserve_review(delivery, change_id, review_id),
 sync_checkout(checkout, merge_sha), delivery_status(delivery, observed).
 """
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -198,7 +199,18 @@ def next_action(delivery, observed):
                 return {"pending": f"review {ch.get('review_id')} is {review.get('outcome') or 'not observed'}, not clean", "change": cid}
             if review.get("incomplete") or not (review.get("repo") and review.get("head") and review.get("base")):
                 return {"pending": f"review {ch.get('review_id')} evidence is incomplete: {review.get('incomplete') or 'no repository, head or base'}", "change": cid}
-            if review.get("head") != ch.get("head"):
+            if ch.get("final"):
+                # Repair 6: the goal pull request merges its finalized head, one commit past the head the
+                # whole-goal review passed at. It counts only in the GO-011.2 relationship, which the
+                # runner observes with goal_run.final_review_pinned; nothing is restated here.
+                fin = review.get("finalized") or {}
+                if fin.get("pinned") is not True:
+                    return {"pending": f"review {ch.get('review_id')} is not pinned to the tested head without its holdout (GO-011.2)"
+                                       + (f": {fin['why']}" if fin.get("why") else ""), "change": cid}
+                if fin.get("finalized_head") != ch.get("head"):
+                    return {"pending": f"the candidate head {str(ch.get('head'))[:12]} is not the recorded finalized head "
+                                       f"{str(fin.get('finalized_head'))[:12]}", "change": cid}
+            elif review.get("head") != ch.get("head"):
                 return {"pending": f"review {ch.get('review_id')} passed at {str(review.get('head'))[:12]}, not the candidate head {str(ch.get('head'))[:12]}", "change": cid}
             if Path(review["repo"]).resolve() != Path(ch.get("path") or "").resolve():
                 return {"blocked": f"review {ch.get('review_id')} is of {review['repo']}, not {ch.get('path')}"}
@@ -256,93 +268,176 @@ def _git(path, *args, check=False):
     return p
 
 
-def sync_checkout(checkout, merge_sha):
-    """GO-003.12: bring one required checkout to the branch tip that contains merge_sha, by
-    fast-forward only, or report sync_pending naming the checkout and why. Every refusal happens
-    before anything in the checkout is written: the host, the path, the remote, the branch and the
-    tracked and untracked state are read with --no-optional-locks, and the remote tip and the
-    ancestry are worked out in a throwaway object store, so a refused checkout's files, status and
-    Git metadata are exactly as they were. Only a clean checkout on the expected branch whose HEAD
-    is an ancestor of a remote tip containing the merge is fetched into and fast-forwarded."""
-    name, path = checkout.get("name"), Path(str(checkout.get("path") or ""))
+class _Unreadable(Exception):
+    """Repair 7: a Git read that failed. Its output is never interpreted; the checkout is pending."""
+
+
+def _read(path, *args):
+    """stdout of a Git read that succeeded, or _Unreadable naming the command and Git's own words."""
+    p = _git(path, *args)
+    if p.returncode:
+        raise _Unreadable(f"git {' '.join(args[:2])} failed in {path} ({p.returncode}): "
+                          f"{(p.stderr or p.stdout).strip()[:200] or 'no output'}")
+    return p.stdout
+
+
+def _ancestor(path, a, b):
+    """merge-base --is-ancestor: 0 is yes, 1 is no, anything else is a read that failed."""
+    p = _git(path, "merge-base", "--is-ancestor", a, b)
+    if p.returncode not in (0, 1):
+        raise _Unreadable(f"git merge-base failed in {path} ({p.returncode}): {(p.stderr or p.stdout).strip()[:200] or 'no output'}")
+    return p.returncode == 0
+
+
+def _contains(path, sha, head):
+    """Whether head contains sha. A commit this object store doesn't have is not contained (it can't
+    be an ancestor of anything here); any other failed read is _Unreadable."""
+    if _git(path, "cat-file", "-e", f"{sha}^{{commit}}").returncode:
+        return False
+    return _ancestor(path, sha, head)
+
+
+GITHUB_REMOTE = re.compile(r"(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?/?")
+
+
+def github_repo(url):
+    """owner/name of a github.com remote URL, lower-cased (GitHub names ignore case), or None."""
+    m = GITHUB_REMOTE.fullmatch((url or "").strip())
+    return m.group(1).lower() if m else None
+
+
+def required_merges(delivery, spec, default_repo=None):
+    """Repair 8: the merges a required checkout must contain. The checkout is bound to its repository
+    (its `repo`, or the github.com repository its `remote` names), and its required merges are every
+    verified merge of THAT repository's changes into its branch. Another repository's merge never
+    counts, and none is chosen by record order. A checkout with no repository identity blocks."""
+    repo = (spec.get("repo") or github_repo(spec.get("remote")) or "").lower()
+    if not repo:
+        raise Blocked(f"checkout {spec.get('name')} isn't bound to a repository: no repo, and its remote "
+                      f"{spec.get('remote')!r} names no github.com repository")
+    branch = spec.get("branch") or "main"
+    return [c["merge"]["sha"] for c in (delivery.get("changes") or {}).values()
+            if (c.get("merge") or {}).get("verified") and c["merge"].get("sha") and c.get("target") == branch
+            and (c.get("repo") or default_repo or "").lower() == repo]
+
+
+def _shas(merge_shas):
+    shas = [merge_shas] if isinstance(merge_shas, str) else list(merge_shas or ())
+    if not shas or not all(isinstance(s, str) and s for s in shas):
+        raise Blocked("no required merge to check the checkout against")
+    return shas
+
+
+def _pending_for(checkout):
+    name, path = checkout.get("name"), str(checkout.get("path") or "")
     def pending(reason):
-        return {"status": "sync_pending", "name": name, "path": str(path), "reason": reason,
+        return {"status": "sync_pending", "name": name, "path": path, "reason": reason,
                 "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    return pending
+
+
+def _inspect(checkout, pending):
+    """The reads observe_checkout and sync_checkout share before anything is written: host, path,
+    remote, branch and tracked/untracked state, each Git read checked for its exit code (repair 7).
+    Returns (path, remote, branch, head), or a pending result."""
+    name, path = checkout.get("name"), Path(str(checkout.get("path") or ""))
     here = socket.gethostname()
     if checkout.get("host") and checkout["host"] != here:
         return pending(f"wrong host: {name} is on {checkout['host']}, this is {here}; nothing touched")
-    if not path.is_dir() or _git(path, "rev-parse", "--git-dir").returncode:
-        return pending(f"unavailable: {path} is missing or not a Git checkout")
-    remote = _git(path, "remote", "get-url", "origin").stdout.strip()
+    if not path.is_dir():
+        return pending(f"unavailable: {path} is missing")
+    git_dir = _git(path, "rev-parse", "--git-dir")
+    if git_dir.returncode:
+        return pending(f"unavailable: {path} is not a readable Git checkout: {(git_dir.stderr or git_dir.stdout).strip()[:200]}")
+    remote = _read(path, "remote", "get-url", "origin").strip()
     if checkout.get("remote") and remote != checkout["remote"]:
         return pending(f"remote mismatch: origin is {remote or 'unset'}, not {checkout['remote']}")
-    branch = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
     want = checkout.get("branch") or "main"
+    ref = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD")
+    if ref.returncode == 1 and not (ref.stderr or "").strip():
+        return pending(f"unexpected branch: {name} is on a detached HEAD, not {want}")
+    if ref.returncode:
+        raise _Unreadable(f"git symbolic-ref failed in {path} ({ref.returncode}): {(ref.stderr or ref.stdout).strip()[:200]}")
+    branch = ref.stdout.strip()
     if branch != want:
-        return pending(f"unexpected branch: {name} is on {branch or 'a detached HEAD'}, not {want}")
-    dirt = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
+        return pending(f"unexpected branch: {name} is on {branch}, not {want}")
+    dirt = _read(path, "status", "--porcelain=v1", "--untracked-files=all")
     if dirt.strip():
         return pending(f"dirty: {name} has uncommitted or untracked changes ({len(dirt.splitlines())} entries); nothing touched")
-    head = _git(path, "rev-parse", "HEAD").stdout.strip()
-    # ponytail: a throwaway bare store holds both sides, so ancestry is known without writing the checkout
-    with tempfile.TemporaryDirectory(prefix="gstack-sync-") as tmp:
-        _git(tmp, "init", "--bare", "-q", check=True)
-        got = _git(tmp, "fetch", "-q", "--no-tags", remote, f"+refs/heads/{want}:refs/remote-tip")
-        if got.returncode:
-            return pending(f"unavailable: can't read {want} from {remote}: {(got.stderr or '').strip()[:160]}")
-        _git(tmp, "fetch", "-q", "--no-tags", str(path.resolve()), f"+{head}:refs/local-head", check=True)
-        tip = _git(tmp, "rev-parse", "refs/remote-tip").stdout.strip()
-        if _git(tmp, "merge-base", "--is-ancestor", merge_sha, tip).returncode:
-            return pending(f"the merge {merge_sha[:12]} is not on {remote} {want} ({tip[:12]}) yet")
-        if _git(tmp, "merge-base", "--is-ancestor", head, tip).returncode:
-            return pending(f"diverged: {name} at {head[:12]} has commits not on {want}; a fast-forward is impossible, nothing touched")
-    if head != tip:
-        _git(path, "fetch", "-q", "--no-tags", "origin", f"refs/heads/{want}", check=True)
-        _git(path, "merge", "--ff-only", "-q", tip, check=True)
-    now = _git(path, "rev-parse", "HEAD").stdout.strip()
-    status = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
-    if now != tip or status.strip():
-        return pending(f"after the fast-forward {name} is at {now[:12]} with status {status.strip()[:80]!r}, not clean at {tip[:12]}")
-    return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
-            "sha": now, "contains": merge_sha, "git_status": "", "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    head = _read(path, "rev-parse", "HEAD").strip()
+    return path, remote, want, head
 
 
-def observe_checkout(checkout, merge_sha):
+def sync_checkout(checkout, merge_shas):
+    """GO-003.12: bring one required checkout to the branch tip that contains every required merge
+    (repair 8: all of them, not the newest), by fast-forward only, or report sync_pending naming the
+    checkout and why. Every refusal happens before anything in the checkout is written: the host, the
+    path, the remote, the branch and the tracked and untracked state are read with
+    --no-optional-locks, each read checked for its exit code (repair 7), and the remote tip and the
+    ancestry are worked out in a throwaway object store, so a refused checkout's files, status and Git
+    metadata are exactly as they were. Only a clean checkout on the expected branch whose HEAD is an
+    ancestor of a remote tip containing every merge is fetched into and fast-forwarded."""
+    pending = _pending_for(checkout)
+    name = checkout.get("name")
+    try:
+        shas = _shas(merge_shas)
+        seen = _inspect(checkout, pending)
+        if isinstance(seen, dict):
+            return seen
+        path, remote, want, head = seen
+        # ponytail: a throwaway bare store holds both sides, so ancestry is known without writing the checkout
+        with tempfile.TemporaryDirectory(prefix="gstack-sync-") as tmp:
+            _read(tmp, "init", "--bare", "-q")
+            got = _git(tmp, "fetch", "-q", "--no-tags", remote, f"+refs/heads/{want}:refs/remote-tip")
+            if got.returncode:
+                return pending(f"unavailable: can't read {want} from {remote}: {(got.stderr or '').strip()[:160]}")
+            _read(tmp, "fetch", "-q", "--no-tags", str(path.resolve()), f"+{head}:refs/local-head")
+            tip = _read(tmp, "rev-parse", "refs/remote-tip").strip()
+            missing = [s for s in shas if not _contains(tmp, s, tip)]
+            if missing:
+                return pending(f"required merge(s) {', '.join(s[:12] for s in missing)} not on {remote} {want} ({tip[:12]}) yet; nothing touched")
+            if not _ancestor(tmp, head, tip):
+                return pending(f"diverged: {name} at {head[:12]} has commits not on {want}; a fast-forward is impossible, nothing touched")
+        if head != tip:
+            _read(path, "fetch", "-q", "--no-tags", "origin", f"refs/heads/{want}")
+            _read(path, "merge", "--ff-only", "-q", tip)
+        now = _read(path, "rev-parse", "HEAD").strip()
+        status = _read(path, "status", "--porcelain=v1", "--untracked-files=all")
+        if now != tip or status.strip():
+            return pending(f"after the fast-forward {name} is at {now[:12]} with status {status.strip()[:80]!r}, not clean at {tip[:12]}")
+    except _Unreadable as e:
+        return pending(f"unreadable: {e}; not synchronized")
+    return {"status": "synced", "name": name, "path": str(path), "host": socket.gethostname(), "branch": want, "remote": remote,
+            "sha": now, "contains": shas, "git_status": "", "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
+def observe_checkout(checkout, merge_shas):
     """Repair 5: what the required checkout is right now, read-only: the same host, path, remote,
-    branch and tracked/untracked checks sync_checkout makes before writing, and whether its HEAD
-    contains merge_sha. A saved `synced` record is never consulted."""
-    name, path = checkout.get("name"), Path(str(checkout.get("path") or ""))
-    def pending(reason):
-        return {"status": "sync_pending", "name": name, "path": str(path), "reason": reason,
-                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    here = socket.gethostname()
-    if checkout.get("host") and checkout["host"] != here:
-        return pending(f"wrong host: {name} is on {checkout['host']}, this is {here}")
-    if not path.is_dir() or _git(path, "rev-parse", "--git-dir").returncode:
-        return pending(f"unavailable: {path} is missing or not a Git checkout")
-    remote = _git(path, "remote", "get-url", "origin").stdout.strip()
-    if checkout.get("remote") and remote != checkout["remote"]:
-        return pending(f"remote mismatch: origin is {remote or 'unset'}, not {checkout['remote']}")
-    branch = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
-    want = checkout.get("branch") or "main"
-    if branch != want:
-        return pending(f"unexpected branch: {name} is on {branch or 'a detached HEAD'}, not {want}")
-    dirt = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
-    if dirt.strip():
-        return pending(f"dirty: {name} has uncommitted or untracked changes ({len(dirt.splitlines())} entries)")
-    head = _git(path, "rev-parse", "HEAD").stdout.strip()
-    if _git(path, "merge-base", "--is-ancestor", merge_sha, head).returncode:
-        return pending(f"{name} at {head[:12]} does not contain the merge {merge_sha[:12]}")
-    # review F1 (20261027-124210): containing the merge isn't enough; synced means at the live remote
-    # tip. ls-remote reads the remote without writing the checkout.
-    ls = _git(path, "ls-remote", "origin", f"refs/heads/{want}")
-    tip = (ls.stdout.split() or [""])[0]
-    if ls.returncode or not tip:
-        return pending(f"remote unreadable: can't read {want} from {remote}; not synchronized")
-    if tip != head:
-        return pending(f"not at the remote tip: {name} is at {head[:12]}, remote {want} is at {tip[:12]} (behind, ahead or diverged)")
-    return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
-            "sha": head, "remote_tip": tip, "contains": merge_sha, "git_status": "", "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    branch and tracked/untracked checks sync_checkout makes before writing, each read checked for its
+    exit code (repair 7), whether its HEAD contains every required merge (repair 8), and whether it is
+    at the live remote tip. A saved `synced` record is never consulted."""
+    pending = _pending_for(checkout)
+    name = checkout.get("name")
+    try:
+        shas = _shas(merge_shas)
+        seen = _inspect(checkout, pending)
+        if isinstance(seen, dict):
+            return seen
+        path, remote, want, head = seen
+        missing = [s for s in shas if not _contains(path, s, head)]
+        if missing:
+            return pending(f"{name} at {head[:12]} does not contain the required merge(s) {', '.join(s[:12] for s in missing)}")
+        # review F1 (20261027-124210): containing the merges isn't enough; synced means at the live remote
+        # tip. ls-remote reads the remote without writing the checkout.
+        tip = (_read(path, "ls-remote", "origin", f"refs/heads/{want}").split() or [""])[0]
+        if not tip:
+            return pending(f"remote unreadable: {remote} has no {want}; not synchronized")
+        if tip != head:
+            return pending(f"not at the remote tip: {name} is at {head[:12]}, remote {want} is at {tip[:12]} (behind, ahead or diverged)")
+    except _Unreadable as e:
+        return pending(f"unreadable: {e}; not synchronized")
+    return {"status": "synced", "name": name, "path": str(path), "host": socket.gethostname(), "branch": want, "remote": remote,
+            "sha": head, "remote_tip": tip, "contains": shas, "git_status": "", "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
 # ---- CLI ----
@@ -364,10 +459,16 @@ def main(argv):
         if cmd == "reserve-review" and set(opts) == {"--delivery", "--change-id", "--review-id"}:
             return _cli_reserve(opts)
         if cmd == "sync-checkout" and set(opts) == {"--checkout", "--merge"}:
-            out = sync_checkout(json.loads(Path(opts["--checkout"]).read_text()), opts["--merge"])
+            out = sync_checkout(json.loads(Path(opts["--checkout"]).read_text()), [m for m in opts["--merge"].split(",") if m])
             print(json.dumps(out)); return 0 if out["status"] == "synced" else 3
         if cmd == "status" and set(opts) == {"--delivery"}:
-            print(json.dumps(delivery_status(read_delivery(opts["--delivery"])))); return 0
+            doc = read_delivery(opts["--delivery"])
+            observed = {"checkouts": {}}       # repair 8: the completion decision reads each checkout now
+            for spec in doc.get("required_checkouts") or ():
+                merges = required_merges(doc, spec, (doc.get("approval") or {}).get("repo"))
+                if merges:
+                    observed["checkouts"][spec.get("name")] = observe_checkout(spec, merges)
+            print(json.dumps(delivery_status(doc, observed))); return 0
         print(__doc__, file=sys.stderr); return 2
     except Blocked as e:
         print(json.dumps({"blocked": str(e)}), file=sys.stderr); return 1
