@@ -253,5 +253,31 @@ class Repairs(unittest.TestCase):
         self.assertIn("branch", gd.observe_checkout(spec, tip)["reason"])
 
 
+
+class RepairsRound2(unittest.TestCase):
+    """Review 20261027-124210-98b5ed8-o897p6eo F1: a checkout counts as synced only at the live
+    remote tip, not merely containing the merge. Written before the fix."""
+
+    def test_f1_a_clean_checkout_ahead_of_or_behind_the_remote_tip_is_not_synced(self):
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        src, bare, co, spec = sc.fixture()
+        tip = sc.git(co, "rev-parse", "HEAD")
+        self.assertEqual(gd.observe_checkout(spec, tip)["status"], "synced")
+        for k, v in (("user.name", "t"), ("user.email", "t@t")):
+            sc.git(co, "config", k, v)
+        (co / "local").write_text("unpushed\n"); sc.git(co, "add", "local"); sc.git(co, "commit", "-qm", "unpushed")
+        seen = gd.observe_checkout(spec, tip)                              # clean, contains the merge, ahead of origin
+        self.assertEqual(seen["status"], "sync_pending"); self.assertIn("remote", seen["reason"])
+        sc.git(co, "reset", "-q", "--hard", tip)
+        (src / "a").write_text("2\n"); sc.git(src, "commit", "-qam", "main advanced"); sc.git(src, "push", "-q", str(bare), "main")
+        seen = gd.observe_checkout(spec, tip)                              # clean, contains the merge, behind origin
+        self.assertEqual(seen["status"], "sync_pending"); self.assertIn("remote", seen["reason"])
+        self.assertEqual(gd.sync_checkout(spec, tip)["status"], "synced")
+        self.assertEqual(gd.observe_checkout(spec, tip)["status"], "synced")
+        spec2 = dict(spec, remote=str(bare) + ".missing")
+        sc.git(co, "remote", "set-url", "origin", spec2["remote"])
+        self.assertEqual(gd.observe_checkout(spec2, tip)["status"], "sync_pending")   # an unreadable remote is not synced
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

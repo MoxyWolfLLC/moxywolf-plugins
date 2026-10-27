@@ -803,5 +803,42 @@ class Repairs(ResumeExecutes):
         self.assertEqual(calls, []); self.assertEqual(out["delivery_status"], "complete")
 
 
+
+class RepairsRound2(ResumeExecutes):
+    """Review 20261027-124210-98b5ed8-o897p6eo F2 and F3. Written before the fix."""
+
+    def test_f2_a_pending_decision_never_ends_the_run_complete(self):
+        head = self.delivery_state()
+        st = gr.load("g1"); ch = st["delivery"]["changes"]["implementation"]
+        ch["merge"] = {"verified": True, "head": head, "sha": "m" * 40}
+        ch["release_record"] = {"verified": True, "path": "/r"}
+        st["final_pr"] = 42; gr.save(st)
+        base_get = self.github(head, merged=True)
+        lost = lambda path: None if path.endswith("/pulls/42") else base_get(path)   # the PR can't be read now
+        put, calls = self.writer()
+        out = gr.resume("g1", lost, "o/r", put=put)
+        self.assertNotEqual(out["delivery_status"], "complete")
+        self.assertIn("pending", out["next"])
+        self.assertIsNone(gr.load("g1")["outcome"], "a pending decision leaves the run open")
+
+    def test_f3_an_out_of_lane_or_foreign_release_record_is_not_a_verified_release(self):
+        head = self.delivery_state()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        f = reviews / "rev-1" / "release-o-r-42.json"
+        for rec in ({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_out_of_lane"},
+                    {"review_id": "another", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"},
+                    {"review_id": "rev-1", "repo": "o/other", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}):
+            f.write_text(json.dumps(rec)); before = f.read_bytes()
+            st = gr.load("g1"); st["delivery"]["changes"]["implementation"]["release_record"] = None; gr.save(st)
+            put, calls = self.writer()
+            out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)
+            self.assertFalse((gr.load("g1")["delivery"]["changes"]["implementation"].get("release_record") or {}).get("verified"))
+            self.assertNotEqual(out["delivery_status"], "complete"); self.assertTrue(out["stopped_by"])
+            self.assertEqual(f.read_bytes(), before, "the record is kept as it is")
+        f.write_text(json.dumps({"review_id": "rev-1", "repo": "o/r", "head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
+        st = gr.load("g1"); st["delivery"]["changes"]["implementation"]["release_record"] = None; gr.save(st)
+        self.assertEqual(gr.resume("g1", self.github(head, merged=True), "o/r", put=self.writer()[0])["delivery_status"], "complete")
+
+
 if __name__ == "__main__":
     unittest.main()
