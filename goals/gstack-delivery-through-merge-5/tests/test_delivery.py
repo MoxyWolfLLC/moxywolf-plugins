@@ -321,7 +321,7 @@ class GitHubFixture:
             return 200, []
         if path == prefix + "/commits/" + self.pr["head"]["sha"] + "/check-runs":
             binding = (
-                "goal-checks:42:main:" + self.pr["base"]["sha"]
+                "pr=42;base_ref=main;base=" + self.pr["base"]["sha"]
             )
             return 200, {
                 "check_runs": [
@@ -576,6 +576,7 @@ class Delivery(unittest.TestCase):
     def _seed_review(self, repo, base, head, review_id, model_selection=False):
         packet = self._packet(repo, base, head)
         if model_selection:
+            packet["items"] = ["delivery/1"]
             packet["model_selection"] = {
                 "status": "checked",
                 "mode": "shadow",
@@ -695,6 +696,11 @@ class Delivery(unittest.TestCase):
         review_dir = self._seed_review(source, base, head, review_id, model_selection=True)
         delivery = self._delivery_document(source, base, head, review_id, [spec])
         directory = self.runs / "delivery"
+        goal_workflows = {
+            "goal-envelope.yml": "03c4d6e7e6ee8a5aca467cbea7899b22f1a00b1cae72d36b0d65bbfe412823d5",
+            "goal-tests.yml": "27bfd7ad9b61ee9cb491ee5abee6b9b8899af7a616ea851da7c92004900460a5",
+            "goal-holdout.yml": "76ab3029baef7a5b42911dcd9eb0071992260c79fe71a328ba926a2e1192f21b",
+        }
         write_json(directory / "state.json", {
             "goal": "delivery",
             "pr": 7,
@@ -722,7 +728,9 @@ class Delivery(unittest.TestCase):
             "merge": None,
             "calls": [],
             "messages": [],
-            "triggers": [],
+            "triggers": digest(json.dumps(
+                [{}, ["goal-holdout"], goal_workflows], sort_keys=True
+            ).encode()),
             "spent": [],
             "finalize_pr": 41,
             "final_pr": 42,
