@@ -261,8 +261,13 @@ def delivery_status(delivery, observed=None):
 
 
 def _git(path, *args, check=False):
-    p = subprocess.run(["git", "--no-optional-locks", "-C", str(path), *args], capture_output=True, text=True,
-                       stdin=subprocess.DEVNULL, timeout=120)
+    argv = ["git", "--no-optional-locks", "-C", str(path), *args]
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
+    except (subprocess.TimeoutExpired, OSError, ValueError) as e:
+        # review 20261027-161517 F4: a Git process that timed out, couldn't start or returned undecodable
+        # output is a read that failed, with the reason, never an exception past the caller
+        p = subprocess.CompletedProcess(argv, 124, "", f"{type(e).__name__}: {e}")
     if check and p.returncode:
         raise Blocked(f"git {' '.join(args[:2])} failed in {path}: {(p.stderr or p.stdout).strip()[:200]}")
     return p
@@ -311,7 +316,10 @@ def required_merges(delivery, spec, default_repo=None):
     (its `repo`, or the github.com repository its `remote` names), and its required merges are every
     verified merge of THAT repository's changes into its branch. Another repository's merge never
     counts, and none is chosen by record order. A checkout with no repository identity blocks."""
-    repo = (spec.get("repo") or github_repo(spec.get("remote")) or "").lower()
+    named = github_repo(spec.get("remote"))
+    if spec.get("repo") and named and named != spec["repo"].lower():   # review 20261027-161517 F3
+        raise Blocked(f"checkout {spec.get('name')} declares {spec['repo']} but its remote {spec.get('remote')} is {named}")
+    repo = (spec.get("repo") or named or "").lower()
     if not repo:
         raise Blocked(f"checkout {spec.get('name')} isn't bound to a repository: no repo, and its remote "
                       f"{spec.get('remote')!r} names no github.com repository")
@@ -352,6 +360,9 @@ def _inspect(checkout, pending):
     remote = _read(path, "remote", "get-url", "origin").strip()
     if checkout.get("remote") and remote != checkout["remote"]:
         return pending(f"remote mismatch: origin is {remote or 'unset'}, not {checkout['remote']}")
+    named, declared = github_repo(remote), (checkout.get("repo") or "").lower()
+    if declared and named and named != declared:     # review 20261027-161517 F3: what origin names decides, not the label
+        return pending(f"repository mismatch: origin {remote} is {named}, not the declared {declared}; nothing touched")
     want = checkout.get("branch") or "main"
     ref = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD")
     if ref.returncode == 1 and not (ref.stderr or "").strip():

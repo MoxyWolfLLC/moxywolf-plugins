@@ -3065,7 +3065,14 @@ def passing_review(d):
         raise ReviewError("release_blocked", "review has not passed")
     n = state["rounds_used"]
     record = load(d, f"round-{n}.json")
-    prior = load(d, f"round-{n-1}.json") if n > 1 else None
+    # review 20261027-161517 F1: the round a passing round was measured against is the last ADJUDICATED one
+    # before it; a round refused for its evidence adjudicated nothing (the same rule cmd_round applies)
+    rejected = set(state.get("rejected_rounds") or ())
+    def _refused(i):
+        r = load(d, f"round-{i}.json") or {}
+        return i in rejected or (r.get("error") and r.get("outcome") == "release_blocked")
+    k = next((i for i in range(n - 1, 0, -1) if not _refused(i)), 0)
+    prior = load(d, f"round-{k}.json") if k else None
     if not record or record.get("repos") != packet["repos"] or state.get("release_owner") != packet["release_owner"]:
         raise ReviewError("release_blocked", "review identity does not match packet")
     out = validate(record.get("raw", ""), packet, prior, load(d, "dispositions.json"))
@@ -3250,7 +3257,7 @@ AUTONOMOUS_MERGE_AUTHORITY = "DR-113: Dorian's standing authorization of 2026-09
 AGENT_LOGIN = "moxywolf-agent[bot]"  # the only bot DR-113 authorizes; any other bot still needs an instruction
 
 
-def finalized_relation(path, review_state, pr):
+def finalized_relation(path, review_state, packet, pr):
     """Repair 6: the GO-011.2 relationship between a merged goal pull request and its whole-goal review,
     read from the goal runner rather than restated: the pull request is goal/<id> into main, the head it
     merged is the finalized head the runner recorded for <id>, and goal_run.final_review_pinned (the
@@ -3264,7 +3271,13 @@ def finalized_relation(path, review_state, pr):
     try:
         import goal_run
         run = goal_run.load(goal_id)
-        if run.get("finalized_head") != merged or not goal_run.final_review_pinned(Path(path), goal_id, run, review_state):
+        if run.get("finalized_head") != merged or pr.get("number") != run.get("final_pr"):
+            return None                                   # review 20261027-161517 F2: this goal's recorded goal PR only
+        if not goal_run.final_review_pinned(Path(path), goal_id, run, review_state):
+            return None
+        # F2: and a WHOLE-goal review: every item, one repository, from where main and the goal head meet
+        if goal_run.final_review_scope(Path(path), goal_id, run, dict(review_state, packet=packet), merged,
+                                       {"base": (pr.get("base") or {}).get("sha")}):
             return None
     except (Exception, SystemExit):
         return None
@@ -3293,7 +3306,7 @@ def cmd_record_release(a):
     # Repair 6 (goal gstack-delivery-completion-3): the goal pull request merges its finalized head, one
     # commit past the head the whole-goal review passed at. Only that GO-011.2 relationship, as the goal
     # runner records and reads it, stands in for the exact-head match; every other merge still needs it.
-    finalized = (finalized_relation(path, state, pr) if isinstance(pr, dict) and pr.get("head", {}).get("sha") != repo["head"]
+    finalized = (finalized_relation(path, state, packet, pr) if isinstance(pr, dict) and pr.get("head", {}).get("sha") != repo["head"]
                  else None)
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
             (pr.get("head", {}).get("sha") != repo["head"] and not finalized) or

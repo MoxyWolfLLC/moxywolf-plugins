@@ -886,8 +886,13 @@ def _observe_finalized(goal_id, state, delivery, observed):
             continue
         try:
             review, _ = _review_record(ch.get("review_id"))
-            pinned = final_review_pinned(Path(ch.get("path") or "."), goal_id, state, review)
-            ev["finalized"] = {"pinned": bool(pinned), "finalized_head": state.get("finalized_head")}
+            repo = Path(ch.get("path") or ".")
+            pr = (observed.get("prs") or {}).get(cid) or {}
+            why = ([] if ch.get("pr") == state.get("final_pr") else [f"#{ch.get('pr')} isn't the recorded goal pull request #{state.get('final_pr')}"])
+            why += ([] if final_review_pinned(repo, goal_id, state, review) else ["the review isn't pinned to the tested head without its holdout"])
+            # review 20261027-161517 F2: the whole goal, not one item: the same scope the merge gate requires
+            why += final_review_scope(repo, goal_id, state, review, ch.get("head"), {"base": (pr.get("base") or {}).get("sha")})
+            ev["finalized"] = {"pinned": not why, "finalized_head": state.get("finalized_head"), **({"why": "; ".join(why)} if why else {})}
         except (Refused, KeyError, IndexError, ValueError, OSError) as e:
             ev["finalized"] = {"pinned": False, "finalized_head": state.get("finalized_head"), "why": f"{type(e).__name__}: {e}"}
 

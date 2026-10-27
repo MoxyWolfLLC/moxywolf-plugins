@@ -925,7 +925,7 @@ class FinalizedRelease(unittest.TestCase):
         return final
 
     def record(self, final, ref="goal/g1"):
-        self.install_github_response(merged_by=self.BOT, head={"sha": final, "ref": ref},
+        self.install_github_response(merged_by=self.BOT, number=1, head={"sha": final, "ref": ref},
                                      base={"ref": "main", "sha": self.base, "repo": {"full_name": "example/project"}})
         return self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
 
