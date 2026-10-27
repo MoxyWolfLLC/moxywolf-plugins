@@ -672,5 +672,89 @@ class Resume(RunnerFixture):
             gr.resume("g1", self.github("x" * 40), "o/r")
 
 
+
+class ResumeExecutes(Resume):
+    """Goal gstack-delivery-through-merge item 3: with a GitHub writer, resume carries out each
+    allowed action through the existing gates; a lost response is found by observing, never by a
+    second merge request; a record already written is reused; a gate that holds stops it."""
+
+    def writer(self, fail=False):
+        calls = []
+        def put(path, data):
+            calls.append((path, data))
+            if fail:
+                raise ConnectionResetError("the response was lost")
+            return {"merged": True}
+        return put, calls
+
+    def test_the_owner_gate_still_holding_stops_before_any_merge_request(self):
+        head = self.delivery_state()
+        put, calls = self.writer()
+        base_get = self.github(head)
+        get = lambda path: ({"environments": [{"name": "goal-holdout"}]} if path.endswith("/environments") else [] if "/deployments" in path
+                            else base_get(path))
+        with self.assertRaises(gr.Refused) as c:      # the real act(): main isn't this run's goal pull request
+            gr.resume("g1", get, "o/r", put=put)
+        self.assertIn("an item merges into goal/g1, not main", str(c.exception))
+        self.assertEqual(calls, [])
+        self.assertNotIn("merge_requested", gr.load("g1")["delivery"]["changes"]["implementation"])
+
+    def test_a_moved_pull_request_head_is_never_merged(self):
+        head = self.delivery_state()
+        put, calls = self.writer()
+        out = gr.resume("g1", self.github("o" * 40), "o/r", put=put)
+        self.assertIn("blocked", out["next"]); self.assertIn("moved head", out["next"]["blocked"])
+        self.assertEqual((calls, out["executed"]), ([], []))
+
+    def test_a_lost_merge_response_is_found_on_github_and_never_requested_again(self):
+        head = self.delivery_state()
+        orig = gr.act; gr.act = lambda *a, **k: {"allowed": "merge"}; self.addCleanup(setattr, gr, "act", orig)
+        put, calls = self.writer(fail=True)
+        out = gr.resume("g1", self.github(head), "o/r", put=put)
+        self.assertEqual(len(calls), 1); self.assertEqual(calls[0][1]["sha"], head)
+        self.assertIn("doesn't show it merged yet", out["stopped_by"])
+        ch = gr.load("g1")["delivery"]["changes"]["implementation"]
+        self.assertIn("lost", ch["merge_requested"]["response"]); self.assertFalse((ch.get("merge") or {}).get("verified"))
+        self.assertEqual(out["executed"][0]["action"], "merge")
+        put2, calls2 = self.writer()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put2)   # GitHub had merged it
+        self.assertEqual(calls2, [])
+        ch = gr.load("g1")["delivery"]["changes"]["implementation"]
+        self.assertTrue(ch["merge"]["verified"]); self.assertTrue(ch["release_record"]["verified"])
+        self.assertEqual(out["delivery_status"], "complete")
+
+    def test_a_failure_after_the_record_was_written_resumes_without_rewriting_it(self):
+        head = self.delivery_state()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        f = reviews / "rev-1" / "release-o-r-42.json"
+        f.write_text(json.dumps({"head": head, "merge_commit": "m" * 40, "outcome": "agent_merge_autonomous"}))
+        before = f.read_bytes()
+        put, calls = self.writer()
+        for _ in range(2):
+            out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)
+            self.assertEqual(out["delivery_status"], "complete")
+        self.assertEqual((f.read_bytes(), calls), (before, []))
+        f.write_text(json.dumps({"head": "o" * 40, "merge_commit": "m" * 40}))   # a record of another head is refused
+        st = gr.load("g1"); st["delivery"]["changes"]["implementation"]["release_record"] = None; gr.save(st)
+        out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)
+        self.assertIn("not this change's merge", out["stopped_by"])
+        self.assertNotEqual(out["delivery_status"], "complete")
+
+    def test_a_missing_release_companion_prevents_complete(self):
+        head = self.delivery_state()
+        st = gr.load("g1"); dl = st["delivery"]
+        dl["changes"]["marketplace"] = dict(dl["changes"]["implementation"], pr=43, review_id="rev-2", merge=None, release_record=None)
+        dl["release_companion"] = "marketplace"; gr.save(st)
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        put, calls = self.writer()
+        out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)   # #43 isn't observed
+        self.assertNotEqual(out["delivery_status"], "complete")
+        self.assertIn("marketplace: not merged", out["missing"])
+        self.assertEqual(calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -157,5 +157,49 @@ class NextAction(unittest.TestCase):
         self.assertEqual(gd.delivery_status(doc)["delivery_status"], "blocked")
 
 
+
+class SyncCheckout(unittest.TestCase):
+    """Item 3: a merge not yet on the remote leaves the checkout exactly as it was; a checkout
+    already at the tip is reported synced without being written. (The five refusals and the
+    advanced-main fast-forward are the goal test's.)"""
+
+    def git(self, cwd, *a):
+        return subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True, check=True).stdout.strip()
+
+    def fixture(self):
+        root = Path(tempfile.mkdtemp(prefix="sync-")); self.addCleanup(subprocess.run, ["rm", "-rf", str(root)])
+        src, bare, co = root / "src", root / "origin.git", root / "co"
+        self.git(root, "init", "-q", "-b", "main", str(src))
+        for k, v in (("user.name", "t"), ("user.email", "t@t")):
+            self.git(src, "config", k, v)
+        (src / "a").write_text("1\n"); self.git(src, "add", "a"); self.git(src, "commit", "-qm", "base")
+        self.git(root, "init", "--bare", "-q", "-b", "main", str(bare)); self.git(src, "push", "-q", str(bare), "main")
+        self.git(root, "clone", "-q", str(bare), str(co))
+        spec = {"name": "mac", "path": str(co), "host": gd.socket.gethostname(), "remote": str(bare), "branch": "main"}
+        return src, bare, co, spec
+
+    def snapshot(self, co):
+        return sorted((str(p.relative_to(co)), p.stat().st_mtime_ns, p.read_bytes() if p.is_file() else b"")
+                      for p in Path(co).rglob("*"))
+
+    def test_a_merge_not_on_the_remote_yet_is_pending_and_nothing_is_written(self):
+        src, bare, co, spec = self.fixture()
+        (src / "a").write_text("2\n"); self.git(src, "commit", "-qam", "unpushed merge")
+        merge = self.git(src, "rev-parse", "HEAD")
+        self.git(co, "fetch", "-q", str(src), merge)   # the object exists locally; the remote branch lacks it
+        before = self.snapshot(co)
+        out = gd.sync_checkout(spec, merge)
+        self.assertEqual(out["status"], "sync_pending"); self.assertIn("not on", out["reason"])
+        self.assertEqual(self.snapshot(co), before)
+
+    def test_a_checkout_already_at_the_tip_is_synced_without_writing(self):
+        src, bare, co, spec = self.fixture()
+        tip = self.git(co, "rev-parse", "HEAD")
+        before = self.snapshot(co)
+        out = gd.sync_checkout(spec, tip)
+        self.assertEqual((out["status"], out["sha"]), ("synced", tip))
+        self.assertEqual(self.snapshot(co), before)
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

@@ -8,14 +8,22 @@ observed (GitHub, git, the ledger) and never what a model declared.
   goal_delivery.py reserve-review --delivery FILE --change-id ID --review-id ID
       Record one review attempt for the change, under the cumulative limit; exhaustion exits
       nonzero and writes nothing. Prints {"reserved": true, "attempts_used": N}.
-  goal_delivery.py sync-checkout --checkout FILE --merge SHA        (item 3)
-  goal_delivery.py status --delivery FILE                           (item 3)
+  goal_delivery.py sync-checkout --checkout FILE --merge SHA
+      Fast-forward the required checkout FILE names ({name, path, host, remote, branch}) to the
+      branch tip containing SHA, or change nothing. Prints {"status": "synced", ...} and exits 0,
+      or {"status": "sync_pending", "name", "reason", ...} and exits 3.
+  goal_delivery.py status --delivery FILE
+      Prints {"delivery_status": "complete" | "in_progress" | "sync_pending" | "blocked", ...}.
 
-Library: next_action(delivery, observed), reserve_review(delivery, change_id, review_id).
+Library: next_action(delivery, observed), reserve_review(delivery, change_id, review_id),
+sync_checkout(checkout, merge_sha), delivery_status(delivery, observed).
 """
 import json
 import os
+import socket
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -208,6 +216,65 @@ def delivery_status(delivery, observed=None):
     return {"delivery_status": phase, "missing": missing, **out}
 
 
+def _git(path, *args, check=False):
+    p = subprocess.run(["git", "--no-optional-locks", "-C", str(path), *args], capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL, timeout=120)
+    if check and p.returncode:
+        raise Blocked(f"git {' '.join(args[:2])} failed in {path}: {(p.stderr or p.stdout).strip()[:200]}")
+    return p
+
+
+def sync_checkout(checkout, merge_sha):
+    """GO-003.12: bring one required checkout to the branch tip that contains merge_sha, by
+    fast-forward only, or report sync_pending naming the checkout and why. Every refusal happens
+    before anything in the checkout is written: the host, the path, the remote, the branch and the
+    tracked and untracked state are read with --no-optional-locks, and the remote tip and the
+    ancestry are worked out in a throwaway object store, so a refused checkout's files, status and
+    Git metadata are exactly as they were. Only a clean checkout on the expected branch whose HEAD
+    is an ancestor of a remote tip containing the merge is fetched into and fast-forwarded."""
+    name, path = checkout.get("name"), Path(str(checkout.get("path") or ""))
+    def pending(reason):
+        return {"status": "sync_pending", "name": name, "path": str(path), "reason": reason,
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    here = socket.gethostname()
+    if checkout.get("host") and checkout["host"] != here:
+        return pending(f"wrong host: {name} is on {checkout['host']}, this is {here}; nothing touched")
+    if not path.is_dir() or _git(path, "rev-parse", "--git-dir").returncode:
+        return pending(f"unavailable: {path} is missing or not a Git checkout")
+    remote = _git(path, "remote", "get-url", "origin").stdout.strip()
+    if checkout.get("remote") and remote != checkout["remote"]:
+        return pending(f"remote mismatch: origin is {remote or 'unset'}, not {checkout['remote']}")
+    branch = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
+    want = checkout.get("branch") or "main"
+    if branch != want:
+        return pending(f"unexpected branch: {name} is on {branch or 'a detached HEAD'}, not {want}")
+    dirt = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
+    if dirt.strip():
+        return pending(f"dirty: {name} has uncommitted or untracked changes ({len(dirt.splitlines())} entries); nothing touched")
+    head = _git(path, "rev-parse", "HEAD").stdout.strip()
+    # ponytail: a throwaway bare store holds both sides, so ancestry is known without writing the checkout
+    with tempfile.TemporaryDirectory(prefix="gstack-sync-") as tmp:
+        _git(tmp, "init", "--bare", "-q", check=True)
+        got = _git(tmp, "fetch", "-q", "--no-tags", remote, f"+refs/heads/{want}:refs/remote-tip")
+        if got.returncode:
+            return pending(f"unavailable: can't read {want} from {remote}: {(got.stderr or '').strip()[:160]}")
+        _git(tmp, "fetch", "-q", "--no-tags", str(path.resolve()), f"+{head}:refs/local-head", check=True)
+        tip = _git(tmp, "rev-parse", "refs/remote-tip").stdout.strip()
+        if _git(tmp, "merge-base", "--is-ancestor", merge_sha, tip).returncode:
+            return pending(f"the merge {merge_sha[:12]} is not on {remote} {want} ({tip[:12]}) yet")
+        if _git(tmp, "merge-base", "--is-ancestor", head, tip).returncode:
+            return pending(f"diverged: {name} at {head[:12]} has commits not on {want}; a fast-forward is impossible, nothing touched")
+    if head != tip:
+        _git(path, "fetch", "-q", "--no-tags", "origin", f"refs/heads/{want}", check=True)
+        _git(path, "merge", "--ff-only", "-q", tip, check=True)
+    now = _git(path, "rev-parse", "HEAD").stdout.strip()
+    status = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
+    if now != tip or status.strip():
+        return pending(f"after the fast-forward {name} is at {now[:12]} with status {status.strip()[:80]!r}, not clean at {tip[:12]}")
+    return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
+            "sha": now, "contains": merge_sha, "git_status": "", "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
 # ---- CLI ----
 
 def _cli_reserve(opts):
@@ -226,6 +293,9 @@ def main(argv):
     try:
         if cmd == "reserve-review" and set(opts) == {"--delivery", "--change-id", "--review-id"}:
             return _cli_reserve(opts)
+        if cmd == "sync-checkout" and set(opts) == {"--checkout", "--merge"}:
+            out = sync_checkout(json.loads(Path(opts["--checkout"]).read_text()), opts["--merge"])
+            print(json.dumps(out)); return 0 if out["status"] == "synced" else 3
         if cmd == "status" and set(opts) == {"--delivery"}:
             print(json.dumps(delivery_status(read_delivery(opts["--delivery"])))); return 0
         print(__doc__, file=sys.stderr); return 2
