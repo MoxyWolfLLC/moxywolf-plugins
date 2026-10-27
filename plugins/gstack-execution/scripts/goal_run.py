@@ -39,6 +39,10 @@
         since the start, which stops the run. Resources: vcs.push <branch>; pr.open <base><-<head>;
         merge <target>; net.connect <host>; review.send_code <tool>; external.model_call <model>
   goal_run.py resync <id> --head <sha>
+  goal_run.py resume <id> [--repo owner/name]
+        GO-003.12: pick the delivery up from its persisted record: re-observe GitHub and the review
+        records, record a merge only from GitHub's own answer, and print the next supervisor action with
+        delivery_status; an unreadable budget or authority record blocks; a goal-run token is required
         the goal pull request's head moved because a sync from main merged into goal/<id>
         (GO-004.1): accepts the new head only if it merges the recorded head with a commit on main,
         keeps the run record and passes the envelope check
@@ -71,6 +75,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -747,6 +752,14 @@ def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
     if problems:
         raise Refused("; ".join(problems))
     state["merge"], state["final_pr"] = merge_sha, pr
+    if isinstance(state.get("delivery"), dict):
+        # GO-011.8: the goal merge is recorded, and delivery isn't over until its release records,
+        # its release companion and its required checkouts are; resume ends the run when they are
+        import goal_delivery as gd
+        status = gd.delivery_status(state["delivery"])
+        if status["delivery_status"] != "complete":
+            save(state)
+            return {"merge_recorded": merge_sha, "pr": pr, **status}
     return end(state, "complete", f"PR #{pr} merged to main in {merge_sha[:12]}")
 
 
@@ -783,14 +796,279 @@ def record(goal_id):
             lines.append(f"{m['n']}. {m['at']} {what}" + (f", acknowledged: \u201c{m['words']}\u201d" if m["words"] else
                                                           ", waiting for Dorian" if m["status"] == "open" else ""))
             lines += [f"   {ln}" for ln in m["text"].splitlines()]
+    dl = state.get("delivery")
+    if isinstance(dl, dict):                            # GO-011.8: merge, record and sync, each on its own line
+        lines += ["", "## Delivery", ""]
+        for cid, ch in (dl.get("changes") or {}).items():
+            m, r = ch.get("merge") or {}, ch.get("release_record") or {}
+            lines.append(f"- {cid} (PR #{ch.get('pr')} into {ch.get('target')}"
+                         + (", release companion" if cid == dl.get("release_companion") else "") + ")")
+            lines.append(f"  - merge: " + (f"verified, {str(m.get('sha'))[:12]} from {m.get('observed_from')}" if m.get("verified")
+                                           else "contradicted by GitHub" if m.get("contradicted") else
+                                           "requested, not yet observed" if ch.get("merge_requested") else "not merged"))
+            lines.append(f"  - release record: " + (f"{r.get('outcome') or 'recorded'}, {r.get('path')}" if r.get("verified") else "not recorded"))
+        for spec in dl.get("required_checkouts") or ():
+            s = spec.get("sync") or {}
+            lines.append(f"- checkout {spec.get('name')} ({spec.get('path')}): "
+                         + (f"synced at {str(s.get('sha'))[:12]}" if s.get("status") == "synced"
+                            else f"{s.get('status')}: {s.get('reason')}" if s else "not synchronized"))
     if state["merge"]:
         lines += ["", "## Rolling back", "", "```", ge.revert_commands(state["merge"]), "```"]
     return "\n".join(lines) + "\n"
 
 
+GITHUB_API = os.environ.get("GSTACK_GITHUB_API", "https://api.github.com").rstrip("/")
+
+
+def _github_get(token):
+    """A reader of GitHub for the delivery: the configured API base (GSTACK_GITHUB_API, so a fixture
+    can stand in), 404 as None, any other failure raised, never read as an answer."""
+    import urllib.request, urllib.error
+    def get(path):
+        req = urllib.request.Request(f"{GITHUB_API}/{path}", headers={
+            "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+    return get
+
+
+def observe(delivery, get, repo_name):
+    """What the delivery can see right now, read from GitHub and the review records, never from a
+    declaration, keyed by change id (review F5: two repositories may share a pull request number or
+    a commit). A review is observed with the repository and head it passed at (review F2). A read
+    that fails is reported as unobserved, not as false."""
+    observed = {"prs": {}, "checks": {}, "reviews": {}, "checkouts": {}, "errors": []}
+    rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    for cid, ch in (delivery.get("changes") or {}).items():
+        name = ch.get("repo") or repo_name
+        try:
+            pr = get(f"repos/{name}/pulls/{ch['pr']}")
+            if pr is not None:
+                observed["prs"][cid] = pr
+            runs = get(f"repos/{name}/commits/{ch['head']}/check-runs") or {}
+            observed["checks"][cid] = {k: v[0] for k, v in gguard.latest_checks(runs.get("check_runs") or []).items()}
+        except Exception as e:   # the observation failed; next_action sees nothing, which is pending
+            observed["errors"].append(f"{cid}: {type(e).__name__}: {e}")
+        if rdir and ch.get("review_id"):
+            observed["reviews"][cid] = review_evidence(Path(rdir, ch["review_id"]), ch, observed["errors"], cid)
+    for spec in delivery.get("required_checkouts") or ():
+        if (spec.get("sync") or {}).get("status") == "synced":
+            observed["checkouts"][spec["name"]] = spec["sync"]
+    return observed
+
+
+def review_evidence(d, ch, errors, cid):
+    """What a review record says about THIS change's repository (review F2, F8): its outcome, the
+    head it passed at and the base it reviewed from, read at the index of the change's repository
+    in the retained packet. A record with no packet, no matching repository or an ambiguous match
+    is incomplete evidence, and says so, rather than defaulting to the first repository."""
+    if not (d / "state.json").is_file():
+        return None
+    try:
+        st = json.loads((d / "state.json").read_text())
+        pk = json.loads((d / "packet.json").read_text()) if (d / "packet.json").is_file() else None
+    except ValueError:
+        errors.append(f"{cid}: review record {d.name} unreadable")
+        return {"outcome": None, "review_id": d.name, "incomplete": "unreadable"}
+    out = {"outcome": st.get("outcome"), "review_id": d.name}
+    if not pk or not pk.get("repos"):
+        return dict(out, incomplete="the review record has no packet, so its repository and range are unknown")
+    want = Path(ch.get("path") or "").resolve() if ch.get("path") else None
+    matches = [i for i, r in enumerate(pk["repos"]) if want is not None and Path(r.get("path", "")).resolve() == want]
+    if len(matches) != 1:
+        return dict(out, incomplete=f"{len(matches)} of the review's {len(pk['repos'])} repositories match {ch.get('path')}")
+    i = matches[0]; r = pk["repos"][i]; heads = st.get("heads") or []
+    head = heads[-1][i] if heads and i < len(heads[-1]) else r.get("head")
+    return dict(out, head=head, base=r.get("review_base") or r.get("base"), repo=r.get("path"))
+
+
+def establish_authority(goal_id, state, delivery, get, repo_name):
+    """Review F1: the delivery acts under one approval and one ledger, and resume establishes both
+    before anything else. The embedded approval must be the run's (same pull request, review id,
+    approved head), GitHub must still show that review as APPROVED by the owner at that head, the
+    goal ledger must grant pushes to the goal branch, and the spend ledger must be under its stops.
+    Anything that can't be read or doesn't agree blocks; nothing defaults."""
+    d = run_dir(goal_id)
+    approval = delivery.get("approval") or {}
+    for key, mine in (("pr", state.get("pr")), ("review_id", state.get("review_id")), ("head", state.get("approved_head"))):
+        if approval.get(key) != mine:
+            raise Refused(f"the delivery's approval {key} ({approval.get(key)}) is not this run's ({mine}); authority not established")
+    name = approval.get("repo") or repo_name
+    try:
+        review = get(f"repos/{name}/pulls/{approval['pr']}/reviews/{approval['review_id']}")
+    except Exception as e:
+        raise Refused(f"the approval could not be read from GitHub ({type(e).__name__}: {e}); authority not established")
+    if not review or review.get("state") != "APPROVED" or review.get("commit_id") != approval["head"]             or (review.get("user") or {}).get("login") != approval.get("owner"):
+        raise Refused(f"GitHub does not show review {approval['review_id']} on #{approval['pr']} as APPROVED by "
+                      f"{approval.get('owner')} at {str(approval['head'])[:12]}; authority not established")
+    try:
+        gguard.granted(d / "ledger.jsonl", "vcs.push", state.get("branch") or f"goal/{goal_id}", state.get("spent") or [])
+    except Refused as e:
+        raise Refused(f"the goal ledger grants no push to the goal branch ({e}); authority not established")
+    brief = d / "goal" / "GOAL.md"
+    if not brief.is_file():
+        raise Refused("the run's copy of GOAL.md is missing; the budget cannot be read")
+    stop, reasons, totals = gs.status(d / "spend.jsonl", brief.read_text())
+    if stop:
+        raise Refused("the budget blocks: " + "; ".join(reasons))
+    return {"approval": {"review": review.get("id"), "state": review.get("state"), "commit_id": review.get("commit_id"),
+                         "by": (review.get("user") or {}).get("login")}, "spend": totals}
+
+
+def _mark_merges(delivery, observed, repo_name):
+    """A merge is verified only by GitHub's own answer and unmarked when GitHub contradicts it."""
+    for cid, ch in delivery["changes"].items():
+        pr = observed["prs"].get(cid)
+        if pr is None:
+            continue
+        merged_here = pr.get("merged") and (pr.get("merge_commit_sha") == ch["head"] or pr.get("head", {}).get("sha") == ch["head"])
+        if merged_here:
+            if not (ch.get("merge") or {}).get("verified"):
+                ch["merge"] = {"verified": True, "head": ch["head"], "sha": pr.get("merge_commit_sha"),
+                               "merged_by": (pr.get("merged_by") or {}).get("login"), "merged_at": pr.get("merged_at"),
+                               "observed_from": f"{GITHUB_API}/repos/{ch.get('repo') or repo_name}/pulls/{ch['pr']}"}
+        elif (ch.get("merge") or {}).get("verified"):
+            # review F3: GitHub contradicts the record; the record loses, and says so
+            ch["merge"] = {"verified": False, "contradicted": True, "was": ch["merge"],
+                           "observed": {"merged": pr.get("merged"), "head": pr.get("head", {}).get("sha")}}
+
+
+def _review_record(review_id):
+    rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    f = Path(rdir or "", review_id or "", "state.json")
+    if not rdir or not review_id or not f.is_file():
+        raise Refused(f"no review record {review_id} under GSTACK_PEER_REVIEW_DIR")
+    review = json.loads(f.read_text())
+    pk = f.with_name("packet.json")
+    review["packet"] = json.loads(pk.read_text()) if pk.is_file() else None
+    return review, f.parent
+
+
+def _execute(goal_id, state, action, observed, get, put, repo_name):
+    """GO-003.12 / GO-011.8: carry out the one allowed delivery action through the existing gates.
+    Returns (state, stop): stop is a reason the loop ends without another action. A merge goes
+    through act() (the same gate `may merge` uses), is persisted as requested before the request is
+    sent, and is requested once per observation that GitHub has not merged it; a lost response is
+    found by the next observation, never answered with a second request. record-release only reads
+    GitHub (peer_review.py), and an existing record of this merge is reused, not rewritten."""
+    import goal_delivery as gd
+    delivery = state["delivery"]
+    kind = action.get("action")
+    if kind == "merge":
+        cid = action["change"]; ch = delivery["changes"][cid]; name = ch.get("repo") or repo_name
+        pr = observed["prs"][cid]
+        review, _ = _review_record(ch.get("review_id"))
+        runs = get(f"repos/{name}/commits/{ch['head']}/check-runs?per_page=100") or {}
+        checks = gguard.latest_checks(runs.get("check_runs") or [])
+        prd = {"number": pr["number"], "head": pr["head"]["sha"], "base_ref": pr["base"]["ref"], "base": pr["base"]["sha"]}
+        save(state)
+        act(Path(ch.get("path") or "."), goal_id, "merge", ch["target"], environments_of(get, name),
+            base=prd["base"], head=ch["head"], review=review, checks=checks, pr=prd)
+        state = load(goal_id); delivery = state["delivery"]; ch = delivery["changes"][cid]
+        ch["merge_requested"] = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": ch["head"], "pr": ch["pr"]}
+        save(state)
+        try:
+            put(f"repos/{name}/pulls/{ch['pr']}/merge", {"sha": ch["head"], "merge_method": "merge"})
+        except Exception as e:   # the answer is GitHub's next observation, not this response
+            ch["merge_requested"]["response"] = f"{type(e).__name__}: {e}"
+            save(state)
+        return state, None
+    if kind == "record_release":
+        cid = action["change"]; ch = delivery["changes"][cid]; name = ch.get("repo") or repo_name
+        _, rdir = _review_record(ch.get("review_id"))
+        f = rdir / f"release-{name.replace('/', '-')}-{ch['pr']}.json"
+        if not f.is_file():
+            p = subprocess.run([sys.executable, str(Path(__file__).with_name("peer_review.py")), "record-release",
+                                ch["review_id"], "--repo", str(ch.get("path") or "."), "--pr", str(ch["pr"])],
+                               capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=300)
+            if p.returncode or not f.is_file():
+                return state, f"record-release for {cid} refused: {(p.stderr or p.stdout).strip()[-300:]}"
+        rec = json.loads(f.read_text())
+        merge = ch.get("merge") or {}
+        if rec.get("head") != ch["head"] or (merge.get("sha") and rec.get("merge_commit") != merge["sha"]):
+            return state, f"{f.name} records {str(rec.get('head'))[:12]} merged as {str(rec.get('merge_commit'))[:12]}, not this change's merge"
+        ch["release_record"] = {"verified": True, "path": str(f), "merge_commit": rec.get("merge_commit"), "outcome": rec.get("outcome")}
+        save(state)
+        return state, None
+    if kind == "sync_checkout":
+        spec = next(s for s in delivery.get("required_checkouts") or () if s.get("name") == action["checkout"])
+        merges = [c["merge"]["sha"] for c in delivery["changes"].values()
+                  if (c.get("merge") or {}).get("verified") and c.get("target") == (spec.get("branch") or "main")]
+        if not merges:
+            return state, f"no verified merge into {spec.get('branch') or 'main'} to synchronize {spec.get('name')} to"
+        spec["sync"] = gd.sync_checkout(spec, merges[-1])
+        save(state)
+        return state, None if spec["sync"]["status"] == "synced" else spec["sync"]["reason"]
+    return state, None
+
+
+def resume(goal_id, get, repo_name, put=None):
+    """GO-003.12: pick the delivery up from its persisted record. Loads the run state, establishes
+    the approval and the ledgers (readable and meaning what they must), re-observes GitHub and the
+    local prerequisites, records what was observed into the delivery, and saves. Without `put` it
+    returns the next supervisor action and executes nothing. With `put` (the CLI's GitHub writer) it
+    carries out each allowed action in turn, re-observing after each, until the delivery is
+    complete, pending, blocked or stopped; when it is complete the run ends complete with the goal
+    merge recorded (GO-011.8)."""
+    import goal_delivery as gd
+    state = load(goal_id)
+    delivery = state.get("delivery")
+    if not isinstance(delivery, dict):
+        raise Refused(f"{goal_id} has no delivery record to resume")
+    d = run_dir(goal_id)
+    for required in ("spend.jsonl", "ledger.jsonl"):
+        f = d / required
+        if not f.is_file():
+            raise Refused(f"{required} is missing: an unreadable budget or authority record blocks further action")
+        try:
+            [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
+        except ValueError as e:
+            raise Refused(f"{required} is unreadable ({e}): the budget or authority record blocks further action")
+    authority = establish_authority(goal_id, state, delivery, get, repo_name)
+    stop, steps, requested = None, [], set()
+    for _ in range(12):   # ponytail: each pass is one action; a delivery has a handful
+        observed = observe(delivery, get, repo_name)
+        _mark_merges(delivery, observed, repo_name)
+        action = gd.next_action(delivery, observed)
+        status = gd.delivery_status(delivery, observed)
+        state["delivery"] = delivery
+        save(state)
+        if put is None or "action" not in action or action["action"] == "complete" or stop:
+            break
+        if action["action"] == "merge" and action["change"] in requested:
+            # one request per change per process: GitHub still showing it unmerged is an answer to
+            # read again later, never a reason to ask twice (a lost response looks exactly like this)
+            stop = f"merge of {action['change']} was requested and GitHub doesn't show it merged yet; resume again to re-observe"
+            break
+        if action["action"] == "merge":
+            requested.add(action["change"])
+        state, stop = _execute(goal_id, state, action, observed, get, put, repo_name)
+        delivery = state["delivery"]
+        steps.append({k: action.get(k) for k in ("action", "change", "checkout") if action.get(k)})
+    if put is not None and status["delivery_status"] == "complete" and not state.get("outcome"):
+        final = next((c for c in delivery["changes"].values() if c.get("pr") == state.get("final_pr")), None)
+        if final and (final.get("merge") or {}).get("verified"):
+            state["merge"] = final["merge"]["sha"]
+            end(state, "complete", f"PR #{final['pr']} merged to main in {final['merge']['sha'][:12]}; "
+                                   "release recorded and required checkouts synchronized")
+            state = load(goal_id); delivery = state["delivery"]
+    delivery["last_observed"] = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "errors": observed["errors"],
+                                 "authority": authority, "next": action, "delivery_status": status["delivery_status"],
+                                 "steps": steps, "stopped_by": stop}
+    state["delivery"] = delivery
+    save(state)
+    return {"goal": goal_id, "next": action, **status, "executed": steps, "stopped_by": stop,
+            "observation_errors": observed["errors"]}
+
+
 def _api(token, method, path, data):
     import urllib.request
-    req = urllib.request.Request("https://api.github.com/" + path, method=method, data=json.dumps(data).encode(),
+    req = urllib.request.Request(f"{GITHUB_API}/" + path, method=method, data=json.dumps(data).encode(),
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                                           "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as r:
@@ -818,8 +1096,10 @@ def environments_of(get, name):
     """Every deployment environment GitHub reports for the repository: its environments and the
     environments its deployments name. A read that fails stops the caller; it never reads as none."""
     def read():
-        envs = {e["name"] for e in get(f"repos/{name}/environments")["environments"]}
-        return sorted(envs | {x["environment"] for x in get(f"repos/{name}/deployments?per_page=100")})
+        envs, deps = get(f"repos/{name}/environments"), get(f"repos/{name}/deployments?per_page=100")
+        if not isinstance(envs, dict) or not isinstance(deps, list):   # a 404 or an odd answer is unread, never none
+            raise Refused(f"can't read {name}'s deployment environments; the gate can't assess what a merge sets off")
+        return sorted({e["name"] for e in envs.get("environments") or []} | {x["environment"] for x in deps})
     return read
 
 
@@ -857,6 +1137,14 @@ def _main(argv, repo=gb.ROOT):
                   environments=environments_of(get, name))
             print(json.dumps({"started": goal_id}))
             return 0
+        if cmd == "resume" and goal_id and set(opts) <= {"--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":
+                raise Refused("resume needs a goal-run token: run it under agent_token.py exec --goal-run --")
+            out = resume(goal_id, _github_get(token), opts.get("--repo", REPO),
+                         put=lambda path, data: _api(token, "PUT", path, data))
+            print(json.dumps(out, indent=1))
+            return 0 if out.get("delivery_status") == "complete" or "action" in out.get("next", {}) else 3
         if cmd == "next" and goal_id and not opts:
             ok, out = next_step(repo, goal_id)
             print(json.dumps(out))

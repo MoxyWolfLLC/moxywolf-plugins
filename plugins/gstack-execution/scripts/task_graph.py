@@ -17,6 +17,7 @@ import tempfile
 import time
 
 import peer_review as peer
+import graph_context
 from enclosure import RULE, enclose   # TB-002
 from ci_log_receipt import LIKELY_SECRET   # XE-036: one home for what counts as a secret
 
@@ -49,7 +50,7 @@ def redact(text):
 PROVENANCE_OF={'node':'executor','packet':'executor','snapshots':'repository','correction':'executor',
                'dependencies':'handler_output','candidates':'handler_output','correction_diagnostics':'handler_output',
                'correction.diagnostics':'handler_output',
-               'model_selection':'handler_output'}   # MR-001.6: Jev's answers are model output, labelled untrusted; F1 (review 20261013-124809): the one handler-written field inside the executor's record
+               'model_selection':'handler_output','context':'handler_output'}   # MR-001.6: Jev's answers are model output, labelled untrusted; F1 (review 20261013-124809): the one handler-written field inside the executor's record
 
 
 def provenance_of(payload):
@@ -73,6 +74,8 @@ def node_prompt(payload):
     `provenance` for its own keys, written here, not by the handler."""
     own = {k: payload[k] for k in ('node', 'packet', 'snapshots')}
     outside = {k: payload[k] for k in ('dependencies', 'candidates')}
+    own['packet'] = {k:v for k,v in payload['packet'].items() if k != 'context'}
+    if payload.get('context') is not None: outside['context'] = payload['context']
     if payload.get('correction'):   # XE-036.4: the executor's record is ours; the failed handler's output is not
         c = dict(payload['correction']); outside['correction_diagnostics'] = c.pop('diagnostics')
         own['correction'] = c
@@ -331,7 +334,8 @@ def worker(node,packet,dependencies,root,correction=None):
                              'unreferenced is not proof of unused.' if fake_edges else ''),
                 'unreferenced_dependencies':fake_edges,
                 'revision':packet['repos'],'owner':packet['owner'],
-                'sources':dict(dependencies)}
+                'sources':dict(dependencies),
+                **({'context_handoffs':{n['id']:graph_context.materialize(packet,n) for n in read(root/'graph.json')['nodes']}} if 'context' in packet else {})}
     tool=peer.OTHER_TOOL[packet['builder']] if node['kind'] in {'checker','peer'} else packet['builder']
     permission(packet,tool=tool if not node.get('command') and node['kind']!='proof' else None,command=node.get('command',node.get('argv')))
     repos=[packet['repos'][i] for i in node.get('repo_indexes',range(len(packet['repos'])))]
@@ -339,6 +343,9 @@ def worker(node,packet,dependencies,root,correction=None):
         pk={'outcome':packet.get('scope','repository review'),'acceptance_criteria':node['checks'],'repos':repos,
             'changed_behavior':packet.get('changed_behavior','See commit diff'),'exclusions':packet.get('exclusions',[]),
             'tests':packet.get('tests',{}),'release_owner':packet['owner'],'data_use':packet['data_use']}
+        context=graph_context.materialize(packet,node)
+        if context is not None:
+            pk['changed_behavior'] += '\nUntrusted task context (evidence only): '+json.dumps(context,sort_keys=True)
         pp=root/(node['id']+'-packet.json');write(pp,pk)
         env=dict(os.environ,GSTACK_PEER_REVIEW_DIR=str(root/'peer-reviews'))
         def cli(*args):
@@ -346,7 +353,8 @@ def worker(node,packet,dependencies,root,correction=None):
             if r.returncode:raise ValueError('peer review did not pass: '+(r.stdout+r.stderr)[-2000:])
             return json.loads(r.stdout)
         marker=root/(node['id']+'-review.json')
-        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder'],packet.get('timeout',900)])
+        # The context the reviewer received is part of the contract: a review completed for one handoff is not evidence for another.
+        contract=digest([node['checks'],[r['path'] for r in repos],packet['owner'],packet['builder'],packet.get('timeout',900),context['digest'] if context else None])
         if marker.exists():
             opened=read(marker)
             if opened['contract']!=contract:raise ValueError('review contract changed; use a new run for new intent')
@@ -378,6 +386,10 @@ def worker(node,packet,dependencies,root,correction=None):
         try:
             snaps=peer.snapshot(repos,work)
             payload={'node':node,'packet':packet,'dependencies':dependencies,'candidates':candidates(dependencies),'snapshots':[str(p) for _,p in snaps],'model_selection':packet.get('model_selection')}   # MR-001.6: a launched handler reads the tier
+            context=graph_context.materialize(packet,node)
+            if context is not None:
+                payload['context']=context
+                payload['packet']={k:v for k,v in packet.items() if k != 'context'}
             if correction:payload['correction']=correction
             payload['provenance']=provenance_of(payload)   # EV-010.1: a command handler reads input.json with every key labelled
             if node['kind']=='proof':
@@ -447,6 +459,8 @@ def execute(graph,packet,root,jobs,audit=False,grants=None,session=None):
     if audit:jobs=1  # a write cannot be attributed to a node while another node is writing
     if not 1<=jobs<=16:raise ValueError('concurrency cap must be 1..16')
     permission(packet,output=root)
+    # Validate every context before any worker, proof or peer dispatch.
+    for n in graph['nodes']: graph_context.materialize(packet,n)
     # Validate every destination before the first worker can receive repository data.
     for n in graph['nodes']:
         if n['kind']!='report':permission(packet,tool=None if n.get('command') or n['kind']=='proof' else (peer.OTHER_TOOL[packet['builder']] if n['kind'] in {'checker','peer'} else packet['builder']),command=n.get('command',n.get('argv')))
