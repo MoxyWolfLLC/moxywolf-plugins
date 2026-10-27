@@ -851,15 +851,23 @@ def observe(delivery, get, repo_name):
             if pr is not None:
                 observed["prs"][cid] = pr
             runs = get(f"repos/{name}/commits/{ch['head']}/check-runs") or {}
-            observed["checks"][cid] = {k: v[0] for k, v in gguard.latest_checks(runs.get("check_runs") or []).items()}
+            observed["checks"][cid] = gguard.latest_checks(runs.get("check_runs") or [])   # repair 2: (conclusion, binding)
         except Exception as e:   # the observation failed; next_action sees nothing, which is pending
             observed["errors"].append(f"{cid}: {type(e).__name__}: {e}")
         if rdir and ch.get("review_id"):
             observed["reviews"][cid] = review_evidence(Path(rdir, ch["review_id"]), ch, observed["errors"], cid)
-    for spec in delivery.get("required_checkouts") or ():
-        if (spec.get("sync") or {}).get("status") == "synced":
-            observed["checkouts"][spec["name"]] = spec["sync"]
     return observed
+
+
+def _observe_checkouts(delivery, observed):
+    """Repair 5: each required checkout is read as it is now (goal_delivery.observe_checkout) against
+    the newest verified merge into its branch; a saved synced record is history, not an observation."""
+    import goal_delivery as gd
+    for spec in delivery.get("required_checkouts") or ():
+        merges = [c["merge"]["sha"] for c in delivery["changes"].values()
+                  if (c.get("merge") or {}).get("verified") and c.get("target") == (spec.get("branch") or "main")]
+        if merges:
+            observed["checkouts"][spec["name"]] = gd.observe_checkout(spec, merges[-1])
 
 
 def review_evidence(d, ch, errors, cid):
@@ -921,13 +929,14 @@ def establish_authority(goal_id, state, delivery, get, repo_name):
 
 
 def _mark_merges(delivery, observed, repo_name):
-    """A merge is verified only by GitHub's own answer and unmarked when GitHub contradicts it."""
+    """A merge is verified only by GitHub's own answer about THIS change's pull request, repository
+    and target (repair 1), and unmarked when GitHub contradicts it."""
+    import goal_delivery as gd
     for cid, ch in delivery["changes"].items():
         pr = observed["prs"].get(cid)
         if pr is None:
             continue
-        merged_here = pr.get("merged") and (pr.get("merge_commit_sha") == ch["head"] or pr.get("head", {}).get("sha") == ch["head"])
-        if merged_here:
+        if gd.merged_here(ch, pr):
             if not (ch.get("merge") or {}).get("verified"):
                 ch["merge"] = {"verified": True, "head": ch["head"], "sha": pr.get("merge_commit_sha"),
                                "merged_by": (pr.get("merged_by") or {}).get("login"), "merged_at": pr.get("merged_at"),
@@ -1030,10 +1039,21 @@ def resume(goal_id, get, repo_name, put=None):
         except ValueError as e:
             raise Refused(f"{required} is unreadable ({e}): the budget or authority record blocks further action")
     authority = establish_authority(goal_id, state, delivery, get, repo_name)
+    refused = (f"the run has ended ({state['outcome']})" if state.get("outcome")
+               else f"escalation {held(state)[0]['n']} holds the run until Dorian acknowledges it" if held(state) else None)
+    if refused:
+        # Repair 3: an ended or held run advances nothing: no merge, release record or sync, and
+        # its persisted delivery state is left exactly as it is. It can still be read.
+        observed = observe(delivery, get, repo_name)
+        _mark_merges(delivery, observed, repo_name); _observe_checkouts(delivery, observed)
+        status = gd.delivery_status(delivery, observed)
+        return {"goal": goal_id, "next": gd.next_action(delivery, observed), **status, "executed": [], "stopped_by": None,
+                "refused": refused, "observation_errors": observed["errors"]}
     stop, steps, requested = None, [], set()
     for _ in range(12):   # ponytail: each pass is one action; a delivery has a handful
         observed = observe(delivery, get, repo_name)
         _mark_merges(delivery, observed, repo_name)
+        _observe_checkouts(delivery, observed)
         action = gd.next_action(delivery, observed)
         status = gd.delivery_status(delivery, observed)
         state["delivery"] = delivery
@@ -1044,6 +1064,13 @@ def resume(goal_id, get, repo_name, put=None):
             # one request per change per process: GitHub still showing it unmerged is an answer to
             # read again later, never a reason to ask twice (a lost response looks exactly like this)
             stop = f"merge of {action['change']} was requested and GitHub doesn't show it merged yet; resume again to re-observe"
+            break
+        earlier = delivery["changes"][action["change"]].get("merge_requested") if action["action"] == "merge" else None
+        if earlier and earlier.get("head") == delivery["changes"][action["change"]]["head"]:
+            # Repair 4: a request an earlier process persisted (it may have died mid-request, or lost the
+            # answer) is never sent again automatically; GitHub's next observation answers it
+            stop = (f"a merge of {action['change']} at {earlier['head'][:12]} was requested by an earlier process at "
+                    f"{earlier.get('at')} and GitHub doesn't show it merged; it is not sent again. Re-observe, or Dorian decides")
             break
         if action["action"] == "merge":
             requested.add(action["change"])
@@ -1144,7 +1171,7 @@ def _main(argv, repo=gb.ROOT):
             out = resume(goal_id, _github_get(token), opts.get("--repo", REPO),
                          put=lambda path, data: _api(token, "PUT", path, data))
             print(json.dumps(out, indent=1))
-            return 0 if out.get("delivery_status") == "complete" or "action" in out.get("next", {}) else 3
+            return 0 if out.get("delivery_status") == "complete" or ("action" in out.get("next", {}) and not out.get("refused")) else 3
         if cmd == "next" and goal_id and not opts:
             ok, out = next_step(repo, goal_id)
             print(json.dumps(out))

@@ -104,9 +104,36 @@ def reserve_review(delivery, change_id, review_id):
 
 # ---- the one allowed next action ----
 
-def _checks_green(observed_checks):
-    missing = [c for c in MERGE_CHECKS if (observed_checks or {}).get(c) != "success"]
-    return missing
+def pr_identity_problems(ch, pr):
+    """Repair 1: an observed pull request speaks for this change only when it is this change's pull
+    request (number), in this change's repository (its base repository) and into this change's target.
+    Anything missing is a mismatch, never a default match."""
+    base = (pr or {}).get("base") or {}
+    problems = []
+    if ch.get("pr") is not None and pr.get("number") != ch["pr"]:
+        problems.append(f"pull request #{pr.get('number')} is not #{ch['pr']}")
+    if ch.get("target") and base.get("ref") != ch["target"]:
+        problems.append(f"it targets {base.get('ref')}, not {ch['target']}")
+    if ch.get("repo") and (base.get("repo") or {}).get("full_name") != ch["repo"]:
+        problems.append(f"it belongs to {(base.get('repo') or {}).get('full_name')}, not {ch['repo']}")
+    return problems
+
+
+def merged_here(ch, pr):
+    """GitHub reports this change's own pull request merged at this change's candidate head."""
+    return (pr is not None and bool(pr.get("merged")) and not pr_identity_problems(ch, pr)
+            and (pr.get("head", {}).get("sha") == ch.get("head") or pr.get("merge_commit_sha") == ch.get("head")))
+
+
+def _check_problems(ch, pr, observed_checks):
+    """Repair 2: required checks are green for THIS pull request, target and current base, using the
+    existing merge-gate reading (goal_guard.checks_green): each check is (conclusion, external_id),
+    and a goal check's binding must name this PR, target and base."""
+    import goal_guard
+    checks = {k: (tuple(v) if isinstance(v, (list, tuple)) else (v, None)) for k, v in (observed_checks or {}).items()}
+    prd = {"number": pr.get("number"), "head": pr.get("head", {}).get("sha"),
+           "base_ref": (pr.get("base") or {}).get("ref"), "base": (pr.get("base") or {}).get("sha")}
+    return goal_guard.checks_green(ch.get("target"), ch.get("head"), checks, prd)
 
 
 def next_action(delivery, observed):
@@ -134,10 +161,12 @@ def next_action(delivery, observed):
         # Observations are keyed by change id (review F5): two repositories may share a pull request
         # number or a commit, and one must never answer for the other.
         pr = (observed.get("prs") or {}).get(cid)
-        merged_here = pr is not None and pr.get("merged") and (
-            pr.get("head", {}).get("sha") == ch.get("head") or pr.get("merge_commit_sha") == ch.get("head"))
+        here = merged_here(ch, pr)
+        if pr is not None and pr.get("merged") and pr_identity_problems(ch, pr):
+            return {"blocked": f"{cid}: GitHub reports a merge that is not this change's: " + "; ".join(pr_identity_problems(ch, pr))
+                               + "; it is not recorded, released or synchronized"}
         merge = ch.get("merge") or {}
-        if merge.get("verified") and pr is not None and not merged_here:
+        if merge.get("verified") and pr is not None and not here:
             # review F3: a persisted verification contradicted by GitHub is not progress
             return {"blocked": f"{cid}: the record says merged at {str(merge.get('head'))[:12]} but pull request "
                                f"#{ch.get('pr')} is {'merged at ' + str(pr.get('head', {}).get('sha'))[:12] if pr.get('merged') else 'not merged'}; "
@@ -148,10 +177,12 @@ def next_action(delivery, observed):
             if pr is None:
                 return {"pending": f"pull request #{ch.get('pr')} for {cid} not observed", "change": cid}
             if pr.get("merged"):
-                if not merged_here:
+                if not here:
                     return {"blocked": f"pull request #{ch['pr']} merged at {str(pr.get('head', {}).get('sha'))[:12]}, "
                                        f"not the candidate head {str(ch.get('head'))[:12]}"}
                 return {"action": "record_merge", "change": cid, "sha": pr.get("merge_commit_sha")}
+            if pr_identity_problems(ch, pr):
+                return {"blocked": f"{cid}: the observed pull request is not this change's: " + "; ".join(pr_identity_problems(ch, pr))}
             if pr.get("head", {}).get("sha") != ch.get("head"):
                 return {"blocked": f"pull request #{ch['pr']} is at {str(pr.get('head', {}).get('sha'))[:12]}, "
                                    f"not the candidate head {str(ch.get('head'))[:12]}; a moved head is not merged"}
@@ -172,9 +203,9 @@ def next_action(delivery, observed):
                 return {"blocked": f"review {ch.get('review_id')} is of {review['repo']}, not {ch.get('path')}"}
             if ch.get("base") and review["base"] != ch["base"]:
                 return {"pending": f"review {ch.get('review_id')} reviewed from base {str(review['base'])[:12]}, not the candidate range from {str(ch['base'])[:12]}", "change": cid}
-            missing = _checks_green((observed.get("checks") or {}).get(cid))
+            missing = _check_problems(ch, pr, (observed.get("checks") or {}).get(cid))
             if missing:
-                return {"pending": f"checks not green at {str(ch.get('head'))[:12]}: {', '.join(missing)}", "change": cid}
+                return {"pending": f"checks not green for this pull request at {str(ch.get('head'))[:12]}: {'; '.join(missing)}", "change": cid}
             if pr.get("mergeable_state") not in (None, "clean", "unstable"):
                 return {"pending": f"pull request #{ch['pr']} is {pr.get('mergeable_state')}", "change": cid}
             return {"action": "merge", "change": cid, "head": ch["head"], "pr": ch["pr"]}
@@ -206,7 +237,7 @@ def delivery_status(delivery, observed=None):
         elif not recorded:
             missing.append(f"{cid}: merged, release not recorded")
     for spec in delivery.get("required_checkouts") or ():
-        st = ((observed or {}).get("checkouts") or {}).get(spec.get("name")) or spec.get("sync") or {}
+        st = ((observed or {}).get("checkouts") or {}).get(spec.get("name")) or {}   # repair 5: observed, never a saved flag
         out["required_checkouts"].append({"name": spec.get("name"), "status": st.get("status") or "not_observed", "reason": st.get("reason")})
         if st.get("status") != "synced":
             missing.append(f"checkout {spec.get('name')}: {st.get('status') or 'not synchronized'}")
@@ -273,6 +304,36 @@ def sync_checkout(checkout, merge_sha):
         return pending(f"after the fast-forward {name} is at {now[:12]} with status {status.strip()[:80]!r}, not clean at {tip[:12]}")
     return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
             "sha": now, "contains": merge_sha, "git_status": "", "synced_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
+def observe_checkout(checkout, merge_sha):
+    """Repair 5: what the required checkout is right now, read-only: the same host, path, remote,
+    branch and tracked/untracked checks sync_checkout makes before writing, and whether its HEAD
+    contains merge_sha. A saved `synced` record is never consulted."""
+    name, path = checkout.get("name"), Path(str(checkout.get("path") or ""))
+    def pending(reason):
+        return {"status": "sync_pending", "name": name, "path": str(path), "reason": reason,
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    here = socket.gethostname()
+    if checkout.get("host") and checkout["host"] != here:
+        return pending(f"wrong host: {name} is on {checkout['host']}, this is {here}")
+    if not path.is_dir() or _git(path, "rev-parse", "--git-dir").returncode:
+        return pending(f"unavailable: {path} is missing or not a Git checkout")
+    remote = _git(path, "remote", "get-url", "origin").stdout.strip()
+    if checkout.get("remote") and remote != checkout["remote"]:
+        return pending(f"remote mismatch: origin is {remote or 'unset'}, not {checkout['remote']}")
+    branch = _git(path, "symbolic-ref", "--quiet", "--short", "HEAD").stdout.strip()
+    want = checkout.get("branch") or "main"
+    if branch != want:
+        return pending(f"unexpected branch: {name} is on {branch or 'a detached HEAD'}, not {want}")
+    dirt = _git(path, "status", "--porcelain=v1", "--untracked-files=all").stdout
+    if dirt.strip():
+        return pending(f"dirty: {name} has uncommitted or untracked changes ({len(dirt.splitlines())} entries)")
+    head = _git(path, "rev-parse", "HEAD").stdout.strip()
+    if _git(path, "merge-base", "--is-ancestor", merge_sha, head).returncode:
+        return pending(f"{name} at {head[:12]} does not contain the merge {merge_sha[:12]}")
+    return {"status": "synced", "name": name, "path": str(path), "host": here, "branch": want, "remote": remote,
+            "sha": head, "contains": merge_sha, "git_status": "", "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 
 
 # ---- CLI ----

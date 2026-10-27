@@ -627,7 +627,7 @@ class Resume(RunnerFixture):
         st = gr.load("g1"); ch = st["delivery"]["changes"]["implementation"]
         st["delivery"]["changes"]["other"] = dict(ch, repo="o/other", pr=42, review_id="rev-1", merge=None, release_record=None)
         gr.save(st)
-        other = {"number": 42, "merged": True, "merge_commit_sha": head, "head": {"sha": head}, "base": {"ref": "main"},
+        other = {"number": 42, "merged": True, "merge_commit_sha": head, "head": {"sha": head}, "base": {"ref": "main", "repo": {"full_name": "o/other"}},
                  "merged_by": {"login": "moxywolf-agent[bot]"}, "merged_at": "t"}
         out = gr.resume("g1", self.github(head, merged=False, other_repo=other), "o/r")
         d = gr.load("g1")["delivery"]["changes"]
