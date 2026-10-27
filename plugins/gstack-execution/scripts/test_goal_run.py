@@ -1007,7 +1007,8 @@ class EndToEndDemonstration(RunnerFixture):
         os.environ["GSTACK_PEER_REVIEW_DIR"] = self.env["GSTACK_PEER_REVIEW_DIR"]; self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
         self.start(); bare = self.origin()
         link = Path(self.tmp.name, "origin-link.git"); link.symlink_to(bare)          # the Mac's spelling of the remote
-        mac = Path(self.tmp.name, "mac"); subprocess.run(["git", "clone", "-q", str(link), str(mac)], check=True)
+        mac = Path(self.tmp.name, "mac")
+        subprocess.run(["git", "clone", "-q", "-b", "main", str(link), str(mac)], check=True)   # -b: the bare's HEAD may name another default branch
         base = self.git("rev-parse", "main")
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1); self.rest_built()
         self.git("push", "-q", "origin", "goal/g1"); tested = self.git("rev-parse", "goal/g1")
@@ -1109,7 +1110,7 @@ class EndToEndDemonstration(RunnerFixture):
         st = gr.load("g1"); dl = st["delivery"]
         self.assertTrue(dl["changes"]["marketplace"]["release_record"]["verified"])
         sync = dl["required_checkouts"][0]["sync"]
-        self.assertEqual(sync["status"], "synced"); self.assertEqual(sorted(sync["contains"]), sorted([goal_merge, companion_merge]))
+        self.assertEqual(sync["status"], "synced", sync.get("reason")); self.assertEqual(sorted(sync["contains"]), sorted([goal_merge, companion_merge]))
         now = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         self.assertEqual(now, companion_merge); self.assertNotEqual(before, now)
         self.log("sync", "mac", before[:12], "->", now[:12], "contains", goal_merge[:12], companion_merge[:12])
