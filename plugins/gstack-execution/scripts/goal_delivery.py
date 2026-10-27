@@ -123,23 +123,44 @@ def next_action(delivery, observed):
         order.remove(companion); order.append(companion)
     for cid in order:
         ch = delivery["changes"][cid]
-        pr = (observed.get("prs") or {}).get(ch.get("pr")) or (observed.get("prs") or {}).get(str(ch.get("pr")))
-        merge = ch.get("merge")
-        if not (merge or {}).get("verified"):
+        # Observations are keyed by change id (review F5): two repositories may share a pull request
+        # number or a commit, and one must never answer for the other.
+        pr = (observed.get("prs") or {}).get(cid)
+        merged_here = pr is not None and pr.get("merged") and (
+            pr.get("head", {}).get("sha") == ch.get("head") or pr.get("merge_commit_sha") == ch.get("head"))
+        merge = ch.get("merge") or {}
+        if merge.get("verified") and pr is not None and not merged_here:
+            # review F3: a persisted verification contradicted by GitHub is not progress
+            return {"blocked": f"{cid}: the record says merged at {str(merge.get('head'))[:12]} but pull request "
+                               f"#{ch.get('pr')} is {'merged at ' + str(pr.get('head', {}).get('sha'))[:12] if pr.get('merged') else 'not merged'}; "
+                               "the persisted merge is invalid"}
+        if merge.get("verified") and pr is None:
+            return {"pending": f"{cid}: merge recorded but not re-verified; pull request #{ch.get('pr')} not observed", "change": cid}
+        if not merge.get("verified"):
             if pr is None:
                 return {"pending": f"pull request #{ch.get('pr')} for {cid} not observed", "change": cid}
             if pr.get("merged"):
-                if pr.get("head", {}).get("sha") != ch.get("head") and pr.get("merge_commit_sha") != ch.get("head"):
+                if not merged_here:
                     return {"blocked": f"pull request #{ch['pr']} merged at {str(pr.get('head', {}).get('sha'))[:12]}, "
                                        f"not the candidate head {str(ch.get('head'))[:12]}"}
                 return {"action": "record_merge", "change": cid, "sha": pr.get("merge_commit_sha")}
             if pr.get("head", {}).get("sha") != ch.get("head"):
                 return {"blocked": f"pull request #{ch['pr']} is at {str(pr.get('head', {}).get('sha'))[:12]}, "
                                    f"not the candidate head {str(ch.get('head'))[:12]}; a moved head is not merged"}
-            review = (observed.get("reviews") or {}).get(ch.get("review_id")) or {}
+            base = pr.get("base") or {}
+            if ch.get("target") and base.get("ref") not in (None, ch["target"]):
+                return {"blocked": f"pull request #{ch['pr']} targets {base.get('ref')}, not {ch['target']}; a retargeted pull request is not the approved change"}
+            if ch.get("base") and base.get("sha") not in (None, ch["base"]):
+                return {"pending": f"pull request #{ch['pr']} base is {str(base.get('sha'))[:12]}, not the recorded base {str(ch['base'])[:12]}; sync and re-verify", "change": cid}
+            # review F2: a clean review counts only for this repository at this candidate head
+            review = (observed.get("reviews") or {}).get(cid) or {}
             if review.get("outcome") not in CLEAN_REVIEW:
                 return {"pending": f"review {ch.get('review_id')} is {review.get('outcome') or 'not observed'}, not clean", "change": cid}
-            missing = _checks_green((observed.get("checks") or {}).get(ch.get("head")))
+            if review.get("head") != ch.get("head"):
+                return {"pending": f"review {ch.get('review_id')} passed at {str(review.get('head'))[:12]}, not the candidate head {str(ch.get('head'))[:12]}", "change": cid}
+            if review.get("repo") and ch.get("path") and Path(review["repo"]).resolve() != Path(ch["path"]).resolve():
+                return {"blocked": f"review {ch.get('review_id')} is of {review['repo']}, not {ch['path']}"}
+            missing = _checks_green((observed.get("checks") or {}).get(cid))
             if missing:
                 return {"pending": f"checks not green at {str(ch.get('head'))[:12]}: {', '.join(missing)}", "change": cid}
             if pr.get("mergeable_state") not in (None, "clean", "unstable"):

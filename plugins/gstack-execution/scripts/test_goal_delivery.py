@@ -71,11 +71,32 @@ class ReserveReview(unittest.TestCase):
 
 
 class NextAction(unittest.TestCase):
-    def observed(self, head, merged=False, checks=True, review="no_blocking_findings", pr_head=None, state="clean"):
-        return {"prs": {42: {"number": 42, "merged": merged, "merge_commit_sha": head if merged else None,
-                             "head": {"sha": pr_head or head}, "mergeable_state": state}},
-                "checks": {head: {c: "success" for c in gd.MERGE_CHECKS} if checks else {"tests": "failure"}},
-                "reviews": {"rev-42": {"outcome": review}}, "checkouts": {}}
+    def observed(self, head, merged=False, checks=True, review="no_blocking_findings", pr_head=None, state="clean",
+                 review_head=None, base_ref="main", cid="implementation"):
+        return {"prs": {cid: {"number": 42, "merged": merged, "merge_commit_sha": head if merged else None,
+                              "head": {"sha": pr_head or head}, "base": {"ref": base_ref}, "mergeable_state": state}},
+                "checks": {cid: {c: "success" for c in gd.MERGE_CHECKS} if checks else {"tests": "failure"}},
+                "reviews": {cid: {"outcome": review, "head": review_head or head, "repo": "/x"}}, "checkouts": {}}
+
+    def test_a_review_counts_only_at_the_candidate_head_in_this_repository_and_the_target_must_match(self):   # review F2
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        self.assertIn("pending", gd.next_action(doc, self.observed(h, review_head="o" * 40)))
+        obs = self.observed(h); obs["reviews"]["implementation"]["repo"] = "/elsewhere"
+        self.assertIn("blocked", gd.next_action(doc, obs))
+        self.assertIn("blocked", gd.next_action(doc, self.observed(h, base_ref="release")))
+        self.assertEqual(gd.next_action(doc, self.observed(h))["action"], "merge")
+
+    def test_a_verified_merge_github_contradicts_is_blocked_and_an_unobserved_one_is_pending(self):   # review F3
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        doc["changes"]["implementation"]["merge"] = {"verified": True, "head": h, "sha": h}
+        self.assertIn("persisted merge is invalid", gd.next_action(doc, self.observed(h, merged=False))["blocked"])
+        self.assertIn("pending", gd.next_action(doc, {"prs": {}}))
+        self.assertEqual(gd.next_action(doc, self.observed(h, merged=True))["action"], "record_release")
+
+    def test_observations_are_keyed_by_change_not_by_pull_request_number(self):   # review F5
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        obs = self.observed(h, merged=True, cid="someone-else")          # another change's merged #42 at the same commit
+        self.assertIn("pending", gd.next_action(doc, obs))
 
     def test_merge_only_with_a_clean_review_green_checks_and_the_candidate_head(self):
         doc = document(); h = doc["changes"]["implementation"]["head"]
@@ -94,14 +115,18 @@ class NextAction(unittest.TestCase):
         self.assertEqual(gd.next_action(doc, self.observed(h, merged=True))["action"], "record_release")
         doc["changes"]["implementation"]["release_record"] = {"verified": True, "path": "/p"}
         self.assertEqual(gd.next_action(doc, self.observed(h, merged=True))["action"], "complete")
+        self.assertIn("pending", gd.next_action(doc, {"prs": {}}), "complete needs the merge re-observed, not remembered")
 
     def test_companion_checkouts_and_blocked_states(self):
         doc = document(companion=True, checkouts=[{"name": "mac", "path": "/m", "required": True}])
         h = doc["changes"]["implementation"]["head"]
         for cid in ("implementation", "marketplace"):
             doc["changes"][cid]["merge"] = {"verified": True}; doc["changes"][cid]["release_record"] = {"verified": True}
-        self.assertEqual(gd.next_action(doc, {"checkouts": {}}), {"action": "sync_checkout", "checkout": "mac"})
-        self.assertEqual(gd.next_action(doc, {"checkouts": {"mac": {"status": "synced"}}}), {"action": "complete"})
+        self.assertIn("pending", gd.next_action(doc, {"checkouts": {}}), "a recorded merge not re-observed is pending, not progress")
+        prs = {cid: {"merged": True, "head": {"sha": doc["changes"][cid]["head"]}, "merge_commit_sha": doc["changes"][cid]["head"]}
+               for cid in ("implementation", "marketplace")}
+        self.assertEqual(gd.next_action(doc, {"prs": prs, "checkouts": {}}), {"action": "sync_checkout", "checkout": "mac"})
+        self.assertEqual(gd.next_action(doc, {"prs": prs, "checkouts": {"mac": {"status": "synced"}}}), {"action": "complete"})
         doc["source_bindings"] = [{"id": "bank", "stale": True}]
         self.assertIn("stale", gd.next_action(doc, {})["blocked"])
         doc = document(); doc["approval"]["head"] = ""

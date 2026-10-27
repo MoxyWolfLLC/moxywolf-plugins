@@ -523,7 +523,8 @@ class Resume(RunnerFixture):
         self.start(); head = self.item("done = True\nsafe = True\n")
         st = gr.load("g1")
         reviews = Path(self.tmp.name, "reviews"); (reviews / "rev-1").mkdir(parents=True)
-        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings"}))
+        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [[head]]}))
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head}]}))
         os.environ["GSTACK_PEER_REVIEW_DIR"] = str(reviews); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
         st["delivery"] = {"schema_version": 1, "goal": "g1", "approval": {"repo": "o/r", "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "d"},
                           "max_review_rounds": 3, "active_seconds": 5, "source_bindings": [],
@@ -532,19 +533,86 @@ class Resume(RunnerFixture):
                                                          "original_findings": [], "merge": None, "release_record": None}},
                           "release_companion": None, "required_checkouts": []}
         gr.save(st)
-        d = gr.run_dir("g1"); (d / "spend.jsonl").touch(); (d / "ledger.jsonl").touch()
+        d = gr.run_dir("g1"); (d / "spend.jsonl").touch()
+        self.assertTrue((d / "ledger.jsonl").is_file() and (d / "goal" / "GOAL.md").is_file())
         return head
 
-    def github(self, head, merged=False, checks="success"):
+    def github(self, head, merged=False, checks="success", approval=None, base_ref="main", other_repo=None):
+        """A GitHub reader for the delivery: the approving review, one pull request and its checks.
+        other_repo: {pr: pr_json} answered for repository o/other (review F5)."""
+        approval = ({"id": 4242, "state": "APPROVED", "commit_id": "h" * 40, "user": {"login": "d"}} if approval is None
+                    else None if approval == "missing" else approval)
         def get(path):
+            if path.startswith("repos/o/other/") and other_repo is not None:
+                if path.endswith("/pulls/42"):
+                    return other_repo
+                if path.endswith("/check-runs"):
+                    return {"check_runs": []}
+                return None
+            if path.endswith("/pulls/7/reviews/4242"):
+                return approval
             if path.endswith("/pulls/42"):
                 return {"number": 42, "merged": merged, "merge_commit_sha": "m" * 40 if merged else None,
-                        "head": {"sha": head}, "mergeable_state": "clean", "merged_by": {"login": "moxywolf-agent[bot]"}, "merged_at": "t"}
+                        "head": {"sha": head}, "base": {"ref": base_ref, "sha": gr.load("g1")["main_at_start"]},
+                        "mergeable_state": "clean", "merged_by": {"login": "moxywolf-agent[bot]"}, "merged_at": "t"}
             if path.endswith("/check-runs"):
                 return {"check_runs": [{"id": i, "name": n, "status": "completed", "conclusion": checks, "external_id": ""}
                                        for i, n in enumerate(("tests", "goal-envelope", "goal-tests"), 1)]}
             return None
         return get
+
+    def test_resume_establishes_the_approval_and_the_ledgers_before_anything(self):   # review F1
+        head = self.delivery_state()
+        for bad in ({"id": 4242, "state": "COMMENTED", "commit_id": "h" * 40, "user": {"login": "d"}},
+                    {"id": 4242, "state": "APPROVED", "commit_id": "x" * 40, "user": {"login": "d"}},
+                    {"id": 4242, "state": "APPROVED", "commit_id": "h" * 40, "user": {"login": "someone-else"}}, "missing"):
+            with self.assertRaises(gr.Refused) as c:
+                gr.resume("g1", self.github(head, approval=bad), "o/r")
+            self.assertIn("authority not established", str(c.exception))
+        st = gr.load("g1"); st["delivery"]["approval"]["head"] = "f" * 40; gr.save(st)   # an invented approval head
+        with self.assertRaises(gr.Refused) as c:
+            gr.resume("g1", self.github(head), "o/r")
+        self.assertIn("not this run's", str(c.exception))
+        st = gr.load("g1"); st["delivery"]["approval"]["head"] = "h" * 40; gr.save(st)
+        (gr.run_dir("g1") / "ledger.jsonl").write_text("")                                 # valid JSON, no grants
+        with self.assertRaises(gr.Refused) as c:
+            gr.resume("g1", self.github(head), "o/r")
+        self.assertIn("grants no push", str(c.exception))
+
+    def test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge(self):   # review F2
+        head = self.delivery_state()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [["o" * 40]]}))
+        out = gr.resume("g1", self.github(head), "o/r")
+        self.assertIn("pending", out["next"]); self.assertIn("not the candidate head", out["next"]["pending"])
+        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [[head]]}))
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head}]}))
+        self.assertEqual(gr.resume("g1", self.github(head), "o/r")["next"]["action"], "merge")
+        self.assertIn("blocked", gr.resume("g1", self.github(head, base_ref="release"), "o/r")["next"])
+
+    def test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted(self):   # review F3
+        head = self.delivery_state()
+        st = gr.load("g1"); st["delivery"]["changes"]["implementation"]["merge"] = {"verified": True, "head": head, "sha": head}; gr.save(st)
+        out = gr.resume("g1", self.github(head, merged=False), "o/r")
+        m = gr.load("g1")["delivery"]["changes"]["implementation"]["merge"]
+        self.assertFalse(m["verified"]); self.assertTrue(m["contradicted"]); self.assertEqual(m["was"]["sha"], head)
+        self.assertEqual(out["next"]["action"], "merge", "GitHub's answer, not the record, decides: the candidate is unmerged and green")
+        self.assertNotEqual(out["delivery_status"], "complete")
+        out = gr.resume("g1", self.github(head, merged=True), "o/r")       # GitHub's own answer, then, is what counts
+        self.assertEqual(out["next"]["action"], "record_release")
+
+    def test_two_repositories_sharing_a_pull_request_number_are_observed_apart(self):   # review F5
+        head = self.delivery_state()
+        st = gr.load("g1"); ch = st["delivery"]["changes"]["implementation"]
+        st["delivery"]["changes"]["other"] = dict(ch, repo="o/other", pr=42, review_id="rev-1", merge=None, release_record=None)
+        gr.save(st)
+        other = {"number": 42, "merged": True, "merge_commit_sha": head, "head": {"sha": head}, "base": {"ref": "main"},
+                 "merged_by": {"login": "moxywolf-agent[bot]"}, "merged_at": "t"}
+        out = gr.resume("g1", self.github(head, merged=False, other_repo=other), "o/r")
+        d = gr.load("g1")["delivery"]["changes"]
+        self.assertIsNone(d["implementation"]["merge"], "the other repository's merge must not mark this one")
+        self.assertTrue(d["other"]["merge"]["verified"]); self.assertIn("/repos/o/other/pulls/42", d["other"]["merge"]["observed_from"])
+        self.assertEqual(out["next"], {"action": "merge", "change": "implementation", "head": head, "pr": 42})
 
     def test_resume_observes_and_returns_merge_when_everything_is_green(self):
         head = self.delivery_state()
@@ -568,7 +636,7 @@ class Resume(RunnerFixture):
     def test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks(self):
         head = self.delivery_state()
         self.assertIn("pending", gr.resume("g1", self.github(head, checks="failure"), "o/r")["next"])
-        Path(os.environ["GSTACK_PEER_REVIEW_DIR"], "rev-1", "state.json").write_text(json.dumps({"outcome": "blocking_findings"}))
+        Path(os.environ["GSTACK_PEER_REVIEW_DIR"], "rev-1", "state.json").write_text(json.dumps({"outcome": "blocking_findings", "heads": [[head]]}))
         self.assertIn("pending", gr.resume("g1", self.github(head), "o/r")["next"])
         (gr.run_dir("g1") / "ledger.jsonl").write_text("{not json\n")
         with self.assertRaises(gr.Refused) as c:

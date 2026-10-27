@@ -876,7 +876,7 @@ def effective_packet(state, packet):
         for i, r in enumerate(packet.get("repos") or []):
             if i < len(heads[-1]):
                 r["head"] = heads[-1][i]
-                if (state.get("rounds_used") or 0) >= 2 and len(heads) >= 3 and i < len(heads[-2]):
+                if len(heads) >= 3 and i < len(heads[-2]):     # two adjudicated rounds or more: base is the previous one's head
                     r["base"] = heads[-2][i]
     for key, runs in (state.get("evidence_runs") or {}).items():
         packet.setdefault("tests", {})[key] = runs
@@ -2750,9 +2750,12 @@ def cmd_round(a):
     round_no = state["rounds_used"] + 1
     named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
                          .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
-    prior = load(d, f"round-{round_no - 1}.json") if round_no > 1 else None
+    # The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
+    # but adjudicated nothing, so the blockers it is measured against are the round's before it.
+    adjudicated = state.get("adjudicated_round", round_no - 1)
+    prior = load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None
     dispositions = load(d, "dispositions.json") or {}
-    if round_no > 1:
+    if prior is not None:
         open_blockers = [f["id"] for f in prior.get("findings", []) if f["severity"] == "blocking"]
         undisposed = [i for i in open_blockers if i not in dispositions]
         if undisposed:
@@ -2773,6 +2776,7 @@ def cmd_round(a):
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
+    previous_evidence = state.get("evidence_runs")
     state["evidence_runs"] = {k: packet.get("tests", {}).get(k) for k in ("ci_runs", "ledger_runs")
                               if packet.get("tests", {}).get(k)}
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
@@ -2922,9 +2926,15 @@ def cmd_round(a):
     # schema check and the finding-shape check this round already ran on it.
     save(d, f"round-{round_no}.json", record, "external_text",
          examined_by="peer_review round-record schema check" if record.get("outcome") != "review_unavailable" else "unexamined")
-    # a round refused for its evidence keeps the review where it was; the round is spent
-    state.update(rounds_used=round_no, outcome=state["outcome"] if outcome == "release_blocked" and record.get("error") else outcome)
-    state["heads"].append([r["head"] for r in packet["repos"]])
+    rejected = outcome == "release_blocked" and bool(record.get("error"))
+    if rejected:
+        # review F4: the attempt is spent; the review, its last adjudication, its evidence and its heads
+        # stay where they were, so corrected evidence for the same candidate meets the open blockers
+        state.update(rounds_used=round_no, evidence_runs=previous_evidence)
+        state.setdefault("rejected_rounds", []).append(round_no)
+    else:
+        state.update(rounds_used=round_no, outcome=outcome, adjudicated_round=round_no)
+        state["heads"].append([r["head"] for r in packet["repos"]])
     save(d, "state.json", state, "gate_output")   # packet.json keeps the bytes open wrote
     print(json.dumps({k: record[k] for k in record if k not in ("raw",)}, indent=2))
     return outcome

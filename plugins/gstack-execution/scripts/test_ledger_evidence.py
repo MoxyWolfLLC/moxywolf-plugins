@@ -237,6 +237,27 @@ def test_a_named_run_at_an_older_head_or_with_a_tampered_or_foreign_receipt_cann
             assert (rd / n).read_bytes() == b, (case, n)
 
 
+def test_a_rejected_evidence_round_keeps_the_open_blockers_and_corrected_evidence_still_verifies_them():
+    """Review F4: round 1 raises F1; round 2's named run is at the old head and is refused; round 3,
+    with the right run at the same candidate, is measured against F1 and verifies it."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    try:
+        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
+    except pr.ReviewError:
+        pass
+    st = json.loads((rd / "state.json").read_text())
+    assert st["rounds_used"] == 2 and st["adjudicated_round"] == 1 and st["rejected_rounds"] == [2] and len(st["heads"]) == 2, st
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    rec3 = json.loads((rd / "round-3.json").read_text())
+    assert [b["id"] for b in rec3["blocker_resolutions"]] == ["F1"], "round 3 verified the blocker round 1 raised"
+    assert rec3["repos"][0]["head"] == head2 and rec3["repos"][0]["base"] != head2
+    st = json.loads((rd / "state.json").read_text())
+    assert st["outcome"] == "fixes_verified" and st["adjudicated_round"] == 3 and st["heads"][-1] == [head2]
+    for n, b in retained.items():
+        assert (rd / n).read_bytes() == b, n
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

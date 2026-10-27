@@ -815,9 +815,9 @@ def _github_get(token):
 
 def observe(delivery, get, repo_name):
     """What the delivery can see right now, read from GitHub and the review records, never from a
-    declaration: each change's pull request and the check runs at its candidate head, and each
-    review's recorded outcome. A read that fails is reported as unobserved, not as false."""
-    import goal_delivery as gd
+    declaration, keyed by change id (review F5: two repositories may share a pull request number or
+    a commit). A review is observed with the repository and head it passed at (review F2). A read
+    that fails is reported as unobserved, not as false."""
     observed = {"prs": {}, "checks": {}, "reviews": {}, "checkouts": {}, "errors": []}
     rdir = os.environ.get("GSTACK_PEER_REVIEW_DIR")
     for cid, ch in (delivery.get("changes") or {}).items():
@@ -825,18 +825,22 @@ def observe(delivery, get, repo_name):
         try:
             pr = get(f"repos/{name}/pulls/{ch['pr']}")
             if pr is not None:
-                observed["prs"][ch["pr"]] = pr
+                observed["prs"][cid] = pr
             runs = get(f"repos/{name}/commits/{ch['head']}/check-runs") or {}
-            observed["checks"][ch["head"]] = gguard.latest_checks(runs.get("check_runs") or [])
-            observed["checks"][ch["head"]] = {k: v[0] for k, v in observed["checks"][ch["head"]].items()}
+            observed["checks"][cid] = {k: v[0] for k, v in gguard.latest_checks(runs.get("check_runs") or []).items()}
         except Exception as e:   # the observation failed; next_action sees nothing, which is pending
             observed["errors"].append(f"{cid}: {type(e).__name__}: {e}")
         if rdir and ch.get("review_id"):
-            f = Path(rdir, ch["review_id"], "state.json")
-            if f.is_file():
+            d = Path(rdir, ch["review_id"])
+            if (d / "state.json").is_file():
                 try:
-                    observed["reviews"][ch["review_id"]] = {"outcome": json.loads(f.read_text()).get("outcome")}
-                except ValueError:
+                    st = json.loads((d / "state.json").read_text())
+                    pk = json.loads((d / "packet.json").read_text()) if (d / "packet.json").is_file() else {}
+                    heads = st.get("heads") or []
+                    observed["reviews"][cid] = {"outcome": st.get("outcome"), "review_id": ch["review_id"],
+                                                "head": heads[-1][0] if heads and heads[-1] else (pk.get("repos") or [{}])[0].get("head"),
+                                                "repo": (pk.get("repos") or [{}])[0].get("path")}
+                except (ValueError, IndexError, TypeError):
                     observed["errors"].append(f"{cid}: review record {ch['review_id']} unreadable")
     for spec in delivery.get("required_checkouts") or ():
         if (spec.get("sync") or {}).get("status") == "synced":
@@ -844,12 +848,46 @@ def observe(delivery, get, repo_name):
     return observed
 
 
+def establish_authority(goal_id, state, delivery, get, repo_name):
+    """Review F1: the delivery acts under one approval and one ledger, and resume establishes both
+    before anything else. The embedded approval must be the run's (same pull request, review id,
+    approved head), GitHub must still show that review as APPROVED by the owner at that head, the
+    goal ledger must grant pushes to the goal branch, and the spend ledger must be under its stops.
+    Anything that can't be read or doesn't agree blocks; nothing defaults."""
+    d = run_dir(goal_id)
+    approval = delivery.get("approval") or {}
+    for key, mine in (("pr", state.get("pr")), ("review_id", state.get("review_id")), ("head", state.get("approved_head"))):
+        if approval.get(key) != mine:
+            raise Refused(f"the delivery's approval {key} ({approval.get(key)}) is not this run's ({mine}); authority not established")
+    name = approval.get("repo") or repo_name
+    try:
+        review = get(f"repos/{name}/pulls/{approval['pr']}/reviews/{approval['review_id']}")
+    except Exception as e:
+        raise Refused(f"the approval could not be read from GitHub ({type(e).__name__}: {e}); authority not established")
+    if not review or review.get("state") != "APPROVED" or review.get("commit_id") != approval["head"]             or (review.get("user") or {}).get("login") != approval.get("owner"):
+        raise Refused(f"GitHub does not show review {approval['review_id']} on #{approval['pr']} as APPROVED by "
+                      f"{approval.get('owner')} at {str(approval['head'])[:12]}; authority not established")
+    try:
+        gguard.granted(d / "ledger.jsonl", "vcs.push", state.get("branch") or f"goal/{goal_id}", state.get("spent") or [])
+    except Refused as e:
+        raise Refused(f"the goal ledger grants no push to the goal branch ({e}); authority not established")
+    brief = d / "goal" / "GOAL.md"
+    if not brief.is_file():
+        raise Refused("the run's copy of GOAL.md is missing; the budget cannot be read")
+    stop, reasons, totals = gs.status(d / "spend.jsonl", brief.read_text())
+    if stop:
+        raise Refused("the budget blocks: " + "; ".join(reasons))
+    return {"approval": {"review": review.get("id"), "state": review.get("state"), "commit_id": review.get("commit_id"),
+                         "by": (review.get("user") or {}).get("login")}, "spend": totals}
+
+
 def resume(goal_id, get, repo_name):
-    """GO-003.12: pick the delivery up from its persisted record. Loads the run state, requires the
-    budget and authority records to be readable (unreadable blocks), re-observes GitHub and the
+    """GO-003.12: pick the delivery up from its persisted record. Loads the run state, establishes
+    the approval and the ledgers (readable and meaning what they must), re-observes GitHub and the
     local prerequisites, records what was observed into the delivery (a merge is marked verified
-    only by GitHub's own answer), saves, and returns the next supervisor action with the delivery
-    status. It executes nothing here; the executors are the item-3 steps."""
+    only by GitHub's own answer and unmarked when GitHub contradicts it), saves, and returns the
+    next supervisor action with the delivery status. It executes nothing here; the executors are
+    the item-3 steps."""
     import goal_delivery as gd
     state = load(goal_id)
     delivery = state.get("delivery")
@@ -864,18 +902,25 @@ def resume(goal_id, get, repo_name):
             [json.loads(l) for l in f.read_text().splitlines() if l.strip()]
         except ValueError as e:
             raise Refused(f"{required} is unreadable ({e}): the budget or authority record blocks further action")
-    gd.read_delivery(d / "delivery.json") if (d / "delivery.json").is_file() else None
+    authority = establish_authority(goal_id, state, delivery, get, repo_name)
     observed = observe(delivery, get, repo_name)
     for cid, ch in delivery["changes"].items():
-        pr = observed["prs"].get(ch["pr"])
-        if pr and pr.get("merged") and (pr.get("merge_commit_sha") == ch["head"] or pr.get("head", {}).get("sha") == ch["head"]):
+        pr = observed["prs"].get(cid)
+        if pr is None:
+            continue
+        merged_here = pr.get("merged") and (pr.get("merge_commit_sha") == ch["head"] or pr.get("head", {}).get("sha") == ch["head"])
+        if merged_here:
             ch["merge"] = {"verified": True, "head": ch["head"], "sha": pr.get("merge_commit_sha"),
                            "merged_by": (pr.get("merged_by") or {}).get("login"), "merged_at": pr.get("merged_at"),
                            "observed_from": f"{GITHUB_API}/repos/{ch.get('repo') or repo_name}/pulls/{ch['pr']}"}
+        elif (ch.get("merge") or {}).get("verified"):
+            # review F3: GitHub contradicts the record; the record loses, and says so
+            ch["merge"] = {"verified": False, "contradicted": True, "was": ch["merge"],
+                           "observed": {"merged": pr.get("merged"), "head": pr.get("head", {}).get("sha")}}
     action = gd.next_action(delivery, observed)
     status = gd.delivery_status(delivery, observed)
     delivery["last_observed"] = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "errors": observed["errors"],
-                                 "next": action, "delivery_status": status["delivery_status"]}
+                                 "authority": authority, "next": action, "delivery_status": status["delivery_status"]}
     state["delivery"] = delivery
     save(state)
     return {"goal": goal_id, "next": action, **status, "observation_errors": observed["errors"]}
