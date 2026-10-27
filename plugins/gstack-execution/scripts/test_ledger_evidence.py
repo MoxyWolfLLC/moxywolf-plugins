@@ -258,6 +258,22 @@ def test_a_rejected_evidence_round_keeps_the_open_blockers_and_corrected_evidenc
         assert (rd / n).read_bytes() == b, n
 
 
+def test_a_review_recorded_before_adjudication_tracking_survives_a_rejected_round():
+    """Round 2 F4: state.json from before this rule has no adjudicated_round. A rejected round 2
+    must persist the inferred adjudication (round 1), so round 3 still meets round 1's blocker."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    st = json.loads((rd / "state.json").read_text()); st.pop("adjudicated_round", None); (rd / "state.json").write_text(json.dumps(st))
+    try:
+        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
+    except pr.ReviewError:
+        pass
+    st = json.loads((rd / "state.json").read_text())
+    assert st["adjudicated_round"] == 1 and st["rounds_used"] == 2, st
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    assert [b["id"] for b in json.loads((rd / "round-3.json").read_text())["blocker_resolutions"]] == ["F1"]
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

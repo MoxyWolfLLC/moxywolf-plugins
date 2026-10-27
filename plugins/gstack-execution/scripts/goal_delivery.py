@@ -156,10 +156,14 @@ def next_action(delivery, observed):
             review = (observed.get("reviews") or {}).get(cid) or {}
             if review.get("outcome") not in CLEAN_REVIEW:
                 return {"pending": f"review {ch.get('review_id')} is {review.get('outcome') or 'not observed'}, not clean", "change": cid}
+            if review.get("incomplete") or not (review.get("repo") and review.get("head") and review.get("base")):
+                return {"pending": f"review {ch.get('review_id')} evidence is incomplete: {review.get('incomplete') or 'no repository, head or base'}", "change": cid}
             if review.get("head") != ch.get("head"):
                 return {"pending": f"review {ch.get('review_id')} passed at {str(review.get('head'))[:12]}, not the candidate head {str(ch.get('head'))[:12]}", "change": cid}
-            if review.get("repo") and ch.get("path") and Path(review["repo"]).resolve() != Path(ch["path"]).resolve():
-                return {"blocked": f"review {ch.get('review_id')} is of {review['repo']}, not {ch['path']}"}
+            if Path(review["repo"]).resolve() != Path(ch.get("path") or "").resolve():
+                return {"blocked": f"review {ch.get('review_id')} is of {review['repo']}, not {ch.get('path')}"}
+            if ch.get("base") and review["base"] != ch["base"]:
+                return {"pending": f"review {ch.get('review_id')} reviewed from base {str(review['base'])[:12]}, not the candidate range from {str(ch['base'])[:12]}", "change": cid}
             missing = _checks_green((observed.get("checks") or {}).get(cid))
             if missing:
                 return {"pending": f"checks not green at {str(ch.get('head'))[:12]}: {', '.join(missing)}", "change": cid}

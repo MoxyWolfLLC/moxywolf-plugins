@@ -831,21 +831,36 @@ def observe(delivery, get, repo_name):
         except Exception as e:   # the observation failed; next_action sees nothing, which is pending
             observed["errors"].append(f"{cid}: {type(e).__name__}: {e}")
         if rdir and ch.get("review_id"):
-            d = Path(rdir, ch["review_id"])
-            if (d / "state.json").is_file():
-                try:
-                    st = json.loads((d / "state.json").read_text())
-                    pk = json.loads((d / "packet.json").read_text()) if (d / "packet.json").is_file() else {}
-                    heads = st.get("heads") or []
-                    observed["reviews"][cid] = {"outcome": st.get("outcome"), "review_id": ch["review_id"],
-                                                "head": heads[-1][0] if heads and heads[-1] else (pk.get("repos") or [{}])[0].get("head"),
-                                                "repo": (pk.get("repos") or [{}])[0].get("path")}
-                except (ValueError, IndexError, TypeError):
-                    observed["errors"].append(f"{cid}: review record {ch['review_id']} unreadable")
+            observed["reviews"][cid] = review_evidence(Path(rdir, ch["review_id"]), ch, observed["errors"], cid)
     for spec in delivery.get("required_checkouts") or ():
         if (spec.get("sync") or {}).get("status") == "synced":
             observed["checkouts"][spec["name"]] = spec["sync"]
     return observed
+
+
+def review_evidence(d, ch, errors, cid):
+    """What a review record says about THIS change's repository (review F2, F8): its outcome, the
+    head it passed at and the base it reviewed from, read at the index of the change's repository
+    in the retained packet. A record with no packet, no matching repository or an ambiguous match
+    is incomplete evidence, and says so, rather than defaulting to the first repository."""
+    if not (d / "state.json").is_file():
+        return None
+    try:
+        st = json.loads((d / "state.json").read_text())
+        pk = json.loads((d / "packet.json").read_text()) if (d / "packet.json").is_file() else None
+    except ValueError:
+        errors.append(f"{cid}: review record {d.name} unreadable")
+        return {"outcome": None, "review_id": d.name, "incomplete": "unreadable"}
+    out = {"outcome": st.get("outcome"), "review_id": d.name}
+    if not pk or not pk.get("repos"):
+        return dict(out, incomplete="the review record has no packet, so its repository and range are unknown")
+    want = Path(ch.get("path") or "").resolve() if ch.get("path") else None
+    matches = [i for i, r in enumerate(pk["repos"]) if want is not None and Path(r.get("path", "")).resolve() == want]
+    if len(matches) != 1:
+        return dict(out, incomplete=f"{len(matches)} of the review's {len(pk['repos'])} repositories match {ch.get('path')}")
+    i = matches[0]; r = pk["repos"][i]; heads = st.get("heads") or []
+    head = heads[-1][i] if heads and i < len(heads[-1]) else r.get("head")
+    return dict(out, head=head, base=r.get("review_base") or r.get("base"), repo=r.get("path"))
 
 
 def establish_authority(goal_id, state, delivery, get, repo_name):

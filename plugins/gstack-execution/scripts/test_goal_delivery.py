@@ -76,7 +76,16 @@ class NextAction(unittest.TestCase):
         return {"prs": {cid: {"number": 42, "merged": merged, "merge_commit_sha": head if merged else None,
                               "head": {"sha": pr_head or head}, "base": {"ref": base_ref}, "mergeable_state": state}},
                 "checks": {cid: {c: "success" for c in gd.MERGE_CHECKS} if checks else {"tests": "failure"}},
-                "reviews": {cid: {"outcome": review, "head": review_head or head, "repo": "/x"}}, "checkouts": {}}
+                "reviews": {cid: {"outcome": review, "head": review_head or head, "repo": "/x", "base": "b" * 40}}, "checkouts": {}}
+
+    def test_incomplete_review_evidence_or_another_reviewed_base_is_pending(self):   # round 2 F2
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        obs = self.observed(h); obs["reviews"]["implementation"]["base"] = "z" * 40
+        self.assertIn("not the candidate range", gd.next_action(doc, obs)["pending"])
+        obs = self.observed(h); obs["reviews"]["implementation"] = {"outcome": "no_blocking_findings", "incomplete": "no packet"}
+        self.assertIn("incomplete", gd.next_action(doc, obs)["pending"])
+        obs = self.observed(h); obs["reviews"]["implementation"].pop("repo")
+        self.assertIn("incomplete", gd.next_action(doc, obs)["pending"])
 
     def test_a_review_counts_only_at_the_candidate_head_in_this_repository_and_the_target_must_match(self):   # review F2
         doc = document(); h = doc["changes"]["implementation"]["head"]

@@ -2752,7 +2752,10 @@ def cmd_round(a):
                          .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
     # The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
     # but adjudicated nothing, so the blockers it is measured against are the round's before it.
-    adjudicated = state.get("adjudicated_round", round_no - 1)
+    adjudicated = state.get("adjudicated_round")
+    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
+        adjudicated = next((n for n in range(round_no - 1, 0, -1)
+                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
     prior = load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None
     dispositions = load(d, "dispositions.json") or {}
     if prior is not None:
@@ -2930,7 +2933,7 @@ def cmd_round(a):
     if rejected:
         # review F4: the attempt is spent; the review, its last adjudication, its evidence and its heads
         # stay where they were, so corrected evidence for the same candidate meets the open blockers
-        state.update(rounds_used=round_no, evidence_runs=previous_evidence)
+        state.update(rounds_used=round_no, evidence_runs=previous_evidence, adjudicated_round=adjudicated)   # F4 round 2: persisted, inferred or not
         state.setdefault("rejected_rounds", []).append(round_no)
     else:
         state.update(rounds_used=round_no, outcome=outcome, adjudicated_round=round_no)

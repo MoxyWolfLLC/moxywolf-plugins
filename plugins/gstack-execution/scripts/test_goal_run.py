@@ -524,7 +524,7 @@ class Resume(RunnerFixture):
         st = gr.load("g1")
         reviews = Path(self.tmp.name, "reviews"); (reviews / "rev-1").mkdir(parents=True)
         (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [[head]]}))
-        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head}]}))
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head, "base": st["main_at_start"], "review_base": st["main_at_start"]}]}))
         os.environ["GSTACK_PEER_REVIEW_DIR"] = str(reviews); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
         st["delivery"] = {"schema_version": 1, "goal": "g1", "approval": {"repo": "o/r", "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "d"},
                           "max_review_rounds": 3, "active_seconds": 5, "source_bindings": [],
@@ -586,9 +586,29 @@ class Resume(RunnerFixture):
         out = gr.resume("g1", self.github(head), "o/r")
         self.assertIn("pending", out["next"]); self.assertIn("not the candidate head", out["next"]["pending"])
         (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [[head]]}))
-        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head}]}))
+        base = gr.load("g1")["main_at_start"]
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head, "base": base, "review_base": base}]}))
         self.assertEqual(gr.resume("g1", self.github(head), "o/r")["next"]["action"], "merge")
         self.assertIn("blocked", gr.resume("g1", self.github(head, base_ref="release"), "o/r")["next"])
+        # round 2 F2: the review must have been of this candidate range, from this repository, with a packet
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [{"path": str(self.repo), "head": head, "base": "e" * 40, "review_base": "e" * 40}]}))
+        out = gr.resume("g1", self.github(head), "o/r"); self.assertIn("not the candidate range", out["next"]["pending"])
+        (reviews / "rev-1" / "packet.json").unlink()
+        out = gr.resume("g1", self.github(head), "o/r"); self.assertIn("no packet", out["next"]["pending"])
+
+    def test_a_two_repository_review_is_read_at_this_change_repository(self):   # round 2 F8
+        head = self.delivery_state()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"]); base = gr.load("g1")["main_at_start"]
+        other = Path(self.tmp.name, "other"); other.mkdir()
+        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [["a" * 40, head]]}))
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [
+            {"path": str(other), "head": "a" * 40, "base": "b" * 40, "review_base": "b" * 40},
+            {"path": str(self.repo), "head": head, "base": base, "review_base": base}]}))
+        self.assertEqual(gr.resume("g1", self.github(head), "o/r")["next"]["action"], "merge")
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps({"repos": [
+            {"path": str(self.repo), "head": head, "base": base, "review_base": base},
+            {"path": str(self.repo), "head": head, "base": base, "review_base": base}]}))
+        self.assertIn("2 of the review's 2 repositories match", gr.resume("g1", self.github(head), "o/r")["next"]["pending"])
 
     def test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted(self):   # review F3
         head = self.delivery_state()
