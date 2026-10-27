@@ -365,5 +365,49 @@ class RepairsRound3(unittest.TestCase):
         self.assertEqual(sc.snapshot(co), before)
 
 
+class RepairsRound4(unittest.TestCase):
+    """Review 20261027-161517-5b1a6d8-js3y2cm4 F3 and F4. Written before the fix."""
+
+    def test_h3_a_declared_repository_never_overrides_what_the_origin_names(self):
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        src, bare, co, spec = sc.fixture()
+        tip = sc.git(co, "rev-parse", "HEAD")
+        fork = "https://github.com/o/fork.git"
+        sc.git(co, "remote", "set-url", "origin", fork)                  # a fork that shares every required commit
+        spec = dict(spec, repo="o/r", remote=fork)
+        from unittest import mock
+        before = sc.snapshot(co)
+        with mock.patch.dict(os.environ, {"GIT_TERMINAL_PROMPT": "0"}):
+            outs = (gd.observe_checkout(spec, tip), gd.sync_checkout(spec, tip))
+        for out in outs:
+            self.assertEqual(out["status"], "sync_pending")
+            self.assertIn("o/fork", out["reason"]); self.assertIn("o/r", out["reason"])
+        self.assertEqual(sc.snapshot(co), before)
+        with self.assertRaises(gd.Blocked):                              # a record that names two repositories
+            gd.required_merges(document(), {"name": "mac", "repo": "o/r", "remote": fork})
+
+    def test_h4_a_git_process_that_times_out_or_cannot_start_is_pending_not_a_crash(self):
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        src, bare, co, spec = sc.fixture()
+        tip = sc.git(co, "rev-parse", "HEAD")
+        real = gd.subprocess.run
+        self.addCleanup(setattr, gd.subprocess, "run", real)
+        for verb, exc in (("ls-remote", subprocess.TimeoutExpired(["git"], 120)), ("status", FileNotFoundError("git")),
+                          ("fetch", subprocess.TimeoutExpired(["git"], 120))):
+            with self.subTest(verb):
+                def fake(argv, *a, _verb=verb, _exc=exc, **kw):
+                    if _verb in argv:
+                        raise _exc
+                    return real(argv, *a, **kw)
+                gd.subprocess.run = fake
+                try:
+                    outs = [gd.sync_checkout(spec, tip)] if verb == "fetch" else [gd.observe_checkout(spec, tip), gd.sync_checkout(spec, tip)]
+                finally:
+                    gd.subprocess.run = real
+                for out in outs if verb != "ls-remote" else outs[:1]:   # synchronization never runs ls-remote
+                    self.assertEqual(out["status"], "sync_pending", (verb, out))
+                    self.assertIn(type(exc).__name__, out["reason"])
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

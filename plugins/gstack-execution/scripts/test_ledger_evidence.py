@@ -274,6 +274,25 @@ def test_a_review_recorded_before_adjudication_tracking_survives_a_rejected_roun
     assert [b["id"] for b in json.loads((rd / "round-3.json").read_text())["blocker_resolutions"]] == ["F1"]
 
 
+def test_h1_a_review_passing_after_a_rejected_round_releases_against_the_adjudicated_round():
+    """Review 20261027-161517-5b1a6d8-js3y2cm4 F1: round 2 is refused for its evidence and round 3 verifies
+    round 1's F1. Release revalidation (passing_review, shared by release and record-release) must measure
+    round 3 against round 1, the last adjudicated round, not the refused round 2. Written before the fix."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    try:
+        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
+    except pr.ReviewError:
+        pass
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    os.environ["GSTACK_PEER_REVIEW_DIR"] = str(root)
+    try:
+        state, packet = pr.passing_review(rd)          # what release and record-release both call first
+    finally:
+        os.environ.pop("GSTACK_PEER_REVIEW_DIR", None)
+    assert state["outcome"] == "fixes_verified" and packet["repos"][0]["head"] == head2
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

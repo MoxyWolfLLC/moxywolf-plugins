@@ -856,7 +856,21 @@ class RepairsRound3(ResumeExecutes):
         st.update(finalize_pr=8, final_pr=42, finalized_head=final, results=[{"head": tested, "results": {}}])
         st["delivery"]["changes"]["implementation"].update(final=True, head=final)
         gr.save(st)
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])           # a whole-goal review: every item, from main
+        pk = json.loads((reviews / "rev-1" / "packet.json").read_text()); pk["items"] = ["g1/1", "g1/2", "g1/3"]
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps(pk))
         return tested, final
+
+    def test_h2_an_item_only_review_at_the_tested_head_is_not_the_whole_goal_review(self):   # review 20261027-161517 F2
+        tested, final = self.goal_change()
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        pk = json.loads((reviews / "rev-1" / "packet.json").read_text()); pk["items"] = ["g1/1"]
+        (reviews / "rev-1" / "packet.json").write_text(json.dumps(pk))
+        out = gr.resume("g1", self.github(final), "o/r")
+        self.assertIn("pending", out["next"]); self.assertIn("GO-011.2", out["next"]["pending"])
+        st = gr.load("g1"); st["final_pr"] = 99; gr.save(st)            # not the recorded goal pull request
+        pk["items"] = ["g1/1", "g1/2", "g1/3"]; (reviews / "rev-1" / "packet.json").write_text(json.dumps(pk))
+        self.assertIn("pending", gr.resume("g1", self.github(final), "o/r")["next"])
 
     def test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head(self):
         tested, final = self.goal_change()
@@ -893,7 +907,9 @@ class FinalizedRelease(unittest.TestCase):
         _tgr.GovernedReview.response, _tgr.GovernedReview.round, _tgr.GovernedReview.install_github_response)
     BOT = _tgr.GovernedReview.BOT
 
-    def finalized(self):
+    def finalized(self, items=("g1/1",)):
+        self.packet["items"] = list(items)                               # a whole-goal review names every item
+        self.packet["model_selection"] = {"status": "checked", "mode": "shadow"}
         self.open(); self.response(); self.round()
         self.call("release", self.rid)            # exits awaiting_human_release by design; the handoff is the point
         self.assertTrue((self.root / "reviews" / self.rid / "release.json").is_file(), "the release handoff was written")
@@ -902,13 +918,15 @@ class FinalizedRelease(unittest.TestCase):
         self.git("add", "goal-runs"); self.git("commit", "-qm", "run record")
         final = self.git("rev-parse", "HEAD")
         runs = self.root / "runs" / "g1"; runs.mkdir(parents=True)
-        (runs / "state.json").write_text(json.dumps({"finalized_head": final, "results": [{"head": self.head}]}))
+        (runs / "state.json").write_text(json.dumps({"finalized_head": final, "final_pr": 1, "items": [{"n": 1}],
+                                                     "results": [{"head": self.head}]}))
         self.env["GSTACK_GOAL_RUN_DIR"] = str(self.root / "runs")
         self.env["GITHUB_COMMENTS"] = "[]"
         return final
 
     def record(self, final, ref="goal/g1"):
-        self.install_github_response(merged_by=self.BOT, head={"sha": final, "ref": ref})
+        self.install_github_response(merged_by=self.BOT, head={"sha": final, "ref": ref},
+                                     base={"ref": "main", "sha": self.base, "repo": {"full_name": "example/project"}})
         return self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
 
     def test_g6_record_release_records_the_goal_merge_at_its_finalized_head(self):
@@ -920,17 +938,19 @@ class FinalizedRelease(unittest.TestCase):
         self.assertIn("GO-011.2", json.dumps(rec["finalized"]))
 
     def test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused(self):
-        for case in ("other head", "other branch", "no run record", "review not pinned"):
+        for case in ("other head", "other branch", "no run record", "review not pinned", "item-only review", "not the goal PR"):
             with self.subTest(case):
                 self.setUp()
-                final = self.finalized()
+                final = self.finalized(items=("other/1",) if case == "item-only review" else ("g1/1",))
                 st = self.root / "runs" / "g1" / "state.json"
                 if case == "other head":
-                    st.write_text(json.dumps({"finalized_head": "9" * 40, "results": [{"head": self.head}]}))
+                    st.write_text(json.dumps({"finalized_head": "9" * 40, "final_pr": 1, "items": [{"n": 1}], "results": [{"head": self.head}]}))
                 if case == "review not pinned":
-                    st.write_text(json.dumps({"finalized_head": final, "results": [{"head": "8" * 40}]}))
+                    st.write_text(json.dumps({"finalized_head": final, "final_pr": 1, "items": [{"n": 1}], "results": [{"head": "8" * 40}]}))
                 if case == "no run record":
                     self.env.pop("GSTACK_GOAL_RUN_DIR")
+                if case == "not the goal PR":
+                    st.write_text(json.dumps({"finalized_head": final, "final_pr": 2, "items": [{"n": 1}], "results": [{"head": self.head}]}))
                 r = self.record(final, ref="feature/x" if case == "other branch" else "goal/g1")
                 self.assertNotEqual(r.returncode, 0, case)
                 self.assertFalse(list((self.root / "reviews" / self.rid).glob("release-*-1.json")), f"{case}: no record written")
