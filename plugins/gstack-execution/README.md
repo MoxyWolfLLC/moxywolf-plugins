@@ -168,3 +168,7 @@ loading it.
 external response's revised edition (2026-09-20), is executed adversarial actions falling from 60% to
 30% on a synthetic benchmark whose traces and harness weren't published. That's a speed bump on
 unverified evidence. TB-001 and TB-003 are the controls.
+
+## Version history
+
+- **0.96.0**: SM-010. `references/verification-checks.md` opens with the standing operating rule, verify before recommending commitment; the six checks follow under `## Checks`, unchanged. The verification-discipline hook injects the file verbatim, so the rule reaches every session it already reached.

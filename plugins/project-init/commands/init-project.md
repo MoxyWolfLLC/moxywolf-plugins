@@ -4,6 +4,20 @@ description: Set up a new Cowork project — confirm the roots it needs (Vault a
 
 Run the project-init skill to initialize a new Cowork project.
 
+**Load the standing operating rule first.** Read the canonical verification
+guidance at `gstack-execution/skills/gstack-execution/references/verification-checks.md`
+from the resolved gstack-execution installation, or from
+`plugins/gstack-execution/skills/gstack-execution/references/verification-checks.md`
+in an available moxywolf-plugins checkout. Apply its "Standing operating rule:
+verify before recommending commitment" throughout initialization. Installation
+alone is not proof it was loaded; if neither source can be read, report
+`Standing operating rule: not loaded` and do not claim it was applied. Do not
+install or reconfigure plugins as part of this read.
+
+When generating new Project Instructions, include a reference to this canonical
+guidance and require it to be read at session start; do not duplicate its text.
+Preserve the skill's existing-project guard and the canonical template structure.
+
 The skill assumes these MoxyWolf roots are mounted in Cowork → Folders:
 
 1. **MoxyWolf Vault**

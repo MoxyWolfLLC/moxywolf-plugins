@@ -1060,7 +1060,7 @@ Not covered: `daily-ops`, `obsidian-update`'s personal-os and `team-kanban` also
 
 ### SM-010 — Project and session startup load the verify-before-commitment rule from its one home
 
-**Status:** planned. Approved by Dorian on 2026-10-27 ("Approve SM-010"), with the patch `startup-readiness-rule.patch` applied as its text.
+**Status:** building. Approved by Dorian on 2026-10-27 ("Approve SM-010"), with the patch `startup-readiness-rule.patch` applied as its text.
 
 **Links introduced:** a path link. `/init-project` and `/session-start` each name `gstack-execution/skills/gstack-execution/references/verification-checks.md` (installed plugin first, then a moxywolf-plugins checkout) as the rule's source, and new Project Instructions name it too, so a rename or a moved heading leaves those names pointing at nothing. The test in criterion 5 is what notices.
 
