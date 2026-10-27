@@ -3,6 +3,7 @@
 Stdlib, offline. Runs are made by running check_ledger.py as a subprocess, the way a builder runs it."""
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -139,6 +140,138 @@ def test_the_ci_log_net_catches_the_two_new_shapes():
     assert clr.LIKELY_SECRET.search("SUPABASE_SERVICE_ROLE_KEY " + "sb_secret_" + "x" * 24)
     assert clr.LIKELY_SECRET.search("Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w")
     assert not clr.LIKELY_SECRET.search("sb_publishable_" + "x" * 24 + " nice: 2309 elements, 5904 relationships")
+
+
+# ---- goal gstack-delivery-through-merge, item 2: a fix round names the runs at its new head ----
+
+def _round(d, root, review_id, reply, head=None, ledger_runs=()):
+    """One round through cmd_round with the selftest fake reviewer (as test_evidence_links does)."""
+    import contextlib, io, types
+    pr.REVIEW_DIR = root; pr._SELFTEST = True
+    reply_file = root / "reply.json"; reply_file.write_text(json.dumps(reply))
+    os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "cat " + str(reply_file)
+    a = types.SimpleNamespace(review_id=review_id, head=[f"{d}={head}"] if head else [], ci_run=[],
+                              ledger_run=[f"{d}={r}" for r in ledger_runs])
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return pr.cmd_round(a)
+    finally:
+        os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+
+
+def _reply(blocking):
+    f = [{"id": "F1", "severity": "blocking", "file": "README.md", "line": 1, "what": "wrong", "evidence": "README.md:1",
+          "criterion": "the README says y", "fix": "fix it", "category": "general"}]
+    return {"verdict": "blocking_findings" if blocking else "no_blocking_findings",
+            "acceptance": [{"criterion": "the README says y", "met": not blocking, "evidence": "README.md:1"}],
+            "findings": f if blocking else [], "blocker_resolutions": [] if blocking else [{"id": "F1", "resolved": True, "evidence": "README.md:1"}],
+            "regressions_from_fixes": [], "unknowns": []}
+
+
+def _fix_fixture():
+    """A review with one blocking round, disposed fixed, and a second commit to verify at."""
+    import types
+    d, base, head, root = fixture()
+    _, _, old = run(d, root, "print('old')")
+    st = open_review(d, base, head, root, ledger_runs=[{"repo": str(d), "run_id": old["id"]}])
+    rid = st["review_id"]; rd = root / rid
+    pk = json.loads((rd / "packet.json").read_text())     # the round's data-use gate needs the policy
+    pk["data_use"] = {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                      "allow_history": True, "allowed_tools": ["claude", "codex"]}
+    (rd / "packet.json").write_text(json.dumps(pk))
+    assert _round(d, root, rid, _reply(True)) == "blocking_findings"
+    pr.cmd_disposition(types.SimpleNamespace(review_id=rid, items=["F1=fixed"]))
+    retained = {n: (rd / n).read_bytes() for n in ("packet.json", "round-1.json")}
+    (d / "README.md").write_text("z\n")
+    subprocess.run(["git", "-C", str(d), "commit", "-qam", "fix"], check=True)
+    head2 = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    return d, root, rid, rd, head2, old, retained
+
+
+def test_a_fix_round_names_a_run_at_its_new_head_and_rewrites_nothing_retained():
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert fresh["head"] == head2
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    rec = json.loads((rd / "round-2.json").read_text())
+    row = [r for r in rec["ledger_runs"] if r["run_id"] == fresh["id"]][0]
+    assert row["head_matches"] is True and row["receipt_verified"] is True and row["exit_code"] == 0, row
+    assert rec["repos"][0]["head"] == head2
+    for n, b in retained.items():
+        assert (rd / n).read_bytes() == b, n + " was rewritten"
+    st = json.loads((rd / "state.json").read_text())
+    assert st["evidence_runs"]["ledger_runs"][0]["run_id"] == fresh["id"] and st["heads"][-1] == [head2]
+    eff = pr.effective_packet(st, json.loads((rd / "packet.json").read_text()))
+    assert eff["repos"][0]["head"] == head2 and eff["tests"]["ledger_runs"][0]["run_id"] == fresh["id"]
+
+
+def test_a_named_run_at_an_older_head_or_with_a_tampered_or_foreign_receipt_cannot_clear_the_fix():
+    for case in ("older-head", "tampered", "foreign"):
+        d, root, rid, rd, head2, old, retained = _fix_fixture()
+        chosen = old
+        if case == "tampered":
+            _, _, chosen = run(d, root, "print('t')")
+            receipt_of(d, root, chosen).write_bytes(receipt_of(d, root, chosen).read_bytes() + b"forged\n")
+        elif case == "foreign":
+            other = Path(tempfile.mkdtemp()) / "foreign"
+            subprocess.run(["git", "clone", "-q", str(d), str(other)], check=True)
+            subprocess.run(["git", "-C", str(other), "remote", "set-url", "origin", "https://github.com/foreign/app.git"], check=True)
+            _, _, chosen = run(other, root, "print('f')")
+            p = cl.ledger_path(d, "build/x", root)
+            with p.open("a") as fh: fh.write(json.dumps(chosen) + "\n")
+            (cl.receipts_dir(p) / f"{chosen['id']}.log").write_bytes(receipt_of(other, root, chosen).read_bytes())
+        try:
+            _round(d, root, rid, _reply(False), head=head2, ledger_runs=[chosen["id"]])
+        except pr.ReviewError:
+            pass
+        rec = json.loads((rd / "round-2.json").read_text())
+        row = [r for r in rec["ledger_runs"] if r["run_id"] == chosen["id"]][0]
+        if case == "older-head":
+            assert row["head_matches"] is False, row
+        else:
+            assert row["receipt_verified"] is False, row
+        assert rec["outcome"] == "release_blocked" and "not evidence at this head" in rec["error"], (case, rec.get("error"))
+        st = json.loads((rd / "state.json").read_text())
+        assert st["outcome"] == "blocking_findings" and st["rounds_used"] == 2, (case, st["outcome"])   # open, one round spent
+        for n, b in retained.items():
+            assert (rd / n).read_bytes() == b, (case, n)
+
+
+def test_a_rejected_evidence_round_keeps_the_open_blockers_and_corrected_evidence_still_verifies_them():
+    """Review F4: round 1 raises F1; round 2's named run is at the old head and is refused; round 3,
+    with the right run at the same candidate, is measured against F1 and verifies it."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    try:
+        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
+    except pr.ReviewError:
+        pass
+    st = json.loads((rd / "state.json").read_text())
+    assert st["rounds_used"] == 2 and st["adjudicated_round"] == 1 and st["rejected_rounds"] == [2] and len(st["heads"]) == 2, st
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    rec3 = json.loads((rd / "round-3.json").read_text())
+    assert [b["id"] for b in rec3["blocker_resolutions"]] == ["F1"], "round 3 verified the blocker round 1 raised"
+    assert rec3["repos"][0]["head"] == head2 and rec3["repos"][0]["base"] != head2
+    st = json.loads((rd / "state.json").read_text())
+    assert st["outcome"] == "fixes_verified" and st["adjudicated_round"] == 3 and st["heads"][-1] == [head2]
+    for n, b in retained.items():
+        assert (rd / n).read_bytes() == b, n
+
+
+def test_a_review_recorded_before_adjudication_tracking_survives_a_rejected_round():
+    """Round 2 F4: state.json from before this rule has no adjudicated_round. A rejected round 2
+    must persist the inferred adjudication (round 1), so round 3 still meets round 1's blocker."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    st = json.loads((rd / "state.json").read_text()); st.pop("adjudicated_round", None); (rd / "state.json").write_text(json.dumps(st))
+    try:
+        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
+    except pr.ReviewError:
+        pass
+    st = json.loads((rd / "state.json").read_text())
+    assert st["adjudicated_round"] == 1 and st["rounds_used"] == 2, st
+    _, _, fresh = run(d, root, "print('fresh')")
+    assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
+    assert [b["id"] for b in json.loads((rd / "round-3.json").read_text())["blocker_resolutions"]] == ["F1"]
 
 
 if __name__ == "__main__":

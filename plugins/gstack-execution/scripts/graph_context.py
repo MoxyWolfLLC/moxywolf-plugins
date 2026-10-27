@@ -75,7 +75,7 @@ def attest(artifact,packet):
     mode=artifact.get('attest')
     if not mode:return
     matches=[r for r in packet['repos'] if r.get('head')==artifact['revision'] and r.get('path')]
-    if not matches:raise ValueError('attested artifact '+artifact['id']+' names no packet repository at its revision')
+    if not matches:raise ValueError('stale attested artifact '+artifact['id']+': its revision is not a packet repository head')
     if len(matches)>1:raise ValueError('attested artifact '+artifact['id']+' revision matches more than one packet repository; ambiguous source')
     repo=matches[0]
     r=subprocess.run(['git','-C',repo['path'],'show',artifact['revision']+':'+artifact['source']],capture_output=True)
