@@ -840,5 +840,98 @@ class RepairsRound2(ResumeExecutes):
         self.assertEqual(gr.resume("g1", self.github(head, merged=True), "o/r", put=self.writer()[0])["delivery_status"], "complete")
 
 
+
+class RepairsRound3(ResumeExecutes):
+    """Review 20261027-144404-675bb13-9l70pwgt F1 (the goal change) and F3 (checkout binding),
+    goal gstack-delivery-completion-3 repairs 6 and 8. Written before the fix."""
+
+    def goal_change(self):
+        tested = self.delivery_state()
+        self.git("switch", "-q", "goal/g1")    # what the finalize merge leaves on the tested head
+        final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n", "goal-runs/g1/holdout.py": HOLDOUT_SRC})
+        self.git("switch", "-q", "main")
+        st = gr.load("g1")
+        st.update(finalize_pr=8, final_pr=42, finalized_head=final, results=[{"head": tested, "results": {}}])
+        st["delivery"]["changes"]["implementation"].update(final=True, head=final)
+        gr.save(st)
+        return tested, final
+
+    def test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head(self):
+        tested, final = self.goal_change()
+        out = gr.resume("g1", self.github(final), "o/r")
+        self.assertEqual(out["next"], {"action": "merge", "change": "implementation", "head": final, "pr": 42})
+        st = gr.load("g1"); st["finalized_head"] = "9" * 40; gr.save(st)     # not the head finalize recorded
+        self.assertIn("pending", gr.resume("g1", self.github(final), "o/r")["next"])
+        st = gr.load("g1"); st["finalized_head"] = final; gr.save(st)
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])               # a review of some other head
+        (reviews / "rev-1" / "state.json").write_text(json.dumps({"outcome": "no_blocking_findings", "heads": [["o" * 40]]}))
+        self.assertIn("pending", gr.resume("g1", self.github(final), "o/r")["next"])
+
+    def test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository(self):
+        self.delivery_state()
+        st = gr.load("g1"); dl = st["delivery"]; ch = dl["changes"]["implementation"]
+        ch["merge"] = {"verified": True, "sha": "a" * 40}
+        dl["changes"]["other"] = dict(ch, repo="o/other", pr=50, merge={"verified": True, "sha": "b" * 40})
+        dl["changes"]["later"] = dict(ch, pr=51, merge={"verified": True, "sha": "c" * 40})
+        dl["required_checkouts"] = [{"name": "mac", "path": "/m", "repo": "o/r", "branch": "main"}]
+        import goal_delivery
+        seen, orig = [], goal_delivery.observe_checkout
+        goal_delivery.observe_checkout = lambda spec, merges: seen.append(sorted([merges] if isinstance(merges, str) else merges)) or {"status": "sync_pending", "reason": "x"}
+        self.addCleanup(setattr, goal_delivery, "observe_checkout", orig)
+        gr._observe_checkouts(dl, {"checkouts": {}})
+        self.assertEqual(seen, [["a" * 40, "c" * 40]], "o/r's merges, all of them; never o/other's")
+
+
+class FinalizedRelease(unittest.TestCase):
+    """Review 20261027-144404-675bb13-9l70pwgt F1 through record-release: the goal pull request merges
+    its finalized head, one commit past the whole-goal review's head. Written before the fix."""
+    import test_governed_review as _tgr
+    setUp, git, call, open, response, round, install_github_response = (
+        _tgr.GovernedReview.setUp, _tgr.GovernedReview.git, _tgr.GovernedReview.call, _tgr.GovernedReview.open,
+        _tgr.GovernedReview.response, _tgr.GovernedReview.round, _tgr.GovernedReview.install_github_response)
+    BOT = _tgr.GovernedReview.BOT
+
+    def finalized(self):
+        self.open(); self.response(); self.round()
+        self.assertEqual(self.call("release", self.rid).returncode, 0)
+        for rel, text in (("goal-runs/g1/RESULT.md", "record\n"), ("goal-runs/g1/holdout.py", "x = 1\n")):
+            p = self.repo / rel; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text)
+        self.git("add", "goal-runs"); self.git("commit", "-qm", "run record")
+        final = self.git("rev-parse", "HEAD")
+        runs = self.root / "runs" / "g1"; runs.mkdir(parents=True)
+        (runs / "state.json").write_text(json.dumps({"finalized_head": final, "results": [{"head": self.head}]}))
+        self.env["GSTACK_GOAL_RUN_DIR"] = str(self.root / "runs")
+        self.env["GITHUB_COMMENTS"] = "[]"
+        return final
+
+    def record(self, final, ref="goal/g1"):
+        self.install_github_response(merged_by=self.BOT, head={"sha": final, "ref": ref})
+        return self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+
+    def test_g6_record_release_records_the_goal_merge_at_its_finalized_head(self):
+        final = self.finalized()
+        r = self.record(final)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual((rec["head"], rec["reviewed_head"], rec["outcome"]), (final, self.head, "agent_merge_autonomous"))
+        self.assertIn("GO-011.2", json.dumps(rec["finalized"]))
+
+    def test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused(self):
+        for case in ("other head", "other branch", "no run record", "review not pinned"):
+            with self.subTest(case):
+                self.setUp()
+                final = self.finalized()
+                st = self.root / "runs" / "g1" / "state.json"
+                if case == "other head":
+                    st.write_text(json.dumps({"finalized_head": "9" * 40, "results": [{"head": self.head}]}))
+                if case == "review not pinned":
+                    st.write_text(json.dumps({"finalized_head": final, "results": [{"head": "8" * 40}]}))
+                if case == "no run record":
+                    self.env.pop("GSTACK_GOAL_RUN_DIR")
+                r = self.record(final, ref="feature/x" if case == "other branch" else "goal/g1")
+                self.assertNotEqual(r.returncode, 0, case)
+                self.assertFalse(list((self.root / "reviews" / self.rid).glob("release-*-1.json")), f"{case}: no record written")
+
+
 if __name__ == "__main__":
     unittest.main()

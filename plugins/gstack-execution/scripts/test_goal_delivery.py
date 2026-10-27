@@ -279,5 +279,90 @@ class RepairsRound2(unittest.TestCase):
         self.assertEqual(gd.observe_checkout(spec2, tip)["status"], "sync_pending")   # an unreadable remote is not synced
 
 
+class RepairsRound3(unittest.TestCase):
+    """Review 20261027-144404-675bb13-9l70pwgt F1-F3 (goal gstack-delivery-completion-3 repairs 6-8).
+    Written before the fix."""
+    observed = NextAction.observed
+
+    def goal_change(self, tested="t" * 40, finalized="f" * 40):
+        doc = document(head=finalized)
+        doc["changes"]["implementation"]["final"] = True
+        obs = self.observed(finalized, review_head=tested)
+        obs["reviews"]["implementation"]["finalized"] = {"pinned": True, "finalized_head": finalized}
+        return doc, obs
+
+    def test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head(self):
+        doc, obs = self.goal_change()
+        self.assertEqual(gd.next_action(doc, obs)["action"], "merge")
+        doc, obs = self.goal_change(); obs["reviews"]["implementation"]["finalized"]["pinned"] = False
+        self.assertIn("GO-011.2", gd.next_action(doc, obs)["pending"])
+        doc, obs = self.goal_change(); obs["reviews"]["implementation"]["finalized"]["finalized_head"] = "9" * 40
+        self.assertIn("finalized head", json.dumps(gd.next_action(doc, obs)))
+        doc, obs = self.goal_change(); obs["reviews"]["implementation"].pop("finalized")
+        self.assertIn("pending", gd.next_action(doc, obs), "no finalized evidence is not a pass")
+        doc, obs = self.goal_change(); doc["changes"]["implementation"].pop("final")   # an ordinary change keeps the exact-head rule
+        self.assertIn("not the candidate head", gd.next_action(doc, obs)["pending"])
+
+    def test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing(self):
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        real = gd._git
+        self.addCleanup(setattr, gd, "_git", real)
+        for verb in ("status", "rev-parse", "merge-base", "ls-remote", "remote", "symbolic-ref", "fetch"):
+            with self.subTest(verb):
+                src, bare, co, spec = sc.fixture()
+                tip = sc.git(co, "rev-parse", "HEAD")          # clean, at the remote tip: synced if every read succeeds
+                self.assertEqual(gd.observe_checkout(spec, tip)["status"], "synced")
+                before = sc.snapshot(co)
+                def fake(path, *args, _verb=verb, **kw):
+                    if args and args[0] == _verb:
+                        return subprocess.CompletedProcess(["git", *args], 128, "", f"fatal: {_verb} could not be read")
+                    return real(path, *args, **kw)
+                gd._git = fake
+                try:
+                    seen, synced = gd.observe_checkout(spec, tip), gd.sync_checkout(spec, tip)
+                finally:
+                    gd._git = real
+                if verb != "fetch":                              # observation never fetches
+                    self.assertEqual(seen["status"], "sync_pending", f"observe with a failing {verb}")
+                    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+                self.assertEqual(synced["status"], "sync_pending", f"sync with a failing {verb}")
+                self.assertIn("could not be read", synced["reason"], f"sync names the failed {verb}")
+                self.assertEqual(sc.snapshot(co), before, f"a failing {verb} wrote nothing")
+                self.assertEqual(sc.git(co, "rev-parse", "HEAD"), tip)
+
+    def test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked(self):
+        doc = document()
+        c = doc["changes"]
+        c["implementation"]["merge"] = {"verified": True, "sha": "a" * 40}
+        c["other"] = dict(c["implementation"], repo="o/other", pr=50, merge={"verified": True, "sha": "b" * 40})
+        c["later"] = dict(c["implementation"], pr=51, merge={"verified": True, "sha": "c" * 40})
+        c["unmerged"] = dict(c["implementation"], pr=52, merge=None)
+        c["goal-branch"] = dict(c["implementation"], pr=53, target="goal/g", merge={"verified": True, "sha": "d" * 40})
+        for spec in ({"name": "mac", "repo": "o/r", "branch": "main"},
+                     {"name": "mac", "remote": "https://github.com/O/R.git", "branch": "main"},
+                     {"name": "mac", "remote": "git@github.com:o/r.git"}):
+            self.assertEqual(sorted(gd.required_merges(doc, spec)), ["a" * 40, "c" * 40], spec)
+        with self.assertRaises(gd.Blocked):
+            gd.required_merges(doc, {"name": "mac", "remote": "/some/local/path.git"})   # no repository identity
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        src, bare, co, spec = sc.fixture()
+        first = sc.git(co, "rev-parse", "HEAD")
+        sc.git(src, "switch", "-qc", "side", first)
+        (src / "side").write_text("x\n"); sc.git(src, "add", "side"); sc.git(src, "commit", "-qm", "required but never on main")
+        orphan = sc.git(src, "rev-parse", "HEAD"); sc.git(co, "fetch", "-q", str(src), orphan)
+        self.assertEqual(gd.observe_checkout(spec, [first])["status"], "synced")
+        seen = gd.observe_checkout(spec, [orphan, first])                 # the newest is there, an earlier one isn't
+        self.assertEqual(seen["status"], "sync_pending"); self.assertIn(orphan[:12], seen["reason"])
+        before = sc.snapshot(co)
+        out = gd.sync_checkout(spec, [first, orphan])
+        self.assertEqual(out["status"], "sync_pending"); self.assertIn(orphan[:12], out["reason"])
+        self.assertEqual(sc.snapshot(co), before)
+        spec_file = Path(co).parent / "spec.json"; spec_file.write_text(json.dumps(spec))
+        r = subprocess.run([sys.executable, str(HERE / "goal_delivery.py"), "sync-checkout", "--checkout", str(spec_file),
+                            "--merge", f"{first},{orphan}"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 3, r.stderr); self.assertIn(orphan[:12], json.loads(r.stdout)["reason"])
+        self.assertEqual(sc.snapshot(co), before)
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))
