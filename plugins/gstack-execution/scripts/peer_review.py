@@ -368,7 +368,12 @@ def rdir(review_id):
 
 def load(d, name):
     p = d / name
-    return json.loads(p.read_text()) if p.exists() else None
+    obj = json.loads(p.read_text()) if p.exists() else None
+    if name == "packet.json" and isinstance(obj, dict) and (d / "state.json").exists():
+        # The file keeps the bytes open wrote; every reader sees the packet as the review stands now
+        # (the heads the rounds moved to, the runs they named), from state.json.
+        obj = effective_packet(json.loads((d / "state.json").read_text()), obj)
+    return obj
 
 
 ORIGINS = vocab_ids("origin")
