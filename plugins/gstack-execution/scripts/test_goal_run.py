@@ -893,7 +893,8 @@ class FinalizedRelease(unittest.TestCase):
 
     def finalized(self):
         self.open(); self.response(); self.round()
-        self.assertEqual(self.call("release", self.rid).returncode, 0)
+        self.call("release", self.rid)            # exits awaiting_human_release by design; the handoff is the point
+        self.assertTrue((self.root / "reviews" / self.rid / "release.json").is_file(), "the release handoff was written")
         for rel, text in (("goal-runs/g1/RESULT.md", "record\n"), ("goal-runs/g1/holdout.py", "x = 1\n")):
             p = self.repo / rel; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(text)
         self.git("add", "goal-runs"); self.git("commit", "-qm", "run record")
