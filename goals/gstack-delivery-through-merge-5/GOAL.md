@@ -10,7 +10,21 @@ The item gets exactly one review pass, the single pass PR #255 allowed; no separ
 
 Records preserved. Goal-4's run is ended with `goal_run.py failed --item 1` naming this conflict; #256 is closed unmerged with its refusal, close and reopen in its timeline; escalation 1 and its acknowledgement stay in goal-4's run record. In review `20261026-144252-d0cd67a-pk_fdgcy`, the goal-3 handoff stays archived (`release-handoff-goal-gstack-delivery-through-merge-3-2026-10-27T00-03-05Z.json`, sha256 7e599a0a734cb060d5a5e6f0fa85e645af7f8ed233924dbd8e048182fe5e8f3c), the goal-4 handoff written under PR #255's archival operation is archived as unused (`release-handoff-goal-gstack-delivery-through-merge-4-2026-10-27T12-58-56Z-unused.json`, sha256 e19faa7f47f5c96190e8814f52b9d6f46c93477baee9d6257a6fda6b04833c3a, also still the bytes of release.json), PR #251's record is unchanged (sha256 4e8e22ec3dcae60e515c496ad01da44c31b028e8a3e8c1257418c69430977f57), and verify read links_verified after each step. No release or record-release is run for that review again: the consolidated merge is recorded through the item's own review.
 
-Budget carried forward, nothing reset: 11 subscription calls cumulative, $0 metered, 9 calls to the unchanged 20-call cumulative stop; about 7h of the nine active hours spent across goal-3 (about 4h45m) and goal-4 (about 2h15m of working time, counted from the agent's work between Dorian's messages, this brief's preparation included), so about 2h remain.
+Budget carried forward, nothing reset. Calls: 11 subscription calls cumulative, $0 metered; the 20-call cumulative stop is unchanged, so 9 remain. Active time already spent, each shown separately and none reset: about 2h40m before goal-3, about 4h45m in goal-3, about 2h35m in goal-4 and this brief's preparation (agent working time between Dorian's messages), about 10h in all; waiting on CI, reviewers and Dorian is excluded and reported separately.
+
+Remaining work, estimated from the code at b321160 and the two goal tests still failing there (test_resume_after_accepted_merge_records_once, test_dirty_required_checkout_preserved_and_pending), with scope unchanged:
+- goal_delivery.sync_checkout and its `sync-checkout --checkout --merge` CLI, which do not exist yet: host, path, remote, branch, tracked and untracked cleanliness and divergence checks, fast-forward only, with focused tests for the five refusal cases and the advanced-main control; about 1h30m
+- the resume executors in goal_run.resume, which today stop at returning next_action: carry out merge (one exact-head merge request through the existing gates), record-release (through peer_review.py) and sync_checkout in order, persisting after each, idempotent on a second resume, with the subprocess crash-after-accept test and the moved-head, lost-response, owner-gate, missing-companion and failure-after-record cases; about 2h30m to 3h
+- goal_run.complete recording the goal merge without ending delivery before release and sync, and the record rendering merge, record and sync states separately; about 45m
+- command contracts (gstack-goal.md, gstack-build.md, README, peer-review-contract.md), version 0.95.5, version_bump.py in goal mode, focused suites, the full runner and head-bound receipts; about 1h
+- item 1's single review pass at b321160, its release handoff, merge, record-release and goal_run merged; about 45m
+- item 2's review, up to three passes, with fixes between them; about 1h30m to 2h30m
+- finalize, the whole-goal pull request with a fresh review and the holdout, the GO-011.2 merge and its release record, including fixes if the review blocks; about 1h30m to 2h30m
+- the release companion (marketplace top-level bump) through its own review, merge and record; about 45m
+- synchronization of /Users/doriancougias/GitHub/moxywolf-plugins, which today is checked out on the item-2 branch, back to main and fast-forwarded, plus the per-command usability check; about 45m
+That is about 11h to 13h of active work. Expected model calls: 1 for item 1, 1 to 3 for item 2, 1 to 2 for the whole-goal review, 1 for the companion, so 4 to 7, inside the 9 remaining; three blocking rounds on item 2 and two on the whole-goal review would reach the stop at the 9th call before completion.
+
+Completion allowance proposed: 12h of active agent time in this goal, counted from its start, with the run stopping at 12h whatever is left; about 22h cumulative across all four goals. It replaces the 2h remaining under the earlier nine-hour limit, which this approval would supersede rather than extend in pieces. The time is an estimate, not a commitment: the main risks are the resume executors' merge and release path against the fixture, and findings in the whole-goal review.
 
 Deliver an explicitly approved repository change through verified merge, release recording, and synchronization of every required working copy, without Dorian coordinating tools or repeating permission. Merging is part of completion: a prepared PR, a clean review, a release handoff, or a merged implementation awaiting a required marketplace bump is not completion.
 
@@ -85,7 +99,7 @@ $50
 - any goal test regresses
 - a change reaches a hooks folder or any other CODEOWNERS path
 - the marketplace's top-level version moves on the goal branch
-- active agent time exceeds 2h in this goal, the remainder of the nine hours after goal-3's about 4h45m and goal-4's about 2h15m; the predecessors' time stays on their records; time waiting on CI or a reviewer is reported separately and does not reset the limit
+- active agent time exceeds 12h in this goal, the completion allowance this approval gives; the predecessors' about 10h stays on their records; the predecessors' time stays on their records; time waiting on CI or a reviewer is reported separately and does not reset the limit
 - 80% of the spend cap or of Max calls is reached, as GO-004 already stops: Max calls 11 here means the stop fires at the 9th call in this goal, which with the 11 already spent is the unchanged 20-call cumulative operating stop; the nominal 11 is never reached
 - a gate-owned file (goal_spend.py, goal_guard.py, goal_envelope.py, a workflow, CODEOWNERS) would have to change to reach the outcome
 - the same required check fails after two repair cycles without a resolved cause
