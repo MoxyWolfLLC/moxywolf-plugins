@@ -553,10 +553,11 @@ class Resume(RunnerFixture):
                 return approval
             if path.endswith("/pulls/42"):
                 return {"number": 42, "merged": merged, "merge_commit_sha": "m" * 40 if merged else None,
-                        "head": {"sha": head}, "base": {"ref": base_ref, "sha": gr.load("g1")["main_at_start"]},
+                        "head": {"sha": head}, "base": {"ref": base_ref, "sha": gr.load("g1")["main_at_start"], "repo": {"full_name": "o/r"}},
                         "mergeable_state": "clean", "merged_by": {"login": "moxywolf-agent[bot]"}, "merged_at": "t"}
             if path.endswith("/check-runs"):
-                return {"check_runs": [{"id": i, "name": n, "status": "completed", "conclusion": checks, "external_id": ""}
+                bound = f"pr=42;base_ref={base_ref};base={gr.load('g1')['main_at_start']}"
+                return {"check_runs": [{"id": i, "name": n, "status": "completed", "conclusion": checks, "external_id": bound}
                                        for i, n in enumerate(("tests", "goal-envelope", "goal-tests"), 1)]}
             return None
         return get
@@ -754,6 +755,52 @@ class ResumeExecutes(Resume):
         self.assertNotEqual(out["delivery_status"], "complete")
         self.assertIn("marketplace: not merged", out["missing"])
         self.assertEqual(calls, [])
+
+
+
+class Repairs(ResumeExecutes):
+    """Goal gstack-delivery-completion: regression cases for review 20261027-101630-b321160-f16vgusw
+    F3 (a stopped or held run advances nothing) and the persisted merge request (never resent by a
+    fresh process). Written before the fix."""
+
+    def snapshot(self):
+        return (gr.run_dir("g1") / "state.json").read_bytes()
+
+    def test_r3_a_stopped_or_held_run_records_releases_merges_and_syncs_nothing(self):
+        head = self.delivery_state()
+        orig = gr.act; gr.act = lambda *a, **k: {"allowed": "merge"}; self.addCleanup(setattr, gr, "act", orig)
+        for setup in ("stopped", "held"):
+            st = gr.load("g1")
+            if setup == "stopped":
+                st["outcome"], st["reason"] = "stopped", "rounds_exhausted"
+            else:
+                st["outcome"] = None
+                st.setdefault("messages", []).append({"n": 99, "kind": "escalation", "trigger": "dorian_call", "item": None,
+                                                      "text": "held", "at": "t", "waits": True, "status": "open", "words": None, "delivered": True})
+            gr.save(st)
+            before = self.snapshot()
+            put, calls = self.writer()
+            for merged in (False, True):
+                out = gr.resume("g1", self.github(head, merged=merged), "o/r", put=put)
+                self.assertEqual(out["executed"], []); self.assertIn("refused", out)
+            self.assertEqual(calls, [])
+            self.assertEqual(self.snapshot(), before, f"a {setup} run's delivery state is preserved")
+            st = gr.load("g1"); st["outcome"] = None; st["messages"] = [m for m in st.get("messages", []) if m.get("n") != 99]; gr.save(st)
+
+    def test_r4_a_merge_request_persisted_by_an_earlier_process_is_never_sent_again(self):
+        head = self.delivery_state()
+        orig = gr.act; gr.act = lambda *a, **k: {"allowed": "merge"}; self.addCleanup(setattr, gr, "act", orig)
+        st = gr.load("g1")
+        st["delivery"]["changes"]["implementation"]["merge_requested"] = {"at": "2026-10-27T00:00:00Z", "head": head, "pr": 42}
+        gr.save(st)                                                       # the earlier process died after asking
+        put, calls = self.writer()
+        out = gr.resume("g1", self.github(head), "o/r", put=put)          # GitHub still shows it unmerged
+        self.assertEqual(calls, [])
+        self.assertIn("earlier", out["stopped_by"] or out["next"].get("blocked", "") or out["next"].get("pending", ""))
+        reviews = Path(os.environ["GSTACK_PEER_REVIEW_DIR"])
+        (reviews / "rev-1" / "release-o-r-42.json").write_text(json.dumps({"head": head, "merge_commit": "m" * 40}))
+        out = gr.resume("g1", self.github(head, merged=True), "o/r", put=put)   # it had landed after all
+        self.assertEqual(calls, []); self.assertEqual(out["delivery_status"], "complete")
 
 
 if __name__ == "__main__":

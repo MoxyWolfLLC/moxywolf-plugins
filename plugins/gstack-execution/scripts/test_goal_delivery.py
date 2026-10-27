@@ -73,9 +73,11 @@ class ReserveReview(unittest.TestCase):
 class NextAction(unittest.TestCase):
     def observed(self, head, merged=False, checks=True, review="no_blocking_findings", pr_head=None, state="clean",
                  review_head=None, base_ref="main", cid="implementation"):
+        bound = f"pr=42;base_ref={base_ref};base={'b' * 40}"      # goal checks name the PR, its target and base
         return {"prs": {cid: {"number": 42, "merged": merged, "merge_commit_sha": head if merged else None,
-                              "head": {"sha": pr_head or head}, "base": {"ref": base_ref}, "mergeable_state": state}},
-                "checks": {cid: {c: "success" for c in gd.MERGE_CHECKS} if checks else {"tests": "failure"}},
+                              "head": {"sha": pr_head or head}, "base": {"ref": base_ref, "sha": "b" * 40, "repo": {"full_name": "o/r"}},
+                              "mergeable_state": state}},
+                "checks": {cid: {c: ("success", bound) for c in gd.MERGE_CHECKS} if checks else {"tests": ("failure", "")}},
                 "reviews": {cid: {"outcome": review, "head": review_head or head, "repo": "/x", "base": "b" * 40}}, "checkouts": {}}
 
     def test_incomplete_review_evidence_or_another_reviewed_base_is_pending(self):   # round 2 F2
@@ -132,7 +134,8 @@ class NextAction(unittest.TestCase):
         for cid in ("implementation", "marketplace"):
             doc["changes"][cid]["merge"] = {"verified": True}; doc["changes"][cid]["release_record"] = {"verified": True}
         self.assertIn("pending", gd.next_action(doc, {"checkouts": {}}), "a recorded merge not re-observed is pending, not progress")
-        prs = {cid: {"merged": True, "head": {"sha": doc["changes"][cid]["head"]}, "merge_commit_sha": doc["changes"][cid]["head"]}
+        prs = {cid: {"number": doc["changes"][cid]["pr"], "merged": True, "head": {"sha": doc["changes"][cid]["head"]},
+                     "merge_commit_sha": doc["changes"][cid]["head"], "base": {"ref": "main", "repo": {"full_name": "o/r"}}}
                for cid in ("implementation", "marketplace")}
         self.assertEqual(gd.next_action(doc, {"prs": prs, "checkouts": {}}), {"action": "sync_checkout", "checkout": "mac"})
         self.assertEqual(gd.next_action(doc, {"prs": prs, "checkouts": {"mac": {"status": "synced"}}}), {"action": "complete"})
@@ -199,6 +202,55 @@ class SyncCheckout(unittest.TestCase):
         out = gd.sync_checkout(spec, tip)
         self.assertEqual((out["status"], out["sha"]), ("synced", tip))
         self.assertEqual(self.snapshot(co), before)
+
+
+
+class Repairs(unittest.TestCase):
+    """Goal gstack-delivery-completion: regression cases for the review findings on b321160
+    (20261027-101630-b321160-f16vgusw F1, F2) and the fresh-checkout repair. Written before the fix."""
+    observed = NextAction.observed
+
+    def test_r1_a_merged_pull_request_of_another_target_repository_or_number_is_never_progress(self):
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        for bad in ({"base_ref": "release"},):
+            obs = self.observed(h, merged=True, **bad)
+            self.assertIn("blocked", gd.next_action(doc, obs), "a wrong-target merge is not record_merge")
+        obs = self.observed(h, merged=True); obs["prs"]["implementation"]["base"]["repo"]["full_name"] = "someone/fork"
+        self.assertIn("blocked", gd.next_action(doc, obs))
+        obs = self.observed(h, merged=True); obs["prs"]["implementation"]["number"] = 99
+        self.assertIn("blocked", gd.next_action(doc, obs))
+        doc["changes"]["implementation"]["merge"] = {"verified": True, "head": h, "sha": h}   # a stale verified flag
+        self.assertIn("blocked", gd.next_action(doc, self.observed(h, merged=True, base_ref="release")))
+        self.assertEqual(gd.next_action(doc, self.observed(h, merged=True))["action"], "record_release")
+
+    def test_r2_checks_reached_for_another_pull_request_or_an_old_base_cannot_merge(self):
+        doc = document(); h = doc["changes"]["implementation"]["head"]
+        self.assertEqual(gd.next_action(doc, self.observed(h))["action"], "merge")
+        for binding in ("pr=43;base_ref=main;base=" + "b" * 40, "pr=42;base_ref=main;base=" + "0" * 40,
+                        "pr=42;base_ref=release;base=" + "b" * 40, "", None):
+            obs = self.observed(h)
+            for c in ("goal-envelope", "goal-tests"):
+                obs["checks"]["implementation"][c] = ("success", binding)
+            self.assertIn("pending", gd.next_action(doc, obs), f"binding {binding!r} is not this PR at this base")
+
+    def test_r5_a_saved_synced_flag_is_not_an_observation_of_the_checkout(self):
+        sc = SyncCheckout(); sc.addCleanup = self.addCleanup
+        src, bare, co, spec = sc.fixture()
+        tip = sc.git(co, "rev-parse", "HEAD")
+        self.assertEqual(gd.sync_checkout(spec, tip)["status"], "synced")
+        spec["sync"] = {"status": "synced", "sha": tip}                  # what an earlier run saved
+        (co / "a").write_text("edited after the sync\n")
+        seen = gd.observe_checkout(spec, tip)
+        self.assertEqual(seen["status"], "sync_pending"); self.assertIn("dirty", seen["reason"])
+        doc = document(checkouts=[spec])
+        for cid in doc["changes"]:
+            doc["changes"][cid]["merge"] = {"verified": True}; doc["changes"][cid]["release_record"] = {"verified": True}
+        self.assertNotEqual(gd.delivery_status(doc)["delivery_status"], "complete", "the saved flag alone is not synced")
+        self.assertEqual(gd.delivery_status(doc, {"checkouts": {spec["name"]: seen}})["delivery_status"], "sync_pending")
+        sc.git(co, "checkout", "--", "a")
+        self.assertEqual(gd.observe_checkout(spec, tip)["status"], "synced")
+        sc.git(co, "switch", "-qc", "elsewhere")
+        self.assertIn("branch", gd.observe_checkout(spec, tip)["reason"])
 
 
 if __name__ == "__main__":
