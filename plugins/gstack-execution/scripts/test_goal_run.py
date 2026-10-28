@@ -538,6 +538,11 @@ class Runner(RunnerFixture):
         self.git("remote", "set-url", "origin", str(Path(self.tmp.name, "mirror.git")))     # a local mirror isn't a repository identity
         with self.assertRaisesRegex(gr.Refused, "names no github.com repository"):
             self.start(repo_name="MoxyWolfLLC/example")
+        for url in ("/srv/mirrors/github.com/MoxyWolfLLC/example.git", "https://notgithub.com/MoxyWolfLLC/example.git",
+                    "https://github.com.evil.example/MoxyWolfLLC/example.git"):   # review F2 round 3: the substring isn't the host
+            self.git("remote", "set-url", "origin", url)
+            with self.subTest(url=url), self.assertRaisesRegex(gr.Refused, "names no github.com repository"):
+                self.start(repo_name="MoxyWolfLLC/example")
         self.git("remote", "remove", "origin")
         with self.assertRaisesRegex(gr.Refused, "is unset and names no github.com repository"):
             self.start(repo_name="MoxyWolfLLC/example")

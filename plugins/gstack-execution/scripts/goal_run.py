@@ -110,15 +110,18 @@ def checkout_repo(repo, repo_name):
     """GO-012.1 (review F2): the governed repository is the one the supplied checkout's origin names,
     a github.com repository. `repo_name` may only agree with it. A checkout with no origin, or one
     that isn't on github.com, is refused: a label is never written in its place."""
+    import goal_delivery
     r = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"], capture_output=True, text=True)
     url = r.stdout.strip() if r.returncode == 0 else ""
-    m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", url)
-    if not m:
+    # review F2 (round 3): the whole URL must be a github.com remote (goal_delivery.GITHUB_REMOTE, one home,
+    # matched in full), so a local mirror path or another host that merely contains "github.com/o/r" is refused
+    if not goal_delivery.github_repo(url):
         raise Refused(f"the checkout's origin {url or 'is unset and'} names no github.com repository; a goal run is "
                       "governed by the repository its checkout's origin names")
-    if repo_name and m.group(1).lower() != repo_name.lower():
-        raise Refused(f"the checkout's origin is {m.group(1)}, not {repo_name}; the delivery record names the checkout's repository")
-    return m.group(1)
+    name = goal_delivery.GITHUB_REMOTE.fullmatch(url).group(1)      # as spelled, case kept
+    if repo_name and name.lower() != repo_name.lower():
+        raise Refused(f"the checkout's origin is {name}, not {repo_name}; the delivery record names the checkout's repository")
+    return name
 
 
 Refused = gguard.Refused
