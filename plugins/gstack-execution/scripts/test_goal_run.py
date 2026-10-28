@@ -787,24 +787,44 @@ class Resume(RunnerFixture):
         self.commit("brief", {"goals/g1/GOAL.md": BRIEF + "\n## Required checkouts\n- mac /x\n"}); self.tree = self.git("rev-parse", "main:goals/g1")
         with self.assertRaisesRegex(gr.Refused, "isn't `name path host branch`"):
             self.start()
+        self.commit("brief", {"goals/g1/GOAL.md": BRIEF + "\n## Required checkouts\n- mac /a h main\n- mac /b h main\n"}); self.tree = self.git("rev-parse", "main:goals/g1")
+        with self.assertRaisesRegex(gr.Refused, "names 'mac' twice"):     # review 20261028-075808 F1: a name keys one observation
+            self.start()
+        self.assertFalse((gr.run_dir("g1") / "ledger.jsonl").exists(), "a refused start opened no ledger")
 
     def test_the_release_relationship_has_one_home(self):   # GO-012.3, by source
+        """Both halves of the rule: the finalized head (merged == recorded) and the tested head (the review
+        pinned to it). Every comparison of either lives in release_relationship or in a reading it is
+        given (final_review_pinned), a finalize step (finalize, finalize_merge_allowed) or a resync's
+        parent check; none in a merge-shaped consumer (review 20261028-075808 F2)."""
         here = Path(__file__).resolve().parent
-        homes = {}
-        for name in ("goal_run.py", "goal_delivery.py", "peer_review.py", "goal_guard.py"):
-            for n, line in enumerate((here / name).read_text().splitlines(), 1):
-                if ("finalized_head" in line or "head == finalized" in line) and ("==" in line or "!=" in line) and not line.strip().startswith("#"):
-                    homes.setdefault(name, []).append(n)
-        print(f"examined 4 files; finalized_head compared at {homes}")
-        self.assertEqual(sorted(homes), ["goal_guard.py", "goal_run.py"], homes)
+        files = ("goal_run.py", "goal_delivery.py", "peer_review.py", "goal_guard.py")
+        allowed = {"goal_guard.py": {"release_relationship", "finalize_merge_allowed"},
+                   "goal_run.py": {"final_review_pinned", "finalize", "resync"}}
+        import re
+        T = r'(?:state\["results"\]\[-1\]\["head"\]|\btested(?:_head)?\b)'
+        tested_cmp = re.compile(T + r"\s*(?:==|!=|\bin\b|\bnot in\b)|(?:==|!=|\bin\b|\bnot in\b)\s*\[?" + T)
+        finalized, tested = {}, {}
+        for name in files:
+            lines = (here / name).read_text().splitlines()
+            for n, line in enumerate(lines, 1):
+                if line.strip().startswith("#"):
+                    continue
+                if ("finalized_head" in line or "head == finalized" in line) and ("==" in line or "!=" in line):
+                    finalized.setdefault(name, []).append(n)
+                if tested_cmp.search(line):
+                    tested.setdefault(name, []).append(n)
+        print(f"examined {len(files)} files; finalized-head comparisons at {finalized}; tested-head comparisons at {tested}")
         src = (here / "goal_guard.py").read_text()
         rel = src[src.index("def release_relationship"):src.index("def final_merge_allowed")]
-        self.assertEqual(len(homes["goal_guard.py"]), 1); self.assertIn("head == finalized", rel)
-        # goal_run's remaining comparisons are the pinned reading (a resync's parent) and the sync's parents, not the rule
-        run = (here / "goal_run.py").read_text().splitlines()
-        for n in homes["goal_run.py"]:
-            inside = next(l.split("(")[0][4:] for l in reversed(run[:n]) if l.startswith("def "))
-            self.assertIn(inside, ("final_review_pinned", "resync"), f"goal_run.py:{n} ({inside}) restates the release rule")
+        self.assertIn("head == finalized", rel)
+        self.assertEqual(sorted(finalized), ["goal_guard.py", "goal_run.py"]); self.assertEqual(len(finalized["goal_guard.py"]), 1)
+        for table in (finalized, tested):
+            for name, ns in table.items():
+                lines = (here / name).read_text().splitlines()
+                for n in ns:
+                    inside = next(l.split("(")[0][4:] for l in reversed(lines[:n]) if l.startswith("def "))
+                    self.assertIn(inside, allowed.get(name, set()), f"{name}:{n} ({inside}) restates the release rule")
 
 
 

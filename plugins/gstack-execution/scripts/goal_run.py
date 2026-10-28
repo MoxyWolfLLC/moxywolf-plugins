@@ -250,6 +250,8 @@ def initial_delivery(repo, repo_name, record, state, secs):
             continue
         if len(parts) != 4:
             raise Refused(f"Required checkouts line {line.strip()!r} isn't `name path host branch`")
+        if any(c["name"] == parts[0] for c in checkouts):   # review 20261028-075808 F1: observations are keyed by name
+            raise Refused(f"Required checkouts names {parts[0]!r} twice; each checkout has one name")
         checkouts.append({"name": parts[0], "path": parts[1], "host": parts[2], "branch": parts[3], "repo": repo_name})
     return {"schema_version": 1, "goal": state["goal"],
             "approval": {"repo": repo_name, "pr": state["pr"], "review_id": record["review_id"], "head": record["head"],
