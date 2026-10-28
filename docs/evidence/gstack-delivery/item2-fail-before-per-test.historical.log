@@ -1,0 +1,29 @@
+ledger-evidence tests: 16
+ok   test_a_changed_receipt_is_not_verified
+ok   test_a_command_line_with_a_secret_is_withheld
+{
+  "F1": "fixed"
+}
+FAIL test_a_fix_round_names_a_run_at_its_new_head_and_rewrites_nothing_retained -> IndexError list index out of range
+{
+  "F1": "fixed"
+}
+FAIL test_a_named_run_at_an_older_head_or_with_a_tampered_or_foreign_receipt_cannot_clear_the_fix -> AssertionError ('older-head', None)
+ok   test_a_named_run_at_the_reviewed_head_is_on_the_surface_verified
+ok   test_a_receipt_that_imitates_the_enclosure_cannot_close_it
+ok   test_a_receipt_with_a_secret_is_withheld
+{
+  "F1": "fixed"
+}
+FAIL test_a_rejected_evidence_round_keeps_the_open_blockers_and_corrected_evidence_still_verifies_them -> KeyError 'adjudicated_round'
+{
+  "F1": "fixed"
+}
+FAIL test_a_review_recorded_before_adjudication_tracking_survives_a_rejected_round -> KeyError 'adjudicated_round'
+ok   test_a_run_at_another_head_is_labelled
+ok   test_an_old_line_without_a_receipt_still_reads_and_says_so
+ok   test_open_accepts_a_run_id_on_the_ledger
+ok   test_open_refuses_a_run_id_not_on_the_ledger
+ok   test_the_ci_log_net_catches_a_jwt_with_a_short_payload
+ok   test_the_ci_log_net_catches_the_two_new_shapes
+ok   test_the_command_line_never_reaches_surface_md

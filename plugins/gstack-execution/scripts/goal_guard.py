@@ -147,10 +147,18 @@ def merge_allowed(branch, target, head, review, checks, pr):
     it now ({number, head, base_ref, base}). The goal checks count only when their newest run was
     reached for this pull request into the goal branch at its current base, so a 'not a goal pull
     request' pass, another pull request's pass or one from before a retarget doesn't."""
-    import goal_checks
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
                       f"request's, after propose (GO-011.2)")
+    reviewed_merge_allowed(target, head, review, checks, pr)
+
+
+def reviewed_merge_allowed(target, head, review, checks, pr):
+    """DR-113's conditions for one pull request into `target`, pinned to `head`: a clean cross-vendor
+    review whose last head is `head` with coverage checked, and the checks green at that head for this
+    pull request. Shared by the item gate (into the goal branch) and the companion gate (GO-012.2: the
+    declared release companion's own pull request into main, which is not the goal pull request and
+    so not release_relationship's)."""
     problems = [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),
@@ -200,20 +208,38 @@ def finalize_merge_allowed(branch, head, tested, changed, parents, record_files,
         raise Refused("; ".join(problems))
 
 
-def final_merge_allowed(head, finalized_head, review, review_pinned, checks, pr, review_scope=()):
-    """GO-011.2: the goal pull request into main merges as the bot, pinned to the recorded goal head,
-    after a clean whole-goal cross-vendor review pinned to that head without its holdout
-    (`review_pinned`, which goal_run.final_review_pinned works out) and with tests, goal-envelope,
-    goal-tests and goal-holdout green there for this pull request into main."""
+def release_relationship(state, head, pr, pinned, scope_problems=()):
+    """GO-012.3: the ONE home of the relationship between a goal pull request's merged head and its
+    whole-goal review. The pull request is the run's recorded goal pull request; its head is the
+    finalized head the run recorded (the tested head plus the run record); the review is pinned to
+    the tested head without its holdout (`pinned`, goal_run.final_review_pinned's reading) and covers
+    the whole goal (`scope_problems`, goal_run.final_review_scope's, empty when it does). Both are
+    passed in because this module can't import goal_run. Every caller that decides a merge, plans a
+    delivery, records a release or ends a run reads this and keeps no comparison of its own."""
+    final_pr, finalized = state.get("final_pr"), state.get("finalized_head")
+    tested = (state.get("results") or [{}])[-1].get("head")
+    number = (pr or {}).get("number")
     problems = [m for ok, m in [
-        (head == finalized_head, f"{head[:12]} isn't the recorded goal head {str(finalized_head)[:12]}"),
+        (final_pr is not None and number == final_pr, f"#{number} isn't the recorded goal pull request #{final_pr}"),
+        (finalized is not None and head == finalized, f"{str(head)[:12]} isn't the recorded goal head {str(finalized)[:12]}"),
+        (bool(pinned), f"the review isn't pinned to the tested head {str(tested)[:12]} without its holdout"),
+    ] if not ok] + list(scope_problems)
+    return {"ok": not problems, "finalized_head": finalized, "tested_head": tested, "pr": final_pr, "problems": problems}
+
+
+def final_merge_allowed(relation, review, checks, pr):
+    """GO-011.2: the goal pull request into main merges as the bot when release_relationship holds
+    (recorded goal pull request, finalized head, whole-goal review pinned to the tested head without
+    its holdout), the review is clean with coverage covered, and tests, goal-envelope, goal-tests and
+    goal-holdout are green at that head for this pull request into main."""
+    head = relation.get("finalized_head") or ""
+    problems = list(relation.get("problems") or ())
+    problems += [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),
         (review.get("coverage_checked") is True and review.get("coverage_status") == "covered"
          and not review.get("coverage_overridden"), "the review's coverage wasn't checked and covered"),
-        (review_pinned, f"the review isn't pinned to {head[:12]} without its holdout"),
     ] if not ok]
-    problems += list(review_scope)                     # review F1: the whole goal, from main
     problems += checks_green("main", head, checks, pr)
     problems += [f"{c} at {head[:12]} is {(checks.get(c) or ('missing',))[0] or 'missing'}, not success"
                  for c in FINAL_CHECKS if (checks.get(c) or (None,))[0] != "success"]

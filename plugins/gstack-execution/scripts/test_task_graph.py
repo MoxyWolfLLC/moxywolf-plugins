@@ -57,7 +57,7 @@ print(json.dumps(r))
     def ok(self,r):
         """XE-024: an executor call that should succeed. A bare 1 != 0 threw the stderr away,
         and an intermittent failure then left nothing to diagnose it with."""
-        self.assertEqual(r.returncode,0,'executor stderr:\n'+(r.stderr or '')[-4000:])
+        self.assertEqual(r.returncode,0,'executor stderr:\n'+(r.stderr or '')[-4000:]+'\nstdout:\n'+(r.stdout or '')[-4000:])
     def git(self,*args):
         return subprocess.check_output(['git','-C',str(self.repo),*args],text=True).strip()
     def node(self,id,deps=None,kind='worker',**extra):
@@ -71,6 +71,71 @@ print(json.dumps(r))
         if audit:args.append('--audit-writes')
         if grants:args+=['--grants',str(grants)]
         return self.call(*args)
+
+    def test_context_is_delivered_and_stale_context_blocks_all_workers(self):
+        self.packet['context']={'schema_version':1,'objective':'test','artifacts':[
+            {'id':'design','kind':'design','revision':self.sha,'status':'accepted',
+             'source':'DESIGN.md','content':'criteria','reason':'specification'}]}
+        self.graph['nodes'][0].update(context_inputs=['design'],requires_accepted=['design'])
+        self.worker.write_text(self.worker.read_text().replace("n=p['node']; start=time.time()", "n=p['node']; start=time.time()\nif n['id']=='prepare': assert p['context']['artifacts'][0]['id']=='design'"))
+        self.ok(self.execute())
+        report=json.loads((self.run/'report.json').read_text())
+        self.assertEqual(report['context_handoffs']['prepare']['artifacts'][0]['id'],'design')
+        before=(self.run/'events.jsonl').read_text()
+        self.packet['context']['artifacts'][0]['revision']='b'*40
+        result=self.execute()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('stale context artifact',result.stderr)
+        self.assertEqual((self.run/'events.jsonl').read_text(),before)
+
+    def test_every_context_refusal_starts_zero_workers_and_makes_no_run_directory(self):
+        """Goal gstack-delivery-through-merge, item 1: each refusal is raised by preflight, before
+        root.mkdir and before any worker command, so the run directory never appears and the worker
+        log is never written. Cases: stale attested source, refreshed revision with stale content,
+        moved prerequisite with an unchanged consumer pointer binding, ambiguous repository
+        selection, and tampering with a selected and with an unselected attested artifact."""
+        import hashlib
+        sha256=lambda b:'sha256:'+hashlib.sha256(b).hexdigest()
+        log=self.root/'workers.log'
+        (self.repo/'fx.json').write_text(json.dumps({'bank':{'bank_hash':sha256(b'one')}}))
+        self.git('add','.');self.git('commit','-qm','fx');h1=self.git('rev-parse','HEAD')
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');h2=self.git('rev-parse','HEAD')
+        def artifact(id,source,content,rev,attest='content',**extra):
+            return dict(id=id,kind='evidence',revision=rev,status='accepted',source=source,content=content,reason='r',attest=attest,**extra)
+        def manifest(rev,value_content,fx_content):
+            return {'schema_version':1,'objective':'refuse','artifacts':[
+                artifact('value','value',value_content,rev,attest='sha256'),
+                artifact('fx','fx.json',fx_content,rev,binds={'value':{'pointer':'/bank/bank_hash'}})],
+                'links':[{'from':'fx','relation':'depends_on','to':'value'}]}
+        fx1=(self.repo/'fx.json').read_text()
+        def packet(rev,ctx,repos=None):
+            return dict(self.packet,repos=repos or [{'path':str(self.repo),'base':rev,'head':rev}],context=ctx)
+        twin=self.root/'twin';subprocess.check_call(['git','clone','-q',str(self.repo),str(twin)])
+        cases={
+            'stale attested source': (packet(h1,manifest(h1,sha256(b'stale'),fx1)),'stale content for attested artifact value'),
+            'refreshed revision with stale content': (packet(h2,manifest(h2,sha256(b'one'),fx1)),'stale content for attested artifact value'),
+            'moved prerequisite, consumer pointer unchanged': (packet(h2,manifest(h2,sha256(b'two'),fx1)),'stale dependency binding fx -> value'),
+            'ambiguous repository selection': (packet(h1,manifest(h1,sha256(b'one'),fx1),repos=[{'path':str(self.repo),'base':h1,'head':h1},{'path':str(twin),'base':h1,'head':h1}]),'more than one packet repository'),
+            'selected artifact tampered': (packet(h1,manifest(h1,sha256(b'one'),fx1.replace(sha256(b'one'),sha256(b'x')))),'stale content for attested artifact fx'),
+            'unselected artifact tampered': (packet(h1,manifest(h1,sha256(b'one'),fx1.replace(sha256(b'one'),sha256(b'x')))),'stale content for attested artifact fx'),
+        }
+        for name,(pk,message) in cases.items():
+            with self.subTest(case=name):
+                selected=['value'] if name.startswith('unselected') else ['value','fx']
+                graph={'name':'fixture','nodes':[self.node('prepare',log=str(log),context_inputs=selected,requires_accepted=selected),self.node('report',['prepare'],kind='report',log=str(log))]}
+                run=self.root/('run-'+str(len(name)))
+                self.pfile.write_text(json.dumps(pk));self.wfile.write_text(json.dumps(graph))
+                r=self.call('run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(run),'--jobs','2')
+                self.assertNotEqual(r.returncode,0,r.stdout)
+                self.assertIn(message,r.stderr)
+                self.assertFalse(run.exists(),'run directory was created before the refusal')
+                self.assertFalse(log.exists(),'a worker started before the refusal')
+        # The same graph with fresh, consistent evidence proceeds: the refusals are about the evidence, not the shape.
+        fresh=packet(h1,manifest(h1,sha256(b'one'),fx1))
+        graph={'name':'fixture','nodes':[self.node('prepare',log=str(log),context_inputs=['value','fx'],requires_accepted=['value','fx']),self.node('report',['prepare'],kind='report')]}
+        self.pfile.write_text(json.dumps(fresh));self.wfile.write_text(json.dumps(graph))
+        self.ok(self.call('run','--workflow',str(self.wfile),'--packet',str(self.pfile),'--run-dir',str(self.run),'--jobs','2'))
+        self.assertTrue(log.exists())
 
     def test_audit_fails_a_node_writing_outside_its_declared_outputs(self):
         """EV-003. A real edge that was never declared: the validator compares
@@ -643,6 +708,26 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
         self.assertEqual(state['timeout'],5)
 
+    def test_completed_peer_review_is_not_reused_for_changed_context(self):
+        """Review 20261026-115306-aaae2fc-sccuf0td F1: a resumed peer node must not hand back a
+        completed review that never saw the context now being delivered. Same repository heads,
+        changed context: the retained-review contract refuses, and the report cannot pair the new
+        handoff with the old review."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two');head=self.git('rev-parse','HEAD')
+        self.packet['repos'][0]['head']=head
+        self.packet['context']={'schema_version':1,'objective':'first','artifacts':[
+            {'id':'design','kind':'design','revision':head,'status':'accepted','source':'DESIGN.md','content':'criteria','reason':'specification'}]}
+        self.ok(self.builtin_run('review'))
+        marker=json.loads((self.run/'review-0-review.json').read_text())
+        self.packet['context']['objective']='second'       # same heads, different context
+        r=self.builtin_run('review')
+        self.assertNotEqual(r.returncode,0,'a completed review was reused for context it never received')
+        self.assertIn('review contract changed',r.stdout+r.stderr+json.dumps(self.state()))
+        self.assertEqual(json.loads((self.run/'review-0-review.json').read_text()),marker)   # nothing rewritten
+        self.packet['context']['objective']='first'
+        self.ok(self.builtin_run('review'))                 # the original context still resumes
+
     def test_builtin_graphs_materialize_frozen_nodes(self):
         for workflow in ['cso','verify','review']:
             r=self.call('plan','--workflow',workflow,'--packet',str(self.write_packet()))
@@ -732,4 +817,4 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         c=a[1]['own']['provenance'];self.assertEqual(c['correction'],{'source':'executor','untrusted_content':False})
         self.assertEqual(a[1]['outside']['provenance']['correction_diagnostics'],{'source':'handler_output','untrusted_content':True})
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout,verbosity=2))   # goal gstack-delivery-through-merge-3 item 1: counts on stdout

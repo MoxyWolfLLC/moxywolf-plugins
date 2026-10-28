@@ -169,6 +169,11 @@ external response's revised edition (2026-09-20), is executed adversarial action
 30% on a synthetic benchmark whose traces and harness weren't published. That's a speed bump on
 unverified evidence. TB-001 and TB-003 are the controls.
 
+## Task context and artifact relationships
+
+Optional versioned context now complements the existing executable workflows. Nodes select the artifacts they need, require accepted inputs, and refuse stale inputs or blocking questions before dispatch. Reports retain portable handoff digests and artifact relationships support transitive impact queries. An artifact that declares `attest` is checked against its source file at its revision before dispatch; one that does not remains a declaration. Unscoped nodes receive an empty-selection handoff, not `None`. See [Versioned decision context](skills/gstack-execution/references/task-graph-contract.md#versioned-decision-context) for the schema and `scripts/graph_context.py` commands. These records carry evidence, not approval authority; context changes conservatively invalidate packet-dependent work.
+
 ## Version history
 
+- **0.97.0**: GO-012. The delivery record (`state["delivery"]`) is written by `goal_run.py start` from the approval it verifies, with `final` and the brief's declared `## Release companion` and `## Required checkouts`; `propose` and `may merge main` bind the finalized head, pull request and review into it, and `complete` records the merge while only `resume` ends the run once the release record, the companion and every required checkout are observed. One function, `goal_guard.release_relationship`, holds the reviewed-head rule; the merge gate, delivery planning, `complete` and `record-release` read it. Carries the preserved delivery implementation (`goal_delivery.py`, `graph_context.py`, bounded recovery, checkout synchronization) and the review-161517 fixes, which never reached `main` through goals through-merge 1 to 5 and completion 1 to 3.
 - **0.96.0**: SM-010. `references/verification-checks.md` opens with the standing operating rule, verify before recommending commitment; the six checks follow under `## Checks`, unchanged. The verification-discipline hook injects the file verbatim, so the rule reaches every session it already reached.
