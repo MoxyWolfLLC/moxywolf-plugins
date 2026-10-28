@@ -82,6 +82,7 @@ class RunnerFixture(unittest.TestCase):
                                       "goalmod.py": "done = False\nsafe = True\n",
                                       ".github/CODEOWNERS": "/.github/ @d\n/goals/ @d\n/goal-runs/ @d\n"})
         self.tree = self.git("rev-parse", "main:goals/g1")
+        self.git("remote", "add", "origin", "https://github.com/o/r.git")   # GO-012.1: the origin names the repository
         self.branches = []
 
     def tearDown(self):
@@ -155,7 +156,7 @@ class RunnerFixture(unittest.TestCase):
     def start(self, builder="claude/claude-opus", granted=None, **kw):
         return gr.start(self.repo, "g1", 7, builder, kw.get("verify") or self.verify(),
                         granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main",
-                        repo_name=kw.get("repo_name", gr.REPO), environments=kw.get("environments", lambda: ["goal-holdout"]))
+                        repo_name=kw.get("repo_name", "o/r"), environments=kw.get("environments", lambda: ["goal-holdout"]))
 
     def item(self, goalmod, msg="item"):
         self.git("switch", "-q", "goal/g1")
@@ -167,9 +168,10 @@ class RunnerFixture(unittest.TestCase):
         return gr.next_step(self.repo, "g1", base="main")
 
     def origin(self):
+        """A bare origin the fixture pushes to; after start, origin's URL may be the bare path."""
         bare = Path(self.tmp.name, "origin.git")
         subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
-        self.git("remote", "add", "origin", str(bare))
+        self.git("remote", "set-url", "origin", str(bare))
         self.git("push", "-q", "origin", "main", "goal/g1")
         return bare
 
@@ -504,15 +506,43 @@ class Runner(RunnerFixture):
         self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["merge_recorded"], "f" * 40)
         # and resume, observing GitHub's merge at the resynced head, recognizes it as this change's (merged_here)
         import goal_delivery as gd
-        seen = dict(merged_pr, base=dict(merged_pr["base"], repo={"full_name": gr.REPO}), merge_commit_sha="f" * 40, merged=True)
+        seen = dict(merged_pr, base=dict(merged_pr["base"], repo={"full_name": "o/r"}), merge_commit_sha="f" * 40, merged=True)
         obs = {"prs": {"final": seen}, "checks": {}, "reviews": {}, "checkouts": {}}
         self.assertEqual(gd.next_action(gr.load("g1")["delivery"], obs)["action"], "record_merge")
 
+    def test_the_companion_merges_through_its_own_gate_not_the_goal_gate(self):   # GO-012.2, review F3
+        self.commit("brief", {"goals/g1/GOAL.md": BRIEF + "\n## Release companion\nmarketplace\n"}); self.tree = self.git("rev-parse", "main:goals/g1")
+        self.start(); gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1); self.as_proposed()
+        head = self.git("rev-parse", "main")
+        review = {"review_id": "rev-c", "outcome": "no_blocking_findings", "coverage_checked": True, "coverage_status": "covered", "heads": [[head]]}
+        bound = f"pr=13;base_ref=main;base={head}"
+        checks = {n: ("success", bound) for n in ("tests", "goal-envelope", "goal-tests", "goal-holdout")}
+        prd = {"number": 13, "head": head, "base_ref": "main", "base": head}
+        with self.assertRaisesRegex(gr.Refused, "#13 isn't the recorded goal pull request #9"):   # unbound: only the goal gate applies
+            gr.act(self.repo, "g1", "merge", "main", self.envs, base="main", head=head, review=review, checks=checks, pr=prd)
+        st = gr.load("g1"); st["delivery"]["changes"]["marketplace"].update(pr=13, head=head, base=head, review_id="rev-c"); gr.save(st)
+        with self.assertRaisesRegex(gr.Refused, "after the goal merge is recorded"):
+            gr.act(self.repo, "g1", "merge", "main", self.envs, base="main", head=head, review=review, checks=checks, pr=prd)
+        st = gr.load("g1"); st["merge"] = "f" * 40; gr.save(st)
+        with self.assertRaisesRegex(gr.Refused, "not clean"):
+            gr.act(self.repo, "g1", "merge", "main", self.envs, base="main", head=head, review=dict(review, outcome="blocking_findings"), checks=checks, pr=prd)
+        with self.assertRaisesRegex(gr.Refused, "bound at .* with review rev-c, not"):
+            gr.act(self.repo, "g1", "merge", "main", self.envs, base="main", head=head, review=dict(review, review_id="rev-x"), checks=checks, pr=prd)
+        out = gr.act(self.repo, "g1", "merge", "main", self.envs, base="main", head=head, review=review, checks=checks, pr=prd)
+        self.assertEqual(out["by"], "GO-012.2 companion")
+
     def test_the_delivery_record_names_the_checkouts_origin_not_a_label(self):   # GO-012.1, review F2
-        self.git("remote", "add", "origin", "https://github.com/MoxyWolfLLC/example.git")
+        self.git("remote", "set-url", "origin", "https://github.com/MoxyWolfLLC/example.git")
         with self.assertRaisesRegex(gr.Refused, "origin is MoxyWolfLLC/example, not o/r"):
             self.start(repo_name="o/r")
-        st = self.start(repo_name="moxywolfllc/example")     # agreeing, case-insensitively
+        self.git("remote", "set-url", "origin", str(Path(self.tmp.name, "mirror.git")))     # a local mirror isn't a repository identity
+        with self.assertRaisesRegex(gr.Refused, "names no github.com repository"):
+            self.start(repo_name="MoxyWolfLLC/example")
+        self.git("remote", "remove", "origin")
+        with self.assertRaisesRegex(gr.Refused, "is unset and names no github.com repository"):
+            self.start(repo_name="MoxyWolfLLC/example")
+        self.git("remote", "add", "origin", "git@github.com:MoxyWolfLLC/example.git")
+        st = self.start(repo_name="moxywolfllc/example")     # agreeing, case-insensitively, over ssh
         self.assertEqual(st["delivery"]["changes"]["final"]["repo"], "MoxyWolfLLC/example")
         self.assertEqual(st["delivery"]["approval"]["repo"], "MoxyWolfLLC/example")
 
@@ -738,7 +768,7 @@ class Resume(RunnerFixture):
     def test_start_writes_the_delivery_record_from_the_approval_it_verified(self):   # GO-012.1
         st = self.start()
         dl = st["delivery"]
-        self.assertEqual(dl["approval"], {"repo": gr.REPO, "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "dorianatmoxywolf"})
+        self.assertEqual(dl["approval"], {"repo": "o/r", "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "dorianatmoxywolf"})
         self.assertEqual((list(dl["changes"]), dl["release_companion"], dl["required_checkouts"], dl["max_review_rounds"]), (["final"], None, [], 2))
         final = dl["changes"]["final"]
         self.assertEqual((final["target"], final["final"], final["base"], final["head"], final["pr"], final["review_id"]),
@@ -1183,11 +1213,12 @@ class EndToEndDemonstration(RunnerFixture):
         self.log("may merge main", "allowed under GO-011.2; review", rid, "bound to final")
 
         def put(path, data):                            # FAKE GitHub's merge: a real merge into the local origin
-            self.assertTrue(path.endswith("/pulls/12/merge"), path); self.assertEqual(data["sha"], final)
-            self.git("merge", "-q", "--no-ff", "-m", "Merge pull request #12", final); self.git("push", "-q", f"file://{bare}", "main")
-            self.gh["pulls/12"].update(merged=True, merge_commit_sha=self.git("rev-parse", "main"),
-                                                 merged_by={"login": "moxywolf-agent[bot]", "type": "Bot"},
-                                                 merged_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+            n = path.rsplit("/", 2)[-2]; self.assertIn(n, ("12", "13"), path)
+            self.assertEqual(data["sha"], self.gh[f"pulls/{n}"]["head"]["sha"])
+            self.git("merge", "-q", "--no-ff", "-m", f"Merge pull request #{n}", data["sha"]); self.git("push", "-q", f"file://{bare}", "main")
+            self.gh[f"pulls/{n}"].update(merged=True, merge_commit_sha=self.git("rev-parse", "main"),
+                                         merged_by={"login": "moxywolf-agent[bot]", "type": "Bot"},
+                                         merged_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
             return {"merged": True}
         # peer_review reads the repository's origin as github.com/o/r; the Mac's spelling (the symlink) is untouched
         for k, v in {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "url.https://github.com/o/r.git.insteadOf",
@@ -1212,32 +1243,36 @@ class EndToEndDemonstration(RunnerFixture):
         self.assertEqual(done["merge_recorded"], goal_merge); self.assertIsNone(gr.load("g1")["outcome"])
         self.log("complete", "goal merge", goal_merge[:12], "recorded; delivery", done["delivery_status"])
 
-        # 5. the companion: main's marketplace top-level version only, its own review, merged outside the run
+        # 5. the companion: main's marketplace top-level version only, on its own branch with its own review; unmerged
         self.commit("release: marketplace top-level version", {".claude-plugin/marketplace.json": json.dumps({"version": "1.0.1"}) + "\n"})
         companion = self.git("rev-parse", "main"); self.git("reset", "-q", "--hard", goal_merge)
         rid2 = self.review(goal_merge, companion, ["g1/companion"], "only the top-level version moves")
-        self.git("merge", "-q", "--no-ff", "-m", "Merge pull request #13", companion); self.git("push", "-q", f"file://{bare}", "main")
-        companion_merge = self.git("rev-parse", "main")
-        self.gh["pulls/13"] = {"number": 13, "merged": True, "merge_commit_sha": companion_merge,
+        self.gh["pulls/13"] = {"number": 13, "merged": False, "merge_commit_sha": None, "mergeable_state": "clean",
                                          "head": {"sha": companion, "ref": "release/marketplace"},
                                          "base": {"ref": "main", "sha": goal_merge, "repo": {"full_name": "o/r"}},
-                                         "merged_by": {"login": "moxywolf-agent[bot]", "type": "Bot"},
-                                         "merged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                                          "html_url": "https://github.com/o/r/pull/13"}
-        self.gh[f"commits/{companion}/check-runs"] = {"check_runs": []}
+        bound13 = f"pr=13;base_ref=main;base={goal_merge}"
+        self.gh[f"commits/{companion}/check-runs"] = {"check_runs": [
+            {"id": 10 + i, "name": n, "status": "completed", "conclusion": "success", "external_id": bound13}
+            for i, n in enumerate(("tests", "goal-envelope", "goal-tests", "goal-holdout"), 1)]}
+        self.gh["issues/13/comments"] = []
         # GO-012.2 (review F3): the companion is bound through the runner from GitHub and the review record
         with self.assertRaisesRegex(gr.Refused, "not the pull request's head"):
             gr.bind_companion("g1", get, 13, rid, "o/r")              # the goal review doesn't speak for the companion
         self.assertEqual(gr.bind_companion("g1", get, 13, rid2, "o/r")["head"], companion)
         self.assertEqual(gr.load("g1")["delivery"]["changes"]["marketplace"]["pr"], 13)
-        self.log("companion", "PR #13 bound at", companion[:12], "review", rid2)
+        self.log("companion", "PR #13 bound at", companion[:12], "review", rid2, "unmerged")
         before = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
-        # 6-7. the companion's record, the Mac checkout synchronized to both merges, the completion decision
+        # 6-7. resume merges the companion through its own gate, records it, synchronizes the Mac checkout, completes
         out = gr.resume("g1", get, "o/r", put=put)
         self.log("resume", [s["action"] for s in out["executed"]], "->", out["next"], out["delivery_status"])
+        self.assertEqual([s["action"] for s in out["executed"]][:3], ["merge", "record_release", "sync_checkout"])
         st = gr.load("g1"); dl = st["delivery"]
+        companion_merge = self.gh["pulls/13"]["merge_commit_sha"]
+        self.assertEqual(dl["changes"]["marketplace"]["merge"]["sha"], companion_merge)
         self.assertTrue(dl["changes"]["marketplace"]["release_record"]["verified"])
+        self.assertEqual(json.loads(Path(dl["changes"]["marketplace"]["release_record"]["path"]).read_text())["outcome"], "agent_merge_autonomous")
         sync = dl["required_checkouts"][0]["sync"]
         self.assertEqual(sync["status"], "synced", sync.get("reason")); self.assertEqual(sorted(sync["contains"]), sorted([goal_merge, companion_merge]))
         now = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()

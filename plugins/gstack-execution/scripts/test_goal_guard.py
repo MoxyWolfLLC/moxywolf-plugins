@@ -71,7 +71,7 @@ class Triggers(tgr.RunnerFixture):
     def test_start_reads_current_main_not_a_stale_copy(self):
         bare = Path(self.tmp.name, "remote.git")
         subprocess.run(["git", "clone", "-q", "--bare", str(self.repo), str(bare)], check=True)
-        self.git("remote", "add", "origin", str(bare)); self.git("fetch", "-q", "origin")
+        self.git("remote", "set-url", "origin", str(bare)); self.git("fetch", "-q", "origin")
         self.git("switch", "-q", "-c", "elsewhere")
         self.commit("deploy on main", {".github/workflows/deploy.yml": "on: push\n" + DEPLOY})
         stale = self.git("rev-parse", "origin/main")

@@ -147,10 +147,18 @@ def merge_allowed(branch, target, head, review, checks, pr):
     it now ({number, head, base_ref, base}). The goal checks count only when their newest run was
     reached for this pull request into the goal branch at its current base, so a 'not a goal pull
     request' pass, another pull request's pass or one from before a retarget doesn't."""
-    import goal_checks
     if target != branch:
         raise Refused(f"an item merges into {branch}, not {target}; the merge into main is the goal pull "
                       f"request's, after propose (GO-011.2)")
+    reviewed_merge_allowed(target, head, review, checks, pr)
+
+
+def reviewed_merge_allowed(target, head, review, checks, pr):
+    """DR-113's conditions for one pull request into `target`, pinned to `head`: a clean cross-vendor
+    review whose last head is `head` with coverage checked, and the checks green at that head for this
+    pull request. Shared by the item gate (into the goal branch) and the companion gate (GO-012.2: the
+    declared release companion's own pull request into main, which is not the goal pull request and
+    so not release_relationship's)."""
     problems = [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),

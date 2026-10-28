@@ -107,14 +107,18 @@ REPO = _origin_repo()
 
 
 def checkout_repo(repo, repo_name):
-    """GO-012.1 (review F2): the governed repository is the one the supplied checkout's origin names.
-    A checkout whose origin is on github.com names it; `repo_name` may only agree. A checkout with no
-    github.com origin (a local fixture) takes `repo_name` as given."""
+    """GO-012.1 (review F2): the governed repository is the one the supplied checkout's origin names,
+    a github.com repository. `repo_name` may only agree with it. A checkout with no origin, or one
+    that isn't on github.com, is refused: a label is never written in its place."""
     r = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"], capture_output=True, text=True)
-    m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", r.stdout.strip()) if r.returncode == 0 else None
-    if m and repo_name and m.group(1).lower() != repo_name.lower():
+    url = r.stdout.strip() if r.returncode == 0 else ""
+    m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", url)
+    if not m:
+        raise Refused(f"the checkout's origin {url or 'is unset and'} names no github.com repository; a goal run is "
+                      "governed by the repository its checkout's origin names")
+    if repo_name and m.group(1).lower() != repo_name.lower():
         raise Refused(f"the checkout's origin is {m.group(1)}, not {repo_name}; the delivery record names the checkout's repository")
-    return m.group(1) if m else repo_name
+    return m.group(1)
 
 
 Refused = gguard.Refused
@@ -423,7 +427,18 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
         return {"allowed": klass, "resource": resource, "by": "GO-003.7 finalize"}
     if klass == "merge" and resource == "main" and state.get("final_pr"):
         if head is None or review is None or checks is None or pr is None:
-            raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
+            raise Refused("a merge into main names its pull request, its head, its review and the checks at that head")
+        companion = companion_change(state)
+        if companion and companion.get("pr") is not None and pr.get("number") == companion["pr"]:
+            # GO-012.2 (review F3): the declared companion's own pull request, after the goal merge is
+            # recorded, under DR-113's conditions for a reviewed pull request; not the goal gate
+            if not state.get("merge"):
+                raise Refused("the companion merges after the goal merge is recorded")
+            if head != companion.get("head") or review.get("review_id") != companion.get("review_id"):
+                raise Refused(f"the companion is bound at {str(companion.get('head'))[:12]} with review {companion.get('review_id')}, "
+                              f"not {str(head)[:12]} with {review.get('review_id')}")
+            gguard.reviewed_merge_allowed("main", head, review, checks, pr)
+            return {"allowed": klass, "resource": resource, "by": "GO-012.2 companion"}
         gguard.final_merge_allowed(release_relation(repo, goal_id, state, review, head, pr), review, checks, pr)
         bind_final(state, review_id=review.get("review_id"))     # GO-012.2: the review that allowed the merge
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
@@ -496,6 +511,13 @@ def bind_final(state, unbind=(), **facts):
         final.update({k: v for k, v in facts.items() if v is not None})
         final.update({k: None for k in unbind})
         save(state)
+
+
+def companion_change(state):
+    """The declared release companion's change in the delivery record, or None."""
+    delivery = state.get("delivery") or {}
+    cid = delivery.get("release_companion")
+    return (delivery.get("changes") or {}).get(cid) if cid else None
 
 
 def bind_companion(goal_id, get, pr_number, review_id, repo_name=REPO):
