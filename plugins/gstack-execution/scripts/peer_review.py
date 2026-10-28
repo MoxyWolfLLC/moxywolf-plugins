@@ -3258,11 +3258,10 @@ AGENT_LOGIN = "moxywolf-agent[bot]"  # the only bot DR-113 authorizes; any other
 
 
 def finalized_relation(path, review_state, packet, pr):
-    """Repair 6: the GO-011.2 relationship between a merged goal pull request and its whole-goal review,
-    read from the goal runner rather than restated: the pull request is goal/<id> into main, the head it
-    merged is the finalized head the runner recorded for <id>, and goal_run.final_review_pinned (the
-    merge gate's own reading) says the review is pinned to the tested head without its holdout. Returns
-    what held, or None; an unreadable run record is None, never a pass."""
+    """GO-012.3: the GO-011.2 relationship between a merged goal pull request and its whole-goal
+    review, read from the goal runner (goal_run.release_relation, which judges through
+    goal_guard.release_relationship) rather than restated. Returns what held, or None; an unreadable
+    run record is None, never a pass."""
     ref, base = (pr.get("head") or {}).get("ref") or "", (pr.get("base") or {}).get("ref")
     merged = (pr.get("head") or {}).get("sha")
     if not ref.startswith("goal/") or base != "main" or not merged or not os.environ.get("GSTACK_GOAL_RUN_DIR"):
@@ -3271,19 +3270,15 @@ def finalized_relation(path, review_state, packet, pr):
     try:
         import goal_run
         run = goal_run.load(goal_id)
-        if run.get("finalized_head") != merged or pr.get("number") != run.get("final_pr"):
-            return None                                   # review 20261027-161517 F2: this goal's recorded goal PR only
-        if not goal_run.final_review_pinned(Path(path), goal_id, run, review_state):
-            return None
-        # F2: and a WHOLE-goal review: every item, one repository, from where main and the goal head meet
-        if goal_run.final_review_scope(Path(path), goal_id, run, dict(review_state, packet=packet), merged,
-                                       {"base": (pr.get("base") or {}).get("sha")}):
-            return None
+        rel = goal_run.release_relation(Path(path), goal_id, run, dict(review_state, packet=packet), merged,
+                                        {"number": pr.get("number"), "base": (pr.get("base") or {}).get("sha")})
     except (Exception, SystemExit):
         return None
-    return {"goal": goal_id, "finalized_head": merged, "tested_head": run["results"][-1]["head"],
+    if not rel.get("ok"):
+        return None
+    return {"goal": goal_id, "finalized_head": rel["finalized_head"], "tested_head": rel["tested_head"],
             "relation": "GO-011.2: the goal pull request merged the finalized head the runner recorded; the whole-goal "
-                        "review is pinned to the tested head without its holdout (goal_run.final_review_pinned)"}
+                        "review is pinned to the tested head without its holdout (goal_guard.release_relationship)"}
 
 
 def cmd_record_release(a):

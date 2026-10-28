@@ -1930,7 +1930,7 @@ The two-reviewer loop (XE-031's first live run: Codex on gpt-6-astra and Gemini 
 
 ### GO-012 — One release relationship, and the delivery record is written by the run that uses it
 
-**Status:** planned. Approved by Dorian 2026-10-27 ("Approve GO-012 as drafted"). Drafted 2026-10-27 from `/gstack-investigate` on the delivery path at `5b1a6d8` (PR #267), after goals `gstack-delivery-through-merge` 1 to 5 and `gstack-delivery-completion` 1 to 3 each failed their own review on it.
+**Status:** building. Approved by Dorian 2026-10-27 ("Approve GO-012 as drafted"). Drafted 2026-10-27 from `/gstack-investigate` on the delivery path at `5b1a6d8` (PR #267), after goals `gstack-delivery-through-merge` 1 to 5 and `gstack-delivery-completion` 1 to 3 each failed their own review on it.
 
 **Links introduced:** the delivery-record link (`goal-runs/<id>/state.json` `delivery`, written by `goal_run.py start` and read by every later phase); the release-relationship link (one function, `goal_guard.release_relationship`, that every merge-shaped decision calls, so the recorded finalized head means the same thing in `may merge`, `next_action`, `complete` and `record-release`).
 

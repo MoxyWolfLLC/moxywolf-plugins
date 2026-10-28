@@ -288,16 +288,19 @@ class RepairsRound3(unittest.TestCase):
         doc = document(head=finalized)
         doc["changes"]["implementation"]["final"] = True
         obs = self.observed(finalized, review_head=tested)
-        obs["reviews"]["implementation"]["finalized"] = {"pinned": True, "finalized_head": finalized}
+        # GO-012.3: goal_guard.release_relationship's verdict, as goal_run._observe_finalized records it
+        obs["reviews"]["implementation"]["finalized"] = {"ok": True, "finalized_head": finalized, "tested_head": tested, "problems": []}
         return doc, obs
 
     def test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head(self):
         doc, obs = self.goal_change()
         self.assertEqual(gd.next_action(doc, obs)["action"], "merge")
-        doc, obs = self.goal_change(); obs["reviews"]["implementation"]["finalized"]["pinned"] = False
+        doc, obs = self.goal_change()
+        obs["reviews"]["implementation"]["finalized"].update(ok=False, problems=["the review isn't pinned to the tested head without its holdout"])
         self.assertIn("GO-011.2", gd.next_action(doc, obs)["pending"])
-        doc, obs = self.goal_change(); obs["reviews"]["implementation"]["finalized"]["finalized_head"] = "9" * 40
-        self.assertIn("finalized head", json.dumps(gd.next_action(doc, obs)))
+        doc, obs = self.goal_change()
+        obs["reviews"]["implementation"]["finalized"].update(ok=False, problems=[f"{'9' * 12} isn't the recorded goal head {'f' * 12}"])
+        self.assertIn("recorded goal head", json.dumps(gd.next_action(doc, obs)))
         doc, obs = self.goal_change(); obs["reviews"]["implementation"].pop("finalized")
         self.assertIn("pending", gd.next_action(doc, obs), "no finalized evidence is not a pass")
         doc, obs = self.goal_change(); doc["changes"]["implementation"].pop("final")   # an ordinary change keeps the exact-head rule

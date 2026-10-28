@@ -200,16 +200,12 @@ def next_action(delivery, observed):
             if review.get("incomplete") or not (review.get("repo") and review.get("head") and review.get("base")):
                 return {"pending": f"review {ch.get('review_id')} evidence is incomplete: {review.get('incomplete') or 'no repository, head or base'}", "change": cid}
             if ch.get("final"):
-                # Repair 6: the goal pull request merges its finalized head, one commit past the head the
-                # whole-goal review passed at. It counts only in the GO-011.2 relationship, which the
-                # runner observes with goal_run.final_review_pinned; nothing is restated here.
+                # The goal pull request merges its finalized head, one commit past the head the whole-goal
+                # review passed at. The runner observes that relationship (goal_run.release_relation).
                 fin = review.get("finalized") or {}
-                if fin.get("pinned") is not True:
-                    return {"pending": f"review {ch.get('review_id')} is not pinned to the tested head without its holdout (GO-011.2)"
-                                       + (f": {fin['why']}" if fin.get("why") else ""), "change": cid}
-                if fin.get("finalized_head") != ch.get("head"):
-                    return {"pending": f"the candidate head {str(ch.get('head'))[:12]} is not the recorded finalized head "
-                                       f"{str(fin.get('finalized_head'))[:12]}", "change": cid}
+                if fin.get("ok") is not True:   # GO-012.3: goal_guard.release_relationship's verdict, nothing restated
+                    return {"pending": f"review {ch.get('review_id')}: the release relationship doesn't hold (GO-011.2): "
+                                       + ("; ".join(fin.get("problems") or ["not observed"])), "change": cid}
             elif review.get("head") != ch.get("head"):
                 return {"pending": f"review {ch.get('review_id')} passed at {str(review.get('head'))[:12]}, not the candidate head {str(ch.get('head'))[:12]}", "change": cid}
             if Path(review["repo"]).resolve() != Path(ch.get("path") or "").resolve():

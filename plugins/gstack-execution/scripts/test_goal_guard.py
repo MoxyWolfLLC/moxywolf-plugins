@@ -274,7 +274,7 @@ class Ledger(tgr.RunnerFixture):
                 (at(tested, dict(whole, repos=[dict(whole["repos"][0], base="e" * 40)])), green, mpr, "base isn't"),
                 (at(tested, None), green, mpr, "doesn't name every item"),
                 (at(tested, dict(whole, repos=[dict(whole["repos"][0], base=meet, review_base="e" * 40)])), green, mpr, "base isn't"),
-                (at(tested), green, dict(mpr, number=51), "only the goal pull request #50")):
+                (at(tested), green, dict(mpr, number=51), "#51 isn't the recorded goal pull request #50")):   # GO-012.3
             with self.subTest(why=why), self.assertRaisesRegex(gr.Refused, why):
                 self.act("merge", "main", head=final, review=review, checks=checks, pr=pr)
         s = gr.load("g1"); s["resyncs"] = [{"from": tested, "to": final}]; gr.save(s)   # review F2: a sync after the review

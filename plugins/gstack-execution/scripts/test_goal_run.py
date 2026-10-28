@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goal_run as gr  # noqa: E402
+import goal_guard as gguard  # noqa: E402
 gr.SANDBOXED = False   # the container is test_goal_checks' to test; one test below checks merged uses it
 
 BRIEF = """## Goal tests
@@ -103,14 +104,42 @@ class RunnerFixture(unittest.TestCase):
                                  "read_by": reader}, list(errors))
 
     def as_proposed(self, final_pr=9):
-        """The state finalize and propose leave, without the git and API calls (tested in the finish test)."""
+        """The state finalize and propose leave, without the git and API calls (tested in the finish test),
+        and the whole-goal review bound as `may merge main` binds it (GO-012.2)."""
         st = gr.load("g1")
         st.update(finalize_pr=8, final_pr=final_pr, finalized_head=st["results"][-1]["head"])
         gr.save(st)
+        gr.bind_final(st, head=st["finalized_head"], pr=final_pr, base=self.git("rev-parse", "main"))
+        self.bind_review()
+
+    def bind_review(self, outcome="no_blocking_findings"):
+        """A whole-goal review record pinned to the tested head (or, after a resync, to a commit on the
+        finalized head that only deletes the holdout), covering every item from where main and the goal
+        head meet; its id bound into the delivery's final change. Returns the review id."""
+        st = gr.load("g1")
+        rdir = Path(self.tmp.name, "reviews"); rdir.mkdir(exist_ok=True)
+        os.environ["GSTACK_PEER_REVIEW_DIR"] = str(rdir); self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
+        finalized = st.get("finalized_head") or st["results"][-1]["head"]
+        if st.get("resyncs"):
+            was = self.git("rev-parse", "--abbrev-ref", "HEAD")
+            self.git("switch", "-q", "--detach", finalized); self.git("rm", "-q", "goal-runs/g1/holdout.py")
+            self.git("commit", "-q", "-m", "review surface: no holdout"); head = self.git("rev-parse", "HEAD")
+            self.git("switch", "-q", was)
+        else:
+            head = st["results"][-1]["head"]
+        rid = f"rev-{head[:7]}"; (rdir / rid).mkdir(exist_ok=True)
+        meet = self.git("merge-base", "main", head)
+        (rdir / rid / "state.json").write_text(json.dumps({"review_id": rid, "outcome": outcome, "heads": [[head]],
+                                                           "coverage_checked": True, "coverage_status": "covered"}))
+        (rdir / rid / "packet.json").write_text(json.dumps({"items": [f"g1/{i['n']}" for i in st["items"]],
+                                                            "repos": [{"path": str(self.repo), "base": meet, "review_base": meet, "head": head}]}))
+        gr.bind_final(gr.load("g1"), review_id=rid)
+        return rid
 
     def merged_pr(self, **over):
         st = gr.load("g1")
-        pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": st.get("finalized_head") or st["results"][-1]["head"]},
+        pr = {"number": st.get("final_pr", 9), "base": {"ref": "main", "sha": self.git("rev-parse", "main")},
+              "head": {"ref": "goal/g1", "sha": st.get("finalized_head") or st["results"][-1]["head"]},
               "merged": True, "merge_commit_sha": "f" * 40}
         for k, v in over.items():
             if isinstance(v, dict):
@@ -126,7 +155,7 @@ class RunnerFixture(unittest.TestCase):
     def start(self, builder="claude/claude-opus", granted=None, **kw):
         return gr.start(self.repo, "g1", 7, builder, kw.get("verify") or self.verify(),
                         granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main",
-                        environments=kw.get("environments", lambda: ["goal-holdout"]))
+                        repo_name=kw.get("repo_name", gr.REPO), environments=kw.get("environments", lambda: ["goal-holdout"]))
 
     def item(self, goalmod, msg="item"):
         self.git("switch", "-q", "goal/g1")
@@ -172,9 +201,11 @@ class Runner(RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "needs the finish"):          # review F1: no skipping the record
             gr.complete("g1", 9, "f" * 40, self.merged_pr())
         self.as_proposed()
-        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["merge_recorded"], "f" * 40)   # GO-012.4: resume ends the run
+        self.assertEqual((gr.load("g1")["merge"], gr.load("g1")["outcome"]), ("f" * 40, None))
         rec = gr.record("g1")
-        self.assertIn("- Outcome: complete", rec)
+        self.assertIn("- Outcome: running", rec)       # GO-012.4: the merge is recorded, the delivery isn't over
+        self.assertIn("- final (PR #9 into main)", rec)
         self.assertIn("by review 4242", rec)                                 # review F3
         self.assertIn("drafted by gpt, read by gemini", rec)
         self.assertIn("git revert -m 1 --no-edit " + "f" * 40, rec)
@@ -312,12 +343,13 @@ class Runner(RunnerFixture):
         self.as_proposed()
         for over, msg in [({"merged": False}, "is not merged"), ({"base": {"ref": "goal/g1"}}, "not main"),
                           ({"head": {"ref": "build/x"}}, "not goal/g1"), ({"merge_commit_sha": "e" * 40}, "not ffffffffffff"),
-                          ({"head": {"sha": "d" * 40}}, "the tested head plus the run record")]:
+                          ({"head": {"sha": "d" * 40}}, "isn't the recorded goal head")]:
             with self.subTest(over=over):
                 with self.assertRaisesRegex(gr.Refused, msg):
                     gr.complete("g1", 9, "f" * 40, self.merged_pr(**over))
                 self.assertIsNone(gr.load("g1")["outcome"])
-        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["outcome"], "complete")
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, self.merged_pr())["merge_recorded"], "f" * 40)   # GO-012.4: resume ends the run
+        self.assertEqual((gr.load("g1")["merge"], gr.load("g1")["outcome"]), ("f" * 40, None))
 
     def test_a_refused_item_pull_request_escalates_quoting_githubs_check(self):  # GO-006.2, pilot-1
         self.start()
@@ -380,7 +412,8 @@ class Runner(RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "already #11"):
             gr.finalize(self.repo, "g1", post, environments=self.envs, base="main")
 
-        final = "9" * 40
+        final = g("rev-parse", "goal-finalize/g1")      # the finalize commit, fetched back as the goal head
+        self.git("fetch", "-q", "origin", f"+refs/heads/goal-finalize/g1:refs/remotes/origin/goal-finalize/g1")
         prs = {"pulls/11": {"merged": False, "base": {"ref": "goal/g1"}}}
         compare = {"files": [{"filename": "goal-runs/g1/RESULT.md"}, {"filename": "goal-runs/g1/holdout.py"}]}
         get = lambda path: prs.get(path.split("/", 3)[-1]) if "/pulls/" in path else compare
@@ -395,10 +428,16 @@ class Runner(RunnerFixture):
         self.assertEqual((posts[-1][1]["head"], posts[-1][1]["base"]), ("goal/g1", "main"))
         self.assertIn("merges as the bot (GO-011.2)", posts[-1][1]["body"])
 
-        merged_pr = {"base": {"ref": "main"}, "head": {"ref": "goal/g1", "sha": final}, "merged": True, "merge_commit_sha": "f" * 40}
-        with self.assertRaisesRegex(gr.Refused, "is #12, not #13"):
-            gr.complete("g1", 13, "f" * 40, lambda path: merged_pr)
-        self.assertEqual(gr.complete("g1", 12, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
+        self.assertEqual(gr.load("g1")["delivery"]["changes"]["final"]["pr"], 12)      # GO-012.2: propose bound it
+        merged_pr = {"number": 12, "base": {"ref": "main", "sha": self.git("rev-parse", "main")},
+                     "head": {"ref": "goal/g1", "sha": final}, "merged": True, "merge_commit_sha": "f" * 40}
+        with self.assertRaisesRegex(gr.Refused, "review bound in the delivery record"):   # GO-012: no review, no complete
+            gr.complete("g1", 12, "f" * 40, lambda path: merged_pr)
+        self.bind_review()
+        with self.assertRaisesRegex(gr.Refused, "isn't the recorded goal pull request #12"):
+            gr.complete("g1", 13, "f" * 40, lambda path: dict(merged_pr, number=13))
+        self.assertEqual(gr.complete("g1", 12, "f" * 40, lambda path: merged_pr)["merge_recorded"], "f" * 40)
+        self.assertIsNone(gr.load("g1")["outcome"])
 
     def test_a_sync_after_propose_is_accepted_and_anything_else_is_not(self):  # review F2
         self.start()
@@ -406,9 +445,10 @@ class Runner(RunnerFixture):
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1)
         self.rest_built()
         self.git("switch", "-q", "goal/g1")
-        final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n"})     # what the finalize merge leaves
+        final = self.commit("run record", {"goal-runs/g1/RESULT.md": "record\n", "goal-runs/g1/holdout.py": HOLDOUT_SRC})   # what the finalize merge leaves
         self.git("switch", "-q", "main")
         st = gr.load("g1"); st.update(finalize_pr=8, final_pr=9, finalized_head=final); gr.save(st)
+        gr.bind_final(st, head=final, pr=9, base=self.git("rev-parse", "main"))
 
         moves = []
 
@@ -454,8 +494,9 @@ class Runner(RunnerFixture):
             gr.resync(self.repo, "g1", sync_tip({"other/z.py": "z\n"}), base="main")
         with self.assertRaisesRegex(gr.Refused, "isn't on main or main's tip plus an empty commit"):
             gr.resync(self.repo, "g1", sync_tip(None, off_main=True), base="main")   # empty, but not on top of main
-        merged_pr = dict(merged_pr, head={"ref": "goal/g1", "sha": empty_sync})
-        self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["outcome"], "complete")
+        merged_pr = dict(merged_pr, number=9, base={"ref": "main", "sha": self.git("rev-parse", "main")}, head={"ref": "goal/g1", "sha": empty_sync})
+        self.bind_review()                                   # pinned to a commit on the resynced head without its holdout
+        self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["merge_recorded"], "f" * 40)
 
     def test_finalize_needs_the_goal_branch_where_the_tests_passed(self):  # GO-003.7
         self.start()
@@ -670,9 +711,47 @@ class Resume(RunnerFixture):
             gr.resume("g1", self.github(head), "o/r")
 
     def test_a_run_without_a_delivery_record_cannot_resume(self):
+        """GO-012.7: start writes the record now; a run from before GO-012 (no record) still refuses."""
         self.start()
-        with self.assertRaises(gr.Refused):
+        st = gr.load("g1"); st.pop("delivery"); gr.save(st)
+        with self.assertRaisesRegex(gr.Refused, "no delivery record to resume"):
             gr.resume("g1", self.github("x" * 40), "o/r")
+
+    def test_start_writes_the_delivery_record_from_the_approval_it_verified(self):   # GO-012.1
+        st = self.start()
+        dl = st["delivery"]
+        self.assertEqual(dl["approval"], {"repo": gr.REPO, "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "dorianatmoxywolf"})
+        self.assertEqual((list(dl["changes"]), dl["release_companion"], dl["required_checkouts"], dl["max_review_rounds"]), (["final"], None, [], 2))
+        final = dl["changes"]["final"]
+        self.assertEqual((final["target"], final["final"], final["base"], final["head"], final["pr"], final["review_id"]),
+                         ("main", True, st["main_at_start"], None, None, None))
+        self.assertEqual(final["path"], str(self.repo.resolve()))
+
+    def test_a_brief_declares_the_companion_and_checkouts_or_start_refuses(self):   # GO-012.1
+        self.commit("brief", {"goals/g1/GOAL.md": BRIEF + "\n## Release companion\nelsewhere\n"}); self.tree = self.git("rev-parse", "main:goals/g1")
+        with self.assertRaisesRegex(gr.Refused, "Release companion is 'elsewhere'"):
+            self.start()
+        self.commit("brief", {"goals/g1/GOAL.md": BRIEF + "\n## Required checkouts\n- mac /x\n"}); self.tree = self.git("rev-parse", "main:goals/g1")
+        with self.assertRaisesRegex(gr.Refused, "isn't `name path host branch`"):
+            self.start()
+
+    def test_the_release_relationship_has_one_home(self):   # GO-012.3, by source
+        here = Path(__file__).resolve().parent
+        homes = {}
+        for name in ("goal_run.py", "goal_delivery.py", "peer_review.py", "goal_guard.py"):
+            for n, line in enumerate((here / name).read_text().splitlines(), 1):
+                if ("finalized_head" in line or "head == finalized" in line) and ("==" in line or "!=" in line) and not line.strip().startswith("#"):
+                    homes.setdefault(name, []).append(n)
+        print(f"examined 4 files; finalized_head compared at {homes}")
+        self.assertEqual(sorted(homes), ["goal_guard.py", "goal_run.py"], homes)
+        src = (here / "goal_guard.py").read_text()
+        rel = src[src.index("def release_relationship"):src.index("def final_merge_allowed")]
+        self.assertEqual(len(homes["goal_guard.py"]), 1); self.assertIn("head == finalized", rel)
+        # goal_run's remaining comparisons are the pinned reading (a resync's parent) and the sync's parents, not the rule
+        run = (here / "goal_run.py").read_text().splitlines()
+        for n in homes["goal_run.py"]:
+            inside = next(l.split("(")[0][4:] for l in reversed(run[:n]) if l.startswith("def "))
+            self.assertIn(inside, ("final_review_pinned", "resync"), f"goal_run.py:{n} ({inside}) restates the release rule")
 
 
 
@@ -1025,9 +1104,17 @@ class EndToEndDemonstration(RunnerFixture):
         codex.write_text("#!" + sys.executable + "\n" + self.REVIEWER); codex.chmod(0o755)
         self.env["PATH"] = str(binary) + os.pathsep + os.environ["PATH"]
         os.environ["GSTACK_PEER_REVIEW_DIR"] = self.env["GSTACK_PEER_REVIEW_DIR"]; self.addCleanup(os.environ.pop, "GSTACK_PEER_REVIEW_DIR", None)
-        self.start(); bare = self.origin()
-        link = Path(self.tmp.name, "origin-link.git"); link.symlink_to(bare)          # the Mac's spelling of the remote
+        # GO-012.1: the brief declares the companion and the required checkout; start writes the record from them
         mac = Path(self.tmp.name, "mac")
+        self.commit("goal declares its delivery", {"goals/g1/GOAL.md": BRIEF + f"\n## Release companion\nmarketplace\n\n## Required checkouts\n- mac {mac} {socket.gethostname()} main\n"})
+        self.tree = self.git("rev-parse", "main:goals/g1")
+        self.start(repo_name="o/r"); bare = self.origin()
+        dl = gr.load("g1")["delivery"]
+        self.assertEqual((sorted(dl["changes"]), dl["release_companion"], dl["approval"]["review_id"], dl["max_review_rounds"]),
+                         (["final", "marketplace"], "marketplace", 4242, 2))
+        self.assertEqual(dl["required_checkouts"], [{"name": "mac", "path": str(mac), "host": socket.gethostname(), "branch": "main", "repo": "o/r"}])
+        self.log("start", "delivery record written by start:", sorted(dl["changes"]), "companion", dl["release_companion"])
+        link = Path(self.tmp.name, "origin-link.git"); link.symlink_to(bare)          # the Mac's spelling of the remote
         subprocess.run(["git", "clone", "-q", "-b", "main", str(link), str(mac)], check=True)   # -b: the bare's HEAD may name another default branch
         base = self.git("rev-parse", "main")
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 1); self.rest_built()
@@ -1056,7 +1143,7 @@ class EndToEndDemonstration(RunnerFixture):
 
         # the delivery: the goal change (final), the companion, the required checkout
         bound = f"pr=12;base_ref=main;base={base}"
-        self.gh["pulls/7/reviews/4242"] = {"id": 4242, "state": "APPROVED", "commit_id": "h" * 40, "user": {"login": "d"}}
+        self.gh["pulls/7/reviews/4242"] = {"id": 4242, "state": "APPROVED", "commit_id": "h" * 40, "user": {"login": "dorianatmoxywolf"}}
         self.gh["environments"] = {"environments": [{"name": "goal-holdout"}]}
         self.gh["deployments"] = []
         self.gh["issues/12/comments"] = self.gh["issues/13/comments"] = []
@@ -1066,17 +1153,16 @@ class EndToEndDemonstration(RunnerFixture):
         self.gh[f"commits/{final}/check-runs"] = {"check_runs": [
             {"id": i, "name": n, "status": "completed", "conclusion": "success", "external_id": bound}
             for i, n in enumerate(("tests", "goal-envelope", "goal-tests", "goal-holdout"), 1)]}
-        st = gr.load("g1")
-        st["delivery"] = {"schema_version": 1, "goal": "g1", "approval": {"repo": "o/r", "pr": 7, "review_id": 4242, "head": "h" * 40, "owner": "d"},
-                          "max_review_rounds": 2, "active_seconds": 0, "source_bindings": [],
-                          "changes": {"goal": {"repo": "o/r", "path": str(self.repo), "base": base, "head": final, "target": "main",
-                                               "pr": 12, "review_id": rid, "final": True, "merge": None, "release_record": None},
-                                      "marketplace": {"repo": "o/r", "path": str(self.repo), "base": None, "head": None, "target": "main",
-                                                      "pr": 13, "review_id": None, "merge": None, "release_record": None}},
-                          "release_companion": "marketplace",
-                          "required_checkouts": [{"name": "mac", "path": str(mac), "host": socket.gethostname(),
-                                                  "remote": str(link), "branch": "main", "repo": "o/r"}]}
-        gr.save(st); (gr.run_dir("g1") / "spend.jsonl").touch()
+        # GO-012.2: propose bound the finalized head and the goal pull request; may-merge-main binds the review
+        st = gr.load("g1"); final_ch = st["delivery"]["changes"]["final"]
+        self.assertEqual((final_ch["head"], final_ch["pr"], final_ch["base"], final_ch["review_id"]), (final, 12, base, None))
+        checks = gguard.latest_checks(self.gh[f"commits/{final}/check-runs"]["check_runs"])
+        prd = {"number": 12, "head": final, "base_ref": "main", "base": base}
+        allowed = gr.act(self.repo, "g1", "merge", "main", lambda: ["goal-holdout"], base="main", head=final,
+                         review=gr._review_record(rid)[0], checks=checks, pr=prd)
+        self.assertEqual(allowed["by"], "GO-011.2")
+        self.assertEqual(gr.load("g1")["delivery"]["changes"]["final"]["review_id"], rid)
+        self.log("may merge main", "allowed under GO-011.2; review", rid, "bound to final")
 
         def put(path, data):                            # FAKE GitHub's merge: a real merge into the local origin
             self.assertTrue(path.endswith("/pulls/12/merge"), path); self.assertEqual(data["sha"], final)
@@ -1094,7 +1180,7 @@ class EndToEndDemonstration(RunnerFixture):
 
         # 3-4. the GO-011.2 merge decision, the merge, record-release; the companion isn't open yet
         out = gr.resume("g1", get, "o/r", put=put)
-        goal = gr.load("g1")["delivery"]["changes"]["goal"]
+        goal = gr.load("g1")["delivery"]["changes"]["final"]
         self.log("resume", [s["action"] for s in out["executed"]], "->", out["next"])
         self.assertEqual([s["action"] for s in out["executed"]][:2], ["merge", "record_release"])
         self.assertTrue(goal["merge"]["verified"]); self.assertTrue(goal["release_record"]["verified"])
@@ -1121,7 +1207,7 @@ class EndToEndDemonstration(RunnerFixture):
                                          "merged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                                          "html_url": "https://github.com/o/r/pull/13"}
         self.gh[f"commits/{companion}/check-runs"] = {"check_runs": []}
-        st = gr.load("g1"); st["delivery"]["changes"]["marketplace"].update(base=goal_merge, head=companion, review_id=rid2); gr.save(st)
+        st = gr.load("g1"); st["delivery"]["changes"]["marketplace"].update(base=goal_merge, head=companion, pr=13, review_id=rid2); gr.save(st)
         before = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
         # 6-7. the companion's record, the Mac checkout synchronized to both merges, the completion decision

@@ -185,9 +185,6 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     problems, triggers = gguard.assess(repo, base, brief, environments())    # GO-005.5
     if problems:
         raise Refused("a goal push, pull request or merge would set off more than the checks: " + "; ".join(problems))
-    gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
-    gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
-    create_branch(f"goal/{goal_id}", main_sha)
     budgets, cap, max_calls = gs.limits(brief)
     secs = gb.sections(brief)
     state = {"goal": goal_id, "pr": pr, "builder": builder, "tree": record["tree"], "approved_head": record["head"],
@@ -197,9 +194,47 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
+    state["delivery"] = initial_delivery(repo, repo_name, record, state, secs)    # GO-012.1, before any side effect
+    gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
+    gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
+    create_branch(f"goal/{goal_id}", main_sha)
     (d / "spend.jsonl").touch()
     save(state)
     return state
+
+
+def initial_delivery(repo, repo_name, record, state, secs):
+    """GO-012.1: the delivery record, written by the run that will use it, from the approval `start`
+    already verified. One change, `final` (goal/<id> into main), plus the release companion when the
+    brief declares one under `## Release companion` (`marketplace`, or `none`); `## Required checkouts`
+    lists one checkout per line as `name path host branch`. Plan items are not repeated here: the run
+    keeps them in items, done and results. Each later phase binds its own fact into `final`
+    (GO-012.2): propose the finalized head and pull request, may-merge-main the review id, resume the
+    merge GitHub reports."""
+    def change(target, final=False):
+        return {"repo": repo_name, "path": str(Path(repo).resolve()), "base": state["main_at_start"], "head": None,
+                "target": target, "pr": None, "review_id": None, "final": final, "review_attempts": [],
+                "original_findings": [], "merge": None, "release_record": None}
+    companion = (secs.get("Release companion") or "none").strip().split()[0].lower()
+    if companion not in ("none", "marketplace"):
+        raise Refused(f"Release companion is {companion!r}; it is `marketplace` or `none`")
+    changes = {"final": change("main", final=True)}
+    if companion != "none":
+        changes[companion] = change("main")
+    checkouts = []
+    for line in (secs.get("Required checkouts") or "").splitlines():
+        parts = line.strip().lstrip("-").split()
+        if not parts:
+            continue
+        if len(parts) != 4:
+            raise Refused(f"Required checkouts line {line.strip()!r} isn't `name path host branch`")
+        checkouts.append({"name": parts[0], "path": parts[1], "host": parts[2], "branch": parts[3], "repo": repo_name})
+    return {"schema_version": 1, "goal": state["goal"],
+            "approval": {"repo": repo_name, "pr": state["pr"], "review_id": record["review_id"], "head": record["head"],
+                         "owner": gb.OWNER},
+            "max_review_rounds": state["max_rounds"], "active_seconds": 0, "source_bindings": [],
+            "changes": changes, "release_companion": companion if companion != "none" else None,
+            "required_checkouts": checkouts}
 
 
 def notify(state, kind, text, trigger=None, item=None, waits=False):
@@ -374,11 +409,8 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
     if klass == "merge" and resource == "main" and state.get("final_pr"):
         if head is None or review is None or checks is None or pr is None:
             raise Refused("the goal merge names its pull request, its head, its review and the checks at that head")
-        if pr.get("number") != state["final_pr"]:
-            raise Refused(f"only the goal pull request #{state['final_pr']} merges into main, not #{pr.get('number')}")
-        gguard.final_merge_allowed(head, state.get("finalized_head"), review,
-                                   final_review_pinned(repo, goal_id, state, review), checks, pr,
-                                   review_scope=final_review_scope(repo, goal_id, state, review, head, pr))
+        gguard.final_merge_allowed(release_relation(repo, goal_id, state, review, head, pr), review, checks, pr)
+        bind_final(state, review_id=review.get("review_id"))     # GO-012.2: the review that allowed the merge
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
         if head is None or review is None or checks is None or pr is None:
@@ -431,6 +463,22 @@ def final_review_pinned(repo, goal_id, state, review):
         if [x for x in d if x] == [f"D\t{holdout_path(goal_id)}"]:
             return True
     return False
+
+
+def release_relation(repo, goal_id, state, review, head, pr):
+    """GO-012.3: the goal pull request's release relationship, read once here for every caller: the
+    pinned and whole-goal readings this module owns, judged by goal_guard.release_relationship."""
+    return gguard.release_relationship(state, head, pr, final_review_pinned(repo, goal_id, state, review),
+                                       final_review_scope(repo, goal_id, state, review, head, pr))
+
+
+def bind_final(state, **facts):
+    """GO-012.2: a phase binds the facts it establishes into the delivery's `final` change and saves.
+    A run started before GO-012 has no record; nothing is invented for it."""
+    final = ((state.get("delivery") or {}).get("changes") or {}).get("final")
+    if isinstance(final, dict):
+        final.update({k: v for k, v in facts.items() if v is not None})
+        save(state)
 
 
 def current_item(state, item):
@@ -592,6 +640,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
                                   "green and a fresh whole-goal cross-vendor review with no blocking findings; then it merges as the bot (GO-011.2)."})
     state["final_pr"] = pr["number"]
     save(state)
+    bind_final(state, head=final, pr=pr["number"], base=ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip())   # GO-012.2: main as the PR opened
     return {"final_pr": pr["number"]}
 
 
@@ -737,29 +786,29 @@ def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
         raise Refused("complete needs every goal test passing at the last merged head")
     if not (state.get("finalize_pr") and state.get("final_pr") and state.get("finalized_head")):
         raise Refused("complete needs the finish: finalize, then propose, then the goal pull request's merge")
-    if pr != state["final_pr"]:
-        raise Refused(f"the goal pull request is #{state['final_pr']}, not #{pr}")
     p = get(f"repos/{repo_name}/pulls/{pr}")
-    tested = state["results"][-1]["head"]
-    problems = [m for ok, m in [
+    final = ((state.get("delivery") or {}).get("changes") or {}).get("final") or {}
+    review = _review_record(final.get("review_id"))[0] if final.get("review_id") else None
+    if review is None:
+        raise Refused("complete needs the goal merge's review bound in the delivery record; `may merge main` binds it")
+    # GO-012.3: the same relationship the merge gate read, not a second comparison
+    relation = release_relation(Path(final.get("path") or "."), goal_id, state, review, p["head"]["sha"],
+                                {"number": pr, "base": (p.get("base") or {}).get("sha")})
+    problems = list(relation["problems"]) + [m for ok, m in [
         (p["base"]["ref"] == "main", f"PR #{pr} targets {p['base']['ref']}, not main"),
         (p["head"]["ref"] == state["branch"], f"PR #{pr} is from {p['head']['ref']}, not {state['branch']}"),
         (p.get("merged") is True, f"PR #{pr} is not merged"),
         (p.get("merge_commit_sha") == merge_sha, f"PR #{pr} merged as {(p.get('merge_commit_sha') or 'nothing')[:12]}, not {merge_sha[:12]}"),
-        (p["head"]["sha"] == state["finalized_head"],
-         f"PR #{pr} merged head {p['head']['sha'][:12]}, not {state['finalized_head'][:12]}, the tested head plus the run record"),
     ] if not ok]
     if problems:
         raise Refused("; ".join(problems))
     state["merge"], state["final_pr"] = merge_sha, pr
     if isinstance(state.get("delivery"), dict):
-        # GO-011.8: the goal merge is recorded, and delivery isn't over until its release records,
-        # its release companion and its required checkouts are; resume ends the run when they are
+        # GO-011.8 / GO-012.4: the goal merge is recorded here, and only resume ends the run, once the
+        # release record, the release companion and every required checkout are observed complete
         import goal_delivery as gd
-        status = gd.delivery_status(state["delivery"])
-        if status["delivery_status"] != "complete":
-            save(state)
-            return {"merge_recorded": merge_sha, "pr": pr, **status}
+        save(state)
+        return {"merge_recorded": merge_sha, "pr": pr, **gd.delivery_status(state["delivery"])}
     return end(state, "complete", f"PR #{pr} merged to main in {merge_sha[:12]}")
 
 
@@ -876,25 +925,20 @@ def _observe_checkouts(delivery, observed, repo_name=None):
 
 
 def _observe_finalized(goal_id, state, delivery, observed):
-    """Repair 6: for the goal pull request's change (`final`), what GO-011.2 says about its review: is
-    it pinned to the tested head without its holdout (final_review_pinned, the merge gate's own reading)
-    and which head did finalize record. next_action reads this instead of the exact-head rule, for that
-    change only."""
+    """GO-012.3: for the goal pull request's change (`final`), the release relationship as the merge
+    gate reads it (release_relation), judged against the observed pull request. next_action reads
+    this instead of the exact-head rule, for that change only; the comparison isn't restated here."""
     for cid, ch in (delivery.get("changes") or {}).items():
         ev = (observed.get("reviews") or {}).get(cid)
         if not ch.get("final") or not isinstance(ev, dict):
             continue
         try:
             review, _ = _review_record(ch.get("review_id"))
-            repo = Path(ch.get("path") or ".")
-            pr = (observed.get("prs") or {}).get(cid) or {}
-            why = ([] if ch.get("pr") == state.get("final_pr") else [f"#{ch.get('pr')} isn't the recorded goal pull request #{state.get('final_pr')}"])
-            why += ([] if final_review_pinned(repo, goal_id, state, review) else ["the review isn't pinned to the tested head without its holdout"])
-            # review 20261027-161517 F2: the whole goal, not one item: the same scope the merge gate requires
-            why += final_review_scope(repo, goal_id, state, review, ch.get("head"), {"base": (pr.get("base") or {}).get("sha")})
-            ev["finalized"] = {"pinned": not why, "finalized_head": state.get("finalized_head"), **({"why": "; ".join(why)} if why else {})}
+            seen = (observed.get("prs") or {}).get(cid) or {}
+            prd = {"number": seen.get("number", ch.get("pr")), "base": (seen.get("base") or {}).get("sha")}   # act's shape
+            ev["finalized"] = release_relation(Path(ch.get("path") or "."), goal_id, state, review, ch.get("head"), prd)
         except (Refused, KeyError, IndexError, ValueError, OSError) as e:
-            ev["finalized"] = {"pinned": False, "finalized_head": state.get("finalized_head"), "why": f"{type(e).__name__}: {e}"}
+            ev["finalized"] = {"ok": False, "finalized_head": state.get("finalized_head"), "problems": [f"{type(e).__name__}: {e}"]}
 
 
 def review_evidence(d, ch, errors, cid):
