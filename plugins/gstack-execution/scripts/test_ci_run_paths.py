@@ -72,7 +72,8 @@ class CiRunPaths(unittest.TestCase):
         def popen(argv, **kw):
             seen["argv"], seen["cwd"] = argv, kw.get("cwd")
             return P()
-        a = types.SimpleNamespace(review_id="r1", head=["./app=abc"], ci_run=["./app=7", "app=8"])
+        a = types.SimpleNamespace(review_id="r1", head=["./app=abc"], ci_run=["./app=7", "app=8"],
+                                  ledger_run=["./app=0123456789ab", "app=abcdef012345"])   # goal item 2: --ledger-run rides the same way
         with mock.patch.object(pr, "rdir", return_value=review), \
              mock.patch.object(pr, "load", side_effect=lambda d, n: {"rounds_used": 0} if n == "state.json" else None), \
              mock.patch.object(pr, "save"), mock.patch.object(pr.subprocess, "Popen", popen), \
@@ -84,6 +85,17 @@ class CiRunPaths(unittest.TestCase):
         self.assertIn(f"{real}=abc", seen["argv"])
         self.assertIn(f"{real}=7", seen["argv"])
         self.assertIn("app=8", seen["argv"], "a bare directory name is forwarded unchanged")
+        self.assertIn(f"{real}=0123456789ab", seen["argv"], "a relative ledger-run path is resolved before the detached round")
+        self.assertIn("app=abcdef012345", seen["argv"])
+
+    def test_ledger_run_flag_resolves_and_replaces_for_later_rounds(self):
+        p = {"repos": [{"path": str(self.real.resolve())}], "tests": {"ledger_runs": [{"repo": "app", "run_id": "0123456789ab"}]}}
+        pr.apply_ledger_runs(p, [f"{self.via_alias}=abcdef012345"])
+        self.assertEqual(p["tests"]["ledger_runs"], [{"repo": str(self.real.resolve()), "run_id": "abcdef012345"}])
+        with self.assertRaises(pr.ReviewError):
+            pr.apply_ledger_runs(p, ["no-separator"])
+        with self.assertRaises(pr.ReviewError):
+            pr.apply_ledger_runs(p, [f"{self.via_alias}=not-a-run-id"])
 
     def test_open_refuses_a_packet_whose_run_names_no_repository(self):
         # through load_packet, which cmd_open calls: the refusal happens before any review opens

@@ -1,0 +1,208 @@
+test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) ... 
+  test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [other head] ... FAIL
+  test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [other branch] ... FAIL
+  test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [no run record] ... FAIL
+  test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [review not pinned] ... FAIL
+test_g6_record_release_records_the_goal_merge_at_its_finalized_head (test_goal_run.FinalizedRelease.test_g6_record_release_records_the_goal_merge_at_its_finalized_head) ... FAIL
+test_merged_runs_the_goal_tests_through_sandboxed (test_goal_run.MergedUsesTheContainer.test_merged_runs_the_goal_tests_through_sandboxed)
+GO-003.11: merged judges a head the way goal-tests does, not on the bare host. ... ok
+test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github (test_goal_run.Repairs.test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github) ... ok
+test_a_failure_after_the_record_was_written_resumes_without_rewriting_it (test_goal_run.Repairs.test_a_failure_after_the_record_was_written_resumes_without_rewriting_it) ... ok
+test_a_lost_merge_response_is_found_on_github_and_never_requested_again (test_goal_run.Repairs.test_a_lost_merge_response_is_found_on_github_and_never_requested_again) ... ok
+test_a_missing_release_companion_prevents_complete (test_goal_run.Repairs.test_a_missing_release_companion_prevents_complete) ... ok
+test_a_moved_pull_request_head_is_never_merged (test_goal_run.Repairs.test_a_moved_pull_request_head_is_never_merged) ... ok
+test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted (test_goal_run.Repairs.test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted) ... ok
+test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge (test_goal_run.Repairs.test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge) ... ok
+test_a_run_without_a_delivery_record_cannot_resume (test_goal_run.Repairs.test_a_run_without_a_delivery_record_cannot_resume) ... ok
+test_a_two_repository_review_is_read_at_this_change_repository (test_goal_run.Repairs.test_a_two_repository_review_is_read_at_this_change_repository) ... ok
+test_r3_a_stopped_or_held_run_records_releases_merges_and_syncs_nothing (test_goal_run.Repairs.test_r3_a_stopped_or_held_run_records_releases_merges_and_syncs_nothing) ... ok
+test_r4_a_merge_request_persisted_by_an_earlier_process_is_never_sent_again (test_goal_run.Repairs.test_r4_a_merge_request_persisted_by_an_earlier_process_is_never_sent_again) ... ok
+test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks (test_goal_run.Repairs.test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks) ... ok
+test_resume_establishes_the_approval_and_the_ledgers_before_anything (test_goal_run.Repairs.test_resume_establishes_the_approval_and_the_ledgers_before_anything) ... ok
+test_resume_observes_and_returns_merge_when_everything_is_green (test_goal_run.Repairs.test_resume_observes_and_returns_merge_when_everything_is_green) ... ok
+test_the_owner_gate_still_holding_stops_before_any_merge_request (test_goal_run.Repairs.test_the_owner_gate_still_holding_stops_before_any_merge_request) ... ok
+test_two_repositories_sharing_a_pull_request_number_are_observed_apart (test_goal_run.Repairs.test_two_repositories_sharing_a_pull_request_number_are_observed_apart) ... ok
+test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github (test_goal_run.RepairsRound2.test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github) ... ok
+test_a_failure_after_the_record_was_written_resumes_without_rewriting_it (test_goal_run.RepairsRound2.test_a_failure_after_the_record_was_written_resumes_without_rewriting_it) ... ok
+test_a_lost_merge_response_is_found_on_github_and_never_requested_again (test_goal_run.RepairsRound2.test_a_lost_merge_response_is_found_on_github_and_never_requested_again) ... ok
+test_a_missing_release_companion_prevents_complete (test_goal_run.RepairsRound2.test_a_missing_release_companion_prevents_complete) ... ok
+test_a_moved_pull_request_head_is_never_merged (test_goal_run.RepairsRound2.test_a_moved_pull_request_head_is_never_merged) ... ok
+test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted (test_goal_run.RepairsRound2.test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted) ... ok
+test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge (test_goal_run.RepairsRound2.test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge) ... ok
+test_a_run_without_a_delivery_record_cannot_resume (test_goal_run.RepairsRound2.test_a_run_without_a_delivery_record_cannot_resume) ... ok
+test_a_two_repository_review_is_read_at_this_change_repository (test_goal_run.RepairsRound2.test_a_two_repository_review_is_read_at_this_change_repository) ... ok
+test_f2_a_pending_decision_never_ends_the_run_complete (test_goal_run.RepairsRound2.test_f2_a_pending_decision_never_ends_the_run_complete) ... ok
+test_f3_an_out_of_lane_or_foreign_release_record_is_not_a_verified_release (test_goal_run.RepairsRound2.test_f3_an_out_of_lane_or_foreign_release_record_is_not_a_verified_release) ... ok
+test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks (test_goal_run.RepairsRound2.test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks) ... ok
+test_resume_establishes_the_approval_and_the_ledgers_before_anything (test_goal_run.RepairsRound2.test_resume_establishes_the_approval_and_the_ledgers_before_anything) ... ok
+test_resume_observes_and_returns_merge_when_everything_is_green (test_goal_run.RepairsRound2.test_resume_observes_and_returns_merge_when_everything_is_green) ... ok
+test_the_owner_gate_still_holding_stops_before_any_merge_request (test_goal_run.RepairsRound2.test_the_owner_gate_still_holding_stops_before_any_merge_request) ... ok
+test_two_repositories_sharing_a_pull_request_number_are_observed_apart (test_goal_run.RepairsRound2.test_two_repositories_sharing_a_pull_request_number_are_observed_apart) ... ok
+test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github (test_goal_run.RepairsRound3.test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github) ... ok
+test_a_failure_after_the_record_was_written_resumes_without_rewriting_it (test_goal_run.RepairsRound3.test_a_failure_after_the_record_was_written_resumes_without_rewriting_it) ... ok
+test_a_lost_merge_response_is_found_on_github_and_never_requested_again (test_goal_run.RepairsRound3.test_a_lost_merge_response_is_found_on_github_and_never_requested_again) ... ok
+test_a_missing_release_companion_prevents_complete (test_goal_run.RepairsRound3.test_a_missing_release_companion_prevents_complete) ... ok
+test_a_moved_pull_request_head_is_never_merged (test_goal_run.RepairsRound3.test_a_moved_pull_request_head_is_never_merged) ... ok
+test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted (test_goal_run.RepairsRound3.test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted) ... ok
+test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge (test_goal_run.RepairsRound3.test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge) ... ok
+test_a_run_without_a_delivery_record_cannot_resume (test_goal_run.RepairsRound3.test_a_run_without_a_delivery_record_cannot_resume) ... ok
+test_a_two_repository_review_is_read_at_this_change_repository (test_goal_run.RepairsRound3.test_a_two_repository_review_is_read_at_this_change_repository) ... ok
+test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head (test_goal_run.RepairsRound3.test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head) ... FAIL
+test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository (test_goal_run.RepairsRound3.test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository) ... FAIL
+test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks (test_goal_run.RepairsRound3.test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks) ... ok
+test_resume_establishes_the_approval_and_the_ledgers_before_anything (test_goal_run.RepairsRound3.test_resume_establishes_the_approval_and_the_ledgers_before_anything) ... ok
+test_resume_observes_and_returns_merge_when_everything_is_green (test_goal_run.RepairsRound3.test_resume_observes_and_returns_merge_when_everything_is_green) ... ok
+test_the_owner_gate_still_holding_stops_before_any_merge_request (test_goal_run.RepairsRound3.test_the_owner_gate_still_holding_stops_before_any_merge_request) ... ok
+test_two_repositories_sharing_a_pull_request_number_are_observed_apart (test_goal_run.RepairsRound3.test_two_repositories_sharing_a_pull_request_number_are_observed_apart) ... ok
+test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github (test_goal_run.Resume.test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github) ... ok
+test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted (test_goal_run.Resume.test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted) ... ok
+test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge (test_goal_run.Resume.test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge) ... ok
+test_a_run_without_a_delivery_record_cannot_resume (test_goal_run.Resume.test_a_run_without_a_delivery_record_cannot_resume) ... ok
+test_a_two_repository_review_is_read_at_this_change_repository (test_goal_run.Resume.test_a_two_repository_review_is_read_at_this_change_repository) ... ok
+test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks (test_goal_run.Resume.test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks) ... ok
+test_resume_establishes_the_approval_and_the_ledgers_before_anything (test_goal_run.Resume.test_resume_establishes_the_approval_and_the_ledgers_before_anything) ... ok
+test_resume_observes_and_returns_merge_when_everything_is_green (test_goal_run.Resume.test_resume_observes_and_returns_merge_when_everything_is_green) ... ok
+test_two_repositories_sharing_a_pull_request_number_are_observed_apart (test_goal_run.Resume.test_two_repositories_sharing_a_pull_request_number_are_observed_apart) ... ok
+test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github (test_goal_run.ResumeExecutes.test_a_declared_merge_counts_for_nothing_and_an_observed_one_is_recorded_from_github) ... ok
+test_a_failure_after_the_record_was_written_resumes_without_rewriting_it (test_goal_run.ResumeExecutes.test_a_failure_after_the_record_was_written_resumes_without_rewriting_it) ... ok
+test_a_lost_merge_response_is_found_on_github_and_never_requested_again (test_goal_run.ResumeExecutes.test_a_lost_merge_response_is_found_on_github_and_never_requested_again) ... ok
+test_a_missing_release_companion_prevents_complete (test_goal_run.ResumeExecutes.test_a_missing_release_companion_prevents_complete) ... ok
+test_a_moved_pull_request_head_is_never_merged (test_goal_run.ResumeExecutes.test_a_moved_pull_request_head_is_never_merged) ... ok
+test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted (test_goal_run.ResumeExecutes.test_a_persisted_merge_github_contradicts_is_invalidated_not_trusted) ... ok
+test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge (test_goal_run.ResumeExecutes.test_a_review_of_another_head_or_a_retargeted_pull_request_does_not_merge) ... ok
+test_a_run_without_a_delivery_record_cannot_resume (test_goal_run.ResumeExecutes.test_a_run_without_a_delivery_record_cannot_resume) ... ok
+test_a_two_repository_review_is_read_at_this_change_repository (test_goal_run.ResumeExecutes.test_a_two_repository_review_is_read_at_this_change_repository) ... ok
+test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks (test_goal_run.ResumeExecutes.test_red_checks_or_an_unclean_review_are_pending_and_an_unreadable_budget_blocks) ... ok
+test_resume_establishes_the_approval_and_the_ledgers_before_anything (test_goal_run.ResumeExecutes.test_resume_establishes_the_approval_and_the_ledgers_before_anything) ... ok
+test_resume_observes_and_returns_merge_when_everything_is_green (test_goal_run.ResumeExecutes.test_resume_observes_and_returns_merge_when_everything_is_green) ... ok
+test_the_owner_gate_still_holding_stops_before_any_merge_request (test_goal_run.ResumeExecutes.test_the_owner_gate_still_holding_stops_before_any_merge_request) ... ok
+test_two_repositories_sharing_a_pull_request_number_are_observed_apart (test_goal_run.ResumeExecutes.test_two_repositories_sharing_a_pull_request_number_are_observed_apart) ... ok
+test_a_builder_from_the_drafting_or_reading_family_is_refused (test_goal_run.Runner.test_a_builder_from_the_drafting_or_reading_family_is_refused) ... ok
+test_a_failed_holdout_stops_the_run (test_goal_run.Runner.test_a_failed_holdout_stops_the_run) ... ok
+test_a_failing_invariant_stops_the_run (test_goal_run.Runner.test_a_failing_invariant_stops_the_run) ... ok
+test_a_goal_changed_on_main_mid_run_stops (test_goal_run.Runner.test_a_goal_changed_on_main_mid_run_stops) ... ok
+test_a_plan_runs_in_order_to_complete (test_goal_run.Runner.test_a_plan_runs_in_order_to_complete) ... ok
+test_a_plan_that_runs_out_is_exhausted (test_goal_run.Runner.test_a_plan_that_runs_out_is_exhausted) ... ok
+test_a_refused_item_pull_request_escalates_quoting_githubs_check (test_goal_run.Runner.test_a_refused_item_pull_request_escalates_quoting_githubs_check) ... ok
+test_a_regressed_outcome_stops_the_run (test_goal_run.Runner.test_a_regressed_outcome_stops_the_run) ... ok
+test_a_sync_after_propose_is_accepted_and_anything_else_is_not (test_goal_run.Runner.test_a_sync_after_propose_is_accepted_and_anything_else_is_not) ... ok
+test_a_token_that_reaches_secrets_or_workflows_is_refused (test_goal_run.Runner.test_a_token_that_reaches_secrets_or_workflows_is_refused) ... ok
+test_a_tree_on_main_that_isnt_the_approved_one_is_refused (test_goal_run.Runner.test_a_tree_on_main_that_isnt_the_approved_one_is_refused) ... ok
+test_an_installed_plugin_copy_refuses_to_run (test_goal_run.Runner.test_an_installed_plugin_copy_refuses_to_run) ... ok
+test_an_item_that_ends_without_a_merge_stops_the_run (test_goal_run.Runner.test_an_item_that_ends_without_a_merge_stops_the_run) ... ok
+test_an_unverified_goal_is_refused (test_goal_run.Runner.test_an_unverified_goal_is_refused) ... ok
+test_cli_next_exits_zero_only_to_continue (test_goal_run.Runner.test_cli_next_exits_zero_only_to_continue) ... ok
+test_cli_start_needs_a_goal_run_token (test_goal_run.Runner.test_cli_start_needs_a_goal_run_token) ... ok
+test_complete_needs_githubs_word_that_the_goal_merged (test_goal_run.Runner.test_complete_needs_githubs_word_that_the_goal_merged) ... ok
+test_dependent_items_on_their_own_branches_build_on_each_other (test_goal_run.Runner.test_dependent_items_on_their_own_branches_build_on_each_other) ... ok
+test_finalize_needs_the_goal_branch_where_the_tests_passed (test_goal_run.Runner.test_finalize_needs_the_goal_branch_where_the_tests_passed) ... ok
+test_halt_on_main_stops (test_goal_run.Runner.test_halt_on_main_stops) ... ok
+test_no_run_folder_no_run (test_goal_run.Runner.test_no_run_folder_no_run) ... ok
+test_one_merge_advances_one_item (test_goal_run.Runner.test_one_merge_advances_one_item) ... ok
+test_one_run_at_a_time_and_complete_needs_every_test (test_goal_run.Runner.test_one_run_at_a_time_and_complete_needs_every_test) ... ok
+test_spend_at_eighty_percent_stops (test_goal_run.Runner.test_spend_at_eighty_percent_stops) ... ok
+test_the_finish_finalizes_then_proposes_then_completes (test_goal_run.Runner.test_the_finish_finalizes_then_proposes_then_completes) ... ok
+
+======================================================================
+FAIL: test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [other head]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 923, in test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused
+    final = self.finalized()
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 896, in finalized
+    self.assertEqual(self.call("release", self.rid).returncode, 0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [other branch]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 923, in test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused
+    final = self.finalized()
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 896, in finalized
+    self.assertEqual(self.call("release", self.rid).returncode, 0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [no run record]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 923, in test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused
+    final = self.finalized()
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 896, in finalized
+    self.assertEqual(self.call("release", self.rid).returncode, 0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused (test_goal_run.FinalizedRelease.test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused) [review not pinned]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 923, in test_g6_anything_but_the_recorded_finalized_head_of_this_goal_is_refused
+    final = self.finalized()
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 896, in finalized
+    self.assertEqual(self.call("release", self.rid).returncode, 0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_g6_record_release_records_the_goal_merge_at_its_finalized_head (test_goal_run.FinalizedRelease.test_g6_record_release_records_the_goal_merge_at_its_finalized_head)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 912, in test_g6_record_release_records_the_goal_merge_at_its_finalized_head
+    final = self.finalized()
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 896, in finalized
+    self.assertEqual(self.call("release", self.rid).returncode, 0)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head (test_goal_run.RepairsRound3.test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 862, in test_g6_the_goal_change_is_planned_at_its_finalized_head_on_a_review_of_the_tested_head
+    self.assertEqual(out["next"], {"action": "merge", "change": "implementation", "head": final, "pr": 42})
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'pending': 'review rev-1 passed at 0c20a62[67 chars]ion'} != {'action': 'merge', 'change': 'implementati[61 chars]: 42}
++ {'action': 'merge',
+- {'change': 'implementation',
+? ^
+
++  'change': 'implementation',
+? ^
+
+-  'pending': 'review rev-1 passed at 0c20a62b37ab, not the candidate head '
+-             '7af9e45a6d21'}
++  'head': '7af9e45a6d217f54a8a540354009fc085f5f1c86',
++  'pr': 42}
+
+======================================================================
+FAIL: test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository (test_goal_run.RepairsRound3.test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_run.py", line 882, in test_g8_a_checkout_is_observed_against_every_merge_of_its_own_repository
+    self.assertEqual(seen, [["a" * 40, "c" * 40]], "o/r's merges, all of them; never o/other's")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [['cccccccccccccccccccccccccccccccccccccccc']] != [['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'[41 chars]cc']]
+
+First differing element 0:
+['cccccccccccccccccccccccccccccccccccccccc']
+['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'[40 chars]ccc']
+
++ [['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+- [['cccccccccccccccccccccccccccccccccccccccc']]
+? ^^
+
++   'cccccccccccccccccccccccccccccccccccccccc']]
+? ^^
+ : o/r's merges, all of them; never o/other's
+
+----------------------------------------------------------------------
+Ran 99 tests in 65.383s
+
+FAILED (failures=7)
+{"outcome": "stopped", "reason": "cannot read origin/main; fetch main first"}
+{"messages": [{"n": 1, "kind": "digest", "trigger": null, "waits": false, "text": "Run stopped\nClose calls: none\nLeast sure of: the agent didn't say\nAgainst the brief: 0 of 3 items merged; 0 of 2 goal tests passing (tests/test_g.py::G.test_done, tests/test_g.py::G.test_safe still failing); spend $0, 0 counted calls; outcome stopped: cannot read origin/main; fetch main first"}]}
+REFUSED: start needs a goal-run token: run it under agent_token.py exec --goal-run --

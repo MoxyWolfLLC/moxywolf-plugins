@@ -1,0 +1,107 @@
+test_a_review_counts_only_at_the_candidate_head_in_this_repository_and_the_target_must_match (__main__.NextAction.test_a_review_counts_only_at_the_candidate_head_in_this_repository_and_the_target_must_match) ... ok
+test_a_verified_merge_github_contradicts_is_blocked_and_an_unobserved_one_is_pending (__main__.NextAction.test_a_verified_merge_github_contradicts_is_blocked_and_an_unobserved_one_is_pending) ... ok
+test_an_observed_merge_is_recorded_before_anything_else_and_a_declared_one_counts_for_nothing (__main__.NextAction.test_an_observed_merge_is_recorded_before_anything_else_and_a_declared_one_counts_for_nothing) ... ok
+test_companion_checkouts_and_blocked_states (__main__.NextAction.test_companion_checkouts_and_blocked_states) ... ok
+test_delivery_status_needs_every_merge_record_companion_and_checkout (__main__.NextAction.test_delivery_status_needs_every_merge_record_companion_and_checkout) ... ok
+test_incomplete_review_evidence_or_another_reviewed_base_is_pending (__main__.NextAction.test_incomplete_review_evidence_or_another_reviewed_base_is_pending) ... ok
+test_merge_only_with_a_clean_review_green_checks_and_the_candidate_head (__main__.NextAction.test_merge_only_with_a_clean_review_green_checks_and_the_candidate_head) ... ok
+test_observations_are_keyed_by_change_not_by_pull_request_number (__main__.NextAction.test_observations_are_keyed_by_change_not_by_pull_request_number) ... ok
+test_r1_a_merged_pull_request_of_another_target_repository_or_number_is_never_progress (__main__.Repairs.test_r1_a_merged_pull_request_of_another_target_repository_or_number_is_never_progress) ... ok
+test_r2_checks_reached_for_another_pull_request_or_an_old_base_cannot_merge (__main__.Repairs.test_r2_checks_reached_for_another_pull_request_or_an_old_base_cannot_merge) ... ok
+test_r5_a_saved_synced_flag_is_not_an_observation_of_the_checkout (__main__.Repairs.test_r5_a_saved_synced_flag_is_not_an_observation_of_the_checkout) ... ok
+test_f1_a_clean_checkout_ahead_of_or_behind_the_remote_tip_is_not_synced (__main__.RepairsRound2.test_f1_a_clean_checkout_ahead_of_or_behind_the_remote_tip_is_not_synced) ... ok
+test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head (__main__.RepairsRound3.test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head) ... ERROR
+test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) ... 
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [status] ... FAIL
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [rev-parse] ... FAIL
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [merge-base] ... FAIL
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [ls-remote] ... FAIL
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [remote] ... FAIL
+  test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [symbolic-ref] ... FAIL
+test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked (__main__.RepairsRound3.test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked) ... ERROR
+test_a_reserved_id_is_not_reserved_twice_and_an_unreadable_limit_blocks (__main__.ReserveReview.test_a_reserved_id_is_not_reserved_twice_and_an_unreadable_limit_blocks) ... ok
+test_cli_persists_attempts_keeps_elapsed_time_and_exhaustion_writes_nothing (__main__.ReserveReview.test_cli_persists_attempts_keeps_elapsed_time_and_exhaustion_writes_nothing) ... ok
+test_concurrent_reservations_have_one_winner (__main__.ReserveReview.test_concurrent_reservations_have_one_winner) ... ok
+test_three_attempts_then_refused_and_a_replacement_id_does_not_reset (__main__.ReserveReview.test_three_attempts_then_refused_and_a_replacement_id_does_not_reset) ... ok
+test_a_checkout_already_at_the_tip_is_synced_without_writing (__main__.SyncCheckout.test_a_checkout_already_at_the_tip_is_synced_without_writing) ... ok
+test_a_merge_not_on_the_remote_yet_is_pending_and_nothing_is_written (__main__.SyncCheckout.test_a_merge_not_on_the_remote_yet_is_pending_and_nothing_is_written) ... ok
+
+======================================================================
+ERROR: test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head (__main__.RepairsRound3.test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 296, in test_g6_the_goal_change_merges_at_its_finalized_head_on_a_review_pinned_to_the_tested_head
+    self.assertEqual(gd.next_action(doc, obs)["action"], "merge")
+                     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+KeyError: 'action'
+
+======================================================================
+ERROR: test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked (__main__.RepairsRound3.test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 344, in test_g8_each_checkout_is_bound_to_its_repository_and_every_required_merge_is_checked
+    self.assertEqual(sorted(gd.required_merges(doc, spec)), ["a" * 40, "c" * 40], spec)
+                            ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'goal_delivery' has no attribute 'required_merges'
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [status]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 326, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertEqual(seen["status"], "sync_pending", f"observe with a failing {verb}")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'synced' != 'sync_pending'
+- synced
++ sync_pending
+ : observe with a failing status
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [rev-parse]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 327, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'could not be read' not found in 'unavailable: /Users/doriancougias/.cache/mcp-audit/tmp/sync-xbn80ldd/co is missing or not a Git checkout' : observe names the failed rev-parse
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [merge-base]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 327, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'could not be read' not found in 'mac at d105a44cfc67 does not contain the merge d105a44cfc67' : observe names the failed merge-base
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [ls-remote]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 327, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'could not be read' not found in "remote unreadable: can't read main from /Users/doriancougias/.cache/mcp-audit/tmp/sync-jv5n59s6/origin.git; not synchronized" : observe names the failed ls-remote
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [remote]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 327, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'could not be read' not found in 'remote mismatch: origin is unset, not /Users/doriancougias/.cache/mcp-audit/tmp/sync-fsbxkc8p/origin.git' : observe names the failed remote
+
+======================================================================
+FAIL: test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing (__main__.RepairsRound3.test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing) [symbolic-ref]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/doriancougias/.cache/mcp-audit/completion-wt/plugins/gstack-execution/scripts/test_goal_delivery.py", line 327, in test_g7_a_failed_git_inspection_is_never_read_as_clean_and_writes_nothing
+    self.assertIn("could not be read", seen["reason"], f"observe names the failed {verb}")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'could not be read' not found in 'unexpected branch: mac is on a detached HEAD, not main' : observe names the failed symbolic-ref
+
+----------------------------------------------------------------------
+Ran 21 tests in 10.174s
+
+FAILED (failures=6, errors=2)

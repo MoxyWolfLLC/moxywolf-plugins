@@ -1,0 +1,17 @@
+test_finalize_review_merge_release_companion_sync_and_complete (test_goal_run.EndToEndDemonstration.test_finalize_review_merge_release_companion_sync_and_complete) ... DEMO finalize tested 394335486338 finalized bd3d24c1e040 goal PR #12 proposed
+DEMO review 20261027-153909-3943354-d5mdsf9z clean at 394335486338 pinned without its holdout
+DEMO resume ['merge', 'record_release'] -> {'pending': 'pull request #13 for marketplace not observed', 'change': 'marketplace'}
+DEMO record-release release-o-r-12.json head bd3d24c1e040 reviewed 394335486338 agent_merge_autonomous
+DEMO complete goal merge 9bbda8285c21 recorded; delivery in_progress
+DEMO resume ['record_release', 'sync_checkout'] -> {'action': 'complete'} complete
+DEMO sync mac 66de5c18333a -> 174d1b50eec3 contains 9bbda8285c21 174d1b50eec3
+DEMO completion complete PR #12 merged to main in 9bbda8285c21; release recorded and required checkouts synchronized
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/case.py:655: ResourceWarning: unclosed <socket.socket fd=3, family=2, type=1, proto=0, laddr=('127.0.0.1', 49653)>
+  self.doCleanups()
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.896s
+
+OK

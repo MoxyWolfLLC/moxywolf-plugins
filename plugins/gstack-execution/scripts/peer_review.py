@@ -368,7 +368,12 @@ def rdir(review_id):
 
 def load(d, name):
     p = d / name
-    return json.loads(p.read_text()) if p.exists() else None
+    obj = json.loads(p.read_text()) if p.exists() else None
+    if name == "packet.json" and isinstance(obj, dict) and (d / "state.json").exists():
+        # The file keeps the bytes open wrote; every reader sees the packet as the review stands now
+        # (the heads the rounds moved to, the runs they named), from state.json.
+        obj = effective_packet(json.loads((d / "state.json").read_text()), obj)
+    return obj
 
 
 ORIGINS = vocab_ids("origin")
@@ -842,6 +847,39 @@ def resolve_ci_runs(packet):
             raise ReviewError("malformed_packet",
                               f"tests.ci_runs names {e['repo']!r}, which is not a repository in this packet "
                               f"(repos: {sorted(r['path'] for r in packet['repos'])})")
+    return packet
+
+
+def apply_ledger_runs(packet, specs):
+    """Goal gstack-delivery-through-merge item 2: a fix round names the ledger runs that are evidence
+    at its new head, REPO=RUN_ID, the way --ci-run names CI runs; given any, they replace
+    tests.ledger_runs for this and later rounds. The retained packet is not rewritten: the rounds
+    carry them (see effective_packet)."""
+    if specs:
+        parsed = []
+        for s in specs:
+            k, sep, v = s.rpartition("=")
+            if not sep or not k:
+                raise ReviewError("malformed_packet", f"--ledger-run must be REPO=RUN_ID: {s!r}")
+            parsed.append({"repo": k, "run_id": v})
+        packet.setdefault("tests", {})["ledger_runs"] = parsed
+        resolve_ledger_runs(packet)
+    return packet
+
+
+def effective_packet(state, packet):
+    """The packet as the review stands now: packet.json as open wrote it (retained, byte for byte,
+    through every round) with the heads the rounds moved to and the evidence runs the rounds named,
+    both kept on state.json. Round n's base is round n-1's head."""
+    heads = state.get("heads") or []      # heads[0] is open's; each round appends its own
+    if heads:
+        for i, r in enumerate(packet.get("repos") or []):
+            if i < len(heads[-1]):
+                r["head"] = heads[-1][i]
+                if len(heads) >= 3 and i < len(heads[-2]):     # two adjudicated rounds or more: base is the previous one's head
+                    r["base"] = heads[-2][i]
+    for key, runs in (state.get("evidence_runs") or {}).items():
+        packet.setdefault("tests", {})[key] = runs
     return packet
 
 
@@ -2191,6 +2229,7 @@ def verify_links(d):
     code, which is the failure this whole command exists to surface.
     """
     state, packet = load(d, "state.json"), load(d, "packet.json")
+    packet = effective_packet(state, packet)
     dispositions = load(d, "dispositions.json") or {}
     checks, examined = [], 0
 
@@ -2703,14 +2742,23 @@ def cmd_round(a):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
+    packet = effective_packet(state, packet)
     if state["outcome"] not in {"opened", "blocking_findings"}:
         raise ReviewError("review_closed", "open a new review after a terminal outcome")
     if state["rounds_used"] >= state["max_rounds"]:
         sys.exit(f"rounds exhausted ({state['max_rounds']}); outcome stays {state['outcome']}")
     round_no = state["rounds_used"] + 1
-    prior = load(d, f"round-{round_no - 1}.json") if round_no > 1 else None
+    named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
+                         .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
+    # The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
+    # but adjudicated nothing, so the blockers it is measured against are the round's before it.
+    adjudicated = state.get("adjudicated_round")
+    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
+        adjudicated = next((n for n in range(round_no - 1, 0, -1)
+                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
+    prior = load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None
     dispositions = load(d, "dispositions.json") or {}
-    if round_no > 1:
+    if prior is not None:
         open_blockers = [f["id"] for f in prior.get("findings", []) if f["severity"] == "blocking"]
         undisposed = [i for i in open_blockers if i not in dispositions]
         if undisposed:
@@ -2730,6 +2778,10 @@ def cmd_round(a):
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     apply_ci_runs(packet, getattr(a, "ci_run", None))
+    # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
+    previous_evidence = state.get("evidence_runs")
+    state["evidence_runs"] = {k: packet.get("tests", {}).get(k) for k in ("ci_runs", "ledger_runs")
+                              if packet.get("tests", {}).get(k)}
     root = Path(tempfile.mkdtemp(prefix="gstack-peer-"))
     record = {"round": round_no, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "repos": packet["repos"],
               "release_lane": state.get("release_lane"),   # GA-010.3, on every round record, error rounds included (F5)
@@ -2769,6 +2821,15 @@ def cmd_round(a):
         record["ci_runs"] = surf_stats.pop("ci_runs")     # EV-011: what a `ci:` evidence reference resolves against
         record["ledger_runs"] = surf_stats.pop("ledger_runs")   # EV-014
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
+        # A run this round names as evidence for its head must be that: read from the ledger, at this
+        # head, with its receipt hashing to its line. One that is not cannot clear the candidate, so the
+        # round stops before the reviewer runs; the record keeps what was found, the review stays open.
+        bad = [c for c in record["ledger_runs"] if c["run_id"] in named_ledger_runs
+               and not (c.get("read") and c.get("head_matches") and c.get("receipt_verified"))]
+        if bad:
+            raise ReviewError("release_blocked", "named ledger run(s) are not evidence at this head: " + "; ".join(
+                f"{c['run_id']}: " + (c.get("error") or ("not at the reviewed head" if not c.get("head_matches") else "receipt not verified"))
+                for c in bad))
         prompt = build_prompt(packet, round_no, prior, dispositions)
         (d / f"round-{round_no}-prompt.txt").write_text(prompt)
         record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = \
@@ -2868,9 +2929,16 @@ def cmd_round(a):
     # schema check and the finding-shape check this round already ran on it.
     save(d, f"round-{round_no}.json", record, "external_text",
          examined_by="peer_review round-record schema check" if record.get("outcome") != "review_unavailable" else "unexamined")
-    state.update(rounds_used=round_no, outcome=outcome)
-    state["heads"].append([r["head"] for r in packet["repos"]])
-    save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
+    rejected = outcome == "release_blocked" and bool(record.get("error"))
+    if rejected:
+        # review F4: the attempt is spent; the review, its last adjudication, its evidence and its heads
+        # stay where they were, so corrected evidence for the same candidate meets the open blockers
+        state.update(rounds_used=round_no, evidence_runs=previous_evidence, adjudicated_round=adjudicated)   # F4 round 2: persisted, inferred or not
+        state.setdefault("rejected_rounds", []).append(round_no)
+    else:
+        state.update(rounds_used=round_no, outcome=outcome, adjudicated_round=round_no)
+        state["heads"].append([r["head"] for r in packet["repos"]])
+    save(d, "state.json", state, "gate_output")   # packet.json keeps the bytes open wrote
     print(json.dumps({k: record[k] for k in record if k not in ("raw",)}, indent=2))
     return outcome
 
@@ -2943,7 +3011,8 @@ def cmd_dispatch(a):
     argv = [sys.executable, str(Path(__file__).resolve()), "round", a.review_id]
     # the round runs with cwd = the review directory, so a relative path is resolved here, against
     # the caller's directory, before it is forwarded (XE-020 review F2; --head had the same defect)
-    for flag, specs in (("--head", getattr(a, "head", []) or []), ("--ci-run", getattr(a, "ci_run", []) or [])):
+    for flag, specs in (("--head", getattr(a, "head", []) or []), ("--ci-run", getattr(a, "ci_run", []) or []),
+                        ("--ledger-run", getattr(a, "ledger_run", []) or [])):
         for spec in specs:
             k, sep, v = spec.rpartition("=")
             argv += [flag, f"{as_repo_ref(k)}={v}" if sep else spec]
@@ -2991,11 +3060,19 @@ def cmd_status(a):
 
 def passing_review(d):
     state, packet = load(d, "state.json"), load_packet(d / "packet.json", allow_unchanged=True)
+    packet = effective_packet(state, packet)
     if state["outcome"] not in {"no_blocking_findings", "fixes_verified"}:
         raise ReviewError("release_blocked", "review has not passed")
     n = state["rounds_used"]
     record = load(d, f"round-{n}.json")
-    prior = load(d, f"round-{n-1}.json") if n > 1 else None
+    # review 20261027-161517 F1: the round a passing round was measured against is the last ADJUDICATED one
+    # before it; a round refused for its evidence adjudicated nothing (the same rule cmd_round applies)
+    rejected = set(state.get("rejected_rounds") or ())
+    def _refused(i):
+        r = load(d, f"round-{i}.json") or {}
+        return i in rejected or (r.get("error") and r.get("outcome") == "release_blocked")
+    k = next((i for i in range(n - 1, 0, -1) if not _refused(i)), 0)
+    prior = load(d, f"round-{k}.json") if k else None
     if not record or record.get("repos") != packet["repos"] or state.get("release_owner") != packet["release_owner"]:
         raise ReviewError("release_blocked", "review identity does not match packet")
     out = validate(record.get("raw", ""), packet, prior, load(d, "dispositions.json"))
@@ -3180,6 +3257,35 @@ AUTONOMOUS_MERGE_AUTHORITY = "DR-113: Dorian's standing authorization of 2026-09
 AGENT_LOGIN = "moxywolf-agent[bot]"  # the only bot DR-113 authorizes; any other bot still needs an instruction
 
 
+def finalized_relation(path, review_state, packet, pr):
+    """Repair 6: the GO-011.2 relationship between a merged goal pull request and its whole-goal review,
+    read from the goal runner rather than restated: the pull request is goal/<id> into main, the head it
+    merged is the finalized head the runner recorded for <id>, and goal_run.final_review_pinned (the
+    merge gate's own reading) says the review is pinned to the tested head without its holdout. Returns
+    what held, or None; an unreadable run record is None, never a pass."""
+    ref, base = (pr.get("head") or {}).get("ref") or "", (pr.get("base") or {}).get("ref")
+    merged = (pr.get("head") or {}).get("sha")
+    if not ref.startswith("goal/") or base != "main" or not merged or not os.environ.get("GSTACK_GOAL_RUN_DIR"):
+        return None
+    goal_id = ref[len("goal/"):]
+    try:
+        import goal_run
+        run = goal_run.load(goal_id)
+        if run.get("finalized_head") != merged or pr.get("number") != run.get("final_pr"):
+            return None                                   # review 20261027-161517 F2: this goal's recorded goal PR only
+        if not goal_run.final_review_pinned(Path(path), goal_id, run, review_state):
+            return None
+        # F2: and a WHOLE-goal review: every item, one repository, from where main and the goal head meet
+        if goal_run.final_review_scope(Path(path), goal_id, run, dict(review_state, packet=packet), merged,
+                                       {"base": (pr.get("base") or {}).get("sha")}):
+            return None
+    except (Exception, SystemExit):
+        return None
+    return {"goal": goal_id, "finalized_head": merged, "tested_head": run["results"][-1]["head"],
+            "relation": "GO-011.2: the goal pull request merged the finalized head the runner recorded; the whole-goal "
+                        "review is pinned to the tested head without its holdout (goal_run.final_review_pinned)"}
+
+
 def cmd_record_release(a):
     """Read GitHub's merge record, never create an approval or perform a merge."""
     d = rdir(a.review_id)
@@ -3197,8 +3303,13 @@ def cmd_record_release(a):
     pr = github_get(name, f"pulls/{a.pr}")
     merger = pr.get("merged_by") or {} if isinstance(pr, dict) else {}
     agent = merger.get("type") == "Bot"
+    # Repair 6 (goal gstack-delivery-completion-3): the goal pull request merges its finalized head, one
+    # commit past the head the whole-goal review passed at. Only that GO-011.2 relationship, as the goal
+    # runner records and reads it, stands in for the exact-head match; every other merge still needs it.
+    finalized = (finalized_relation(path, state, packet, pr) if isinstance(pr, dict) and pr.get("head", {}).get("sha") != repo["head"]
+                 else None)
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
-            pr.get("head", {}).get("sha") != repo["head"] or
+            (pr.get("head", {}).get("sha") != repo["head"] and not finalized) or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
             not (agent or (str(merger.get("login", "")).casefold() == state["release_owner"].casefold()
@@ -3211,7 +3322,8 @@ def cmd_record_release(a):
             raise ReviewError("release_blocked", "merge predates the release handoff")
     except (ValueError, TypeError, KeyError):
         raise ReviewError("release_blocked", "invalid release timestamps")
-    decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": repo["head"],
+    decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": pr["head"]["sha"], "reviewed_head": repo["head"],
+                **({"finalized": finalized} if finalized else {}),
                 "target": prepared["target"], "merge_commit": pr["merge_commit_sha"], "approver": state["release_owner"],
                 "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "merged_at": pr["merged_at"], "source": pr["html_url"], "outcome": "human_merge_recorded"}
@@ -3409,9 +3521,11 @@ def main():
     o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
+    r.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     di = sub.add_parser("dispatch"); di.add_argument("review_id"); di.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     di.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
+    di.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
     co = sub.add_parser("collect"); co.add_argument("review_id")
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
