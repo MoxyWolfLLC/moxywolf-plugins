@@ -4,6 +4,20 @@ description: Start or resume a Cowork session on an existing MoxyWolf project �
 
 Run the session-start skill to begin or resume a Cowork session on an existing MoxyWolf project.
 
+**Load the standing operating rule first.** Read the canonical verification
+guidance at `gstack-execution/skills/gstack-execution/references/verification-checks.md`
+from the resolved gstack-execution installation, or from
+`plugins/gstack-execution/skills/gstack-execution/references/verification-checks.md`
+in an available moxywolf-plugins checkout. Apply its "Standing operating rule:
+verify before recommending commitment" throughout this session. Installation
+alone is not proof it was loaded; if neither source can be read, report
+`Standing operating rule: not loaded` and do not claim it was applied. Do not
+install or reconfigure plugins as part of this read.
+
+The skill's existing hook-liveness probe and fallback remain in force. An old
+activation block is not proof the updated rule was loaded: read the current file.
+In the briefing, name the source actually read or state that it was unavailable.
+
 The skill assumes the project was already set up via `/init-project` and has a saved `cowork-project-instructions.md` in its `00 – Project Hub/` folder. If the previous session ended with `/session-end`, it will also have a `cowork-session-handoff.md` in the same folder — that's the freshest source of state, and the briefing surfaces its open-work and suggested-opening-line at the top.
 
 It then:

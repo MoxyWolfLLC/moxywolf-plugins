@@ -7,6 +7,37 @@ one home for the rule.
 Each check either ran or it didn't, and the report says which. They are not
 values, and "I was careful" does not satisfy any of them.
 
+## Standing operating rule: verify before recommending commitment
+
+Before recommending approval, execution, review, merge or release, verify the
+complete proposed route against the actual candidate, target base, environment,
+governance and required checks. Identify unresolved prerequisites together before
+spending review passes. Name any part of the route that remains unverified;
+partial verification is not readiness.
+
+Distinguish another agent's report, personally inspected facts and behavior
+actually exercised. Never claim ready, complete or production-ready beyond the
+evidence. A retrospective reconstruction is not proof an earlier action occurred.
+
+Stay within the approved outcome and scope. Carry forward authority, decisions,
+spending, elapsed time, failures and review counts across sessions and successor
+goals. Verify budget arithmetic, including cumulative and earlier stops.
+
+Keep procedures proportional to the outcome. Extra frameworks, acceptance
+criteria, review cycles and successor goals require demonstrated necessity. Do
+not make incidental presentation details release blockers; once a criterion is
+approved, follow it or seek its explicit amendment rather than silently waive it.
+
+Resolve routine authorized problems without repeated permission questions or
+making Dorian shuttle information between agents. Escalate a concrete decision
+requiring his authority with the evidence and smallest necessary choice. Preserve
+all existing approval, data-use and repository gates.
+
+When a mistake occurs, correct the failed check or decision process before
+repeating the recommendation. An apology is not the correction.
+
+## Checks
+
 **1. Verify through the user's path, under the user's conditions.** Not the
 artifact — the path. A database function tested in a SQL console runs as a
 different role than the API uses (Supabase enables `pg_safeupdate` for the

@@ -1043,7 +1043,7 @@ Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-
 
 ### SM-009 — Session end keeps a cloud review without asking, and its roster names Dorian C
 
-**Status:** building. Approved by Dorian on 2026-10-24: "Replace Phil with Dorian C, as a separate name from Dorian, in the session-end author and handoff lists for *all* projects. I also saved 'always keep' as a standing preference for *all* projects, so later sessions shouldn't ask. - change whatever plugins you need to for this to take effect".
+**Status:** done. Merged as `5053285` (PR #240, head `06b0399`) by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113, after review `20261024-173346-06b0399-71gny446` (`no_blocking_findings`). Approved by Dorian on 2026-10-24: "Replace Phil with Dorian C, as a separate name from Dorian, in the session-end author and handoff lists for *all* projects. I also saved 'always keep' as a standing preference for *all* projects, so later sessions shouldn't ask. - change whatever plugins you need to for this to take effect".
 
 **Links introduced:** a standing-consent link. A cloud session's review is published on a standing instruction recorded in this item, not on a per-session confirmation, and the published record names that instruction as its consent.
 
@@ -1057,6 +1057,22 @@ Two corrections Dorian gave while `/session-end` ran on MW Plugins: "We need to 
 6. `project-init` gets a minor bump with a changelog line, and the marketplace version moves with it (CI-002).
 
 Not covered: `daily-ops`, `obsidian-update`'s personal-os and `team-kanban` also name Phil. Whether their rosters change too is Dorian's call.
+
+### SM-010 — Project and session startup load the verify-before-commitment rule from its one home
+
+**Status:** building. Approved by Dorian on 2026-10-27 ("Approve SM-010"), with the patch `startup-readiness-rule.patch` applied as its text.
+
+**Links introduced:** a path link. `/init-project` and `/session-start` each name `gstack-execution/skills/gstack-execution/references/verification-checks.md` (installed plugin first, then a moxywolf-plugins checkout) as the rule's source, and new Project Instructions name it too, so a rename or a moved heading leaves those names pointing at nothing. The test in criterion 5 is what notices.
+
+Dorian's standing operating rule, verify before recommending commitment, gets one home: the verification checks file the gstack-execution hook already injects verbatim at session start and on the first prompt. The startup commands read it explicitly and say when they couldn't.
+
+1. `verification-checks.md` carries a section "Standing operating rule: verify before recommending commitment" above the numbered checks, which move under a `## Checks` heading unchanged. No other file in the repository restates the rule's text.
+2. `/init-project` and `/session-start` read that file from the resolved gstack-execution installation, else from `plugins/gstack-execution/...` in an available moxywolf-plugins checkout, and apply the rule for the run. If neither source can be read they report `Standing operating rule: not loaded` and don't claim it was applied. Neither installs or reconfigures a plugin to do the read.
+3. `/session-start`'s briefing names the source it actually read, or says it was unavailable. The existing hook-liveness probe and its fallback stay as they are, and an activation block from an older version isn't taken as proof the current rule loaded.
+4. Project Instructions that `/init-project` generates reference the canonical file and require it to be read at session start, without copying its text. The existing-project guard and the template structure are unchanged.
+5. A test in `plugins/project-init/tests/` checks that the file has the section heading, that both command files name the path, the heading and the `not loaded` line, that neither restates the rule's text, and that the hook's SessionStart output carries the section.
+6. project-init and gstack-execution each get a minor bump with a README Version History line, and both marketplace entries and the marketplace's top-level version move (CI-002).
+7. This merges after goal `gstack-delivery-through-merge-5` completes, with versions rechecked against `main` at that point so the two don't collide.
 
 ## Sixth objective: trust boundaries
 
@@ -2207,6 +2223,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-10-27: SM-010 declared on Dorian's approval: the standing operating rule, verify before recommending commitment, lives in gstack-execution's `verification-checks.md`, and `/init-project` and `/session-start` read it from there and say when they could not. It merges after goal `gstack-delivery-through-merge-5` so the two do not collide on versions. SM-009 marked done in the same commit, as its handoff asked.
 - 2026-10-26: EV-014.9 added on Dorian's instruction after review `20261026-144252-d0cd67a-pk_fdgcy` (goal `gstack-delivery-through-merge-3`, item 1): a reviewer's citation of a ledger receipt the dispatcher put on the surface binds to the round's run, the verified receipt hash and the cited line, and re-resolves against the ledger; missing, modified or unrelated evidence stays unverifiable. Before it, such a follow-up left a wide-lane release blocked with nothing in the change at fault.
 - 2026-10-26: GO-003.12, GO-004.6, GO-006.5 and GO-011.8 proposed with goal `gstack-delivery-through-merge` (design `docs/superpowers/specs/2026-10-26-gstack-delivery-through-merge-design.md`): delivery as the completion rule with persisted item phases and recovery, cumulative review and active-time limits, delivery-mode escalation, and goal-level merge authority including the release companion. Accepted when Dorian approves that goal's pull request; no code before then.
 - 2026-10-24: GO-011 declared on Dorian's instruction: he co-authors the goal as a live doc, the goal's pull request into `main` merges as the bot on green goal checks and a clean whole-goal review (his review at its head is dropped, replacing the two-or-three-clean-goals wait), a failed holdout becomes the next goal, and a guided usability sheet on the Preview, triaged by the agent, comes before Production.
