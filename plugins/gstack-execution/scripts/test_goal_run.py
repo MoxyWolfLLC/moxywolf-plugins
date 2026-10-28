@@ -1087,6 +1087,26 @@ class FinalizedRelease(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0, case)
                 self.assertFalse(list((self.root / "reviews" / self.rid).glob("release-*-1.json")), f"{case}: no record written")
 
+    def test_a_goal_pr_merged_at_the_reviewed_head_still_needs_the_whole_goal_relationship(self):
+        """GO-012.3, review 20261027-232648 F1: equality of merged and reviewed heads is not the relationship.
+        An item-only review at exactly the head a goal pull request merged is refused, and so is a goal
+        pull request with no run record, even though the exact-head rule alone would record both."""
+        self.packet["items"] = ["other/1"]
+        self.packet["model_selection"] = {"status": "checked", "mode": "shadow"}
+        self.open(); self.response(); self.round(); self.call("release", self.rid)
+        runs = self.root / "runs" / "g1"; runs.mkdir(parents=True)
+        (runs / "state.json").write_text(json.dumps({"finalized_head": self.head, "final_pr": 1, "items": [{"n": 1}],
+                                                     "results": [{"head": self.head}]}))
+        self.env["GSTACK_GOAL_RUN_DIR"] = str(self.root / "runs"); self.env["GITHUB_COMMENTS"] = "[]"
+        r = self.record(self.head)                                   # merged head == reviewed head, item-only review
+        self.assertNotEqual(r.returncode, 0); self.assertIn("release relationship", r.stderr + r.stdout)
+        self.assertFalse(list((self.root / "reviews" / self.rid).glob("release-*-1.json")))
+        self.env.pop("GSTACK_GOAL_RUN_DIR")                          # a goal pull request with no run record
+        r = self.record(self.head)
+        self.assertNotEqual(r.returncode, 0)
+        r = self.record(self.head, ref="feature/x")                  # the same review records an ordinary pull request
+        self.assertEqual(r.returncode, 0, r.stderr)
+
 
 class EndToEndDemonstration(RunnerFixture):
     """Goal gstack-delivery-completion-3: the local end-to-end demonstration, run before review dispatch.

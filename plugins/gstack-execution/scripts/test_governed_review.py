@@ -258,7 +258,8 @@ class GovernedReview(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
     def install_github_response(self, **changes):
-        self.git("remote", "add", "origin", "https://github.com/example/project.git")
+        if subprocess.run(["git", "-C", str(self.repo), "remote", "get-url", "origin"], capture_output=True).returncode:
+            self.git("remote", "add", "origin", "https://github.com/example/project.git")
         record = {"merged": True, "head": {"sha": self.head}, "base": {"ref": "main", "repo": {"full_name": "example/project"}},
                   "merged_by": {"login": "dorianatmoxywolf", "type": "User"}, "merge_commit_sha": "a"*40,
                   "merged_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "html_url": "https://github.com/example/project/pull/1"}

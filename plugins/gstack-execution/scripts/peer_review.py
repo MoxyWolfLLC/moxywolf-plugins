@@ -3298,13 +3298,19 @@ def cmd_record_release(a):
     pr = github_get(name, f"pulls/{a.pr}")
     merger = pr.get("merged_by") or {} if isinstance(pr, dict) else {}
     agent = merger.get("type") == "Bot"
-    # Repair 6 (goal gstack-delivery-completion-3): the goal pull request merges its finalized head, one
-    # commit past the head the whole-goal review passed at. Only that GO-011.2 relationship, as the goal
-    # runner records and reads it, stands in for the exact-head match; every other merge still needs it.
-    finalized = (finalized_relation(path, state, packet, pr) if isinstance(pr, dict) and pr.get("head", {}).get("sha") != repo["head"]
-                 else None)
+    # GO-012.3: a goal pull request (goal/<id> into main) is recorded only in the release relationship the
+    # runner reads (goal_guard.release_relationship): the recorded goal pull request, its finalized head,
+    # a whole-goal review pinned to the tested head. That holds whether or not the merged head happens to
+    # equal the reviewed head (review 20261027-232648 F1: an item-only review at the finalized head is not
+    # a whole-goal review). Every other merge needs the exact reviewed head.
+    is_goal_pr = isinstance(pr, dict) and str((pr.get("head") or {}).get("ref") or "").startswith("goal/") \
+        and (pr.get("base") or {}).get("ref") == "main"
+    finalized = finalized_relation(path, state, packet, pr) if is_goal_pr else None
+    if is_goal_pr and not finalized:
+        raise ReviewError("release_blocked", "the goal pull request's release relationship doesn't hold: the merged head isn't "
+                          "the recorded finalized head, or the review isn't the whole-goal review pinned to the tested head")
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
-            (pr.get("head", {}).get("sha") != repo["head"] and not finalized) or
+            (not is_goal_pr and pr.get("head", {}).get("sha") != repo["head"]) or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
             not (agent or (str(merger.get("login", "")).casefold() == state["release_owner"].casefold()
