@@ -59,8 +59,12 @@
   goal_run.py stop <id> --reason <text>
         ends a run that hasn't ended, e.g. when goal-holdout fails (a possible reward hack, GO-003.6)
   goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
-        records `complete` once GitHub shows the goal pull request from goal/<id> merged into main as
-        <sha> at the head whose goal tests passed (GO-003.8)
+        records the goal merge once GitHub shows the goal pull request from goal/<id> merged into main
+        as <sha> at the finalized head (GO-003.8); with a delivery record the run stays open and
+        `resume` ends it once the release record, the companion and the checkouts are observed (GO-012.4)
+  goal_run.py companion <id> --pr N --review <review id> [--repo owner/name]
+        binds the declared release companion from GitHub's pull request and the review record, after the
+        goal merge is recorded (GO-012.2); resume then merges, records and synchronizes it
   goal_run.py record <id>
         prints the run record, goal-runs/<id>/RESULT.md
 
@@ -100,6 +104,17 @@ def _origin_repo():
 
 
 REPO = _origin_repo()
+
+
+def checkout_repo(repo, repo_name):
+    """GO-012.1 (review F2): the governed repository is the one the supplied checkout's origin names.
+    A checkout whose origin is on github.com names it; `repo_name` may only agree. A checkout with no
+    github.com origin (a local fixture) takes `repo_name` as given."""
+    r = subprocess.run(["git", "-C", str(repo), "remote", "get-url", "origin"], capture_output=True, text=True)
+    m = re.search(r"github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?/?$", r.stdout.strip()) if r.returncode == 0 else None
+    if m and repo_name and m.group(1).lower() != repo_name.lower():
+        raise Refused(f"the checkout's origin is {m.group(1)}, not {repo_name}; the delivery record names the checkout's repository")
+    return m.group(1) if m else repo_name
 
 
 Refused = gguard.Refused
@@ -194,7 +209,7 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
-    state["delivery"] = initial_delivery(repo, repo_name, record, state, secs)    # GO-012.1, before any side effect
+    state["delivery"] = initial_delivery(repo, checkout_repo(repo, repo_name), record, state, secs)    # GO-012.1, before any side effect
     gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
     gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
     create_branch(f"goal/{goal_id}", main_sha)
@@ -472,13 +487,50 @@ def release_relation(repo, goal_id, state, review, head, pr):
                                        final_review_scope(repo, goal_id, state, review, head, pr))
 
 
-def bind_final(state, **facts):
-    """GO-012.2: a phase binds the facts it establishes into the delivery's `final` change and saves.
-    A run started before GO-012 has no record; nothing is invented for it."""
+def bind_final(state, unbind=(), **facts):
+    """GO-012.2: a phase binds the facts it establishes into the delivery's `final` change and saves;
+    `unbind` names facts a phase withdraws (a resync withdraws the review). A run started before
+    GO-012 has no record; nothing is invented for it."""
     final = ((state.get("delivery") or {}).get("changes") or {}).get("final")
     if isinstance(final, dict):
         final.update({k: v for k, v in facts.items() if v is not None})
+        final.update({k: None for k in unbind})
         save(state)
+
+
+def bind_companion(goal_id, get, pr_number, review_id, repo_name=REPO):
+    """GO-012.2 (review F3): the declared release companion is bound from GitHub's pull request and
+    the review record, never from a declaration: the pull request targets main from the recorded goal
+    merge onward, the review is clean at the pull request's head and of this checkout, and the goal
+    merge is already recorded (the companion follows it). Writes head, base, pr and review_id into
+    the companion change."""
+    state = load(goal_id)
+    delivery = state.get("delivery") or {}
+    cid = delivery.get("release_companion")
+    if not cid or cid not in (delivery.get("changes") or {}):
+        raise Refused(f"{goal_id} declares no release companion")
+    if not state.get("merge"):
+        raise Refused("the companion follows the goal merge; run complete first")
+    ch = delivery["changes"][cid]
+    p = get(f"repos/{repo_name}/pulls/{int(pr_number)}")
+    if not p or (p.get("base") or {}).get("ref") != "main":
+        raise Refused(f"pull request #{pr_number} isn't a pull request into main")
+    head, base = (p.get("head") or {}).get("sha"), (p.get("base") or {}).get("sha")
+    review, _ = _review_record(review_id)
+    last = (review.get("heads") or [[]])[-1]
+    pk = review.get("packet") or {}
+    repos = pk.get("repos") or []
+    problems = [m for ok, m in [
+        (review.get("outcome") in {"no_blocking_findings", "fixes_verified"}, f"review {review_id} ended {review.get('outcome')}, not clean"),
+        (head in last, f"review {review_id} passed at {', '.join(h[:12] for h in last) or 'nothing'}, not the pull request's head {str(head)[:12]}"),
+        (len(repos) == 1 and Path(repos[0].get("path", "")).resolve() == Path(ch.get("path") or ".").resolve(),
+         f"review {review_id} is not of {ch.get('path')}"),
+    ] if not ok]
+    if problems:
+        raise Refused("; ".join(problems))
+    ch.update(head=head, base=base, pr=p.get("number"), review_id=review_id)
+    save(state)
+    return {"companion": cid, "pr": p.get("number"), "head": head, "base": base, "review_id": review_id}
 
 
 def current_item(state, item):
@@ -678,6 +730,9 @@ def resync(repo, goal_id, head, base="origin/main"):
     state.setdefault("resyncs", []).append({"from": state["finalized_head"], "to": head})
     state["finalized_head"] = head
     save(state)
+    # GO-012.2 (review F1): the delivery's final change follows the moved head; the review that passed
+    # at the old head is unbound, because GO-011.2 needs a fresh review of the new head without its holdout
+    bind_final(state, head=head, base=ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip(), review_id=None, unbind=("review_id",))
     return {"finalized_head": head}
 
 
@@ -1254,6 +1309,12 @@ def _main(argv, repo=gb.ROOT):
                   lambda g, p, n: gb.verify(g, p, n, get), granted, create_branch, repo_name=name,
                   environments=environments_of(get, name))
             print(json.dumps({"started": goal_id}))
+            return 0
+        if cmd == "companion" and goal_id and {"--pr", "--review"} <= set(opts) <= {"--pr", "--review", "--repo"}:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token:
+                raise Refused("companion needs GITHUB_TOKEN to read the pull request: run it under agent_token.py exec --")
+            print(json.dumps(bind_companion(goal_id, gb.github(token), int(opts["--pr"]), opts["--review"], opts.get("--repo", REPO))))
             return 0
         if cmd == "resume" and goal_id and set(opts) <= {"--repo"}:
             token = os.environ.get("GITHUB_TOKEN")

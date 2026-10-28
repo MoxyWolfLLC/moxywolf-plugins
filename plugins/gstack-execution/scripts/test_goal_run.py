@@ -494,9 +494,27 @@ class Runner(RunnerFixture):
             gr.resync(self.repo, "g1", sync_tip({"other/z.py": "z\n"}), base="main")
         with self.assertRaisesRegex(gr.Refused, "isn't on main or main's tip plus an empty commit"):
             gr.resync(self.repo, "g1", sync_tip(None, off_main=True), base="main")   # empty, but not on top of main
+        # GO-012.2 (review F1): the resync moved the delivery's final change with it and withdrew the old review
+        final_ch = gr.load("g1")["delivery"]["changes"]["final"]
+        self.assertEqual((final_ch["head"], final_ch["base"], final_ch["review_id"]), (empty_sync, self.git("rev-parse", "main"), None))
         merged_pr = dict(merged_pr, number=9, base={"ref": "main", "sha": self.git("rev-parse", "main")}, head={"ref": "goal/g1", "sha": empty_sync})
-        self.bind_review()                                   # pinned to a commit on the resynced head without its holdout
+        with self.assertRaisesRegex(gr.Refused, "review bound in the delivery record"):   # the withdrawn review can't complete it
+            gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)
+        rid = self.bind_review()                             # pinned to a commit on the resynced head without its holdout
         self.assertEqual(gr.complete("g1", 9, "f" * 40, lambda path: merged_pr)["merge_recorded"], "f" * 40)
+        # and resume, observing GitHub's merge at the resynced head, recognizes it as this change's (merged_here)
+        import goal_delivery as gd
+        seen = dict(merged_pr, base=dict(merged_pr["base"], repo={"full_name": gr.REPO}), merge_commit_sha="f" * 40, merged=True)
+        obs = {"prs": {"final": seen}, "checks": {}, "reviews": {}, "checkouts": {}}
+        self.assertEqual(gd.next_action(gr.load("g1")["delivery"], obs)["action"], "record_merge")
+
+    def test_the_delivery_record_names_the_checkouts_origin_not_a_label(self):   # GO-012.1, review F2
+        self.git("remote", "add", "origin", "https://github.com/MoxyWolfLLC/example.git")
+        with self.assertRaisesRegex(gr.Refused, "origin is MoxyWolfLLC/example, not o/r"):
+            self.start(repo_name="o/r")
+        st = self.start(repo_name="moxywolfllc/example")     # agreeing, case-insensitively
+        self.assertEqual(st["delivery"]["changes"]["final"]["repo"], "MoxyWolfLLC/example")
+        self.assertEqual(st["delivery"]["approval"]["repo"], "MoxyWolfLLC/example")
 
     def test_finalize_needs_the_goal_branch_where_the_tests_passed(self):  # GO-003.7
         self.start()
@@ -1207,7 +1225,12 @@ class EndToEndDemonstration(RunnerFixture):
                                          "merged_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                                          "html_url": "https://github.com/o/r/pull/13"}
         self.gh[f"commits/{companion}/check-runs"] = {"check_runs": []}
-        st = gr.load("g1"); st["delivery"]["changes"]["marketplace"].update(base=goal_merge, head=companion, pr=13, review_id=rid2); gr.save(st)
+        # GO-012.2 (review F3): the companion is bound through the runner from GitHub and the review record
+        with self.assertRaisesRegex(gr.Refused, "not the pull request's head"):
+            gr.bind_companion("g1", get, 13, rid, "o/r")              # the goal review doesn't speak for the companion
+        self.assertEqual(gr.bind_companion("g1", get, 13, rid2, "o/r")["head"], companion)
+        self.assertEqual(gr.load("g1")["delivery"]["changes"]["marketplace"]["pr"], 13)
+        self.log("companion", "PR #13 bound at", companion[:12], "review", rid2)
         before = subprocess.run(["git", "-C", str(mac), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
         # 6-7. the companion's record, the Mac checkout synchronized to both merges, the completion decision
