@@ -16,3 +16,7 @@ graphify-out/
 
 # Synergy Engine prep loop runtime state
 plugins/synergy-engine/.loop-state/
+
+# prose-lint hook reports, never committed
+*.slop.md
+*.slop.json

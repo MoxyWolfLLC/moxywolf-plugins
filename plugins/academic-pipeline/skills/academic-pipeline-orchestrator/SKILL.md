@@ -34,6 +34,8 @@ BibTeX input
 [8] professor                                -> critique_report.md, improvement_plan.md
     |
 [9] release_gate.py                          -> five named checks, blocking
+    |
+[10] zenodo-deposit              (optional)   -> one Zenodo record and DOI per artifact; DOI written back, gate rerun
 ```
 
 `* HITL` = a human checkpoint. Three of them, twelve questions total.
@@ -152,13 +154,17 @@ Five checks, each named with its result: `em_dashes` (zero), `forbidden_phrases`
 
 The gate is mechanical and therefore narrow. It cannot tell whether an argument holds, whether a citation supports the claim resting on it, or whether the paper is any good. Stage 8's critique does that, and the gate does not replace it.
 
+## Stage 10 — Deposit artifacts on Zenodo (optional)
+
+Runs after the gate passes, when the run produced or names an executable or data artifact (a reference implementation, fixtures, a dataset). With none, report `Stage 10: SKIP (no artifact)`. Use the **`zenodo-deposit`** skill: lay the artifact out in the artifact repository (`<kind>/<slug>/`, self-contained, with its expected output), create a Zenodo draft, publish only on the user's explicit "publish", put the reserved DOI into the artifact before publishing, then write the DOI into the repository index, the Stage 7 BibTeX file and `pipeline/draft_document.md` (including the Data Availability Statement), and **rerun Stages 7 and 9**, because the new citation shifts the numbering. One record per artifact; Zenodo's GitHub integration stays off for the artifact repository.
+
 ## On completion
 
 When all stages finish:
 
 1. Present `<target-slug>.md` as the main deliverable, with a `computer://` link.
 2. Present `critique_report.md` and `improvement_plan.md`, and surface the professor's headline verdict and grade in chat.
-3. List the run folder and the nine (or ten, with Stage 0) artifacts.
+3. List the run folder and its artifacts, plus the Zenodo record and DOI for each artifact Stage 10 deposited.
 4. Offer next steps: review the critique, apply the improvement plan and re-run Stage 8, or render `<target-slug>.md` as a formatted `.docx`/PDF via the `academia-formatting` skill plus the `docx`/`pdf` skills.
 
 ## Artifact summary
@@ -176,6 +182,7 @@ When all stages finish:
 | 7 | `<target-slug>.md` | run folder — **main deliverable** |
 | 8 | `critique_report.md`, `improvement_plan.md` | run folder |
 | 9 | gate result (five named checks) | reported in chat, blocking |
+| 10 | artifact folder, Zenodo record and DOI (optional) | artifact repository; DOI in the Stage 7 BibTeX file and `pipeline/draft_document.md`, then the rebuilt paper |
 
 ## Notes
 
