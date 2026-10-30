@@ -41,7 +41,7 @@ Add a row to the repository root `README.md` index (directory, what it is, paper
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/zenodo_deposit.py" draft <artifact folder> [--token-file <env file>] [--sandbox]
 ```
 
-It zips the folder under its slug (skipping caches and its own state file), creates a draft, uploads the zip and sends `.zenodo.json` as metadata. It records the draft in `<folder>/.zenodo-deposit.json`, which stays out of git. It prints the draft URL and the reserved DOI, which only becomes live on publishing.
+It zips the folder under its slug (skipping caches and its own state file, and refusing any symlink), creates a draft, uploads the zip and sends `.zenodo.json` as metadata. It records the draft in `<folder>/.zenodo-deposit.json`, which stays out of git, the moment Zenodo creates it. It prints the draft URL and the reserved DOI, which only becomes live on publishing. Running `draft` again on the same folder refreshes that same draft, replacing the upload and the metadata. It never makes a second one.
 
 **The token.** A Zenodo personal access token with `deposit:write` and `deposit:actions`, made under the user's Zenodo account settings, Applications. Read it where it lives, on the user's machine:
 
@@ -52,7 +52,11 @@ Never ask the user to paste the token into chat. If they do anyway, use it, then
 
 Tell the user where to see the draft: `https://zenodo.org/uploads/<id>`, signed in as the token's owner. `/records/<id>` is "Page not found" until the record is published. That's expected, not an error.
 
-## Step 3. Publish, only on the user's word
+## Step 3. Put the reserved DOI in the archive
+
+A published archive can't change, so it must already carry its own DOI. Before publishing, write the reserved DOI into the artifact folder: `doi` and `date-released` in `CITATION.cff`, and the DOI line in its `README.md`. Rerun `draft` on the folder to replace the upload in the same draft. Commit, push, verify and pull back, so the archive and the committed folder are the same files.
+
+## Step 4. Publish, only on the user's word
 
 Publishing is permanent: a published record can't be deleted, only versioned. Run it only after the user says "publish" (or an unambiguous equivalent) in this run. "Looks great" isn't that, so ask once.
 
@@ -62,11 +66,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/zenodo_deposit.py" publish <artifact fold
 
 It refuses if no draft is recorded, if the draft was made on the sandbox, or if the record is already published. Then confirm that `https://doi.org/<doi>` resolves.
 
-## Step 4. Write the DOI back
+## Step 5. Write the DOI back
 
-1. **Artifact repository.** Replace `Pending` in the index with the DOI link, add `doi` and `date-released` to the artifact's `CITATION.cff`, and add the DOI to its README. Commit, push, verify, pull back.
-2. **The paper.** Add a `@misc` entry to the run's `sources.bib` (author, title, `howpublished = {Zenodo, version X, software}`, year, `doi`, `url = https://doi.org/<doi>`). Cite it where the paper describes the artifact and in the Data Availability Statement, which says where the artifact is archived and under what license.
-3. **Rerun Stage 7 and the Stage 9 gate.** The new citation shifts Vancouver numbering, so the gate must pass again before the paper is presented.
+1. **Artifact repository.** Replace `Pending` in the index with the DOI link. The artifact's own files already carry it from Step 3. Commit, push, verify, pull back.
+2. **The paper's inputs, not its output.** Stage 7 rebuilds the paper from `pipeline/draft_document.md` and the BibTeX file at `bibtex_source_path` in `pipeline/handoff_for_writer.json` (that's `pipeline/enriched.bib` when Stage 0 ran). Edit those two files, never only the finished `<target-slug>.md`, or the rerun erases the edit.
+   - In that BibTeX file, add a `@misc` entry with the author, title, `howpublished = {Zenodo, version X, software}`, year, `doi` and `url = https://doi.org/<doi>`.
+   - In `draft_document.md`, cite it where the paper describes the artifact. Also cite it in the Data Availability Statement, which says where the artifact is archived and under what license.
+3. **Rerun Stage 7, then the Stage 9 gate.** The new citation shifts Vancouver numbering, so the gate must pass again before the paper is presented.
 
 ## Report
 

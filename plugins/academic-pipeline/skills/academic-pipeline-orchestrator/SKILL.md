@@ -156,7 +156,7 @@ The gate is mechanical and therefore narrow. It cannot tell whether an argument 
 
 ## Stage 10 — Deposit artifacts on Zenodo (optional)
 
-Runs after the gate passes, when the run produced or names an executable or data artifact (a reference implementation, fixtures, a dataset). With none, report `Stage 10: SKIP (no artifact)`. Use the **`zenodo-deposit`** skill: lay the artifact out in the artifact repository (`<kind>/<slug>/`, self-contained, with its expected output), create a Zenodo draft, publish only on the user's explicit "publish", then write the DOI into the repository index, the artifact's `CITATION.cff`, `sources.bib` and the Data Availability Statement, and **rerun Stages 7 and 9**, because the new citation shifts the numbering. One record per artifact; Zenodo's GitHub integration stays off for the artifact repository.
+Runs after the gate passes, when the run produced or names an executable or data artifact (a reference implementation, fixtures, a dataset). With none, report `Stage 10: SKIP (no artifact)`. Use the **`zenodo-deposit`** skill: lay the artifact out in the artifact repository (`<kind>/<slug>/`, self-contained, with its expected output), create a Zenodo draft, publish only on the user's explicit "publish", put the reserved DOI into the artifact before publishing, then write the DOI into the repository index, the Stage 7 BibTeX file and `pipeline/draft_document.md` (including the Data Availability Statement), and **rerun Stages 7 and 9**, because the new citation shifts the numbering. One record per artifact; Zenodo's GitHub integration stays off for the artifact repository.
 
 ## On completion
 
@@ -182,7 +182,7 @@ When all stages finish:
 | 7 | `<target-slug>.md` | run folder — **main deliverable** |
 | 8 | `critique_report.md`, `improvement_plan.md` | run folder |
 | 9 | gate result (five named checks) | reported in chat, blocking |
-| 10 | artifact folder, Zenodo record and DOI (optional) | artifact repository; DOI in `sources.bib` and the paper |
+| 10 | artifact folder, Zenodo record and DOI (optional) | artifact repository; DOI in the Stage 7 BibTeX file and `pipeline/draft_document.md`, then the rebuilt paper |
 
 ## Notes
 

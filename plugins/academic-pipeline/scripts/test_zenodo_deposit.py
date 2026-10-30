@@ -132,6 +132,28 @@ def test_a_symlink_in_the_artifact_is_refused_before_anything_is_sent():
     assert rc == 1 and "linked_dir" in out and not calls
 
 
+def test_a_failed_upload_leaves_the_draft_recorded_and_a_rerun_reuses_it():
+    d, calls = artifact(), []
+    rc, out = run(["draft", str(d)], fake(calls, fail="/bucket/"))
+    assert rc == 1 and "HTTP 403" in out
+    state = json.loads((d / zd.STATE).read_text())
+    assert state["id"] == 7 and state["bucket"] == "https://z/bucket/7"
+    calls.clear()
+    rc, out = run(["draft", str(d)], fake(calls))
+    assert rc == 0, out
+    assert not any(c[0] == "POST" and c[1].endswith("/deposit/depositions") for c in calls)
+    assert any(c[0] == "PUT" and c[1] == "https://z/bucket/7/my-runner.zip" for c in calls)
+
+
+def test_a_published_record_is_never_redrafted():
+    d, calls = artifact(), []
+    run(["draft", str(d)], fake(calls))
+    run(["publish", str(d)], fake(calls))
+    calls.clear()
+    rc, out = run(["draft", str(d)], fake(calls))
+    assert rc == 1 and "already published" in out and not calls
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

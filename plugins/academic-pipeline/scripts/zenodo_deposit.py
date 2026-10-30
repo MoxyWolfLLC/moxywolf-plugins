@@ -77,14 +77,25 @@ def ok(status, out, what):
 
 
 def draft(folder, token, base, transport=http):
+    """Creates a draft, or refreshes the one already recorded: re-running `draft` after editing the
+    folder (say, to write the reserved DOI into CITATION.cff) replaces the upload and the metadata in
+    the same draft, so the archive matches the folder that is committed. The draft is recorded the
+    moment Zenodo creates it, so a later failure leaves state to retry against, not an orphan."""
     meta = json.load(open(os.path.join(folder, ".zenodo.json"), encoding="utf-8"))
     slug, blob = zip_folder(folder)
-    dep = ok(*transport("POST", f"{base}/deposit/depositions", token, {}), "creating the draft")
-    ok(*transport("PUT", f"{dep['links']['bucket']}/{slug}.zip", token, blob, "application/octet-stream"), "the upload")
-    ok(*transport("PUT", f"{base}/deposit/depositions/{dep['id']}", token, {"metadata": meta}), "the metadata")
-    state = {"id": dep["id"], "html": dep["links"]["html"], "base": base,
-             "reserved_doi": ((dep.get("metadata") or {}).get("prereserve_doi") or {}).get("doi")}
-    json.dump(state, open(os.path.join(folder, STATE), "w"), indent=2)
+    path = os.path.join(folder, STATE)
+    state = json.load(open(path)) if os.path.exists(path) else None
+    if state and state.get("doi"):
+        raise SystemExit(f"already published: https://doi.org/{state['doi']}; a new version is a new deposit")
+    if state and state.get("base", base) != base:
+        raise SystemExit(f"the recorded draft is on {state['base']}, not {base}")
+    if not state:
+        dep = ok(*transport("POST", f"{base}/deposit/depositions", token, {}), "creating the draft")
+        state = {"id": dep["id"], "html": dep["links"]["html"], "bucket": dep["links"]["bucket"], "base": base,
+                 "reserved_doi": ((dep.get("metadata") or {}).get("prereserve_doi") or {}).get("doi")}
+        json.dump(state, open(path, "w"), indent=2)
+    ok(*transport("PUT", f"{state['bucket']}/{slug}.zip", token, blob, "application/octet-stream"), "the upload")
+    ok(*transport("PUT", f"{base}/deposit/depositions/{state['id']}", token, {"metadata": meta}), "the metadata")
     return state
 
 
