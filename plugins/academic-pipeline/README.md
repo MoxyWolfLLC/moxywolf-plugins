@@ -22,6 +22,8 @@ BibTeX input
 [6] research-writer                          ->  draft (section by section)
 [7] bibliography-generator                   ->  <target-slug>.md
 [8] professor                                ->  critique_report.md + improvement_plan.md
+[9] release_gate.py                          ->  five named checks, blocking
+[10] zenodo-deposit             (optional)   ->  one Zenodo record and DOI per artifact
 ```
 
 `* HITL` marks a human checkpoint — three of them, twelve questions total, all asked inline with the AskUserQuestion tool.
@@ -40,17 +42,19 @@ BibTeX input
 | `research-writer` | 6 | Drafts the paper section by section, voice and format applied |
 | `bibliography-generator` | 7 | Formats references and assembles the final document |
 | `professor` | 8 | 10-phase peer-review critique with a path forward |
+| `zenodo-deposit` | 10 | Deposits a paper's code or data on Zenodo, one record and DOI per artifact, and writes the DOI back into the paper |
 | `scholarly-content-updater` | — | Companion: updates any file against a reference source |
 
 ## Commands
 
 | Command | Does |
 |---------|------|
-| `/academic-pipeline [.bib] [--scamper]` | Runs the full eight-stage pipeline; `--scamper` prescribes the optional Stage 1.5 defixation pass |
+| `/academic-pipeline [.bib] [--scamper]` | Runs the full pipeline (Stages 0 to 10, with 0, 1.5 and 10 optional); `--scamper` prescribes the optional Stage 1.5 defixation pass |
 | `/academic-themes [.bib]` | Stage 1 only — theme map + suggested title |
 | `/scamper [--topic ...] [--generate-outline]` | Optional Stage 1.5 — SCAMPER defixation: seven operators, novelty-scored candidate theses, paper outline for the top one |
 | `/academic-critique [paper]` | Stage 8 only — professor critique of an existing paper |
 | `/enrich-bibtex [.bib]` | Stage 0 only — add AI abstracts to a bibliography |
+| `/academic-deposit [folder or paper] [--sandbox]` | Stage 10 only: deposit an artifact on Zenodo as a draft, publish on your word, write the DOI back |
 | `/academic-renumber [paper] [--check]` | Renumber Vancouver citations by first appearance and reorder the list after an edit; refuses on dangling numbers |
 
 ## Run folder

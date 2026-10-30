@@ -1,0 +1,91 @@
+{
+  "findings": [
+    {
+      "severity": "Minor",
+      "category": "typography",
+      "rule": "semicolon",
+      "line": 15,
+      "match": ";",
+      "fix": "MoxyWolf style prefers two sentences over a semicolon."
+    },
+    {
+      "severity": "Minor",
+      "category": "typography",
+      "rule": "semicolon",
+      "line": 19,
+      "match": ";",
+      "fix": "MoxyWolf style prefers two sentences over a semicolon."
+    },
+    {
+      "severity": "Minor",
+      "category": "typography",
+      "rule": "semicolon",
+      "line": 26,
+      "match": ";",
+      "fix": "MoxyWolf style prefers two sentences over a semicolon."
+    },
+    {
+      "severity": "Minor",
+      "category": "typography",
+      "rule": "semicolon",
+      "line": 51,
+      "match": ";",
+      "fix": "MoxyWolf style prefers two sentences over a semicolon."
+    },
+    {
+      "severity": "Medium",
+      "category": "metric",
+      "rule": "ttr_low",
+      "value": 0.394,
+      "threshold": 0.4,
+      "fix": "Vocabulary is repetitive; vary word choice in noun and verb positions."
+    },
+    {
+      "severity": "Medium",
+      "category": "metric",
+      "rule": "symmetric_list_bloat",
+      "value": 2.94,
+      "threshold": 5,
+      "fix": "Vary bullet length \u2014 current list reads as AI-padded for symmetry."
+    }
+  ],
+  "advisories": [
+    {
+      "device": "contrast-framing",
+      "count": 1,
+      "declared_signature": false,
+      "locations": [
+        {
+          "device": "contrast-framing",
+          "sentence": 22,
+          "text": "That's expected, not an error."
+        }
+      ],
+      "note": "Not declared as a signature device for this writer. Layer 2 scores this against the Tier-2 Major rule as written."
+    }
+  ],
+  "metrics": {
+    "mean_sentence_length": 14.47,
+    "burstiness": 0.906,
+    "sentence_count": 51,
+    "passive_rate": 0.118,
+    "ttr": 0.394,
+    "total_words": 738,
+    "paragraph_count": 24,
+    "paragraph_length_sd": 28.99,
+    "body_sentence_count": 30,
+    "longform": false,
+    "contrast_framing_count": 1,
+    "multibeat_reveal_count": 0,
+    "standalone_oneliner_count": 0,
+    "short_sentences_ordinary": 5,
+    "short_sentences_punchline": 1,
+    "density_violations": 0
+  },
+  "longform": false,
+  "signature_devices": [],
+  "score": 8,
+  "majors": 0,
+  "total_findings": 6,
+  "grade": "F"
+}
