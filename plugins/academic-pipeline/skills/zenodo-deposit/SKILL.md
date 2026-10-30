@@ -16,18 +16,18 @@ After Stage 9 passes, if the run produced or names an executable or data artifac
 - **One artifact repository, many records.** Artifacts live in one repository (MoxyWolf: `MoxyWolfLLC/zenodo`, cloned at `~/GitHub/zenodo`). Each artifact gets its own Zenodo record and DOI. Don't propose a repository per artifact.
 - **Direct upload, not the GitHub integration.** Zenodo's GitHub integration stays **off** for the artifact repository: a GitHub release would archive every artifact together as one record. Uploads go through `scripts/zenodo_deposit.py`.
 - **License.** MIT for code, unless the user says otherwise. Synthetic fixtures ship under the same license. Real data needs the user's call on license and on whether it may be published at all.
-- **Creator.** The author's name, affiliation and ORCID come from the run's author block or the voice profile. Never invent an ORCID; if it isn't known, ask.
+- **Creator.** The author's name, affiliation and ORCID come from the run's author block or the voice profile. Never invent an ORCID. If it isn't known, ask.
 
 ## Step 1. Lay out the artifact folder
 
-In the artifact repository, create `<kind>/<slug>/`. Use `runners/` for executable reference implementations and `datasets/` for data; the slug is the run's target slug. The folder is self-contained:
+In the artifact repository, create `<kind>/<slug>/`. Use `runners/` for executable reference implementations and `datasets/` for data. The slug is the run's target slug. The folder is self-contained:
 
 | File | Holds |
 | --- | --- |
 | `README.md` | What it is, how to run it, which paper it accompanies, the DOI once published |
 | `LICENSE` | The license text |
 | `.zenodo.json` | Zenodo metadata: `upload_type`, `title`, `creators` (name, affiliation, orcid), `description`, `license`, `keywords`, `version` |
-| `CITATION.cff` | Citation metadata with the author's ORCID; add `doi` and `date-released` after publishing |
+| `CITATION.cff` | Citation metadata with the author's ORCID. Add `doi` and `date-released` after publishing |
 | the code and inputs | Standard library where possible, so a reader needs nothing installed |
 | `expected/` | The output of every check the artifact runs, so a reader can diff their run against it |
 
@@ -54,7 +54,7 @@ Tell the user where to see the draft: `https://zenodo.org/uploads/<id>`, signed 
 
 ## Step 3. Publish, only on the user's word
 
-Publishing is permanent: a published record can't be deleted, only versioned. Run it only after the user says "publish" (or an unambiguous equivalent) in this run. "Looks great" isn't that; ask once.
+Publishing is permanent: a published record can't be deleted, only versioned. Run it only after the user says "publish" (or an unambiguous equivalent) in this run. "Looks great" isn't that, so ask once.
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/zenodo_deposit.py" publish <artifact folder> [--token-file <env file>]
