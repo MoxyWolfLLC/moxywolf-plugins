@@ -49,14 +49,23 @@ def read_token(token_file=None):
 
 
 def zip_folder(folder):
-    slug, buf = os.path.basename(os.path.normpath(folder)), io.BytesIO()
+    """Refuses any symlink: ZipFile.write dereferences a file link and would upload its target,
+    which can sit outside the artifact (a local config, a credential, a private dataset)."""
+    slug, buf, top = os.path.basename(os.path.normpath(folder)), io.BytesIO(), os.path.realpath(folder)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for root, dirs, files in os.walk(folder):
             dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
+            for name in dirs + sorted(files):
+                path = os.path.join(root, name)
+                if os.path.islink(path):
+                    raise SystemExit(f"refusing to archive a symlink: {os.path.relpath(path, folder)}; "
+                                     "copy the file in or remove the link")
             for f in sorted(files):
                 if f in SKIP_FILES or f.endswith(".pyc"):
                     continue
                 path = os.path.join(root, f)
+                if os.path.commonpath([top, os.path.realpath(path)]) != top:
+                    raise SystemExit(f"refusing a file outside the artifact: {os.path.relpath(path, folder)}")
                 z.write(path, os.path.join(slug, os.path.relpath(path, folder)))
     return slug, buf.getvalue()
 

@@ -119,6 +119,19 @@ def test_token_file_is_read_and_the_token_is_never_printed():
     assert rc == 1 and "HTTP 403" in out and TOKEN not in out
 
 
+def test_a_symlink_in_the_artifact_is_refused_before_anything_is_sent():
+    d, calls = artifact(), []
+    secret = d.parent / "secret.env"
+    secret.write_text("PASSWORD=hunter2\n")
+    (d / "config.env").symlink_to(secret)
+    rc, out = run(["draft", str(d)], fake(calls))
+    assert rc == 1 and "symlink" in out and "config.env" in out and not calls
+    (d / "config.env").unlink()
+    (d / "linked_dir").symlink_to(d.parent, target_is_directory=True)
+    rc, out = run(["draft", str(d)], fake(calls))
+    assert rc == 1 and "linked_dir" in out and not calls
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
