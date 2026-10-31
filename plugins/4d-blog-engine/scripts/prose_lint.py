@@ -74,6 +74,8 @@ BANNED_WORDS: set[str] = {
     "empower", "ecosystem", "pillar",
     "ascertain", "commence", "disseminate", "facilitate",
     "ever-evolving", "ever-changing", "dynamic", "innovative",
+    # BP-002: Wikipedia "Signs of AI writing", promotional language
+    "breathtaking", "nestled", "vibrant", "stunning", "bustling", "renowned",
 }
 
 BANNED_PHRASES: list[str] = [
@@ -98,7 +100,22 @@ BANNED_PHRASES: list[str] = [
     r"in this (post|article|blog|piece) ?,? ?(we'?(ll| will)|i'?(ll| will))",
     r"i'?m (thrilled|excited|delighted) to (share|announce)",
     r"without further ado",
+    # BP-002: Wikipedia "Signs of AI writing", inflated significance
+    r"\b(?:a|the) (?:broader|larger|wider) (?:movement|trend|shift|narrative)\b",
+    r"\b(?:a|the) defining moment\b",
+    r"\bmarks? a (?:significant|major|pivotal) (?:shift|milestone|turning point)\b",
+    r"\bplays? an? (?:key|vital|crucial|significant|pivotal|important) role\b",
+    r"\bserves? as a (?:reminder|testament)\b",
+    # BP-002: trailing participle clause claiming importance ("..., highlighting the ...")
+    r",\s*(?:highlighting|underscoring|emphasizing|emphasising|reflecting|showcasing|signaling|signalling|illustrating)\s+(?:the|its|their|his|her|a|an|how)\b",
 ]
+
+# BP-002: zero-width and soft-hyphen characters pasted in from other tools.
+# A non-breaking space is legitimate typography and is not listed.
+HIDDEN_UNICODE = "\u200b\u200c\u200d\u2060\ufeff\u00ad"
+
+# BP-002: "Here's where/what/how/why" sentence opener, straight or curly apostrophe.
+HERE_OPENER = re.compile(r"^\W*here(?:['\u2019]s| is| are)\s+(?:where|what|how|why)\b", re.IGNORECASE)
 
 BANNED_TRANSITIONS: set[str] = {
     "furthermore", "additionally", "moreover", "nevertheless",
@@ -135,6 +152,10 @@ DENSITY_DEFAULTS = {
     "short_sentence_words": 8,  # at or under this = a "short" sentence
     "multibeat_run": 3,        # consecutive fragments that make a multi-beat reveal
     "multibeat_words": 6,      # at or under this = a "beat"
+    "parallel_run": 3,         # BP-002: consecutive short sentences that make a parallel run
+    "parallel_words": 10,      # BP-002: at or under this = a sentence in a parallel run
+    "zinger_words": 5,         # BP-002: closing sentence at or under this = a zinger
+    "zinger_min_sentences": 3,  # BP-002: only paragraphs at least this long have a closer
 }
 
 KNOWN_SIGNATURE_DEVICES = {"contrast-framing", "three-beat-reveal"}
@@ -170,7 +191,9 @@ def split_paragraphs(text: str) -> list[str]:
 
 
 def word_count(text: str) -> int:
-    return len(re.findall(r"\b[\w']+\b", text))
+    # Review 20261030-202414 F1: a curly apostrophe (U+2019) is part of the word, so
+    # "don’t" is one word, as "don't" always was; --fix curls apostrophes.
+    return len(re.findall(r"\b[\w'\u2019]+\b", text))
 
 
 def is_passive(sentence: str) -> bool:
@@ -280,6 +303,69 @@ def merge_device_hits(
         h for h in contrast if not any(lo <= h["sentence"] <= hi for lo, hi in spans)
     ]
     return kept + multibeat
+
+
+def prose_sentence_stream(paragraphs: list[str], min_item_sentences: int) -> tuple[list[str], list[int]]:
+    """BP-002. Body prose plus list items written as prose ('2. Two of your apps ...
+    Most pipelines don't.'), with the list marker stripped. Used for short-form
+    findings only, so the long-form density stream and its calibration are unchanged.
+    """
+    keep: list[str] = []
+    for par in paragraphs:
+        if is_body_paragraph(par):
+            keep.append(par)
+            continue
+        item = re.sub(r"^\s*(?:[-*+]|\d+[.)])\s+", "", par.strip())
+        if item != par.strip() and "\n" not in item and len(split_sentences(item)) >= min_item_sentences:
+            keep.append(item)
+    return body_sentence_stream(keep)
+
+
+def detect_parallel_runs(
+    sentences: list[str], para_ids: list[int], run_len: int, max_words: int,
+    multibeat: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """BP-002. Runs of short sentences longer than a beat: 'Models propose and vote.
+    Versioned rule cards decide. Reviewers rule on what the cards can't settle.'
+
+    ponytail: same-shape is approximated as same-paragraph and short; a syntax
+    parser would be the upgrade if this flags too much ordinary prose.
+    """
+    # Review 20261030-201125 F1: cut the reveal's sentences out first, then find runs in
+    # what is left, so a qualifying run beside a reveal is not discarded with it.
+    taken = {i for h in multibeat for i in range(h["span"][0], h["span"][1] + 1)}
+    out = []
+    run: list[int] = []
+
+    def close(r: list[int]) -> None:
+        if len(r) >= run_len:
+            out.append({"device": "parallel-run", "sentence": r[0], "span": [r[0], r[-1]],
+                        "beats": len(r), "text": _excerpt(" ".join(sentences[j] for j in r))})
+
+    for i, s in enumerate(sentences):
+        ok = i not in taken and 0 < word_count(s) <= max_words
+        if ok and run and para_ids[i] == para_ids[run[-1]] and i == run[-1] + 1:
+            run.append(i)
+        else:
+            close(run)
+            run = [i] if ok else []
+    close(run)
+    return out
+
+
+def detect_closing_zingers(
+    sentences: list[str], para_ids: list[int], max_words: int, min_sentences: int,
+    runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """BP-002. A very short sentence closing a paragraph of several: 'Most pipelines don't.'"""
+    in_run = {i for h in runs for i in range(h["span"][0], h["span"][1] + 1)}
+    out = []
+    for pid in sorted(set(para_ids)):
+        idx = [i for i, p in enumerate(para_ids) if p == pid]
+        last = idx[-1]
+        if len(idx) >= min_sentences and last not in in_run and 0 < word_count(sentences[last]) <= max_words:
+            out.append({"device": "closing-zinger", "sentence": last, "text": _excerpt(sentences[last])})
+    return out
 
 
 def detect_standalone_oneliners(paragraphs: list[str], max_words: int = 15) -> list[str]:
@@ -429,6 +515,21 @@ def scan(
             }
         )
 
+    # BP-002: hidden zero-width characters (scanned on the raw text, code included)
+    for ln, line in enumerate(text.splitlines(), start=1):
+        n = sum(line.count(ch) for ch in HIDDEN_UNICODE)
+        if n:
+            findings.append(
+                {
+                    "severity": "Medium",
+                    "category": "typography",
+                    "rule": "hidden_unicode",
+                    "line": ln,
+                    "match": f"{n} hidden character(s)",
+                    "fix": "Run --fix to remove zero-width characters pasted in from other tools.",
+                }
+            )
+
     # ─── Measurable metrics (operate on prose only, strip frontmatter) ───
     prose = re.sub(r"^---\n.*?\n---\n", "", body, count=1, flags=re.DOTALL)
     # strip code fences before measuring
@@ -506,7 +607,7 @@ def scan(
             )
 
     # TTR
-    words = [w.lower() for w in re.findall(r"\b[\w']+\b", prose)]
+    words = [w.lower() for w in re.findall(r"\b[\w'\u2019]+\b", prose)]
     if words:
         ttr = round(len(set(words)) / len(words), 3)
         metrics["ttr"] = ttr
@@ -583,6 +684,50 @@ def scan(
     rhetorical_hits = merge_device_hits(contrast_raw, multibeat_hits)
     oneliners = detect_standalone_oneliners(paragraphs)
 
+    # BP-002: parallel runs and closing zingers. Scored in short-form; in long-form
+    # they join the rhetorical hits the density budget spaces (Dorian, 2026-10-30).
+    if is_longform:
+        stream, stream_ids, stream_multibeat = body_sentences, body_para_ids, multibeat_hits
+    else:
+        stream, stream_ids = prose_sentence_stream(paragraphs, cfg["zinger_min_sentences"])
+        stream_multibeat = detect_multibeat_reveal(
+            stream, stream_ids, cfg["multibeat_run"], cfg["multibeat_words"]
+        )
+    parallel_hits = detect_parallel_runs(
+        stream, stream_ids, cfg["parallel_run"], cfg["parallel_words"], stream_multibeat
+    )
+    zinger_hits = detect_closing_zingers(
+        stream, stream_ids, cfg["zinger_words"], cfg["zinger_min_sentences"],
+        stream_multibeat + parallel_hits,
+    )
+    if is_longform:  # same index space as rhetorical_hits only in long-form
+        run_spans = [tuple(h["span"]) for h in parallel_hits]
+        rhetorical_hits = [
+            h for h in rhetorical_hits
+            if not any(lo <= h["sentence"] <= hi for lo, hi in run_spans)
+        ] + parallel_hits + zinger_hits
+        # One sentence is one rhetorical hit (as merge_device_hits): a closing line that is
+        # also a contrast framing ("Facts, not guesses.") must not count as a zero-gap pair.
+        seen: set[int] = set()
+        deduped = []
+        for h in rhetorical_hits:
+            if h["sentence"] not in seen:
+                seen.add(h["sentence"])
+                deduped.append(h)
+        rhetorical_hits = deduped
+    for i, s in enumerate(stream):
+        if HERE_OPENER.match(s):
+            findings.append(
+                {
+                    "severity": "Minor",
+                    "category": "structure",
+                    "rule": "here_opener",
+                    "sentence": i,
+                    "match": _excerpt(s),
+                    "fix": "Start with the point itself; the 'Here's where' signpost adds nothing.",
+                }
+            )
+
     metrics["body_sentence_count"] = len(body_sentences)
     short_idx = {
         i
@@ -598,6 +743,35 @@ def scan(
     metrics["standalone_oneliner_count"] = len(oneliners)
     metrics["short_sentences_ordinary"] = ordinary_short
     metrics["short_sentences_punchline"] = len(punchline_idx)
+    metrics["parallel_run_count"] = len(parallel_hits)
+    metrics["closing_zinger_count"] = len(zinger_hits)
+
+    if not is_longform:
+        for h in parallel_hits:
+            findings.append(
+                {
+                    "severity": "Medium",
+                    "category": "structure",
+                    "rule": "parallel_run",
+                    "sentence": h["sentence"],
+                    "match": h["text"],
+                    "fix": (
+                        "Three short sentences in a row read as ad copy. Join two of them, or let "
+                        "one carry ordinary detail at a different length."
+                    ),
+                }
+            )
+        for h in zinger_hits:
+            findings.append(
+                {
+                    "severity": "Minor",
+                    "category": "structure",
+                    "rule": "closing_zinger",
+                    "sentence": h["sentence"],
+                    "match": h["text"],
+                    "fix": "Fold the closing line into the sentence before it, or cut it.",
+                }
+            )
 
     for device, hits in (("contrast-framing", contrast_hits), ("three-beat-reveal", multibeat_hits)):
         if not hits:
@@ -710,7 +884,10 @@ def auto_fix(text: str) -> tuple[str, dict[str, int]]:
     from quote-curling and em-dash replacement (JSON-LD requires straight
     quotes; code shouldn't be auto-prettified).
     """
-    counts: dict[str, int] = {"em_dash": 0, "straight_double": 0, "straight_single": 0}
+    counts: dict[str, int] = {"em_dash": 0, "straight_double": 0, "straight_single": 0, "hidden_unicode": 0}
+    # BP-002: zero-width characters go everywhere, code included; they are never intended.
+    counts["hidden_unicode"] = sum(text.count(ch) for ch in HIDDEN_UNICODE)
+    text = text.translate({ord(ch): None for ch in HIDDEN_UNICODE})
 
     # Carve out protected regions (script/style/code-fence/inline-code) and
     # apply transforms only to the prose between them.
@@ -815,7 +992,11 @@ def render_findings_md(scan_result: dict[str, Any], target: Path) -> str:
     if not scan_result["findings"]:
         lines.append("_None — clean pass._")
     for i, f in enumerate(scan_result["findings"], 1):
-        loc = f"line {f.get('line')}" if f.get("line") else "metric"
+        loc = (
+            f"line {f['line']}" if f.get("line")
+            else f"sentence {f['sentence']}" if "sentence" in f
+            else "metric"
+        )
         match = f.get("match") or f.get("value")
         lines.append(
             f"{i}. **[{f['severity']}]** `{f['rule']}` at {loc} — "
@@ -900,7 +1081,8 @@ def main() -> int:
         print(
             f"STATUS=fixed em_dash={counts['em_dash']} "
             f"double_quotes={counts['straight_double']} "
-            f"single_quotes={counts['straight_single']}"
+            f"single_quotes={counts['straight_single']} "
+            f"hidden_unicode={counts['hidden_unicode']}"
         )
         # scan after fix
         text = new_text

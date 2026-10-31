@@ -29,8 +29,11 @@ landscape (metaphorical), navigate (metaphorical), crucial, vital,
 game-changer, game-changing, transformative, journey (metaphorical),
 empower, ecosystem (metaphorical), pillar (metaphorical),
 ascertain, commence, disseminate, facilitate (vague),
-ever-evolving, ever-changing, dynamic (vague), innovative (vague)
+ever-evolving, ever-changing, dynamic (vague), innovative (vague),
+breathtaking, nestled, vibrant, stunning, bustling, renowned
 ```
+
+The last line is Wikipedia's "promotional language" tell (BP-002): ad-copy adjectives that read like a TV commercial.
 
 ### Banned phrases (regex patterns)
 
@@ -57,7 +60,15 @@ in this (post|article|blog|piece)( ,)? (we'?(ll| will)|i'?(ll| will))
 i'?m (thrilled|excited|delighted) to (share|announce)
 without further ado
 i'?m (excited|happy) to (announce|share)
+(a|the) (broader|larger|wider) (movement|trend|shift|narrative)
+(a|the) defining moment
+marks? a (significant|major|pivotal) (shift|milestone|turning point)
+plays? an? (key|vital|crucial|significant|pivotal|important) role
+serves? as a (reminder|testament)
+, (highlighting|underscoring|emphasizing|reflecting|showcasing|signaling|illustrating) (the|its|their|his|her|a|an|how)
 ```
+
+The last six come from Wikipedia's *Signs of AI writing* guide (BP-002): inflated significance, and a trailing "-ing" clause after a comma that claims importance ("…, highlighting the need for…"). "The results highlight the gap" is a verb, not a trailing clause, and doesn't match.
 
 ### Banned transitions (sentence-initial)
 
@@ -73,6 +84,17 @@ With that said,  All in all,  To summarize,
 - Straight quotes `"..."` `'...'` → typographer's quotes `"..."` `'...'`. Auto-replace.
 - Three or more consecutive em-dashes anywhere → fail.
 - No semicolons in body prose (MoxyWolf convention; flag only).
+- Hidden characters (`hidden_unicode`, Medium, BP-002): zero-width space, non-joiner and joiner, word joiner, byte-order mark and soft hyphen (U+200B, U+200C, U+200D, U+2060, U+FEFF, U+00AD) are flagged with line numbers and removed by `--fix`. A non-breaking space is legitimate typography and isn't flagged.
+
+### Short-form structure checks (scripted, BP-002)
+
+An outside AI-text analyzer read a Dorian email as AI-polished on 2026-10-30, while this linter graded it A. These three checks close that gap. They are findings in short-form (emails, social posts, abstracts). In long-form the first two join the rhetorical-density budget instead (see the long-form allowance below).
+
+- **`parallel_run`** (Medium). Three or more consecutive sentences in one paragraph, each 10 words or fewer, that aren't already a three-beat reveal. "Models propose and vote. Versioned rule cards decide. Reviewers rule on what the cards can’t settle."
+- **`closing_zinger`** (Minor). A sentence of 5 words or fewer that closes a paragraph of three or more sentences. "Most pipelines don’t."
+- **`here_opener`** (Minor). A sentence starting "Here’s / Here is / Here are" plus where, what, how or why. One instance is enough in short-form; the Tier-2 "Here" clustering rule below still covers long-form.
+
+Prose written as a numbered or bulleted item (three or more sentences after the marker) counts as a paragraph for these checks.
 
 ## Tier 1 — measurable structural metrics (numeric, scriptable)
 
@@ -139,7 +161,7 @@ That conflict is not theoretical. Sampled verbatim from two published, human-wri
 For a piece **over roughly 900 words** whose voice profile declares a device as a signature move:
 
 1. **The raw count is advisory.** `prose_lint.py` reports it; nothing fails on frequency alone. Layer 2 must not fail a piece for having the writer's voice in it.
-2. **Spacing is what gets scored.** No rhetorical hit within four sentences of another. Budget of 2 such pairs; 3-5 is a Medium, 6 or more is a Major.
+2. **Spacing is what gets scored.** No rhetorical hit within four sentences of another. Rhetorical hits are contrast framings, three-beat reveals, and, since BP-002, parallel runs (`parallel-run`) and closing zingers (`closing-zinger`), which are budgeted here rather than scored one by one. Budget of 2 such pairs; 3-5 is a Medium, 6 or more is a Major.
 3. **At most two standalone one-line paragraphs** in the whole piece.
 4. **Short sentences must not all be punchlines.** At least as many brief declaratives doing ordinary work as brief declaratives landing a line. This is the difference between prose that reads as speech and prose that reads as engineered.
 5. **Every other Major stays blocking.** "Here" clustering, robotic transitions, question-H2 saturation, and three-clause rhythm all fire correctly and are all worth fixing. The catalog is not broken generally. It was mis-scoped for one author's two devices.
