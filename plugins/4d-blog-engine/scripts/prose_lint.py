@@ -329,13 +329,25 @@ def detect_parallel_runs(
     ponytail: same-shape is approximated as same-paragraph and short; a syntax
     parser would be the upgrade if this flags too much ordinary prose.
     """
-    taken = [tuple(h["span"]) for h in multibeat]
+    # Review 20261030-201125 F1: cut the reveal's sentences out first, then find runs in
+    # what is left, so a qualifying run beside a reveal is not discarded with it.
+    taken = {i for h in multibeat for i in range(h["span"][0], h["span"][1] + 1)}
     out = []
-    for h in detect_multibeat_reveal(sentences, para_ids, run_len, max_words):
-        lo, hi = h["span"]
-        if any(a <= hi and lo <= b for a, b in taken):
-            continue
-        out.append({**h, "device": "parallel-run"})
+    run: list[int] = []
+
+    def close(r: list[int]) -> None:
+        if len(r) >= run_len:
+            out.append({"device": "parallel-run", "sentence": r[0], "span": [r[0], r[-1]],
+                        "beats": len(r), "text": _excerpt(" ".join(sentences[j] for j in r))})
+
+    for i, s in enumerate(sentences):
+        ok = i not in taken and 0 < word_count(s) <= max_words
+        if ok and run and para_ids[i] == para_ids[run[-1]] and i == run[-1] + 1:
+            run.append(i)
+        else:
+            close(run)
+            run = [i] if ok else []
+    close(run)
     return out
 
 

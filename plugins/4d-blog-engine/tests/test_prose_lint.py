@@ -44,6 +44,15 @@ class ParallelRun(unittest.TestCase):
     def test_numbered_prose_item_counts(self):
         self.assertIn("parallel_run", rules("1. " + RUN))
 
+    def test_run_beside_a_reveal_still_hits(self):
+        # Review 20261030-201125 F1: a qualifying run adjacent to a three-beat reveal.
+        par = ("Teams review each proposed change before release. Auditors check every stored "
+               "decision against evidence. Reviewers record the reasons behind each ruling. "
+               "Nine tools. Nine parsers. Same data.")
+        r = pl.scan(par)
+        self.assertEqual([f["rule"] for f in r["findings"]].count("parallel_run"), 1)
+        self.assertEqual(r["metrics"]["multibeat_reveal_count"], 1)
+
     def test_longform_budgets_instead_of_scoring(self):
         short = pl.scan(RUN, longform=False)
         # The run (sentence 0) and a contrast framing three sentences later are one stacked pair.
