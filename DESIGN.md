@@ -2144,7 +2144,7 @@ Opened 2026-10-16. The first OpenControls post ran the 4d-blog-engine pipeline e
 
 ### BP-002 — `prose_lint.py` counts the tells an outside detector flagged, and the ones Wikipedia names that the catalog missed
 
-**Status:** approved (Dorian, 2026-10-30).
+**Status:** building. Approved by Dorian 2026-10-30.
 
 On 2026-10-30 an outside AI-text analyzer read one of Dorian's emails as AI-polished. `prose_lint.py` graded the same email A with zero findings. The analyzer pointed at three things: three short sentences in a row with the same shape ("Models propose and vote. Versioned rule cards decide. Reviewers rule on what the cards can’t settle."), short lines that close a paragraph ("Most pipelines don’t."), and a "Here’s where" opener. Wikipedia's *Signs of AI writing* guide names three more the catalog doesn't carry: inflated significance, trailing "-ing" clauses that claim importance, and ad-copy adjectives. Hidden zero-width characters pasted in from other tools get the same treatment.
 
