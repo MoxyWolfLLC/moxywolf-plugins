@@ -88,6 +88,25 @@ class ClosingZinger(unittest.TestCase):
         self.assertIn("closing_zinger", rules("2. " + ZING))
 
 
+class CurlyApostrophes(unittest.TestCase):
+    # Review 20261030-202414 F1: "don’t" is one word, as "don't" is.
+    def test_word_count_treats_curly_like_straight(self):
+        self.assertEqual(pl.word_count("Most other tools don’t bother."), 5)
+        self.assertEqual(pl.word_count("Most other tools don't bother."), 5)
+
+    def test_curly_zinger_at_the_limit_hits(self):
+        par = ("The method treats a missing match as a voted and gated result instead of silence. "
+               "It also measures the links that were missed across every batch it runs. "
+               "Most other tools don’t bother.")
+        self.assertIn("closing_zinger", rules(par))
+
+    def test_curly_ten_word_sentence_stays_in_the_run(self):
+        par = ("Teams review each proposed change before release. "
+               "Our reviewers don’t approve changes without checking the recorded evidence. "
+               "Reviewers record the reasons behind each ruling.")
+        self.assertIn("parallel_run", rules(par))
+
+
 class HereOpener(unittest.TestCase):
     def test_curly_and_straight(self):
         self.assertIn("here_opener", rules("Here’s where I think it lands in your plan for next year."))

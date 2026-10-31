@@ -191,7 +191,9 @@ def split_paragraphs(text: str) -> list[str]:
 
 
 def word_count(text: str) -> int:
-    return len(re.findall(r"\b[\w']+\b", text))
+    # Review 20261030-202414 F1: a curly apostrophe (U+2019) is part of the word, so
+    # "don’t" is one word, as "don't" always was; --fix curls apostrophes.
+    return len(re.findall(r"\b[\w'\u2019]+\b", text))
 
 
 def is_passive(sentence: str) -> bool:
@@ -605,7 +607,7 @@ def scan(
             )
 
     # TTR
-    words = [w.lower() for w in re.findall(r"\b[\w']+\b", prose)]
+    words = [w.lower() for w in re.findall(r"\b[\w'\u2019]+\b", prose)]
     if words:
         ttr = round(len(set(words)) / len(words), 3)
         metrics["ttr"] = ttr
