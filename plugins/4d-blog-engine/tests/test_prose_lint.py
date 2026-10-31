@@ -57,6 +57,17 @@ class ParallelRun(unittest.TestCase):
         self.assertGreater(long_["metrics"]["density_violations"], 0)
 
 
+    def test_closing_contrast_counts_once_in_longform(self):
+        # Review F1: "Facts, not guesses." is a contrast framing and a closing zinger at one sentence.
+        par = ("The panel reads every candidate mapping against the published source text. "
+               "Each vote is stored with the model that cast it and the evidence it saw. "
+               "A reviewer can replay the decision later without calling any model at all. "
+               "The record shows which rule card settled it and which version was in force. "
+               "Facts, not guesses.")
+        r = pl.scan("\n\n".join([par] * 3), longform=True)
+        self.assertEqual(r["metrics"]["density_violations"], 0)
+
+
 class ClosingZinger(unittest.TestCase):
     def test_short_closer_hits(self):
         self.assertEqual(rules(ZING).count("closing_zinger"), 1)
@@ -78,21 +89,33 @@ class HereOpener(unittest.TestCase):
 
 
 class WikipediaTells(unittest.TestCase):
-    HITS = [
-        "The release marks a significant shift for the whole field this year.",
-        "It is part of a broader movement among auditors across the country.",
-        "That was a defining moment for the team and for the product.",
-        "Mapping plays a key role in how assessors read the evidence they get.",
-        "The outage serves as a reminder that backups need real restore tests.",
-        "The team shipped the parser, highlighting the need for better tests.",
-        "The office is nestled between two rivers and three parking lots.",
-        "It has a vibrant community of reviewers who post every single week.",
+    # Review F2: every new phrase, participle and word, each asserting its own rule.
+    PHRASES = [
+        ("It is part of a broader movement among auditors across the country.", "broader"),
+        ("That was a defining moment for the team and for the product.", "defining moment"),
+        ("The release marks a significant shift for the whole field this year.", "marks?"),
+        ("Mapping plays a key role in how assessors read the evidence they get.", "plays?"),
+        ("The outage serves as a reminder that backups need real restore tests.", "serves?"),
     ]
+    PARTICIPLES = ["highlighting", "underscoring", "emphasizing", "emphasising", "reflecting",
+                   "showcasing", "signaling", "signalling", "illustrating"]
+    WORDS = ["breathtaking", "nestled", "vibrant", "stunning", "bustling", "renowned"]
 
-    def test_each_hits(self):
-        for s in self.HITS:
-            with self.subTest(s=s):
-                self.assertTrue(any(r.startswith(("banned_phrase:", "banned_word:")) for r in rules(s)))
+    def test_each_phrase_hits_its_rule(self):
+        for sentence, key in self.PHRASES:
+            with self.subTest(sentence=sentence):
+                self.assertTrue(any(r.startswith("banned_phrase:") and key in r for r in rules(sentence)))
+
+    def test_each_participle_hits_the_trailing_clause_rule(self):
+        for verb in self.PARTICIPLES:
+            with self.subTest(verb=verb):
+                got = rules(f"The team shipped the parser, {verb} the need for better tests.")
+                self.assertTrue(any(r.startswith("banned_phrase:,") and verb in r for r in got), got)
+
+    def test_each_word_hits_its_rule(self):
+        for w in self.WORDS:
+            with self.subTest(word=w):
+                self.assertIn(f"banned_word:{w}", rules(f"The office has a {w} view of the parking lot."))
 
     def test_plain_verb_does_not(self):
         self.assertFalse(any(r.startswith(("banned_phrase:", "banned_word:"))

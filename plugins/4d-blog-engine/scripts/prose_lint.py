@@ -692,6 +692,15 @@ def scan(
             h for h in rhetorical_hits
             if not any(lo <= h["sentence"] <= hi for lo, hi in run_spans)
         ] + parallel_hits + zinger_hits
+        # One sentence is one rhetorical hit (as merge_device_hits): a closing line that is
+        # also a contrast framing ("Facts, not guesses.") must not count as a zero-gap pair.
+        seen: set[int] = set()
+        deduped = []
+        for h in rhetorical_hits:
+            if h["sentence"] not in seen:
+                seen.add(h["sentence"])
+                deduped.append(h)
+        rhetorical_hits = deduped
     for i, s in enumerate(stream):
         if HERE_OPENER.match(s):
             findings.append(
