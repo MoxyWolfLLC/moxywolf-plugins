@@ -417,6 +417,30 @@ Write four files into the claude.ai Project attached to this session, with the P
 
 `<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, `Taskade/<SUBFOLDER>` for a personal one, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
 
+### Step 7c: Sweep the loop's scratch (SS-001)
+
+Run this after the Project mirror; it changes no mirrored file. Count before characterizing: nothing here is called clean, small or safe until its size is printed.
+
+1. **Measure**, from the macOS shell (Desktop Commander, not `device_bash`, which runs in the Linux VM and can't see the Mac's `/tmp` or `~/Library`):
+
+   ```
+   du -sh ~/review-host ~/Library/Caches/ms-playwright /tmp/gstack-ship-* /tmp/qa-* /tmp/*.log 2>/dev/null | sort -h; docker system df 2>/dev/null; du -sh ~/Library/Application\ Support/Claude/vm_bundles 2>/dev/null
+   ```
+
+2. **Decide what's a candidate.** Only the loop's own disposables:
+   - `/tmp/gstack-ship-*` worktrees that no `git worktree list` still names. Remove, then run `git worktree prune` in that repo.
+   - `/tmp/qa-*` captures a report already quotes.
+   - `/tmp/<suite>.log` files whose `run-record.json` exists.
+   - `~/review-host/node_modules`. The branch checkout stays; `review_host.sh` reinstalls on the next review.
+
+   Docker images and the Playwright cache go on a separate line and are never swept by default: a pruned pinned stack rebuilds on the next suite run and outlasts a single call's timeout, the failure the gstack-build harness note warns about.
+
+3. **Never touch** `GSTACK_PEER_REVIEW_DIR`, `tests/container/results/`, any repository clone, or the Cowork VM bundle. The first two are evidence, and a review ID whose record is gone reads like a claim with nothing behind it.
+
+4. **Ask, then remove.** In a local session, one AskUserQuestion lists each candidate with its size, plus Docker and Playwright as their own option; remove only what the person picks. In a cloud session, remove nothing: report the sizes and leave them.
+
+5. **Report** one line for Step 8: `Scratch: freed <n> GB (<what>); left <m> GB (<what>, why)`. If the sweep couldn't run (no Desktop Commander, the Mac unreachable, the person declined), the line is `Scratch: not measured (<reason>)`, never clean.
+
 ### Step 8: Report what was written
 
 Output a short summary in chat:
@@ -445,6 +469,8 @@ README updates written + committed:
 (Committed and pushed directly via `git` as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005).)
 
 Project mirror: [the four paths written, or `not mirrored: no Project attached`, or the files skipped and why]
+
+Scratch: [freed <n> GB (<what>); left <m> GB (<what>, why) | not measured (<reason>)]
 
 [If --archive was used:]
 Archive: [project]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
