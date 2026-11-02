@@ -74,6 +74,42 @@ def test_the_same_check_passing_closes_the_failure():
     assert rc == 0 and out.startswith("0 open issues"), out
 
 
+def retire(d, root, run_id, reason="run before the screen existed", approval="retire it"):
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(root))
+    return subprocess.run([sys.executable, LEDGER, "retire", "--repo", str(d), "--run", run_id, "--reason", reason,
+                           "--approval", approval], env=env, capture_output=True, text=True)
+
+
+def test_a_retired_check_is_closed_listed_and_a_later_failure_reopens_it():  # XE-040
+    d, _, _, root = fixture()
+    (d / "FAIL").write_text("")
+    assert ledger(d, root, sys.executable, "-c", SUITE) == 1
+    run_id = cl.read(cl.ledger_path(d, "build/x", root))[0]["id"]
+    r = retire(d, root, run_id)
+    assert r.returncode == 0, r.stderr
+    rc, out = issues(d, root)
+    assert rc == 0 and out.startswith("0 open issues"), out
+    assert "retired" in out and "run before the screen existed" in out and "'retire it'" in out, out
+    assert ledger(d, root, sys.executable, "-c", SUITE) == 1          # the same check failing again
+    assert issues(d, root)[0] == 1
+    assert cl.find_run(d, cl.read(cl.ledger_path(d, "build/x", root))[1]["id"], root)[0] is None   # a retirement isn't a run
+
+
+def test_retire_is_refused_without_words_for_a_pass_or_for_a_closed_issue():  # XE-040
+    d, _, _, root = fixture()
+    (d / "FAIL").write_text("")
+    ledger(d, root, sys.executable, "-c", SUITE)
+    failed = cl.read(cl.ledger_path(d, "build/x", root))[0]["id"]
+    assert retire(d, root, failed, approval=" ").returncode == 2
+    assert retire(d, root, failed, reason="").returncode == 2
+    assert retire(d, root, "nope").returncode == 2
+    (d / "FAIL").unlink(); ledger(d, root, sys.executable, "-c", SUITE)
+    passed = cl.read(cl.ledger_path(d, "build/x", root))[1]["id"]
+    assert retire(d, root, passed).returncode == 2
+    assert retire(d, root, failed).returncode == 2                     # its issue closed by the pass
+    assert all(r.get("kind") != "retire" for r in cl.read(cl.ledger_path(d, "build/x", root)))
+
+
 def test_a_passing_subset_does_not_close_the_failure():
     d, _, _, root = fixture()
     (d / "FAIL").write_text("")

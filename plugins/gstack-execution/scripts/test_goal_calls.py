@@ -125,6 +125,20 @@ def call(kind="in_envelope_code", proposed="claude/opus", framed="gpt/gpt-6"):
 VOTE = lambda model, role, choice: {"model": model, "role": role, "choice": choice, "reason": "because"}
 
 
+class CodeIsNotAHost(unittest.TestCase):
+    """GO-005 amendment (2026-11-02, wfa-review-screen-v5): code read as hostnames and env vars."""
+
+    def test_an_unquoted_expression_after_a_host_key_is_code(self):
+        code = 'const host = request.headers.get("x-forwarded-host") ?? url.hostname;\n'
+        self.assertEqual(gcalls.hosts_in(code, "web/proxy.ts"), set())
+        self.assertEqual(gcalls.hosts_in('const api_url = "api.stripe.com";\n', "web/pay.ts"), {"api.stripe.com"})
+        self.assertEqual(gcalls.hosts_in("host: db.internal.svc\n", "deploy.yml"), {"db.internal.svc"})   # config keeps its rule
+
+    def test_a_template_expression_is_not_an_environment_variable(self):
+        self.assertEqual(gcalls.maybe_names("const s = `${Math.min(a, b)} of ${items.length}`;\n"), set())
+        self.assertEqual(gcalls.maybe_names("echo ${HOME} ${PORT:-3000} ${A-b}\n"), {"HOME", "PORT", "A"})
+
+
 class Council(unittest.TestCase):
     def test_only_in_envelope_code_goes_to_the_council(self):
         for kind in gcalls.TYPES:

@@ -202,6 +202,22 @@ class Ledger(tgr.RunnerFixture):
             gr.acknowledge("g1", m["n"], "seen")
         return gr.act(self.repo, "g1", klass, resource, self.envs, base="main", **kw)
 
+    def test_a_malformed_may_call_is_a_usage_error_and_escalates_nothing(self):  # GO-013
+        import contextlib, io, json
+        self.start()
+        before = json.dumps(gr.load("g1"), sort_keys=True)
+        for argv in (["--action", "push", "--resource", "goal/g1"],
+                     ["--action", "pr.open", "--resource", "goal/g1"],
+                     ["--action", "vcs.push", "--resource", "goal/g1..x"],
+                     ["--action", "merge", "--resource", "goal/g1", "--pr", "3"],
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr", "3"]):
+            err = io.StringIO()
+            with self.subTest(argv=argv), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
+                self.assertIn("usage:", err.getvalue())
+        self.assertEqual(json.dumps(gr.load("g1"), sort_keys=True), before)   # no escalation, nothing written
+        self.assertIsNone(gr.may_usage({"--action": "pr.open", "--resource": "goal/g1<-build/GX-1-a"}))
+
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):
         self.start()
         self.assertEqual(self.act("merge", "goal/g1", head="b" * 40, review=CLEAN, checks=GREEN, pr=PR)["by"], "DR-113")

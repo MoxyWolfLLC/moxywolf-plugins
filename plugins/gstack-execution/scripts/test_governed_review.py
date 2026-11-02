@@ -617,6 +617,16 @@ class ReleaseLanes(GovernedReview):
         rec = json.loads(r.stdout)
         self.assertEqual((rec["outcome"], rec["release_lane"]["lane"]), ("agent_merge_on_instruction", "closed"))
 
+    def test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable(self):  # 2026-10-30 extra
+        ci = {"ok": False, "kind": "unverifiable", "link": "round 1 F2 -> evidence/ci-123-job-9.summary.txt:14"}
+        ok = {"ok": True, "kind": "link", "link": "round 1 F1 -> value.txt:1"}
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_verified", "checks": [ok]}))
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}))
+        unseen = {"ok": False, "kind": "unverifiable", "link": "round 1 F3 -> src/a.py:0"}
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ci, unseen]}))
+        self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [ci]}))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": []}))
+
     # GA-011: into a goal branch the closed lane is deferred to the goal pull request into main
     def test_release_of_a_closed_lane_into_a_goal_branch_is_held_to_the_wide_gates(self):
         self.commit_change("db/migrations/0011.sql", "x\n")

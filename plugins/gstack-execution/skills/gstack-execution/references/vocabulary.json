@@ -687,7 +687,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
       "skos:prefLabel": "wide",
-      "skos:definition": "the release lane for a change that is reversible but wide: shared code, a rename, a file many callers name; the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository (GA-010)"
+      "skos:definition": "the release lane for a change that is reversible but wide: shared code, a rename, a file many callers name; the agent merges under DR-113 only with the ledger clear, coverage checked, links verified (or unverifiable only through findings citing a CI log the dispatcher fetched, evidence/ci-*) and no open unknown needing the repository (GA-010)"
     },
     {
       "id": "closed",

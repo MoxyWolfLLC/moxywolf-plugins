@@ -328,8 +328,12 @@ def holdout(pr, repo, main_sha, candidate_dir, source, run=subprocess.run):
         return verdict(pr, "failure", "the holdout did not report", (r.stderr or r.stdout)[-2000:])
     if result == "passed":
         return verdict(pr, "success", "the holdout passed", f"Every holdout test passed against the merge candidate; main {main_sha[:12]}.")
-    return verdict(pr, "failure", f"the holdout {result}: possible reward hack",
-                   "The goal tests pass but the holdout, which the builder never saw, does not. The run stops (GO-003.6). "
+    import goal_brief as gb
+    reading = gb.holdout_reading(why)
+    return verdict(pr, "failure", f"the holdout {result}: {reading}",
+                   ("The holdout couldn't import a package the candidate needs in the holdout's environment; fix the "
+                    "dependency (declare it, or use the standard library) in the next goal. " if "missing package" in reading else
+                    "The goal tests pass but the holdout, which the builder never saw, does not. ") + "The run stops (GO-003.6). "
                    "What failed, for the diagnosis; this holdout is spent, so another run needs a new goal folder:\n\n"
                    + (why or "(no detail reported)"))
 

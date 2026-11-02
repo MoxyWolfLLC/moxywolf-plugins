@@ -154,6 +154,37 @@ class ScorerRuns(unittest.TestCase):
         self.assertIn("ai", cov["why"])
         self.assertNamesWhatItConsulted(cov)
 
+    def installed_copy(self):
+        """The plugin as a sync installs it: scripts and its package files, no node_modules."""
+        plug = self.tmp / "plugin"; (plug / "scripts").mkdir(parents=True)
+        shutil.copy(SCRIPT, plug / "scripts" / SCRIPT.name)
+        for f in ("package.json", "package-lock.json"):
+            shutil.copy(PLUGIN / f, plug / f)
+        return plug / "scripts" / SCRIPT.name
+
+    def test_an_installed_copy_installs_ai_into_the_cache_once_and_scores(self):  # XE-014 amendment
+        script, cache = self.installed_copy(), self.tmp / "gstack"
+        r, cov = self.run_scorer(script=script, GSTACK_HOME=str(cache), AI_GATEWAY_API_KEY="k", JEV_ENDPOINT=self.endpoint)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(cov["status"], "checked")
+        installed = [d for d in (cache / "scorer").iterdir()]
+        self.assertEqual(len(installed), 1); self.assertTrue((installed[0] / "node_modules" / "ai").is_dir())
+        stamp = installed[0].stat().st_mtime_ns
+        r, cov = self.run_scorer(script=script, GSTACK_HOME=str(cache), AI_GATEWAY_API_KEY="k", JEV_ENDPOINT=self.endpoint)
+        self.assertEqual((r.returncode, cov["status"]), (0, "checked"), r.stderr)
+        self.assertEqual(installed[0].stat().st_mtime_ns, stamp)            # reused, not reinstalled
+
+    def test_an_install_that_fails_is_broken_naming_npm_and_the_cache(self):  # XE-014 amendment
+        script, cache = self.installed_copy(), self.tmp / "gstack"
+        r, cov = self.run_scorer(script=script, GSTACK_HOME=str(cache), AI_GATEWAY_API_KEY="k",
+                                 npm_config_registry="http://127.0.0.1:9/", npm_config_cache=str(self.tmp / "npm-cache"),
+                                 npm_config_fetch_retries="0", npm_config_fetch_timeout="2000", npm_config_offline="false")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(cov["status"], "broken", r.stderr)
+        self.assertIn("npm ci", cov["why"])
+        self.assertTrue(any("scorer cache" in c for c in cov["consulted"]), cov["consulted"])
+        self.assertEqual([d.name for d in (cache / "scorer").iterdir()], [])   # nothing half-installed left behind
+
     def test_no_credential_on_any_path_is_unavailable_and_exits_zero(self):
         r, cov = self.run_scorer()
         self.assertEqual(r.returncode, 0, r.stderr)

@@ -389,6 +389,40 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
+BRANCH_RE = re.compile(r"^(?!/|.*(?:\.\.|//|@\{|\.lock$|/$|\.$))[A-Za-z0-9._/-]+$")
+HOST_RE = re.compile(r"^(?:https?://)?[A-Za-z0-9.-]+(?::\d+)?(?:/\S*)?$")
+MAY_SHAPES = {"vcs.push": "<branch>", "pr.open": "<base><-<head>", "merge": "<target branch> with --head <sha> --pr <n>",
+              "net.connect": "<host or URL>"}
+
+
+def may_usage(opts):
+    """GO-013: what's wrong with a `may` call's shape, or None. Checked before anything is read or
+    written, so a wrong class (`push` for `vcs.push`) or a wrong resource form exits 2 with the form
+    expected and never reaches the ledger, where it would read as an ungranted action and escalate."""
+    import governance as gov
+    klass, resource = opts.get("--action", ""), opts.get("--resource", "")
+    if klass not in gov.GRANT_CLASSES:
+        return f"--action {klass!r} isn't an action class; one of {', '.join(sorted(gov.GRANT_CLASSES))}"
+    want = MAY_SHAPES.get(klass, "<name>")
+    if klass in ("vcs.push", "merge"):
+        ok = bool(BRANCH_RE.match(resource))
+    elif klass == "pr.open":
+        base, sep, head = resource.partition("<-")
+        ok = bool(sep and BRANCH_RE.match(base) and BRANCH_RE.match(head.rstrip("*").rstrip("/") or "x"))
+    elif klass == "net.connect":
+        ok = bool(HOST_RE.match(resource))
+    else:
+        ok = bool(resource) and not re.search(r"\s", resource)
+    if not ok:
+        return f"--action {klass} takes --resource {want}, not {resource!r}"
+    if klass == "merge":
+        if not re.fullmatch(r"[0-9a-f]{7,40}", opts.get("--head", "")) or not opts.get("--pr", "").isdigit():
+            return f"--action merge takes --resource {want}"
+    elif {"--head", "--review", "--pr", "--sync"} & set(opts):
+        return f"--head, --review, --pr and --sync go with --action merge only"
+    return None
+
+
 def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None, pr=None,
         sync=False, comments=None):
     """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
@@ -846,7 +880,7 @@ def holdout_failed(goal_id, detail):
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
-    escalate(state, "holdout", f"goal-holdout failed, a possible reward hack: {detail}")
+    escalate(state, "holdout", f"goal-holdout failed, {gb.holdout_reading(detail)}: {detail}")
     return end(state, "stopped", f"goal-holdout failed: {detail}")
 
 
@@ -1388,6 +1422,10 @@ def _main(argv, repo=gb.ROOT):
             print(json.dumps(out))
             return 0
         if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--pr", "--repo", "--sync"}:
+            bad = may_usage(opts)            # GO-013: a malformed call is the caller's mistake, not Dorian's call
+            if bad:
+                print(f"usage: {bad}", file=sys.stderr)
+                return 2
             token = os.environ.get("GITHUB_TOKEN")
             if not token:
                 raise Refused("may needs GITHUB_TOKEN to read the deployment environments: run it under agent_token.py exec --")
