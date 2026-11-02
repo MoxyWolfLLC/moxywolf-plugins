@@ -2681,6 +2681,29 @@ def surface_unusable(packet, reviewer):
     return None
 
 
+def spec_review_gate(packet):
+    """SR-001.6: an item review opens only when its items' requirements were checked against each
+    other, against the doc as it is now. Design items are checked against DESIGN.md, a goal item
+    <id>/<n> against goals/<id>/PLAN.md whole. A doc is looked for in every repo in the packet (a
+    workspace mirror repo carries none); missing everywhere is spec_review_missing."""
+    items = packet.get("items") or []
+    if not items:
+        return
+    import spec_review
+    design = [i for i in items if "/" not in i]
+    wanted = ([("DESIGN.md", design)] if design else []) + \
+             [(f"goals/{g}/PLAN.md", None) for g in sorted({i.split("/")[0] for i in items if "/" in i})]
+    for rel, scope_items in wanted:
+        docs = [Path(r["path"]) / rel for r in packet["repos"] if (Path(r["path"]) / rel).exists()]
+        if not docs:
+            raise ReviewError("spec_review_missing", f"no repo in the packet has {rel} (SR-001)")
+        for doc in docs:
+            ok, reason = spec_review.check(doc, scope_items)
+            if not ok:
+                code, _, why = reason.partition(": ")
+                raise ReviewError(code, f"{why} (SR-001)")
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -2712,6 +2735,8 @@ def cmd_open(a):
                           "`node scripts/model_select.mjs recommend <packet> DESIGN.md` (MR-001.3)")
     model_selection = ({"status": ms.get("status"), "mode": ms.get("mode"), "tier": ms.get("tier"),
                         "rule": ms.get("rule"), "override": ms.get("override")} if ms else None)
+
+    spec_review_gate(packet)
 
     lane = release_lane(packet["repos"])        # GA-010.2: by code, from the diff, before any model reads it
 

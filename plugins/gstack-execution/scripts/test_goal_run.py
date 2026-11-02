@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goal_run as gr  # noqa: E402
 import goal_guard as gguard  # noqa: E402
+import spec_review as sr  # noqa: E402
 gr.SANDBOXED = False   # the container is test_goal_checks' to test; one test below checks merged uses it
 
 BRIEF = """## Goal tests
@@ -77,6 +78,8 @@ class RunnerFixture(unittest.TestCase):
         os.environ["GSTACK_GOAL_RUN_DIR"] = str(Path(self.tmp.name, "runs"))
         self.git("init", "-q", "-b", "main")
         self.git("config", "user.email", "t@t"); self.git("config", "user.name", "t")
+        plan = self.repo / "goals" / "g1" / "PLAN.md"; plan.parent.mkdir(parents=True); plan.write_text(PLAN)
+        sr.seed_clean(plan)   # SR-001: an item review opens only on a plan whose spec review matches it
         self.commit("goal approved", {"goals/g1/GOAL.md": BRIEF, "goals/g1/PLAN.md": PLAN,
                                       "goals/g1/tests/test_g.py": TESTS, "goals/g1/holdout.sha256": HOLDOUT_SHA + "\n",
                                       "goalmod.py": "done = False\nsafe = True\n",
@@ -1066,8 +1069,16 @@ class FinalizedRelease(unittest.TestCase):
         _tgr.GovernedReview.response, _tgr.GovernedReview.round, _tgr.GovernedReview.install_github_response)
     BOT = _tgr.GovernedReview.BOT
 
+    def seed_plans(self, items):
+        """SR-001: each goal's plan carries a matching spec review, outside the reviewed commits."""
+        for g in {i.split("/")[0] for i in items}:
+            plan = self.repo / "goals" / g / "PLAN.md"; plan.parent.mkdir(parents=True, exist_ok=True)
+            plan.write_text("1. fixture item\n"); sr.seed_clean(plan)
+        (self.repo / ".git" / "info" / "exclude").write_text("goals/\n")
+
     def finalized(self, items=("g1/1",)):
         self.packet["items"] = list(items)                               # a whole-goal review names every item
+        self.seed_plans(items)
         self.packet["model_selection"] = {"status": "checked", "mode": "shadow"}
         self.open(); self.response(); self.round()
         self.call("release", self.rid)            # exits awaiting_human_release by design; the handoff is the point
@@ -1119,6 +1130,7 @@ class FinalizedRelease(unittest.TestCase):
         An item-only review at exactly the head a goal pull request merged is refused, and so is a goal
         pull request with no run record, even though the exact-head rule alone would record both."""
         self.packet["items"] = ["other/1"]
+        self.seed_plans(self.packet["items"])
         self.packet["model_selection"] = {"status": "checked", "mode": "shadow"}
         self.open(); self.response(); self.round(); self.call("release", self.rid)
         runs = self.root / "runs" / "g1"; runs.mkdir(parents=True)
