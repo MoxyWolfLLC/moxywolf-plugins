@@ -121,24 +121,48 @@ def _section(lines, start):
     return lines[start:end]
 
 
-def scope(text, items=None):
-    """(scope_name, text_sent). Raises Refused for an item the doc doesn't contain."""
+def _cells(row):
+    """A markdown table row's cells; an escaped \\| stays inside its cell."""
+    return [c.strip() for c in re.split(r"(?<!\\)\|", row.strip().strip("|"))]
+
+
+def _table_item(lines, item):
+    """The header, separator and row whose first cell is `item`, with its Status and Review ID cells
+    blanked, or None. The design-doc template writes items this way (one row per item)."""
+    for n, line in enumerate(lines):
+        if line.lstrip().startswith("|") and _cells(line)[0].strip("*` ") == item:
+            break
+    else:
+        return None
+    top = n
+    while top > 0 and lines[top - 1].lstrip().startswith("|"):
+        top -= 1
+    if top == n:
+        return [line]
+    head = _cells(lines[top])
+    blank = {i for i, h in enumerate(head) if h.lower() == "status" or h.lower().startswith("review id")}
+    row = ["" if i in blank else c for i, c in enumerate(_cells(line))]
+    return [lines[top], lines[top + 1], "| " + " | ".join(row) + " |"]
+
+
+def scope(text, item=None):
+    """(name, text_sent) for one item, or for the whole file when item is None. Raises Refused for an
+    item the doc doesn't contain."""
     lines = text.splitlines()
-    if items:
+    if item is None:
+        out, name = lines, "all"
+    else:
         out = []
         for head in CONTEXT:
             i = next((n for n, l in enumerate(lines) if l.strip() == head), None)
             if i is not None:
                 out += _section(lines, i)
-        for item in items:
-            i = next((n for n, l in enumerate(lines)
-                      if re.match(r"### %s\b" % re.escape(item), l)), None)
-            if i is None:
-                raise Refused(f"the doc has no item {item}")
-            out += _section(lines, i)
-        name = "+".join(items)
-    else:
-        out, name = lines, "all"
+        i = next((n for n, l in enumerate(lines) if re.match(r"### %s\b" % re.escape(item), l)), None)
+        row = None if i is not None else _table_item(lines, item)
+        if i is None and row is None:
+            raise Refused(f"the doc has no item {item}")
+        out += _section(lines, i) if i is not None else ["## Item", ""] + row
+        name = item
     # ponytail: a status line is any line starting **Status:**; other per-item bookkeeping still counts
     return name, "\n".join(l for l in out if not l.lstrip().startswith("**Status:**")) + "\n"
 
@@ -178,60 +202,73 @@ def findings(text):
 
 
 def cmd_run(doc, items=None, post=post):
+    """One review per item (SR-001.1), or one for the whole file. Exit 2 if any item has a contradiction."""
     doc = Path(doc)
-    name, sent = scope(doc.read_text(), items)   # refuses an unknown item before any request
-    text, iterations, calls = review(sent, post)
-    f = findings(text)
-    rec = {"schema": "spec-review/2", "doc": doc.name, "items": items or [],
-           "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
-           "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-           "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
-           "contradictions": f["contradictions"], "ambiguities": f["ambiguities"]}
-    rp = record_path(doc, name)
-    rp.parent.mkdir(parents=True, exist_ok=True)
-    rp.write_text(json.dumps(rec, indent=2) + "\n")
-    rp.with_suffix(".md").write_text(f"# Spec review: {doc.name} {name}\n\n_{rec['reviewed_at']} · "
-                                     f"{EXECUTOR} with {ADVISOR} advisor ({calls} calls)_\n\n{text}\n")
-    n = len(f["contradictions"])
-    print(f"spec_review: {n} contradiction(s), {len(f['ambiguities'])} ambiguit(ies); "
-          f"advisor called {calls}x; wrote {rp}")
-    return 2 if n else 0
+    text = doc.read_text()
+    scopes = [scope(text, i) for i in (items or [None])]   # refuses an unknown item before any request
+    worst = 0
+    for name, sent in scopes:
+        reply, iterations, calls = review(sent, post)
+        if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
+            raise Refused(f"{name}: the executor finished without consulting the advisor; no record written, re-run")
+        f = findings(reply)
+        rec = {"schema": "spec-review/3", "doc": doc.name, "item": None if name == "all" else name,
+               "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
+               "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+               "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
+               "contradictions": f["contradictions"], "ambiguities": f["ambiguities"]}
+        rp = record_path(doc, name)
+        rp.parent.mkdir(parents=True, exist_ok=True)
+        rp.write_text(json.dumps(rec, indent=2) + "\n")
+        rp.with_suffix(".md").write_text(f"# Spec review: {doc.name} {name}\n\n_{rec['reviewed_at']} · "
+                                         f"{EXECUTOR} with {ADVISOR} advisor ({calls} calls)_\n\n{reply}\n")
+        n = len(f["contradictions"])
+        print(f"spec_review {name}: {n} contradiction(s), {len(f['ambiguities'])} ambiguit(ies); "
+              f"advisor called {calls}x; wrote {rp}")
+        worst = max(worst, 2 if n else 0)
+    return worst
 
 
 def check(doc, items=None):
-    """(ok, reason). Read by cmd_check and by peer_review.py open."""
+    """(ok, reason). Every item must pass on its own record, so a batch passes in any order.
+    Read by cmd_check and by peer_review.py open."""
     doc = Path(doc)
-    hint = f"run `spec_review.py run {doc}{' --items ' + ','.join(items) if items else ''}`"
     if not doc.exists():
         return False, f"spec_review_missing: {doc} does not exist"
-    try:
-        name, sent = scope(doc.read_text(), items)
-    except Refused as e:
-        return False, f"spec_review_missing: {e}"
-    rp = record_path(doc, name)
-    if not rp.exists():
-        return False, f"spec_review_missing: no {rp.relative_to(doc.parent)} beside {doc.name}; {hint}"
-    rec = json.loads(rp.read_text())
-    if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
-        return False, f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}"
-    open_ = rec.get("contradictions") or []
-    if open_:
-        ids = ", ".join(c.get("id", "?") for c in open_)
-        return False, f"spec_review_open: {len(open_)} open contradiction(s) ({ids}); amend {doc.name}, then re-run"
-    return True, f"spec_review_ok: {rp.name} matches {name} in {doc.name}, no open contradictions"
+    text, names = doc.read_text(), []
+    for item in (items or [None]):
+        hint = f"run `spec_review.py run {doc}{' --items ' + item if item else ''}`"
+        try:
+            name, sent = scope(text, item)
+        except Refused as e:
+            return False, f"spec_review_missing: {e}"
+        rp = record_path(doc, name)
+        if not rp.exists():
+            return False, f"spec_review_missing: no {rp.relative_to(doc.parent)} beside {doc.name}; {hint}"
+        rec = json.loads(rp.read_text())
+        if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
+            return False, f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}"
+        if (rec.get("advisor_calls") or 0) < 1:
+            return False, f"spec_review_missing: {rp.name} records no advisor call; {hint}"
+        open_ = rec.get("contradictions") or []
+        if open_:
+            ids = ", ".join(c.get("id", "?") for c in open_)
+            return False, f"spec_review_open: {name} has {len(open_)} open contradiction(s) ({ids}); amend {doc.name}, then re-run"
+        names.append(name)
+    return True, f"spec_review_ok: {', '.join(names)} in {doc.name} match their records, no open contradictions"
 
 
-def stub_post(body_json):
-    """A transport that pauses once on an advisor call, then ends with `body_json` as findings.
-    Shared with test_spec_review_gate.py so the tests and the selftest exercise one stub."""
+def stub_post(body_json, advise=True):
+    """A transport that pauses each new turn on an advisor call, then ends with `body_json` as
+    findings; advise=False ends at once with no advisor call. Shared with test_spec_review_gate.py."""
     seen = []
 
     def stub(req):
         seen.append(req)
-        if len(seen) == 1:
+        if advise and req["messages"][-1]["role"] == "user":
             return {"stop_reason": "pause_turn", "usage": {"iterations": [{"type": "message"}]},
                     "content": [{"type": "server_tool_use", "id": "s1", "name": "advisor", "input": {}}]}
-        assert req["messages"][-1]["role"] == "assistant", "resume must resend the paused assistant turn"
+        assert not advise or req["messages"][-1]["role"] == "assistant", "resume must resend the paused turn"
         return {"stop_reason": "end_turn", "usage": {"iterations": [{"type": "advisor_message"}]},
                 "content": [{"type": "text", "text": f"Looked.\n```json\n{json.dumps(body_json)}\n```"}]}
     stub.seen = seen
@@ -245,7 +282,7 @@ def seed_clean(doc, items=None):
     import io
     with contextlib.redirect_stdout(io.StringIO()):
         cmd_run(doc, items, post=stub_post({"contradictions": [], "ambiguities": []}))
-    return record_path(doc, scope(Path(doc).read_text(), items)[0])
+    return [record_path(doc, i or "all") for i in (items or [None])]
 
 
 DEMO = """# Design
@@ -305,6 +342,17 @@ def assert_api_error_is_refused():
         srv.shutdown()
 
 
+TABLE = """## Items
+
+| ID | Item | Acceptance criteria | Status | Review ID / merge |
+|---|---|---|---|---|
+| T-001 | Rates | 1. Works offline. 2. Fetches live rates. | planned | PR #9 |
+| T-002 | Other | 1. Unrelated. | planned | |
+
+## Amendments log
+"""
+
+
 def selftest():
     import tempfile
     conflict = {"contradictions": [{"id": "C1", "requirements": ["R-001.1", "R-001.2"],
@@ -313,7 +361,7 @@ def selftest():
         doc = Path(d) / "DESIGN.md"
         doc.write_text(DEMO)
         # scope: context sections plus the item, no other item, no status line
-        name, sent = scope(DEMO, ["R-001"])
+        name, sent = scope(DEMO, "R-001")
         assert name == "R-001" and "Offline first" in sent and "Fetches live rates" in sent
         assert "R-002" not in sent and "Unrelated" not in sent and "**Status:**" not in sent and "Amendments" not in sent
         assert scope(DEMO)[0] == "all" and "R-002" in scope(DEMO)[1]
@@ -345,6 +393,30 @@ def selftest():
         assert check(doc, ["R-001"])[0], "a status line made the record stale"
         doc.write_text(doc.read_text().replace("- Offline first.", "- Online first."))
         assert check(doc, ["R-001"])[1].startswith("spec_review_stale"), "a constraint edit left it current"
+        # a table-row item (the template's format): header kept, Status and Review ID cells blanked
+        table = DEMO.split("## Items")[0] + TABLE
+        name, sent = scope(table, "T-001")
+        assert name == "T-001" and "| ID | Item |" in sent and "Works offline" in sent and "Offline first" in sent
+        assert "T-002" not in sent and "planned" not in sent and "PR #9" not in sent, sent
+        moved = table.replace("| planned | PR #9 |", "| done | PR #10 |")
+        assert scope(moved, "T-001") == (name, sent), "a status or merge cell made the scope differ"
+        assert scope(table, "T-001")[1] != scope(table.replace("Works offline", "Works online"), "T-001")[1]
+        # one record per item: a batch passes when each item does, in any order
+        doc.write_text(table)
+        assert cmd_run(doc, ["T-002", "T-001"], post=stub_post({"contradictions": [], "ambiguities": []})) == 0
+        assert check(doc, ["T-001", "T-002"])[0] and check(doc, ["T-002"])[0]
+        assert record_path(doc, "T-001").exists() and record_path(doc, "T-002").exists()
+        # a turn that never consults the advisor writes no record, and a record without one doesn't pass
+        record_path(doc, "T-001").unlink()
+        try:
+            cmd_run(doc, ["T-001"], post=stub_post({"contradictions": [], "ambiguities": []}, advise=False))
+            raise AssertionError("an unadvised run was accepted")
+        except Refused as e:
+            assert "without consulting the advisor" in str(e) and not record_path(doc, "T-001").exists()
+        cmd_run(doc, ["T-001"], post=stub_post({"contradictions": [], "ambiguities": []}))
+        rec = json.loads(record_path(doc, "T-001").read_text()); rec["advisor_calls"] = 0
+        record_path(doc, "T-001").write_text(json.dumps(rec))
+        assert "records no advisor call" in check(doc, ["T-001"])[1]
         # the credential has one home
         saved = os.environ.pop("GSTACK_ANTHROPIC_ENV", None)
         try:

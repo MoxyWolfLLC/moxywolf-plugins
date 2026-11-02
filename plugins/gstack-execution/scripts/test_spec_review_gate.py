@@ -75,6 +75,17 @@ class Gate(unittest.TestCase):
         sr.seed_clean(plan)
         r = self.opened(["g1/1"]); self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_a_table_row_item_opens_and_a_batch_needs_every_item(self):
+        (self.repo / ".git" / "info" / "exclude").write_text("DESIGN.md\nreviews/\n")
+        doc = self.repo / "DESIGN.md"
+        doc.write_text(DESIGN.split("### FX-001")[0] + "## Items\n\n| ID | Item | Acceptance criteria | Status |\n|---|---|---|---|\n"
+                       "| FX-001 | The value changes | 1. value is after | planned |\n| FX-002 | Other | 1. nothing | planned |\n")
+        sr.seed_clean(doc, ["FX-001"])
+        r = self.opened(["FX-001"]); self.assertEqual(r.returncode, 0, r.stderr)
+        self.refused(["FX-001", "FX-002"], "spec_review_missing")      # FX-002 has no record of its own
+        sr.seed_clean(doc, ["FX-002"])
+        r = self.opened(["FX-002", "FX-001"]); self.assertEqual(r.returncode, 0, r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
