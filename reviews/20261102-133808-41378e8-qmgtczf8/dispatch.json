@@ -1,0 +1,13 @@
+{
+  "pid": 79578,
+  "started": "2026-11-02T13:38:14",
+  "started_epoch": 1793655494,
+  "rounds_at_dispatch": 0,
+  "log": "/Users/doriancougias/GitHub/moxywolf-plugins/reviews/20261102-133808-41378e8-qmgtczf8/dispatch.log",
+  "argv": [
+    "/Users/doriancougias/GitHub/moxywolf-plugins/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20261102-133808-41378e8-qmgtczf8"
+  ],
+  "origin": "gate_output"
+}

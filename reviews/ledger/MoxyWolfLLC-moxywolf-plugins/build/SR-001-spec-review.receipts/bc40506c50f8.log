@@ -1,0 +1,208 @@
+discovered 83 test suites and 19 selftest entry points under /Users/doriancougias/GitHub/moxywolf-plugins; left 15 goal test files under goals/ to the goal-tests check
+  - .github/test_codeowners.py
+  - pilotmod/test_slug.py
+  - plugins/4d-blog-engine/tests/test_docs.py
+  - plugins/4d-blog-engine/tests/test_hub_term.py
+  - plugins/4d-blog-engine/tests/test_prose_lint.py
+  - plugins/4d-blog-engine/tests/test_ship.py
+  - plugins/academic-pipeline/scripts/test_archive_references.py
+  - plugins/academic-pipeline/scripts/test_reference_identity.py
+  - plugins/academic-pipeline/scripts/test_release_gate.py
+  - plugins/academic-pipeline/scripts/test_zenodo_deposit.py
+  - plugins/chief-of-staff/tests/test_claim_check.py
+  - plugins/chief-of-staff/tests/test_roster.py
+  - plugins/chief-of-staff/tests/test_sales_marketing.py
+  - plugins/council/scripts/test_decider_council.py
+  - plugins/council/scripts/test_jev_route.py
+  - plugins/excalidraw-vault/scripts/test_check_repo_diagram.py
+  - plugins/gstack-execution/scripts/test_agent_token.py
+  - plugins/gstack-execution/scripts/test_check_ledger.py
+  - plugins/gstack-execution/scripts/test_ci_log_receipt.py
+  - plugins/gstack-execution/scripts/test_ci_run_paths.py
+  - plugins/gstack-execution/scripts/test_criterion_files.py
+  - plugins/gstack-execution/scripts/test_design_review.py
+  - plugins/gstack-execution/scripts/test_dispatch_collect.py
+  - plugins/gstack-execution/scripts/test_egress.py
+  - plugins/gstack-execution/scripts/test_evidence_links.py
+  - plugins/gstack-execution/scripts/test_examined.py
+  - plugins/gstack-execution/scripts/test_examined_guard.py
+  - plugins/gstack-execution/scripts/test_fix_round.py
+  - plugins/gstack-execution/scripts/test_ga009_mutations.py
+  - plugins/gstack-execution/scripts/test_goal_brief.py
+  - plugins/gstack-execution/scripts/test_goal_calls.py
+  - plugins/gstack-execution/scripts/test_goal_checks.py
+  - plugins/gstack-execution/scripts/test_goal_delivery.py
+  - plugins/gstack-execution/scripts/test_goal_digest.py
+  - plugins/gstack-execution/scripts/test_goal_envelope.py
+  - plugins/gstack-execution/scripts/test_goal_guard.py
+  - plugins/gstack-execution/scripts/test_goal_local.py
+  - plugins/gstack-execution/scripts/test_goal_new.py
+  - plugins/gstack-execution/scripts/test_goal_ready.py
+  - plugins/gstack-execution/scripts/test_goal_run.py
+  - plugins/gstack-execution/scripts/test_goal_spend.py
+  - plugins/gstack-execution/scripts/test_governed_review.py
+  - plugins/gstack-execution/scripts/test_grants.py
+  - plugins/gstack-execution/scripts/test_graph_context.py
+  - plugins/gstack-execution/scripts/test_ledger_evidence.py
+  - plugins/gstack-execution/scripts/test_manifest_consistency.py
+  - plugins/gstack-execution/scripts/test_measure.py
+  - plugins/gstack-execution/scripts/test_model_select.py
+  - plugins/gstack-execution/scripts/test_nonblocking_resolutions.py
+  - plugins/gstack-execution/scripts/test_off_repo_criterion.py
+  - plugins/gstack-execution/scripts/test_openrouter_transport.py
+  - plugins/gstack-execution/scripts/test_origin.py
+  - plugins/gstack-execution/scripts/test_packet_coverage.py
+  - plugins/gstack-execution/scripts/test_packet_coverage_run.py
+  - plugins/gstack-execution/scripts/test_peer_review.py
+  - plugins/gstack-execution/scripts/test_read_side.py
+  - plugins/gstack-execution/scripts/test_review_evidence.py
+  - plugins/gstack-execution/scripts/test_review_surface.py
+  - plugins/gstack-execution/scripts/test_reviewer_routing.py
+  - plugins/gstack-execution/scripts/test_skill_packaging.py
+  - plugins/gstack-execution/scripts/test_spec_review_gate.py
+  - plugins/gstack-execution/scripts/test_task_graph.py
+  - plugins/gstack-execution/scripts/test_unknowns.py
+  - plugins/gstack-execution/scripts/test_untrusted_enclosure.py
+  - plugins/gstack-execution/scripts/test_usage_parse.py
+  - plugins/gstack-execution/scripts/test_version_bump.py
+  - plugins/gstack-execution/scripts/test_vocabulary.py
+  - plugins/mapping/skills/ucmapper/scripts/test_extract_ad.py
+  - plugins/mcp-demand-harness/tests/test_bank.py
+  - plugins/mcp-demand-harness/tests/test_export.py
+  - plugins/mcp-demand-harness/tests/test_inventory.py
+  - plugins/mcp-demand-harness/tests/test_probe.py
+  - plugins/mcp-demand-harness/tests/test_probe_checks.py
+  - plugins/mcp-demand-harness/tests/test_results.py
+  - plugins/mcp-demand-harness/tests/test_seed.py
+  - plugins/model-router/scripts/test_route.py
+  - plugins/project-init/tests/test_mistake_ledger.py
+  - plugins/project-init/tests/test_no_derived_label.py
+  - plugins/project-init/tests/test_session_end_roster.py
+  - plugins/project-init/tests/test_session_record.py
+  - plugins/project-init/tests/test_shared_memory_home.py
+  - plugins/project-init/tests/test_standing_rule.py
+  - plugins/project-init/tests/test_taskade_paths.py
+  - plugins/academic-pipeline/scripts/archive_references.py --selftest
+  - plugins/council/scripts/jev_route.py --selftest
+  - plugins/daily-briefings/skills/sprint-day/scripts/plan_blocks.py --selftest
+  - plugins/github-repo-analyzer/scripts/retrieval_probe.py --selftest
+  - plugins/github-repo-analyzer/scripts/retrieval_review.py --selftest
+  - plugins/gstack-execution/scripts/agent_token.py --selftest
+  - plugins/gstack-execution/scripts/ci_log_receipt.py --selftest
+  - plugins/gstack-execution/scripts/enclosure.py --selftest
+  - plugins/gstack-execution/scripts/endform_workflow.py --selftest
+  - plugins/gstack-execution/scripts/goal_brief.py --selftest
+  - plugins/gstack-execution/scripts/measure.py --selftest
+  - plugins/gstack-execution/scripts/peer_review.py --selftest
+  - plugins/gstack-execution/scripts/run_all_tests.py --selftest
+  - plugins/gstack-execution/scripts/skill_packaging.py --selftest
+  - plugins/gstack-execution/scripts/spec_review.py --selftest
+  - plugins/gstack-execution/scripts/tool_rung.py --selftest
+  - plugins/gstack-execution/scripts/version_bump.py --selftest
+  - plugins/gstack-execution/scripts/vocab_check.py --selftest
+  - plugins/model-router/scripts/route.py --selftest
+
+PASS  .github/test_codeowners.py
+PASS  pilotmod/test_slug.py
+PASS  plugins/4d-blog-engine/tests/test_docs.py
+PASS  plugins/4d-blog-engine/tests/test_hub_term.py
+PASS  plugins/4d-blog-engine/tests/test_prose_lint.py
+PASS  plugins/4d-blog-engine/tests/test_ship.py
+PASS  plugins/academic-pipeline/scripts/test_archive_references.py
+PASS  plugins/academic-pipeline/scripts/test_reference_identity.py
+PASS  plugins/academic-pipeline/scripts/test_release_gate.py
+PASS  plugins/academic-pipeline/scripts/test_zenodo_deposit.py
+PASS  plugins/chief-of-staff/tests/test_claim_check.py
+PASS  plugins/chief-of-staff/tests/test_roster.py
+PASS  plugins/chief-of-staff/tests/test_sales_marketing.py
+PASS  plugins/council/scripts/test_decider_council.py
+PASS  plugins/council/scripts/test_jev_route.py
+PASS  plugins/excalidraw-vault/scripts/test_check_repo_diagram.py
+PASS  plugins/gstack-execution/scripts/test_agent_token.py
+PASS  plugins/gstack-execution/scripts/test_check_ledger.py
+PASS  plugins/gstack-execution/scripts/test_ci_log_receipt.py
+PASS  plugins/gstack-execution/scripts/test_ci_run_paths.py
+PASS  plugins/gstack-execution/scripts/test_criterion_files.py
+PASS  plugins/gstack-execution/scripts/test_design_review.py
+PASS  plugins/gstack-execution/scripts/test_dispatch_collect.py
+PASS  plugins/gstack-execution/scripts/test_egress.py
+PASS  plugins/gstack-execution/scripts/test_evidence_links.py
+PASS  plugins/gstack-execution/scripts/test_examined.py
+PASS  plugins/gstack-execution/scripts/test_examined_guard.py
+PASS  plugins/gstack-execution/scripts/test_fix_round.py
+PASS  plugins/gstack-execution/scripts/test_ga009_mutations.py
+PASS  plugins/gstack-execution/scripts/test_goal_brief.py
+PASS  plugins/gstack-execution/scripts/test_goal_calls.py
+PASS  plugins/gstack-execution/scripts/test_goal_checks.py
+PASS  plugins/gstack-execution/scripts/test_goal_delivery.py
+PASS  plugins/gstack-execution/scripts/test_goal_digest.py
+PASS  plugins/gstack-execution/scripts/test_goal_envelope.py
+PASS  plugins/gstack-execution/scripts/test_goal_guard.py
+PASS  plugins/gstack-execution/scripts/test_goal_local.py
+PASS  plugins/gstack-execution/scripts/test_goal_new.py
+PASS  plugins/gstack-execution/scripts/test_goal_ready.py
+PASS  plugins/gstack-execution/scripts/test_goal_run.py
+PASS  plugins/gstack-execution/scripts/test_goal_spend.py
+PASS  plugins/gstack-execution/scripts/test_governed_review.py
+PASS  plugins/gstack-execution/scripts/test_grants.py
+PASS  plugins/gstack-execution/scripts/test_graph_context.py
+PASS  plugins/gstack-execution/scripts/test_ledger_evidence.py
+PASS  plugins/gstack-execution/scripts/test_manifest_consistency.py
+PASS  plugins/gstack-execution/scripts/test_measure.py
+PASS  plugins/gstack-execution/scripts/test_model_select.py
+PASS  plugins/gstack-execution/scripts/test_nonblocking_resolutions.py
+PASS  plugins/gstack-execution/scripts/test_off_repo_criterion.py
+PASS  plugins/gstack-execution/scripts/test_openrouter_transport.py
+PASS  plugins/gstack-execution/scripts/test_origin.py
+PASS  plugins/gstack-execution/scripts/test_packet_coverage.py
+PASS  plugins/gstack-execution/scripts/test_packet_coverage_run.py
+PASS  plugins/gstack-execution/scripts/test_peer_review.py
+PASS  plugins/gstack-execution/scripts/test_read_side.py
+PASS  plugins/gstack-execution/scripts/test_review_evidence.py
+PASS  plugins/gstack-execution/scripts/test_review_surface.py
+PASS  plugins/gstack-execution/scripts/test_reviewer_routing.py
+PASS  plugins/gstack-execution/scripts/test_skill_packaging.py
+PASS  plugins/gstack-execution/scripts/test_spec_review_gate.py
+PASS  plugins/gstack-execution/scripts/test_task_graph.py
+PASS  plugins/gstack-execution/scripts/test_unknowns.py
+PASS  plugins/gstack-execution/scripts/test_untrusted_enclosure.py
+PASS  plugins/gstack-execution/scripts/test_usage_parse.py
+PASS  plugins/gstack-execution/scripts/test_version_bump.py
+PASS  plugins/gstack-execution/scripts/test_vocabulary.py
+PASS  plugins/mapping/skills/ucmapper/scripts/test_extract_ad.py
+PASS  plugins/mcp-demand-harness/tests/test_bank.py
+PASS  plugins/mcp-demand-harness/tests/test_export.py
+PASS  plugins/mcp-demand-harness/tests/test_inventory.py
+PASS  plugins/mcp-demand-harness/tests/test_probe.py
+PASS  plugins/mcp-demand-harness/tests/test_probe_checks.py
+PASS  plugins/mcp-demand-harness/tests/test_results.py
+PASS  plugins/mcp-demand-harness/tests/test_seed.py
+PASS  plugins/model-router/scripts/test_route.py
+PASS  plugins/project-init/tests/test_mistake_ledger.py
+PASS  plugins/project-init/tests/test_no_derived_label.py
+PASS  plugins/project-init/tests/test_session_end_roster.py
+PASS  plugins/project-init/tests/test_session_record.py
+PASS  plugins/project-init/tests/test_shared_memory_home.py
+PASS  plugins/project-init/tests/test_standing_rule.py
+PASS  plugins/project-init/tests/test_taskade_paths.py
+PASS  plugins/academic-pipeline/scripts/archive_references.py --selftest
+PASS  plugins/council/scripts/jev_route.py --selftest
+PASS  plugins/daily-briefings/skills/sprint-day/scripts/plan_blocks.py --selftest
+PASS  plugins/github-repo-analyzer/scripts/retrieval_probe.py --selftest
+PASS  plugins/github-repo-analyzer/scripts/retrieval_review.py --selftest
+PASS  plugins/gstack-execution/scripts/agent_token.py --selftest
+PASS  plugins/gstack-execution/scripts/ci_log_receipt.py --selftest
+PASS  plugins/gstack-execution/scripts/enclosure.py --selftest
+PASS  plugins/gstack-execution/scripts/endform_workflow.py --selftest
+PASS  plugins/gstack-execution/scripts/goal_brief.py --selftest
+PASS  plugins/gstack-execution/scripts/measure.py --selftest
+PASS  plugins/gstack-execution/scripts/peer_review.py --selftest
+PASS  plugins/gstack-execution/scripts/run_all_tests.py --selftest
+PASS  plugins/gstack-execution/scripts/skill_packaging.py --selftest
+PASS  plugins/gstack-execution/scripts/spec_review.py --selftest
+PASS  plugins/gstack-execution/scripts/tool_rung.py --selftest
+PASS  plugins/gstack-execution/scripts/version_bump.py --selftest
+PASS  plugins/gstack-execution/scripts/vocab_check.py --selftest
+PASS  plugins/model-router/scripts/route.py --selftest
+
+examined 102 checks: 102 passed, 0 failed

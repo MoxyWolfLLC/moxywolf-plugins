@@ -1,0 +1,173 @@
+{
+  "review_id": "20261102-133808-41378e8-qmgtczf8",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 2,
+  "outcome": "fixes_verified",
+  "coverage_checked": true,
+  "coverage_status": "covered",
+  "coverage_overridden": false,
+  "off_repo_evidence": [],
+  "off_repo_overridden": [
+    "8. **One live run.** A plan with one deliberately planted conflict, run through `run`, lists that conflict in `contradictions`; the record is quoted in the review packet. It needs `anthropic.env` in the vault."
+  ],
+  "ledger_status": "clear",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "risky",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/spec_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_goal_run.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_model_select.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_origin.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_spec_review_gate.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+        "repo": "moxywolf-plugins"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "41378e84d91aeb982e5c6f287673869ed3187070"
+    ],
+    [
+      "41378e84d91aeb982e5c6f287673869ed3187070"
+    ],
+    [
+      "837fa1a3b078fb47f5cac3f2b91958fa56d374d9"
+    ]
+  ],
+  "origin": "gate_output",
+  "evidence_runs": {
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/GitHub/moxywolf-plugins",
+        "run_id": 41531439004
+      }
+    ],
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/GitHub/moxywolf-plugins",
+        "run_id": "4611b01025e5"
+      }
+    ]
+  },
+  "reviewer_intended": "codex",
+  "embedded_locations": [
+    {
+      "file": "plugins/gstack-execution/skills/gstack-execution/references/peer-review-contract.md",
+      "line": 7
+    },
+    {
+      "file": "plugins/gstack-execution/scripts/spec_review.py",
+      "line": 47
+    },
+    {
+      "file": "plugins/gstack-execution/commands/gstack-build.md",
+      "line": 45
+    },
+    {
+      "file": "plugins/gstack-execution/commands/gstack-plan-review.md",
+      "line": 72
+    }
+  ],
+  "embedded_instructions_reported": 4,
+  "adjudicated_round": 2
+}
