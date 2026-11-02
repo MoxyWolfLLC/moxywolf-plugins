@@ -173,6 +173,91 @@ DR-113 lets the agent merge on a clean cross-vendor review. MR-001 picks the bui
 8. `test_governed_review.py` gains cases: a diff touching a migration path is `closed`; one deleting a tracked file is `closed` by effect; one changing a shared script is `wide`; one changing only a README is `contained`; the most restrictive wins across repositories; a repository's own table replaces the default; `release` on a closed-lane review writes the DR-113-does-not-apply instruction; `record-release` on an autonomous agent merge of a closed-lane review records `agent_merge_out_of_lane`; a reviewer output carrying a `release_lane` key is ignored for the lane.
 9. `plugins/gstack-execution/.claude-plugin/plugin.json` moves a minor version and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` reports a nonzero count of what it examined, names `test_governed_review.py` among the suites it ran, and reports no failures.
 
+### GA-011 — Into a goal branch the closed lane is deferred to the goal pull request into main
+
+**Status:** building. Declared 2026-11-02 from the wfa-review-screen-v5 goal (workforce-automation #139 to #146), where every item carrying migration 0061 forced the closed lane into `goal/wfa-review-screen-v5` and Dorian approved pull request after pull request. Approved by Dorian the same day ("I approve GA-011").
+
+**Links introduced:** `lane_in_force` on the release handoff and the release record: the lane `release` and `record-release` hold the merge to, from `release_lane` and the target. The reader's assumption is that a migration still cannot reach main without the Release Owner. That holds because the goal pull request into main is reviewed over the whole goal's diff (`final_review_scope` requires the review's base to be where main and the goal head meet), so its `release_lane` is `closed` whenever any item's was, and `goal_guard.final_merge_allowed` refuses it without the Release Owner's merge-instruction.
+
+GA-010 decides the lane from the diff at `open`, before the target is known, so a migration item into `goal/<id>` was closed exactly like a migration into main. Meanwhile `final_merge_allowed` (GO-011.2) never read the lane, so the goal pull request into main merged as the bot on a clean review whatever it carried. The gate sat at the step that doesn't reach production and was missing from the one that does. GA-011 moves it.
+
+1. `peer_review.py` gains `lane_in_force(release_lane, target)`: the lane's own value, except a `closed` lane into a target starting `goal/`, which is in force as `wide`. It is the one home of the rule; `release_lane` itself never moves.
+2. `release` checks the wide gates when the lane in force is `wide` (so a deferred closed lane still needs the ledger clear, coverage checked, links verified and no open unknown needing the repository), records `lane_in_force`, and for a deferred lane writes an instruction that names what closed it, says it is deferred to the goal pull request into main, and says the agent merges with the wide gates.
+3. `record-release` records an agent merge as `agent_merge_out_of_lane` only when the lane in force is `closed`; a deferred lane's agent merge is `agent_merge_autonomous`, and every record carries `lane_in_force`.
+4. `goal_guard.final_merge_allowed` takes the pull request's comments and refuses a whole-goal review whose lane is `closed` unless a merge-instruction posted by the agent, quoting the review's Release Owner and covering this pull request, is on it. Unreadable comments are a refusal. `goal_run.py may` and `resume` read the comments from GitHub for a merge into main.
+5. `/gstack-build` Step 6 and `/gstack-ship` read `lane_in_force`; `/gstack-goal` finish step 3 and local step 4 say a closed goal lane needs Dorian's merge-instruction, asked once for that pull request; `GOVERNANCE.md` and the peer-review contract describe the deferral.
+6. `vocabulary.json` 1.12.0 adds `lane_in_force` as a state field.
+7. Tests: a closed lane released into `goal/g1` is in force as `wide` and its instruction names the deferral; the same release refuses when a wide gate fails; a closed lane released into main is still `closed`; an agent merge of a closed lane into `goal/g1` is `agent_merge_autonomous` carrying `release_lane.lane` `closed`; `closed_lane_instructed` passes an open lane, refuses a closed one without an instruction (naming what closed it), with unreadable comments, or with an instruction for another pull request, from another owner or posted by a person, and passes the owner's instruction posted by the agent; `final_merge_allowed` carries the refusal.
+8. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.158.0 (CI-002).
+
+Not covered: a branch named `goal/<id>` with no goal run behind it gets the same deferral. Its pull request into main is still closed by GA-010 and stopped by `/gstack-build`, so the closed lane holds; it is noted, not gated.
+
+### XE-040 — A check that was wrong is retired on the record, with the Release Owner's words
+
+**Status:** building. Declared 2026-11-02 from wfa-review-screen-v5, where goal tests run before the review screen existed opened ledger failures no honest run could close. Approved by Dorian the same day ("I approve fixes 2 to 6 as written").
+
+**Links introduced:** a `kind: retire` line on the branch's ledger naming the run it retires (`retires`), the reason and the Release Owner's words (`approval`). The reader's assumption is that a retired check was wrong and Dorian said so; that holds because `retire` refuses without both and only for a failure whose issue is open, and the line keeps his words verbatim.
+
+1. `check_ledger.py retire --repo <path> --run <id> --reason "<why>" --approval "<words>"` appends a `kind: retire` line that closes the open issue run `<id>` belongs to: its identity, the run it retires, the head, the reason, the Release Owner's words verbatim and the time.
+2. It is refused without a reason or words, for a run that isn't a failure on this branch's ledger, and for an issue already closed. A later failure of the same identity opens a new issue as usual.
+3. `open-issues` lists retired checks after the open ones; `find_run` never returns a retirement as a run.
+4. `/gstack-build` Step 3 says when to retire (a check that was wrong, not red) and that it needs Dorian's words.
+5. Tests: retire closes the issue, is listed with reason and words, and a later failure reopens it; each refusal writes nothing.
+
+### GO-013 — A malformed `may` call is a usage error, not an escalation
+
+**Status:** building. Declared and approved 2026-11-02 with XE-040.
+
+**Links introduced:** none. Exit 2 from `may` means the call's shape was wrong; the run state is unchanged, which the test checks byte for byte.
+
+1. `goal_run.py may` checks the call's shape before anything is read or written: the class is one of `governance.GRANT_CLASSES`; `vcs.push` and `merge` take a valid branch name; `pr.open` takes `<base><-<head>`; `net.connect` a host or URL; others a name without whitespace; `merge` also names `--head <sha>` and `--pr <n>`, and only `merge` takes `--head`, `--review`, `--pr` or `--sync`.
+2. A malformed call exits 2 with the form expected and changes nothing in the run, so no escalation reaches Dorian.
+3. `/gstack-goal` step 4 documents exit 2.
+4. Tests: five malformed calls through `main` each exit 2 with `usage:` and leave the run state byte-identical.
+
+### GO-014 — Code isn't a hostname or an environment variable (amends GO-005)
+
+**Status:** building. Declared and approved 2026-11-02 with XE-040, from wfa-review-screen-v5.
+
+**Links introduced:** none. The `external` type and its reasons keep their meaning; fewer code tokens reach them.
+
+1. In a code file a host-like key (`host`, `url`, …) counts only when its value is a quoted string, so `const host = request.headers.get(...)` is no hostname; a config file keeps the old rule.
+2. `${X}` counts as a name only before `}` or a shell operator (`:`, `-`, `=`, `+`, `?`, `#`, `%`, `/`), so `${Math.min(a, b)}` is code.
+3. Tests in `test_goal_calls.py::CodeIsNotAHost` cover both, and a quoted host and a config host still count.
+
+### GO-015 — A holdout that only missed a package says so (amends GO-003)
+
+**Status:** building. Declared and approved 2026-11-02 with XE-040.
+
+**Links introduced:** none. The goal-holdout check's title and the `holdout` escalation's text change wording only; the conclusion and the run's outcome don't.
+
+1. `goal_brief.holdout_cause` reads the failures `holdout_failures` reported; when every one is a missing module (`No module named`, `Cannot find module`), `holdout_reading` gives "missing package <names> (an environment problem, not evidence of a reward hack)". One real failure beside them keeps "possible reward hack".
+2. The goal-holdout check's title and `goal_run.py holdout-failed`'s escalation both use `holdout_reading`.
+3. The check stays red and the run stops either way.
+4. Tests: a missing-package holdout is titled so and stays a failure; a mixed one keeps "possible reward hack"; the escalation says "missing package" and the run ends stopped.
+
+### XE-041 — An installed scorer installs its own dependency (amends XE-014)
+
+**Status:** building. Declared and approved 2026-11-02 with XE-040.
+
+**Links introduced:** `coverage.consulted` names the scorer cache it used or tried. The reader's assumption is that a `checked` report was scored with the lockfile's `ai`; that holds because the cache is keyed by the lockfile's sha256.
+
+1. When `import('ai')` fails, `packet_coverage.mjs` runs `npm ci --omit=dev` once from the plugin's own `package.json` and lockfile into `${GSTACK_HOME:-~/.gstack}/scorer/<lockfile sha256, 16 hex>/`, in a temporary directory renamed into place, and loads `ai` from there.
+2. A failed install records `broken`, naming npm's error and the cache it consulted, and leaves nothing half-installed; with no lockfile it records `broken` as before.
+3. Tests: an installed copy with no `node_modules` scores and reuses its cache on a second run; an install against an unreachable registry is `broken`.
+
+### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
+
+**Status:** building. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
+
+**Links introduced:** none. `release_lane` and the wide gates keep their fields; `wide_links_hold` decides one of them.
+
+1. `goal_new.py`'s drafting rules say the container already has no network and loopback must stay open, and `cmd_tests` and `cmd_holdout` refuse drafted source that rebinds anything on the `socket` module (wfa-gateway-v1's holdout guard blocked Turbopack's loopback, so every Next.js build failed it). Test: three guard forms are refused; binding a socket to 127.0.0.1 isn't.
+2. `wide_links_hold` takes `links_unverifiable` in the wide lane when every check that didn't verify is a finding citing `evidence/ci-*`, a log the dispatcher fetched itself; a stale link, a missing record or any other unverifiable check still fails it. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable`.
+3. `/gstack-build` says each fix round passes `--ledger-run` (already in the code, tested in `test_ci_run_paths.py`).
+4. Not changed: `resync` on a sync pull request (the current code takes main's tip plus an empty commit, and `test_goal_run.py` covers it; not reproduced here); an acknowledged goal-envelope escalation keeping later items red, because judging an item only on what it adds would let a direct push to `goal/<id>` past every item check. Dorian ruled 2026-11-02 ("Option B"): no change; when a change outside the envelope lands on a goal branch, the fix is a new goal with wider Allowed paths.
+5. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.158.0 cover GA-011 through GO-016 (CI-002).
+
 ## Second objective: academic-pipeline integrity
 
 Goal: the pipeline must not encode a fact it cannot know. Names, filenames, and required sections come from run data or from the user, never from a template constant, and a mechanical gate reports what was checked before anything is presented as finished.

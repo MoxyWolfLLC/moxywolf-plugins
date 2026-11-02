@@ -643,10 +643,20 @@ def release_lane(repos, table=None):
             "table": sources[0] if len(sources) == 1 else sources}
 
 
-def lane_instruction(lane_record):
+def lane_in_force(lane_record, target):
+    """GA-011: the lane a release into `target` is held to. The lane itself never moves. A closed lane
+    into a goal branch (`goal/<id>`) is held to the wide gates and deferred: the goal pull request into
+    main is reviewed over the whole goal's diff, so it decides closed again, and
+    goal_guard.final_merge_allowed holds it there until the Release Owner instructs."""
+    lane = (lane_record or {}).get("lane") or "contained"
+    return "wide" if lane == "closed" and str(target or "").startswith("goal/") else lane
+
+
+def lane_instruction(lane_record, target="main"):
     """F6 (review 20261013-202943): the closed instruction names what closed the lane."""
     lane = (lane_record or {}).get("lane") or "contained"
-    text = LANE_INSTRUCTION[lane]
+    deferred = lane == "closed" and lane_in_force(lane_record, target) != "closed"
+    text = LANE_INSTRUCTION["closed_deferred" if deferred else lane]
     if lane == "closed":
         what = "; ".join(f"{m['repo']}: {m.get('effect') or m['path']}" + (f" ({m['path']})" if m.get("effect") else "")
                          for m in lane_record.get("matched") or ()) or "nothing recorded"
@@ -667,7 +677,36 @@ def ledger_status_now(repos):
     return "overridden" if open_failures else ("none" if missing else "clear"), open_failures
 
 
-def wide_gates(state, links, open_unknowns_now, repos):
+def ci_shown(d):
+    """Every evidence/ci-* file a round of review d recorded the dispatcher writing: failed jobs' logs
+    (XE-027 F1) and passing jobs' report-line summaries (review 20261102-095221 F9)."""
+    shown = set()
+    for f in sorted(Path(d).glob("round-*.json")) if d else ():
+        rec = load(Path(d), f.name) or {}
+        for c in (rec.get("ci_logs") or []) + (rec.get("ci_summaries") or []):   # F9: passing jobs' summaries too
+            if str(c.get("shown", "")).startswith(f"{EVIDENCE_DIR}/ci-"):
+                shown.add(c["shown"])
+    return shown
+
+
+def wide_links_hold(links, shown=frozenset()):
+    """The wide lane's link gate. `links_verified` holds. So does `links_unverifiable` when every check
+    that didn't verify is a finding citing a CI log under evidence/ci-*: the dispatcher fetched that log
+    itself (XE-027) and findings citing it aren't bound to repository content, so they can't re-resolve
+    either way, and that alone blocked wide releases (2026-10-30). A stale link, a missing record or any
+    other unverifiable check still fails it."""
+    if links.get("outcome") == "links_verified":
+        return True
+    if links.get("outcome") != "links_unverifiable":
+        return False
+    bad = [c for c in links.get("checks") or () if not c.get("ok")]
+    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+):\d+$")
+    # review F7: a CI-shaped name proves nothing; the cited file must be one a round recorded showing
+    return bool(bad) and all(c.get("kind") == "unverifiable" and (m := cited.search(str(c.get("link", ""))))
+                             and m.group(1) in shown for c in bad)
+
+
+def wide_gates(state, links, open_unknowns_now, repos, d=None):
     """F2 (review 20261013-202943): the wide lane's gates are checked, not claimed. Returns the ones
     that do not hold, each a sentence, so the refusal names them."""
     failed = []
@@ -676,7 +715,7 @@ def wide_gates(state, links, open_unknowns_now, repos):
         failed.append(f"the failure ledger has {len(open_failures)} open failure(s) now, not clear")
     if not state.get("coverage_checked"):
         failed.append("coverage was not checked")
-    if links.get("outcome") != "links_verified":
+    if not wide_links_hold(links, ci_shown(d)):
         failed.append(f"links are {links.get('outcome')}, not verified")
     if any(u.get("needs") == "repository" for u in open_unknowns_now):
         failed.append("an open unknown still needs the repository")
@@ -687,6 +726,7 @@ LANE_INSTRUCTION = {
     "contained": "Merge the exact reviewed head through the pull request, then run record-release. Under DR-113 the agent merges on its own; a change to a CODEOWNERS path also needs the Release Owner's approving review, which GitHub enforces. This command never merges or accepts an approval flag.",
     "wide": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
     "closed": "The lane is closed: DR-113 does not apply, and the agent does not merge. The Release Owner merges under their own login, or instructs the agent on the pull request (merge-instruction). This command never merges or accepts an approval flag.",
+    "closed_deferred": "The lane is closed: into a goal branch the closed lane is deferred to the goal pull request into main, which needs the Release Owner's merge-instruction (GA-011). Here the agent merges under DR-113 with the wide gates, which this handoff has checked: merge the exact reviewed head through the pull request, then run record-release. This command never merges or accepts an approval flag.",
 }
 
 # ---- XE-018: the files a change names, and CI results the dispatcher fetched itself ----
@@ -1310,6 +1350,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     # where the full copy lives, has to survive in the round record.
     stats["ci_logs"] = [{"run_id": c["run_id"], "job_id": j["id"], "name": j["name"], "conclusion": j["conclusion"],
                          **j["log"]} for c in ci for j in c.get("jobs") or () if "log" in j]
+    # review 20261102-095221 F9: a passing job's report lines are dispatcher-fetched evidence too, and
+    # the wide link gate reads which files a round showed from the round record
+    stats["ci_summaries"] = [{"run_id": c["run_id"], "job_id": j["id"], "name": j["name"], "conclusion": j["conclusion"],
+                              **{k: j["summary"].get(k) for k in ("shown", "sha256", "lines", "read")}}
+                             for c in ci for j in c.get("jobs") or () if (j.get("summary") or {}).get("shown")]
     # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
     # what to do with them, routes the second-home check to the party whose job is finding the
     # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
@@ -2818,6 +2863,7 @@ def cmd_round(a):
                                          archive_dir=d / "ci-logs")   # XE-027 F1: outlives the surface
         record["evidence"] = surf_stats.pop("evidence")   # XE-018.6
         record["ci_logs"] = surf_stats.pop("ci_logs")     # XE-027 F1
+        record["ci_summaries"] = surf_stats.pop("ci_summaries", [])   # review 20261102-095221 F9
         record["ci_runs"] = surf_stats.pop("ci_runs")     # EV-011: what a `ci:` evidence reference resolves against
         record["ledger_runs"] = surf_stats.pop("ledger_runs")   # EV-014
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found
@@ -3118,8 +3164,9 @@ def cmd_release(a):
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
-    if (state.get("release_lane") or {}).get("lane") == "wide":
-        failed = wide_gates(state, links, open_unknowns_now, packet["repos"])
+    in_force = lane_in_force(state.get("release_lane"), a.target)   # GA-011
+    if in_force == "wide":
+        failed = wide_gates(state, links, open_unknowns_now, packet["repos"], d)
         if failed:
             raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
@@ -3130,7 +3177,8 @@ def cmd_release(a):
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
               "release_lane": state.get("release_lane"),   # GA-010.4
-              "instruction": lane_instruction(state.get("release_lane"))}
+              "lane_in_force": in_force,                    # GA-011
+              "instruction": lane_instruction(state.get("release_lane"), a.target)}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
@@ -3347,7 +3395,7 @@ def cmd_record_release(a):
         elif merger.get("login") != AGENT_LOGIN:
             raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr}, isn't "
                               f"{AGENT_LOGIN}, and no merge instruction from {state['release_owner']} on it covers this pull request")
-        elif (state.get("release_lane") or {}).get("lane") == "closed":
+        elif lane_in_force(state.get("release_lane"), prepared["target"]) == "closed":   # GA-011: deferred into a goal branch
             # GA-010.5: the closed lane never opens on its own. A merge that happened is a fact to keep,
             # so the record is written, naming the lane and what matched, with no authority.
             decision.update({"merged_by": merger.get("login"), "outcome": "agent_merge_out_of_lane",
@@ -3359,6 +3407,7 @@ def cmd_record_release(a):
             decision.update({"merged_by": merger.get("login"), "authorized_by": state["release_owner"],
                              "authority": AUTONOMOUS_MERGE_AUTHORITY, "outcome": "agent_merge_autonomous"})
     decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
+    decision["lane_in_force"] = lane_in_force(state.get("release_lane"), prepared["target"])   # GA-011
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
     line = model_selection_line(d, state, packet, name, a.pr, decision)

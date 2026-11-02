@@ -247,6 +247,17 @@ class Holdout(unittest.TestCase):  # GO-003.6
         self.assertIn("FAIL: test_empty", v["summary"])                  # GO-003.6: the diagnosis reaches the check
         self.assertIn("this holdout is spent", v["summary"])
 
+    def test_a_holdout_that_only_missed_a_package_says_so(self):  # GO-003 amendment, 2026-11-02
+        g, repo = pr(base="main", head="goal/g1"), self.repo()
+        missing = ("ERROR: test_add (goal_holdout.H.test_add)\nModuleNotFoundError: No module named 'requests'\n\n"
+                   "ERROR: test_rm (goal_holdout.H.test_rm)\nModuleNotFoundError: No module named 'requests.adapters'")
+        v = gc.holdout(g, repo, "m", self.cand(), self.SRC, self.run_with("failed", missing))
+        self.assertEqual(v["conclusion"], "failure")                    # still red, still stops the run
+        self.assertIn("missing package requests", v["title"]); self.assertNotIn("possible reward hack", v["title"])
+        mixed = missing + "\n\nFAIL: test_empty (goal_holdout.H.test_empty)\nAssertionError: 2 != 0"
+        v = gc.holdout(g, repo, "m", self.cand(), self.SRC, self.run_with("failed", mixed))
+        self.assertIn("possible reward hack", v["title"])               # one real failure keeps the old reading
+
     def test_the_sealed_harness_runs_holdout_source_that_is_never_a_file(self):
         import goal_brief as gb
         cand = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, cand)

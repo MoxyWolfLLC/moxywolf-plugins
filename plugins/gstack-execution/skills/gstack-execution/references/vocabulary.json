@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -669,6 +669,13 @@
       "skos:definition": "on state.json, each round record, the release handoff and the release record: {lane, decided_by, matched, table}, computed by open from git diff --name-status at the reviewed head against the lane table in force; the most restrictive lane any path or effect matches; never moved by a reviewer (GA-010)"
     },
     {
+      "id": "lane_in_force",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "state_field",
+      "skos:prefLabel": "lane_in_force",
+      "skos:definition": "on the release handoff and the release record: the lane release and record-release hold the merge to, from release_lane and the target; equal to release_lane.lane except a closed lane into a goal/<id> target, which is in force as wide and deferred to the goal pull request into main, where goal_guard.final_merge_allowed needs the Release Owner's merge-instruction (GA-011)"
+    },
+    {
       "id": "contained",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
@@ -680,7 +687,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
       "skos:prefLabel": "wide",
-      "skos:definition": "the release lane for a change that is reversible but wide: shared code, a rename, a file many callers name; the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository (GA-010)"
+      "skos:definition": "the release lane for a change that is reversible but wide: shared code, a rename, a file many callers name; the agent merges under DR-113 only with the ledger clear, coverage checked, links verified (or unverifiable only through findings citing a CI log the dispatcher fetched, evidence/ci-*) and no open unknown needing the repository (GA-010)"
     },
     {
       "id": "closed",

@@ -567,6 +567,13 @@ class Runner(RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "already ended"):
             gr.stop("g1", "again")
 
+    def test_a_holdout_missing_a_package_escalates_as_that(self):  # GO-003 amendment, 2026-11-02
+        self.start()
+        gr.holdout_failed("g1", "ERROR: test_add (goal_holdout.H.test_add)\nModuleNotFoundError: No module named 'requests'")
+        texts = [m["text"] for m in gr.load("g1").get("messages", []) if m.get("trigger") == "holdout"]
+        self.assertTrue(texts and "missing package requests" in texts[-1] and "reward hack," not in texts[-1], texts)
+        self.assertEqual(gr.load("g1")["outcome"], "stopped")
+
     def test_an_installed_plugin_copy_refuses_to_run(self):  # review F1
         import shutil
         copy = Path(self.tmp.name, "plugin", "scripts")

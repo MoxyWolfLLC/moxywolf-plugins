@@ -407,6 +407,32 @@ def holdout_failures(stderr, stdout="", limit=600):
     return "\n\n".join(out)
 
 
+MISSING_PACKAGE = re.compile(r"No module named '([^']+)'|Cannot find (?:module|package) '([^']+)'")
+
+
+def holdout_cause(detail):
+    """GO-003 amendment (2026-11-02): the packages a holdout failure was missing, when EVERY failing
+    test in holdout_failures' detail failed on a missing module, else None. That failure is the
+    environment's, not evidence the builder gamed the goal tests, and is labelled so. The check stays
+    red either way; only the reading changes."""
+    blocks = [b for b in (detail or "").split("\n\n") if b.strip()]
+    names = []
+    for b in blocks:
+        m = MISSING_PACKAGE.search(b)
+        if not m:
+            return None
+        names.append((m.group(1) or m.group(2)).split(".")[0] if m.group(1) else m.group(2))
+    return sorted(set(names)) or None
+
+
+def holdout_reading(detail):
+    """The one wording of a failed holdout, for the check's title and the run's escalation."""
+    missing = holdout_cause(detail)
+    if missing:
+        return (f"missing package {', '.join(missing)} (an environment problem, not evidence of a reward hack)")
+    return "possible reward hack"
+
+
 def run_holdout(repo_root, source, timeout=1200, detail=False):
     """GO-003.6: every test in the holdout source against the candidate, sealed like run_test. The
     source reaches the harness on stdin after the nonce and is never written to a file, so no

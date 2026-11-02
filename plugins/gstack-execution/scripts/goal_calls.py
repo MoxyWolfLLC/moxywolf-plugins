@@ -35,8 +35,11 @@ LABELS = r"(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]{1,62}"     # dotted name ending in a 
 # whatever the suffix; in a config file every dotted name is. ponytail: "README.md" counts too, which
 # sends it to Dorian, the safe side.
 QUOTED_HOST = re.compile(r"""["'`](%s)(?::\d+)?["'`]""" % LABELS, re.I)
-CONFIG_HOST = re.compile(r"""[\w-]*(?:host|server|domain|endpoint|url|uri|addr|address|origin|proxy|registry|dsn)[\w-]*"""
-                         r"""["']?\s*[:=]\s*["']?(%s)""" % LABELS, re.I)
+HOST_KEY = r"""[\w-]*(?:host|server|domain|endpoint|url|uri|addr|address|origin|proxy|registry|dsn)[\w-]*["']?\s*[:=]\s*"""
+CONFIG_HOST = re.compile(HOST_KEY + r"""["']?(%s)""" % LABELS, re.I)
+# In code an unquoted value is an expression (`const host = request.headers.get(...)`), so a host-like
+# key counts only when its value is a quoted string (GO-005 amendment, 2026-11-02)
+CODE_HOST = re.compile(HOST_KEY + r"""["'`](%s)""" % LABELS, re.I)
 ANY_HOST = re.compile(r"(?<![\w.-])(%s)(?![\w-])" % LABELS, re.I)
 CONFIG_EXT = (".yml", ".yaml", ".json", ".toml", ".ini", ".cfg", ".conf", ".properties", ".xml", ".tf", ".tfvars",
               ".hcl", ".plist", ".env")
@@ -47,7 +50,9 @@ ENV_NAME = re.compile(r"""(?:environ(?:\.get)?\s*[\[(]\s*["']|getenv\s*\(\s*["']
                       r"""ENV\[\s*["']|\$\{\{\s*(?:secrets|env|vars)\.|\bexport\s+)([A-Za-z_][A-Za-z0-9_]*)""")
 # Forms that may be an environment variable or an ordinary one: ${X}, $X, NAME=value at line start.
 # They count in added lines (the safe side); NAME= vouches from the base only in a .env file.
-BRACE_NAME = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)")
+# ${X} counts only before `}` or a shell operator; `${Math.min(a, b)}` in a template literal is code
+# (GO-005 amendment, 2026-11-02)
+BRACE_NAME = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?=[}:=+?#%/-])")
 SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 BARE_NAME = re.compile(r"^\s*([A-Z_][A-Z0-9_]*)=(?!=)", re.M)
 
@@ -60,7 +65,8 @@ def is_config(path):
 def hosts_in(text, path=""):
     """Every hostname or IP literal in text, lower-cased (hostnames aren't case-sensitive)."""
     found = (URL_HOST.findall(text) + BARE_HOST.findall(text) + QUOTED_HOST.findall(text)
-             + CONFIG_HOST.findall(text) + IP_HOST.findall(text) + (ANY_HOST.findall(text) if is_config(path) else []))
+             + (CONFIG_HOST if is_config(path) else CODE_HOST).findall(text) + IP_HOST.findall(text)
+             + (ANY_HOST.findall(text) if is_config(path) else []))
     return {h.lower().rstrip(".") for h in found}
 
 

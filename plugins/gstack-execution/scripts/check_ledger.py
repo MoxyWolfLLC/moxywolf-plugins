@@ -8,11 +8,17 @@
       is refused (exit 2) unless it starts with `set -o pipefail`: without it the pipeline reports its
       last stage, and the ledger would record a pass the check never earned.
   check_ledger.py open-issues --repo <path> --branch <name>
-      every open issue, then a count. Exit 0 with none, 1 otherwise.
+      every open issue, then a count, then every retired one. Exit 0 with none open, 1 otherwise.
+  check_ledger.py retire --repo <path> --run <id> --reason "<why the check was wrong>" --approval "<words>"
+      XE-040: close the open issue run <id> belongs to, on the branch checked out at repo, without a pass.
+      For a check that was wrong (run before what it checks existed, say), never for one that is merely
+      red. --approval is the Release Owner's words, verbatim; the line keeps them, the reason and the
+      time. A later failure of the same check opens a new issue as usual.
 
 A check's identity is its working directory relative to the repository root plus its argument list
 exactly as given. A failure opens an issue for that identity; only a later run with the same identity
-exiting 0 closes it. A subset of the suite, or the same command elsewhere, never does.
+exiting 0 closes it, or a recorded retirement (XE-040). A subset of the suite, or the same command
+elsewhere, never does.
 
 The ledger is `<review_root()>/ledger/<owner>-<repo>/<branch>.jsonl`, under the same declared directory
 as the reviews (EV-009), and nowhere else.
@@ -100,17 +106,27 @@ def key(identity):
 def open_issues(runs, rid):
     """Failures not yet followed by a pass of the same identity in the same repository. The first
     failure stays the opener. Lines from another repository filed under a colliding name are skipped."""
-    opened = {}
+    opened, episode = {}, {}
     for i, r in enumerate(runs):
         if r.get("repo") != rid:
             continue
         k = key(r["identity"])
-        if r["exit_code"] != 0:
+        if r.get("kind") == "retire":                 # XE-040: closes the issue its run belongs to, nothing more
+            if r.get("retires") in episode.get(k, ()):
+                opened.pop(k, None); episode.pop(k, None)
+        elif r["exit_code"] != 0:
             opened.setdefault(k, (i, r))
+            episode.setdefault(k, set()).add(r["id"])
         else:
-            opened.pop(k, None)
-    return [dict(identity=r["identity"], id=r["id"], head=r["head"], runs_ago=len(runs) - 1 - i)
+            opened.pop(k, None); episode.pop(k, None)
+    return [dict(identity=r["identity"], id=r["id"], head=r["head"], runs_ago=len(runs) - 1 - i,
+                 runs=sorted(episode.get(key(r["identity"]), ())))
             for i, r in sorted(opened.values(), key=lambda t: t[0])]
+
+
+def retired(runs, rid):
+    """XE-040: every retirement line on this repository's ledger, oldest first."""
+    return [r for r in runs if r.get("kind") == "retire" and r.get("repo") == rid]
 
 
 def issues_for(repo, root):
@@ -228,19 +244,51 @@ def find_run(repo, run_id, root):
     rid = repo_id(repo)
     for f in sorted(base.rglob("*.jsonl")) if base.is_dir() else ():
         for r in read(f):
-            if r.get("id") == run_id and r.get("repo") == rid:
+            if r.get("id") == run_id and r.get("repo") == rid and r.get("kind") != "retire":
                 return r, f
     return None, None
 
 
 def cmd_open_issues(repo, branch):
     p = ledger_path(repo, branch, pr.review_root())
-    issues = open_issues(read(p), repo_id(repo)) if p.exists() else []
+    runs = read(p) if p.exists() else []
+    issues = open_issues(runs, repo_id(repo))
     for i in issues:
         print(f"open  {i['identity']['cwd']}: {' '.join(i['identity']['argv'])}  "
               f"(run {i['id']} at {str(i['head'])[:7]}, {i['runs_ago']} runs ago)")
     print(f"{len(issues)} open issue{'s' if len(issues) != 1 else ''} in {p}")
+    for r in retired(runs, repo_id(repo)):
+        print(f"retired  {r['identity']['cwd']}: {' '.join(r['identity']['argv'])}  "
+              f"(run {r['retires']}, {r['at']}): {r['reason']} | approved: {r['approval']!r}")
     return 1 if issues else 0
+
+
+def cmd_retire(repo, run_id, reason, approval):
+    """XE-040: one line that closes the open issue run_id belongs to. Refused unless run_id is a failure
+    on this branch's ledger whose issue is still open, and unless reason and approval are both given."""
+    if not reason.strip() or not approval.strip():
+        print("refused: retire needs --reason and the Release Owner's words in --approval", file=sys.stderr)
+        return 2
+    b = branch_of(repo)
+    if not b:
+        print(f"refused: {repo} is not a git checkout on a branch", file=sys.stderr)
+        return 2
+    path = ledger_path(repo, b, pr.review_root())
+    runs, rid = (read(path) if path.exists() else []), repo_id(repo)
+    run = next((r for r in runs if r.get("id") == run_id and r.get("repo") == rid and r.get("kind") != "retire"), None)
+    if run is None or run["exit_code"] == 0:
+        print(f"refused: {run_id} is not a failed run on {path}", file=sys.stderr)
+        return 2
+    if not any(run_id in i["runs"] for i in open_issues(runs, rid)):   # its own episode, not a later one
+        print(f"refused: the issue {run_id} belongs to is already closed", file=sys.stderr)
+        return 2
+    line = {"kind": "retire", "id": "retire-" + uuid.uuid4().hex[:12], "repo": rid, "identity": run["identity"],
+            "retires": run_id, "head": _git(repo, "rev-parse", "HEAD"), "reason": reason, "approval": approval,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    with path.open("a") as f:
+        f.write(json.dumps(line) + "\n")
+    print(f"retired {' '.join(run['identity']['argv'])} (run {run_id}) on {path}")
+    return 0
 
 
 def main(argv):
@@ -251,6 +299,10 @@ def main(argv):
         return cmd_run(argv[2], rest[1:])
     if len(argv) == 5 and argv[0] == "open-issues" and argv[1] == "--repo" and argv[3] == "--branch":
         return cmd_open_issues(argv[2], argv[4])
+    if argv[:1] == ["retire"] and len(argv) == 9:
+        o = dict(zip(argv[1::2], argv[2::2]))
+        if set(o) == {"--repo", "--run", "--reason", "--approval"}:
+            return cmd_retire(o["--repo"], o["--run"], o["--reason"], o["--approval"])
     print(__doc__, file=sys.stderr)
     return 2
 

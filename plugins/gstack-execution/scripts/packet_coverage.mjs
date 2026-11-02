@@ -20,7 +20,51 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+
+// XE-014 amendment (2026-11-02): an installed plugin is a synced snapshot with no node_modules, so
+// outside a developer's clone `import('ai')` always failed and every review was `broken`. When it
+// fails, install the plugin's own package.json and lockfile once into
+// ${GSTACK_HOME:-~/.gstack}/scorer/<lockfile sha256, 16 hex>/ and load `ai` from there. The install
+// goes to a temporary directory renamed into place, so two scorers racing leave one whole copy.
+// Returns { ai, consulted }; throws with what it tried when neither works.
+async function loadAi() {
+  const consulted = [];
+  const here = path.dirname(fileURLToPath(import.meta.url));   // review F5: a path with spaces stays a path
+  try {
+    consulted.push(`import 'ai', resolved upward from ${here}`);
+    return { ai: await import('ai'), consulted };
+  } catch (first) {
+    const plugin = path.dirname(here);
+    const lockFile = path.join(plugin, 'package-lock.json');
+    if (!fs.existsSync(lockFile)) {
+      throw Object.assign(new Error(`${first.code ?? ''} ${first.message}; no ${lockFile} to install \`ai\` from`.trim()), { consulted });
+    }
+    const lock = fs.readFileSync(lockFile);
+    const hash = crypto.createHash('sha256').update(lock).digest('hex').slice(0, 16);
+    const dir = path.join(process.env.GSTACK_HOME ?? path.join(os.homedir(), '.gstack'), 'scorer', hash);
+    consulted.push(`the scorer cache ${dir}`);
+    if (!fs.existsSync(path.join(dir, 'node_modules', 'ai'))) {
+      fs.mkdirSync(path.dirname(dir), { recursive: true });
+      const tmp = fs.mkdtempSync(dir + '.tmp-');
+      fs.copyFileSync(path.join(plugin, 'package.json'), path.join(tmp, 'package.json'));
+      fs.writeFileSync(path.join(tmp, 'package-lock.json'), lock);
+      // review 20261102-105211 F3: --loglevel=error, not --silent, so npm's own reason reaches the record
+      const r = spawnSync('npm', ['ci', '--omit=dev', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: tmp, encoding: 'utf8' });
+      if (r.status !== 0) {
+        fs.rmSync(tmp, { recursive: true, force: true });
+        const why = [r.error?.message, (r.stderr || '').trim(), (r.stdout || '').trim()].filter(Boolean).join('\n').slice(-800);
+        throw Object.assign(new Error(`npm ci for \`ai\` failed in ${dir} (exit ${r.status ?? r.error?.code}): ${why || 'npm printed nothing'}`), { consulted });
+      }
+      try { fs.renameSync(tmp, dir); } catch { fs.rmSync(tmp, { recursive: true, force: true }); }   // another scorer won the race
+    }
+    const entry = createRequire(path.join(dir, 'package.json')).resolve('ai');
+    return { ai: await import(pathToFileURL(entry).href), consulted };
+  }
+}
 
 const MODEL = process.env.GSTACK_COVERAGE_MODEL ?? 'typesafe-ai/jev';
 
@@ -188,11 +232,11 @@ async function main() {
 
   let ai;
   try {
-    ai = await import('ai');
+    ({ ai } = await loadAi());
   } catch (e) {
     write({ status: 'broken', why: `the scorer could not load its dependency \`ai\`: ${e.code ?? ''} ${e.message}`.trim(),
-            consulted: [`import 'ai', resolved upward from ${path.dirname(new URL(import.meta.url).pathname)}`] });
-    console.error("coverage broken: `ai` did not load. Run `npm ci` in plugins/gstack-execution.");
+            consulted: e.consulted ?? [`import 'ai', resolved upward from ${path.dirname(new URL(import.meta.url).pathname)}`] });
+    console.error("coverage broken: `ai` did not load and couldn't be installed into the scorer cache: " + e.message);
     process.exit(3);
   }
 

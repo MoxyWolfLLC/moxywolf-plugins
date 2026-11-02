@@ -617,6 +617,64 @@ class ReleaseLanes(GovernedReview):
         rec = json.loads(r.stdout)
         self.assertEqual((rec["outcome"], rec["release_lane"]["lane"]), ("agent_merge_on_instruction", "closed"))
 
+    def test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable(self):  # 2026-10-30 extra
+        ci = {"ok": False, "kind": "unverifiable", "link": "round 1 F2 -> evidence/ci-123-job-9.summary.txt:14"}
+        ok = {"ok": True, "kind": "link", "link": "round 1 F1 -> value.txt:1"}
+        shown = {"evidence/ci-123-job-9.summary.txt"}
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_verified", "checks": [ok]}))
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}))   # review F7: never shown
+        made_up = dict(ci, link="round 1 F2 -> evidence/ci-does-not-exist.log:1")
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [made_up]}, shown))
+        unseen = {"ok": False, "kind": "unverifiable", "link": "round 1 F3 -> src/a.py:0"}
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ci, unseen]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [ci]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": []}, shown))
+        d = self.root / "rd"; d.mkdir()
+        (d / "round-1.json").write_text(json.dumps({"ci_logs": [{"shown": "evidence/ci-123-job-9.summary.txt"}, {"shown": "x"}]}))
+        self.assertEqual(peer.ci_shown(d), shown)
+
+    # GA-011: into a goal branch the closed lane is deferred to the goal pull request into main
+    def test_release_of_a_closed_lane_into_a_goal_branch_is_held_to_the_wide_gates(self):
+        self.commit_change("db/migrations/0011.sql", "x\n")
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid, "--target", "goal/g1")
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual((rec["release_lane"]["lane"], rec["lane_in_force"]), ("closed", "wide"))   # the lane never moves
+        self.assertIn("deferred to the goal pull request into main", rec["instruction"])
+        self.assertIn("closed by repo: db/migrations/0011.sql", rec["instruction"])
+        self.assertNotIn("does not merge", rec["instruction"])
+
+    def test_a_deferred_closed_lane_still_refuses_when_the_wide_gates_do_not_hold(self):
+        self.commit_change("db/migrations/0012.sql", "x\n")
+        self.open(); self.response(); self.round()
+        ledger = Path(__file__).with_name("check_ledger.py")
+        subprocess.run([sys.executable, str(ledger), "run", "--repo", str(self.repo), "--", "test", "-f", "ok"],
+                       env=self.env, capture_output=True, text=True, cwd=str(self.repo))
+        r = self.call("release", self.rid, "--target", "goal/g1")
+        self.assertIn("release_blocked", r.stdout + r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+
+    def test_a_closed_lane_into_main_is_still_closed(self):
+        self.commit_change("db/migrations/0013.sql", "x\n")
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid, "--target", "main")
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual(rec["lane_in_force"], "closed")
+        self.assertIn("DR-113 does not apply", rec["instruction"])
+
+    def test_an_agent_merge_of_a_closed_lane_into_a_goal_branch_is_autonomous(self):
+        self.commit_change("db/migrations/0014.sql", "x\n")
+        self.open(); self.response(); self.round()
+        self.call("release", self.rid, "--target", "goal/g1")
+        self.install_github_response(merged_by=self.BOT, base={"ref": "goal/g1", "repo": {"full_name": "example/project"}})
+        self.env["GITHUB_COMMENTS"] = "[]"
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual((rec["outcome"], rec["release_lane"]["lane"], rec["lane_in_force"]),
+                         ("agent_merge_autonomous", "closed", "wide"))
+
     def test_an_autonomous_merge_of_a_contained_lane_is_still_autonomous(self):
         r = self.bot_merge([])
         rec = json.loads(r.stdout)
