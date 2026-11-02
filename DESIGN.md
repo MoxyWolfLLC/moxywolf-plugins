@@ -188,7 +188,7 @@ GA-010 decides the lane from the diff at `open`, before the target is known, so 
 5. `/gstack-build` Step 6 and `/gstack-ship` read `lane_in_force`; `/gstack-goal` finish step 3 and local step 4 say a closed goal lane needs Dorian's merge-instruction, asked once for that pull request; `GOVERNANCE.md` and the peer-review contract describe the deferral.
 6. `vocabulary.json` 1.12.0 adds `lane_in_force` as a state field.
 7. Tests: a closed lane released into `goal/g1` is in force as `wide` and its instruction names the deferral; the same release refuses when a wide gate fails; a closed lane released into main is still `closed`; an agent merge of a closed lane into `goal/g1` is `agent_merge_autonomous` carrying `release_lane.lane` `closed`; `closed_lane_instructed` passes an open lane, refuses a closed one without an instruction (naming what closed it), with unreadable comments, or with an instruction for another pull request, from another owner or posted by a person, and passes the owner's instruction posted by the agent; `final_merge_allowed` carries the refusal.
-8. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.157.0 (CI-002).
+8. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.158.0 (CI-002).
 
 Not covered: a branch named `goal/<id>` with no goal run behind it gets the same deferral. Its pull request into main is still closed by GA-010 and stopped by `/gstack-build`, so the closed lane holds; it is noted, not gated.
 
@@ -244,7 +244,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 2. `wide_links_hold` takes `links_unverifiable` in the wide lane when every check that didn't verify is a finding citing `evidence/ci-*`, a log the dispatcher fetched itself; a stale link, a missing record or any other unverifiable check still fails it. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable`.
 3. `/gstack-build` says each fix round passes `--ledger-run` (already in the code, tested in `test_ci_run_paths.py`).
 4. Not changed: `resync` on a sync pull request (the current code takes main's tip plus an empty commit, and `test_goal_run.py` covers it; not reproduced here); an acknowledged goal-envelope escalation keeping later items red, because judging an item only on what it adds would let a direct push to `goal/<id>` past every item check. Dorian ruled 2026-11-02 ("Option B"): no change; when a change outside the envelope lands on a goal branch, the fix is a new goal with wider Allowed paths.
-5. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.157.0 cover GA-011 through GO-016 (CI-002).
+5. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.158.0 cover GA-011 through GO-016 (CI-002).
 
 ## Second objective: academic-pipeline integrity
 
