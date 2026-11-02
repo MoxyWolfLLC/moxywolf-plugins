@@ -16,6 +16,43 @@ GREEN = {"tests": ("success", None), "goal-envelope": ("success", BOUND), "goal-
 CLEAN = {"outcome": "fixes_verified", "coverage_checked": True, "coverage_status": "covered", "heads": [["a" * 40], ["b" * 40]]}
 
 
+class ClosedGoalLane(unittest.TestCase):
+    """GA-011: a closed lane deferred from the goal's items holds at the goal pull request into main."""
+    PR = {"number": 45, "head": "f" * 40, "base_ref": "main", "base": "e" * 40}
+    REVIEW = {"release_owner": "dorianatmoxywolf",
+              "release_lane": {"lane": "closed", "matched": [{"lane": "closed", "path": "supabase/migrations/0061.sql"}]}}
+
+    def comment(self, covers=(45,), owner="dorianatmoxywolf", login="moxywolf-agent[bot]"):
+        import peer_review
+        return {"user": {"login": login}, "body": peer_review.merge_instruction_body("merge it", "2026-11-02T17:00:00Z", covers, owner)}
+
+    def test_an_open_lane_needs_nothing_more(self):
+        for lane in ("contained", "wide"):
+            self.assertIsNone(gguard.closed_lane_instructed({"release_lane": {"lane": lane}}, self.PR, None))
+
+    def test_a_closed_lane_without_an_instruction_is_refused_naming_what_closed_it(self):
+        problem = gguard.closed_lane_instructed(self.REVIEW, self.PR, [])
+        self.assertIn("supabase/migrations/0061.sql", problem)
+        self.assertIn("merge-instruction on PR #45", problem)
+
+    def test_unreadable_comments_are_a_refusal_not_a_pass(self):
+        self.assertIn("couldn't be read", gguard.closed_lane_instructed(self.REVIEW, self.PR, None))
+
+    def test_only_the_owners_instruction_for_this_pr_posted_by_the_agent_counts(self):
+        for name, c in {"another PR": self.comment(covers=(46,)), "another owner": self.comment(owner="someone"),
+                        "posted by a person": self.comment(login="dorianatmoxywolf")}.items():
+            with self.subTest(name):
+                self.assertIsNotNone(gguard.closed_lane_instructed(self.REVIEW, self.PR, [c]))
+        self.assertIsNone(gguard.closed_lane_instructed(self.REVIEW, self.PR, [self.comment()]))
+
+    def test_final_merge_allowed_carries_the_refusal(self):
+        relation = {"finalized_head": self.PR["head"], "problems": []}
+        with self.assertRaises(gguard.Refused) as e:
+            gguard.final_merge_allowed(relation, dict(self.REVIEW, outcome="fixes_verified", coverage_checked=True,
+                                                      coverage_status="covered"), {}, self.PR, [])
+        self.assertIn("GA-011", str(e.exception))
+
+
 class Triggers(tgr.RunnerFixture):
     def refused_start(self, workflow, envs=("goal-holdout",)):
         if workflow:
@@ -164,6 +201,68 @@ class Ledger(tgr.RunnerFixture):
         for m in gr.held(gr.load("g1")):
             gr.acknowledge("g1", m["n"], "seen")
         return gr.act(self.repo, "g1", klass, resource, self.envs, base="main", **kw)
+
+    def test_a_malformed_may_call_is_a_usage_error_and_escalates_nothing(self):  # GO-013
+        import contextlib, io, json
+        self.start()
+        before = json.dumps(gr.load("g1"), sort_keys=True)
+        for argv in (["--action", "push", "--resource", "goal/g1"],
+                     ["--action", "pr.open", "--resource", "goal/g1"],
+                     ["--action", "vcs.push", "--resource", "goal/g1..x"],
+                     ["--action", "merge", "--resource", "goal/g1", "--pr", "3"],
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr", "3"],
+                     ["--action", "pr.open", "--resource", "main<-"],              # review F2
+                     ["--action", "pr.open", "--resource", "goal/g1<-build/*"],
+                     ["--action", "vcs.push", "--resource", ".hidden"],
+                     ["--action", "vcs.push", "--resource", "goal/.bar"],
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr"],    # a dangling option
+                     ["--action", "vcs.push", "--resource", "-topic"],              # review 095221 round 2 F2
+                     ["--action", "vcs.push", "--resource", "topic.lock/child"],
+                     ["--action", "vcs.push", "--resource", "topic\n"],
+                     ["--action", "pr.open", "--resource", "goal/g1<--x"]):
+            err = io.StringIO()
+            with self.subTest(argv=argv), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
+                self.assertIn("usage:", err.getvalue())
+        self.assertEqual(json.dumps(gr.load("g1"), sort_keys=True), before)   # no escalation, nothing written
+        self.assertIsNone(gr.may_usage({"--action": "pr.open", "--resource": "goal/g1<-build/GX-1-a"}))
+
+    def test_every_comment_page_is_read_and_an_unreadable_page_fails_closed(self):  # GA-011, review 105211 F1
+        import inspect
+        page = lambda n, k: [{"id": n * 100 + i, "body": ""} for i in range(k)]
+        pages = {1: page(1, 100), 2: page(2, 7)}
+        got = gr.pr_comments(lambda p: pages[int(p.rsplit("page=", 1)[1])], "o/r", 45)
+        self.assertEqual(len(got), 107)
+        self.assertIsNone(gr.pr_comments(lambda p: page(1, 100) if p.endswith("page=1") else None, "o/r", 45))
+        full = lambda p: page(int(p.rsplit("page=", 1)[1]), 100 if int(p.rsplit("page=", 1)[1]) <= 20 else 0)
+        got = gr.pr_comments(full, "o/r", 45)                                       # exactly 2,000: page 21 is empty
+        self.assertEqual((len(got), got[0]["id"]), (2000, 100))
+        later = lambda p: page(int(p.rsplit("page=", 1)[1]), 100 if int(p.rsplit("page=", 1)[1]) <= 25 else 3)
+        self.assertEqual(len(gr.pr_comments(later, "o/r", 45)), 2503)                 # past the old cap
+        import peer_review
+        mark = {"user": {"login": "moxywolf-agent[bot]"},
+                "body": peer_review.merge_instruction_body("merge it", "2026-11-02T18:44:00Z", [45], "dorianatmoxywolf")}
+        late = lambda p: (page(1, 100) if p.endswith("page=1") else page(2, 49) + [mark])   # the instruction is comment 150
+        review = {"release_owner": "dorianatmoxywolf", "release_lane": {"lane": "closed", "matched": []}}
+        self.assertIsNone(gguard.closed_lane_instructed(review, {"number": 45}, gr.pr_comments(late, "o/r", 45)))
+        src = inspect.getsource(gr)
+        self.assertEqual((src.count('pr_comments(get, name, prd["number"])'), src.count('pr_comments(get, name, pr["number"])')), (1, 1))   # resume and may
+        self.assertNotIn("comments?per_page=100\")", src)
+
+    def test_a_malformed_may_call_leaves_a_pending_escalation_undelivered(self):  # GO-013, review F3
+        import contextlib, io
+        self.start()
+        st = gr.load("g1"); gr.escalate(st, "dorian_call", "a pending question"); gr.save(st)
+        self.assertTrue(any(not m["delivered"] for m in gr.load("g1")["messages"]))
+        f = gr.run_dir("g1") / "state.json"
+        before = f.read_bytes()
+        out = io.StringIO()
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+            for argv in (["--action", "push", "--resource", "goal/g1"], ["--action", "vcs.push", "--resource", "-topic"],
+                         ["--action", "vcs.push", "--resource", "topic.lock/child"]):
+                self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
+        self.assertEqual(f.read_bytes(), before)
+        self.assertNotIn("a pending question", out.getvalue())
 
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):
         self.start()

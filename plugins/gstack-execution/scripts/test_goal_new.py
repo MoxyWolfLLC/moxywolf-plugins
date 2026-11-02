@@ -104,6 +104,21 @@ class GoalNew(unittest.TestCase):
                 self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: bad)
         self.assertFalse((self.g / "holdout.sha256").exists())
 
+    def test_a_drafted_network_guard_is_refused(self):  # 2026-11-02, wfa-gateway-v1's loopback
+        guards = ("import socket\nsocket.socket.connect = lambda *a: None\n",
+                  "import socket\nsocket.create_connection = None\n",
+                  "import socket\nsetattr(socket, 'getaddrinfo', None)\n",
+                  "import socket\nsocket.socket, socket.create_connection = None, None\n",       # review F6
+                  "import socket\n[socket.getaddrinfo, *rest] = [None]\n",
+                  "import socket as net\nnet.socket = lambda *a, **k: None\n",                   # review 105211 F2
+                  "import socket\ns = socket\nsetattr(s, 'create_connection', None)\n")
+        for guard in guards:
+            with self.subTest(guard=guard), self.assertRaisesRegex(gn.Refused, "loopback"):
+                self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: guard + HOLDOUT)
+        self.assertFalse((self.g / "holdout.sha256").exists())
+        self.assertFalse(gn.patches_socket(__import__("ast").parse("import socket\ns = socket.socket()\ns.bind(('127.0.0.1', 0))\n")))
+        self.assertIn("loopback", gn.RULES)
+
     def test_the_reading_covers_every_test_and_names_its_reader(self):
         self.write_tests()
         text = "`tests/test_tool.py::Tool.test_prints` checks a. `tests/test_tool.py::Tool.test_never_leaks` checks b."

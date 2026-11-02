@@ -40,7 +40,45 @@ separate program from the checkout named by the GOAL_CANDIDATE environment varia
 subprocess.run([sys.executable, "path/to/tool.py", ...], cwd=os.environ["GOAL_CANDIDATE"], capture_output=True, text=True, timeout=120),
 and judge only what it prints, its exit code, and what it writes outside its checkout (give it a temporary folder).
 Anything the test needs from the repository is copied into the test as a literal, never read at run time.
+The tests already run in a container with no network. Never add a network guard of your own (no patching of
+socket, no blocked connect): loopback (127.0.0.1, localhost) is how the candidate's own build and server talk to
+themselves, and a Next.js build fails without it.
 stdlib unittest only."""
+
+
+def patches_socket(tree):
+    """2026-11-02, from wfa-gateway-v1: a drafted test that rebinds anything on the socket module is its
+    own network guard, and it blocked Turbopack's loopback, so every Next.js build failed the holdout.
+    The container already has no network; the guard only breaks loopback. Refused, not repaired."""
+    def flat(t):                                     # review F6: `a, b = ...` and `[a, *b] = ...` rebind too
+        if isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                yield from flat(e)
+        elif isinstance(t, ast.Starred):
+            yield from flat(t.value)
+        else:
+            yield t
+    names = {"socket"}                              # review 20261102-105211 F2: `import socket as net` too
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            names |= {a.asname or a.name for a in n.names if a.name == "socket"}
+        elif isinstance(n, ast.Assign) and isinstance(n.value, ast.Name) and n.value.id == "socket":
+            names |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+    for n in ast.walk(tree):
+        targets = (n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AugAssign, ast.AnnAssign, ast.For))
+                   else [i.optional_vars for i in n.items if i.optional_vars] if isinstance(n, ast.With) else
+                   [n.target] if isinstance(n, ast.NamedExpr) else [])
+        for t in (x for t in targets for x in flat(t)):
+            base = t
+            while isinstance(base, ast.Attribute):
+                base = base.value
+            if isinstance(t, ast.Attribute) and isinstance(base, ast.Name) and base.id in names:
+                return True
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "setattr" and n.args
+                and isinstance(n.args[0], (ast.Name, ast.Attribute))
+                and (getattr(n.args[0], "id", None) in names or getattr(n.args[0], "attr", None) == "socket")):
+            return True
+    return False
 
 
 class Refused(SystemExit):
@@ -129,6 +167,13 @@ The plan:
         raise Refused(f"the drafter returned {sorted(got)}; the brief names {files}")
     for path, src in got.items():
         src = re.sub(r"^#\s*drafted-by:.*\n", "", src)
+        try:
+            guarded = patches_socket(ast.parse(src))
+        except SyntaxError:
+            guarded = False            # a file that doesn't parse fails as a goal test, as before
+        if guarded:
+            raise Refused(f"{path} patches the socket module: the container already has no network, and a guard of "
+                          "its own blocks loopback, which a Next.js build needs; draft it again without one")
         (g / path).parent.mkdir(exist_ok=True)
         (g / path).write_text(f"# drafted-by: {DRAFTER[0]}/{DRAFTER[1]}\n" + src)
     print(f"examined {len(tests)} goal tests in {len(files)} files; wrote {', '.join(files)} "
@@ -163,6 +208,9 @@ The plan:
         raise Refused(f"the holdout doesn't parse: {e.msg} at line {e.lineno}")
     if not any(isinstance(n, ast.ClassDef) and n.name == "Holdout" for n in tree.body):
         raise Refused("the holdout has no class Holdout")
+    if patches_socket(tree):
+        raise Refused("the holdout patches the socket module: the container already has no network, and a guard of "
+                      "its own blocks loopback, which a Next.js build needs; draft it again without one")
     home.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(home, 0o700)
     path = home / f"{g.name}.py"

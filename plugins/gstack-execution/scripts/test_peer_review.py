@@ -179,6 +179,12 @@ def test_a_passing_jobs_report_lines_reach_the_surface_as_ci_log():
         rec = json.loads((surf / "evidence" / "ci-7.json").read_text())
         assert rec["jobs"][0]["summary"]["lines"] == 4 and rec["jobs"][0]["summary"]["shown"] == "evidence/ci-7-job-9.summary.txt"
         assert "summary.txt" in (surf / "SURFACE.md").read_text()
+        # review 20261102-095221 F9: the production writer records the summary it showed, and the wide
+        # link gate takes a finding citing it from that round record
+        assert [s["shown"] for s in stats["ci_summaries"]] == ["evidence/ci-7-job-9.summary.txt"]
+        rd = Path(tempfile.mkdtemp()); (rd / "round-1.json").write_text(json.dumps({"ci_logs": stats["ci_logs"], "ci_summaries": stats["ci_summaries"]}))
+        cite = {"ok": False, "kind": "unverifiable", "link": "round 1 F1 -> evidence/ci-7-job-9.summary.txt:3"}
+        assert pr.wide_links_hold({"outcome": "links_unverifiable", "checks": [cite]}, pr.ci_shown(rd))
         # the API reviewer is sent evidence/ ahead of callers
         sends = pr.REVIEWERS["openrouter-gpt"]["sends"]
         assert "evidence" in sends and "SURFACE.md" in sends and "UNKNOWNS.md" in sends
