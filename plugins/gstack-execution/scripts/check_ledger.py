@@ -106,18 +106,21 @@ def key(identity):
 def open_issues(runs, rid):
     """Failures not yet followed by a pass of the same identity in the same repository. The first
     failure stays the opener. Lines from another repository filed under a colliding name are skipped."""
-    opened = {}
+    opened, episode = {}, {}
     for i, r in enumerate(runs):
         if r.get("repo") != rid:
             continue
         k = key(r["identity"])
-        if r.get("kind") == "retire":                 # XE-040: closes the issue it names, nothing more
-            opened.pop(k, None)
+        if r.get("kind") == "retire":                 # XE-040: closes the issue its run belongs to, nothing more
+            if r.get("retires") in episode.get(k, ()):
+                opened.pop(k, None); episode.pop(k, None)
         elif r["exit_code"] != 0:
             opened.setdefault(k, (i, r))
+            episode.setdefault(k, set()).add(r["id"])
         else:
-            opened.pop(k, None)
-    return [dict(identity=r["identity"], id=r["id"], head=r["head"], runs_ago=len(runs) - 1 - i)
+            opened.pop(k, None); episode.pop(k, None)
+    return [dict(identity=r["identity"], id=r["id"], head=r["head"], runs_ago=len(runs) - 1 - i,
+                 runs=sorted(episode.get(key(r["identity"]), ())))
             for i, r in sorted(opened.values(), key=lambda t: t[0])]
 
 
@@ -276,7 +279,7 @@ def cmd_retire(repo, run_id, reason, approval):
     if run is None or run["exit_code"] == 0:
         print(f"refused: {run_id} is not a failed run on {path}", file=sys.stderr)
         return 2
-    if key(run["identity"]) not in {key(i["identity"]) for i in open_issues(runs, rid)}:
+    if not any(run_id in i["runs"] for i in open_issues(runs, rid)):   # its own episode, not a later one
         print(f"refused: the issue {run_id} belongs to is already closed", file=sys.stderr)
         return 2
     line = {"kind": "retire", "id": "retire-" + uuid.uuid4().hex[:12], "repo": rid, "identity": run["identity"],

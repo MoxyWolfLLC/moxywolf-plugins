@@ -110,6 +110,23 @@ def test_retire_is_refused_without_words_for_a_pass_or_for_a_closed_issue():  # 
     assert all(r.get("kind") != "retire" for r in cl.read(cl.ledger_path(d, "build/x", root)))
 
 
+def test_retiring_a_run_from_a_closed_episode_never_closes_a_later_one():  # XE-040, review F1
+    d, _, _, root = fixture()
+    (d / "FAIL").write_text("")
+    ledger(d, root, sys.executable, "-c", SUITE)                       # failure A
+    (d / "FAIL").unlink(); ledger(d, root, sys.executable, "-c", SUITE)  # pass B closes A's issue
+    (d / "FAIL").write_text(""); ledger(d, root, sys.executable, "-c", SUITE)   # failure C opens a new one
+    a, c = (r["id"] for r in cl.read(cl.ledger_path(d, "build/x", root)) if r["exit_code"])
+    assert retire(d, root, a).returncode == 2 and issues(d, root)[0] == 1
+    assert retire(d, root, c).returncode == 0 and issues(d, root)[0] == 0
+    ledger(d, root, sys.executable, "-c", SUITE)                       # failure E reopens after the retirement
+    assert retire(d, root, c).returncode == 2 and issues(d, root)[0] == 1
+    lines = cl.read(cl.ledger_path(d, "build/x", root))                # a hand-written stale retirement closes nothing
+    stale = dict(lines[-2], id="retire-x", retires=a)
+    cl.ledger_path(d, "build/x", root).open("a").write(json.dumps(stale) + "\n")
+    assert issues(d, root)[0] == 1
+
+
 def test_a_passing_subset_does_not_close_the_failure():
     d, _, _, root = fixture()
     (d / "FAIL").write_text("")

@@ -50,9 +50,19 @@ def patches_socket(tree):
     """2026-11-02, from wfa-gateway-v1: a drafted test that rebinds anything on the socket module is its
     own network guard, and it blocked Turbopack's loopback, so every Next.js build failed the holdout.
     The container already has no network; the guard only breaks loopback. Refused, not repaired."""
+    def flat(t):                                     # review F6: `a, b = ...` and `[a, *b] = ...` rebind too
+        if isinstance(t, (ast.Tuple, ast.List)):
+            for e in t.elts:
+                yield from flat(e)
+        elif isinstance(t, ast.Starred):
+            yield from flat(t.value)
+        else:
+            yield t
     for n in ast.walk(tree):
-        targets = n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AugAssign, ast.AnnAssign)) else []
-        for t in targets:
+        targets = (n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AugAssign, ast.AnnAssign, ast.For))
+                   else [i.optional_vars for i in n.items if i.optional_vars] if isinstance(n, ast.With) else
+                   [n.target] if isinstance(n, ast.NamedExpr) else [])
+        for t in (x for t in targets for x in flat(t)):
             base = t
             while isinstance(base, ast.Attribute):
                 base = base.value

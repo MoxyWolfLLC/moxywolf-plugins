@@ -52,7 +52,7 @@ ENV_NAME = re.compile(r"""(?:environ(?:\.get)?\s*[\[(]\s*["']|getenv\s*\(\s*["']
 # They count in added lines (the safe side); NAME= vouches from the base only in a .env file.
 # ${X} counts only before `}` or a shell operator; `${Math.min(a, b)}` in a template literal is code
 # (GO-005 amendment, 2026-11-02)
-BRACE_NAME = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?=[}:=+?#%/^,@-])")
+BRACE_NAME = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?=[}:=+?#%/-])")
 SHELL_NAME = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 BARE_NAME = re.compile(r"^\s*([A-Z_][A-Z0-9_]*)=(?!=)", re.M)
 

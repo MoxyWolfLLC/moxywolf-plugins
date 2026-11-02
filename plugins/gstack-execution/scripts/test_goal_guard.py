@@ -210,13 +210,31 @@ class Ledger(tgr.RunnerFixture):
                      ["--action", "pr.open", "--resource", "goal/g1"],
                      ["--action", "vcs.push", "--resource", "goal/g1..x"],
                      ["--action", "merge", "--resource", "goal/g1", "--pr", "3"],
-                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr", "3"]):
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr", "3"],
+                     ["--action", "pr.open", "--resource", "main<-"],              # review F2
+                     ["--action", "pr.open", "--resource", "goal/g1<-build/*"],
+                     ["--action", "vcs.push", "--resource", ".hidden"],
+                     ["--action", "vcs.push", "--resource", "goal/.bar"],
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr"]):   # a dangling option
             err = io.StringIO()
             with self.subTest(argv=argv), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
                 self.assertIn("usage:", err.getvalue())
         self.assertEqual(json.dumps(gr.load("g1"), sort_keys=True), before)   # no escalation, nothing written
         self.assertIsNone(gr.may_usage({"--action": "pr.open", "--resource": "goal/g1<-build/GX-1-a"}))
+
+    def test_a_malformed_may_call_leaves_a_pending_escalation_undelivered(self):  # GO-013, review F3
+        import contextlib, io
+        self.start()
+        st = gr.load("g1"); gr.escalate(st, "dorian_call", "a pending question"); gr.save(st)
+        self.assertTrue(any(not m["delivered"] for m in gr.load("g1")["messages"]))
+        f = gr.run_dir("g1") / "state.json"
+        before = f.read_bytes()
+        out = io.StringIO()
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
+            self.assertEqual(gr.main(["may", "g1", "--action", "push", "--resource", "goal/g1"], repo=self.repo), 2)
+        self.assertEqual(f.read_bytes(), before)
+        self.assertNotIn("a pending question", out.getvalue())
 
     def test_an_item_merge_into_the_goal_branch_after_a_clean_review_is_allowed_and_into_main_refused(self):
         self.start()

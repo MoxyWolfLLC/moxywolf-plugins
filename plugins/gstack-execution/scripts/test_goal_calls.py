@@ -136,6 +136,7 @@ class CodeIsNotAHost(unittest.TestCase):
 
     def test_a_template_expression_is_not_an_environment_variable(self):
         self.assertEqual(gcalls.maybe_names("const s = `${Math.min(a, b)} of ${items.length}`;\n"), set())
+        self.assertEqual(gcalls.maybe_names("const t = `${x,y} ${x^y} ${a@b}`;\n"), set())   # review F4
         self.assertEqual(gcalls.maybe_names("echo ${HOME} ${PORT:-3000} ${A-b}\n"), {"HOME", "PORT", "A"})
 
 

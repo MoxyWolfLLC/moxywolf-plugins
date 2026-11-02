@@ -620,12 +620,19 @@ class ReleaseLanes(GovernedReview):
     def test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable(self):  # 2026-10-30 extra
         ci = {"ok": False, "kind": "unverifiable", "link": "round 1 F2 -> evidence/ci-123-job-9.summary.txt:14"}
         ok = {"ok": True, "kind": "link", "link": "round 1 F1 -> value.txt:1"}
+        shown = {"evidence/ci-123-job-9.summary.txt"}
         self.assertTrue(peer.wide_links_hold({"outcome": "links_verified", "checks": [ok]}))
-        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}))
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, ci]}))   # review F7: never shown
+        made_up = dict(ci, link="round 1 F2 -> evidence/ci-does-not-exist.log:1")
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [made_up]}, shown))
         unseen = {"ok": False, "kind": "unverifiable", "link": "round 1 F3 -> src/a.py:0"}
-        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ci, unseen]}))
-        self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [ci]}))
-        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": []}))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ci, unseen]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [ci]}, shown))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": []}, shown))
+        d = self.root / "rd"; d.mkdir()
+        (d / "round-1.json").write_text(json.dumps({"ci_logs": [{"shown": "evidence/ci-123-job-9.summary.txt"}, {"shown": "x"}]}))
+        self.assertEqual(peer.ci_shown(d), shown)
 
     # GA-011: into a goal branch the closed lane is deferred to the goal pull request into main
     def test_release_of_a_closed_lane_into_a_goal_branch_is_held_to_the_wide_gates(self):

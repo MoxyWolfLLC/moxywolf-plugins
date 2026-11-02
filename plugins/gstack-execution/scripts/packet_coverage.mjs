@@ -23,7 +23,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 // XE-014 amendment (2026-11-02): an installed plugin is a synced snapshot with no node_modules, so
 // outside a developer's clone `import('ai')` always failed and every review was `broken`. When it
@@ -33,7 +33,7 @@ import { pathToFileURL } from 'node:url';
 // Returns { ai, consulted }; throws with what it tried when neither works.
 async function loadAi() {
   const consulted = [];
-  const here = path.dirname(new URL(import.meta.url).pathname);
+  const here = path.dirname(fileURLToPath(import.meta.url));   // review F5: a path with spaces stays a path
   try {
     consulted.push(`import 'ai', resolved upward from ${here}`);
     return { ai: await import('ai'), consulted };

@@ -156,7 +156,7 @@ class ScorerRuns(unittest.TestCase):
 
     def installed_copy(self):
         """The plugin as a sync installs it: scripts and its package files, no node_modules."""
-        plug = self.tmp / "plugin"; (plug / "scripts").mkdir(parents=True)
+        plug = self.tmp / "plugin copy"; (plug / "scripts").mkdir(parents=True)   # review F5: a space in the path
         shutil.copy(SCRIPT, plug / "scripts" / SCRIPT.name)
         for f in ("package.json", "package-lock.json"):
             shutil.copy(PLUGIN / f, plug / f)

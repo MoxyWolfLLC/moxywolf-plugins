@@ -107,7 +107,9 @@ class GoalNew(unittest.TestCase):
     def test_a_drafted_network_guard_is_refused(self):  # 2026-11-02, wfa-gateway-v1's loopback
         guards = ("import socket\nsocket.socket.connect = lambda *a: None\n",
                   "import socket\nsocket.create_connection = None\n",
-                  "import socket\nsetattr(socket, 'getaddrinfo', None)\n")
+                  "import socket\nsetattr(socket, 'getaddrinfo', None)\n",
+                  "import socket\nsocket.socket, socket.create_connection = None, None\n",       # review F6
+                  "import socket\n[socket.getaddrinfo, *rest] = [None]\n")
         for guard in guards:
             with self.subTest(guard=guard), self.assertRaisesRegex(gn.Refused, "loopback"):
                 self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: guard + HOLDOUT)

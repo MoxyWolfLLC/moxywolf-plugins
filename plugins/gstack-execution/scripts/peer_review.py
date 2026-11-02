@@ -677,7 +677,17 @@ def ledger_status_now(repos):
     return "overridden" if open_failures else ("none" if missing else "clear"), open_failures
 
 
-def wide_links_hold(links):
+def ci_shown(d):
+    """Every evidence/ci-* file a round of review d recorded the dispatcher writing (XE-027 F1)."""
+    shown = set()
+    for f in sorted(Path(d).glob("round-*.json")) if d else ():
+        for c in (load(Path(d), f.name) or {}).get("ci_logs") or ():
+            if str(c.get("shown", "")).startswith(f"{EVIDENCE_DIR}/ci-"):
+                shown.add(c["shown"])
+    return shown
+
+
+def wide_links_hold(links, shown=frozenset()):
     """The wide lane's link gate. `links_verified` holds. So does `links_unverifiable` when every check
     that didn't verify is a finding citing a CI log under evidence/ci-*: the dispatcher fetched that log
     itself (XE-027) and findings citing it aren't bound to repository content, so they can't re-resolve
@@ -688,11 +698,13 @@ def wide_links_hold(links):
     if links.get("outcome") != "links_unverifiable":
         return False
     bad = [c for c in links.get("checks") or () if not c.get("ok")]
-    ci = re.compile(r"-> (?:\./)?" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+:\d+$")
-    return bool(bad) and all(c.get("kind") == "unverifiable" and ci.search(str(c.get("link", ""))) for c in bad)
+    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+):\d+$")
+    # review F7: a CI-shaped name proves nothing; the cited file must be one a round recorded showing
+    return bool(bad) and all(c.get("kind") == "unverifiable" and (m := cited.search(str(c.get("link", ""))))
+                             and m.group(1) in shown for c in bad)
 
 
-def wide_gates(state, links, open_unknowns_now, repos):
+def wide_gates(state, links, open_unknowns_now, repos, d=None):
     """F2 (review 20261013-202943): the wide lane's gates are checked, not claimed. Returns the ones
     that do not hold, each a sentence, so the refusal names them."""
     failed = []
@@ -701,7 +713,7 @@ def wide_gates(state, links, open_unknowns_now, repos):
         failed.append(f"the failure ledger has {len(open_failures)} open failure(s) now, not clear")
     if not state.get("coverage_checked"):
         failed.append("coverage was not checked")
-    if not wide_links_hold(links):
+    if not wide_links_hold(links, ci_shown(d)):
         failed.append(f"links are {links.get('outcome')}, not verified")
     if any(u.get("needs") == "repository" for u in open_unknowns_now):
         failed.append("an open unknown still needs the repository")
@@ -3146,7 +3158,7 @@ def cmd_release(a):
                          for u in open_unknowns(packet["repos"])]
     in_force = lane_in_force(state.get("release_lane"), a.target)   # GA-011
     if in_force == "wide":
-        failed = wide_gates(state, links, open_unknowns_now, packet["repos"])
+        failed = wide_gates(state, links, open_unknowns_now, packet["repos"], d)
         if failed:
             raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
     record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],

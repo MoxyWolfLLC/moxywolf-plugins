@@ -389,7 +389,7 @@ def next_step(repo, goal_id, base="origin/main"):
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
 
 
-BRANCH_RE = re.compile(r"^(?!/|.*(?:\.\.|//|@\{|\.lock$|/$|\.$))[A-Za-z0-9._/-]+$")
+BRANCH_RE = re.compile(r"^(?!/|.*(?:\.\.|//|@\{|\.lock$|/$|\.$)|\.|.*/\.)[A-Za-z0-9._/-]+$")
 HOST_RE = re.compile(r"^(?:https?://)?[A-Za-z0-9.-]+(?::\d+)?(?:/\S*)?$")
 MAY_SHAPES = {"vcs.push": "<branch>", "pr.open": "<base><-<head>", "merge": "<target branch> with --head <sha> --pr <n>",
               "net.connect": "<host or URL>"}
@@ -408,7 +408,7 @@ def may_usage(opts):
         ok = bool(BRANCH_RE.match(resource))
     elif klass == "pr.open":
         base, sep, head = resource.partition("<-")
-        ok = bool(sep and BRANCH_RE.match(base) and BRANCH_RE.match(head.rstrip("*").rstrip("/") or "x"))
+        ok = bool(sep and BRANCH_RE.match(base) and BRANCH_RE.match(head))
     elif klass == "net.connect":
         ok = bool(HOST_RE.match(resource))
     else:
@@ -1340,6 +1340,8 @@ def environments_of(get, name):
 
 def main(argv, repo=gb.ROOT):
     rc = _main(argv, repo)
+    if rc == 2 and argv[:1] == ["may"]:
+        return rc                                     # GO-013 review F3: a usage error reads and delivers nothing
     goal_id = (argv + [None, None])[1]
     if goal_id and argv[0] not in ("record",) and ge.GOAL_ID.match(goal_id or "") and os.environ.get("GSTACK_GOAL_RUN_DIR"):
         msgs = outbox(goal_id)
@@ -1422,7 +1424,8 @@ def _main(argv, repo=gb.ROOT):
             print(json.dumps(out))
             return 0
         if cmd == "may" and goal_id and {"--action", "--resource"} <= set(opts) <= {"--action", "--resource", "--head", "--review", "--pr", "--repo", "--sync"}:
-            bad = may_usage(opts)            # GO-013: a malformed call is the caller's mistake, not Dorian's call
+            bad = ("every option takes a value (a dangling option was given)" if len(argv[2:]) % 2
+                   else may_usage(opts))     # GO-013: a malformed call is the caller's mistake, not Dorian's call
             if bad:
                 print(f"usage: {bad}", file=sys.stderr)
                 return 2
