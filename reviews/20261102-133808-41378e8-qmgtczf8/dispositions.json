@@ -1,0 +1,34 @@
+{
+  "F1": {
+    "disposition": "fixed",
+    "evidence": "837fa1a spec_review.py _heading_id compares the whole heading id; selftest refuses R, R-00, R-0011 against ### R-001 and accepts ### R-001: Rates"
+  },
+  "F2": {
+    "disposition": "fixed",
+    "evidence": "837fa1a review() counts resumes apart from the reminder and refuses before a seventh; selftest: 6 pauses accepted, 7 refused after exactly 7 requests"
+  },
+  "F3": {
+    "disposition": "fixed",
+    "evidence": "837fa1a findings() and check() reject a block or record without both lists and every field via malformed(); selftest covers {error}, null list, bare entry, and a record read back with contradictions null"
+  },
+  "F4": {
+    "disposition": "fixed",
+    "evidence": "837fa1a check() appends each ambiguity (item, id, requirements, question) to spec_review_ok and still passes; selftest asserts the text"
+  },
+  "F5": {
+    "disposition": "deferred",
+    "evidence": "informational, embedded_instruction in repository text; no code change needed"
+  },
+  "F6": {
+    "disposition": "deferred",
+    "evidence": "informational, the SYSTEM prompt is program data addressed to the executor model; no change"
+  },
+  "F7": {
+    "disposition": "deferred",
+    "evidence": "informational, command docs are workflow instructions by design; no change"
+  },
+  "F8": {
+    "disposition": "deferred",
+    "evidence": "informational, command docs are workflow instructions by design; no change"
+  }
+}

@@ -1,0 +1,305 @@
+{
+  "round": 2,
+  "started": "2026-11-02T14:00:20",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/GitHub/moxywolf-plugins",
+      "base": "41378e84d91aeb982e5c6f287673869ed3187070",
+      "head": "837fa1a3b078fb47f5cac3f2b91958fa56d374d9",
+      "review_base": "96f179692479bf78f5406829891acae21894e887"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/spec_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_goal_run.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_model_select.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_origin.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_spec_review_gate.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+        "repo": "moxywolf-plugins"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 41531439004,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "4611b01025e5",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/GitHub/moxywolf-plugins",
+      "receipt_sha256": "80828e018736ca51367032f2e3a833f1389abb4bf69d70d381271d4f44395c11",
+      "shown": "evidence/ledger-4611b01025e5.log"
+    }
+  ],
+  "surface": {
+    "changed": 17,
+    "callers": 25,
+    "callers_withheld": 90,
+    "cap": 25,
+    "from_prior_findings": 8,
+    "dependencies": 25,
+    "dependencies_withheld": 57,
+    "criterion_files": [
+      "changed/0-moxywolf-plugins/DESIGN.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "reviews",
+        "files": 33,
+        "binary": 0,
+        "withheld": 0
+      },
+      {
+        "dir": "reviews/spec-review",
+        "files": 2,
+        "binary": 0,
+        "withheld": 0
+      },
+      {
+        "dir": "goals",
+        "files": 41,
+        "binary": 0,
+        "withheld": 21
+      }
+    ],
+    "provenance": {
+      "entries": 76,
+      "untrusted": 74
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 66738,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "ROUND.diff",
+      "SURFACE.md",
+      "changed/0-moxywolf-plugins/.claude-plugin/marketplace.json",
+      "changed/0-moxywolf-plugins/docs/evidence/SR-001.md",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/.claude-plugin/plugin.json",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/README.md",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/commands/gstack-build.md",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/commands/gstack-plan-review.md",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/scripts/peer_review.py",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/scripts/spec_review.py",
+      "changed/0-moxywolf-plugins/plugins/gstack-execution/scripts/test_spec_review_gate.py",
+      "dependencies/0-moxywolf-plugins/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-41531439004.json",
+      "evidence/ledger-4611b01025e5.json",
+      "evidence/ledger-4611b01025e5.log"
+    ],
+    "examined_count": 17,
+    "offered_count": 78,
+    "examined_beyond_the_diff": [
+      "dependencies/0-moxywolf-plugins/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-41531439004.json",
+      "evidence/ledger-4611b01025e5.json",
+      "evidence/ledger-4611b01025e5.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"1. **Scope.** `spec_review.py run <doc> --items <id>[,<id>]` reviews each named item on its own: the doc's `## Goal` and `## Constraints and settled decisions` sections plus that item. An item is either a `### <id>` section (heading to the next `###` or `##`), or, in the design-doc template's format, a table row whose first cell is the id, sent with the table's header row. With no `--items` it sends the whole file, which is how a goal's `PLAN.md` is reviewed. In every mode, every `**Status:**` line is removed and every table's Status and Review ID cells are blanked, so moving an item's status never changes what was reviewed. An item id the doc doesn't contain refuses (exit 1) before any request is sent.\",\n      \"met\": true,\n      \"evidence\": \"spec_review.py:150\u2013189 compares complete heading IDs, extracts heading/table scopes and removes status bookkeeping; line 260 extracts all requested scopes before transport. Regression assertions at lines 452\u2013459 cover prefix IDs and colon punctuation.\"\n    },\n    {\n      \"criterion\": \"2. **The call.** One Messages API request to `claude-sonnet-5-5` with `thinking: adaptive` and the `advisor_20260301` tool backed by `claude-fable-5-1` (`max_uses` 3). A `pause_turn` reply is resumed by resending the assistant turn unchanged, at most six times; a turn still paused after that refuses, exit 1. Sonnet 5.5 rejects a forced `tool_choice`, so a turn that ends without an advisor call gets one reminder in the same conversation; still none refuses, exit 1, and writes no record. At least one advisor call is required, up to `max_uses`. `GSTACK_SPEC_EXECUTOR` and `GSTACK_SPEC_ADVISOR` override the pair.\",\n      \"met\": true,\n      \"evidence\": \"spec_review.py:39\u201342 defines models and resume limit; lines 196\u2013221 configure adaptive thinking, advisor max_uses 3, unchanged assistant continuation and a separately counted six-resume limit. Lines 264\u2013265 refuse an unadvised result before writing.\"\n    },\n    {\n      \"criterion\": \"3. **The record.** `run` writes `reviews/spec-review/<id>.json` and `<id>.md` per item beside the doc (`all` for a whole file): schema, doc name, items, `scope_sha256` of exactly the text sent, both models, advisor call count, usage, `contradictions` (requirements, triggering scenario, smallest change) and `ambiguities` (requirements, question). Exit 0 with no contradiction, 2 with any, 1 refused or failed.\",\n      \"met\": true,\n      \"evidence\": \"spec_review.py:224\u2013253 now requires both findings arrays and required entry fields. Lines 256\u2013281 validate before writing the per-item JSON/Markdown records and compute the contradiction exit status; lines 573\u2013575 map Refused to exit 1.\"\n    },\n    {\n      \"criterion\": \"4. **The gate.** `check <doc> [--items ...]` re-extracts each item's scope and passes only when every item's record exists, records at least one advisor call, its `scope_sha256` matches and it lists no contradiction, so a batch passes when each of its items does, in any order. With no `--items` it checks the whole-file record, `all.json`. A record with no advisor call is refused as `spec_review_missing`. Ambiguities are reported and don't block. The three refusals are distinct: `spec_review_missing`, `spec_review_stale`, `spec_review_open`. A contradiction clears only by revising the doc and re-running: the record has no `resolved` flag and `check` reads none. Editing a status line alone leaves the record current; editing a criterion or a constraint makes it stale.\",\n      \"met\": true,\n      \"evidence\": \"spec_review.py:284\u2013314 checks each scope hash, findings structure, advisor count and contradictions. Lines 312\u2013314 report ambiguity IDs, requirements and questions while returning success. Selftest assertions at lines 501\u2013509 cover reporting and malformed stored findings.\"\n    },\n    {\n      \"criterion\": \"5. **The credential.** Read only from the file `GSTACK_ANTHROPIC_ENV` names, with an optional `ANTHROPIC_WORKSPACE_ID` from the same file sent as `anthropic-workspace-id` for a key not scoped to a workspace. Unset, a missing file, or no `ANTHROPIC_API_KEY` value refuses with that reason, and no other credential is tried. An error the API returns is reported as `refused:` with the API's own message, exit 1.\",\n      \"met\": true,\n      \"evidence\": \"Unchanged by ROUND.diff. spec_review.py:74\u2013117 reads only the designated credential file, sets the optional workspace header and preserves the API error message; lines 573\u2013575 print refused and return 1.\"\n    },\n    {\n      \"criterion\": \"6. **Wiring.** `/gstack-plan-review` runs it as Round 0 on the plan, and its contradictions go into the Round 1 critic prompt as settled findings; a refusal is reported as `review_unavailable` and the plan isn't presented as consistency-checked. `/gstack-build` Step 2 runs `check` for the item before Step 3, and `spec_review_open` takes the amendment path with each smallest change as the proposed diff and the ambiguities as questions. `peer_review.py open` refuses an item packet unless `check` passes for its items against that repository's `DESIGN.md`. A goal item `<id>/<n>` is checked against `goals/<id>/PLAN.md`'s single whole-file record and needs no section of its own.\",\n      \"met\": true,\n      \"evidence\": \"Unchanged wiring remains compatible with the fixes: gstack-plan-review.md:67\u201378, gstack-build.md:45, and peer_review.py:2684\u20132704 and 2739. The gate consumes the same (ok, reason) return contract.\"\n    },\n    {\n      \"criterion\": \"7. **Tests.** `spec_review.py --selftest`, stubbed transport and no network, covers scope extraction from a heading and from a table row, status-line and status-cell insensitivity, a record with no advisor call refused, a paused turn resumed, each of the three refusals, an unknown item id and a missing credential. A `peer_review.py` test shows `open` refused with `spec_review_missing` and accepted once the record matches. `run_all_tests.py` names both among what it ran and reports no failures.\",\n      \"met\": true,\n      \"evidence\": \"Read spec_review.py:412\u2013552 and test_spec_review_gate.py:48\u201387. evidence/ledger-4611b01025e5.json has head_matches=true, receipt_verified=true and exit_code=0; its verified log names both relevant checks as PASS and reports 'examined 104 checks: 104 passed, 0 failed'. CI 41531439004 also passed at the reviewed head.\"\n    },\n    {\n      \"criterion\": \"8. **One live run.** A plan with one deliberately planted conflict, run through `run`, lists that conflict in `contradictions`; the record is quoted in the review packet. It needs `anthropic.env` in the vault.\",\n      \"met\": true,\n      \"evidence\": \"docs/evidence/SR-001.md:3 records the live model pair, one advisor call and exit 2; lines 25\u201358 quote the record identifying the planted no-network versus live-rates conflict. This is builder-run evidence, accepted within the packet's explicit exclusion; no API call was repeated.\"\n    },\n    {\n      \"criterion\": \"9. gstack-execution moves a minor version, and its marketplace entry, the top-level marketplace version and the README Version History move with it (CI-002).\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff moves gstack-execution from 0.98.0 to 0.99.0 and the marketplace from 1.159.0 to 1.160.0. Plugin manifest line 3, marketplace entry line 370 and plugin README.md:178 agree. CI 41531439004 passed the version-movement step at the reviewed head.\"\n    }\n  ],\n  \"findings\": [],\n  \"blocker_resolutions\": [\n    {\n      \"id\": \"F1\",\n      \"resolved\": true,\n      \"evidence\": \"Fixed disposition verified: spec_review.py:150\u2013153 parses the heading ID and line 182 compares it exactly. Lines 452\u2013459 reject R, R-00 and R-0011 against R-001 and accept the colon-delimited heading.\"\n    },\n    {\n      \"id\": \"F2\",\n      \"resolved\": true,\n      \"evidence\": \"Fixed disposition verified: spec_review.py:201\u2013214 counts resumptions independently of the reminder and refuses a paused response when six resumptions have already occurred. Lines 471\u2013476 assert refusal after exactly seven requests, before a seventh resumption.\"\n    },\n    {\n      \"id\": \"F3\",\n      \"resolved\": true,\n      \"evidence\": \"Fixed disposition verified: spec_review.py:224\u2013253 rejects missing or non-array findings fields and incomplete entries; line 266 validates before record writes. Lines 303\u2013304 apply the same validation to stored findings. Regression cases appear at lines 477\u2013484 and 506\u2013509.\"\n    },\n    {\n      \"id\": \"F4\",\n      \"resolved\": true,\n      \"evidence\": \"Fixed disposition verified: spec_review.py:312\u2013314 includes every passing item's ambiguity ID, requirements and question in the successful check message. Lines 501\u2013505 assert the emitted content and nonblocking result.\"\n    }\n  ],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"Bounded round-2 verification found all four prior blockers resolved and no blocking regression. No files were modified and no tests or live requests were run. Previously reported embedded instructions were treated as source data and were not repeated.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "1. **Scope.** `spec_review.py run <doc> --items <id>[,<id>]` reviews each named item on its own: the doc's `## Goal` and `## Constraints and settled decisions` sections plus that item. An item is either a `### <id>` section (heading to the next `###` or `##`), or, in the design-doc template's format, a table row whose first cell is the id, sent with the table's header row. With no `--items` it sends the whole file, which is how a goal's `PLAN.md` is reviewed. In every mode, every `**Status:**` line is removed and every table's Status and Review ID cells are blanked, so moving an item's status never changes what was reviewed. An item id the doc doesn't contain refuses (exit 1) before any request is sent.",
+      "met": true,
+      "evidence": "spec_review.py:150\u2013189 compares complete heading IDs, extracts heading/table scopes and removes status bookkeeping; line 260 extracts all requested scopes before transport. Regression assertions at lines 452\u2013459 cover prefix IDs and colon punctuation."
+    },
+    {
+      "criterion": "2. **The call.** One Messages API request to `claude-sonnet-5-5` with `thinking: adaptive` and the `advisor_20260301` tool backed by `claude-fable-5-1` (`max_uses` 3). A `pause_turn` reply is resumed by resending the assistant turn unchanged, at most six times; a turn still paused after that refuses, exit 1. Sonnet 5.5 rejects a forced `tool_choice`, so a turn that ends without an advisor call gets one reminder in the same conversation; still none refuses, exit 1, and writes no record. At least one advisor call is required, up to `max_uses`. `GSTACK_SPEC_EXECUTOR` and `GSTACK_SPEC_ADVISOR` override the pair.",
+      "met": true,
+      "evidence": "spec_review.py:39\u201342 defines models and resume limit; lines 196\u2013221 configure adaptive thinking, advisor max_uses 3, unchanged assistant continuation and a separately counted six-resume limit. Lines 264\u2013265 refuse an unadvised result before writing."
+    },
+    {
+      "criterion": "3. **The record.** `run` writes `reviews/spec-review/<id>.json` and `<id>.md` per item beside the doc (`all` for a whole file): schema, doc name, items, `scope_sha256` of exactly the text sent, both models, advisor call count, usage, `contradictions` (requirements, triggering scenario, smallest change) and `ambiguities` (requirements, question). Exit 0 with no contradiction, 2 with any, 1 refused or failed.",
+      "met": true,
+      "evidence": "spec_review.py:224\u2013253 now requires both findings arrays and required entry fields. Lines 256\u2013281 validate before writing the per-item JSON/Markdown records and compute the contradiction exit status; lines 573\u2013575 map Refused to exit 1."
+    },
+    {
+      "criterion": "4. **The gate.** `check <doc> [--items ...]` re-extracts each item's scope and passes only when every item's record exists, records at least one advisor call, its `scope_sha256` matches and it lists no contradiction, so a batch passes when each of its items does, in any order. With no `--items` it checks the whole-file record, `all.json`. A record with no advisor call is refused as `spec_review_missing`. Ambiguities are reported and don't block. The three refusals are distinct: `spec_review_missing`, `spec_review_stale`, `spec_review_open`. A contradiction clears only by revising the doc and re-running: the record has no `resolved` flag and `check` reads none. Editing a status line alone leaves the record current; editing a criterion or a constraint makes it stale.",
+      "met": true,
+      "evidence": "spec_review.py:284\u2013314 checks each scope hash, findings structure, advisor count and contradictions. Lines 312\u2013314 report ambiguity IDs, requirements and questions while returning success. Selftest assertions at lines 501\u2013509 cover reporting and malformed stored findings."
+    },
+    {
+      "criterion": "5. **The credential.** Read only from the file `GSTACK_ANTHROPIC_ENV` names, with an optional `ANTHROPIC_WORKSPACE_ID` from the same file sent as `anthropic-workspace-id` for a key not scoped to a workspace. Unset, a missing file, or no `ANTHROPIC_API_KEY` value refuses with that reason, and no other credential is tried. An error the API returns is reported as `refused:` with the API's own message, exit 1.",
+      "met": true,
+      "evidence": "Unchanged by ROUND.diff. spec_review.py:74\u2013117 reads only the designated credential file, sets the optional workspace header and preserves the API error message; lines 573\u2013575 print refused and return 1."
+    },
+    {
+      "criterion": "6. **Wiring.** `/gstack-plan-review` runs it as Round 0 on the plan, and its contradictions go into the Round 1 critic prompt as settled findings; a refusal is reported as `review_unavailable` and the plan isn't presented as consistency-checked. `/gstack-build` Step 2 runs `check` for the item before Step 3, and `spec_review_open` takes the amendment path with each smallest change as the proposed diff and the ambiguities as questions. `peer_review.py open` refuses an item packet unless `check` passes for its items against that repository's `DESIGN.md`. A goal item `<id>/<n>` is checked against `goals/<id>/PLAN.md`'s single whole-file record and needs no section of its own.",
+      "met": true,
+      "evidence": "Unchanged wiring remains compatible with the fixes: gstack-plan-review.md:67\u201378, gstack-build.md:45, and peer_review.py:2684\u20132704 and 2739. The gate consumes the same (ok, reason) return contract."
+    },
+    {
+      "criterion": "7. **Tests.** `spec_review.py --selftest`, stubbed transport and no network, covers scope extraction from a heading and from a table row, status-line and status-cell insensitivity, a record with no advisor call refused, a paused turn resumed, each of the three refusals, an unknown item id and a missing credential. A `peer_review.py` test shows `open` refused with `spec_review_missing` and accepted once the record matches. `run_all_tests.py` names both among what it ran and reports no failures.",
+      "met": true,
+      "evidence": "Read spec_review.py:412\u2013552 and test_spec_review_gate.py:48\u201387. evidence/ledger-4611b01025e5.json has head_matches=true, receipt_verified=true and exit_code=0; its verified log names both relevant checks as PASS and reports 'examined 104 checks: 104 passed, 0 failed'. CI 41531439004 also passed at the reviewed head."
+    },
+    {
+      "criterion": "8. **One live run.** A plan with one deliberately planted conflict, run through `run`, lists that conflict in `contradictions`; the record is quoted in the review packet. It needs `anthropic.env` in the vault.",
+      "met": true,
+      "evidence": "docs/evidence/SR-001.md:3 records the live model pair, one advisor call and exit 2; lines 25\u201358 quote the record identifying the planted no-network versus live-rates conflict. This is builder-run evidence, accepted within the packet's explicit exclusion; no API call was repeated."
+    },
+    {
+      "criterion": "9. gstack-execution moves a minor version, and its marketplace entry, the top-level marketplace version and the README Version History move with it (CI-002).",
+      "met": true,
+      "evidence": "CHANGE.diff moves gstack-execution from 0.98.0 to 0.99.0 and the marketplace from 1.159.0 to 1.160.0. Plugin manifest line 3, marketplace entry line 370 and plugin README.md:178 agree. CI 41531439004 passed the version-movement step at the reviewed head."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [
+    {
+      "id": "F1",
+      "resolved": true,
+      "evidence": "Fixed disposition verified: spec_review.py:150\u2013153 parses the heading ID and line 182 compares it exactly. Lines 452\u2013459 reject R, R-00 and R-0011 against R-001 and accept the colon-delimited heading."
+    },
+    {
+      "id": "F2",
+      "resolved": true,
+      "evidence": "Fixed disposition verified: spec_review.py:201\u2013214 counts resumptions independently of the reminder and refuses a paused response when six resumptions have already occurred. Lines 471\u2013476 assert refusal after exactly seven requests, before a seventh resumption."
+    },
+    {
+      "id": "F3",
+      "resolved": true,
+      "evidence": "Fixed disposition verified: spec_review.py:224\u2013253 rejects missing or non-array findings fields and incomplete entries; line 266 validates before record writes. Lines 303\u2013304 apply the same validation to stored findings. Regression cases appear at lines 477\u2013484 and 506\u2013509."
+    },
+    {
+      "id": "F4",
+      "resolved": true,
+      "evidence": "Fixed disposition verified: spec_review.py:312\u2013314 includes every passing item's ambiguity ID, requirements and question in the successful check message. Lines 501\u2013505 assert the emitted content and nonblocking result."
+    }
+  ],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Bounded round-2 verification found all four prior blockers resolved and no blocking regression. No files were modified and no tests or live requests were run. Previously reported embedded instructions were treated as source data and were not repeated.",
+  "subjects": {},
+  "embedded_instructions": [],
+  "embedded_instructions_new": [],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

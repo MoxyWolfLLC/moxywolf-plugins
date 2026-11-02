@@ -1,0 +1,122 @@
+{
+  "review_id": "20261102-133808-41378e8-qmgtczf8",
+  "action": "merge",
+  "repo": "MoxyWolfLLC/moxywolf-plugins",
+  "head": "837fa1a3b078fb47f5cac3f2b91958fa56d374d9",
+  "reviewed_head": "837fa1a3b078fb47f5cac3f2b91958fa56d374d9",
+  "target": "main",
+  "merge_commit": "5d855a9b546af8f90500a59cd80df8cc850f39b3",
+  "approver": "dorianatmoxywolf",
+  "recorded_at": "2026-11-02T22:07:01Z",
+  "merged_at": "2026-11-02T22:06:50Z",
+  "source": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/280",
+  "outcome": "agent_merge_on_instruction",
+  "merged_by": "moxywolf-agent[bot]",
+  "instructed_by": "dorianatmoxywolf",
+  "instruction": "merge #280",
+  "instruction_given_at": "2026-11-02T22:06:00Z",
+  "instruction_comment": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/280#issuecomment-6589659023",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/spec_review.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_goal_run.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_model_select.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_origin.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_spec_review_gate.py",
+        "repo": "moxywolf-plugins"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+        "repo": "moxywolf-plugins"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "council_outcome": {
+    "status": "unwritten",
+    "line_id": "368297deb112",
+    "why": "no ledger line 368297deb112 under /Users/doriancougias/GitHub/sr001-review-store/decisions"
+  },
+  "model_selection_ledger": "/Users/doriancougias/GitHub/sr001-review-store/model-selection/MoxyWolfLLC-moxywolf-plugins.jsonl",
+  "origin": "human_instruction"
+}
