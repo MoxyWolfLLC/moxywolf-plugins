@@ -416,7 +416,7 @@
       "name": "moxywolf-skills",
       "source": "./skill-bundles/moxywolf-skills",
       "description": "Bundle of 25 standalone skills used across MoxyWolf work \u2014 voice, brand, content ecosystems, plus the Anthropic-shipped reference skills, packaged as one installable plugin. (daily-ops moved out of the bundle in v1.1.0 \u2014 install the standalone plugin instead.)",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "author": {
         "name": "MoxyWolf LLC"
       },
