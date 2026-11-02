@@ -30,6 +30,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,26 +67,50 @@ class Refused(Exception):
     pass
 
 
-def api_key():
+def _env_values():
     envfile = os.environ.get("GSTACK_ANTHROPIC_ENV")
     if not envfile:
         raise Refused("GSTACK_ANTHROPIC_ENV is not set; point it at the vault's anthropic.env")
     path = Path(envfile).expanduser()
     if not path.exists():
         raise Refused(f"GSTACK_ANTHROPIC_ENV names {path}, which does not exist. No other credential is tried.")
+    vals = {}
     for line in path.read_text().splitlines():
         k, _, v = line.partition("=")
-        if k.strip().removeprefix("export ").strip() == "ANTHROPIC_API_KEY" and v.strip():
-            return v.strip().strip('"').strip("'")
-    raise Refused(f"{path} sets no ANTHROPIC_API_KEY")
+        if v.strip():
+            vals[k.strip().removeprefix("export ").strip()] = v.strip().strip('"').strip("'")
+    if not vals.get("ANTHROPIC_API_KEY"):
+        raise Refused(f"{path} sets no ANTHROPIC_API_KEY")
+    return vals
+
+
+def api_key():
+    return _env_values()["ANTHROPIC_API_KEY"]
+
+
+def headers():
+    """A key not scoped to a workspace needs ANTHROPIC_WORKSPACE_ID, from the same file."""
+    vals = _env_values()
+    h = {"x-api-key": vals["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
+         "anthropic-beta": BETA, "content-type": "application/json"}
+    if vals.get("ANTHROPIC_WORKSPACE_ID"):
+        h["anthropic-workspace-id"] = vals["ANTHROPIC_WORKSPACE_ID"]
+    return h
 
 
 def post(body, timeout=600):
-    req = urllib.request.Request(API_URL, data=json.dumps(body).encode(), headers={
-        "x-api-key": api_key(), "anthropic-version": "2023-06-01",
-        "anthropic-beta": BETA, "content-type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode())
+    req = urllib.request.Request(API_URL, data=json.dumps(body).encode(), headers=headers())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:   # the API's own reason, never a traceback
+        try:
+            why = json.loads(e.read().decode())["error"]["message"]
+        except Exception:
+            why = e.reason
+        raise Refused(f"Claude API {e.code}: {why}")
+    except urllib.error.URLError as e:
+        raise Refused(f"Claude API unreachable at {API_URL}: {e.reason}")
 
 
 def _section(lines, start):
@@ -250,6 +275,36 @@ Ship it.
 """
 
 
+def assert_api_error_is_refused():
+    """A 400 from the API becomes Refused carrying the API's message, sent with the workspace header."""
+    import http.server
+    import threading
+    global API_URL
+    got = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(h):
+            got["ws"] = h.headers.get("anthropic-workspace-id")
+            h.rfile.read(int(h.headers["Content-Length"]))
+            h.send_response(400); h.end_headers()
+            h.wfile.write(b'{"type":"error","error":{"type":"invalid_request_error","message":"no workspace"}}')
+
+        def log_message(h, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    saved, API_URL = API_URL, f"http://127.0.0.1:{srv.server_port}/v1/messages"
+    try:
+        post({"model": "m"})
+        raise AssertionError("a 400 was not refused")
+    except Refused as e:
+        assert str(e) == "Claude API 400: no workspace", e
+        assert got["ws"] == "wrkspc_1"
+    finally:
+        API_URL = saved
+        srv.shutdown()
+
+
 def selftest():
     import tempfile
     conflict = {"contradictions": [{"id": "C1", "requirements": ["R-001.1", "R-001.2"],
@@ -305,7 +360,10 @@ def selftest():
                     assert msg in str(e), (msg, e)
             (Path(d) / "ok.env").write_text('export ANTHROPIC_API_KEY="k1"\n')
             os.environ["GSTACK_ANTHROPIC_ENV"] = str(Path(d) / "ok.env")
-            assert api_key() == "k1"
+            assert api_key() == "k1" and "anthropic-workspace-id" not in headers()
+            (Path(d) / "ok.env").write_text('ANTHROPIC_API_KEY=k1\nANTHROPIC_WORKSPACE_ID=wrkspc_1\n')
+            assert headers()["anthropic-workspace-id"] == "wrkspc_1"
+            assert_api_error_is_refused()
         finally:
             os.environ.pop("GSTACK_ANTHROPIC_ENV", None)
             if saved is not None:
