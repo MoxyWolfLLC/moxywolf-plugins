@@ -59,6 +59,10 @@ End your reply with exactly one fenced ```json block, nothing after it, of the s
  "ambiguities": [{"id": "A1", "requirements": ["<id>"], "question": "<what must be decided>"}]}
 Empty lists are fine. The prose above the block is for the human; the block is what the gate reads."""
 
+# The advisor docs: Sonnet 5.5 executors reject a forced tool_choice, so the lever is one reminder.
+REMINDER = ("You have not consulted the advisor yet. Call advisor now, then give your findings again, "
+            "ending with the ```json block.")
+
 ADVISOR_STEER = ("(Advisor: list only the requirement pairs you believe conflict or are ambiguous, "
                  "one line each, no explanation. The executor will write up the scenarios and fixes.)")
 
@@ -126,6 +130,23 @@ def _cells(row):
     return [c.strip() for c in re.split(r"(?<!\\)\|", row.strip().strip("|"))]
 
 
+def _blanked(lines):
+    """Every table's Status and Review ID cells emptied, so bookkeeping never changes the scope."""
+    out, blank = [], set()
+    for n, line in enumerate(lines):
+        if not line.lstrip().startswith("|"):
+            blank = set()
+        elif n + 1 < len(lines) and re.match(r"^\s*\|[\s:|-]+\|?\s*$", lines[n + 1]) and "-" in lines[n + 1]:
+            blank = {i for i, h in enumerate(_cells(line))
+                     if h.lower() == "status" or h.lower().startswith("review id")}
+        elif blank and set(line.strip()) <= set("|-: "):
+            pass   # the separator row
+        elif blank:
+            line = "| " + " | ".join("" if i in blank else c for i, c in enumerate(_cells(line))) + " |"
+        out.append(line)
+    return out
+
+
 def _table_item(lines, item):
     """The header, separator and row whose first cell is `item`, with its Status and Review ID cells
     blanked, or None. The design-doc template writes items this way (one row per item)."""
@@ -137,12 +158,7 @@ def _table_item(lines, item):
     top = n
     while top > 0 and lines[top - 1].lstrip().startswith("|"):
         top -= 1
-    if top == n:
-        return [line]
-    head = _cells(lines[top])
-    blank = {i for i, h in enumerate(head) if h.lower() == "status" or h.lower().startswith("review id")}
-    row = ["" if i in blank else c for i, c in enumerate(_cells(line))]
-    return [lines[top], lines[top + 1], "| " + " | ".join(row) + " |"]
+    return [line] if top == n else [lines[top], lines[top + 1], line]
 
 
 def scope(text, item=None):
@@ -164,7 +180,7 @@ def scope(text, item=None):
         out += _section(lines, i) if i is not None else ["## Item", ""] + row
         name = item
     # ponytail: a status line is any line starting **Status:**; other per-item bookkeeping still counts
-    return name, "\n".join(l for l in out if not l.lstrip().startswith("**Status:**")) + "\n"
+    return name, "\n".join(l for l in _blanked(out) if not l.lstrip().startswith("**Status:**")) + "\n"
 
 
 def record_path(doc, name):
@@ -176,8 +192,8 @@ def review(scope_text, post=post):
     tools = [{"type": "advisor_20260301", "name": "advisor", "model": ADVISOR,
               "max_uses": 3, "max_tokens": 4096}]
     messages = [{"role": "user", "content": f"{ADVISOR_STEER}\n\n<plan>\n{scope_text}</plan>"}]
-    iterations, advisor_calls, text = [], 0, []
-    for _ in range(MAX_RESUMES + 1):
+    iterations, advisor_calls, text, reminded = [], 0, [], False
+    for _ in range(MAX_RESUMES + 2):
         resp = post({"model": EXECUTOR, "max_tokens": 20000, "system": SYSTEM,
                      "thinking": {"type": "adaptive"}, "tools": tools, "messages": messages})
         content = resp.get("content") or []
@@ -189,6 +205,10 @@ def review(scope_text, post=post):
             continue
         if resp.get("stop_reason") == "max_tokens":
             raise Refused("executor hit max_tokens before closing its findings block")
+        if advisor_calls == 0 and not reminded:   # findings come from the reply after the reminder
+            messages += [{"role": "assistant", "content": content}, {"role": "user", "content": REMINDER}]
+            text, reminded = [], True
+            continue
         return "\n".join(text), iterations, advisor_calls
     raise Refused(f"turn did not finish within {MAX_RESUMES} resumptions")
 
@@ -210,7 +230,7 @@ def cmd_run(doc, items=None, post=post):
     for name, sent in scopes:
         reply, iterations, calls = review(sent, post)
         if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
-            raise Refused(f"{name}: the executor finished without consulting the advisor; no record written, re-run")
+            raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
         f = findings(reply)
         rec = {"schema": "spec-review/3", "doc": doc.name, "item": None if name == "all" else name,
                "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
@@ -401,6 +421,9 @@ def selftest():
         moved = table.replace("| planned | PR #9 |", "| done | PR #10 |")
         assert scope(moved, "T-001") == (name, sent), "a status or merge cell made the scope differ"
         assert scope(table, "T-001")[1] != scope(table.replace("Works offline", "Works online"), "T-001")[1]
+        # whole-file mode makes the same promise: no status line and no status cell counts
+        assert scope(moved)[1] == scope(table)[1] and "planned" not in scope(table)[1] and "| T-002 |" in scope(table)[1]
+        assert scope(DEMO.replace("planned", "done"))[1] == scope(DEMO)[1]
         # one record per item: a batch passes when each item does, in any order
         doc.write_text(table)
         assert cmd_run(doc, ["T-002", "T-001"], post=stub_post({"contradictions": [], "ambiguities": []})) == 0
@@ -408,11 +431,18 @@ def selftest():
         assert record_path(doc, "T-001").exists() and record_path(doc, "T-002").exists()
         # a turn that never consults the advisor writes no record, and a record without one doesn't pass
         record_path(doc, "T-001").unlink()
+        s = stub_post({"contradictions": [], "ambiguities": []}, advise=False)
         try:
-            cmd_run(doc, ["T-001"], post=stub_post({"contradictions": [], "ambiguities": []}, advise=False))
+            cmd_run(doc, ["T-001"], post=s)
             raise AssertionError("an unadvised run was accepted")
         except Refused as e:
             assert "without consulting the advisor" in str(e) and not record_path(doc, "T-001").exists()
+            assert len(s.seen) == 2 and s.seen[1]["messages"][-1]["content"] == REMINDER, "one reminder, then refuse"
+        late = stub_post({"contradictions": [], "ambiguities": []})
+        skip_once = lambda req: ({"stop_reason": "end_turn", "content": [{"type": "text", "text": "no json yet"}]}
+                                 if len(req["messages"]) == 1 else late(req))
+        assert cmd_run(doc, ["T-001"], post=skip_once) == 0, "a consult after the reminder counts"
+        assert json.loads(record_path(doc, "T-001").read_text())["advisor_calls"] == 1
         cmd_run(doc, ["T-001"], post=stub_post({"contradictions": [], "ambiguities": []}))
         rec = json.loads(record_path(doc, "T-001").read_text()); rec["advisor_calls"] = 0
         record_path(doc, "T-001").write_text(json.dumps(rec))
