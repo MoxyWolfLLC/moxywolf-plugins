@@ -214,6 +214,17 @@ g. **Behavioural hook liveness** — Some plugins inject a ruleset at session st
 
    Apply the same two states to ponytail if its activation block is present or absent; report it on the same line. Never gate the session on either — this is a heads-up, exactly like the OpenRouter probe.
 
+h. **Model economy (ME-001)**. Dorian's standing rule (2026-11-02): a cheaper main model with a stronger advisor, never the strongest model running throughout. Read `model` and `advisorModel` from `~/.claude/settings.json`, then from the project's `.claude/settings.json` if it exists; the project's value wins. In a cloud session, read the files where the session runs. A file that's missing or unreadable counts as unset for that key.
+
+   - **set**: `model` is `sonnet` or a Sonnet model ID, and `advisorModel` is `fable` or `opus`. Status line: `Model economy: sonnet main + <advisor> advisor`, naming the advisor actually set (`fable` in the usual case).
+   - **not set**: anything else. Status line: `Model economy: NOT SET (main=<x>, advisor=<y>)`, using the values read (`unset` when a key is absent), then the remedy on its own line: `run /model sonnet, then /advisor fable (first time: /model fable once to accept the usage-credits consent, then back to /model sonnet)`.
+
+   If `DISABLE_TELEMETRY` or `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` is set in the environment, add to the same line that the advisor is off regardless of the setting, and name the variable.
+
+   A session can't switch its own model, so this step reports and nothing more. It never gates the session and never edits a settings file.
+
+   Whatever the line says, apply the gstack-build economy for the rest of this session: reading and mapping go to the `explore` and `docs` agents on Haiku; consult the advisor before committing to an approach and before declaring an item done; don't spend the main model on `grep | head`.
+
 If any of these sources is unavailable (file missing, MCP not connected), capture the failure in the briefing instead of aborting. The remaining context is still useful.
 
 ### Step 5: Display the briefing
@@ -299,6 +310,7 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Shared services**
 - OpenRouter key: [✓ resolved from vault | ⚠ placeholder — ask Dorian for the real key | ⚠ file present but key value looks wrong — check format | ⚠ not found — see DR-010 for the canonical location]
 - Verification discipline: [✓ active | ⚠ NOT LOADED — gstack-execution [version] — [remedy]]   ·   Ponytail: [✓ active | ⚠ not loaded]
+- Model economy: [✓ sonnet main + [advisor] advisor | ⚠ NOT SET (main=[x], advisor=[y]), remedy on the next line][, advisor off: [env var] is set]
 ```
 
 Keep each line tight. This is a briefing, not a report.
