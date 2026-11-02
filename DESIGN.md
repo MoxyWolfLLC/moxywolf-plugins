@@ -2351,7 +2351,7 @@ Opened 2026-11-02. A plan can pass every critic round and still hold two require
 
 ### SR-001 — An item's requirements are checked against each other before it's built
 
-**Status:** planned.
+**Status:** building.
 
 `spec_review.py` asks one Claude API call to cross-check the requirements in scope pairwise: a Sonnet 5.5 executor with adaptive thinking that consults a Fable 5.1 advisor before committing to a reading. The advisor tool exists only on the Claude API, not on OpenRouter, so this is the one script in the plugin that calls Anthropic directly. Dorian approved the scope on 2026-11-02: the items under build plus Goal and Constraints, not the whole `DESIGN.md`, so a status line doesn't invalidate the record and a run stays affordable on a 570 KB doc (the same scoping XE-031 gives `target=design`).
 

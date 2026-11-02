@@ -5,7 +5,7 @@
   "id": "gstack-contract-vocabulary",
   "@type": "skos:ConceptScheme",
   "skos:prefLabel": "gstack-execution contract vocabulary (XE-011)",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "note": "One home for the terms the peer-review contract, packet, round record and design-doc template name. Code loads its enums and shapes from here; prose cites ids rather than restating definitions. Change a definition or shape -> bump version.",
   "concepts": [
     {
@@ -653,6 +653,27 @@
       "group": "review_outcome",
       "skos:prefLabel": "model_selection_missing",
       "skos:definition": "open refused a packet that claims DESIGN items but carries no model_selection (MR-001.3)"
+    },
+    {
+      "id": "spec_review_missing",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "spec_review_missing",
+      "skos:definition": "open refused an item packet whose items have no spec review record beside the doc, or whose doc or item is absent (SR-001)"
+    },
+    {
+      "id": "spec_review_stale",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "spec_review_stale",
+      "skos:definition": "open refused an item packet whose spec review record was made against different text than the items, Goal and Constraints read now (SR-001)"
+    },
+    {
+      "id": "spec_review_open",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "spec_review_open",
+      "skos:definition": "open refused an item packet whose current spec review lists a contradiction; the doc is amended and the review re-run (SR-001)"
     },
     {
       "id": "insufficient_history",

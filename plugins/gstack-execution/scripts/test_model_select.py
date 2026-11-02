@@ -22,6 +22,7 @@ SCRIPT = HERE / "model_select.mjs"
 PLUGIN = HERE.parent
 sys.path.insert(0, str(HERE))
 import peer_review as pr  # noqa: E402
+import spec_review as sr  # noqa: E402
 
 DESIGN = """# Fixture
 
@@ -114,6 +115,8 @@ class Selector(unittest.TestCase):
 
     def setUp(self):
         self.d, self.base, self.head = repo()
+        (self.d / "DESIGN.md").write_text(DESIGN); sr.seed_clean(self.d / "DESIGN.md", ["FX-001"])   # SR-001
+        (self.d / ".git" / "info" / "exclude").write_text("DESIGN.md\nreviews/\n")   # outside the reviewed commits
         self.root = Path(tempfile.mkdtemp(prefix="mr001-root-"))
         self.pfile = self.root / "packet.json"
         self.design = self.root / "DESIGN.md"; self.design.write_text(DESIGN)

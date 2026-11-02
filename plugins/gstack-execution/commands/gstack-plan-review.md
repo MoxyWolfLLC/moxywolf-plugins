@@ -64,6 +64,19 @@ command -v codex >/dev/null 2>&1 && codex login status >/dev/null 2>&1 && echo "
 
 State the engine to the user before Round 1.
 
+## Round 0: Consistency (SR-001)
+
+Before any critic argues the approach, check the draft's requirements against each other:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_review.py" run "$PLAN_FILE"                     # a PLAN.md, whole
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/spec_review.py" run DESIGN.md --items <ids>          # target=design: the items the draft adds or changes
+```
+
+It is one Claude API call (a Sonnet executor with a Fable advisor), run from the macOS shell where `model_select.mjs recommend` runs, with the credential from the vault file `GSTACK_ANTHROPIC_ENV` names. It writes `reviews/spec-review/<scope>.json` and `.md` beside the doc. Append the `.md` to `LOG_FILE` under `## Round 0 — consistency`. Every contradiction it names goes into the Round 1 critic prompt as a settled finding, so the critic argues the approach rather than rediscovering pairs. A contradiction is resolved by revising the plan and re-running, never by editing the record; `spec_review.py check` fails on a record whose `scope_sha256` no longer matches, so a revised plan is re-run before Step 4 reports it converged.
+
+Exit 1 (`refused:`) means the review did not run: report it as `review_unavailable` and continue the critic rounds without it. Do not present the plan as consistency-checked.
+
 ## Step 3: The loop
 
 For `ROUND` in `1..MAX_ROUNDS`, per the protocol reference:
