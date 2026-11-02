@@ -227,13 +227,41 @@ def release_relationship(state, head, pr, pinned, scope_problems=()):
     return {"ok": not problems, "finalized_head": finalized, "tested_head": tested, "pr": final_pr, "problems": problems}
 
 
-def final_merge_allowed(relation, review, checks, pr):
+def closed_lane_instructed(review, pr, comments):
+    """GA-011: the whole-goal review decided its lane over main..goal head, so a goal that carries a
+    migration (or any closed path or effect) is closed here, where its items' closed lanes were
+    deferred. It merges as the bot only on a merge-instruction the agent posted on this pull request,
+    quoting the review's Release Owner and covering this pull request. `comments` is the pull
+    request's issue comments as GitHub has them; None means they couldn't be read. Returns the
+    problem, or None when the lane isn't closed or an instruction covers it."""
+    lane = (review.get("release_lane") or {}).get("lane")
+    if lane != "closed":
+        return None
+    matched = "; ".join(m.get("effect") or m.get("path") or "?" for m in (review.get("release_lane") or {}).get("matched") or ())
+    if comments is None:
+        return f"the goal's lane is closed ({matched}) and the pull request's comments couldn't be read for a merge-instruction"
+    import peer_review                                  # the one parser of the one producer (XE-008)
+    owner = str(review.get("release_owner") or "").casefold()
+    for c in comments:
+        p = peer_review.parse_merge_instruction(c.get("body"))
+        if (p and pr.get("number") in p["covers"] and owner and str(p.get("instructed_by", "")).casefold() == owner
+                and (c.get("user") or {}).get("login") == peer_review.AGENT_LOGIN):
+            return None
+    return (f"the goal's lane is closed ({matched}): it merges into main only on {review.get('release_owner')}'s "
+            f"merge-instruction on PR #{pr.get('number')} (GA-011)")
+
+
+def final_merge_allowed(relation, review, checks, pr, comments=None):
     """GO-011.2: the goal pull request into main merges as the bot when release_relationship holds
     (recorded goal pull request, finalized head, whole-goal review pinned to the tested head without
     its holdout), the review is clean with coverage covered, and tests, goal-envelope, goal-tests and
-    goal-holdout are green at that head for this pull request into main."""
+    goal-holdout are green at that head for this pull request into main. GA-011: a closed lane also
+    needs the Release Owner's merge-instruction on the pull request."""
     head = relation.get("finalized_head") or ""
     problems = list(relation.get("problems") or ())
+    closed = closed_lane_instructed(review, pr, comments)
+    if closed:
+        problems.append(closed)
     problems += [m for ok, m in [
         (review.get("outcome") in {"no_blocking_findings", "fixes_verified"},
          f"the review ended {review.get('outcome')}, not clean"),

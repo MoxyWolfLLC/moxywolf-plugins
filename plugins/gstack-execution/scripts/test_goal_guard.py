@@ -16,6 +16,43 @@ GREEN = {"tests": ("success", None), "goal-envelope": ("success", BOUND), "goal-
 CLEAN = {"outcome": "fixes_verified", "coverage_checked": True, "coverage_status": "covered", "heads": [["a" * 40], ["b" * 40]]}
 
 
+class ClosedGoalLane(unittest.TestCase):
+    """GA-011: a closed lane deferred from the goal's items holds at the goal pull request into main."""
+    PR = {"number": 45, "head": "f" * 40, "base_ref": "main", "base": "e" * 40}
+    REVIEW = {"release_owner": "dorianatmoxywolf",
+              "release_lane": {"lane": "closed", "matched": [{"lane": "closed", "path": "supabase/migrations/0061.sql"}]}}
+
+    def comment(self, covers=(45,), owner="dorianatmoxywolf", login="moxywolf-agent[bot]"):
+        import peer_review
+        return {"user": {"login": login}, "body": peer_review.merge_instruction_body("merge it", "2026-11-02T17:00:00Z", covers, owner)}
+
+    def test_an_open_lane_needs_nothing_more(self):
+        for lane in ("contained", "wide"):
+            self.assertIsNone(gguard.closed_lane_instructed({"release_lane": {"lane": lane}}, self.PR, None))
+
+    def test_a_closed_lane_without_an_instruction_is_refused_naming_what_closed_it(self):
+        problem = gguard.closed_lane_instructed(self.REVIEW, self.PR, [])
+        self.assertIn("supabase/migrations/0061.sql", problem)
+        self.assertIn("merge-instruction on PR #45", problem)
+
+    def test_unreadable_comments_are_a_refusal_not_a_pass(self):
+        self.assertIn("couldn't be read", gguard.closed_lane_instructed(self.REVIEW, self.PR, None))
+
+    def test_only_the_owners_instruction_for_this_pr_posted_by_the_agent_counts(self):
+        for name, c in {"another PR": self.comment(covers=(46,)), "another owner": self.comment(owner="someone"),
+                        "posted by a person": self.comment(login="dorianatmoxywolf")}.items():
+            with self.subTest(name):
+                self.assertIsNotNone(gguard.closed_lane_instructed(self.REVIEW, self.PR, [c]))
+        self.assertIsNone(gguard.closed_lane_instructed(self.REVIEW, self.PR, [self.comment()]))
+
+    def test_final_merge_allowed_carries_the_refusal(self):
+        relation = {"finalized_head": self.PR["head"], "problems": []}
+        with self.assertRaises(gguard.Refused) as e:
+            gguard.final_merge_allowed(relation, dict(self.REVIEW, outcome="fixes_verified", coverage_checked=True,
+                                                      coverage_status="covered"), {}, self.PR, [])
+        self.assertIn("GA-011", str(e.exception))
+
+
 class Triggers(tgr.RunnerFixture):
     def refused_start(self, workflow, envs=("goal-holdout",)):
         if workflow:

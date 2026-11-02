@@ -390,7 +390,7 @@ def next_step(repo, goal_id, base="origin/main"):
 
 
 def act(repo, goal_id, klass, resource, environments, base="origin/main", head=None, review=None, checks=None, pr=None,
-        sync=False):
+        sync=False, comments=None):
     """GO-005.4 and .5 before an action the runner or a builder takes: a push, pull request or merge
     first rechecks what it would set off and stops the run if that changed since the start; then the
     ledger (or, for an item merge, DR-113's conditions) must allow it, or it's Dorian's."""
@@ -444,7 +444,7 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
                               f"not {str(head)[:12]} with {review.get('review_id')}")
             gguard.reviewed_merge_allowed("main", head, review, checks, pr)
             return {"allowed": klass, "resource": resource, "by": "GO-012.2 companion"}
-        gguard.final_merge_allowed(release_relation(repo, goal_id, state, review, head, pr), review, checks, pr)
+        gguard.final_merge_allowed(release_relation(repo, goal_id, state, review, head, pr), review, checks, pr, comments)
         bind_final(state, review_id=review.get("review_id"))     # GO-012.2: the review that allowed the merge
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
     if klass == "merge":
@@ -1131,9 +1131,10 @@ def _execute(goal_id, state, action, observed, get, put, repo_name):
         runs = get(f"repos/{name}/commits/{ch['head']}/check-runs?per_page=100") or {}
         checks = gguard.latest_checks(runs.get("check_runs") or [])
         prd = {"number": pr["number"], "head": pr["head"]["sha"], "base_ref": pr["base"]["ref"], "base": pr["base"]["sha"]}
+        comments = get(f"repos/{name}/issues/{prd['number']}/comments?per_page=100") if ch["target"] == "main" else None   # GA-011
         save(state)
         act(Path(ch.get("path") or "."), goal_id, "merge", ch["target"], environments_of(get, name),
-            base=prd["base"], head=ch["head"], review=review, checks=checks, pr=prd)
+            base=prd["base"], head=ch["head"], review=review, checks=checks, pr=prd, comments=comments)
         state = load(goal_id); delivery = state["delivery"]; ch = delivery["changes"][cid]
         ch["merge_requested"] = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "head": ch["head"], "pr": ch["pr"]}
         save(state)
@@ -1407,8 +1408,11 @@ def _main(argv, repo=gb.ROOT):
                 p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
                 pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
                 ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
+            comments = (get(f"repos/{name}/issues/{pr['number']}/comments?per_page=100")   # GA-011: a closed goal lane's instruction
+                        if pr and opts["--resource"] == "main" else None)
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
-                                 head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts)))
+                                 head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts,
+                                 comments=comments)))
             return 0
         if cmd == "resync" and goal_id and set(opts) == {"--head"}:
             print(json.dumps(resync(repo, goal_id, opts["--head"])))

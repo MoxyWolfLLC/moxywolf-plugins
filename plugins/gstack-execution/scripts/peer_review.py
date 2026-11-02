@@ -643,10 +643,20 @@ def release_lane(repos, table=None):
             "table": sources[0] if len(sources) == 1 else sources}
 
 
-def lane_instruction(lane_record):
+def lane_in_force(lane_record, target):
+    """GA-011: the lane a release into `target` is held to. The lane itself never moves. A closed lane
+    into a goal branch (`goal/<id>`) is held to the wide gates and deferred: the goal pull request into
+    main is reviewed over the whole goal's diff, so it decides closed again, and
+    goal_guard.final_merge_allowed holds it there until the Release Owner instructs."""
+    lane = (lane_record or {}).get("lane") or "contained"
+    return "wide" if lane == "closed" and str(target or "").startswith("goal/") else lane
+
+
+def lane_instruction(lane_record, target="main"):
     """F6 (review 20261013-202943): the closed instruction names what closed the lane."""
     lane = (lane_record or {}).get("lane") or "contained"
-    text = LANE_INSTRUCTION[lane]
+    deferred = lane == "closed" and lane_in_force(lane_record, target) != "closed"
+    text = LANE_INSTRUCTION["closed_deferred" if deferred else lane]
     if lane == "closed":
         what = "; ".join(f"{m['repo']}: {m.get('effect') or m['path']}" + (f" ({m['path']})" if m.get("effect") else "")
                          for m in lane_record.get("matched") or ()) or "nothing recorded"
@@ -687,6 +697,7 @@ LANE_INSTRUCTION = {
     "contained": "Merge the exact reviewed head through the pull request, then run record-release. Under DR-113 the agent merges on its own; a change to a CODEOWNERS path also needs the Release Owner's approving review, which GitHub enforces. This command never merges or accepts an approval flag.",
     "wide": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
     "closed": "The lane is closed: DR-113 does not apply, and the agent does not merge. The Release Owner merges under their own login, or instructs the agent on the pull request (merge-instruction). This command never merges or accepts an approval flag.",
+    "closed_deferred": "The lane is closed: into a goal branch the closed lane is deferred to the goal pull request into main, which needs the Release Owner's merge-instruction (GA-011). Here the agent merges under DR-113 with the wide gates, which this handoff has checked: merge the exact reviewed head through the pull request, then run record-release. This command never merges or accepts an approval flag.",
 }
 
 # ---- XE-018: the files a change names, and CI results the dispatcher fetched itself ----
@@ -3118,7 +3129,8 @@ def cmd_release(a):
     import unknowns   # EV-011.5: listed at the head, not refused on; refusing is a later ruling
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
-    if (state.get("release_lane") or {}).get("lane") == "wide":
+    in_force = lane_in_force(state.get("release_lane"), a.target)   # GA-011
+    if in_force == "wide":
         failed = wide_gates(state, links, open_unknowns_now, packet["repos"])
         if failed:
             raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
@@ -3130,7 +3142,8 @@ def cmd_release(a):
               "observations": human_observations(packet, getattr(a, "observation", None)),
               "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
               "release_lane": state.get("release_lane"),   # GA-010.4
-              "instruction": lane_instruction(state.get("release_lane"))}
+              "lane_in_force": in_force,                    # GA-011
+              "instruction": lane_instruction(state.get("release_lane"), a.target)}
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
@@ -3347,7 +3360,7 @@ def cmd_record_release(a):
         elif merger.get("login") != AGENT_LOGIN:
             raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr}, isn't "
                               f"{AGENT_LOGIN}, and no merge instruction from {state['release_owner']} on it covers this pull request")
-        elif (state.get("release_lane") or {}).get("lane") == "closed":
+        elif lane_in_force(state.get("release_lane"), prepared["target"]) == "closed":   # GA-011: deferred into a goal branch
             # GA-010.5: the closed lane never opens on its own. A merge that happened is a fact to keep,
             # so the record is written, naming the lane and what matched, with no authority.
             decision.update({"merged_by": merger.get("login"), "outcome": "agent_merge_out_of_lane",
@@ -3359,6 +3372,7 @@ def cmd_record_release(a):
             decision.update({"merged_by": merger.get("login"), "authorized_by": state["release_owner"],
                              "authority": AUTONOMOUS_MERGE_AUTHORITY, "outcome": "agent_merge_autonomous"})
     decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
+    decision["lane_in_force"] = lane_in_force(state.get("release_lane"), prepared["target"])   # GA-011
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
     line = model_selection_line(d, state, packet, name, a.pr, decision)
