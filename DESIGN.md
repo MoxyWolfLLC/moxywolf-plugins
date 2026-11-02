@@ -211,26 +211,40 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 3. `/gstack-goal` step 4 documents exit 2.
 4. Tests: five malformed calls through `main` each exit 2 with `usage:` and leave the run state byte-identical.
 
-### GO-005 amendment (2026-11-02) — Code isn't a hostname or an environment variable
+### GO-014 — Code isn't a hostname or an environment variable (amends GO-005)
 
-Approved 2026-11-02 with XE-040. In a code file a host-like key (`host`, `url`, …) counts only when its value is a quoted string, so `const host = request.headers.get(...)` is no hostname; config files keep the old rule. `${X}` counts as a name only before `}` or a shell operator, so `${Math.min(a, b)}` is code. Tests in `test_goal_calls.py::CodeIsNotAHost`.
+**Status:** building. Declared and approved 2026-11-02 with XE-040, from wfa-review-screen-v5.
 
-### GO-003 amendment (2026-11-02) — A holdout that only missed a package says so
+1. In a code file a host-like key (`host`, `url`, …) counts only when its value is a quoted string, so `const host = request.headers.get(...)` is no hostname; a config file keeps the old rule.
+2. `${X}` counts as a name only before `}` or a shell operator (`:`, `-`, `=`, `+`, `?`, `#`, `%`, `/`), so `${Math.min(a, b)}` is code.
+3. Tests in `test_goal_calls.py::CodeIsNotAHost` cover both, and a quoted host and a config host still count.
 
-Approved 2026-11-02 with XE-040. `goal_brief.holdout_cause` reads the failures `holdout_failures` reported; when every one is a missing module (`No module named`, `Cannot find module`), `holdout_reading` gives "missing package <names> (an environment problem, not evidence of a reward hack)", used by the goal-holdout check's title and by `goal_run.py holdout-failed`'s escalation. The check stays red and the run stops either way. One real failure beside them keeps "possible reward hack".
+### GO-015 — A holdout that only missed a package says so (amends GO-003)
 
-### XE-014 amendment (2026-11-02) — An installed scorer installs its own dependency
+**Status:** building. Declared and approved 2026-11-02 with XE-040.
 
-Approved 2026-11-02 with XE-040. An installed plugin has no `node_modules`, so every review outside a clone recorded coverage `broken`. When `import('ai')` fails, `packet_coverage.mjs` runs `npm ci --omit=dev` once from the plugin's own `package.json` and lockfile into `${GSTACK_HOME:-~/.gstack}/scorer/<lockfile sha256, 16 hex>/` (in a temporary directory renamed into place) and loads `ai` from there. A failed install is `broken`, naming npm's error and the cache it consulted, and leaves nothing half-installed. Tests: an installed copy scores and reuses its cache; an install against an unreachable registry is `broken`.
+1. `goal_brief.holdout_cause` reads the failures `holdout_failures` reported; when every one is a missing module (`No module named`, `Cannot find module`), `holdout_reading` gives "missing package <names> (an environment problem, not evidence of a reward hack)". One real failure beside them keeps "possible reward hack".
+2. The goal-holdout check's title and `goal_run.py holdout-failed`'s escalation both use `holdout_reading`.
+3. The check stays red and the run stops either way.
+4. Tests: a missing-package holdout is titled so and stays a failure; a mixed one keeps "possible reward hack"; the escalation says "missing package" and the run ends stopped.
 
-### Goal-loop fixes folded in from the 2026-10-30 handoff
+### XE-041 — An installed scorer installs its own dependency (amends XE-014)
 
-Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
+**Status:** building. Declared and approved 2026-11-02 with XE-040.
 
-1. **The holdout's loopback.** wfa-gateway-v1's drafted holdout added its own network guard and blocked Turbopack's loopback, so every Next.js build failed it. `goal_new.py`'s drafting rules say the container already has no network and loopback must stay open, and `cmd_tests` and `cmd_holdout` refuse drafted source that rebinds anything on the `socket` module. Test: three guard forms are refused; binding a socket to 127.0.0.1 isn't.
-2. **The wide lane on CI-log findings.** `release` refused a wide lane on `links_unverifiable` caused only by findings citing CI logs. `wide_links_hold` takes `links_unverifiable` when every check that didn't verify is a finding citing `evidence/ci-*`, a log the dispatcher fetched itself; a stale link, a missing record or any other unverifiable check still fails it.
-3. **New ledger runs in a fix round.** Already in the code (`round --ledger-run`, tested in `test_ci_run_paths.py`) but not in `/gstack-build`, which now says each fix round passes it.
-4. **Not changed, and why.** `resync` on a sync pull request: the current code takes main's tip plus an empty commit, and `test_goal_run.py` covers it; it couldn't be reproduced here. An acknowledged goal-envelope escalation keeping later items red: goal-envelope judges every commit since main, so anything let onto the goal branch stays red until the goal ends. Judging an item only on what it adds would fix that, but the agent can push to `goal/<id>` directly, so it would also let an unreviewed push past every item check until the goal pull request. Dorian ruled 2026-11-02 ("Option B"): no change; when a change outside the envelope lands on a goal branch, the fix is a new goal with wider Allowed paths.
+1. When `import('ai')` fails, `packet_coverage.mjs` runs `npm ci --omit=dev` once from the plugin's own `package.json` and lockfile into `${GSTACK_HOME:-~/.gstack}/scorer/<lockfile sha256, 16 hex>/`, in a temporary directory renamed into place, and loads `ai` from there.
+2. A failed install records `broken`, naming npm's error and the cache it consulted, and leaves nothing half-installed; with no lockfile it records `broken` as before.
+3. Tests: an installed copy with no `node_modules` scores and reuses its cache on a second run; an install against an unreachable registry is `broken`.
+
+### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
+
+**Status:** building. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
+
+1. `goal_new.py`'s drafting rules say the container already has no network and loopback must stay open, and `cmd_tests` and `cmd_holdout` refuse drafted source that rebinds anything on the `socket` module (wfa-gateway-v1's holdout guard blocked Turbopack's loopback, so every Next.js build failed it). Test: three guard forms are refused; binding a socket to 127.0.0.1 isn't.
+2. `wide_links_hold` takes `links_unverifiable` in the wide lane when every check that didn't verify is a finding citing `evidence/ci-*`, a log the dispatcher fetched itself; a stale link, a missing record or any other unverifiable check still fails it. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable`.
+3. `/gstack-build` says each fix round passes `--ledger-run` (already in the code, tested in `test_ci_run_paths.py`).
+4. Not changed: `resync` on a sync pull request (the current code takes main's tip plus an empty commit, and `test_goal_run.py` covers it; not reproduced here); an acknowledged goal-envelope escalation keeping later items red, because judging an item only on what it adds would let a direct push to `goal/<id>` past every item check. Dorian ruled 2026-11-02 ("Option B"): no change; when a change outside the envelope lands on a goal branch, the fix is a new goal with wider Allowed paths.
+5. `plugin.json` 0.98.0, its marketplace entry and README Version History, and the top-level marketplace version 1.157.0 cover GA-011 through GO-016 (CI-002).
 
 ## Second objective: academic-pipeline integrity
 
