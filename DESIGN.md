@@ -2345,6 +2345,34 @@ Opened 2026-10-26. `plugins/mcp-demand-harness` turns what a product's customers
 9. `demandlib.validate_bank` validates `json_any_of` in both `payload` and `rest` sections through `probe_checks.validate_contract`. The import is deferred to the point of validation rather than taken at module scope: `demandlib` still depends on `probe_checks` whenever a bank carries a contract, but loading `demandlib` for export, seeding or reporting does not import the probe module. Test: `test_payload_json_contract_is_validated_and_exportable`.
 10. The whole suite runs against local HTTP fixtures with no external network and no production credentials. A packet claiming this item includes a passing suite ledger receipt bound to the reviewed head.
 
+## Sixteenth objective: specification consistency
+
+Opened 2026-11-02. A plan can pass every critic round and still hold two requirements that can't both be met, because each reads fine alone and the conflict only shows in a scenario neither names. The premise of this objective: **before anything is built from an item, its requirements are checked against each other and against the constraints, and the check is evidence a script reads, not a verdict a session remembers.**
+
+### SR-001 — An item's requirements are checked against each other before it's built
+
+**Status:** planned.
+
+`spec_review.py` asks one Claude API call to cross-check the requirements in scope pairwise: a Sonnet 5.5 executor with adaptive thinking that consults a Fable 5.1 advisor before committing to a reading. The advisor tool exists only on the Claude API, not on OpenRouter, so this is the one script in the plugin that calls Anthropic directly. Dorian approved the scope on 2026-11-02: the items under build plus Goal and Constraints, not the whole `DESIGN.md`, so a status line doesn't invalidate the record and a run stays affordable on a 570 KB doc (the same scoping XE-031 gives `target=design`).
+
+**Links introduced:** three things get read by something else.
+
+- The record `reviews/spec-review/<scope>.json` beside the doc, `<scope>` being the item ids joined by `+`, or `all` for a whole file. `check`, `/gstack-build` Step 2 and `peer_review.py open` read it. A reader assumes the record describes the doc as it is now; it holds because `check` recomputes `scope_sha256` from the doc every time and never trusts a stored verdict.
+- `GSTACK_ANTHROPIC_ENV`, naming the vault's `anthropic.env` (`ANTHROPIC_API_KEY=...`), the same convention as `GSTACK_OPENROUTER_ENV`.
+- The reason codes `spec_review_missing`, `spec_review_stale` and `spec_review_open` become `peer_review.py open` error codes.
+
+1. **Scope.** `spec_review.py run <doc> --items <id>[,<id>]` sends the doc's `## Goal` and `## Constraints and settled decisions` sections plus each named item's section (its `###` heading to the next `###` or `##`), with every `**Status:**` line removed. With no `--items` it sends the whole file, which is how a goal's `PLAN.md` is reviewed. An item id the doc doesn't contain refuses (exit 1) before any request is sent.
+2. **The call.** One Messages API request to `claude-sonnet-5-5` with `thinking: adaptive` and the `advisor_20260301` tool backed by `claude-fable-5-1` (`max_uses` 3). A `pause_turn` reply is resumed by resending the assistant turn unchanged, at most six times. `GSTACK_SPEC_EXECUTOR` and `GSTACK_SPEC_ADVISOR` override the pair.
+3. **The record.** `run` writes `reviews/spec-review/<scope>.json` and `<scope>.md` beside the doc: schema, doc name, items, `scope_sha256` of exactly the text sent, both models, advisor call count, usage, `contradictions` (requirements, triggering scenario, smallest change) and `ambiguities` (requirements, question). Exit 0 with no contradiction, 2 with any, 1 refused or failed.
+4. **The gate.** `check <doc> [--items ...]` re-extracts the same scope and passes only when the record exists, its `scope_sha256` matches and it lists no contradiction. The three refusals are distinct: `spec_review_missing`, `spec_review_stale`, `spec_review_open`. A contradiction clears only by revising the doc and re-running: the record has no `resolved` flag and `check` reads none. Editing a status line alone leaves the record current; editing a criterion or a constraint makes it stale.
+5. **The credential.** Read only from the file `GSTACK_ANTHROPIC_ENV` names. Unset, a missing file, or no `ANTHROPIC_API_KEY` value refuses with that reason, and no other credential is tried.
+6. **Wiring.** `/gstack-plan-review` runs it as Round 0 on the plan, and its contradictions go into the Round 1 critic prompt as settled findings; a refusal is reported as `review_unavailable` and the plan isn't presented as consistency-checked. `/gstack-build` Step 2 runs `check` for the item before Step 3, and `spec_review_open` takes the amendment path with each smallest change as the proposed diff and the ambiguities as questions. `peer_review.py open` refuses an item packet unless `check` passes for its items against that repository's `DESIGN.md` (a goal item `<id>/<n>` against `goals/<id>/PLAN.md`, whole file).
+7. **Tests.** `spec_review.py --selftest`, stubbed transport and no network, covers scope extraction, status-line insensitivity, a paused turn resumed, each of the three refusals, an unknown item id and a missing credential. A `peer_review.py` test shows `open` refused with `spec_review_missing` and accepted once the record matches. `run_all_tests.py` names both among what it ran and reports no failures.
+8. **One live run.** A plan with one deliberately planted conflict, run through `run`, lists that conflict in `contradictions`; the record is quoted in the review packet. It needs `anthropic.env` in the vault.
+9. gstack-execution moves a minor version, and its marketplace entry, the top-level marketplace version and the README Version History move with it (CI-002).
+
+**What's not taken.** Once this merges, every item review in a repo with a `DESIGN.md` needs an Anthropic credential and one API call per item before `open` accepts the packet; that's the point of the gate, and it's why the scope is the item. Running it from the Cowork cloud proxy isn't covered: it runs where `model_select.mjs recommend` runs.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -2396,6 +2424,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-02: SR-001 added on Dorian's approval of the drafted item with item scoping: a pairwise consistency review of the items under build plus Goal and Constraints, gating `/gstack-build` Step 2 and `peer_review.py open`.
 - 2026-11-02: CI-003 and CI-004 added on Dorian's approval after #273 (mcp-builder upstream sync) shipped without the top-level version bump the client reads, and its agent merge was refused for want of an item to score coverage against.
 - 2026-10-31: BP-002 marked done: merged by Dorian on a passing review after the wide-lane release gates refused the agent merge (see its status).
 - 2026-10-30: BP-002 added on Dorian's approval after an outside AI-text analyzer flagged an email `prose_lint.py` graded A with no findings: parallel runs, closing zingers and "Here" openers scored in short-form and budgeted in long-form (his ruling), plus Wikipedia's inflated-significance, trailing-participle and ad-copy tells and hidden zero-width characters.
