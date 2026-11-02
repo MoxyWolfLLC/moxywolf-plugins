@@ -1,0 +1,52 @@
+{
+  "outcome": "The moxywolf-skills bundle ships Anthropic's current mcp-builder skill (anthropics/skills@ca45fc4, 2026-10-28), so MoxyWolf installs get the TypeScript SDK v2 guidance instead of the stale v1-only copy.",
+  "acceptance_criteria": [
+    "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.",
+    "moxywolf-skills is bumped from 1.4.0 to 1.4.1 in both skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and the moxywolf-skills entry of .claude-plugin/marketplace.json, both files still parse as JSON, and marketplace.json changes only that version substring.",
+    "The diff from base to head touches only those six paths and no other plugin, skill or file."
+  ],
+  "repos": [
+    {
+      "path": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/moxywolf-plugins",
+      "base": "cfeb04e570a292fc75cf362a4df9bda0fe914e26",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "review_base": "cfeb04e570a292fc75cf362a4df9bda0fe914e26"
+    }
+  ],
+  "changed_behavior": "Content-only. Anyone invoking moxywolf-skills:mcp-builder now reads the upstream SKILL.md, which defaults new TypeScript servers to SDK v2 (@modelcontextprotocol/server) and links reference/node_mcp_server_v2.md; v1 guidance remains for existing projects. LICENSE.txt gains Anthropic's copyright line. No executable code in the repo changes; the skill's scripts/ are unchanged from upstream.",
+  "exclusions": [
+    "The upstream skill's own content, wording and technical advice are Anthropic's and are not under review; only fidelity to upstream is.",
+    "The decision to vendor Anthropic's mcp-builder in moxywolf-skills is settled (initial marketplace commit, DR-008).",
+    "Patch-level bump (1.4.1) for a vendored content refresh is settled.",
+    "No README Version History exists for this bundle, so none is added."
+  ],
+  "tests": {
+    "commands": [
+      "diff -rq <anthropics/skills@ca45fc4>/skills/mcp-builder skill-bundles/moxywolf-skills/skills/mcp-builder",
+      "python3 -c 'json.load(marketplace.json); json.load(plugin.json)'",
+      "git diff --stat cfeb04e 7081657",
+      "GitHub Actions on PR #273"
+    ],
+    "results": "diff -rq: no differences. Both JSON files parse. diff --stat: 6 files changed, 778 insertions(+), 13 deletions(-). CI at 7081657: tests success, goal-envelope success, goal-tests success, goal-holdout success.",
+    "environment": "Cloud workspace clone of main for the diff and JSON checks; GitHub Actions for CI. The skill itself was not installed and invoked."
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/moxywolf-plugins/reviews"
+    ]
+  },
+  "vocabulary_version": "1.11.0",
+  "origin": "gate_output"
+}

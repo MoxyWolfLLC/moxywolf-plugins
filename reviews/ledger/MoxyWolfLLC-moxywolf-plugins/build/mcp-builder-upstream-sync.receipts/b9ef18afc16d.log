@@ -1,0 +1,4 @@
+head 70816579ce07a28a6d020c469cb72fc52f118c4a
+upstream anthropics/skills@ca45fc4 skills/mcp-builder tree ea6e4d7bc108b44b3009129688049e23d801f0f3
+head skill-bundles/moxywolf-skills/skills/mcp-builder tree ea6e4d7bc108b44b3009129688049e23d801f0f3
+MATCH

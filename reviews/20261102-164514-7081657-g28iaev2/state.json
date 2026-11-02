@@ -1,0 +1,90 @@
+{
+  "review_id": "20261102-164514-7081657-g28iaev2",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 2,
+  "outcome": "fixes_verified",
+  "coverage_checked": false,
+  "coverage_status": "not_run",
+  "coverage_overridden": false,
+  "off_repo_evidence": [],
+  "off_repo_overridden": [],
+  "ledger_status": "none",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": null,
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/.claude-plugin/plugin.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+        "repo": "mwp-head"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "70816579ce07a28a6d020c469cb72fc52f118c4a"
+    ],
+    [
+      "70816579ce07a28a6d020c469cb72fc52f118c4a"
+    ],
+    [
+      "70816579ce07a28a6d020c469cb72fc52f118c4a"
+    ]
+  ],
+  "origin": "gate_output",
+  "evidence_runs": {
+    "ledger_runs": [
+      {
+        "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+        "run_id": "b9ef18afc16d"
+      }
+    ]
+  },
+  "reviewer_intended": "codex",
+  "embedded_locations": [
+    {
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "line": 70
+    },
+    {
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+      "line": 14
+    },
+    {
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+      "line": 1
+    }
+  ],
+  "embedded_instructions_reported": 3,
+  "adjudicated_round": 2
+}

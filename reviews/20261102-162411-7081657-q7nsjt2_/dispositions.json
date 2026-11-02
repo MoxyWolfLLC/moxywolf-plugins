@@ -1,0 +1,10 @@
+{
+  "F1": {
+    "disposition": "disproved",
+    "evidence": "git show 7081657:skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and :.claude-plugin/marketplace.json line 419 both read 1.4.1; the reviewer was fed working-tree files from a checkout on another branch (peer_review.py:624/787 read Path(r['path'])/f, not the head blob)"
+  },
+  "F2": {
+    "disposition": "disproved",
+    "evidence": "git show 7081657:.../mcp-builder/SKILL.md lines 61-62 carry the v2 guidance; tree hash of skills/mcp-builder at 7081657 equals anthropics/skills@ca45fc4:skills/mcp-builder (ea6e4d7bc108b44b3009129688049e23d801f0f3); same working-tree cause as F1"
+  }
+}
