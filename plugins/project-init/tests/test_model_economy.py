@@ -24,6 +24,13 @@ class ModelEconomy(unittest.TestCase):
         for s in ["ME-001", "advisorModel", "Model economy: NOT SET (main=<x>, advisor=<y>)", REMEDY, "never gates and never edits the settings file"]:
             self.assertIn(s, text)
 
+    def test_command_matches_the_patch_exactly(self):
+        # The hunk of Dorian's patch, context and added lines in order, appears contiguously and byte for byte.
+        patch = (REPO / "docs/evidence/ME-001-session-start.patch").read_text(encoding="utf-8").splitlines()
+        hunk = [l[1:] for l in patch[patch.index("@@") + 1:]]
+        lines = COMMAND.read_text(encoding="utf-8").splitlines()
+        self.assertTrue(any(lines[i:i + len(hunk)] == hunk for i in range(len(lines))), "patch hunk not found verbatim")
+
     def test_skill_carries_step_h(self):
         text = one_line(SKILL.read_text())
         self.assertIn("h. **Model economy (ME-001)**", text)

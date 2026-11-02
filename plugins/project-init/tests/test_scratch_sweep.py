@@ -23,6 +23,13 @@ class ScratchSweep(unittest.TestCase):
         for s in ["SS-001", "Count before characterizing", "Scratch: not measured (<reason>)", *PROTECTED]:
             self.assertIn(s, text)
 
+    def test_command_matches_the_patch_exactly(self):
+        # The hunk of Dorian's patch, context and added lines in order, appears contiguously and byte for byte.
+        patch = (REPO / "docs/evidence/SS-001-session-end.patch").read_text(encoding="utf-8").splitlines()
+        hunk = [l[1:] for l in patch[patch.index("@@") + 1:]]
+        lines = COMMAND.read_text(encoding="utf-8").splitlines()
+        self.assertTrue(any(lines[i:i + len(hunk)] == hunk for i in range(len(lines))), "patch hunk not found verbatim")
+
     def test_skill_step_7c_measures_before_it_removes(self):
         text = one_line(SKILL.read_text())
         start = text.index("### Step 7c: Sweep the loop's scratch (SS-001)")
