@@ -1085,6 +1085,20 @@ Dorian's standing operating rule, verify before recommending commitment, gets on
 6. project-init and gstack-execution each get a minor bump with a README Version History line, and both marketplace entries and the marketplace's top-level version move (CI-002).
 7. This merges after goal `gstack-delivery-through-merge-5` completes, with versions rechecked against `main` at that point so the two don't collide.
 
+### ME-001 — Session start reports the model economy
+
+**Status:** building. Declared 2026-11-02 on Dorian's approval, with `session-start.patch` applied as the text of step 8b in `commands/session-start.md`. Not yet reviewed.
+
+Dorian's standing rule: a cheaper main model with a stronger advisor, never the strongest model running throughout. A session can't switch its own model, so `/session-start` reports whether the settings follow the rule and applies the gstack-build economy inside the session either way.
+
+1. `commands/session-start.md` carries step 8b exactly as `session-start.patch` gives it, between steps 8 and 9.
+2. The session-start skill gets a matching step h. It reads `model` and `advisorModel` from `~/.claude/settings.json`, then from the project's `.claude/settings.json` if present, and the project's value wins. Set means `model` is `sonnet` or a Sonnet model ID and `advisorModel` is `fable` or `opus`.
+3. The briefing's Shared services block has a `Model economy:` line: `sonnet main + <advisor> advisor` when set; `NOT SET (main=<x>, advisor=<y>)` otherwise, with the remedy on its own line as step 8b words it. If `DISABLE_TELEMETRY` or `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` is set, the line says the advisor is off regardless of the setting.
+4. The step never gates the session and never edits a settings file.
+5. Whatever the setting says, the session applies the gstack-build economy: reading and mapping go to the `explore` and `docs` agents on Haiku; the advisor is consulted before committing to an approach and before declaring an item done.
+6. A test in `plugins/project-init/tests/` checks that the command carries 8b with its remedy line, and that the skill carries step h, both statuses, the two environment variables, the no-gate and no-edit rule, and the Shared services line.
+7. project-init gets a minor bump with a README Version History line, and its marketplace entry and the marketplace's top-level version move (CI-002).
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -2312,6 +2326,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-11-02: CI-003 and CI-004 added on Dorian's approval after #273 (mcp-builder upstream sync) shipped without the top-level version bump the client reads, and its agent merge was refused for want of an item to score coverage against.
+- 2026-11-02: ME-001 declared on Dorian's approval: `/session-start` reports whether the main model is Sonnet with a Fable or Opus advisor, never gates on it, and applies the gstack-build economy inside the session. Step 8b in `commands/session-start.md` is his `session-start.patch` as written; the skill gets the matching step h.
 - 2026-10-31: BP-002 marked done: merged by Dorian on a passing review after the wide-lane release gates refused the agent merge (see its status).
 - 2026-10-30: BP-002 added on Dorian's approval after an outside AI-text analyzer flagged an email `prose_lint.py` graded A with no findings: parallel runs, closing zingers and "Here" openers scored in short-form and budgeted in long-form (his ruling), plus Wikipedia's inflated-significance, trailing-participle and ad-copy tells and hidden zero-width characters.
 - 2026-10-28: GO-012.6 reworded to the failure the baseline receipt shows (`KeyError: 'delivery'` right after `start`, not a failure at `complete`), after review `20261027-232648-466aeb6-g6gnr8_m` round 2 held the criterion to its original prediction. Same defect, stated where the evidence is. Under Dorian's pre-approval "I pre-approve all work that will get this done" (2026-10-27 23:09 PT); flagged for his reading.
