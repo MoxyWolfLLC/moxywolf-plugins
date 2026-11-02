@@ -404,15 +404,13 @@ def valid_branch(name):
     return subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True).returncode == 0
 
 
-COMMENT_PAGES = 20
-
-
 def pr_comments(get, name, number):
-    """GA-011 review 20261102-105211 F1: every issue comment on a pull request, page by page (a page is
-    not a total), or None when a page can't be read or there are more than COMMENT_PAGES of them, so a
-    closed lane fails closed rather than missing an instruction posted as comment 101."""
-    out = []
-    for page in range(1, COMMENT_PAGES + 1):
+    """GA-011 review 20261102-105211 F1: every issue comment on a pull request, page by page until a
+    short page says it's done (a page is not a total), or None when a page can't be read, so a closed
+    lane fails closed rather than missing an instruction posted as comment 101 or 2,001."""
+    out, page = [], 0
+    while True:
+        page += 1
         try:
             got = get(f"repos/{name}/issues/{number}/comments?per_page=100&page={page}")
         except Exception:
@@ -422,7 +420,6 @@ def pr_comments(get, name, number):
         out += got
         if len(got) < 100:
             return out
-    return None
 
 
 def may_usage(opts):

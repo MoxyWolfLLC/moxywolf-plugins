@@ -234,7 +234,17 @@ class Ledger(tgr.RunnerFixture):
         got = gr.pr_comments(lambda p: pages[int(p.rsplit("page=", 1)[1])], "o/r", 45)
         self.assertEqual(len(got), 107)
         self.assertIsNone(gr.pr_comments(lambda p: page(1, 100) if p.endswith("page=1") else None, "o/r", 45))
-        self.assertIsNone(gr.pr_comments(lambda p: page(1, 100), "o/r", 45))          # never short: past the cap
+        full = lambda p: page(int(p.rsplit("page=", 1)[1]), 100 if int(p.rsplit("page=", 1)[1]) <= 20 else 0)
+        got = gr.pr_comments(full, "o/r", 45)                                       # exactly 2,000: page 21 is empty
+        self.assertEqual((len(got), got[0]["id"]), (2000, 100))
+        later = lambda p: page(int(p.rsplit("page=", 1)[1]), 100 if int(p.rsplit("page=", 1)[1]) <= 25 else 3)
+        self.assertEqual(len(gr.pr_comments(later, "o/r", 45)), 2503)                 # past the old cap
+        import peer_review
+        mark = {"user": {"login": "moxywolf-agent[bot]"},
+                "body": peer_review.merge_instruction_body("merge it", "2026-11-02T18:44:00Z", [45], "dorianatmoxywolf")}
+        late = lambda p: (page(1, 100) if p.endswith("page=1") else page(2, 49) + [mark])   # the instruction is comment 150
+        review = {"release_owner": "dorianatmoxywolf", "release_lane": {"lane": "closed", "matched": []}}
+        self.assertIsNone(gguard.closed_lane_instructed(review, {"number": 45}, gr.pr_comments(late, "o/r", 45)))
         src = inspect.getsource(gr)
         self.assertEqual((src.count('pr_comments(get, name, prd["number"])'), src.count('pr_comments(get, name, pr["number"])')), (1, 1))   # resume and may
         self.assertNotIn("comments?per_page=100\")", src)
