@@ -196,6 +196,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 **Status:** building. Declared 2026-11-02 from wfa-review-screen-v5, where goal tests run before the review screen existed opened ledger failures no honest run could close. Approved by Dorian the same day ("I approve fixes 2 to 6 as written").
 
+**Links introduced:** a `kind: retire` line on the branch's ledger naming the run it retires (`retires`), the reason and the Release Owner's words (`approval`). The reader's assumption is that a retired check was wrong and Dorian said so; that holds because `retire` refuses without both and only for a failure whose issue is open, and the line keeps his words verbatim.
+
 1. `check_ledger.py retire --repo <path> --run <id> --reason "<why>" --approval "<words>"` appends a `kind: retire` line that closes the open issue run `<id>` belongs to: its identity, the run it retires, the head, the reason, the Release Owner's words verbatim and the time.
 2. It is refused without a reason or words, for a run that isn't a failure on this branch's ledger, and for an issue already closed. A later failure of the same identity opens a new issue as usual.
 3. `open-issues` lists retired checks after the open ones; `find_run` never returns a retirement as a run.
@@ -206,6 +208,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 **Status:** building. Declared and approved 2026-11-02 with XE-040.
 
+**Links introduced:** none. Exit 2 from `may` means the call's shape was wrong; the run state is unchanged, which the test checks byte for byte.
+
 1. `goal_run.py may` checks the call's shape before anything is read or written: the class is one of `governance.GRANT_CLASSES`; `vcs.push` and `merge` take a valid branch name; `pr.open` takes `<base><-<head>`; `net.connect` a host or URL; others a name without whitespace; `merge` also names `--head <sha>` and `--pr <n>`, and only `merge` takes `--head`, `--review`, `--pr` or `--sync`.
 2. A malformed call exits 2 with the form expected and changes nothing in the run, so no escalation reaches Dorian.
 3. `/gstack-goal` step 4 documents exit 2.
@@ -215,6 +219,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 **Status:** building. Declared and approved 2026-11-02 with XE-040, from wfa-review-screen-v5.
 
+**Links introduced:** none. The `external` type and its reasons keep their meaning; fewer code tokens reach them.
+
 1. In a code file a host-like key (`host`, `url`, …) counts only when its value is a quoted string, so `const host = request.headers.get(...)` is no hostname; a config file keeps the old rule.
 2. `${X}` counts as a name only before `}` or a shell operator (`:`, `-`, `=`, `+`, `?`, `#`, `%`, `/`), so `${Math.min(a, b)}` is code.
 3. Tests in `test_goal_calls.py::CodeIsNotAHost` cover both, and a quoted host and a config host still count.
@@ -222,6 +228,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 ### GO-015 — A holdout that only missed a package says so (amends GO-003)
 
 **Status:** building. Declared and approved 2026-11-02 with XE-040.
+
+**Links introduced:** none. The goal-holdout check's title and the `holdout` escalation's text change wording only; the conclusion and the run's outcome don't.
 
 1. `goal_brief.holdout_cause` reads the failures `holdout_failures` reported; when every one is a missing module (`No module named`, `Cannot find module`), `holdout_reading` gives "missing package <names> (an environment problem, not evidence of a reward hack)". One real failure beside them keeps "possible reward hack".
 2. The goal-holdout check's title and `goal_run.py holdout-failed`'s escalation both use `holdout_reading`.
@@ -232,6 +240,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 **Status:** building. Declared and approved 2026-11-02 with XE-040.
 
+**Links introduced:** `coverage.consulted` names the scorer cache it used or tried. The reader's assumption is that a `checked` report was scored with the lockfile's `ai`; that holds because the cache is keyed by the lockfile's sha256.
+
 1. When `import('ai')` fails, `packet_coverage.mjs` runs `npm ci --omit=dev` once from the plugin's own `package.json` and lockfile into `${GSTACK_HOME:-~/.gstack}/scorer/<lockfile sha256, 16 hex>/`, in a temporary directory renamed into place, and loads `ai` from there.
 2. A failed install records `broken`, naming npm's error and the cache it consulted, and leaves nothing half-installed; with no lockfile it records `broken` as before.
 3. Tests: an installed copy with no `node_modules` scores and reuses its cache on a second run; an install against an unreachable registry is `broken`.
@@ -239,6 +249,8 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
 **Status:** building. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
+
+**Links introduced:** none. `release_lane` and the wide gates keep their fields; `wide_links_hold` decides one of them.
 
 1. `goal_new.py`'s drafting rules say the container already has no network and loopback must stay open, and `cmd_tests` and `cmd_holdout` refuse drafted source that rebinds anything on the `socket` module (wfa-gateway-v1's holdout guard blocked Turbopack's loopback, so every Next.js build failed it). Test: three guard forms are refused; binding a socket to 127.0.0.1 isn't.
 2. `wide_links_hold` takes `links_unverifiable` in the wide lane when every check that didn't verify is a finding citing `evidence/ci-*`, a log the dispatcher fetched itself; a stale link, a missing record or any other unverifiable check still fails it. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable`.
