@@ -175,7 +175,7 @@ DR-113 lets the agent merge on a clean cross-vendor review. MR-001 picks the bui
 
 ### GA-011 — Into a goal branch the closed lane is deferred to the goal pull request into main
 
-**Status:** building. Declared 2026-11-02 from the wfa-review-screen-v5 goal (workforce-automation #139 to #146), where every item carrying migration 0061 forced the closed lane into `goal/wfa-review-screen-v5` and Dorian approved pull request after pull request. Approved by Dorian the same day ("I approve GA-011").
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared 2026-11-02 from the wfa-review-screen-v5 goal (workforce-automation #139 to #146), where every item carrying migration 0061 forced the closed lane into `goal/wfa-review-screen-v5` and Dorian approved pull request after pull request. Approved by Dorian the same day ("I approve GA-011").
 
 **Links introduced:** `lane_in_force` on the release handoff and the release record: the lane `release` and `record-release` hold the merge to, from `release_lane` and the target. The reader's assumption is that a migration still cannot reach main without the Release Owner. That holds because the goal pull request into main is reviewed over the whole goal's diff (`final_review_scope` requires the review's base to be where main and the goal head meet), so its `release_lane` is `closed` whenever any item's was, and `goal_guard.final_merge_allowed` refuses it without the Release Owner's merge-instruction.
 
@@ -194,7 +194,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### XE-040 — A check that was wrong is retired on the record, with the Release Owner's words
 
-**Status:** building. Declared 2026-11-02 from wfa-review-screen-v5, where goal tests run before the review screen existed opened ledger failures no honest run could close. Approved by Dorian the same day ("I approve fixes 2 to 6 as written").
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared 2026-11-02 from wfa-review-screen-v5, where goal tests run before the review screen existed opened ledger failures no honest run could close. Approved by Dorian the same day ("I approve fixes 2 to 6 as written").
 
 **Links introduced:** a `kind: retire` line on the branch's ledger naming the run it retires (`retires`), the reason and the Release Owner's words (`approval`). The reader's assumption is that a retired check was wrong and Dorian said so; that holds because `retire` refuses without both and only for a failure whose issue is open, and the line keeps his words verbatim.
 
@@ -206,7 +206,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GO-013 — A malformed `may` call is a usage error, not an escalation
 
-**Status:** building. Declared and approved 2026-11-02 with XE-040.
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared and approved 2026-11-02 with XE-040.
 
 **Links introduced:** none. Exit 2 from `may` means the call's shape was wrong; the run state is unchanged, which the test checks byte for byte.
 
@@ -217,7 +217,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GO-014 — Code isn't a hostname or an environment variable (amends GO-005)
 
-**Status:** building. Declared and approved 2026-11-02 with XE-040, from wfa-review-screen-v5.
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared and approved 2026-11-02 with XE-040, from wfa-review-screen-v5.
 
 **Links introduced:** none. The `external` type and its reasons keep their meaning; fewer code tokens reach them.
 
@@ -227,7 +227,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GO-015 — A holdout that only missed a package says so (amends GO-003)
 
-**Status:** building. Declared and approved 2026-11-02 with XE-040.
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared and approved 2026-11-02 with XE-040.
 
 **Links introduced:** none. The goal-holdout check's title and the `holdout` escalation's text change wording only; the conclusion and the run's outcome don't.
 
@@ -238,7 +238,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### XE-041 — An installed scorer installs its own dependency (amends XE-014)
 
-**Status:** building. Declared and approved 2026-11-02 with XE-040.
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Declared and approved 2026-11-02 with XE-040.
 
 **Links introduced:** `coverage.consulted` names the scorer cache it used or tried. The reader's assumption is that a `checked` report was scored with the lockfile's `ai`; that holds because the cache is keyed by the lockfile's sha256.
 
@@ -248,7 +248,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
-**Status:** building. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
+**Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
 
 **Links introduced:** none. `release_lane` and the wide gates keep their fields; `wide_links_hold` decides one of them.
 
