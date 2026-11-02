@@ -227,6 +227,18 @@ class Ledger(tgr.RunnerFixture):
         self.assertEqual(json.dumps(gr.load("g1"), sort_keys=True), before)   # no escalation, nothing written
         self.assertIsNone(gr.may_usage({"--action": "pr.open", "--resource": "goal/g1<-build/GX-1-a"}))
 
+    def test_every_comment_page_is_read_and_an_unreadable_page_fails_closed(self):  # GA-011, review 105211 F1
+        import inspect
+        page = lambda n, k: [{"id": n * 100 + i, "body": ""} for i in range(k)]
+        pages = {1: page(1, 100), 2: page(2, 7)}
+        got = gr.pr_comments(lambda p: pages[int(p.rsplit("page=", 1)[1])], "o/r", 45)
+        self.assertEqual(len(got), 107)
+        self.assertIsNone(gr.pr_comments(lambda p: page(1, 100) if p.endswith("page=1") else None, "o/r", 45))
+        self.assertIsNone(gr.pr_comments(lambda p: page(1, 100), "o/r", 45))          # never short: past the cap
+        src = inspect.getsource(gr)
+        self.assertEqual((src.count('pr_comments(get, name, prd["number"])'), src.count('pr_comments(get, name, pr["number"])')), (1, 1))   # resume and may
+        self.assertNotIn("comments?per_page=100\")", src)
+
     def test_a_malformed_may_call_leaves_a_pending_escalation_undelivered(self):  # GO-013, review F3
         import contextlib, io
         self.start()

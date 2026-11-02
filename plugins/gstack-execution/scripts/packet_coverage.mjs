@@ -52,10 +52,12 @@ async function loadAi() {
       const tmp = fs.mkdtempSync(dir + '.tmp-');
       fs.copyFileSync(path.join(plugin, 'package.json'), path.join(tmp, 'package.json'));
       fs.writeFileSync(path.join(tmp, 'package-lock.json'), lock);
-      const r = spawnSync('npm', ['ci', '--omit=dev', '--no-audit', '--no-fund', '--silent'], { cwd: tmp, encoding: 'utf8' });
+      // review 20261102-105211 F3: --loglevel=error, not --silent, so npm's own reason reaches the record
+      const r = spawnSync('npm', ['ci', '--omit=dev', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: tmp, encoding: 'utf8' });
       if (r.status !== 0) {
         fs.rmSync(tmp, { recursive: true, force: true });
-        throw Object.assign(new Error(`npm ci for \`ai\` failed in ${dir} (exit ${r.status ?? r.error?.code}): ${(r.stderr || '').trim().slice(-600)}`), { consulted });
+        const why = [r.error?.message, (r.stderr || '').trim(), (r.stdout || '').trim()].filter(Boolean).join('\n').slice(-800);
+        throw Object.assign(new Error(`npm ci for \`ai\` failed in ${dir} (exit ${r.status ?? r.error?.code}): ${why || 'npm printed nothing'}`), { consulted });
       }
       try { fs.renameSync(tmp, dir); } catch { fs.rmSync(tmp, { recursive: true, force: true }); }   // another scorer won the race
     }

@@ -58,6 +58,12 @@ def patches_socket(tree):
             yield from flat(t.value)
         else:
             yield t
+    names = {"socket"}                              # review 20261102-105211 F2: `import socket as net` too
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            names |= {a.asname or a.name for a in n.names if a.name == "socket"}
+        elif isinstance(n, ast.Assign) and isinstance(n.value, ast.Name) and n.value.id == "socket":
+            names |= {t.id for t in n.targets if isinstance(t, ast.Name)}
     for n in ast.walk(tree):
         targets = (n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, (ast.AugAssign, ast.AnnAssign, ast.For))
                    else [i.optional_vars for i in n.items if i.optional_vars] if isinstance(n, ast.With) else
@@ -66,11 +72,11 @@ def patches_socket(tree):
             base = t
             while isinstance(base, ast.Attribute):
                 base = base.value
-            if isinstance(t, ast.Attribute) and isinstance(base, ast.Name) and base.id == "socket":
+            if isinstance(t, ast.Attribute) and isinstance(base, ast.Name) and base.id in names:
                 return True
         if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "setattr" and n.args
                 and isinstance(n.args[0], (ast.Name, ast.Attribute))
-                and (getattr(n.args[0], "id", None) == "socket" or getattr(n.args[0], "attr", None) == "socket")):
+                and (getattr(n.args[0], "id", None) in names or getattr(n.args[0], "attr", None) == "socket")):
             return True
     return False
 

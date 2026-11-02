@@ -182,6 +182,7 @@ class ScorerRuns(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(cov["status"], "broken", r.stderr)
         self.assertIn("npm ci", cov["why"])
+        self.assertRegex(cov["why"], r"npm (error|ERR)|ECONNREFUSED|fetch")   # review 105211 F3: npm's own reason
         self.assertTrue(any("scorer cache" in c for c in cov["consulted"]), cov["consulted"])
         self.assertEqual([d.name for d in (cache / "scorer").iterdir()], [])   # nothing half-installed left behind
 

@@ -404,6 +404,27 @@ def valid_branch(name):
     return subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True).returncode == 0
 
 
+COMMENT_PAGES = 20
+
+
+def pr_comments(get, name, number):
+    """GA-011 review 20261102-105211 F1: every issue comment on a pull request, page by page (a page is
+    not a total), or None when a page can't be read or there are more than COMMENT_PAGES of them, so a
+    closed lane fails closed rather than missing an instruction posted as comment 101."""
+    out = []
+    for page in range(1, COMMENT_PAGES + 1):
+        try:
+            got = get(f"repos/{name}/issues/{number}/comments?per_page=100&page={page}")
+        except Exception:
+            return None
+        if not isinstance(got, list):
+            return None
+        out += got
+        if len(got) < 100:
+            return out
+    return None
+
+
 def may_usage(opts):
     """GO-013: what's wrong with a `may` call's shape, or None. Checked before anything is read or
     written, so a wrong class (`push` for `vcs.push`) or a wrong resource form exits 2 with the form
@@ -1174,7 +1195,7 @@ def _execute(goal_id, state, action, observed, get, put, repo_name):
         runs = get(f"repos/{name}/commits/{ch['head']}/check-runs?per_page=100") or {}
         checks = gguard.latest_checks(runs.get("check_runs") or [])
         prd = {"number": pr["number"], "head": pr["head"]["sha"], "base_ref": pr["base"]["ref"], "base": pr["base"]["sha"]}
-        comments = get(f"repos/{name}/issues/{prd['number']}/comments?per_page=100") if ch["target"] == "main" else None   # GA-011
+        comments = pr_comments(get, name, prd["number"]) if ch["target"] == "main" else None   # GA-011
         save(state)
         act(Path(ch.get("path") or "."), goal_id, "merge", ch["target"], environments_of(get, name),
             base=prd["base"], head=ch["head"], review=review, checks=checks, pr=prd, comments=comments)
@@ -1458,7 +1479,7 @@ def _main(argv, repo=gb.ROOT):
                 p = get(f"repos/{name}/pulls/{int(opts['--pr'])}")
                 pr = {"number": p["number"], "head": p["head"]["sha"], "base_ref": p["base"]["ref"], "base": p["base"]["sha"]}
                 ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/pull/{pr['number']}/head:refs/remotes/origin/pr/{pr['number']}")
-            comments = (get(f"repos/{name}/issues/{pr['number']}/comments?per_page=100")   # GA-011: a closed goal lane's instruction
+            comments = (pr_comments(get, name, pr["number"])   # GA-011: a closed goal lane's instruction
                         if pr and opts["--resource"] == "main" else None)
             print(json.dumps(act(repo, goal_id, opts["--action"], opts["--resource"], environments_of(get, name),
                                  head=opts.get("--head"), review=review, checks=checks, pr=pr, sync="--sync" in opts,

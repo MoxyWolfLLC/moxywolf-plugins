@@ -109,7 +109,9 @@ class GoalNew(unittest.TestCase):
                   "import socket\nsocket.create_connection = None\n",
                   "import socket\nsetattr(socket, 'getaddrinfo', None)\n",
                   "import socket\nsocket.socket, socket.create_connection = None, None\n",       # review F6
-                  "import socket\n[socket.getaddrinfo, *rest] = [None]\n")
+                  "import socket\n[socket.getaddrinfo, *rest] = [None]\n",
+                  "import socket as net\nnet.socket = lambda *a, **k: None\n",                   # review 105211 F2
+                  "import socket\ns = socket\nsetattr(s, 'create_connection', None)\n")
         for guard in guards:
             with self.subTest(guard=guard), self.assertRaisesRegex(gn.Refused, "loopback"):
                 self.run_cmd(gn.cmd_holdout, ask=lambda p, cwd: guard + HOLDOUT)
