@@ -395,6 +395,15 @@ MAY_SHAPES = {"vcs.push": "<branch>", "pr.open": "<base><-<head>", "merge": "<ta
               "net.connect": "<host or URL>"}
 
 
+def valid_branch(name):
+    """A branch name git itself accepts (`git check-ref-format --branch`), not starting with `-` and
+    holding no whitespace, which a regex alone got wrong (review 20261102-095221 F2: `-topic`,
+    `topic.lock/child`, a trailing newline)."""
+    if not name or name.startswith("-") or re.search(r"\s", name) or not BRANCH_RE.fullmatch(name):
+        return False
+    return subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True).returncode == 0
+
+
 def may_usage(opts):
     """GO-013: what's wrong with a `may` call's shape, or None. Checked before anything is read or
     written, so a wrong class (`push` for `vcs.push`) or a wrong resource form exits 2 with the form
@@ -405,12 +414,12 @@ def may_usage(opts):
         return f"--action {klass!r} isn't an action class; one of {', '.join(sorted(gov.GRANT_CLASSES))}"
     want = MAY_SHAPES.get(klass, "<name>")
     if klass in ("vcs.push", "merge"):
-        ok = bool(BRANCH_RE.match(resource))
+        ok = valid_branch(resource)
     elif klass == "pr.open":
         base, sep, head = resource.partition("<-")
-        ok = bool(sep and BRANCH_RE.match(base) and BRANCH_RE.match(head))
+        ok = bool(sep and valid_branch(base) and valid_branch(head))
     elif klass == "net.connect":
-        ok = bool(HOST_RE.match(resource))
+        ok = bool(HOST_RE.fullmatch(resource)) and "\n" not in resource
     else:
         ok = bool(resource) and not re.search(r"\s", resource)
     if not ok:

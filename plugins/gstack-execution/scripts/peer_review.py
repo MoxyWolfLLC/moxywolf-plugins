@@ -678,10 +678,12 @@ def ledger_status_now(repos):
 
 
 def ci_shown(d):
-    """Every evidence/ci-* file a round of review d recorded the dispatcher writing (XE-027 F1)."""
+    """Every evidence/ci-* file a round of review d recorded the dispatcher writing: failed jobs' logs
+    (XE-027 F1) and passing jobs' report-line summaries (review 20261102-095221 F9)."""
     shown = set()
     for f in sorted(Path(d).glob("round-*.json")) if d else ():
-        for c in (load(Path(d), f.name) or {}).get("ci_logs") or ():
+        rec = load(Path(d), f.name) or {}
+        for c in (rec.get("ci_logs") or []) + (rec.get("ci_summaries") or []):   # F9: passing jobs' summaries too
             if str(c.get("shown", "")).startswith(f"{EVIDENCE_DIR}/ci-"):
                 shown.add(c["shown"])
     return shown
@@ -1348,6 +1350,11 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     # where the full copy lives, has to survive in the round record.
     stats["ci_logs"] = [{"run_id": c["run_id"], "job_id": j["id"], "name": j["name"], "conclusion": j["conclusion"],
                          **j["log"]} for c in ci for j in c.get("jobs") or () if "log" in j]
+    # review 20261102-095221 F9: a passing job's report lines are dispatcher-fetched evidence too, and
+    # the wide link gate reads which files a round showed from the round record
+    stats["ci_summaries"] = [{"run_id": c["run_id"], "job_id": j["id"], "name": j["name"], "conclusion": j["conclusion"],
+                              **{k: j["summary"].get(k) for k in ("shown", "sha256", "lines", "read")}}
+                             for c in ci for j in c.get("jobs") or () if (j.get("summary") or {}).get("shown")]
     # XE-008: callers are by construction files the change did NOT touch. Naming them, and saying
     # what to do with them, routes the second-home check to the party whose job is finding the
     # problem. The builder self-reporting "I checked the callers" is worth what the prose rule was.
@@ -2856,6 +2863,7 @@ def cmd_round(a):
                                          archive_dir=d / "ci-logs")   # XE-027 F1: outlives the surface
         record["evidence"] = surf_stats.pop("evidence")   # XE-018.6
         record["ci_logs"] = surf_stats.pop("ci_logs")     # XE-027 F1
+        record["ci_summaries"] = surf_stats.pop("ci_summaries", [])   # review 20261102-095221 F9
         record["ci_runs"] = surf_stats.pop("ci_runs")     # EV-011: what a `ci:` evidence reference resolves against
         record["ledger_runs"] = surf_stats.pop("ledger_runs")   # EV-014
         record["surface"] = surf_stats          # XE-007.4: what the review could see, not only what it found

@@ -215,7 +215,11 @@ class Ledger(tgr.RunnerFixture):
                      ["--action", "pr.open", "--resource", "goal/g1<-build/*"],
                      ["--action", "vcs.push", "--resource", ".hidden"],
                      ["--action", "vcs.push", "--resource", "goal/.bar"],
-                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr"]):   # a dangling option
+                     ["--action", "vcs.push", "--resource", "goal/g1", "--pr"],    # a dangling option
+                     ["--action", "vcs.push", "--resource", "-topic"],              # review 095221 round 2 F2
+                     ["--action", "vcs.push", "--resource", "topic.lock/child"],
+                     ["--action", "vcs.push", "--resource", "topic\n"],
+                     ["--action", "pr.open", "--resource", "goal/g1<--x"]):
             err = io.StringIO()
             with self.subTest(argv=argv), contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
@@ -232,7 +236,9 @@ class Ledger(tgr.RunnerFixture):
         before = f.read_bytes()
         out = io.StringIO()
         with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(out):
-            self.assertEqual(gr.main(["may", "g1", "--action", "push", "--resource", "goal/g1"], repo=self.repo), 2)
+            for argv in (["--action", "push", "--resource", "goal/g1"], ["--action", "vcs.push", "--resource", "-topic"],
+                         ["--action", "vcs.push", "--resource", "topic.lock/child"]):
+                self.assertEqual(gr.main(["may", "g1", *argv], repo=self.repo), 2)
         self.assertEqual(f.read_bytes(), before)
         self.assertNotIn("a pending question", out.getvalue())
 
