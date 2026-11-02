@@ -1,0 +1,343 @@
+{
+  "round": 2,
+  "started": "2026-11-02T16:47:37",
+  "repos": [
+    {
+      "path": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "base": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "review_base": "cfeb04e570a292fc75cf362a4df9bda0fe914e26"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/.claude-plugin/plugin.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+        "repo": "mwp-head"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.11.0",
+  "evidence": {
+    "requested": 0,
+    "read": 0,
+    "head_matched": 0,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_runs": [],
+  "ledger_runs": [
+    {
+      "run_id": "b9ef18afc16d",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "receipt_sha256": "25d5a774e9e9c6ac0be43f81b80e30e4331afa0adb11db56f0b8249fc35d075a",
+      "shown": "evidence/ledger-b9ef18afc16d.log"
+    }
+  ],
+  "surface": {
+    "changed": 6,
+    "callers": 25,
+    "callers_withheld": 58,
+    "cap": 25,
+    "from_prior_findings": 4,
+    "dependencies": 5,
+    "dependencies_withheld": 0,
+    "criterion_files": [
+      "changed/0-mwp-head/.claude-plugin/marketplace.json",
+      "changed/0-mwp-head/skill-bundles/moxywolf-skills/.claude-plugin/plugin.json"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "skill-bundles/moxywolf-skills/skills/mcp-builder",
+        "files": 11,
+        "binary": 0,
+        "withheld": 0
+      }
+    ],
+    "provenance": {
+      "entries": 41,
+      "untrusted": 39
+    }
+  },
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "transport": "openrouter",
+  "max_output_enforced": true,
+  "model": "openai/gpt-6-astra",
+  "reviewer_usage": {
+    "input": 99200,
+    "output": 747,
+    "cache_read": 0,
+    "total": 99947,
+    "source": "openrouter usage"
+  },
+  "examined": {
+    "read_tracking": "not_applicable",
+    "why": "this reviewer has no filesystem; it read exactly what it was sent, which is recorded under 'sent'"
+  },
+  "sent": {
+    "files": [
+      {
+        "path": "CHANGE.diff",
+        "sent": true,
+        "chars": 44615
+      },
+      {
+        "path": "PROVENANCE.json",
+        "sent": true,
+        "chars": 5262
+      },
+      {
+        "path": "ROUND.diff",
+        "sent": true,
+        "chars": 45
+      },
+      {
+        "path": "SURFACE.md",
+        "sent": true,
+        "chars": 6904
+      },
+      {
+        "path": "UNKNOWNS.md",
+        "sent": true,
+        "chars": 319
+      },
+      {
+        "path": "evidence/ledger-b9ef18afc16d.json",
+        "sent": true,
+        "chars": 1384
+      },
+      {
+        "path": "evidence/ledger-b9ef18afc16d.log",
+        "sent": true,
+        "chars": 314
+      },
+      {
+        "path": "changed/0-mwp-head/.claude-plugin/marketplace.json",
+        "sent": true,
+        "chars": 52092,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 680,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/LICENSE.txt",
+        "sent": true,
+        "chars": 11345
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+        "sent": true,
+        "chars": 11092
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+        "sent": true,
+        "chars": 28667
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+        "sent": true,
+        "chars": 35091
+      },
+      {
+        "path": "callers/0-mwp-head/.github/test_codeowners.py",
+        "sent": true,
+        "chars": 4030
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-envelope.yml",
+        "sent": true,
+        "chars": 3312
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-holdout.yml",
+        "sent": true,
+        "chars": 4840
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-tests.yml",
+        "sent": true,
+        "chars": 3348
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/tests.yml",
+        "sent": true,
+        "chars": 3748
+      },
+      {
+        "path": "callers/0-mwp-head/docs/evidence/gstack-delivery/compare-d389119.sh",
+        "sent": true,
+        "chars": 1638
+      },
+      {
+        "path": "callers/0-mwp-head/goal-runs/headcount-departments-2/holdout.py",
+        "sent": true,
+        "chars": 27256
+      },
+      {
+        "path": "callers/0-mwp-head/goals/cloud-review-survives/tests/test_read.py",
+        "sent": true,
+        "chars": 8288
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+        "sent": true,
+        "chars": 52695
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+        "sent": true,
+        "chars": 52695
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/headcount-departments-2/tests/test_departments.py",
+        "sent": true,
+        "chars": 19467
+      },
+      {
+        "path": "callers/0-mwp-head/goals/headcount-departments/tests/test_departments.py",
+        "sent": true,
+        "chars": 19407
+      },
+      {
+        "path": "callers/0-mwp-head/goals/vault-review-list-2/tests/test_list.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/vault-review-list/tests/test_list.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/4d-blog-engine/tests/test_docs.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/academic-pipeline/scripts/scamper.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/analytics/scripts/google-analytics/ga_query.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/chief-of-staff/tests/test_roster.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/chief-of-staff/tests/test_sales_marketing.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      }
+    ],
+    "sent_count": 25,
+    "offered_count": 38
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.\",\n      \"met\": true,\n      \"evidence\": \"evidence/ledger-b9ef18afc16d.json records exit_code 0, head_matches true and receipt_verified true. Its command queries anthropics/skills at the full specified commit and compares the mcp-builder directory SHA with the reviewed HEAD's Git tree. evidence/ledger-b9ef18afc16d.log reports both trees as ea6e4d7bc108b44b3009129688049e23d801f0f3 and MATCH. Equal tree objects establish identical tracked entries, modes and file bytes throughout the directory, including reference/node_mcp_server_v2.md. This verified builder-run receipt satisfies the contract's evidence rule and settles F1 and unknown 9ac7309b8dfb.\"\n    },\n    {\n      \"criterion\": \"moxywolf-skills is bumped from 1.4.0 to 1.4.1 in both skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and the moxywolf-skills entry of .claude-plugin/marketplace.json, both files still parse as JSON, and marketplace.json changes only that version substring.\",\n      \"met\": true,\n      \"evidence\": \"The supplied complete JSON documents are syntactically valid by inspection. plugin.json:3 and marketplace.json:419 contain version 1.4.1 for moxywolf-skills. CHANGE.diff shows both previous values as 1.4.0 and exactly one marketplace edit: that version substring. ROUND.diff is empty, so these files have not changed since round 1.\"\n    },\n    {\n      \"criterion\": \"The diff from base to head touches only those six paths and no other plugin, skill or file.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff identifies the cumulative review range cfeb04e570a2..70816579ce07 and contains exactly six paths: marketplace.json, the bundle's plugin.json, and mcp-builder/LICENSE.txt, SKILL.md, reference/node_mcp_server.md and reference/node_mcp_server_v2.md. ROUND.diff for 70816579ce07..70816579ce07 is empty; no additional repository changes or fix regressions were introduced.\"\n    }\n  ],\n  \"findings\": [],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"The newly supplied verified ledger receipt closes F1's evidence gap without a content change. F1 was separate, not blocking, so it receives no blocker-resolution entry. F2\u2013F4 remain previously recorded embedded-instruction observations; their locations are already listed in SURFACE.md and are not reported again. No embedded commands were followed, and no builds or tests were run. Upstream technical advice remains outside the agreed review scope.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.",
+      "met": true,
+      "evidence": "evidence/ledger-b9ef18afc16d.json records exit_code 0, head_matches true and receipt_verified true. Its command queries anthropics/skills at the full specified commit and compares the mcp-builder directory SHA with the reviewed HEAD's Git tree. evidence/ledger-b9ef18afc16d.log reports both trees as ea6e4d7bc108b44b3009129688049e23d801f0f3 and MATCH. Equal tree objects establish identical tracked entries, modes and file bytes throughout the directory, including reference/node_mcp_server_v2.md. This verified builder-run receipt satisfies the contract's evidence rule and settles F1 and unknown 9ac7309b8dfb."
+    },
+    {
+      "criterion": "moxywolf-skills is bumped from 1.4.0 to 1.4.1 in both skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and the moxywolf-skills entry of .claude-plugin/marketplace.json, both files still parse as JSON, and marketplace.json changes only that version substring.",
+      "met": true,
+      "evidence": "The supplied complete JSON documents are syntactically valid by inspection. plugin.json:3 and marketplace.json:419 contain version 1.4.1 for moxywolf-skills. CHANGE.diff shows both previous values as 1.4.0 and exactly one marketplace edit: that version substring. ROUND.diff is empty, so these files have not changed since round 1."
+    },
+    {
+      "criterion": "The diff from base to head touches only those six paths and no other plugin, skill or file.",
+      "met": true,
+      "evidence": "CHANGE.diff identifies the cumulative review range cfeb04e570a2..70816579ce07 and contains exactly six paths: marketplace.json, the bundle's plugin.json, and mcp-builder/LICENSE.txt, SKILL.md, reference/node_mcp_server.md and reference/node_mcp_server_v2.md. ROUND.diff for 70816579ce07..70816579ce07 is empty; no additional repository changes or fix regressions were introduced."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "The newly supplied verified ledger receipt closes F1's evidence gap without a content change. F1 was separate, not blocking, so it receives no blocker-resolution entry. F2\u2013F4 remain previously recorded embedded-instruction observations; their locations are already listed in SURFACE.md and are not reported again. No embedded commands were followed, and no builds or tests were run. Upstream technical advice remains outside the agreed review scope.",
+  "subjects": {},
+  "embedded_instructions": [],
+  "embedded_instructions_new": [],
+  "unknowns_raised": [],
+  "unknowns_settled": [
+    "9ac7309b8dfb"
+  ],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}
