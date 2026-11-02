@@ -1089,6 +1089,8 @@ Dorian's standing operating rule, verify before recommending commitment, gets on
 
 **Status:** building. Declared 2026-11-02 on Dorian's approval, with `session-start.patch` applied as the text of step 8b in `commands/session-start.md`. Not yet reviewed.
 
+**Links introduced:** a settings link. The session-start skill names `~/.claude/settings.json` and the project's `.claude/settings.json` and the keys `model` and `advisorModel` in them, and the environment variables `DISABLE_TELEMETRY` and `CLAUDE_CODE_DISABLE_ADVISOR_TOOL`. Claude Code owns those names, not this repository, so a rename there leaves the step reading nothing; it then reports NOT SET rather than failing.
+
 Dorian's standing rule: a cheaper main model with a stronger advisor, never the strongest model running throughout. A session can't switch its own model, so `/session-start` reports whether the settings follow the rule and applies the gstack-build economy inside the session either way.
 
 1. `commands/session-start.md` carries step 8b exactly as `session-start.patch` gives it, between steps 8 and 9.
@@ -1102,6 +1104,8 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 ### SS-001 — Session end sweeps the loop's scratch
 
 **Status:** building. Declared 2026-11-02 on Dorian's approval, with `session-end.patch` applied as the text of step 8b in `commands/session-end.md`. Ships in the same pull request as ME-001. Not yet reviewed.
+
+**Links introduced:** a scratch-layout link. The session-end skill names where gstack leaves scratch (`~/review-host` and `review_host.sh`'s reinstall, `/tmp/gstack-ship-*`, `/tmp/qa-*`, `/tmp/<suite>.log` and its `run-record.json`) and what it must never touch (`GSTACK_PEER_REVIEW_DIR`, `tests/container/results/`). If gstack-execution moves any of those, Step 7c measures or protects the old place. The test in criterion 7 checks the names are present, not that gstack still uses them.
 
 The loop leaves worktrees, captures, logs and installs on the Mac, and nothing measures or clears them. `/session-end` counts them first, then removes only the loop's own disposables, and only on the person's word.
 
