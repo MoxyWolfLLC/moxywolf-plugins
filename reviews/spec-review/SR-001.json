@@ -1,0 +1,97 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-001",
+  "scope_sha256": "8ce0e1cec4000a6f4b9a77e0cab272724c6a3a169f71526b1186757aaa7c93ad",
+  "reviewed_at": "2026-11-02T21:05:36+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-1",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 6759,
+      "output_tokens": 4469,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 8364,
+      "output_tokens": 2734,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-1"
+    },
+    {
+      "input_tokens": 12136,
+      "output_tokens": 1711,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "SR-001.6",
+        "SR-001.1",
+        "SR-001.4"
+      ],
+      "question": "Does /gstack-plan-review Round 0 write per-item records (<id>.json) or only all.json? /gstack-build Step 2 check reads per-item records, so a whole-file run alone would give spec_review_missing."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "SR-001.6",
+        "SR-001.1"
+      ],
+      "question": "For a goal item <id>/<n>, is check invoked without --items against PLAN.md's all.json, or with --items <id>/<n>? SR-001.1 refuses an id the doc doesn't contain."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "SR-001.1",
+        "SR-001.4"
+      ],
+      "question": "Is a whole-file all.json record on DESIGN.md (run with no --items) a valid record for check, given Dorian's approved scope of 'not the whole DESIGN.md'?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "SR-001.1",
+        "SR-001.3"
+      ],
+      "question": "Are conflicts between two items in the same --items batch ever checked? The intro says 'items under build' are cross-checked pairwise, but SR-001.1 reviews 'each named item on its own'."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "SR-001.3",
+        "SR-001.4"
+      ],
+      "question": "Is scope_sha256 over exactly the doc-derived scope, or over the full request text including the prompt wrapper? check can only recompute the doc-derived part."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "SR-001.5"
+      ],
+      "question": "Where is GSTACK_ANTHROPIC_ENV set for the executing principal (local versus Cowork proxy)? Without that, the credential requirement can't be shown to be satisfiable where the gate runs."
+    }
+  ]
+}
