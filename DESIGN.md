@@ -1210,6 +1210,31 @@ The version has three homes, not two, and DR-013 (2026-06-14) says which one the
 9. Tests: a changed plugin at an unmoved version FAILS; the same plugin with a moved version passes; a changed plugin whose own version moved while the top-level did not FAILS, which is criterion 2 as a test; a new plugin passes; a range touching no plugin passes while reporting zero examined; an unresolvable base FAILS; and the check runs over this repository's real history: across `6c9912c`, where it must catch `gstack-execution` at an unmoved 0.27.0, and across `d619c06..2293ff6`, where six consecutive merges sit at an unmoved top-level version and it must fail the three of them that changed a plugin while passing the three that changed none.
 10. The check runs where a version can ship: on every pull request, against its base, and on every push to `main`. A push to any other branch is checked on its pull request, against the base it merges into, and the push run says it examined nothing and why. Measured from `main`, a goal item or `goal-finalize` branch would read red for the top-level line GO-004.1 forbids it to move. The workflow's token is read-only (amended 2026-10-04).
 
+### CI-003 – The version check sees every package the marketplace serves
+
+**Status:** planned.
+
+**Links introduced:** none. Paths come from each entry's `source` in `marketplace.json` at the head, the same file the roster already reads.
+
+On 2026-11-02, #273 moved `moxywolf-skills` to 1.4.1 and left the top-level version at 1.156.0. `version_bump.py` passed it, because it only takes package names from paths under `plugins/` (line 122), and `moxywolf-skills` lives at `skill-bundles/moxywolf-skills`. No install would've seen the update until #275.
+
+1. `version_bump.py` maps each changed path to the marketplace entry whose `source` contains it, for every `source` in `marketplace.json` at the head, not only `./plugins/`.
+2. A changed package under `skill-bundles/` at an unmoved version FAILS, and so does one whose own version moved while the top-level version didn't.
+3. The report names every package it examined, `skill-bundles/` ones included.
+4. Tests: both failures in criterion 2 as fixtures, plus the real range `cfeb04e..d40e0c2` (#273), where it must FAIL on the unmoved top-level version.
+
+### CI-004 – A vendored upstream skill is refreshed byte for byte, against this item
+
+**Status:** planned. Standing item: every refresh of a skill we vendor unchanged from upstream claims it, so the review can score coverage and the agent can merge under DR-113. A refresh that also edits the upstream files isn't this item. It needs its own, as DS-001 did.
+
+**Links introduced:** the packet names the upstream repository and full commit SHA. Criterion 1's ledger run re-resolves both through GitHub's API.
+
+1. The vendored directory's git tree hash at the head equals the upstream directory's tree hash at the named commit, proven by a `check_ledger.py` run that reads the upstream hash from GitHub's API and is named in the packet's `tests.ledger_runs`.
+2. The diff from base to head touches only the vendored directory and the three version homes: the package's `plugin.json`, its `marketplace.json` entry, and the top-level `marketplace.json` version.
+3. All three versions move by text replacement, and both JSON files still parse.
+4. The replaced files carried no local edits, shown by `git log` on the directory since the previous sync or import.
+5. The `tests` workflow is green at the head, and the version check names the package among what it examined (needs CI-003).
+
 ## Ninth objective: design craft
 
 Opened 2026-09-22. `saas-frontend-designer:baseline-ui` is the single home for design taste in this marketplace (fold-in plan, 2026-06-25). It carries impeccable's playbooks as of v3.8.0. Upstream is now v4.3.1 and has added playbooks we lack, next to a Rust engine we won't ship.
@@ -2286,6 +2311,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-02: CI-003 and CI-004 added on Dorian's approval after #273 (mcp-builder upstream sync) shipped without the top-level version bump the client reads, and its agent merge was refused for want of an item to score coverage against.
 - 2026-10-31: BP-002 marked done: merged by Dorian on a passing review after the wide-lane release gates refused the agent merge (see its status).
 - 2026-10-30: BP-002 added on Dorian's approval after an outside AI-text analyzer flagged an email `prose_lint.py` graded A with no findings: parallel runs, closing zingers and "Here" openers scored in short-form and budgeted in long-form (his ruling), plus Wikipedia's inflated-significance, trailing-participle and ad-copy tells and hidden zero-width characters.
 - 2026-10-28: GO-012.6 reworded to the failure the baseline receipt shows (`KeyError: 'delivery'` right after `start`, not a failure at `complete`), after review `20261027-232648-466aeb6-g6gnr8_m` round 2 held the criterion to its original prediction. Same defect, stated where the evidence is. Under Dorian's pre-approval "I pre-approve all work that will get this done" (2026-10-27 23:09 PT); flagged for his reading.
