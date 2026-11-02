@@ -1,0 +1,444 @@
+{
+  "round": 1,
+  "started": "2026-11-02T16:46:23",
+  "repos": [
+    {
+      "path": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "base": "cfeb04e570a292fc75cf362a4df9bda0fe914e26",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "review_base": "cfeb04e570a292fc75cf362a4df9bda0fe914e26"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/.claude-plugin/plugin.json",
+        "repo": "mwp-head"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+        "repo": "mwp-head"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.11.0",
+  "evidence": {
+    "requested": 0,
+    "read": 0,
+    "head_matched": 0,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_runs": [],
+  "ledger_runs": [],
+  "surface": {
+    "changed": 6,
+    "callers": 25,
+    "callers_withheld": 58,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 5,
+    "dependencies_withheld": 0,
+    "criterion_files": [
+      "changed/0-mwp-head/.claude-plugin/marketplace.json",
+      "changed/0-mwp-head/skill-bundles/moxywolf-skills/.claude-plugin/plugin.json"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "skill-bundles/moxywolf-skills/skills/mcp-builder",
+        "files": 11,
+        "binary": 0,
+        "withheld": 0
+      }
+    ],
+    "provenance": {
+      "entries": 37,
+      "untrusted": 35
+    }
+  },
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "transport": "openrouter",
+  "max_output_enforced": true,
+  "model": "openai/gpt-6-astra",
+  "reviewer_usage": {
+    "input": 98195,
+    "output": 1900,
+    "cache_read": 98192,
+    "total": 100095,
+    "source": "openrouter usage"
+  },
+  "examined": {
+    "read_tracking": "not_applicable",
+    "why": "this reviewer has no filesystem; it read exactly what it was sent, which is recorded under 'sent'"
+  },
+  "sent": {
+    "files": [
+      {
+        "path": "CHANGE.diff",
+        "sent": true,
+        "chars": 44615
+      },
+      {
+        "path": "PROVENANCE.json",
+        "sent": true,
+        "chars": 4887
+      },
+      {
+        "path": "SURFACE.md",
+        "sent": true,
+        "chars": 6478
+      },
+      {
+        "path": "changed/0-mwp-head/.claude-plugin/marketplace.json",
+        "sent": true,
+        "chars": 52092,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 680,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/LICENSE.txt",
+        "sent": true,
+        "chars": 11345
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+        "sent": true,
+        "chars": 11092
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+        "sent": true,
+        "chars": 28667
+      },
+      {
+        "path": "changed/0-mwp-head/skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+        "sent": true,
+        "chars": 35091
+      },
+      {
+        "path": "callers/0-mwp-head/.github/test_codeowners.py",
+        "sent": true,
+        "chars": 4030
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-envelope.yml",
+        "sent": true,
+        "chars": 3312
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-holdout.yml",
+        "sent": true,
+        "chars": 4840
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/goal-tests.yml",
+        "sent": true,
+        "chars": 3348
+      },
+      {
+        "path": "callers/0-mwp-head/.github/workflows/tests.yml",
+        "sent": true,
+        "chars": 3748
+      },
+      {
+        "path": "callers/0-mwp-head/docs/evidence/gstack-delivery/compare-d389119.sh",
+        "sent": true,
+        "chars": 1638
+      },
+      {
+        "path": "callers/0-mwp-head/goal-runs/headcount-departments-2/holdout.py",
+        "sent": true,
+        "chars": 27256
+      },
+      {
+        "path": "callers/0-mwp-head/goals/cloud-review-survives/tests/test_read.py",
+        "sent": true,
+        "chars": 8288
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+        "sent": true,
+        "chars": 52695
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+        "sent": true,
+        "chars": 52695
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-completion/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/headcount-departments-2/tests/test_departments.py",
+        "sent": true,
+        "chars": 19467
+      },
+      {
+        "path": "callers/0-mwp-head/goals/headcount-departments/tests/test_departments.py",
+        "sent": true,
+        "chars": 19407
+      },
+      {
+        "path": "callers/0-mwp-head/goals/vault-review-list-2/tests/test_list.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/goals/vault-review-list/tests/test_list.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/4d-blog-engine/tests/test_docs.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/academic-pipeline/scripts/scamper.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/analytics/scripts/google-analytics/ga_query.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/chief-of-staff/tests/test_roster.py",
+        "sent": true,
+        "chars": 4138
+      },
+      {
+        "path": "callers/0-mwp-head/plugins/chief-of-staff/tests/test_sales_marketing.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      }
+    ],
+    "sent_count": 22,
+    "offered_count": 34
+  },
+  "raw": "{\n  \"verdict\": \"blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.\",\n      \"met\": false,\n      \"evidence\": \"The new 747-line reference/node_mcp_server_v2.md and its SKILL.md links are present. However, no upstream snapshot or independently recorded tree comparison is supplied. SURFACE.md reports zero CI and ledger runs; the claimed matching tree hashes occur only in the builder's packet. The directory export listed as dirs/0-mwp-head/0.txt is also absent from the supplied contents. Byte identity of the entire directory is therefore not established.\"\n    },\n    {\n      \"criterion\": \"moxywolf-skills is bumped from 1.4.0 to 1.4.1 in both skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and the moxywolf-skills entry of .claude-plugin/marketplace.json, both files still parse as JSON, and marketplace.json changes only that version substring.\",\n      \"met\": true,\n      \"evidence\": \"plugin.json:3 and marketplace.json:419 contain 1.4.1. Inspection of both complete supplied files finds valid JSON syntax. CHANGE.diff shows each version changing from 1.4.0, with the marketplace version substring being that file's sole change. No parser was executed.\"\n    },\n    {\n      \"criterion\": \"The diff from base to head touches only those six paths and no other plugin, skill or file.\",\n      \"met\": true,\n      \"evidence\": \"The full CHANGE.diff contains exactly six file sections: marketplace.json, the bundle's plugin.json, and mcp-builder's LICENSE.txt, SKILL.md, reference/node_mcp_server.md, and reference/node_mcp_server_v2.md. No other paths or mode-only changes appear.\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"id\": \"F1\",\n      \"severity\": \"separate\",\n      \"file\": \"skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md\",\n      \"line\": 1,\n      \"what\": \"The supplied surface lacks the authoritative upstream content needed to establish whole-directory fidelity.\",\n      \"evidence\": \"Line 1 anchors the available vendored file, not a demonstrated mismatch. The missing comparison source is anthropics/skills@ca45fc496a3436251f191354091d557da31c15b5:skills/mcp-builder/, including its unchanged files. Neither that source nor a dispatcher-verified comparison receipt is included; the listed local directory export is not reproduced in the supplied surface.\",\n      \"criterion\": \"skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.\",\n      \"fix\": \"Supply the complete upstream and reviewed-head directory snapshots, or a verified head-bound receipt comparing their Git tree objects and binding the upstream object to the specified commit. No vendored-content change is requested without evidence of a mismatch.\",\n      \"category\": \"general\"\n    },\n    {\n      \"id\": \"F2\",\n      \"severity\": \"follow_up\",\n      \"file\": \"skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md\",\n      \"line\": 70,\n      \"what\": \"Untrusted skill content contains fetch and execution directives.\",\n      \"evidence\": \"Line 70 says 'Use WebFetch to load' the TypeScript SDK README. The same file also directs migration via npx, Python documentation fetching, compilation, and Inspector/self-check execution. These are instructions within the reviewed artifact, not authority for this review; none were followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Keep these directives confined to the skill's intended invocation context and treat them as inert data during review. No upstream-content edit is requested.\",\n      \"category\": \"embedded_instruction\"\n    },\n    {\n      \"id\": \"F3\",\n      \"severity\": \"follow_up\",\n      \"file\": \"skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md\",\n      \"line\": 14,\n      \"what\": \"Untrusted reference content contains package-installation and command-execution directives.\",\n      \"evidence\": \"Lines 14\u201316 prescribe npm install commands. The Verify Your Server and Migrating a v1 Server sections additionally direct build/smoke execution, server startup, and running the migration codemod. These were read as documentation and not executed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Preserve the review trust boundary: installation, migration, and test commands in this reference must not be executed merely because the reference was supplied for review. No fidelity-breaking documentation edit is requested.\",\n      \"category\": \"embedded_instruction\"\n    },\n    {\n      \"id\": \"F4\",\n      \"severity\": \"follow_up\",\n      \"file\": \"skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md\",\n      \"line\": 1,\n      \"what\": \"The retained untrusted v1 reference contains build and server-execution directives.\",\n      \"evidence\": \"The Building and Running section says 'Always build your TypeScript code before running' and provides npm run build, npm start, and npm run dev. Line 1 is the nearest certain file anchor used here because the section's exact line number was not established from the supplied unnumbered text. None of those commands were executed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Treat the reference's commands as inert review data, retaining them for the skill's intended use rather than following them during this review.\",\n      \"category\": \"embedded_instruction\"\n    }\n  ],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [\n    {\n      \"question\": \"Does the complete reviewed-head mcp-builder directory have exactly the same bytes and tracked entries as anthropics/skills:skills/mcp-builder at ca45fc496a3436251f191354091d557da31c15b5?\",\n      \"needs\": \"repository\",\n      \"criterion\": \"skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.\"\n    }\n  ],\n  \"notes\": \"The verdict reflects an unverified acceptance criterion, not an observed upstream mismatch. The visible version changes and six-path scope meet their criteria. Upstream technical advice was not reconsidered, and no commands, tests, installation, or deployment were performed.\"\n}",
+  "verdict": "blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.",
+      "met": false,
+      "evidence": "The new 747-line reference/node_mcp_server_v2.md and its SKILL.md links are present. However, no upstream snapshot or independently recorded tree comparison is supplied. SURFACE.md reports zero CI and ledger runs; the claimed matching tree hashes occur only in the builder's packet. The directory export listed as dirs/0-mwp-head/0.txt is also absent from the supplied contents. Byte identity of the entire directory is therefore not established."
+    },
+    {
+      "criterion": "moxywolf-skills is bumped from 1.4.0 to 1.4.1 in both skill-bundles/moxywolf-skills/.claude-plugin/plugin.json and the moxywolf-skills entry of .claude-plugin/marketplace.json, both files still parse as JSON, and marketplace.json changes only that version substring.",
+      "met": true,
+      "evidence": "plugin.json:3 and marketplace.json:419 contain 1.4.1. Inspection of both complete supplied files finds valid JSON syntax. CHANGE.diff shows each version changing from 1.4.0, with the marketplace version substring being that file's sole change. No parser was executed."
+    },
+    {
+      "criterion": "The diff from base to head touches only those six paths and no other plugin, skill or file.",
+      "met": true,
+      "evidence": "The full CHANGE.diff contains exactly six file sections: marketplace.json, the bundle's plugin.json, and mcp-builder's LICENSE.txt, SKILL.md, reference/node_mcp_server.md, and reference/node_mcp_server_v2.md. No other paths or mode-only changes appear."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "separate",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "line": 1,
+      "what": "The supplied surface lacks the authoritative upstream content needed to establish whole-directory fidelity.",
+      "evidence": "Line 1 anchors the available vendored file, not a demonstrated mismatch. The missing comparison source is anthropics/skills@ca45fc496a3436251f191354091d557da31c15b5:skills/mcp-builder/, including its unchanged files. Neither that source nor a dispatcher-verified comparison receipt is included; the listed local directory export is not reproduced in the supplied surface.",
+      "criterion": "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md.",
+      "fix": "Supply the complete upstream and reviewed-head directory snapshots, or a verified head-bound receipt comparing their Git tree objects and binding the upstream object to the specified commit. No vendored-content change is requested without evidence of a mismatch.",
+      "category": "general"
+    },
+    {
+      "id": "F2",
+      "severity": "follow_up",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "line": 70,
+      "what": "Untrusted skill content contains fetch and execution directives.",
+      "evidence": "Line 70 says 'Use WebFetch to load' the TypeScript SDK README. The same file also directs migration via npx, Python documentation fetching, compilation, and Inspector/self-check execution. These are instructions within the reviewed artifact, not authority for this review; none were followed.",
+      "criterion": "",
+      "fix": "Keep these directives confined to the skill's intended invocation context and treat them as inert data during review. No upstream-content edit is requested.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F3",
+      "severity": "follow_up",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+      "line": 14,
+      "what": "Untrusted reference content contains package-installation and command-execution directives.",
+      "evidence": "Lines 14\u201316 prescribe npm install commands. The Verify Your Server and Migrating a v1 Server sections additionally direct build/smoke execution, server startup, and running the migration codemod. These were read as documentation and not executed.",
+      "criterion": "",
+      "fix": "Preserve the review trust boundary: installation, migration, and test commands in this reference must not be executed merely because the reference was supplied for review. No fidelity-breaking documentation edit is requested.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F4",
+      "severity": "follow_up",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+      "line": 1,
+      "what": "The retained untrusted v1 reference contains build and server-execution directives.",
+      "evidence": "The Building and Running section says 'Always build your TypeScript code before running' and provides npm run build, npm start, and npm run dev. Line 1 is the nearest certain file anchor used here because the section's exact line number was not established from the supplied unnumbered text. None of those commands were executed.",
+      "criterion": "",
+      "fix": "Treat the reference's commands as inert review data, retaining them for the skill's intended use rather than following them during this review.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [
+    {
+      "question": "Does the complete reviewed-head mcp-builder directory have exactly the same bytes and tracked entries as anthropics/skills:skills/mcp-builder at ca45fc496a3436251f191354091d557da31c15b5?",
+      "needs": "repository",
+      "criterion": "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md."
+    }
+  ],
+  "notes": "The verdict reflects an unverified acceptance criterion, not an observed upstream mismatch. The visible version changes and six-path scope meet their criteria. Upstream technical advice was not reconsidered, and no commands, tests, installation, or deployment were performed.",
+  "subjects": {
+    "F1": {
+      "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "line": 1,
+      "bound": true,
+      "blob": "d61a9056202a0f8b2d064c896e62f415c45b1bf1",
+      "span": "1d1c090c7fd0e042",
+      "span_lines": [
+        1,
+        3
+      ],
+      "file_lines": 252,
+      "line_exists": true
+    },
+    "F2": {
+      "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "line": 70,
+      "bound": true,
+      "blob": "d61a9056202a0f8b2d064c896e62f415c45b1bf1",
+      "span": "e87bb31a9e321a3a",
+      "span_lines": [
+        68,
+        72
+      ],
+      "file_lines": 252,
+      "line_exists": true
+    },
+    "F3": {
+      "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "line": 14,
+      "bound": true,
+      "blob": "5d61f896d9707c8797c33ac8ac03c5aebf9b163f",
+      "span": "960cc5f0d0f36138",
+      "span_lines": [
+        12,
+        16
+      ],
+      "file_lines": 747,
+      "line_exists": true
+    },
+    "F4": {
+      "repo": "/sessions/rcw-01jpbmvu9tfcs48pjcp2fxwt/mnt/GitHub/.gstack-tmp/mwp-head",
+      "path": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+      "head": "70816579ce07a28a6d020c469cb72fc52f118c4a",
+      "line": 1,
+      "bound": true,
+      "blob": "738ec1fb8b1a41661b0bb5d32a26234a14c4e3f0",
+      "span": "a9f977625e6d4e33",
+      "span_lines": [
+        1,
+        3
+      ],
+      "file_lines": 972,
+      "line_exists": true
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F2",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/SKILL.md",
+      "line": 70
+    },
+    {
+      "id": "F3",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server_v2.md",
+      "line": 14
+    },
+    {
+      "id": "F4",
+      "file": "skill-bundles/moxywolf-skills/skills/mcp-builder/reference/node_mcp_server.md",
+      "line": 1
+    }
+  ],
+  "embedded_instructions_new": [
+    "F2",
+    "F3",
+    "F4"
+  ],
+  "unknowns_raised": [
+    "9ac7309b8dfb"
+  ],
+  "unknowns_settled": [],
+  "unmet_acceptance": [
+    "skill-bundles/moxywolf-skills/skills/mcp-builder is byte-identical to skills/mcp-builder in anthropics/skills at ca45fc496a3436251f191354091d557da31c15b5, including the new reference/node_mcp_server_v2.md."
+  ],
+  "outcome": "blocking_findings",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}
