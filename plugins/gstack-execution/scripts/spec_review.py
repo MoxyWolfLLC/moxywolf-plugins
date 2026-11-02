@@ -147,6 +147,12 @@ def _blanked(lines):
     return out
 
 
+def _heading_id(line):
+    """The id a `### <id> — title` heading declares, compared whole: `R` is not `R-001` (review F1)."""
+    m = re.match(r"### ([^\s—–:]+)", line)
+    return m.group(1).rstrip(".,;:") if m else None
+
+
 def _table_item(lines, item):
     """The header, separator and row whose first cell is `item`, with its Status and Review ID cells
     blanked, or None. The design-doc template writes items this way (one row per item)."""
@@ -173,7 +179,7 @@ def scope(text, item=None):
             i = next((n for n, l in enumerate(lines) if l.strip() == head), None)
             if i is not None:
                 out += _section(lines, i)
-        i = next((n for n, l in enumerate(lines) if re.match(r"### %s\b" % re.escape(item), l)), None)
+        i = next((n for n, l in enumerate(lines) if _heading_id(l) == item), None)
         row = None if i is not None else _table_item(lines, item)
         if i is None and row is None:
             raise Refused(f"the doc has no item {item}")
@@ -192,8 +198,8 @@ def review(scope_text, post=post):
     tools = [{"type": "advisor_20260301", "name": "advisor", "model": ADVISOR,
               "max_uses": 3, "max_tokens": 4096}]
     messages = [{"role": "user", "content": f"{ADVISOR_STEER}\n\n<plan>\n{scope_text}</plan>"}]
-    iterations, advisor_calls, text, reminded = [], 0, [], False
-    for _ in range(MAX_RESUMES + 2):
+    iterations, advisor_calls, text, reminded, resumes = [], 0, [], False, 0
+    while True:
         resp = post({"model": EXECUTOR, "max_tokens": 20000, "system": SYSTEM,
                      "thinking": {"type": "adaptive"}, "tools": tools, "messages": messages})
         content = resp.get("content") or []
@@ -201,6 +207,9 @@ def review(scope_text, post=post):
         advisor_calls += sum(1 for b in content if b.get("type") == "server_tool_use" and b.get("name") == "advisor")
         text += [b["text"] for b in content if b.get("type") == "text"]
         if resp.get("stop_reason") == "pause_turn":
+            if resumes == MAX_RESUMES:   # review F2: six resumptions, never a seventh
+                raise Refused(f"turn still paused after {MAX_RESUMES} resumptions")
+            resumes += 1
             messages.append({"role": "assistant", "content": content})   # unchanged; the server resumes
             continue
         if resp.get("stop_reason") == "max_tokens":
@@ -210,15 +219,38 @@ def review(scope_text, post=post):
             text, reminded = [], True
             continue
         return "\n".join(text), iterations, advisor_calls
-    raise Refused(f"turn did not finish within {MAX_RESUMES} resumptions")
 
 
 def findings(text):
     blocks = re.findall(r"```json\s*(\{.*?\})\s*```", text, re.S)
     if not blocks:
         raise Refused("executor returned no ```json findings block")
-    f = json.loads(blocks[-1])
-    return {k: f.get(k) or [] for k in ("contradictions", "ambiguities")}
+    try:
+        f = json.loads(blocks[-1])
+    except json.JSONDecodeError as e:
+        raise Refused(f"findings block is not JSON: {e}")
+    why = malformed(f)
+    if why:   # review F3: a failed review never reads as a clean one
+        raise Refused(f"findings block is malformed: {why}")
+    return {k: f[k] for k in FIELDS}
+
+
+FIELDS = {"contradictions": ("id", "requirements", "scenario", "smallest_change"),
+          "ambiguities": ("id", "requirements", "question")}
+
+
+def malformed(f):
+    """None when `f` carries both findings lists with every field, else the reason. Used on the
+    executor's block and on a record read back by check."""
+    if not isinstance(f, dict):
+        return "not an object"
+    for key, need in FIELDS.items():
+        if not isinstance(f.get(key), list):
+            return f"{key} is not a list"
+        for e in f[key]:
+            if not isinstance(e, dict) or any(not e.get(n) for n in need) or not isinstance(e["requirements"], list):
+                return f"a {key} entry lacks one of {', '.join(need)}"
+    return None
 
 
 def cmd_run(doc, items=None, post=post):
@@ -255,7 +287,7 @@ def check(doc, items=None):
     doc = Path(doc)
     if not doc.exists():
         return False, f"spec_review_missing: {doc} does not exist"
-    text, names = doc.read_text(), []
+    text, names, asks = doc.read_text(), [], []
     for item in (items or [None]):
         hint = f"run `spec_review.py run {doc}{' --items ' + item if item else ''}`"
         try:
@@ -268,6 +300,8 @@ def check(doc, items=None):
         rec = json.loads(rp.read_text())
         if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
             return False, f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}"
+        if malformed(rec):
+            return False, f"spec_review_missing: {rp.name} is malformed ({malformed(rec)}); {hint}"
         if (rec.get("advisor_calls") or 0) < 1:
             return False, f"spec_review_missing: {rp.name} records no advisor call; {hint}"
         open_ = rec.get("contradictions") or []
@@ -275,7 +309,9 @@ def check(doc, items=None):
             ids = ", ".join(c.get("id", "?") for c in open_)
             return False, f"spec_review_open: {name} has {len(open_)} open contradiction(s) ({ids}); amend {doc.name}, then re-run"
         names.append(name)
-    return True, f"spec_review_ok: {', '.join(names)} in {doc.name} match their records, no open contradictions"
+        asks += [f"\n  {name} {a['id']} ({', '.join(map(str, a['requirements']))}): {a['question']}" for a in rec["ambiguities"]]
+    tail = f"; {len(asks)} open ambiguit{'y' if len(asks) == 1 else 'ies'}, not blocking:" + "".join(asks) if asks else ""
+    return True, f"spec_review_ok: {', '.join(names)} in {doc.name} match their records, no open contradictions{tail}"
 
 
 def stub_post(body_json, advise=True):
@@ -413,6 +449,39 @@ def selftest():
         assert check(doc, ["R-001"])[0], "a status line made the record stale"
         doc.write_text(doc.read_text().replace("- Offline first.", "- Online first."))
         assert check(doc, ["R-001"])[1].startswith("spec_review_stale"), "a constraint edit left it current"
+        # review F1: a prefix of an id is not an id
+        for bad in ("R", "R-00", "R-0011"):
+            try:
+                scope(DEMO, bad)
+                raise AssertionError(f"{bad} matched")
+            except Refused as e:
+                assert f"no item {bad}" in str(e)
+        assert scope(DEMO.replace("### R-001 — Rates", "### R-001: Rates"), "R-001")[0] == "R-001"
+        # review F2: six resumptions, then refuse before a seventh
+        def paused(n):
+            calls = []
+            def p(req):
+                calls.append(req)
+                if len(calls) <= n:
+                    return {"stop_reason": "pause_turn", "content": [{"type": "server_tool_use", "name": "advisor", "input": {}}]}
+                return {"stop_reason": "end_turn", "content": [{"type": "text", "text": "```json\n{\"contradictions\": [], \"ambiguities\": []}\n```"}]}
+            p.calls = calls
+            return p
+        assert review("x", post=paused(6))[2] == 6 and len(paused(6).calls) == 0
+        p7 = paused(7)
+        try:
+            review("x", post=p7)
+            raise AssertionError("a seventh resumption was sent")
+        except Refused as e:
+            assert "after 6 resumptions" in str(e) and len(p7.calls) == 7
+        # review F3: malformed findings refuse, in the reply and in a record read back
+        for block in ('{"error": "unable"}', '{"contradictions": null, "ambiguities": []}',
+                      '{"contradictions": [{"id": "C1"}], "ambiguities": []}'):
+            try:
+                findings(f"```json\n{block}\n```")
+                raise AssertionError(f"accepted {block}")
+            except Refused as e:
+                assert "malformed" in str(e)
         # a table-row item (the template's format): header kept, Status and Review ID cells blanked
         table = DEMO.split("## Items")[0] + TABLE
         name, sent = scope(table, "T-001")
@@ -429,6 +498,16 @@ def selftest():
         assert cmd_run(doc, ["T-002", "T-001"], post=stub_post({"contradictions": [], "ambiguities": []})) == 0
         assert check(doc, ["T-001", "T-002"])[0] and check(doc, ["T-002"])[0]
         assert record_path(doc, "T-001").exists() and record_path(doc, "T-002").exists()
+        # review F4: check reports ambiguities and still passes
+        cmd_run(doc, ["T-002"], post=stub_post({"contradictions": [], "ambiguities": [
+            {"id": "A1", "requirements": ["T-002.1"], "question": "Unrelated to what?"}]}))
+        ok, why = check(doc, ["T-001", "T-002"])
+        assert ok and "1 open ambiguity, not blocking" in why and "T-002 A1 (T-002.1): Unrelated to what?" in why, why
+        # review F3: a malformed record read back doesn't pass
+        good = record_path(doc, "T-002").read_text()
+        record_path(doc, "T-002").write_text(json.dumps({**json.loads(good), "contradictions": None}))
+        assert "is malformed (contradictions is not a list)" in check(doc, ["T-002"])[1]
+        record_path(doc, "T-002").write_text(good)
         # a turn that never consults the advisor writes no record, and a record without one doesn't pass
         record_path(doc, "T-001").unlink()
         s = stub_post({"contradictions": [], "ambiguities": []}, advise=False)
