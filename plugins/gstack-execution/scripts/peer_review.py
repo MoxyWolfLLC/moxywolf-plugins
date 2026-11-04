@@ -679,13 +679,17 @@ def ledger_status_now(repos):
 
 def ci_shown(d):
     """Every evidence/ci-* file a round of review d recorded the dispatcher writing: failed jobs' logs
-    (XE-027 F1) and passing jobs' report-line summaries (review 20261102-095221 F9)."""
+    (XE-027 F1), passing jobs' report-line summaries (review 20261102-095221 F9), and the run record
+    of each run the round read (XE-042)."""
     shown = set()
     for f in sorted(Path(d).glob("round-*.json")) if d else ():
         rec = load(Path(d), f.name) or {}
         for c in (rec.get("ci_logs") or []) + (rec.get("ci_summaries") or []):   # F9: passing jobs' summaries too
             if str(c.get("shown", "")).startswith(f"{EVIDENCE_DIR}/ci-"):
                 shown.add(c["shown"])
+        for c in rec.get("ci_runs") or []:   # XE-042: build_surface writes evidence/ci-<run id>.json for each
+            if c.get("read") and str(c.get("run_id", "")).isdigit():
+                shown.add(f"{EVIDENCE_DIR}/ci-{c['run_id']}.json")
     return shown
 
 

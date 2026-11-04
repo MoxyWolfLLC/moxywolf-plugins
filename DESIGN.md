@@ -248,7 +248,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### XE-042 — The wide link gate takes a finding citing a CI run record the dispatcher wrote (amends GO-016.2)
 
-**Status:** planned
+**Status:** building
 
 **Why.** Review `20261104-142043-5d5739c-ms_slbcz` (#283) ended `fixes_verified` with every criterion met, and `release` refused it `release_blocked`: one follow-up finding cited `evidence/ci-41886878299.json`, the run record the dispatcher fetched from GitHub and wrote that round. GO-016.2 exempts a finding citing a CI log or summary the dispatcher wrote, because it isn't bound to repository content and can't re-resolve either way; the run record is the same kind of file and wasn't exempted. Dorian 2026-11-04: “Fix the gate (Recommended)”.
 
