@@ -633,6 +633,14 @@ class ReleaseLanes(GovernedReview):
         d = self.root / "rd"; d.mkdir()
         (d / "round-1.json").write_text(json.dumps({"ci_logs": [{"shown": "evidence/ci-123-job-9.summary.txt"}, {"shown": "x"}]}))
         self.assertEqual(peer.ci_shown(d), shown)
+        # XE-042: the run record of a run the round read counts; one the round did not read doesn't
+        (d / "round-2.json").write_text(json.dumps({"ci_runs": [{"run_id": 123, "read": True}, {"run_id": 456, "read": False}]}))
+        shown2 = peer.ci_shown(d)
+        self.assertEqual(shown2, shown | {"evidence/ci-123.json"})
+        record = {"ok": False, "kind": "unverifiable", "link": "round 2 F10 -> evidence/ci-123.json:79"}
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, record]}, shown2))
+        unread = dict(record, link="round 2 F10 -> evidence/ci-456.json:79")
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, unread]}, shown2))
 
     # GA-011: into a goal branch the closed lane is deferred to the goal pull request into main
     def test_release_of_a_closed_lane_into_a_goal_branch_is_held_to_the_wide_gates(self):

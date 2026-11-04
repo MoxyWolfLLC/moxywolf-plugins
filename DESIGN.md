@@ -246,6 +246,21 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 2. A failed install records `broken`, naming npm's error and the cache it consulted, and leaves nothing half-installed; with no lockfile it records `broken` as before.
 3. Tests: an installed copy with no `node_modules` scores and reuses its cache on a second run; an install against an unreachable registry is `broken`.
 
+### XE-042 — The wide link gate takes a finding citing a CI run record the dispatcher wrote (amends GO-016.2)
+
+**Status:** building
+
+**Why.** Review `20261104-142043-5d5739c-ms_slbcz` (#283) ended `fixes_verified` with every criterion met, and `release` refused it `release_blocked`: one follow-up finding cited `evidence/ci-41886878299.json`, the run record the dispatcher fetched from GitHub and wrote that round. GO-016.2 exempts a finding citing a CI log or summary the dispatcher wrote, because it isn't bound to repository content and can't re-resolve either way; the run record is the same kind of file and wasn't exempted. Dorian 2026-11-04: “Fix the gate (Recommended)”.
+
+**Links introduced:** none. `ci_shown` reads round records that already name each fetched run.
+
+**Links this item introduces:** none.
+
+1. `ci_shown(d)` also returns `evidence/ci-<run id>.json` for each `ci_runs` entry a round of review `d` recorded as read. A run the round did not read adds nothing.
+2. Nothing else in `wide_links_hold` changes. The dispatcher writes a run's record whether or not it could read the run; only a read run's record is exempt. A stale link, a missing record, any other cited `evidence/ci-*` file (one that isn't a log or summary a round recorded writing, or the record of a run a round read), or any other unverifiable check still fails it.
+3. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable` asserts a finding citing a read run's record passes the gate, and one citing a run no round read does not.
+4. `plugin.json` moves a patch version, with its marketplace entry, the README Version History and the top-level marketplace version (CI-002).
+
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
 **Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
@@ -2457,6 +2472,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-04: XE-042 added on Dorian’s choice “Fix the gate (Recommended)”: the wide link gate takes a finding citing a CI run record the dispatcher wrote, as it takes CI logs and summaries (amends GO-016.2).
 - 2026-11-02: SR-001 marked done: merged by the agent on Dorian's posted instruction after a `fixes_verified` review (see its status).
 - 2026-11-02: SR-001 amended on Dorian's approval after its own spec review found criterion 1 against criterion 4 (whole-file mode made no status promise): status lines and Status/Review ID cells are dropped in every mode; the boundary-test exemption is written into the item; a record with no advisor call is `spec_review_missing`; a goal item reads its plan's whole-file record; one advisor reminder precedes a refusal, since Sonnet 5.5 rejects a forced `tool_choice`.
 - 2026-11-02: SR-001 amended on Dorian's rulings after its own first live review (0 contradictions, 6 ambiguities) and a sweep of the eight local repos with a `DESIGN.md`: table-row items are read too (crm, FrontierFounder, prfaq and stigviewer use them; the two docs with neither, moxywolf-website and workforce-automation, are reviewed through goal plans); one record per item, so a batch passes when each item does; a turn without an advisor call refuses. SR-001 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling, as the items added since September have been.
