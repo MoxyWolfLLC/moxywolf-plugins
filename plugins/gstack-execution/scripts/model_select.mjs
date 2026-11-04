@@ -142,6 +142,8 @@ export function councilGate(env = process.env) {
 }
 
 export const FILE_HEAD_LINES = 60;   // F1 (review 20261013-175825): the model reads the named files, not only their names
+// ponytail: a line cap alone doesn't bound a one-line file (a 243 KB JSON fixture made Jev answer HTTP 400); chars bound it too
+export const FILE_HEAD_CHARS = 8000;
 
 // F1 (review 20261013-182804): a named file is read from the packet's head commit through git, never
 // from the working tree, and only as a path inside the repository. `git show <head>:<rel>` refuses
@@ -153,7 +155,10 @@ export function readAtHead(repoPath, head, rel) {
     text = execFileSync('git', ['-C', repoPath, 'show', `${head}:${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 << 20 });
   } catch { return { path: rel, exists: false }; }
   const lines = text.split('\n');
-  return { path: rel, exists: true, at: head, lines: lines.length, head: lines.slice(0, FILE_HEAD_LINES).join('\n') };
+  const top = lines.slice(0, FILE_HEAD_LINES).join('\n');
+  const out = { path: rel, exists: true, at: head, lines: lines.length, head: top.slice(0, FILE_HEAD_CHARS) };
+  if (top.length > FILE_HEAD_CHARS) out.head_truncated_at_chars = FILE_HEAD_CHARS;
+  return out;
 }
 
 // F2 (review 20261013-182804, round 2): an item's "Links introduced" is read from that item's own
