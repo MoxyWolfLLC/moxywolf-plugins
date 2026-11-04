@@ -482,6 +482,11 @@ class Selector(unittest.TestCase):
         Stub.per_voice = {V[1]: {"risky": 1}}
         r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
         self.assertEqual((ms["tier"], ms["rule"]), ("floor", "quorum_tie"), ms)
+        # MR-001.7 as amended: the tie records no booleans, and the surviving voice's risky answer still protects the floor
+        pk = json.loads(self.pfile.read_text()); pk["model_selection"] = {"override": {"tier": "light", "reason": "cheaper"}}
+        self.pfile.write_text(json.dumps(pk))
+        r, _ = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("override_below_floor", r.stderr)
 
     def write_council_history(self, n):
         """n scored council lines for model_select where the majority and Jev both said a cheap tier and the item cleared."""

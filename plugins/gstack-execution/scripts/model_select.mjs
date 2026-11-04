@@ -399,9 +399,13 @@ async function recommend(packetPath, designPath) {
     d = decide(jevAnswers);
     source = MODEL;
   }
-  // MR-001.7 as amended: a person's override can't take a trust-boundary or risky item below the floor
-  if (override && override.tier !== 'floor' && d.booleans && (d.booleans.trust_boundary || d.booleans.risky)) {
-    console.error(`override_below_floor: this item's ${d.booleans.trust_boundary ? 'trust-boundary' : 'risky'} answer clears its bar, so it runs on the floor; an override to ${override.tier} is refused (MR-001.7)`);
+  // MR-001.7 as amended: a person's override can't take a trust-boundary or risky item below the floor.
+  // A quorum tie records no booleans, so there any answering voice whose own answers clear either bar protects the floor.
+  const floorBars = (b) => (b.trust_boundary ? 'trust-boundary' : b.risky ? 'risky' : null);
+  const protectedBy = d.booleans ? floorBars(d.booleans)
+    : voices.map(v => voiceAnswers(council, v.model)).filter(Boolean).map(a => floorBars(decide(a).booleans)).find(Boolean) ?? null;
+  if (override && override.tier !== 'floor' && protectedBy) {
+    console.error(`override_below_floor: this item's ${protectedBy} answer clears its bar, so it runs on the floor; an override to ${override.tier} is refused (MR-001.7)`);
     process.exit(2);
   }
   const applied = override ? override.tier : d.tier;
