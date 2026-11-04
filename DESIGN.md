@@ -257,7 +257,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 **Links this item introduces:** none.
 
 1. `ci_shown(d)` also returns `evidence/ci-<run id>.json` for each `ci_runs` entry a round of review `d` recorded as read. A run the round did not read adds nothing.
-2. Nothing else in `wide_links_hold` changes: a stale link, a missing record, a cited `evidence/ci-*` file no round recorded writing, or any other unverifiable check still fails it.
+2. Nothing else in `wide_links_hold` changes. The dispatcher writes a run's record whether or not it could read the run; only a read run's record is exempt. A stale link, a missing record, any other cited `evidence/ci-*` file (one that isn't a log or summary a round recorded writing, or the record of a run a round read), or any other unverifiable check still fails it.
 3. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable` asserts a finding citing a read run's record passes the gate, and one citing a run no round read does not.
 4. `plugin.json` moves a patch version, with its marketplace entry, the README Version History and the top-level marketplace version (CI-002).
 

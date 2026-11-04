@@ -1,0 +1,73 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "XE-042",
+  "scope_sha256": "f05d75448e6513b3624605a4b826bc2f5e940fa5aa0ab2e2af5b22cfddfbe982",
+  "reviewed_at": "2026-11-04T22:59:56+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-1",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 5071,
+      "output_tokens": 2445,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 6676,
+      "output_tokens": 1510,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-1"
+    },
+    {
+      "input_tokens": 7943,
+      "output_tokens": 949,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-042.1",
+        "XE-042.2"
+      ],
+      "question": "What field in a round record marks a ci_runs entry as 'read' rather than fetched but unreadable? The plan's own note says records name each 'fetched' run, and no distinguishing field is named."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-042.2",
+        "XE-042.3"
+      ],
+      "question": "Must the test also cover the cases XE-042.2 lists as still failing (stale link, missing record, other evidence/ci-* files)? Its name claims 'nothing else unverifiable', but it asserts only two cases."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "Constraints: Test the boundaries before adding item IDs",
+        "XE-042"
+      ],
+      "question": "XE-042 is a new item ID that amends GO-016.2. Have the three boundary tests run and been recorded, or does XE-042 count as an allowed amendment that fixes a finding of those tests? The plan doesn't say."
+    }
+  ]
+}
