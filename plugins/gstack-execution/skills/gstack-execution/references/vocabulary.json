@@ -683,6 +683,13 @@
       "skos:definition": "route mode was refused because the model-selection ledger holds fewer than 20 scored lines or agreement below 0.90, both printed with the refusal; the run fell back to shadow (MR-001.6)"
     },
     {
+      "id": "override_below_floor",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "review_outcome",
+      "skos:prefLabel": "override_below_floor",
+      "skos:definition": "model_select.mjs refused a person's override below floor for an item whose trust-boundary or risky answer clears its bar, so the floor criterion 2 sets holds for an override too (MR-001.7)"
+    },
+    {
       "id": "release_lane",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "state_field",

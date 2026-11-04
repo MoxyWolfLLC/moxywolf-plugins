@@ -508,6 +508,14 @@ class Selector(unittest.TestCase):
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
             self.assertEqual(r.returncode, 2, (bad, r.stderr))
             self.assertIn("override", r.stderr)
+        # MR-001.7 as amended: a trust-boundary or risky item can't be overridden below the floor
+        for answers in ({"trust_boundary": 1}, {"risky": 1}):
+            pk["model_selection"] = {"override": {"tier": "light", "reason": "cheaper"}}; self.pfile.write_text(json.dumps(pk))
+            r, _ = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual(r.returncode, 2, (answers, r.stderr)); self.assertIn("override_below_floor", r.stderr)
+            pk["model_selection"] = {"override": {"tier": "floor", "reason": "agreed"}}; self.pfile.write_text(json.dumps(pk))
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual((r.returncode, ms["applied_tier"]), (0, "floor"), (answers, r.stderr))
         # the overridden item is counted apart from the scored ones
         self.ledger().write_text(json.dumps({"review_id": "o", "recommendation": {"tier": "light", "rule": "docs_only", "mode": "shadow"},
                                              "declared_tier": "floor", "override": {"tier": "floor", "reason": "x"},

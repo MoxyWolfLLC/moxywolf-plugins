@@ -399,6 +399,11 @@ async function recommend(packetPath, designPath) {
     d = decide(jevAnswers);
     source = MODEL;
   }
+  // MR-001.7 as amended: a person's override can't take a trust-boundary or risky item below the floor
+  if (override && override.tier !== 'floor' && d.booleans && (d.booleans.trust_boundary || d.booleans.risky)) {
+    console.error(`override_below_floor: this item's ${d.booleans.trust_boundary ? 'trust-boundary' : 'risky'} answer clears its bar, so it runs on the floor; an override to ${override.tier} is refused (MR-001.7)`);
+    process.exit(2);
+  }
   const applied = override ? override.tier : d.tier;
   write({ status: 'checked', mode, answers: mode === 'quorum' ? (majorityAnswers ?? jevAnswers) : jevAnswers, answers_from: source,
           booleans: d.booleans, rule: d.rule, ...(d.majority_rule ? { majority_rule: d.majority_rule } : {}), tier: d.tier, thresholds: d.thresholds,
