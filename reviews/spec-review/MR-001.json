@@ -1,0 +1,125 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "MR-001",
+  "scope_sha256": "e18b317e32a5a3b02ee5ab87551294fd166e188f0c100636485c4fb851827ba9",
+  "reviewed_at": "2026-11-04T17:58:53+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-1",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 6848,
+      "output_tokens": 6963,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 13851,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10038,
+      "output_tokens": 1673,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-1"
+    },
+    {
+      "input_tokens": 14266,
+      "output_tokens": 1529,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "MR-001.2",
+        "MR-001.7"
+      ],
+      "question": "What are the 'risky answer' and its 'bar' in criterion 7? Is a cross-file item's floor protected from an override, given that criterion 2 sets floor for cross-file answers and criterion 7 says criterion 2's floor holds for overrides?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "MR-001.1",
+        "MR-001.2"
+      ],
+      "question": "Does the 'criteria name executable tests' answer count as 'something else' in the light-tier rule? Which rule-table row uses it?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "MR-001.5",
+        "MR-001.6"
+      ],
+      "question": "How is agreement computed when the ledger has no standard or light recommendations (0/0)? Is it zero, undefined, or a refusal?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "MR-001.6",
+        "MR-001.3"
+      ],
+      "question": "When route is requested but refused with insufficient_history, does recommend fall back to shadow and write model_selection? Or does it write nothing and leave open to refuse with model_selection_missing?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "MR-001.4",
+        "MR-001.5",
+        "MR-001.3",
+        "MR-001.6"
+      ],
+      "question": "Which release outcomes can a ledger line carry if it is written only on a successful record-release? How are merged_unreviewed, escalated and abandoned items counted? How do applied_tier (override) and declared_tier relate, and which one do the ledger and score use?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "MR-001.2"
+      ],
+      "question": "Does the Opus-or-higher floor of 2026-09-11 apply to builders, or only to reviewers? If it applies to builders, are the standard and light tiers (Sonnet) permitted in route mode?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "MR-001 Links introduced",
+        "MR-001.6"
+      ],
+      "question": "Is the 20-line and 0.90 agreement threshold for route read from the per-repository ledger (<owner>-<repo>.jsonl) or across all repositories? If per repository, how does a new repository ever reach route?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "MR-001"
+      ],
+      "question": "Have the three boundary tests run with findings recorded? Is MR-001, which adds vocabulary and a score, permitted under 'no new item is declared until...' and 'vocabulary, metrics and graph work doesn't grow...'?"
+    }
+  ]
+}

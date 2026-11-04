@@ -360,6 +360,19 @@ class Selector(unittest.TestCase):
         self.assertNotIn("/etc/hosts", files)
         self.assertNotIn("TOKEN=x", json.dumps(ms))
 
+    def test_a_one_line_file_is_bounded_by_characters(self):
+        # a 243 KB single-line fixture passed the 60-line cap whole and Jev refused the request (HTTP 400)
+        sh = lambda *c: subprocess.run(["git", "-C", str(self.d), *c], check=True, capture_output=True, text=True).stdout.strip()
+        (self.d / "big.json").write_text("[" + ",".join(["1"] * 60000) + "]"); sh("add", "big.json"); sh("commit", "-qm", "big")
+        pk = packet(self.d, self.base, sh("rev-parse", "HEAD"), acceptance_criteria=["`big.json` is valid JSON.", "`a.py` returns x + 1."])
+        self.pfile.write_text(json.dumps(pk))
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = {f["path"]: f for f in ms["inputs"]["files"]}
+        self.assertEqual((files["big.json"]["lines"], len(files["big.json"]["head"])), (1, 8000))
+        self.assertEqual(files["big.json"]["head_truncated_at_chars"], 8000)
+        self.assertNotIn("head_truncated_at_chars", files["a.py"])
+
     def test_a_selector_that_did_not_run_does_not_open(self):
         # F2 (review 20261013-175825): the gate is a checked recommendation, not the field's presence
         pk = packet(self.d, self.base, self.head, model_selection={"status": "unavailable", "mode": "shadow", "why": "no key"})
@@ -469,6 +482,11 @@ class Selector(unittest.TestCase):
         Stub.per_voice = {V[1]: {"risky": 1}}
         r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
         self.assertEqual((ms["tier"], ms["rule"]), ("floor", "quorum_tie"), ms)
+        # MR-001.7 as amended: the tie records no booleans, and the surviving voice's risky answer still protects the floor
+        pk = json.loads(self.pfile.read_text()); pk["model_selection"] = {"override": {"tier": "light", "reason": "cheaper"}}
+        self.pfile.write_text(json.dumps(pk))
+        r, _ = self.run_select("recommend", str(self.pfile), str(self.design), answers={"docs_only": 1}, GSTACK_MODEL_ROUTING="quorum")
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertIn("override_below_floor", r.stderr)
 
     def write_council_history(self, n):
         """n scored council lines for model_select where the majority and Jev both said a cheap tier and the item cleared."""
@@ -495,6 +513,14 @@ class Selector(unittest.TestCase):
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={})
             self.assertEqual(r.returncode, 2, (bad, r.stderr))
             self.assertIn("override", r.stderr)
+        # MR-001.7 as amended: a trust-boundary or risky item can't be overridden below the floor
+        for answers in ({"trust_boundary": 1}, {"risky": 1}):
+            pk["model_selection"] = {"override": {"tier": "light", "reason": "cheaper"}}; self.pfile.write_text(json.dumps(pk))
+            r, _ = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual(r.returncode, 2, (answers, r.stderr)); self.assertIn("override_below_floor", r.stderr)
+            pk["model_selection"] = {"override": {"tier": "floor", "reason": "agreed"}}; self.pfile.write_text(json.dumps(pk))
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers=answers)
+            self.assertEqual((r.returncode, ms["applied_tier"]), (0, "floor"), (answers, r.stderr))
         # the overridden item is counted apart from the scored ones
         self.ledger().write_text(json.dumps({"review_id": "o", "recommendation": {"tier": "light", "rule": "docs_only", "mode": "shadow"},
                                              "declared_tier": "floor", "override": {"tier": "floor", "reason": "x"},
