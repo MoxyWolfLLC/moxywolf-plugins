@@ -25,7 +25,7 @@ The department also runs the SDR operation, inside the bounded delegation in the
 - Suppression: every STOP, unsubscribe, and removal request is honored immediately, and the address is never mailed again.
 - Credit watch: warn Dorian before SalesForge credits run out. Sending stalls at zero and top-up is his action.
 - Daily reporting: every day sends run, report sends count, replies received, and any STOPs or complaints. No silent sending.
-- CRM upkeep: keep Clarify current: people, companies, deals, meetings, tasks, and activity logged. The lead-triage scoring model (0–100: engagement, company fit, urgency, recency) runs on every lead.
+- CRM upkeep: keep the MoxyWolf CRM current: people, organizations, signals, interactions, and activity logged. Identity writes go only through `crm.upsert_person_identity`. The CRM's ICP-fit score (0–225) runs per org.
 
 ## Where the lines fall
 
@@ -66,8 +66,9 @@ The SDR operation also uses MoxyWolf's own `frontier-founder-smb` skills. They a
 | The operation needs | Load |
 |---|---|
 | Scoring and triaging a lead | `frontier-founder-smb:lead-triage` |
-| Reading or writing CRM records, or cleaning them up | `frontier-founder-smb:crm-maintenance` |
 | Running a campaign | `frontier-founder-smb:run-campaign` |
+
+Reading or writing records in the MoxyWolf CRM goes through the CRM repo itself (Supabase `crm` schema, `crm.upsert_person_identity` for identity, the web app's tRPC, edge functions). The `frontier-founder-smb:crm-maintenance` skill is Clarify-specific and does not apply: Clarify is being retired and is read/mirror only in the CRM.
 
 If your answer carries more than one kind of work (a plan with draft copy in it, a brief with a draft email in it), load the specialist for each kind before you produce it.
 
