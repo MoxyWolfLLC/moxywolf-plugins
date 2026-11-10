@@ -46,7 +46,17 @@ The probe in (2) is the universal fallback: it never depends on a mount tool exi
 - **Online (cloud): auto-mount is the default action, not a fallback.** If `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root in **one call** — pass each missing root's exact absolute path together, so the user gets a single approval dialog covering all of them rather than one prompt per root. The folder-access request *is* the mount; there is no separate "wait for the user to add it themselves" step to try first. After the call returns, re-run Step A to confirm what got granted.
 - **On-computer: unchanged.** If `mcp__cowork__request_cowork_directory` is present, call it with the explicit `path` to mount/grant the root (no-op if already mounted). This remains the on-computer picker/mount path.
 - **Fallback only.** Fall back to asking the user manually — in one line, the exact path — **only** when: the remote-devices bridge is unavailable (no connected device, or the tool isn't present) on cloud, or `request_cowork_directory` isn't present on-computer, or the user declined the request/approval. The manual ask is: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
-- If the user doesn't add it even after the fallback prompt, mark it "not mounted", continue with whatever is available, and skip briefing sections that read from the missing root with a one-line note.
+- If the user doesn't add it, or the request is refused or times out, mark it "not mounted" and keep going. Don't wait on the answer: reads go through the **Reader order** below, so a missing mount changes which source reads a file, never whether a briefing section runs (SM-011).
+
+**Step C — Reader order (SM-011).** Read every project file in this order, moving to the next source when one fails. Don't stop at the first failure, and don't wait on a mount:
+
+1. **Desktop Commander on the user's computer** (any `*Desktop_Commander__*` or `*desktop-commander__*` tool: `read_file`, `list_directory`, `start_search`), at the file's absolute path under the root. It needs no prompt.
+2. **The mounted root**, when this session already has it (`device_bash` or `device_list_dir` online, the local filesystem on-computer).
+3. **The GitHub connector**, for files in an org-shared workspace or in `_shared-memory/`: `get_file_contents` on `MoxyWolfLLC/Projects` at the workspace-relative path (`<NAME>/00 – Project Hub/...`, `_shared-memory/INDEX.md`). List a folder the same way to find `DR-*.md` files.
+4. **The claude.ai Project copy**, via `project_read`, for the instructions, `project-surfaces.json`, the handoff and the team `INDEX.md` (SM-008 mirrors them there).
+5. **The Google Drive connector**, for vault files (the MOC index and vault decision records).
+
+A file is unavailable only when every source that applies to it failed. Say which were tried.
 
 **Step C — pick a subfolder under an available root (used by project-init).**
 
@@ -63,7 +73,7 @@ This skill **never shows a project picker.** It resolves the project on its own 
 
 **Resolution order** (use the first method that yields a project):
 
-1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. An explicit argument always wins. If the argument doesn't match any project folder, don't ask — fall through to method 3 and note the unmatched argument in the briefing.
+1. **Explicit slash-command argument** — if the user invoked `/session-start SAMS`, use `SAMS`. **An argument that describes a task rather than naming a project doesn't replace the briefing (SM-011).** Take any project name in it, otherwise resolve by methods 2 and 3, run the full briefing, and make the task Step 6's first focus option, in the user's words. Start the task only after the briefing is shown. An explicit argument always wins. If the argument doesn't match any project folder, don't ask — fall through to method 3 and note the unmatched argument in the briefing.
 
 2. **Auto-detect from the launch directory.** Inspect the user's selected folder path from the session environment and parse it for a project segment:
    - `.../GitHub/Projects/<NAME>/...` where `<NAME>` is not `Directory Template` → project is `<NAME>` (org-shared)
@@ -104,13 +114,13 @@ The required roots are the MoxyWolf Vault and GitHub, plus Taskade when Step 2 f
 1. **Detect (Step A).** For each required root, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
 2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's exact absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
-Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unavailable, note it and continue with whichever roots are present; a missing root just means the sections that read from it are skipped with a one-line note (e.g. a missing GitHub root means the team-shared `GitHub/Projects/_shared-memory/INDEX.md` can't be read).
+Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unmounted, note it and continue. A missing mount never drops a section: Step 4 reads through the Reader order (Step C), and the team-shared `GitHub/Projects/_shared-memory/INDEX.md` comes from Desktop Commander, the GitHub connector or the Project copy.
 
 ### Step 3b: Bring local clones up to date
 
 **Every project type fast-forwards `GitHub/Projects`**, because the team-shared rules live there (SM-007): run the steps below on that clone alone for a Taskade or vault-only project, before Step 4f reads the INDEX. A clone that can't be fast-forwarded is reported and read as it is. **Org-shared projects also update every listed repo.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
 
-The clones to update are `GitHub/Projects` (the workspace repo, always) plus every active GitHub repo listed in the instructions. For each, on the user's computer (`device_bash` online, plain bash on-computer):
+The clones to update are `GitHub/Projects` (the workspace repo, always) plus every active GitHub repo listed in the instructions. For each, on the user's computer (`device_bash` online, plain bash on-computer, or Desktop Commander's `start_process` when the GitHub root isn't mounted):
 
 1. `git fetch`, then check the state: current branch, upstream, `git status --porcelain`, and ahead/behind counts.
 2. **Clean, on a branch with an upstream, and only behind:** `git pull --ff-only`. Use the same auth as pushes, `agent_token.py exec -- git pull --ff-only` (GA-005), when plain git can't authenticate.
@@ -225,7 +235,7 @@ h. **Model economy (ME-001)**. Dorian's standing rule (2026-11-02): a cheaper ma
 
    Whatever the line says, apply the gstack-build economy for the rest of this session: reading and mapping go to the `explore` and `docs` agents on Haiku; consult the advisor before committing to an approach and before declaring an item done; don't spend the main model on `grep | head`.
 
-If any of these sources is unavailable (file missing, MCP not connected), capture the failure in the briefing instead of aborting. The remaining context is still useful.
+**No section is skipped to save time or to stay on a task (SM-011).** Every Step 4 read runs through the Reader order (Step C). Jira (4b) and the GitHub pull requests and issues (4d) go through their connectors and never depend on a mount. If a source is still unavailable after every applicable reader failed (file missing, connector not connected), the section appears in the briefing as `unavailable: <reason>`, naming the sources tried. Never abort, and never leave a section out.
 
 ### Step 5: Display the briefing
 
@@ -349,9 +359,10 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **No `cowork-session-handoff.md` file.** Treat as "no previous handoff" and skip the handoff sections of the briefing. The task-board / DRs / GitHub MCP sections still surface project state. This is normal for projects predating `/session-end` or for a project's first session.
 - **`cowork-session-handoff.md` is malformed (can't parse expected sections).** Surface the parse failure in the briefing as a one-line warning ("handoff file at [path] couldn't be parsed; falling back to task-board / DRs / GitHub state"). Continue with the rest of the briefing. Don't try to fix the file — let the user reconcile it.
 - **`cowork-session-handoff.md` is stale (`session_ended` > 14 days old).** Surface the staleness in the "Last session ended" line and drop the handoff's open-work items from the focus options in Step 6. The kanban is the more current source of priorities at that point.
-- **One of the required roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing after the fallback attempt, note it in the briefing's "Mounted folders" section as "not mounted" and continue with whichever roots are available. Skip any briefing section that reads from the missing root, with a one-line note saying why.
-- **GitHub MCP not connected.** Skip the open-PRs and open-issues sections, note that the GitHub MCP isn't available, and suggest connecting it.
-- **Atlassian MCP not connected (can't reach the MOXY board).** Skip the Jira portion of the project-tasks section, note that the Atlassian connector isn't available, and continue with the project's backlog folder (Source 1).
+- **One of the required roots isn't mounted.** Cloud: try `device_request_folder_access` first (auto-mount, single dialog for all missing roots) — only fall back to asking the user to click Add folder if the bridge is unavailable or they decline. On-computer: `request_cowork_directory` mounts it if present; otherwise ask the user. If it's still missing, note it in the briefing's "Mounted folders" section as "not mounted" and keep going. Every section still runs, through the Reader order (Step C).
+- **GitHub MCP not connected.** Show the open-PRs and open-issues sections as `unavailable: GitHub connector not connected` and suggest connecting it.
+- **Atlassian MCP not connected (can't reach the MOXY board).** Show the Jira portion of the project-tasks section as `unavailable: Atlassian connector not connected` and continue with the project's backlog folder (Source 1).
+- **A task was passed as the argument.** Brief first, then offer the task as the first focus option (Step 1, method 1). Never trade the briefing for the task.
 - **No Jira label declared in the Project Instructions.** Don't query the board and never widen to it. Add the one-line "No Jira label declared" note (Step 4b case 3). Never infer a label from the project or repo names.
 - **Jira label declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
 - **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
