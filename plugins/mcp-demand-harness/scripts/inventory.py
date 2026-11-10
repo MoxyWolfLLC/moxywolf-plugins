@@ -7,7 +7,7 @@ repo whose MCP registrations and route files can be described by a pattern.
 It does not run the server; `export` can later diff this map against a live
 `tools/list` when a token is available.
 
-    python inventory.py --repo ~/GitHub/stigviewer --profile profiles/stigviewer.json \
+    python inventory.py --repo "$HOME/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/GitHub/stigviewer" --profile profiles/stigviewer.json \
         --out <bank_dir>/capability-map.json [--commit <sha>]
 """
 

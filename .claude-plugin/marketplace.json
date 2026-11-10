@@ -12,7 +12,7 @@
       "name": "4d-blog-engine",
       "source": "./plugins/4d-blog-engine",
       "description": "Operationalizes the 4D AI Fluency Framework (Delegation, Description, Discernment, Diligence) for content production. The single front door for every MoxyWolf blog property: a targets/ registry (FrontierFounder and OpenControls wired; STIGViewer, moxywolf-website, prfaq register-only) drives canonical URL, JSON-LD, frontmatter, and hero per destination, and every post picks a publishing target + a pillar (new or existing) before drafting \u2014 the hub-and-spoke methodology, with /blog-pillar to manage pillars and their linking maps. /blog-init is writer-friendly: two folder picks, author name, hero vibe, optional live URL. /blog-voice runs a self-contained 8-question voice interview and writes a per-writer voice profile; multi-voice supported. /blog-start mounts the two directories and surfaces in-progress and unpublished pieces. /blog-pipeline runs the 4-phase pipeline: 30-day discourse sweep across reddit/X/HN/Substack/Facebook/Quora/podcasts/academic with a /council:deliberate synthesis pass, verified bibliography via bibtex-builder, draft in the writer's voice via research-pipeline/content-writer, two-tier anti-AI-slop pass, then a nonce-bound Release Owner Gate (100-point rubric). On sign-off, the pipeline ends \u2014 social derivatives are opt-in. /blog-social derives any subset of: LinkedIn Post + first-comment (feed Post 1,300-2,500 chars sweet spot, 2,900 hard cap under LinkedIn's 3,000-char ceiling, zero body links; companion first-comment file with the fixed \"If you want to do your own research\u2026\" opener, the blog URL, and the 2-3 sources the Post quotes inline), LinkedIn Article (optional long-form, separate selection), Twitter/X (5-10 post thread with \u2264280-char per-post hard cap, script-enforced), Facebook (single 300-500 char post with body-inline link). One voice profile, per-platform register shifts (Twitter compressed; Facebook warmer; LinkedIn professional; first-comment voice-off and utilitarian). /blog-publish ships a signed post \u2014 the writer never types a git command. Implements the Release Owner Gate from MoxyWolf's Beyond the Prompt whitepaper.",
-      "version": "0.22.0",
+      "version": "0.22.1",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -50,7 +50,7 @@
       "name": "academic-pipeline",
       "source": "./plugins/academic-pipeline",
       "description": "End-to-end academic content pipeline: BibTeX theme mapping, perspective and voice capture, Academia.edu formatting, structure planning, iterative drafting, bibliography generation, and a 10-phase professor critique. Voice-first \u2014 voice and formatting are fixed before drafting, not retrofitted.",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -220,7 +220,7 @@
       "name": "document-analysis",
       "source": "./plugins/document-analysis",
       "description": "Document-to-Markdown ingestion front-end for the document-analysis pipeline. Wraps Microsoft MarkItDown (PDF, Word, PowerPoint, Excel, HTML, CSV/JSON/XML, EPub) with batch folder conversion that mirrors the input tree, YAML provenance frontmatter, a SHA-256 + settings manifest for idempotent re-runs (re-OCRs when --use-llm is added), a per-file timeout, per-file error isolation, and optional LLM image descriptions + embedded-image OCR via the team OpenRouter key. Runs in the Cowork sandbox; outputs default to the document-analysis repo's sources-md/ tree. Includes a documented (not-yet-wired) adoption reference for layout-faithful Azure Document Intelligence.",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -367,7 +367,7 @@
       "name": "gstack-execution",
       "source": "./plugins/gstack-execution",
       "description": "The MoxyWolf coding loop. Design doc first, build against it, cross-tool peer review at a checkpoint, human merge. Carries the verification discipline: a check reports what it examined, a pass over zero input is a failure, and every claim of 'it works' names what was and was not verified.",
-      "version": "0.99.2",
+      "version": "0.99.3",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -760,8 +760,8 @@
     {
       "name": "vault-code-learn",
       "source": "./plugins/vault-code-learn",
-      "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under ~/GitHub/, extracts a durable pattern digest \u2014 tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, file-layout idioms, frequent imports, and what the repo intentionally does NOT use \u2014 and writes one digest per repo to MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md. Incremental: only files modified since the digest's last-learned timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Auto-invoked by /session-start; manual trigger via /code-learn <repo> | --project <slug> | --all. v0.1.0.",
-      "version": "0.1.1",
+      "description": "The missing code-learning loop. At session start (or on demand via /code-learn) walks the active repo(s) under the GitHub root (Shared drives/GitHub/), extracts a durable pattern digest \u2014 tech stack and dependency signatures, naming conventions, error-handling style, test patterns, lint/type rules, file-layout idioms, frequent imports, and what the repo intentionally does NOT use \u2014 and writes one digest per repo to MoxyWolf Vault/_Shared Knowledge/Code Patterns/<repo>.md. Incremental: only files modified since the digest's last-learned timestamp are re-read. The digest is referenced by future Claude sessions so suggestions match the team's existing patterns instead of generic boilerplate. Auto-invoked by /session-start; manual trigger via /code-learn <repo> | --project <slug> | --all. v0.1.0.",
+      "version": "0.1.2",
       "author": {
         "name": "MoxyWolf LLC"
       },
@@ -994,7 +994,7 @@
       "name": "mcp-demand-harness",
       "source": "./plugins/mcp-demand-harness",
       "description": "Finds out what a product's customers will ask its MCP server and REST gateway, then turns that into tests. Reads the repo for what the server can do, builds one question bank (persona, intent, evidence class, expected tools, required facts, judge rubric), runs a discovery pass before strict tests, and exports native MCPJam v6 suites, mcp-eval datasets, and direct payload and REST probes. Results come back as a gap report and proposals that a named person approves. Ships with a STIGViewer profile.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "author": {
         "name": "MoxyWolf LLC"
       },

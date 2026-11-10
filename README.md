@@ -204,7 +204,7 @@ GitHub/Projects/_shared-memory/
 └── feedback_<rule>.md            ← one file per rule, frontmatter carries scope: team-shared
 ```
 
-This directory is in the `MoxyWolfLLC/Projects` repo (moved out of Taskade on 2026-10-24, SM-007), so a session reads it from the local `~/GitHub/Projects` clone and no project needs the Taskade root for it. `/session-start` fast-forwards that clone first. Files carry `scope: team-shared` in their frontmatter. The repo copy is the source of truth; a local mirror in your per-Mac memory is fine but the repo copy wins on conflict. A change reaches teammates only once it's committed and pushed.
+This directory is in the `MoxyWolfLLC/Projects` repo (moved out of Taskade on 2026-10-24, SM-007), so a session reads it from the `GitHub/Projects` clone on the shared drive and no project needs the Taskade root for it. `/session-start` fast-forwards that clone first. Files carry `scope: team-shared` in their frontmatter. The repo copy is the source of truth; a local mirror in your per-Mac memory is fine but the repo copy wins on conflict. A change reaches teammates only once it's committed and pushed.
 
 **Wiring each Mac to read it.** The vault's `CLAUDE.md` (in `MoxyWolf Vault/CLAUDE.md`) already instructs Claude to read `GitHub/Projects/_shared-memory/INDEX.md` at session start — that covers any session run inside the vault. For sessions run **outside the vault** (plugin dev work in this repo, ad-hoc Claude Code sessions, etc.), each teammate needs to add the same instruction to their **user-level `~/.claude/CLAUDE.md`**:
 
@@ -213,12 +213,12 @@ This directory is in the `MoxyWolfLLC/Projects` repo (moved out of Taskade on 20
 
 At the start of every session, read the team-shared memory index at:
 
-`~/GitHub/Projects/_shared-memory/INDEX.md`
+`~/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/GitHub/Projects/_shared-memory/INDEX.md`
 
 Apply any rules listed there. They take precedence over local per-Mac memory when the two conflict. When the user gives behavioral feedback that should apply team-wide, write it to that directory (not just local memory), add a one-line entry to its `INDEX.md`, then commit and push it.
 ```
 
-Clone `MoxyWolfLLC/Projects` to `~/GitHub/Projects` first if you don't have it.
+Clone `MoxyWolfLLC/Projects` to `~/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/GitHub/Projects` first if you don't have it.
 
 **Promotion path — local rule → team rule.** When a feedback memory in your local store is something the whole team should follow (not a personal quirk), copy it into `GitHub/Projects/_shared-memory/` with `scope: team-shared` in frontmatter, add a one-line entry to that directory's `INDEX.md`, commit and push it, and leave a pointer in your local memory. Conversely, durable *project* knowledge — decisions, research findings, conventions — still belongs in the vault, not memory; `/obsidian-update` is the right tool for that.
 
