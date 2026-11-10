@@ -738,7 +738,7 @@ def wide_links_hold(links, shown=frozenset()):
     if links.get("outcome") != "links_unverifiable":
         return False
     bad = [c for c in links.get("checks") or () if not c.get("ok")]
-    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+|dirs/\d+-[^/:\s]+/\d+\.txt):\d+$")
+    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+|dirs/\d+-[^/]+/\d+\.txt):\d+$")
     # review F7: a CI-shaped name proves nothing; the cited file must be one a round recorded showing
     return bool(bad) and all(c.get("kind") == "unverifiable" and (m := cited.search(str(c.get("link", ""))))
                              and m.group(1) in shown for c in bad)

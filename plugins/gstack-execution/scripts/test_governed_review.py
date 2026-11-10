@@ -651,6 +651,14 @@ class ReleaseLanes(GovernedReview):
             self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [unwritten]}, dirs))
         self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [bundle, unseen]}, dirs))
         self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [bundle]}, dirs))
+        # review 20261110-103104 F1: a repository directory named with a space or a colon is still matched
+        for odd in ("my repo", "a:b"):
+            (d / "round-3.json").write_text(json.dumps({"repos": [{"path": f"/work/{odd}"}],
+                                                        "surface": {"criterion_dirs": [{"dir": "tests", "files": 2}]}}))
+            spaced = dict(bundle, link=f"round 1 F4 -> dirs/0-{odd}/0.txt:288")
+            self.assertEqual(peer.dirs_shown(d), {f"dirs/0-{odd}/0.txt"})
+            self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, spaced]}, peer.dirs_shown(d)))
+            self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, spaced]}, dirs))
         # review 20261110-094624 F1: in a two-repository round a bundle belongs to the repository that holds
         # its directory at the recorded head; the other repository can't borrow the number
         beta = self.root / "beta"; (beta / "tests").mkdir(parents=True)
