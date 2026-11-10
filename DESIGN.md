@@ -1235,6 +1235,23 @@ The loop leaves worktrees, captures, logs and installs on the Mac, and nothing m
 7. A test in `plugins/project-init/tests/` checks 8b's place and text, Step 7c's measure-first order, the protected paths, the cloud rule and the report line.
 8. Released as part of project-init 0.45.0 with ME-001; the README line names both.
 
+### SM-011 — Session start never drops a briefing section, and reads without waiting on a mount
+
+**Status:** building. Approved by Dorian on 2026-11-10 ("Yes").
+
+**Links introduced:** tool-name links. The reader order names tools by name (Desktop Commander, `get_file_contents` on `MoxyWolfLLC/Projects`, `project_read`), so a renamed tool leaves the order pointing at nothing; criterion 6's test notices only the text, not the tool.
+
+Two sessions on 2026-11-10 skipped the Jira, decision-record and open-issue sections of the briefing. In one, the folder-access prompt was refused automatically. In the other, it timed out and a task had been passed as the argument. The skill allowed both: a missing root meant "skip the sections that read from it", and nothing said a task in the argument still gets a briefing. Most of what was dropped needed no mount at all. Cowork offers no supported way to attach a project's folders from code, so the fix is to stop depending on the mount for reads.
+
+1. `/session-start` reads project files in a fixed order and moves to the next source when one fails: Desktop Commander on the user's computer, at the file's absolute path (no prompt); the mounted root, when this session already has it; for files in an org-shared workspace or `_shared-memory/`, the GitHub connector's `get_file_contents` on `MoxyWolfLLC/Projects` at the workspace-relative path; for the instructions, `project-surfaces.json`, the handoff and the team `INDEX.md`, the claude.ai Project copy via `project_read`; for vault files, the Google Drive connector.
+2. The folder-access request still goes out at session start, but nothing waits on its answer. A refused or unanswered request changes which source reads a file, never whether the section runs.
+3. No briefing section is skipped to save time or to stay on a task. Every section appears with its findings or `unavailable: <reason>` naming each source tried. Jira and the GitHub pull requests and issues never depend on a mount.
+4. A task passed as the argument is not a project name and doesn't replace the briefing. The project resolves as usual, the full briefing runs, and the task becomes Step 6's first focus option.
+5. The phrase that allowed the skip, skip the briefing sections that read from a missing root, appears nowhere in the skill or its command file.
+6. `plugins/project-init/tests/test_briefing_never_skipped.py` checks criteria 1, 3, 4 and 5 in the skill text, with a positive control that the old phrase is caught.
+7. project-init gets a minor bump with a README Version History line, and its marketplace entry and the marketplace's top-level version move (CI-002).
+8. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -2490,6 +2507,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-11-10: XE-043 added on Dorian’s choice “Fix the review tooling first” and his approval of the item as written: the wide link gate takes a finding citing a criterion-directory bundle the dispatcher wrote, as it takes CI logs, summaries and run records (amends GO-016.2).
+- 2026-11-10: SM-011 added on Dorian's approval ("Yes"): session start never drops a briefing section and reads without waiting on a mount.
 - 2026-11-10: SM-008's "Not covered" note names the `GitHub/Projects` clone on the shared drive instead of `~/GitHub/Projects`, on Dorian's instruction ("change design.md"), after PR #287 moved every plugin to the shared-drive GitHub root.
 - 2026-11-04: MR-001 amended on Dorian's approval ("Amend MR-001 first") after its spec review found criterion 7 against criteria 2 and 9: an override below `floor` for an item whose trust-boundary or risky answer clears its bar is refused with `override_below_floor`; and, after the re-run spec review, criterion 3 says a person's override sets the shadow build's tier, and criterion 8 lists `override_below_floor` and names the packet's `declared_tier` and `routing` as reported field names. Shipped with the `FILE_HEAD_CHARS` fix (PR #283): a named file's head is bounded by characters as well as lines.
 - 2026-11-04: XE-042 added on Dorian’s choice “Fix the gate (Recommended)”: the wide link gate takes a finding citing a CI run record the dispatcher wrote, as it takes CI logs and summaries (amends GO-016.2).
