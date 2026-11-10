@@ -13,7 +13,7 @@ After Stage 9 passes, if the run produced or names an executable or data artifac
 
 ## Settled choices
 
-- **One artifact repository, many records.** Artifacts live in one repository (MoxyWolf: `MoxyWolfLLC/zenodo`, cloned at `~/GitHub/zenodo`). Each artifact gets its own Zenodo record and DOI. Don't propose a repository per artifact.
+- **One artifact repository, many records.** Artifacts live in one repository (MoxyWolf: `MoxyWolfLLC/zenodo`, cloned at `Shared drives/GitHub/zenodo` on the MoxyWolf Google shared drive). Each artifact gets its own Zenodo record and DOI. Don't propose a repository per artifact.
 - **Direct upload, not the GitHub integration.** Zenodo's GitHub integration stays **off** for the artifact repository: a GitHub release would archive every artifact together as one record. Uploads go through `scripts/zenodo_deposit.py`.
 - **License.** MIT for code, unless the user says otherwise. Synthetic fixtures ship under the same license. Real data needs the user's call on license and on whether it may be published at all.
 - **Creator.** The author's name, affiliation and ORCID come from the run's author block or the voice profile. Never invent an ORCID. If it isn't known, ask.

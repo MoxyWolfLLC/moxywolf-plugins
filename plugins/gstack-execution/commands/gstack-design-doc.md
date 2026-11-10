@@ -12,7 +12,7 @@ Raw slash-command arguments: `$ARGUMENTS`
 
 Two directories are required:
 
-- **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `~/GitHub/<repo>`.
+- **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `Shared drives/GitHub/<repo>` (the GitHub root on the MoxyWolf Google shared drive).
 - **Project workspace folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--workspace`, else the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one).
 
 Check both against `get_device_info().connectedFolders` (or, on-computer, by probing the paths). For any that is not mounted, request it with `device_request_folder_access` in one call. If the request is unavailable or declined, ask the user for the directories with AskUserQuestion (free text is fine) and re-check. Do not proceed with only one of the two; the mirror is part of the contract.

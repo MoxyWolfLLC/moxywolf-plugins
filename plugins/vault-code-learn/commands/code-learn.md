@@ -9,9 +9,9 @@ Trigger the `vault-code-learn` skill against the named repo(s).
 
 ## Argument forms
 
-- `/code-learn <repo>` — learn from one specific repo (folder name under `~/GitHub/`).
+- `/code-learn <repo>` — learn from one specific repo (folder name under the GitHub root, `Shared drives/GitHub/`).
 - `/code-learn --project <slug>` — read the project's `cowork-project-instructions.md`, learn from every GitHub repo listed there.
-- `/code-learn --all` — learn from every repo listed under `~/GitHub/` (slow; use sparingly).
+- `/code-learn --all` — learn from every repo listed under `Shared drives/GitHub/` (slow; use sparingly).
 - `/code-learn` (no args) — auto-detect from launch directory the same way `/session-start` does.
 
 ## What it does

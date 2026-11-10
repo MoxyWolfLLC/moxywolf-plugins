@@ -25,7 +25,7 @@ The skill assumes the project has already been initialized via `/init-project` a
 Every MoxyWolf Cowork project needs the first two roots. The third is needed only by a personal project whose workspace is a Taskade folder (SM-007):
 
 1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. **GitHub** — `/Users/doriancougias/GitHub`
+2. **GitHub** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub`
 3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade` (Taskade-based projects only)
 
 The skill mounts the MoxyWolf Vault and GitHub every time, and Taskade only when Step 2 resolves a Taskade workspace. Team-shared rules live in `GitHub/Projects/_shared-memory/`, so an org-shared or vault-only project never needs the Taskade root; don't request it for one.
