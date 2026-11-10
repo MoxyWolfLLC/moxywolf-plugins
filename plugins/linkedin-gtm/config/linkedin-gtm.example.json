@@ -1,0 +1,111 @@
+{
+  "_about": "Copy to ~/.config/linkedin-gtm/linkedin-gtm.json (or set LINKEDIN_GTM_CONFIG) and adjust. /li-setup walks through every field. Defaults answer the plan's four open decisions conservatively: Lane A engagement-only, approval at 10:15 Pacific, every meeting handed to Dorian, MoxyWolf CRM as the only sync target.",
+  "account_sid": "ln_ac_0voWEjtk3uzK",
+  "account_label": "Dorian Cougias (dcougias), Premium, no Sales Navigator",
+  "release_owner": "Dorian Cougias",
+  "operator": "Amos",
+  "timezone": "America/Los_Angeles",
+  "approval_time": "10:15",
+  "sync_window": {
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri"
+    ],
+    "start": "09:00",
+    "end": "18:00"
+  },
+  "ramp_start_date": "2026-11-10",
+  "lanes": {
+    "A": {
+      "name": "Integration partners",
+      "mode": "engagement-only",
+      "who": "GRC, SecOps and AI-governance tool builders (STIGViewer integration campaign)",
+      "keywords": [
+        "GRC integration",
+        "SecOps tooling",
+        "AI governance platform",
+        "STIG automation"
+      ]
+    },
+    "B": {
+      "name": "OpenControls prospects",
+      "mode": "outreach",
+      "who": "Compliance and control-mapping buyers",
+      "keywords": [
+        "control mapping",
+        "compliance automation",
+        "unified compliance framework",
+        "crosswalk controls"
+      ]
+    },
+    "C": {
+      "name": "Discourse and authority",
+      "mode": "engagement",
+      "who": "People writing about STIGs, control mapping, AI governance, cited authors",
+      "keywords": [
+        "DISA STIG",
+        "control mapping",
+        "AI governance",
+        "NIST 800-53"
+      ]
+    },
+    "D": {
+      "name": "Inbound warmth",
+      "mode": "inbound",
+      "who": "Profile viewers, post engagers, new followers, inbound invites"
+    }
+  },
+  "meetings": "hand-to-dorian",
+  "booking_link": null,
+  "crm_target": "moxywolf-crm",
+  "crm_extra_targets": [],
+  "suppression_file": "~/.config/linkedin-gtm/suppression.txt",
+  "ledger_dir": "~/.config/linkedin-gtm/ledger",
+  "gate_log_dir": "GitHub/Projects/_gate-log",
+  "golden_hour_minutes": 60,
+  "publish_days": [
+    "Tue",
+    "Thu"
+  ],
+  "plan_targets": {
+    "send_connection_requests": {
+      "weeks_1_2": 5,
+      "week_3_plus": 20
+    },
+    "send_messages": {
+      "weeks_1_2": 10,
+      "week_3_plus": 20
+    },
+    "comment_posts": {
+      "weeks_1_2": 5,
+      "week_3_plus": 5
+    },
+    "react_posts": {
+      "weeks_1_2": 5,
+      "week_3_plus": 15
+    },
+    "visit_profiles": {
+      "weeks_1_2": 8,
+      "week_3_plus": 20
+    },
+    "endorse_skills": {
+      "weeks_1_2": 2,
+      "week_3_plus": 3
+    },
+    "posting": {
+      "weeks_1_2": 1,
+      "week_3_plus": 1
+    },
+    "enrichment": {
+      "weeks_1_2": 12,
+      "week_3_plus": null
+    },
+    "scraping": {
+      "weeks_1_2": 15,
+      "week_3_plus": null
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 Canonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.
 
-Adding this marketplace on any Mac gives that machine all 36 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
+Adding this marketplace on any Mac gives that machine all 37 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.
 
 ## Contents
 
@@ -34,9 +34,9 @@ Adding this marketplace on any Mac gives that machine all 36 plugins in one shot
 ```
 moxywolf-plugins/                       ← repo root (this is the marketplace root)
 ├── .claude-plugin/
-│   └── marketplace.json                ← catalog (36 plugins) — source of truth for versions
+│   └── marketplace.json                ← catalog (37 plugins) — source of truth for versions
 ├── README.md                            ← this file
-├── plugins/                             ← 34 MoxyWolf-owned plugins
+├── plugins/                             ← 35 MoxyWolf-owned plugins
 │   ├── 4d-blog-engine/             All commands prefixed /blog-* — init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status — base doc → 4-phase pipeline → publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps; each pillar carries a why: belief statement (Sinek Golden Circle) that drafts open from and the Release Owner Celery-Tests. /blog-social is channel-aware (discovers your authorable LinkedIn channels via Chrome): on a Company/Showcase Page it produces an Article-led trio (Article → teaser Post w/ image → first comment linking back), personal stays Post + first-comment; plus Twitter (thread), Facebook (single post). /blog-publish can publish to the chosen channel via Chrome and nudge #general on Slack to reshare
 │   ├── academic-pipeline/          BibTeX → critiqued, publication-ready academic article
 │   ├── analytics/                  Read-only reporting, one command per source — /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog
@@ -54,6 +54,7 @@ moxywolf-plugins/                       ← repo root (this is the marketplace r
 │   ├── github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification; v0.12.0 adds /review-retrieval, which asks a RAG pipeline to prove its reranking, top-k cut, grounding floor and citations did their work, and an opt-in probe that runs the pipeline or says it did not
 │   ├── graphify/                   Standalone knowledge-graph runner — /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault
 │   ├── gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship; carries the verification-discipline contract as a hook — claims are checked through the user's own path, /gstack-ship reports Verified/Unverified lines, and the checks load without the skill being invoked. v0.9.0: cloud sessions fire SessionStart before synced plugins register (DR-089), so the checks now also arrive on the first user prompt, once per session; v0.40.0: a review won't open on a criterion about a place the reviewer can't see (the Mac, the vault, a local run) unless the criterion names an in-repo evidence file (XE-025)
+│   ├── linkedin-gtm/               Daily LinkedIn GTM via the GTM API MCP server: signals, drafts in Dorian's voice, ONE daily approval batch signed by the Release Owner, then approved items only through preview/confirm; stops on any limit, block or checkpoint
 │   ├── obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install
 │   ├── obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index
 │   ├── ponytail/                   Horizontal restraint layer for coding work — always-on "lazy senior dev" ruleset injected every turn; v0.2.0 delivers it on the first prompt in cloud sessions, where SessionStart fires before the plugin registers (DR-089)
@@ -83,7 +84,7 @@ The `moxywolf-skills` bundle contains: `moxywolf`, `voice-injection`, `stigviewe
    ```
    MoxyWolfLLC/moxywolf-plugins
    ```
-3. Click **Sync**. The 36 plugins appear in the marketplace list.
+3. Click **Sync**. The 37 plugins appear in the marketplace list.
 4. Install each one you want (or all of them — the easy path).
 
 ### From Claude Code CLI
@@ -95,6 +96,7 @@ claude plugin marketplace add MoxyWolfLLC/moxywolf-plugins
 for p in 4d-blog-engine academic-pipeline analytics bibtex-builder board-deck composio council \
          daily-ops dev-infrastructure-skills document-analysis editorial-forge excalidraw-vault \
          frontier-founder frontier-founder-smb github-repo-analyzer graphify gstack-execution \
+         linkedin-gtm \
          obsidian-skills obsidian-update ponytail product-orchestrator \
          project-init research-pipeline saas-frontend-designer saas-pricing-engine \
          synergy-engine team-kanban understand-anything \

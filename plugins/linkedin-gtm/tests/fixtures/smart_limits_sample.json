@@ -1,0 +1,201 @@
+{
+ "_about": "Smart-limit rows read 2026-11-10 (search_linkedin_account_smart_limits), trimmed to the fields budget_check.py reads; ids removed.",
+ "success": true,
+ "items": [
+  {
+   "item": {
+    "limit_type": "self_account_sync",
+    "daily_limit": 1000,
+    "done_today_count": 10,
+    "status": "active",
+    "delay_in_seconds": 1,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 1000,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "send_connection_requests",
+    "daily_limit": 5,
+    "done_today_count": 1,
+    "status": "active",
+    "delay_in_seconds": 30,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 20,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "networking_general",
+    "daily_limit": 6,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 3,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 32,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "send_messages",
+    "daily_limit": 10,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 10,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 40,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "send_inmails",
+    "daily_limit": 5,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 22,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 24,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "messaging_general",
+    "daily_limit": 15,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 3,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 80,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "comment_posts",
+    "daily_limit": 5,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 30,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 24,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "react_posts",
+    "daily_limit": 5,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 7,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 24,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "endorse_skills",
+    "daily_limit": 5,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 7,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 24,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "visit_profiles",
+    "daily_limit": 8,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 10,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 40,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "edit_profile",
+    "daily_limit": 2,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 30,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 8,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "scraping",
+    "daily_limit": 15,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 5,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 80,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "enrichment",
+    "daily_limit": 12,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 5,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 64,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "posting",
+    "daily_limit": 4,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 40,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 16,
+    "risk_level": "none"
+   }
+  },
+  {
+   "item": {
+    "limit_type": "custom_request",
+    "daily_limit": 9,
+    "done_today_count": 0,
+    "status": "active",
+    "delay_in_seconds": 5,
+    "hold_till": null,
+    "linkedin_quota_hit_till": null,
+    "recommended_daily_limit": 48,
+    "risk_level": "none"
+   }
+  }
+ ]
+}
