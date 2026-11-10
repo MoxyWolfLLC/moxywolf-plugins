@@ -282,7 +282,7 @@ Generate a comprehensive markdown report as the final deliverable. Save to `/mnt
 - **Web Search:** built-in `WebSearch`
 - **Google Trends:** Apify `apify/google-trends-scraper`
 - **Reddit:** Apify `trudax/reddit-scraper`
-- **News:** built-in `WebSearch` (or Apify `apify/google-news-scraper` for deeper coverage)
+- **News:** built-in `WebSearch` (or Apify `johnvc/GoogleNewsAPI` for deeper coverage)
 [Add YouTube via Apify `apify/youtube-scraper` or SparkToro manual input if used]
 
 ### Keywords Researched

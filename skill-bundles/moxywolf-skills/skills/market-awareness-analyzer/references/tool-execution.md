@@ -18,7 +18,7 @@ The market-awareness-analyzer uses a mix of built-in tools and Apify actors. The
 3. News (built-in WebSearch with site filter, OR Apify news actor):
    - WebSearch query: "[problem terms] news"
    - Filter results by date (last 30 days)
-   - For deeper news scraping, use Apify actor "apify/google-news-scraper"
+   - For deeper news scraping, use Apify actor "johnvc/GoogleNewsAPI"
 
 4. Reddit cross-subreddit search (Apify actor):
    - mcp__Apify__call-actor with actorId "trudax/reddit-scraper"
@@ -71,11 +71,12 @@ Then filter the result list for recency (most results include published dates). 
 
 ```json
 mcp__Apify__call-actor:
-  actor: "apify/google-news-scraper"
+  actor: "johnvc/GoogleNewsAPI"
   input: {
-    "queries": "[problem or industry terms]",
-    "language": "EN",
-    "maxItems": 50
+    "q": "[problem or industry terms]",
+    "time_range": "month",
+    "hl": "en",
+    "max_pages": 1
   }
 ```
 
