@@ -637,6 +637,20 @@ class ReleaseLanes(GovernedReview):
         (d / "round-2.json").write_text(json.dumps({"ci_runs": [{"run_id": 123, "read": True}, {"run_id": 456, "read": False}]}))
         shown2 = peer.ci_shown(d)
         self.assertEqual(shown2, shown | {"evidence/ci-123.json"})
+        # XE-043: a bundle a round recorded writing counts; one no round wrote, or one beside another
+        # unverifiable check, doesn't
+        (d / "round-3.json").write_text(json.dumps({"repos": [{"path": "/work/repo"}],
+                                                    "surface": {"criterion_dirs": [{"dir": "tests", "files": 2}]}}))
+        dirs = peer.dirs_shown(d)
+        self.assertEqual(dirs, {"dirs/0-repo/0.txt"})
+        bundle = {"ok": False, "kind": "unverifiable", "link": "round 1 F4 -> dirs/0-repo/0.txt:288"}
+        self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, bundle]}, dirs))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, bundle]}))
+        for other in ("dirs/0-repo/1.txt:3", "dirs/1-repo/0.txt:3", "dirs/0-other/0.txt:3"):
+            unwritten = dict(bundle, link=f"round 1 F4 -> {other}")
+            self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [unwritten]}, dirs))
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [bundle, unseen]}, dirs))
+        self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [bundle]}, dirs))
         record = {"ok": False, "kind": "unverifiable", "link": "round 2 F10 -> evidence/ci-123.json:79"}
         self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, record]}, shown2))
         unread = dict(record, link="round 2 F10 -> evidence/ci-456.json:79")
