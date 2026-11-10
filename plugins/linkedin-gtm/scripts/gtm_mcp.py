@@ -95,6 +95,42 @@ def urllib_transport(endpoint, payload, headers, timeout=TIMEOUT):
         return e.code, e.headers.get("Content-Type", "") if e.headers else "", e.read().decode("utf-8", "replace")
 
 
+def curl_transport(endpoint, payload, headers, timeout=TIMEOUT):
+    """POST through curl. Used when HTTPS_PROXY is an https:// proxy, which urllib cannot tunnel
+    through (it speaks plain HTTP to the proxy and hangs). Headers go through a 0600 temp file so
+    an Authorization header never shows up in the process list."""
+    import subprocess
+    import tempfile
+    fd, hpath = tempfile.mkstemp(prefix="gtm-h-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            for k, v in headers.items():
+                f.write(f"{k}: {v}\n")
+        cmd = ["curl", "-sS", "-m", str(int(timeout)), "-X", "POST", endpoint,
+               "-H", f"@{hpath}", "--data-binary", "@-",
+               "-w", "\n%{http_code} %{content_type}", "-o", "-"]
+        out = subprocess.run(cmd, input=json.dumps(payload).encode("utf-8"),
+                             capture_output=True, timeout=timeout + 10)
+    finally:
+        os.unlink(hpath)
+    if out.returncode != 0:
+        raise urllib.error.URLError(f"curl exit {out.returncode}: {out.stderr.decode('utf-8', 'replace')[:200]}")
+    text = out.stdout.decode("utf-8", "replace")
+    body, _, tail = text.rpartition("\n")
+    code, _, ctype = tail.partition(" ")
+    return int(code), ctype, body
+
+
+def default_transport():
+    """urllib unless the environment routes HTTPS through an https:// proxy (the Perplexity
+    credential proxy does), in which case curl, which can speak TLS to the proxy."""
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+    import shutil
+    if proxy.lower().startswith("https://") and shutil.which("curl"):
+        return curl_transport
+    return urllib_transport
+
+
 def load_policy():
     return json.loads((HERE / "tool_policy.json").read_text(encoding="utf-8"))
 
@@ -118,7 +154,7 @@ class GtmClient:
         if proxy_auth is None:
             proxy_auth = os.environ.get("GTM_AUTH_VIA_PROXY") == "1"
         self.proxy_auth = proxy_auth
-        self.transport = transport or urllib_transport
+        self.transport = transport or default_transport()
         self.policy = policy or load_policy()
         self._ids = itertools.count(1)
         if not self.api_key and not self.proxy_auth:

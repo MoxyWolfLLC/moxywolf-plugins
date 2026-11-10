@@ -29,7 +29,8 @@ Run these through `gtm_mcp.py read` with the config's account sid. Tool details:
    {"linkedin_account_sid": "<SID>", "page_size": 10,
     "url": "https://www.linkedin.com/search/results/content/?keywords=control%20mapping&datePosted=%22past-24h%22&sortBy=%22date_posted%22"}
    ```
-3. **Targets**: for saved target people, `enrich_linkedin_person_posts` (enrichment; at most 3 a day in weeks 1 and 2).
+   The `datePosted` param was ignored in the 2026-11-10 live run. Keep only rows whose `posted_at` falls in the window you want. Rows are at `result.rows`.
+3. **Targets**: for saved target people, `enrich_linkedin_person_posts` by `profile_id`, not `public_identifier` (enrichment; at most 3 a day in weeks 1 and 2). Rows are at `result.posts.elements`.
 4. **Sequences due**: newly accepted requests (`get_my_latest_linkedin_connection_requests` against yesterday's pending list) and executed sequence steps in earlier ledgers that are 4 or 10 days old (`references/sequences.md`). Replies stop a sequence: check `get_my_latest_linkedin_conversations`.
 
 ## Score and dedupe

@@ -1,6 +1,6 @@
 {
   "name": "linkedin-gtm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Daily LinkedIn go-to-market operations through the GTM API MCP server, with one human approval gate a day. Health check, signal sweep, research and drafts in Dorian's voice, ONE daily approval batch signed by the named Release Owner (Dorian Cougias), then gated execution: every outward action is an approved item run through preview then confirm, one at a time, stopping an action type on any rate limit, quota hit or block and stopping everything on a checkpoint. Includes publishing with golden-hour reply drafts, inbox triage with gated hand-backs, an end-of-day digest, a weekly KPI report, and a CRM touch export for the MoxyWolf CRM. Ships a stdlib client that refuses outward tools without a recorded decision, a budget check against smart limits and plan caps, and a batch ledger that writes the shared gate log.",
   "author": {
     "name": "MoxyWolf LLC"
