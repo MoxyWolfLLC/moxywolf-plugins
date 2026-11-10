@@ -1220,7 +1220,7 @@ The loop leaves worktrees, captures, logs and installs on the Mac, and nothing m
 
 ### SM-011 — Session start never drops a briefing section, and reads without waiting on a mount
 
-**Status:** approved by Dorian on 2026-11-10 ("Yes"), building.
+**Status:** building. Approved by Dorian on 2026-11-10 ("Yes").
 
 **Links introduced:** tool-name links. The reader order names tools by name (Desktop Commander, `get_file_contents` on `MoxyWolfLLC/Projects`, `project_read`), so a renamed tool leaves the order pointing at nothing; criterion 6's test notices only the text, not the tool.
 
