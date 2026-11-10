@@ -270,5 +270,20 @@ class RealHttp(unittest.TestCase):
             srv.server_close()
 
 
+class DefaultTransportTest(unittest.TestCase):
+    def test_https_proxy_selects_curl(self):
+        import shutil
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"HTTPS_PROXY": "https://x:y@proxy.example"}, clear=False), \
+                mock.patch.object(shutil, "which", return_value="/usr/bin/curl"):
+            self.assertIs(g.default_transport(), g.curl_transport)
+
+    def test_no_proxy_selects_urllib(self):
+        from unittest import mock
+        env = {k: v for k, v in os.environ.items() if k.lower() != "https_proxy"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertIs(g.default_transport(), g.urllib_transport)
+
+
 if __name__ == "__main__":
     unittest.main()

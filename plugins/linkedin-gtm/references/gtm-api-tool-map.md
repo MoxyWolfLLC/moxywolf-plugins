@@ -32,9 +32,19 @@ Red means: account `status` not `active`; `included.antidetect_browser.status` i
 | My Network catch-up cards | `get_linkedin_account_my_catch_up` | `sid`, `cursor` | self_account_sync |
 | Discourse posts, last 24 hours | `scrape_linkedin_search_posts` | `linkedin_account_sid` and either `url` (a `linkedin.com/search/results/content/?keywords=...&datePosted=%22past-24h%22&sortBy=%22date_posted%22` URL) or `filters: {keywords}` | scraping |
 | Who engaged a post (yours or a target's) | `scrape_linkedin_get_post_comments`, `scrape_linkedin_get_post_reactors`, `scrape_linkedin_get_post_resharers` | `post` (URL or URN), `linkedin_account_sid`, `page_size` | scraping |
-| A target person's recent posts | `enrich_linkedin_person_posts` | `profile_id` or `public_identifier`, `linkedin_account_sid` | enrichment |
+| A target person's recent posts | `enrich_linkedin_person_posts` | `profile_id` (the `ACoA...` id), `linkedin_account_sid`, `page_size`. A bare `public_identifier` fails with `not_dispatchable` unless GTM API already stored that person's URN; take `profile_id` from the profile-views or follower row, or run `enrich_linkedin_person_lite_profile` first | enrichment |
 
-Schema note: `scrape_linkedin_search_posts` takes `filters` XOR `url`. Only `filters.keywords` is confirmed; the date and sort sub-keys inside `filters` were not verified, so the skills pass a search URL with `datePosted` and `sortBy` instead.
+Schema note: `scrape_linkedin_search_posts` takes `filters` XOR `url`. Only `filters.keywords` is confirmed; the date and sort sub-keys inside `filters` were not verified, so the skills pass a search URL with `sortBy`. Live run 2026-11-10: the `datePosted` URL param was ignored and results went back about a week, so filter rows on `posted_at` yourself.
+
+Result shapes seen live on 2026-11-10 (read these keys, don't guess):
+
+| Tool | Rows are at |
+|---|---|
+| `scrape_linkedin_search_posts`, `scrape_linkedin_get_post_comments` | `result.rows` (plus `result.paging`) |
+| `enrich_linkedin_person_posts` | `result.posts.elements`; each has `activity_urn`, `post_urn`, `created_at`, `text`, `is_reshare` |
+| `get_linkedin_account_my_profile_views` | `result.rows`; each has `display_name`, `headline`, `public_identifier`, `profile_id`, `viewed_at_text`, `is_anonymous` |
+
+Comment and react on the `activity_urn` (`urn:li:activity:...`). Post-search rows carry an empty `author` object in some results; take the name from the post URL or a lite profile before putting it on a batch item.
 
 ## 09:30 Research and drafting (read-only, spends enrichment)
 
