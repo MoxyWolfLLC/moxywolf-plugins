@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/marketplace.schema.json",
   "name": "moxywolf-plugins",
   "description": "Canonical MoxyWolf plugin marketplace. Hosts every plugin authored by MoxyWolf LLC plus a bundle of the standalone skills used across the team. Source of truth lives in the MoxyWolf Vault on Google Drive.",
-  "version": "1.161.2",
+  "version": "1.162.0",
   "owner": {
     "name": "MoxyWolf LLC",
     "email": "dorianc@moxywolf.com"
@@ -1008,6 +1008,25 @@
         "icp",
         "question-bank",
         "stigviewer",
+        "moxywolf"
+      ]
+    },
+    {
+      "name": "linkedin-gtm",
+      "source": "./plugins/linkedin-gtm",
+      "description": "Daily LinkedIn go-to-market operations through the GTM API MCP server with one human approval gate a day: health check, signal sweep, drafts in Dorian's voice, ONE approval batch signed by the named Release Owner, then approved items only, run one at a time through preview then confirm, stopping on any rate limit, block or checkpoint. Publishing with golden-hour replies, inbox triage, digest, weekly KPIs and a CRM touch export. Ships a client that refuses outward tools without a recorded decision.",
+      "version": "0.1.0",
+      "author": {
+        "name": "MoxyWolf LLC"
+      },
+      "category": "marketing",
+      "keywords": [
+        "linkedin",
+        "gtm",
+        "gtm-api",
+        "outreach",
+        "approval-batch",
+        "release-owner",
         "moxywolf"
       ]
     }
