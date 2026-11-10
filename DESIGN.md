@@ -261,6 +261,23 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 3. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable` asserts a finding citing a read run's record passes the gate, and one citing a run no round read does not.
 4. `plugin.json` moves a patch version, with its marketplace entry, the README Version History and the top-level marketplace version (CI-002).
 
+### XE-043 — The wide link gate takes a finding citing a criterion-directory bundle the dispatcher wrote (amends GO-016.2)
+
+**Status:** building
+
+**Why.** Reviews `20261110-050049-8a6ffc8-ectl0its` and `20261110-054114-8a6ffc8-uz9o_mjc` (workforce-automation #211, onet-capabilities-2 item 1) both passed with every criterion met, and `release` refused both `release_blocked`: the reviewer's follow-up findings cited `dirs/0-c2-i1/0.txt`, the bundle XE-033 writes when a criterion names a directory. Like a CI log (GO-016.2) or a run record (XE-042), the bundle is a file the dispatcher wrote; it isn't a repository path and can't re-resolve either way. Dorian 2026-11-10: “Fix the review tooling first”.
+
+**Links introduced:** none. The round record already names its repositories and each directory it bundled (`surface.criterion_dirs`).
+
+**Links this item introduces:** none.
+
+1. The wide link gate also takes a finding citing `dirs/<i>-<repo>/<n>.txt` when a round of the review recorded writing that bundle: `<i>` and `<repo>` are the index and directory name of one of the round's repositories, and `<n>` is below the number of directories that round bundled.
+2. Nothing else in the gate changes. A stale link, a missing record, a `dirs/` path no round recorded writing, or any other unverifiable check still fails it. The release record still reports `links_unverifiable` with the count.
+3. Test: `test_the_wide_link_gate_takes_ci_log_findings_and_nothing_else_unverifiable` also asserts that a finding citing a bundle a round wrote passes, one citing a bundle no round wrote does not, and a bundle finding beside another unverifiable check does not.
+4. `plugin.json` moves a patch version, with its marketplace entry, the README Version History and the top-level marketplace version (CI-002).
+
+Not in this item: binding a bundle citation back to the real file and line. Add it when a blocking finding needs to cite a bundle.
+
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
 **Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
@@ -2472,6 +2489,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-10: XE-043 added on Dorian’s choice “Fix the review tooling first” and his approval of the item as written: the wide link gate takes a finding citing a criterion-directory bundle the dispatcher wrote, as it takes CI logs, summaries and run records (amends GO-016.2).
 - 2026-11-10: SM-008's "Not covered" note names the `GitHub/Projects` clone on the shared drive instead of `~/GitHub/Projects`, on Dorian's instruction ("change design.md"), after PR #287 moved every plugin to the shared-drive GitHub root.
 - 2026-11-04: MR-001 amended on Dorian's approval ("Amend MR-001 first") after its spec review found criterion 7 against criteria 2 and 9: an override below `floor` for an item whose trust-boundary or risky answer clears its bar is refused with `override_below_floor`; and, after the re-run spec review, criterion 3 says a person's override sets the shadow build's tier, and criterion 8 lists `override_below_floor` and names the packet's `declared_tier` and `routing` as reported field names. Shipped with the `FILE_HEAD_CHARS` fix (PR #283): a named file's head is bounded by characters as well as lines.
 - 2026-11-04: XE-042 added on Dorian’s choice “Fix the gate (Recommended)”: the wide link gate takes a finding citing a CI run record the dispatcher wrote, as it takes CI logs and summaries (amends GO-016.2).
