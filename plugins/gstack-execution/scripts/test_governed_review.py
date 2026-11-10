@@ -651,6 +651,26 @@ class ReleaseLanes(GovernedReview):
             self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [unwritten]}, dirs))
         self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [bundle, unseen]}, dirs))
         self.assertFalse(peer.wide_links_hold({"outcome": "stale_link", "checks": [bundle]}, dirs))
+        # review 20261110-094624 F1: in a two-repository round a bundle belongs to the repository that holds
+        # its directory at the recorded head; the other repository can't borrow the number
+        beta = self.root / "beta"; (beta / "tests").mkdir(parents=True)
+        (beta / "tests" / "t.txt").write_text("x")
+
+        def in_beta(*args):
+            return subprocess.run(["git", "-C", str(beta), *args], capture_output=True, text=True, check=True).stdout.strip()
+        in_beta("init", "-q"); in_beta("config", "user.name", "Fixture"); in_beta("config", "user.email", "fixture@example.invalid")
+        in_beta("config", "core.hooksPath", "/dev/null"); in_beta("add", "."); in_beta("commit", "-qm", "base")
+        two = self.root / "two"; two.mkdir()
+
+        def round_of(beta_head):
+            (two / "round-1.json").write_text(json.dumps({
+                "repos": [{"path": str(self.repo), "head": self.head}, {"path": str(beta), "head": beta_head}],
+                "surface": {"criterion_dirs": [{"dir": "tests", "files": 1}]}}))
+            return peer.dirs_shown(two)
+        self.assertEqual(round_of(in_beta("rev-parse", "HEAD")), {"dirs/1-beta/0.txt"})
+        borrowed = dict(bundle, link="round 1 F4 -> dirs/0-repo/0.txt:3")
+        self.assertFalse(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [borrowed]}, peer.dirs_shown(two)))
+        self.assertEqual(round_of("0" * 40), set())   # a head that doesn't resolve establishes nothing
         record = {"ok": False, "kind": "unverifiable", "link": "round 2 F10 -> evidence/ci-123.json:79"}
         self.assertTrue(peer.wide_links_hold({"outcome": "links_unverifiable", "checks": [ok, record]}, shown2))
         unread = dict(record, link="round 2 F10 -> evidence/ci-456.json:79")

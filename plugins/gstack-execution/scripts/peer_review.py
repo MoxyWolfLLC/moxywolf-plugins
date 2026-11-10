@@ -693,17 +693,36 @@ def ci_shown(d):
     return shown
 
 
+def _holds_dir(repo, name):
+    """Whether `name` is a directory tracked at the repository's recorded head; unreadable counts as no."""
+    try:
+        return bool(repo.get("head")) and git(repo["path"], "ls-tree", "-d", repo["head"], "--", name) != ""
+    except Exception:
+        return False
+
+
 def dirs_shown(d):
-    """Every dirs/<i>-<repo>/<n>.txt bundle a round of review d recorded the dispatcher writing (XE-043):
-    criterion_dirs (XE-033) numbers its bundles across the round, each under the index and directory name
-    of the repository it read, and the round record keeps the repositories and how many it bundled."""
+    """Every dirs/<i>-<repo>/<n>.txt bundle a round of review d recorded the dispatcher writing (XE-043).
+    criterion_dirs (XE-033) numbers its bundles across the round, repository by repository, each under the
+    index and directory name of the repository it read. The round record keeps the repositories, their
+    heads and each bundled directory, not which repository a bundle came from. A one-repository round owns
+    its bundles. Otherwise a directory's bundles go, in order, to the repositories that hold that directory
+    at their recorded heads, and only when there are as many of one as of the other: where ownership can't
+    be established nothing is exempt, so a repository can't borrow another's number (review
+    20261110-094624 F1)."""
     shown = set()
     for f in sorted(Path(d).glob("round-*.json")) if d else ():
         rec = load(Path(d), f.name) or {}
-        bundled = len((rec.get("surface") or {}).get("criterion_dirs") or [])
-        for i, r in enumerate(rec.get("repos") or []):
-            if isinstance(r, dict) and r.get("path"):
-                shown.update(f"dirs/{i}-{Path(r['path']).name}/{n}.txt" for n in range(bundled))
+        repos = rec.get("repos") or []
+        bundled = (rec.get("surface") or {}).get("criterion_dirs") or []
+        if not all(isinstance(r, dict) and r.get("path") for r in repos) or not all(isinstance(c, dict) for c in bundled):
+            continue
+        dirs = [str(c.get("dir") or "") for c in bundled]
+        for name in set(dirs) - {""}:
+            numbers = [n for n, x in enumerate(dirs) if x == name]
+            owners = [0] if len(repos) == 1 else [i for i, r in enumerate(repos) if _holds_dir(r, name)]
+            if len(owners) == len(numbers):
+                shown.update(f"dirs/{i}-{Path(repos[i]['path']).name}/{n}.txt" for i, n in zip(owners, numbers))
     return shown
 
 
