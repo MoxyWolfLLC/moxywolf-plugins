@@ -693,18 +693,52 @@ def ci_shown(d):
     return shown
 
 
+def _holds_dir(repo, name):
+    """Whether `name` is a directory tracked at the repository's recorded head; unreadable counts as no."""
+    try:
+        return bool(repo.get("head")) and git(repo["path"], "ls-tree", "-d", repo["head"], "--", name) != ""
+    except Exception:
+        return False
+
+
+def dirs_shown(d):
+    """Every dirs/<i>-<repo>/<n>.txt bundle a round of review d recorded the dispatcher writing (XE-043).
+    criterion_dirs (XE-033) numbers its bundles across the round, repository by repository, each under the
+    index and directory name of the repository it read. The round record keeps the repositories, their
+    heads and each bundled directory, not which repository a bundle came from. A one-repository round owns
+    its bundles. Otherwise a directory's bundles go, in order, to the repositories that hold that directory
+    at their recorded heads, and only when there are as many of one as of the other: where ownership can't
+    be established nothing is exempt, so a repository can't borrow another's number (review
+    20261110-094624 F1)."""
+    shown = set()
+    for f in sorted(Path(d).glob("round-*.json")) if d else ():
+        rec = load(Path(d), f.name) or {}
+        repos = rec.get("repos") or []
+        bundled = (rec.get("surface") or {}).get("criterion_dirs") or []
+        if not all(isinstance(r, dict) and r.get("path") for r in repos) or not all(isinstance(c, dict) for c in bundled):
+            continue
+        dirs = [str(c.get("dir") or "") for c in bundled]
+        for name in set(dirs) - {""}:
+            numbers = [n for n, x in enumerate(dirs) if x == name]
+            owners = [0] if len(repos) == 1 else [i for i, r in enumerate(repos) if _holds_dir(r, name)]
+            if len(owners) == len(numbers):
+                shown.update(f"dirs/{i}-{Path(repos[i]['path']).name}/{n}.txt" for i, n in zip(owners, numbers))
+    return shown
+
+
 def wide_links_hold(links, shown=frozenset()):
     """The wide lane's link gate. `links_verified` holds. So does `links_unverifiable` when every check
-    that didn't verify is a finding citing a CI log under evidence/ci-*: the dispatcher fetched that log
-    itself (XE-027) and findings citing it aren't bound to repository content, so they can't re-resolve
-    either way, and that alone blocked wide releases (2026-10-30). A stale link, a missing record or any
-    other unverifiable check still fails it."""
+    that didn't verify is a finding citing a file the dispatcher wrote itself: a CI log under
+    evidence/ci-* (XE-027) or a criterion-directory bundle under dirs/ (XE-033, XE-043). Findings citing
+    one aren't bound to repository content, so they can't re-resolve either way, and that alone blocked
+    wide releases (2026-10-30, 2026-11-10). A stale link, a missing record or any other unverifiable
+    check still fails it."""
     if links.get("outcome") == "links_verified":
         return True
     if links.get("outcome") != "links_unverifiable":
         return False
     bad = [c for c in links.get("checks") or () if not c.get("ok")]
-    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+):\d+$")
+    cited = re.compile(r"-> (?:\./)?(" + re.escape(EVIDENCE_DIR) + r"/ci-[^:\s]+|dirs/\d+-[^/]+/\d+\.txt):\d+$")
     # review F7: a CI-shaped name proves nothing; the cited file must be one a round recorded showing
     return bool(bad) and all(c.get("kind") == "unverifiable" and (m := cited.search(str(c.get("link", ""))))
                              and m.group(1) in shown for c in bad)
@@ -719,7 +753,7 @@ def wide_gates(state, links, open_unknowns_now, repos, d=None):
         failed.append(f"the failure ledger has {len(open_failures)} open failure(s) now, not clear")
     if not state.get("coverage_checked"):
         failed.append("coverage was not checked")
-    if not wide_links_hold(links, ci_shown(d)):
+    if not wide_links_hold(links, ci_shown(d) | dirs_shown(d)):
         failed.append(f"links are {links.get('outcome')}, not verified")
     if any(u.get("needs") == "repository" for u in open_unknowns_now):
         failed.append("an open unknown still needs the repository")
