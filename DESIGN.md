@@ -1237,7 +1237,7 @@ The loop leaves worktrees, captures, logs and installs on the Mac, and nothing m
 
 ### SM-011 — Session start never drops a briefing section, and reads without waiting on a mount
 
-**Status:** building. Approved by Dorian on 2026-11-10 ("Yes").
+**Status:** done. Approved by Dorian on 2026-11-10 ("Yes"). Criteria 1 to 8 merged as `bac058d` (PR #289) by Dorian; no cross-tool review ran (the session looked for Codex only in the cloud workspace, though it was installed on the Mac). Criterion 9 ships in project-init 0.46.1, on Dorian's instruction ("Ship the Step 3b fix as project-init 0.46.1").
 
 **Links introduced:** tool-name links. The reader order names tools by name (Desktop Commander, `get_file_contents` on `MoxyWolfLLC/Projects`, `project_read`), so a renamed tool leaves the order pointing at nothing; criterion 6's test notices only the text, not the tool.
 
@@ -1251,6 +1251,7 @@ Two sessions on 2026-11-10 skipped the Jira, decision-record and open-issue sect
 6. `plugins/project-init/tests/test_briefing_never_skipped.py` checks criteria 1, 3, 4 and 5 in the skill text, with a positive control that the old phrase is caught.
 7. project-init gets a minor bump with a README Version History line, and its marketplace entry and the marketplace's top-level version move (CI-002).
 8. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
+9. Git runs on the Mac itself, through Desktop Commander's `start_process`, in `/session-start` Step 3b, `/session-end`'s handoff push and `/init-project`'s scaffold push. `device_bash` is a Linux VM with the folders mounted and no GitHub login, so git there fails to authenticate and strands `.git/index.lock`; it's used for git only when Desktop Commander isn't present, and an authentication failure there is reported as such. The criterion 6 test checks all three skills say so.
 
 ## Sixth objective: trust boundaries
 
@@ -2507,6 +2508,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 ## Amendments log
 
 - 2026-11-10: XE-043 added on Dorian’s choice “Fix the review tooling first” and his approval of the item as written: the wide link gate takes a finding citing a criterion-directory bundle the dispatcher wrote, as it takes CI logs, summaries and run records (amends GO-016.2).
+- 2026-11-10: SM-011 criterion 9 added on Dorian's instruction ("Ship the Step 3b fix as project-init 0.46.1"): git runs on the Mac through Desktop Commander, not in `device_bash`, which has no GitHub login.
 - 2026-11-10: SM-011 added on Dorian's approval ("Yes"): session start never drops a briefing section and reads without waiting on a mount.
 - 2026-11-10: SM-008's "Not covered" note names the `GitHub/Projects` clone on the shared drive instead of `~/GitHub/Projects`, on Dorian's instruction ("change design.md"), after PR #287 moved every plugin to the shared-drive GitHub root.
 - 2026-11-04: MR-001 amended on Dorian's approval ("Amend MR-001 first") after its spec review found criterion 7 against criteria 2 and 9: an override below `floor` for an item whose trust-boundary or risky answer clears its bar is refused with `override_below_floor`; and, after the re-run spec review, criterion 3 says a person's override sets the shadow build's tier, and criterion 8 lists `override_below_floor` and names the packet's `declared_tier` and `routing` as reported field names. Shipped with the `FILE_HEAD_CHARS` fix (PR #283): a named file's head is bounded by characters as well as lines.

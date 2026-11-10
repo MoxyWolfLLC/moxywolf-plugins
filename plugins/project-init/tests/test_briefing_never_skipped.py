@@ -46,6 +46,13 @@ class BriefingNeverSkipped(unittest.TestCase):
         self.assertIn("doesn't replace the briefing (SM-011)", self.skill)
         self.assertIn("a task never replaces the briefing (SM-011)", self.command)
 
+    def test_git_runs_on_the_mac_not_the_vm(self):
+        # 0.46.1: device_bash is a Linux VM with no GitHub login; every skill that runs git says so.
+        self.assertIn("**Don't run git in `device_bash`.**", self.skill)
+        for name in ("session-end", "project-init"):
+            text = (PLUGIN / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn("`device_bash` is a Linux VM with no GitHub login", text, name)
+
     def test_the_check_catches_the_old_wording(self):
         for old in ("skip briefing sections that read from the missing root",
                     "Skip any briefing section that reads from the missing root",
