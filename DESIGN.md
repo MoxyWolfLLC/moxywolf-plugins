@@ -1150,7 +1150,7 @@ The trade-off to approve: Taskade is a Drive folder, so a row written there reac
 12. SM-007 is marked `done` in this document, citing review `20261024-135830-1660de2-5rezzu36` and merge `e136d48` (PR #236, `agent_merge_autonomous`).
 13. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
 
-Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-log/`, which waits on every teammate's Mac having project-init 0.41.0 or later and a `~/GitHub/Projects` clone; and `vault-code-learn`'s `--project` mode, which still reads instructions only from `Taskade/<project>`. Each is its own decision.
+Not covered: retiring the frozen Taskade copies of `_shared-memory/` and `_gate-log/`, which waits on every teammate's Mac having project-init 0.41.0 or later and a `GitHub/Projects` clone on the shared drive (`Shared drives/GitHub/Projects`, the GitHub root since 2026-11-03); and `vault-code-learn`'s `--project` mode, which still reads instructions only from `Taskade/<project>`. Each is its own decision.
 
 ### SM-009 — Session end keeps a cloud review without asking, and its roster names Dorian C
 
@@ -2472,6 +2472,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-10: SM-008's "Not covered" note names the `GitHub/Projects` clone on the shared drive instead of `~/GitHub/Projects`, on Dorian's instruction ("change design.md"), after PR #287 moved every plugin to the shared-drive GitHub root.
 - 2026-11-04: MR-001 amended on Dorian's approval ("Amend MR-001 first") after its spec review found criterion 7 against criteria 2 and 9: an override below `floor` for an item whose trust-boundary or risky answer clears its bar is refused with `override_below_floor`; and, after the re-run spec review, criterion 3 says a person's override sets the shadow build's tier, and criterion 8 lists `override_below_floor` and names the packet's `declared_tier` and `routing` as reported field names. Shipped with the `FILE_HEAD_CHARS` fix (PR #283): a named file's head is bounded by characters as well as lines.
 - 2026-11-04: XE-042 added on Dorian’s choice “Fix the gate (Recommended)”: the wide link gate takes a finding citing a CI run record the dispatcher wrote, as it takes CI logs and summaries (amends GO-016.2).
 - 2026-11-02: SR-001 marked done: merged by the agent on Dorian's posted instruction after a `fixes_verified` review (see its status).
