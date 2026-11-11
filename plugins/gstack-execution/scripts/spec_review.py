@@ -37,7 +37,7 @@ from pathlib import Path
 
 API_URL = os.environ.get("GSTACK_ANTHROPIC_URL", "https://api.anthropic.com/v1/messages")
 EXECUTOR = os.environ.get("GSTACK_SPEC_EXECUTOR", "claude-sonnet-5-5")
-ADVISOR = os.environ.get("GSTACK_SPEC_ADVISOR", "claude-fable-5-1")
+ADVISOR = os.environ.get("GSTACK_SPEC_ADVISOR", "claude-fable-5-2")
 BETA = "advisor-tool-2026-03-01"
 MAX_RESUMES = 6   # pause_turn resumptions; one per pending advisor call
 CONTEXT = ("## Goal", "## Constraints and settled decisions")
@@ -194,14 +194,24 @@ def record_path(doc, name):
 
 
 def review(scope_text, post=post):
-    """Returns (final_text, usage_iterations, advisor_calls). Resumes pause_turn until the turn ends."""
+    """Returns (final_text, usage_iterations, advisor_calls, cache). Resumes pause_turn until the turn ends.
+    cache is {read, write} summed from every response's usage, or a str naming why it's unknown (ME-002.4)."""
     tools = [{"type": "advisor_20260301", "name": "advisor", "model": ADVISOR,
               "max_uses": 3, "max_tokens": 4096}]
     messages = [{"role": "user", "content": f"{ADVISOR_STEER}\n\n<plan>\n{scope_text}</plan>"}]
     iterations, advisor_calls, text, reminded, resumes = [], 0, [], False, 0
+    cache = {"read": 0, "write": 0}
     while True:
-        resp = post({"model": EXECUTOR, "max_tokens": 20000, "system": SYSTEM,
+        # ME-002.1: automatic caching; tools and thinking never change mid-run, so resends read the prefix
+        resp = post({"model": EXECUTOR, "max_tokens": 20000, "system": SYSTEM, "cache_control": {"type": "ephemeral"},
                      "thinking": {"type": "adaptive"}, "tools": tools, "messages": messages})
+        u = resp.get("usage") or {}
+        if isinstance(cache, dict):   # one response without the fields makes the run's cache unknown, never 0
+            if isinstance(u.get("cache_read_input_tokens"), int) and isinstance(u.get("cache_creation_input_tokens"), int):
+                cache = {"read": cache["read"] + u["cache_read_input_tokens"],
+                         "write": cache["write"] + u["cache_creation_input_tokens"]}
+            else:
+                cache = "a response's usage lacked cache_read_input_tokens or cache_creation_input_tokens"
         content = resp.get("content") or []
         iterations += (resp.get("usage") or {}).get("iterations") or []
         advisor_calls += sum(1 for b in content if b.get("type") == "server_tool_use" and b.get("name") == "advisor")
@@ -218,7 +228,7 @@ def review(scope_text, post=post):
             messages += [{"role": "assistant", "content": content}, {"role": "user", "content": REMINDER}]
             text, reminded = [], True
             continue
-        return "\n".join(text), iterations, advisor_calls
+        return "\n".join(text), iterations, advisor_calls, cache
 
 
 def findings(text):
@@ -260,7 +270,7 @@ def cmd_run(doc, items=None, post=post):
     scopes = [scope(text, i) for i in (items or [None])]   # refuses an unknown item before any request
     worst = 0
     for name, sent in scopes:
-        reply, iterations, calls = review(sent, post)
+        reply, iterations, calls, cache = review(sent, post)
         if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
             raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
         f = findings(reply)
@@ -268,7 +278,10 @@ def cmd_run(doc, items=None, post=post):
                "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
                "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
+               "cache": cache if isinstance(cache, dict) else None,
                "contradictions": f["contradictions"], "ambiguities": f["ambiguities"]}
+        if not isinstance(cache, dict):
+            rec["cache_reason"] = cache
         rp = record_path(doc, name)
         rp.parent.mkdir(parents=True, exist_ok=True)
         rp.write_text(json.dumps(rec, indent=2) + "\n")
@@ -474,6 +487,37 @@ def selftest():
             raise AssertionError("a seventh resumption was sent")
         except Refused as e:
             assert "after 6 resumptions" in str(e) and len(p7.calls) == 7
+        # ME-002.1/.4/.5: every request asks for caching, a resume and a reminder included; sums come from usage
+        def cached(n_pause, reads, writes, remind=False):
+            calls, it = [], iter(zip(reads, writes))
+            def p(req):
+                calls.append(json.loads(json.dumps(req)))   # snapshot: review() keeps appending to messages
+                r, w = next(it)
+                u = {"cache_read_input_tokens": r, "cache_creation_input_tokens": w} if r is not None else {}
+                if remind and len(calls) == 1:
+                    return {"stop_reason": "end_turn", "usage": u, "content": [{"type": "text", "text": "no json"}]}
+                if len(calls) <= n_pause + remind:
+                    return {"stop_reason": "pause_turn", "usage": u,
+                            "content": [{"type": "server_tool_use", "name": "advisor", "input": {}}]}
+                return {"stop_reason": "end_turn", "usage": u,
+                        "content": [{"type": "text", "text": "```json\n{\"contradictions\": [], \"ambiguities\": []}\n```"}]}
+            p.calls = calls
+            return p
+        c = cached(1, [0, 900, 950], [800, 50, 10], remind=True)
+        out = review("x", post=c)
+        assert len(c.calls) == 3 and all(r["cache_control"] == {"type": "ephemeral"} for r in c.calls), c.calls
+        assert c.calls[1]["messages"][-1]["content"] == REMINDER and c.calls[2]["messages"][-1]["role"] == "assistant"
+        assert out[3] == {"read": 1850, "write": 860}, out[3]
+        gap = review("x", post=cached(1, [5, None], [5, None]))[3]
+        assert isinstance(gap, str) and "lacked" in gap, "a response without the fields makes cache unknown, not a partial sum"
+        assert ADVISOR == os.environ.get("GSTACK_SPEC_ADVISOR", "claude-fable-5-2")
+        # ME-002.5, review F3: the same three responses through cmd_run reach the saved record
+        doc.write_text(DEMO)
+        c3 = cached(1, [0, 900, 950], [800, 50, 10], remind=True)
+        assert cmd_run(doc, ["R-001"], post=c3) == 0
+        assert all(r["cache_control"] == {"type": "ephemeral"} for r in c3.calls) and len(c3.calls) == 3
+        saved = json.loads(record_path(doc, "R-001").read_text())
+        assert saved["cache"] == {"read": 1850, "write": 860} and "cache_reason" not in saved, saved
         # review F3: malformed findings refuse, in the reply and in a record read back
         for block in ('{"error": "unable"}', '{"contradictions": null, "ambiguities": []}',
                       '{"contradictions": [{"id": "C1"}], "ambiguities": []}'):
@@ -522,6 +566,8 @@ def selftest():
                                  if len(req["messages"]) == 1 else late(req))
         assert cmd_run(doc, ["T-001"], post=skip_once) == 0, "a consult after the reminder counts"
         assert json.loads(record_path(doc, "T-001").read_text())["advisor_calls"] == 1
+        nul = json.loads(record_path(doc, "T-001").read_text())   # the stub sends no cache fields
+        assert nul["cache"] is None and "lacked" in nul["cache_reason"], nul
         cmd_run(doc, ["T-001"], post=stub_post({"contradictions": [], "ambiguities": []}))
         rec = json.loads(record_path(doc, "T-001").read_text()); rec["advisor_calls"] = 0
         record_path(doc, "T-001").write_text(json.dumps(rec))

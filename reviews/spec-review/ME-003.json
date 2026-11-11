@@ -1,0 +1,97 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ME-003",
+  "scope_sha256": "fcada7c32bbd9bc49b646ee8034f1697bb663b4f90d4d2ad18a04c7dcdc81c14",
+  "reviewed_at": "2026-11-11T16:17:14+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3082,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 5542,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5542,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 5542,
+      "cache_creation_input_tokens": 3122,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3122,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10304,
+      "output_tokens": 2430,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1299,
+      "cache_read_input_tokens": 8664,
+      "cache_creation_input_tokens": 315,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 315,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 14206,
+    "write": 8979
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "ME-003.2",
+        "ME-003.5"
+      ],
+      "question": "Criterion 2 requires `review_unavailable` naming the advisor when the CLI exits at launch over the advisor. Criterion 5 says the record names the advisor only when the CLI's stderr does. If a launch exits and stderr doesn't mention the advisor, was it 'over the advisor'? Must the record name the requested advisor anyway, for example from `requested`, or may it omit the name?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "ME-003.3"
+      ],
+      "question": "What counts as `DISABLE_TELEMETRY` or `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` being 'set'? Does an empty string, `0` or `false` count, or only a truthy value?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ME-003.2",
+        "ME-003.3",
+        "Coverage is mandatory"
+      ],
+      "question": "Is a `review_unavailable` round the same as coverage status `unavailable`? If so, it blocks `released` without a recorded human exception. If not, say how it gates release."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "ME-003.2",
+        "ME-003.3",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "Does a `review_unavailable` round count as one of the 'three blocking rounds' that escalate to Dorian? If it doesn't, say what happens when the advisor is persistently unavailable, because the agent can't merge without a clean review."
+    }
+  ]
+}

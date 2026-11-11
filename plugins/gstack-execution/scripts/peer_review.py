@@ -1727,6 +1727,52 @@ def headroom_argv(tool):
 
 
 LAST_REVIEWER_USAGE = "not_reported"   # XE-012: set by run_reviewer, read by the round that called it
+LAST_REVIEWER_ADVISOR = None   # ME-003: set by run_reviewer for the claude CLI, read by the round that called it
+ADVISOR_OFF_VARS = ("DISABLE_TELEMETRY", "CLAUDE_CODE_DISABLE_ADVISOR_TOOL")
+
+
+def claude_advisor(env):
+    """ME-003.1/.3: (argv, record) for the claude reviewer's advisor. `off` wins and consults nothing;
+    a requested advisor that the environment turns off is review_unavailable, never a quiet run without it."""
+    global LAST_REVIEWER_ADVISOR
+    req = (os.environ.get("GSTACK_CLAUDE_ADVISOR") or "fable").strip()
+    if req.lower() == "off":
+        LAST_REVIEWER_ADVISOR = {"requested": "off", "seen": None, "seen_reason": "no advisor requested", "disabled_by_env": None}
+        return []
+    off = next((v for v in ADVISOR_OFF_VARS if env.get(v)), None)
+    LAST_REVIEWER_ADVISOR = {"requested": req, "seen": None, "seen_reason": "the reviewer did not run", "disabled_by_env": off}
+    if off:
+        raise ReviewError("review_unavailable", f"advisor {req} requested but {off} is set in the reviewer's environment, which turns the advisor off")
+    return ["--advisor", req]
+
+
+def advisor_note(adv):
+    """ME-003.5, review F2: the handoff's one line on the reviewer's advisor, or None for a reviewer
+    with no advisor block. An unverified advisor is said so, with the reason, and doesn't block."""
+    if not isinstance(adv, dict):
+        return None
+    if adv.get("requested") == "off":
+        return "advisor: off (GSTACK_CLAUDE_ADVISOR=off)"
+    if adv.get("seen"):
+        return f"advisor: {adv.get('requested')} ran (seen in modelUsage)"
+    return f"advisor: {adv.get('requested')} requested, UNVERIFIED: {adv.get('seen_reason')}"
+
+
+def advisor_seen(stdout, requested, main):
+    """ME-003.5: (True, None) when modelUsage lists the advisor's model, else (None, why). Never False:
+    absence from modelUsage isn't proof the advisor didn't run."""
+    try:
+        mu = json.loads(stdout).get("modelUsage")
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return None, "claude output was not a JSON object"
+    if not isinstance(mu, dict) or not mu:
+        return None, "claude reported no modelUsage"
+    fam = next((f for f in ("fable", "opus", "sonnet", "mythos") if f in requested.lower()), requested.lower())
+    if fam in (main or "").lower():
+        return None, f"advisor {requested} and reviewer {main} share a model family; modelUsage can't tell them apart"
+    if any(fam in k.lower() for k in mu):
+        return True, None
+    return None, f"modelUsage lists {sorted(mu)}, none matching {requested}"
 
 
 def reviewer_usage(tool, stdout, stderr):
@@ -1915,6 +1961,8 @@ def run_openrouter(tool, prompt, root, timeout, output_schema, named=()):
 def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
     """Returns (reviewer_output_text, model_that_ran). `named` is the surface paths of the files a
     criterion names (XE-035); only a transport that sends the surface needs it."""
+    global LAST_REVIEWER_ADVISOR
+    LAST_REVIEWER_ADVISOR = None   # ME-003: only the claude branch sets it, so no round reads a stale one
     output_schema = schema or STRICT_SCHEMA
     # XE-014.13: the reviewer never holds a GitHub token. The dispatcher may run under
     # agent_token.py exec to read CI; the other tool gets a shell, so the token stops here.
@@ -1945,7 +1993,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
             raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={REVIEWERS['claude']['model']}; floor is {REVIEWERS['claude']['floor_name']}")
         cmd = ["claude", "-p", prompt, "--model", REVIEWERS["claude"]["model"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
-               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"] + headroom_argv("claude")
+               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"] + claude_advisor(env) + headroom_argv("claude")
         def parse(r):
             try:
                 env_ = json.loads(r.stdout)
@@ -1954,8 +2002,11 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
             if not isinstance(env_, dict):
                 return r.stdout, None
             usage = env_.get("modelUsage") or {}
-            # the review model is the one that did the work; the harness also bills a small helper model
-            model = max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None
+            # the review model is the one launched with --model when modelUsage lists it (ME-003: an advisor
+            # can out-write the reviewer); otherwise the one that did the most work, as the harness also
+            # bills a small helper model
+            launched = [k for k in usage if k.startswith(REVIEWERS["claude"]["model"])]
+            model = launched[0] if launched else (max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None)
             text = json.dumps(env_["structured_output"]) if "structured_output" in env_ else env_.get("result", r.stdout)
             return text, model
     elif tool == "gemini":
@@ -1998,9 +2049,13 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
     finally:   # GO-004.2: a run that started counts against Max calls, timed out or not
         if started:
             goal_spend.record(tool, None, "subscription")
+    adv = LAST_REVIEWER_ADVISOR if tool == "claude" else None
     if r.returncode != 0:
-        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
+        named_adv = f" (advisor {adv['requested']} requested)" if adv and adv["requested"] != "off" and "advisor" in (r.stderr + r.stdout).lower() else ""
+        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}{named_adv}: {(r.stderr + r.stdout).strip()[-800:]}")
     text, model = parse(r)
+    if adv and adv["requested"] != "off":
+        adv["seen"], adv["seen_reason"] = advisor_seen(r.stdout, adv["requested"], REVIEWERS["claude"]["model"])
     if not fake and not model_ok(tool, model):
         raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({REVIEWERS[tool]['floor']})")
     return text, model
@@ -2960,8 +3015,12 @@ def cmd_round(a):
         if not api:
             _age_atimes(surf)
             before = _atime_map(surf) if read_tracking_probe(surf) else None
-        raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
-                                            named=surf_stats["criterion_files"])
+        try:
+            raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
+                                                named=surf_stats["criterion_files"])
+        finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
+            if reviewer == "claude":
+                record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
@@ -3242,17 +3301,23 @@ def cmd_release(a):
               "release_lane": state.get("release_lane"),   # GA-010.4
               "lane_in_force": in_force,                    # GA-011
               "instruction": lane_instruction(state.get("release_lane"), a.target)}
+    adj = state.get("adjudicated_round") or state.get("rounds_used")   # ME-003 review F2: the adjudicated round's advisor
+    adv = (load(d, f"round-{adj}.json") or {}).get("reviewer_advisor") if adj else None
+    record["reviewer_advisor"], record["advisor_note"] = adv, advisor_note(adv)
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
         record["unknowns_open"] = open_unknowns_now   # EV-011: the list is of now, whatever the handoff was
+        record["reviewer_advisor"], record["advisor_note"] = adv, advisor_note(adv)
     else:
         save(d, "release.json", record, "gate_output")
     # XE-014.12: the handoff's first line is the coverage status, before anything else is read
     print(f"coverage: {record['coverage']['status']}"
           + (f" (exception: {record['coverage']['exception']['words']})" if record["coverage"].get("exception") else ""),
           file=sys.stderr)
+    if record["advisor_note"]:
+        print(record["advisor_note"], file=sys.stderr)
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
     raise ReviewError("awaiting_human_release", "handoff written; no merge executed. Merge the reviewed head, then run record-release")

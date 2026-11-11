@@ -1,0 +1,122 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ME-004",
+  "scope_sha256": "4f428031ad47fcfd9d93d572c6888359fc47652c789a55ff1ef7fdefec931364",
+  "reviewed_at": "2026-11-11T16:18:36+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 6673,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 5755,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5755,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 5755,
+      "cache_creation_input_tokens": 6713,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6713,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 14108,
+      "output_tokens": 2088,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2068,
+      "cache_read_input_tokens": 12468,
+      "cache_creation_input_tokens": 283,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 283,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 18223,
+    "write": 12751
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "Coverage is mandatory",
+        "One release path, checked by code"
+      ],
+      "scenario": "A cross-vendor review is clean at the PR head but its coverage status is `unavailable`, `not_run`, `unusable` or `broken`. Dorian records a human exception before the merge. Coverage says this can reach `released` with the exception, but also calls such a review a 'visible block, not a pass'. The release path requires a 'passing review at that exact head' for record-release, and says a merge with no passing review is `merged_unreviewed` and 'stays' so. 'The agent merges on a clean review' also requires coverage `checked`. The exception route to `released` is therefore either unreachable or contradicts 'not passes'.",
+      "smallest_change": "State in the release path that a review with non-`checked` coverage counts as passing for record-release only if the owner's exception is recorded at that head before the merge. Otherwise the item stays `merged_unreviewed`. Say explicitly that the agent itself never merges on non-`checked` coverage."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "ME-004.2",
+        "ME-004.3"
+      ],
+      "question": "Does 'the field' in ME-004.3 mean the request's cache_control (ME-004.1) or the result's cache record? If the result record, it contradicts ME-004.2, which says non-Anthropic jobs record the same fields."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "ME-004.2",
+        "ME-004.4"
+      ],
+      "question": "How are mixed cases reported: one field null and the other 0, reads above 0 with writes null, and cache:false or non-Anthropic jobs with 0/0, which are not 'below the cache minimum'?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ME-004.2",
+        "ME-004 Links introduced"
+      ],
+      "question": "Is cache.reason part of the schema? The Links paragraph lists only {read, write}. EV-001 is cited but not defined in this plan."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "One release path, checked by code"
+      ],
+      "question": "What status do PR #24 (XE-011, SM-002) and mark-done PRs #71 and #73 take? The first has no established review state. The others merged with no review and no recorded exception, yet merged_unreviewed requires the owner's exception."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "One release path, checked by code"
+      ],
+      "question": "Do the released and merged_unreviewed vocabulary additions count as an allowed fix from B-a, or as vocabulary growth barred until the tests show value?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "Shared by ME-002 and ME-003",
+        "ME-004.3",
+        "ME-004.5"
+      ],
+      "question": "If ME-004 edits run_all_tests.py (a CODEOWNERS path), does it wait for Dorian's approving review? ME-002, ME-003 and CI-002 are referenced but not defined here, so it is unclear who owns the shared gstack-execution bump and the council selftest naming."
+    }
+  ]
+}
