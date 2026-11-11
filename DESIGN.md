@@ -2503,7 +2503,7 @@ Opened 2026-11-02. A plan can pass every critic round and still hold two require
 
 ### SR-002 – The constraints are reviewed on their own, and an item's review is about the item
 
-**Status:** planned.
+**Status:** building. Branch `build/SR-002-constraint-sweep`.
 
 On 2026-11-11, five spec-review runs over ME-002 to ME-004 found five clashes, each between two existing constraints and none in the item under review. Each run sampled a different one, each constraint edit made every item's record stale, and ME-004 was parked on it. The constraints have never been reviewed against each other as a set. SR-002 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-11 ("Approve, new item + waiver"), covering SR-002 only.
 
