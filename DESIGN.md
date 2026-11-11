@@ -1220,7 +1220,7 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 
 ### ME-002 – spec_review caches its prompt and records what the cache did
 
-**Status:** planned.
+**Status:** building. Branch `build/ME-002-cache-and-advisor`, PR #296.
 
 **Links introduced:** the record's new `cache` field (`read`, `write`) is read by anyone judging whether caching pays. A reader assumes it measures this run; that holds because it's summed from the API's own `usage` on every response in the run, never estimated.
 
@@ -1235,7 +1235,7 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 
 ### ME-003 – peer_review's Claude reviewer runs with an advisor
 
-**Status:** planned.
+**Status:** building. Branch `build/ME-002-cache-and-advisor`, PR #296.
 
 **Links introduced:** `GSTACK_CLAUDE_ADVISOR` names the advisor, and the round record's `advisor` block (`requested`, `seen`, `disabled_by_env`) is read by anyone checking whether a review actually had one. A reader assumes `seen` means the advisor ran; that holds only when the CLI's `modelUsage` lists the advisor model, and otherwise it's `null` with the reason.
 
@@ -1249,7 +1249,7 @@ ME-003 is exempt from *Test the boundaries before adding item IDs*, by Dorian's 
 
 ### ME-004 – Council's Anthropic calls ask for caching and log what it did
 
-**Status:** parked 2026-11-11 on Dorian's ruling ("Name the 4, last try"). Its spec review never reached zero contradictions: four runs found four different clashes, each between two existing constraints and none in this item. Built and tested before parking; the code is kept as `MW Plugins/06 – Engineering/ME-004-council-cache-parked-2026-11-11.patch` in the Projects repo. It resumes after the constraints are swept in one pass.
+**Status:** planned. Parked 2026-11-11 on Dorian's ruling ("Name the 4, last try"). Its spec review never reached zero contradictions: four runs found four different clashes, each between two existing constraints and none in this item. Built and tested before parking; the code is kept as `MW Plugins/06 – Engineering/ME-004-council-cache-parked-2026-11-11.patch` in the Projects repo. It resumes after the constraints are swept in one pass.
 
 **Links introduced:** each result file and `_summary.json` gain `cache: {read, write}` per job, read by anyone judging whether council caching pays. That holds because the numbers come from OpenRouter's `usage.prompt_tokens_details` on that response, never estimated.
 
