@@ -1,0 +1,146 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-002",
+  "scope_sha256": "0b65395aee6f82cc310b942862894c8c4d68199f39a7f51c3cf32b006e6b3a8e",
+  "reviewed_at": "2026-11-11T18:12:09+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 6478,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6589,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6589,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6589,
+      "cache_creation_input_tokens": 6518,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6518,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 14747,
+      "output_tokens": 2484,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 3210,
+      "cache_read_input_tokens": 13107,
+      "cache_creation_input_tokens": 642,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 642,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 19696,
+    "write": 13749
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "The agent merges on a clean review, not on words",
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "scenario": "The goal lane is closed, and a goal's PR into `main` touches no `CODEOWNERS` path and has a clean cross-vendor review at its head with `tests` green. The merge rule says the agent merges without waiting for him. The gate says it needs his merge-instruction (GA-011). The ruleset doesn't enforce that instruction, and 'Every other change merges with no human approval' also applies.",
+      "smallest_change": "Add to 'The agent merges on a clean review' the exception 'except a goal PR into `main` while the lane is closed, which waits for his merge-instruction (GA-011)'. Also change 'Every other change' in the gate to 'Every other change, bar that one'."
+    },
+    {
+      "id": "C2",
+      "requirements": [
+        "SR-002.1",
+        "SR-002.2"
+      ],
+      "scenario": "Dorian declines a constraints contradiction. Each run overwrites `constraints.json`, so the declined entry survives only if a later run happens to re-flag it. Runs 5 and 6 don't sample it and list nothing. The sweep stops on 'two consecutive runs with no contradiction', and `check --constraints` passes. SR-002.2 says the declined contradiction 'stays in the record' and keeps the strict rule in force.",
+      "smallest_change": "Record declined contradictions in a separate carried-forward list, such as a `declined` field kept across runs. Make `check --constraints` fail while that list is non-empty, and make the stop rule count it."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "What does 'a change touching any of those' cover? Is it only the `CODEOWNERS` paths, or does it also take in the goal brief PR, the holdout and the lane-closed merge-instruction? A lane-wide bot merge of a goal PR that touches `goals/`, `goal-runs/` or `goal_guard.py` depends on the answer."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "SR-002.4",
+        "SR-002.6",
+        "SR-002 What's not taken"
+      ],
+      "question": "Does criterion 4 check that no item id at all is named, or only the reviewed item's id? Constraint text cites ids such as GA-011, XE-014 and GO-001, so which reading applies to a constraints-only clash that cites them? What does 'holds no item text' in criterion 6 exclude?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "One release path, checked by code",
+        "Coverage is mandatory"
+      ],
+      "question": "Does a clean review whose coverage isn't `checked`, with a recorded owner exception, satisfy 'a clean cross-vendor review' and 'a passing review at that exact head' for `review` \u2192 `released`? Or is it a second route to `released` that the single condition per move doesn't allow?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "One release path, checked by code"
+      ],
+      "question": "What status do PR #24 (XE-011 and SM-002), #71 and #73 hold? Is it `merged_unreviewed` or 'review state unestablished'? The doc says no exception was recorded, and the vocabulary can't yet express either."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "SR-002"
+      ],
+      "question": "Does the 'no new item' rule still bind a future new item? SR-002's waiver covers SR-002 only, and the plan says the rule has been waived for every item since September."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "One release path, checked by code"
+      ],
+      "question": "Is adding `released` and `merged_unreviewed` to the vocabulary with the first B-a fix allowed under 'Vocabulary ... work doesn't grow until it shows value against those tests'? Is it an allowed amendment of an existing item, or barred growth?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "SR-002.2"
+      ],
+      "question": "Does a run that lists only already-declined contradictions count as a run 'with no contradiction' for the two-consecutive-runs stop rule?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "SR-002.3",
+        "SR-002.1",
+        "SR-002.5"
+      ],
+      "question": "Do the seeded clashes count as open contradictions for `check --constraints` and the stop rule when no run samples them? Or do they only go to Dorian as a list?"
+    }
+  ]
+}

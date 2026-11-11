@@ -1,0 +1,108 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-002",
+  "scope_sha256": "6baeeac3ced11af36218d38088d4c8e8c16ea4c7b08423d0a1cda02769d39e9d",
+  "reviewed_at": "2026-11-11T18:18:51+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 9116,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6949,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6949,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 17658,
+      "output_tokens": 2962,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2307,
+      "cache_read_input_tokens": 6949,
+      "cache_creation_input_tokens": 9837,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9837,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 6949,
+    "write": 16786
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Can a goal's pull request into `main`, which \"merges as the bot\" with the lane wide, touch `goals/` or `goal-runs/`? Those are `CODEOWNERS` paths that need Dorian's approving review at the head. If it can, which rule wins?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "SR-002",
+        "SR-002.3"
+      ],
+      "question": "Is the rule 'no new item until the boundary tests run' still in force? The SR-002 intro waives it for SR-002 only, and SR-002.3 says it is 'waived for every item since September'. Which is it, and where is the waiver recorded?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "The pre-merge gate"
+      ],
+      "question": "What does 'any of those' in 'A change touching any of those needs his approving review' cover? Is it only the gate paths in `CODEOWNERS`, or also the owned CI checks, the holdout and the brief pull request?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "One release path"
+      ],
+      "question": "What status does the plan give PR #24 (XE-011, SM-002), #71 and #73? Their review state is described as unestablished or unreviewed, but no status word is assigned."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "One release path",
+        "Coverage is mandatory"
+      ],
+      "question": "How does a script check an owner exception 'in his words' recorded 'at that head before the merge'? Which file, format and fields make it checkable?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "SR-002.4"
+      ],
+      "question": "When the reviewed item is GA-011 and a constraint cites GA-011, does a `constraints`-scoped contradiction between constraints that cite it still count as `constraints`, or is it read as `item`?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "SR-002.2",
+        "SR-002.5",
+        "SR-002.7"
+      ],
+      "question": "When the sweep ends at six runs with contradictions left, or Dorian edits after the last run, what state is the constraints record in? The plan doesn't say whether the leniency in criterion 5 applies then, or whether a final re-run is required."
+    }
+  ]
+}
