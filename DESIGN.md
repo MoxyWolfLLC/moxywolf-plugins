@@ -1220,7 +1220,7 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 
 ### ME-002 – spec_review caches its prompt and records what the cache did
 
-**Status:** building. Branch `build/ME-002-cache-and-advisor`, PR #296.
+**Status:** done. Merged to `main` in `fd5aab6` (PR #296, head `72d0ac0`) on 11 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113, after review `20261111-085918-b2b3309-r0meyyw8` (codex/gpt-6-astra, 2 rounds, `fixes_verified`, coverage covered). Tests at the merged head: `run_all_tests.py` 111 of 111 through ledger run `9342b48f13b3` on Dorian's Mac; CI `tests` run 43067578276 success. Live runs: `docs/evidence/ME-002-ME-003-live.md`.
 
 **Links introduced:** the record's new `cache` field (`read`, `write`) is read by anyone judging whether caching pays. A reader assumes it measures this run; that holds because it's summed from the API's own `usage` on every response in the run, never estimated.
 
@@ -1235,7 +1235,7 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 
 ### ME-003 – peer_review's Claude reviewer runs with an advisor
 
-**Status:** building. Branch `build/ME-002-cache-and-advisor`, PR #296.
+**Status:** done. Merged to `main` in `fd5aab6` (PR #296, head `72d0ac0`) on 11 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113, after review `20261111-085918-b2b3309-r0meyyw8` (codex/gpt-6-astra, 2 rounds, `fixes_verified`, coverage covered). Tests at the merged head: `run_all_tests.py` 111 of 111 through ledger run `9342b48f13b3` on Dorian's Mac; CI `tests` run 43067578276 success. Live runs: `docs/evidence/ME-002-ME-003-live.md`.
 
 **Links introduced:** `GSTACK_CLAUDE_ADVISOR` names the advisor, and the round record's `advisor` block (`requested`, `seen`, `disabled_by_env`) is read by anyone checking whether a review actually had one. A reader assumes `seen` means the advisor ran; that holds only when the CLI's `modelUsage` lists the advisor model, and otherwise it's `null` with the reason.
 
@@ -2501,6 +2501,25 @@ Opened 2026-11-02. A plan can pass every critic round and still hold two require
 
 **What's not taken.** Once this merges, every item review in a repo with a `DESIGN.md` needs an Anthropic credential and one API call per item before `open` accepts the packet; that's the point of the gate, and it's why the scope is the item. Running it from the Cowork cloud proxy isn't covered: it runs where `model_select.mjs recommend` runs.
 
+### SR-002 – The constraints are reviewed on their own, and an item's review is about the item
+
+**Status:** planned.
+
+On 2026-11-11, five spec-review runs over ME-002 to ME-004 found five clashes, each between two existing constraints and none in the item under review. Each run sampled a different one, each constraint edit made every item's record stale, and ME-004 was parked on it. The constraints have never been reviewed against each other as a set. SR-002 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-11 ("Approve, new item + waiver"), covering SR-002 only.
+
+**Links introduced:** the record `reviews/spec-review/constraints.json`, read by `check`. A reader assumes it describes the constraints as they are now; that holds because `check` recomputes its `scope_sha256` from the doc every time. Each contradiction gains a `scope` field (`item` or `constraints`), read by `check`. A reader assumes `constraints` means no requirement of the item is involved; that holds only as far as criterion 4's code test goes, and the limit is named under *What's not taken*.
+
+1. **Constraints mode.** `spec_review.py run <doc> --constraints` sends `## Goal` and `## Constraints and settled decisions` alone and writes `reviews/spec-review/constraints.json` and `constraints.md`, with the same schema and the same advisor rule as an item's record. `check <doc> --constraints` passes on a current record with no contradiction. `--constraints` with `--items` refuses, exit 1.
+2. **The sweep, bounded.** Constraints mode is run on this `DESIGN.md`. Each contradiction goes to Dorian as its smallest change, and he approves, edits or declines each. The mode is re-run after the edits. The sweep stops at two consecutive runs with no contradiction, or after six runs, whichever comes first. At six, what's left is listed for Dorian and the sweep ends. Every run's record is kept as `docs/evidence/SR-002-sweep-<n>.json`.
+3. **Seeded with what's already known.** The first pass takes these to Dorian whether or not a run samples them: the human-exception route to `released` against *One release path*; which paths "a change touching any of those" covers in the pre-merge gate; the status of PR #24, #71 and #73; whether `released` and `merged_unreviewed` are barred vocabulary growth; and *Test the boundaries before adding item IDs*, waived for every item since September.
+4. **An item's review blocks on the item.** The findings block carries `scope` on each contradiction. `constraints` is accepted only when none of the entry's `requirements` contains the item's id; otherwise the entry is read as `item`. An item's `check` fails on `item` contradictions as it does today. Its `constraints` contradictions are listed in its output and don't fail it.
+5. **Only under a clean constraints record.** Criterion 4's leniency applies only while `check <doc> --constraints` passes. With no constraints record, a stale one or an open one, an item's `constraints` contradictions block as they do today. In whole-file mode (no `--items`) every contradiction is read as `item`.
+6. **Tests.** `--selftest`, stubbed transport: the constraints scope holds no item text; a `constraints` contradiction passes an item's `check` under a clean constraints record and fails it under a missing, a stale and an open one; a `constraints` label on an entry naming the item's id is read as `item` and blocks; a record without `scope` reads every contradiction as `item`; `--constraints` with `--items` refuses.
+7. **ME-004 resumes.** After the sweep, ME-004's spec review is re-run and its result is reported either way. SR-002 doesn't promise it passes.
+8. gstack-execution moves a minor version, and its marketplace entry, the top-level marketplace version and the README Version History move with it (CI-002).
+
+**What's not taken.** The reviewing model labels the scope, and criterion 4's test only checks that the item's id isn't named. A model could describe an item's conflict in constraint words alone and have it pass as `constraints`; criterion 5 limits that to conflicts a clean constraints review also missed. A script that proves which requirement a scenario depends on isn't taken. Item records still go stale when a constraint changes, because an item is reviewed against the constraints as they are.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new item ID. Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -2552,6 +2571,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-11: SR-002 added on Dorian's ask ("draft the constraint sweep") and approval ("Approve, new item + waiver"): the constraints get their own spec-review mode and a bounded sweep, and an item's review blocks on the item's own contradictions while a clean constraints record exists. ME-002 and ME-003 marked done (PR #296, `fd5aab6`).
 - 2026-11-11: ME-002, ME-003 and ME-004 added on Dorian's ask to use the advisor tool and prompt caching where appropriate, and his approval ("Approve, keep council"): spec_review caches and moves its advisor to Fable 5.2 (amends SR-001 criterion 2), the Claude reviewer runs with an advisor, and council's Anthropic calls ask for caching with the result logged. An advisor in skill-creator's `run_eval.py` is recorded as not taken.
 - 2026-11-11: ME-002 to ME-004 amended after their spec reviews (3 contradictions, 16 ambiguities), on Dorian's rulings ("Waive for all three", "Reword it"): each item is exempt from *Test the boundaries before adding item IDs*; the constraint on machine review now matches DR-113 (release only within his standing authorization, never a `CODEOWNERS` path); ME-004.4 reports council's cache numbers to him instead of switching caching off; `cache` is null for a run with any response lacking the fields; a disabled advisor that was requested is `review_unavailable`; the shared gstack-execution bump covers ME-002 and ME-003 only.
 - 2026-11-11: ME-004 parked after its fourth spec review found a fourth pre-existing constraint clash (the coverage-exception route against *One release path*), on Dorian's ruling to stop after one more try; a one-pass sweep of the constraints is the proposed next step. ME-002 and ME-003 ship without it, and council stays at 0.12.0.
