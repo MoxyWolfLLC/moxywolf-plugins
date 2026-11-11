@@ -11,6 +11,7 @@ Amos (the operator) prepares everything. Dorian approves one batch. Nothing outw
 | 08:30 | Health and safety check | `/li-health` | `li-health` | read-only |
 | 09:00 | Signal sweep | `/li-signals` | `li-signals` | read-only |
 | 09:30 | Research and drafts | `/li-draft` | `li-research-draft` | generate |
+| Mon 07:30 | Topic scout: candidates per page, candidate earned secrets | `/li-topics` | `li-topic-scout` | read-only |
 | Mon, Tue, Thu | Blog to LinkedIn: ask the page, Article, teaser | `/li-blog` | `li-blog-bridge` | generate |
 | 10:15 | The approval batch | `/li-batch` | `li-approval-batch` | side-effectful-gated |
 | 10:30 | Engagement | `/li-execute` | `li-execute` | high-stakes |
@@ -37,12 +38,12 @@ The defaults answer the plan's open decisions conservatively: Lane A (the held p
 linkedin-gtm/
   .claude-plugin/plugin.json
   GOVERNANCE.md                 five tests, risk tiers, the Release Owner gate
-  commands/                     12 commands: li-day, li-health, li-signals, li-draft, li-batch,
-                                li-execute, li-publish, li-blog, li-triage, li-digest, li-weekly, li-setup
+  commands/                     13 commands: li-day, li-health, li-signals, li-draft, li-batch,
+                                li-execute, li-publish, li-blog, li-topics, li-triage, li-digest, li-weekly, li-setup
   skills/
     linkedin-gtm/               the orchestrator: routes, stops at the gate, hands off
     li-health/  li-signals/  li-research-draft/  li-approval-batch/
-    li-execute/  li-publish/  li-blog-bridge/  li-inbox-triage/  li-digest/  li-weekly/
+    li-execute/  li-publish/  li-blog-bridge/  li-topic-scout/  li-inbox-triage/  li-digest/  li-weekly/
   references/
     gtm-api-tool-map.md         plan block to tool, key args, bucket, preview and confirm, errors
     budgets-and-guardrails.md   plan caps, stop rules, ramp, suppression, identity

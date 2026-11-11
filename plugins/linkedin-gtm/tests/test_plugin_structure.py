@@ -20,11 +20,12 @@ SKILLS = {
     "li-execute": "high-stakes",
     "li-publish": "high-stakes",
     "li-blog-bridge": "generate",
+    "li-topic-scout": "read-only",
     "li-inbox-triage": "generate",
     "li-digest": "read-only",
     "li-weekly": "read-only",
 }
-COMMANDS = ["li-day", "li-health", "li-signals", "li-draft", "li-batch", "li-execute", "li-publish", "li-blog",
+COMMANDS = ["li-day", "li-health", "li-signals", "li-draft", "li-batch", "li-execute", "li-publish", "li-blog", "li-topics",
             "li-triage", "li-digest", "li-weekly", "li-setup"]
 REFERENCES = ["gtm-api-tool-map.md", "sequences.md", "budgets-and-guardrails.md", "voice-and-craft.md",
               "lanes.md", "approval-batch-format.md", "crm-sync-contract.md", "connection.md"]
