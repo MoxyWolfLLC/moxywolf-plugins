@@ -1990,8 +1990,11 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
             if not isinstance(env_, dict):
                 return r.stdout, None
             usage = env_.get("modelUsage") or {}
-            # the review model is the one that did the work; the harness also bills a small helper model
-            model = max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None
+            # the review model is the one launched with --model when modelUsage lists it (ME-003: an advisor
+            # can out-write the reviewer); otherwise the one that did the most work, as the harness also
+            # bills a small helper model
+            launched = [k for k in usage if k.startswith(REVIEWERS["claude"]["model"])]
+            model = launched[0] if launched else (max(usage, key=lambda k: usage[k].get("outputTokens", 0)) if usage else None)
             text = json.dumps(env_["structured_output"]) if "structured_output" in env_ else env_.get("result", r.stdout)
             return text, model
     elif tool == "gemini":
@@ -2040,7 +2043,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
         raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}{named_adv}: {(r.stderr + r.stdout).strip()[-800:]}")
     text, model = parse(r)
     if adv and adv["requested"] != "off":
-        adv["seen"], adv["seen_reason"] = advisor_seen(r.stdout, adv["requested"], model)
+        adv["seen"], adv["seen_reason"] = advisor_seen(r.stdout, adv["requested"], REVIEWERS["claude"]["model"])
     if not fake and not model_ok(tool, model):
         raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({REVIEWERS[tool]['floor']})")
     return text, model

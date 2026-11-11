@@ -56,6 +56,29 @@ def test_the_flag_is_on_by_default_and_the_advisor_is_seen():
     assert adv["requested"] == "fable" and adv["seen"] is True and adv["disabled_by_env"] is None, adv
 
 
+def test_an_advisor_that_out_writes_the_reviewer_is_not_recorded_as_the_reviewer():
+    # live, 2026-11-11: Fable as advisor wrote more tokens than the Opus reviewer, and the reviewer was
+    # recorded as claude-fable-5-1
+    global OUT
+    keep = OUT
+    OUT = {"structured_output": {"verdict": "x"},
+           "modelUsage": {"claude-opus-5": {"outputTokens": 300}, "claude-fable-5-1": {"outputTokens": 1800}}}
+    try:
+        d, argv = fake_claude()
+        old = dict(pr.os.environ)
+        pr.os.environ["PATH"] = f"{d}{pr.os.pathsep}{old.get('PATH', '')}"
+        for v in ("GSTACK_CLAUDE_ADVISOR", *pr.ADVISOR_OFF_VARS, "GSTACK_PEER_REVIEW_FAKE_CMD"):
+            pr.os.environ.pop(v, None)
+        try:
+            _, model = pr.run_reviewer("claude", "review this", d, 30)
+        finally:
+            pr.os.environ.clear(); pr.os.environ.update(old)
+        assert model == "claude-opus-5", model
+        assert pr.LAST_REVIEWER_ADVISOR["seen"] is True, pr.LAST_REVIEWER_ADVISOR
+    finally:
+        OUT = keep
+
+
 def test_off_drops_the_flag_and_wins_over_a_disabling_variable():
     argv, err, adv = run({"GSTACK_CLAUDE_ADVISOR": "off", "DISABLE_TELEMETRY": "1"})
     assert err is None and "--advisor" not in argv, (err, argv)
