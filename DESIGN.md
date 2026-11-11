@@ -1218,6 +1218,49 @@ Dorian's standing rule: a cheaper main model with a stronger advisor, never the 
 6. A test in `plugins/project-init/tests/` checks that the command carries 8b with its remedy line, and that the skill carries step h, both statuses, the two environment variables, the no-gate and no-edit rule, and the Shared services line.
 7. project-init gets a minor bump with a README Version History line, and its marketplace entry and the marketplace's top-level version move (CI-002).
 
+### ME-002 – spec_review caches its prompt and records what the cache did
+
+**Status:** planned.
+
+**Links introduced:** the record's new `cache` field (`read`, `write`) is read by anyone judging whether caching pays. A reader assumes it measures this run; that holds because it's summed from the API's own `usage` on every response in the run, never estimated.
+
+`spec_review.py` resends its system prompt and the item's scope on every `pause_turn` resume and on the advisor reminder. Those resends are the cost caching removes.
+
+1. Every request carries top-level `"cache_control": {"type": "ephemeral"}` (5-minute TTL). No explicit breakpoints. Tools and thinking settings stay fixed for the whole conversation, so no resend invalidates the prefix.
+2. The advisor tool's own `caching` field stays unset. The docs put break-even at about three advisor calls per conversation and `max_uses` is 3. Revisit only when records show the average at three.
+3. The default advisor moves from `claude-fable-5-1` to `claude-fable-5-2` (amends SR-001 criterion 2). `GSTACK_SPEC_ADVISOR` still overrides it.
+4. The record gains `cache: {read, write}`, summed from each response's `cache_read_input_tokens` and `cache_creation_input_tokens`. A response without those fields makes the field `null` with the reason, never zero (EV-001).
+5. `--selftest` with the stub transport shows the field on every request body, including a resume and a reminder, and the record's sums across three stubbed responses.
+6. One live run on a real item with at least one resume quotes `cache.read` from its record. If it's 0, that's the finding, reported as such.
+
+### ME-003 – peer_review's Claude reviewer runs with an advisor
+
+**Status:** planned.
+
+**Links introduced:** `GSTACK_CLAUDE_ADVISOR` names the advisor, and the round record's `advisor` block (`requested`, `seen`, `disabled_by_env`) is read by anyone checking whether a review actually had one. A reader assumes `seen` means the advisor ran; that holds only when the CLI's `modelUsage` lists the advisor model, and otherwise it's `null` with the reason.
+
+1. The `claude -p` reviewer command gains `--advisor <model>`, from `GSTACK_CLAUDE_ADVISOR`, default `fable` (the reviewer is `claude-opus-5`, which accepts Fable or Opus 5 and later). `GSTACK_CLAUDE_ADVISOR=off` drops the flag.
+2. If the CLI exits at launch over the advisor (pairing, allowlist, Fable usage-credits consent), the round reports `review_unavailable` naming the advisor. It never quietly retries without one.
+3. If `DISABLE_TELEMETRY` or `CLAUDE_CODE_DISABLE_ADVISOR_TOOL` is set in the reviewer's environment, the record says `disabled_by_env` with the variable's name.
+4. Tests with a fake `claude` binary: the flag is present by default, absent on `off`, a launch failure maps to `review_unavailable`, and `disabled_by_env` is recorded.
+5. One live round on the review host shows `seen` from `modelUsage`, or `null` with the reason.
+
+### ME-004 – Council's Anthropic calls ask for caching and log what it did
+
+**Status:** planned.
+
+**Links introduced:** each result file and `_summary.json` gain `cache: {read, write}` per job, read by anyone judging whether council caching pays. That holds because the numbers come from OpenRouter's `usage.prompt_tokens_details` on that response, never estimated.
+
+Kept on Dorian's ruling against the evidence that it may not pay: every council call is one-shot, Stage 2 switches to a different system prompt than Stage 1, and `anthropic/claude-sonnet-5` caches nothing under 1,024 tokens. A cache write that's never read costs 1.25x the input price. This item makes the cost visible so the next decision is measured.
+
+1. `openrouter_dispatch.py` adds top-level `"cache_control": {"type": "ephemeral"}` to a job whose `model` starts with `anthropic/`, unless the job sets `"cache": false`. Other providers' payloads are unchanged.
+2. Each result records `cache: {read, write}` from `usage.prompt_tokens_details.cached_tokens` and `cache_write_tokens`; absent fields make it `null` with the reason (EV-001). `_summary.json` carries each job's `cache`.
+3. A test with a stubbed `urlopen` shows the field on an Anthropic job, its absence on a non-Anthropic job and on `"cache": false`, and the recorded numbers from a stubbed response.
+4. One live deliberation's `_summary.json` is quoted with its cache numbers. Reads of 0 with writes above 0 are the finding that switches this back off, by setting `"cache": false` in the deliberation engine's jobs.
+5. council gets a minor bump with its README Version History line, and its marketplace entry and the top-level marketplace version move (CI-002).
+
+**Shared by ME-002 to ME-004:** gstack-execution gets a minor bump, its marketplace entry, the top-level marketplace version and README Version History move (CI-002). `run_all_tests.py` names every changed selftest and reports no failures. **Not taken:** an advisor in skill-creator's `run_eval.py`. It measures whether a skill triggers on a short single query; an advisor would change what's measured, and the docs list single-turn Q&A as a poor fit.
+
 ### SS-001 — Session end sweeps the loop's scratch
 
 **Status:** done. Shipped with ME-001: PR #278 (opened as `moxywolf-agent`), merged as `cb3b10d` (head `b7a849a`) by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` under DR-113, after review `20261102-121400-b7a849a-3zbguceo` (codex/gpt-6-astra, `no_blocking_findings`, coverage covered 15/15). Earlier reviews, kept as evidence: `20261102-111417-84eef5b-_vmr3e30` (`examined_nothing`: Codex's Linux sandbox doesn't move atime), `20261102-112253-c64f196-ko5n394u` (`malformed_output`; the surface came from a working tree on another branch), `20261102-112922-c64f196-vvvom69v` (`fixes_verified`, release blocked on unchecked coverage), `20261102-115547-c64f196-h46bzk9t` (`malformed_output`), `20261102-120119-c64f196-ivhtuykd` (clean, but main had moved; merged up, marketplace to 1.159.0) and `20261102-120835-b7a849a-j_25w51e` (blocking: the packet still said 1.158.0). Approved by Dorian on 2026-11-02 ("I'm ready"). `session-end.patch` is applied as step 8b's text and committed at `docs/evidence/SS-001-session-end.patch`. Follow-up: the Cowork Linux VM's own `/sessions` volume isn't measured or swept.
@@ -2507,6 +2550,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-11: ME-002, ME-003 and ME-004 added on Dorian's ask to use the advisor tool and prompt caching where appropriate, and his approval ("Approve, keep council"): spec_review caches and moves its advisor to Fable 5.2 (amends SR-001 criterion 2), the Claude reviewer runs with an advisor, and council's Anthropic calls ask for caching with the result logged. An advisor in skill-creator's `run_eval.py` is recorded as not taken.
 - 2026-11-10: XE-043 added on Dorian’s choice “Fix the review tooling first” and his approval of the item as written: the wide link gate takes a finding citing a criterion-directory bundle the dispatcher wrote, as it takes CI logs, summaries and run records (amends GO-016.2).
 - 2026-11-10: SM-011 criterion 9 added on Dorian's instruction ("Ship the Step 3b fix as project-init 0.46.1"): git runs on the Mac through Desktop Commander, not in `device_bash`, which has no GitHub login.
 - 2026-11-10: SM-011 added on Dorian's approval ("Yes"): session start never drops a briefing section and reads without waiting on a mount.
