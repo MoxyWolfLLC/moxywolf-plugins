@@ -107,5 +107,26 @@
       "weeks_1_2": 15,
       "week_3_plus": null
     }
+  },
+  "long_form": {
+    "destination": "ask-each-time",
+    "_about": "Every long-form piece goes to one of these LinkedIn pages. Dorian names the page for each piece; nothing defaults and the last choice is never reused. Ids from enrich_linkedin_company_lite_profile on 2026-11-11.",
+    "pages": {
+      "FrontierFounder": {
+        "organization_id": "110215000",
+        "url": "https://www.linkedin.com/company/frontierfounder/"
+      },
+      "MoxyWolf LLC": {
+        "organization_id": "108120951",
+        "url": "https://www.linkedin.com/company/moxywolf-llc/"
+      },
+      "STIGViewer": {
+        "organization_id": "100890591",
+        "url": "https://www.linkedin.com/showcase/stigviewer/"
+      }
+    },
+    "article_day": "Tue",
+    "teaser_day": "Thu",
+    "blog_cadence_per_week": 1
   }
 }

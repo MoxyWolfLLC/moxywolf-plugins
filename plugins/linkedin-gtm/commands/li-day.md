@@ -11,6 +11,7 @@ Load the `linkedin-gtm` skill, then run in order:
 1. `li-health`. If RED, report the cause and stop. No batch today.
 2. `li-signals`.
 3. `li-research-draft`, into a new ledger for today (`batch_ledger.py new`).
+   On Mondays and publish days, also run `li-blog-bridge`: if a signed, published blog piece is waiting, ask Dorian which page gets its long form (separately, before the batch), and add any Stage 2 teaser for today to the ledger.
 4. `li-approval-batch`: budget fit, render, present.
 
 Then stop and wait for Dorian's decisions. Do not execute anything in this command, even if he answers quickly; record his decisions with `li-approval-batch` and run `/li-execute` when the engagement window opens.

@@ -200,6 +200,25 @@ def normalize_identifier(ident):
     return m.group(1) if m else s
 
 
+def check_page_choice(args, target, config, ledger):
+    """A post AS a company page needs a page from config long_form.pages that the Release Owner
+    named for this piece (target.page and target.page_chosen_by). Nothing defaults to a page."""
+    pages = (config or {}).get("long_form", {}).get("pages", {})
+    org = str(args.get("author_organization_id"))
+    by_id = {str(v.get("organization_id")): name for name, v in pages.items()}
+    if org not in by_id:
+        raise LedgerError(f"author_organization_id {org} is not one of the long-form pages in config "
+                          f"({', '.join(sorted(pages)) or 'none set'})")
+    page = (target or {}).get("page")
+    if page != by_id[org]:
+        raise LedgerError(f"target.page must name the page this post goes to ({by_id[org]}), "
+                          "as Dorian chose it for this piece")
+    chooser = ((target or {}).get("page_chosen_by") or "").strip().lower()
+    if chooser != ledger["release_owner"].strip().lower():
+        raise LedgerError(f"the page is chosen by the Release Owner ({ledger['release_owner']}) for each "
+                          "piece; record it in target.page_chosen_by")
+
+
 def add_item(ledger, kind, args, lane, reason, target=None, sources=None, sequence=None,
              config=None, policy=None, now=None):
     policy = policy or load_policy()
@@ -229,6 +248,8 @@ def add_item(ledger, kind, args, lane, reason, target=None, sources=None, sequen
         raise LedgerError(f"{ident} is on the suppression list; nothing goes to them")
     if kind == "reaction" and args.get("reaction_type") not in REACTIONS:
         raise LedgerError(f"reaction_type must be one of {sorted(REACTIONS)}")
+    if kind == "post" and args.get("author_organization_id"):
+        check_page_choice(args, target, config, ledger)
     text = args.get(spec["text_arg"]) if spec["text_arg"] else None
     if kind in ("comment", "dm", "reply", "post") and not (text or "").strip():
         raise LedgerError(f"a {kind} needs its text in args.{spec['text_arg']}")
@@ -495,6 +516,10 @@ def render(ledger, budget=None, policy=None):
                 lines += ["> " + ln if ln else ">" for ln in text.splitlines()]
             if it["args"].get("reaction_type"):
                 lines.append(f"Reaction: {it['args']['reaction_type']}")
+            if it["args"].get("author_organization_id"):
+                lines.append(f"Posts as page: {it['target'].get('page')} (chosen by {it['target'].get('page_chosen_by')})")
+            if it["args"].get("scheduled_at"):
+                lines.append(f"Scheduled: {it['args']['scheduled_at']}")
             if it["sources"]:
                 lines.append("Sources: " + ", ".join(it["sources"]))
             if it["warnings"]:

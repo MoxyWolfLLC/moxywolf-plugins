@@ -274,5 +274,38 @@ class Cli(unittest.TestCase):
                                           "--config", str(cfg)]), 2)  # one batch a day
 
 
+
+PAGES_CFG = {"long_form": {"pages": {
+    "STIGViewer": {"organization_id": "100890591"},
+    "FrontierFounder": {"organization_id": "110215000"},
+    "MoxyWolf LLC": {"organization_id": "108120951"}}}}
+TEASER = "The full breakdown is in the comments. One question for you: who owns the diff?"
+
+
+class PagePosts(unittest.TestCase):
+    def test_page_post_needs_a_configured_page(self):
+        with self.assertRaises(bl.LedgerError):
+            bl.add_item(ledger(), "post", {"text": TEASER, "author_organization_id": "999"}, "OWN", "teaser",
+                        target={"page": "STIGViewer", "page_chosen_by": OWNER}, config=PAGES_CFG)
+
+    def test_page_post_needs_dorians_choice_for_this_piece(self):
+        with self.assertRaises(bl.LedgerError):
+            bl.add_item(ledger(), "post", {"text": TEASER, "author_organization_id": "100890591"}, "OWN",
+                        "teaser", target={"page": "STIGViewer"}, config=PAGES_CFG)
+        with self.assertRaises(bl.LedgerError):
+            bl.add_item(ledger(), "post", {"text": TEASER, "author_organization_id": "100890591"}, "OWN",
+                        "teaser", target={"page": "STIGViewer", "page_chosen_by": "Amos"}, config=PAGES_CFG)
+
+    def test_page_name_must_match_the_id(self):
+        with self.assertRaises(bl.LedgerError):
+            bl.add_item(ledger(), "post", {"text": TEASER, "author_organization_id": "100890591"}, "OWN",
+                        "teaser", target={"page": "FrontierFounder", "page_chosen_by": OWNER}, config=PAGES_CFG)
+
+    def test_chosen_page_post_is_drafted_and_rendered(self):
+        lg = ledger()
+        bl.add_item(lg, "post", {"text": TEASER, "author_organization_id": "100890591"}, "OWN", "teaser",
+                    target={"page": "STIGViewer", "page_chosen_by": OWNER}, config=PAGES_CFG)
+        self.assertIn("Posts as page: STIGViewer (chosen by Dorian Cougias)", bl.render(lg))
+
 if __name__ == "__main__":
     unittest.main()

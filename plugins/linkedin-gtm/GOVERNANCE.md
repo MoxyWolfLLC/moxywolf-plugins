@@ -56,6 +56,8 @@ How it runs:
 | skill `li-approval-batch` | side-effectful-gated | The gate itself. Its side effects are the decision record and gate-log rows; it sends nothing to LinkedIn and records only the Release Owner's own decisions. |
 | skill `li-execute` | **high-stakes** | Reactions, comments, reposts, accepts, ignores, replies, connection requests, DMs, withdrawals, visits, endorsements, mark-unread. Approved items only, preview then confirm, sequential, stop on block. |
 | skill `li-publish` | **high-stakes** | Public posts and first comments; golden-hour replies are new items with their own decision. |
+| skill `li-topic-scout` | read-only | Proposes blog topics per page with sources and candidate earned secrets. Never starts a pipeline or picks a page. |
+| skill `li-blog-bridge` | generate | Drafts blog-derived page posts. Asks Dorian which page gets each long form; the ledger refuses a page post without his recorded choice. Articles are published by Dorian. |
 | skill `li-inbox-triage` | generate | Reads and drafts. Its one outward action, mark-unread hand-back, is a batch item run by li-execute after a decision (side-effectful-gated). |
 | skill `li-digest` | read-only | Digest and CRM export file. No CRM writes. |
 | skill `li-weekly` | read-only | Metrics and ledgers. |
