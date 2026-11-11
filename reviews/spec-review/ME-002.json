@@ -1,0 +1,99 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ME-002",
+  "scope_sha256": "f29ef61829c76476aa56ff5b2602953306334cd1c6a35d88a661680aa28b7515",
+  "reviewed_at": "2026-11-11T16:16:08+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3657,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 5440,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5440,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10690,
+      "output_tokens": 2675,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2065,
+      "cache_read_input_tokens": 5440,
+      "cache_creation_input_tokens": 4446,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4446,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 5440,
+    "write": 9886
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "Coverage is mandatory",
+        "One release path, checked by code"
+      ],
+      "question": "Coverage is `unavailable`, `unusable` or `broken`, and a human exception is recorded. Is that review a \"passing review\" for `record-release`, so the item can reach `released`? Or does it stay `merged_unreviewed`, as the release-path rule says for a merge with no passing review?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "The pre-merge gate is GitHub's"
+      ],
+      "question": "Does \"A change touching any of those\" mean only the `CODEOWNERS` gate paths, or also the agent's own tooling listed in the 2026-10-05 amendment, which merges on a clean review?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ME-002.2"
+      ],
+      "question": "With `max_uses` at 3, the revisit trigger of an average of 3 or more needs every run to use all its calls. Is that intended? Do records written before `advisor_calls` existed count among the last 10?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "ME-002.4"
+      ],
+      "question": "When `cache` is `null`, in which record field is the reason stored, and in what form?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "ME-002.1",
+        "ME-002.6"
+      ],
+      "question": "If the resume or reminder in the live run comes after the 5-minute TTL has expired, does that run satisfy criterion 6?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "Limit the GA items to gstack and the shared declarations necessary to govern it",
+        "Other plugins in this repository carry their own objective sections and items",
+        "ME-002"
+      ],
+      "question": "Which objective section does ME-002 belong to, and is `spec_review.py` within the gstack scope? Is the waiver of *Test the boundaries before adding item IDs* recorded only in ME-002, or does it need an amendment to the constraint text?"
+    }
+  ]
+}
