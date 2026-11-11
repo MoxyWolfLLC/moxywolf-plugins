@@ -5,6 +5,7 @@ without one it asked for.
 Stdlib, offline. A fake `claude` on PATH writes its argv to a file and prints a CLI-shaped JSON
 envelope, so run_reviewer builds and runs the real command line.
 """
+import io
 import json
 import os
 import stat
@@ -104,6 +105,61 @@ def test_seen_is_null_with_a_reason_when_families_match():
     assert seen is None and "share a model family" in why, why
     seen, why = pr.advisor_seen("not json", "fable", "claude-opus-5")
     assert seen is None and why, why
+
+
+def _loop(run):
+    """test_unknowns' cmd_open / cmd_round / cmd_release harness, with claude as the reviewer."""
+    import test_unknowns as tu
+    L = tu._Loop([])
+    pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("claude", False)
+    pr.run_reviewer = run
+    with tu.contextlib.redirect_stdout(io.StringIO()):
+        L.st = pr.cmd_open(L.ns(builder="codex", packet=str(L.pfile), max_rounds=3, timeout=30)); L.rid = L.st["review_id"]
+    return L, tu
+
+
+def test_a_refused_advisor_is_in_the_saved_round_record():   # review F1
+    for var in pr.ADVISOR_OFF_VARS:
+        def refuse(tool, prompt, root, timeout, schema=None, named=()):
+            pr.LAST_REVIEWER_ADVISOR = None
+            return pr.claude_advisor({var: "1"})
+        os.environ.pop("GSTACK_CLAUDE_ADVISOR", None)
+        L, _ = _loop(refuse)
+        try:
+            assert L.round() == "review_unavailable"
+            rec = L.record(1)
+            assert rec["reviewer_advisor"]["disabled_by_env"] == var and rec["reviewer_advisor"]["requested"] == "fable", rec
+        finally:
+            L.close()
+
+
+def test_the_handoff_says_an_unverified_advisor_was_unverified():   # review F2
+    def ok(tool, prompt, root, timeout, schema=None, named=()):
+        pr.LAST_REVIEWER_ADVISOR = {"requested": "fable", "seen": None, "seen_reason": "claude reported no modelUsage",
+                                    "disabled_by_env": None}
+        return L_reply, "claude-opus-5"
+    import test_unknowns as tu
+    global L_reply
+    L_reply = json.dumps({"verdict": "no_blocking_findings", "findings": [], "blocker_resolutions": [], "unknowns": [],
+                          "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"},
+                                         {"criterion": "f(None) is handled", "met": True, "evidence": "a.py:2"}]})
+    L, _ = _loop(ok)
+    err = io.StringIO()
+    try:
+        assert L.round() == "no_blocking_findings", L.record(1).get("error")
+        with tu.contextlib.redirect_stdout(io.StringIO()), tu.contextlib.redirect_stderr(err):
+            try:
+                pr.cmd_release(L.ns(review_id=L.rid, target="main", coverage_exception="release it, fixture-human",
+                                    observation=["read a.py :: git -C " + str(L.d) + " show HEAD:a.py"]))
+            except pr.ReviewError as e:
+                assert e.outcome == "awaiting_human_release", e
+        rel = pr.load(pr.REVIEW_DIR / L.rid, "release.json")
+        assert "UNVERIFIED: claude reported no modelUsage" in rel["advisor_note"], rel.get("advisor_note")
+        assert "UNVERIFIED" in err.getvalue()
+        assert pr.advisor_note({"requested": "off"}).startswith("advisor: off") and pr.advisor_note(None) is None
+        assert "ran" in pr.advisor_note({"requested": "fable", "seen": True})
+    finally:
+        L.close()
 
 
 if __name__ == "__main__":

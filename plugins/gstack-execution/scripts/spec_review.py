@@ -511,6 +511,13 @@ def selftest():
         gap = review("x", post=cached(1, [5, None], [5, None]))[3]
         assert isinstance(gap, str) and "lacked" in gap, "a response without the fields makes cache unknown, not a partial sum"
         assert ADVISOR == os.environ.get("GSTACK_SPEC_ADVISOR", "claude-fable-5-2")
+        # ME-002.5, review F3: the same three responses through cmd_run reach the saved record
+        doc.write_text(DEMO)
+        c3 = cached(1, [0, 900, 950], [800, 50, 10], remind=True)
+        assert cmd_run(doc, ["R-001"], post=c3) == 0
+        assert all(r["cache_control"] == {"type": "ephemeral"} for r in c3.calls) and len(c3.calls) == 3
+        saved = json.loads(record_path(doc, "R-001").read_text())
+        assert saved["cache"] == {"read": 1850, "write": 860} and "cache_reason" not in saved, saved
         # review F3: malformed findings refuse, in the reply and in a record read back
         for block in ('{"error": "unable"}', '{"contradictions": null, "ambiguities": []}',
                       '{"contradictions": [{"id": "C1"}], "ambiguities": []}'):

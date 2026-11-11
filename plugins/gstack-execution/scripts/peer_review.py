@@ -1746,6 +1746,18 @@ def claude_advisor(env):
     return ["--advisor", req]
 
 
+def advisor_note(adv):
+    """ME-003.5, review F2: the handoff's one line on the reviewer's advisor, or None for a reviewer
+    with no advisor block. An unverified advisor is said so, with the reason, and doesn't block."""
+    if not isinstance(adv, dict):
+        return None
+    if adv.get("requested") == "off":
+        return "advisor: off (GSTACK_CLAUDE_ADVISOR=off)"
+    if adv.get("seen"):
+        return f"advisor: {adv.get('requested')} ran (seen in modelUsage)"
+    return f"advisor: {adv.get('requested')} requested, UNVERIFIED: {adv.get('seen_reason')}"
+
+
 def advisor_seen(stdout, requested, main):
     """ME-003.5: (True, None) when modelUsage lists the advisor's model, else (None, why). Never False:
     absence from modelUsage isn't proof the advisor didn't run."""
@@ -3003,11 +3015,13 @@ def cmd_round(a):
         if not api:
             _age_atimes(surf)
             before = _atime_map(surf) if read_tracking_probe(surf) else None
-        raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
-                                            named=surf_stats["criterion_files"])
+        try:
+            raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
+                                                named=surf_stats["criterion_files"])
+        finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
+            if reviewer == "claude":
+                record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
-        if reviewer == "claude":
-            record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR   # ME-003
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
             # measures what a reviewer CHOSE to read; an empty examined list here would be a
@@ -3287,17 +3301,23 @@ def cmd_release(a):
               "release_lane": state.get("release_lane"),   # GA-010.4
               "lane_in_force": in_force,                    # GA-011
               "instruction": lane_instruction(state.get("release_lane"), a.target)}
+    adj = state.get("adjudicated_round") or state.get("rounds_used")   # ME-003 review F2: the adjudicated round's advisor
+    adv = (load(d, f"round-{adj}.json") or {}).get("reviewer_advisor") if adj else None
+    record["reviewer_advisor"], record["advisor_note"] = adv, advisor_note(adv)
     previous = load(d, "release.json")
     if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
         record["unknowns_open"] = open_unknowns_now   # EV-011: the list is of now, whatever the handoff was
+        record["reviewer_advisor"], record["advisor_note"] = adv, advisor_note(adv)
     else:
         save(d, "release.json", record, "gate_output")
     # XE-014.12: the handoff's first line is the coverage status, before anything else is read
     print(f"coverage: {record['coverage']['status']}"
           + (f" (exception: {record['coverage']['exception']['words']})" if record["coverage"].get("exception") else ""),
           file=sys.stderr)
+    if record["advisor_note"]:
+        print(record["advisor_note"], file=sys.stderr)
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
     raise ReviewError("awaiting_human_release", "handoff written; no merge executed. Merge the reviewed head, then run record-release")
