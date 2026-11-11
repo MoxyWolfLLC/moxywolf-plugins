@@ -19,6 +19,7 @@ High-stakes: a public post under Dorian's name. Release Owner **Dorian Cougias**
 - Today is a publish day (`publish_days` in the config; Tuesday and Thursday by default) and no post has gone out today. Never two posts in a day.
 - The `post` item is approved or edited, and `posting` has plan-left.
 - The post body has no link (the ledger warns if it does). The link and sources live in the first comment.
+- A page post (`author_organization_id` set) came from li-blog-bridge and names the page Dorian chose for that piece. Its long-form Article is already live on that page; if not, hold the teaser.
 
 ## Publish
 
@@ -32,7 +33,7 @@ The result carries the new post's URN (`execution.result_ref` in the ledger). If
 
 ## First comment
 
-If the first comment was approved in the morning batch with the post's URN unknown, it can't run as approved (its arguments would change). Add it now as a new item with the real `entity_urn` and the approved text unchanged, present it on its own, get Dorian's quick decision, then execute it. Ask within a few minutes of the post going live: the first comment matters most early.
+If the first comment was approved in the morning batch with the post's URN unknown, it can't run as approved (its arguments would change). Add it now as a new item with the real `entity_urn` and the approved text unchanged, present it on its own, get Dorian's quick decision, then execute it. Ask within a few minutes of the post going live: the first comment matters most early. On a page post, the comment goes out from Dorian's own profile (the API has no page identity for comments); say so when you ask.
 
 ## Golden hour (60 minutes)
 

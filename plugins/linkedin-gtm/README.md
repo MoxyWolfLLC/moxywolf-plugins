@@ -11,6 +11,7 @@ Amos (the operator) prepares everything. Dorian approves one batch. Nothing outw
 | 08:30 | Health and safety check | `/li-health` | `li-health` | read-only |
 | 09:00 | Signal sweep | `/li-signals` | `li-signals` | read-only |
 | 09:30 | Research and drafts | `/li-draft` | `li-research-draft` | generate |
+| Mon, Tue, Thu | Blog to LinkedIn: ask the page, Article, teaser | `/li-blog` | `li-blog-bridge` | generate |
 | 10:15 | The approval batch | `/li-batch` | `li-approval-batch` | side-effectful-gated |
 | 10:30 | Engagement | `/li-execute` | `li-execute` | high-stakes |
 | 12:00 | Publish window, golden hour | `/li-publish` | `li-publish` | high-stakes |
@@ -36,12 +37,12 @@ The defaults answer the plan's open decisions conservatively: Lane A (the held p
 linkedin-gtm/
   .claude-plugin/plugin.json
   GOVERNANCE.md                 five tests, risk tiers, the Release Owner gate
-  commands/                     11 commands: li-day, li-health, li-signals, li-draft, li-batch,
-                                li-execute, li-publish, li-triage, li-digest, li-weekly, li-setup
+  commands/                     12 commands: li-day, li-health, li-signals, li-draft, li-batch,
+                                li-execute, li-publish, li-blog, li-triage, li-digest, li-weekly, li-setup
   skills/
     linkedin-gtm/               the orchestrator: routes, stops at the gate, hands off
     li-health/  li-signals/  li-research-draft/  li-approval-batch/
-    li-execute/  li-publish/  li-inbox-triage/  li-digest/  li-weekly/
+    li-execute/  li-publish/  li-blog-bridge/  li-inbox-triage/  li-digest/  li-weekly/
   references/
     gtm-api-tool-map.md         plan block to tool, key args, bucket, preview and confirm, errors
     budgets-and-guardrails.md   plan caps, stop rules, ramp, suppression, identity
@@ -74,7 +75,7 @@ Through an OAuth-connected `call_tool`, the scripts aren't in the path and the g
 | `synergy-engine` | topic fingerprint, author and citation centers, browser-based comment-first runs | its fingerprint scores li-signals; one channel per person per day |
 | `linkedin-thought-leadership` (moxywolf-skills) | long practitioner comments from top-content pages | its comment rules are condensed in voice-and-craft; its drafts can be added as batch items |
 | `linkedin-analytics` (moxywolf-skills) | deep reads of the analytics pages | li-weekly uses its report shape with API numbers |
-| `4d-blog-engine` blog-social | writing the post and first comment from a blog | li-publish publishes what it produced |
+| `4d-blog-engine` blog-social | writing the Article, teaser post and first comment from a signed blog | li-blog-bridge asks Dorian which page (FrontierFounder, MoxyWolf LLC or STIGViewer) for every piece, hands him the Article to publish, and drafts the teaser as a page post; li-publish posts it |
 
 ## Tests
 
