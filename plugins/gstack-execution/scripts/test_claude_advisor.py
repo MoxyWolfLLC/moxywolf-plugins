@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""ME-003: the claude reviewer runs with an advisor, says so in its record, and never quietly runs
+without one it asked for.
+
+Stdlib, offline. A fake `claude` on PATH writes its argv to a file and prints a CLI-shaped JSON
+envelope, so run_reviewer builds and runs the real command line.
+"""
+import json
+import os
+import stat
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import peer_review as pr  # noqa: E402
+
+OUT = {"structured_output": {"verdict": "x"},
+       "modelUsage": {"claude-opus-5": {"outputTokens": 900}, "claude-fable-5-2": {"outputTokens": 400}}}
+
+
+def fake_claude(exit_code=0, stderr=""):
+    d = Path(tempfile.mkdtemp(prefix="me003-"))
+    argv = d / "argv.json"
+    (d / "claude").write_text(
+        "#!/usr/bin/env python3\nimport json, sys\n"
+        f"open({str(argv)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+        f"sys.stderr.write({stderr!r})\nprint({json.dumps(json.dumps(OUT))})\nsys.exit({exit_code})\n")
+    (d / "claude").chmod((d / "claude").stat().st_mode | stat.S_IEXEC)
+    return d, argv
+
+
+def run(env_extra, **fake):
+    d, argv = fake_claude(**fake)
+    keep = dict(os.environ)
+    os.environ["PATH"] = f"{d}{os.pathsep}{keep.get('PATH', '')}"
+    for v in ("GSTACK_CLAUDE_ADVISOR", *pr.ADVISOR_OFF_VARS, "GSTACK_PEER_REVIEW_FAKE_CMD"):
+        os.environ.pop(v, None)
+    os.environ.update(env_extra)
+    try:
+        try:
+            pr.run_reviewer("claude", "review this", d, 30)
+            err = None
+        except pr.ReviewError as e:
+            err = e
+        return (json.loads(argv.read_text()) if argv.exists() else None), err, pr.LAST_REVIEWER_ADVISOR
+    finally:
+        os.environ.clear(); os.environ.update(keep)
+
+
+def test_the_flag_is_on_by_default_and_the_advisor_is_seen():
+    argv, err, adv = run({})
+    assert err is None, err
+    i = argv.index("--advisor")
+    assert argv[i + 1] == "fable", argv
+    assert adv["requested"] == "fable" and adv["seen"] is True and adv["disabled_by_env"] is None, adv
+
+
+def test_off_drops_the_flag_and_wins_over_a_disabling_variable():
+    argv, err, adv = run({"GSTACK_CLAUDE_ADVISOR": "off", "DISABLE_TELEMETRY": "1"})
+    assert err is None and "--advisor" not in argv, (err, argv)
+    assert adv["requested"] == "off" and adv["disabled_by_env"] is None, adv
+
+
+def test_a_disabling_variable_with_an_advisor_requested_is_review_unavailable():
+    for var in pr.ADVISOR_OFF_VARS:
+        argv, err, adv = run({var: "1"})
+        assert argv is None, "the CLI must not run"
+        assert err and err.outcome == "review_unavailable" and var in str(err), err
+        assert adv["disabled_by_env"] == var, adv
+
+
+def test_a_launch_failure_is_review_unavailable_and_names_the_advisor():
+    argv, err, adv = run({"GSTACK_CLAUDE_ADVISOR": "fable"}, exit_code=1,
+                         stderr="Error: Fable as the advisor needs the usage-credits consent; run /model fable")
+    assert err and err.outcome == "review_unavailable" and "advisor fable requested" in str(err), err
+
+
+def test_seen_is_null_with_a_reason_when_families_match():
+    seen, why = pr.advisor_seen(json.dumps(OUT), "opus", "claude-opus-5")
+    assert seen is None and "share a model family" in why, why
+    seen, why = pr.advisor_seen("not json", "fable", "claude-opus-5")
+    assert seen is None and why, why
+
+
+if __name__ == "__main__":
+    tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
+    for fn in tests:
+        fn(); print(f"ok  {fn.__name__}")
+    print(f"\n{len(tests)} passed")

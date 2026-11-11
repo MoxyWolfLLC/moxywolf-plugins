@@ -1727,6 +1727,40 @@ def headroom_argv(tool):
 
 
 LAST_REVIEWER_USAGE = "not_reported"   # XE-012: set by run_reviewer, read by the round that called it
+LAST_REVIEWER_ADVISOR = None   # ME-003: set by run_reviewer for the claude CLI, read by the round that called it
+ADVISOR_OFF_VARS = ("DISABLE_TELEMETRY", "CLAUDE_CODE_DISABLE_ADVISOR_TOOL")
+
+
+def claude_advisor(env):
+    """ME-003.1/.3: (argv, record) for the claude reviewer's advisor. `off` wins and consults nothing;
+    a requested advisor that the environment turns off is review_unavailable, never a quiet run without it."""
+    global LAST_REVIEWER_ADVISOR
+    req = (os.environ.get("GSTACK_CLAUDE_ADVISOR") or "fable").strip()
+    if req.lower() == "off":
+        LAST_REVIEWER_ADVISOR = {"requested": "off", "seen": None, "seen_reason": "no advisor requested", "disabled_by_env": None}
+        return []
+    off = next((v for v in ADVISOR_OFF_VARS if env.get(v)), None)
+    LAST_REVIEWER_ADVISOR = {"requested": req, "seen": None, "seen_reason": "the reviewer did not run", "disabled_by_env": off}
+    if off:
+        raise ReviewError("review_unavailable", f"advisor {req} requested but {off} is set in the reviewer's environment, which turns the advisor off")
+    return ["--advisor", req]
+
+
+def advisor_seen(stdout, requested, main):
+    """ME-003.5: (True, None) when modelUsage lists the advisor's model, else (None, why). Never False:
+    absence from modelUsage isn't proof the advisor didn't run."""
+    try:
+        mu = json.loads(stdout).get("modelUsage")
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        return None, "claude output was not a JSON object"
+    if not isinstance(mu, dict) or not mu:
+        return None, "claude reported no modelUsage"
+    fam = next((f for f in ("fable", "opus", "sonnet", "mythos") if f in requested.lower()), requested.lower())
+    if fam in (main or "").lower():
+        return None, f"advisor {requested} and reviewer {main} share a model family; modelUsage can't tell them apart"
+    if any(fam in k.lower() for k in mu):
+        return True, None
+    return None, f"modelUsage lists {sorted(mu)}, none matching {requested}"
 
 
 def reviewer_usage(tool, stdout, stderr):
@@ -1915,6 +1949,8 @@ def run_openrouter(tool, prompt, root, timeout, output_schema, named=()):
 def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
     """Returns (reviewer_output_text, model_that_ran). `named` is the surface paths of the files a
     criterion names (XE-035); only a transport that sends the surface needs it."""
+    global LAST_REVIEWER_ADVISOR
+    LAST_REVIEWER_ADVISOR = None   # ME-003: only the claude branch sets it, so no round reads a stale one
     output_schema = schema or STRICT_SCHEMA
     # XE-014.13: the reviewer never holds a GitHub token. The dispatcher may run under
     # agent_token.py exec to read CI; the other tool gets a shell, so the token stops here.
@@ -1945,7 +1981,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
             raise ReviewError("model_below_floor", f"GSTACK_CLAUDE_MODEL={REVIEWERS['claude']['model']}; floor is {REVIEWERS['claude']['floor_name']}")
         cmd = ["claude", "-p", prompt, "--model", REVIEWERS["claude"]["model"], "--output-format", "json", "--json-schema", json.dumps(output_schema),
                "--allowedTools", "Read", "Grep", "Glob", "Bash(git:*)", "--disallowedTools", "Write", "Edit", "MultiEdit", "NotebookEdit",
-               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"] + headroom_argv("claude")
+               "--add-dir", str(root), "--no-session-persistence", "--max-turns", "60"] + claude_advisor(env) + headroom_argv("claude")
         def parse(r):
             try:
                 env_ = json.loads(r.stdout)
@@ -1998,9 +2034,13 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
     finally:   # GO-004.2: a run that started counts against Max calls, timed out or not
         if started:
             goal_spend.record(tool, None, "subscription")
+    adv = LAST_REVIEWER_ADVISOR if tool == "claude" else None
     if r.returncode != 0:
-        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}: {(r.stderr + r.stdout).strip()[-800:]}")
+        named_adv = f" (advisor {adv['requested']} requested)" if adv and adv["requested"] != "off" and "advisor" in (r.stderr + r.stdout).lower() else ""
+        raise ReviewError("review_unavailable", f"{tool} exited {r.returncode}{named_adv}: {(r.stderr + r.stdout).strip()[-800:]}")
     text, model = parse(r)
+    if adv and adv["requested"] != "off":
+        adv["seen"], adv["seen_reason"] = advisor_seen(r.stdout, adv["requested"], model)
     if not fake and not model_ok(tool, model):
         raise ReviewError("model_below_floor", f"{tool} ran {model!r}, below the floor ({REVIEWERS[tool]['floor']})")
     return text, model
@@ -2963,6 +3003,8 @@ def cmd_round(a):
         raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
                                             named=surf_stats["criterion_files"])
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
+        if reviewer == "claude":
+            record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR   # ME-003
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
             # measures what a reviewer CHOSE to read; an empty examined list here would be a
