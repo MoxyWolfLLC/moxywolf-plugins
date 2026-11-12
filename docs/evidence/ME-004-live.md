@@ -26,7 +26,7 @@ Reading, by criterion 4, for the three jobs that asked for caching:
 
 Across the deliberation Claude wrote 13,450 tokens to the cache and read none. A 5-minute cache write is billed at 1.25 times the input price, so the extra is a quarter of the input price on those tokens, well under a cent here, with nothing saved. Every other job is reported as caching not requested; Grok's 128 cached tokens are its provider's own automatic caching.
 
-Reported to Dorian: in the session of 2026-11-11 at about 19:51 PT ("Claude wrote 13,450 tokens to the cache and read none back"), and in pull request #298's description. He had not replied when this was written.
+Reported to Dorian: in the session of 2026-11-11 at about 19:51 PT ("Claude wrote 13,450 tokens to the cache and read none back"), and in pull request #298's description, fetched from GitHub and committed as `ME-004-live/pr-298-description.json` (its `body` carries the numbers; `created_at` is when it was posted). The session message is not on this surface; the pull request is the record. He had not replied when this was written.
 
 Nothing was switched off. Whether to set `"cache": false` in the deliberation engine's jobs is Dorian's call.
 
