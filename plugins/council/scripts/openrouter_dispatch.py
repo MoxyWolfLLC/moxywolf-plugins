@@ -66,9 +66,10 @@ def cache_usage(data) -> dict:
     if not isinstance(d, dict):
         return {"read": None, "write": None, "reason": "response carried no usage.prompt_tokens_details"}
     read, write = d.get("cached_tokens"), d.get("cache_write_tokens")
-    if not isinstance(read, int) or not isinstance(write, int):
+    missing = [k for k, v in (("cached_tokens", read), ("cache_write_tokens", write)) if not isinstance(v, int)]
+    if missing:   # review F1: the reason names exactly the absent field(s)
         return {"read": read if isinstance(read, int) else None, "write": write if isinstance(write, int) else None,
-                "reason": "prompt_tokens_details lacked cached_tokens or cache_write_tokens"}
+                "reason": "prompt_tokens_details lacked " + " and ".join(missing)}
     return {"read": read, "write": write}
 
 

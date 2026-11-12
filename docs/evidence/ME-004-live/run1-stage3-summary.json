@@ -1,0 +1,19 @@
+{
+  "total": 1,
+  "ok": 1,
+  "failed": 0,
+  "wall_sec": 12.33,
+  "per_job": [
+    {
+      "id": "s3-chairman",
+      "model": "x-ai/grok-4.3",
+      "ok": true,
+      "elapsed_sec": 12.32,
+      "cache": {
+        "read": 128,
+        "write": 0,
+        "requested": false
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # ME-004.4: live council deliberations, 2026-11-11
 
-Two real deliberations through `plugins/council/scripts/openrouter_dispatch.py` at this branch's head, on Dorian's Mac: medium lineup, voting protocol, the stage prompts from `skills/deliberation-engine/references/stage-prompts.md`, one question about when prompt caching pays in a one-shot pipeline. The numbers are each job's `cache` entry from its stage's `_summary.json`, with `prompt_tokens` from the same response.
+Two real deliberations through `plugins/council/scripts/openrouter_dispatch.py` at this branch's head, on Dorian's Mac: medium lineup, voting protocol, the stage prompts from `skills/deliberation-engine/references/stage-prompts.md`, one question about when prompt caching pays in a one-shot pipeline. The numbers are each job's `cache` entry from its stage's `_summary.json`, with `prompt_tokens` from the same response. The six summaries are committed unedited beside this file as `ME-004-live/run<1|2>-stage<1|2|3>-summary.json`; the per-job result files, which hold the models' answers, are not.
 
 ## Run 2 (the one to read)
 
@@ -25,6 +25,8 @@ Reading, by criterion 4, for the three jobs that asked for caching:
 - `s3-chairman`: read 0, write 7,818. A cost with no saving.
 
 Across the deliberation Claude wrote 13,450 tokens to the cache and read none. A 5-minute cache write is billed at 1.25 times the input price, so the extra is a quarter of the input price on those tokens, well under a cent here, with nothing saved. Every other job is reported as caching not requested; Grok's 128 cached tokens are its provider's own automatic caching.
+
+Reported to Dorian: in the session of 2026-11-11 at about 19:51 PT ("Claude wrote 13,450 tokens to the cache and read none back"), and in pull request #298's description. He had not replied when this was written.
 
 Nothing was switched off. Whether to set `"cache": false` in the deliberation engine's jobs is Dorian's call.
 

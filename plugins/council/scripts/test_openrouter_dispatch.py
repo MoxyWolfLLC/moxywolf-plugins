@@ -53,7 +53,14 @@ def test_missing_fields_are_null_with_a_reason_never_zero():
     assert r["cache"]["read"] is None and r["cache"]["write"] is None and r["cache"]["reason"], r["cache"]
     _, r = call({"id": "e", "model": "anthropic/claude-sonnet-5", "messages": MSG},
                 {"prompt_tokens_details": {"cached_tokens": 7}})
-    assert r["cache"]["read"] == 7 and r["cache"]["write"] is None and "lacked" in r["cache"]["reason"], r["cache"]
+    assert r["cache"]["read"] == 7 and r["cache"]["write"] is None, r["cache"]
+    assert r["cache"]["reason"] == "prompt_tokens_details lacked cache_write_tokens", r["cache"]
+    _, r = call({"id": "f", "model": "anthropic/claude-sonnet-5", "messages": MSG},
+                {"prompt_tokens_details": {"cache_write_tokens": 9}})
+    assert (r["cache"]["read"], r["cache"]["write"]) == (None, 9), r["cache"]
+    assert r["cache"]["reason"] == "prompt_tokens_details lacked cached_tokens", r["cache"]
+    _, r = call({"id": "g", "model": "anthropic/claude-sonnet-5", "messages": MSG}, {"prompt_tokens_details": {}})
+    assert r["cache"]["reason"] == "prompt_tokens_details lacked cached_tokens and cache_write_tokens", r["cache"]
 
 
 if __name__ == "__main__":

@@ -1,0 +1,19 @@
+{
+  "total": 1,
+  "ok": 1,
+  "failed": 0,
+  "wall_sec": 52.19,
+  "per_job": [
+    {
+      "id": "s3-chairman",
+      "model": "anthropic/claude-sonnet-5",
+      "ok": true,
+      "elapsed_sec": 52.19,
+      "cache": {
+        "read": 0,
+        "write": 7818,
+        "requested": true
+      }
+    }
+  ]
+}
