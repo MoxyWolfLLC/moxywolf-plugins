@@ -10,4 +10,6 @@ Recorded 2026-11-11 after review `20261111-195124-292079b-gzo_cfs5` found nothin
 | The status of PR #24, #71 and #73 | Same prompt | "Leave as history" | None |
 | *Test the boundaries before adding item IDs*, waived for every item since September | Same prompt | "Narrow it" | The constraint bars only new vocabulary, metrics and graph items |
 
+**Accepted by Dorian, 2026-11-12.** Asked "Do you accept how the sweep's five seeded questions reached you?", with the deviation stated (two earlier, three in one later prompt, not one list on the first pass), he answered "Yes". The Amendments log carries the same entry.
+
 Not shown: a transcript of the prompts. The session's captured record holds them; this file is the agent's account of it, written the same day.
