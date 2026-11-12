@@ -1,0 +1,80 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": null,
+  "scope_sha256": "860af9d1a23314618012506678c273284417c2b32381024c10a5fe97f24e1f20",
+  "reviewed_at": "2026-11-11T18:23:16+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 4789,
+      "cache_read_input_tokens": 5245,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 5245,
+      "cache_creation_input_tokens": 4829,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4829,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11714,
+      "output_tokens": 1856,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 778,
+      "cache_read_input_tokens": 10074,
+      "cache_creation_input_tokens": 340,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 340,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 20564,
+    "write": 5169
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Have all three boundary tests run and had their findings recorded? B-a's evidence is cited, but nothing is cited for the other two. If they haven't all run, do GA-011, GO-001 and the eleventh objective, added after 2026-09-29, break the new-item freeze? Or are they exempt, and if so by what rule?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "Can the goal's pull request into `main` touch `CODEOWNERS` paths such as `goal-runs/`? If it can, the bot cannot merge it when the lane is wide, because the ruleset needs his approving review. If it cannot, say so. Either way, state which rule governs that pull request."
+    }
+  ]
+}

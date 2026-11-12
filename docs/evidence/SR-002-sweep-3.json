@@ -1,0 +1,71 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": null,
+  "scope_sha256": "d95381a3a6cfda73237be2df0abdf52143722e682710ab8fdb02f2376d3cacb0",
+  "reviewed_at": "2026-11-12T00:02:05+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 4015,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 5430,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5430,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 5430,
+      "cache_creation_input_tokens": 4055,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4055,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11125,
+      "output_tokens": 2020,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 679,
+      "cache_read_input_tokens": 9485,
+      "cache_creation_input_tokens": 346,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 346,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 14915,
+    "write": 9831
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "Does 'a goal's pull request into main' (which goal-envelope fails if it touches a CODEOWNERS path, GO-004.1) include the goal's brief pull request, which adds goals/<id>/ (a CODEOWNERS path) and needs Dorian's approving review? The plan must say which pull requests goal-envelope covers, so that the brief pull request is exempt and the whole-goal pull request is not."
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": null,
+  "scope_sha256": "860af9d1a23314618012506678c273284417c2b32381024c10a5fe97f24e1f20",
+  "reviewed_at": "2026-11-11T18:22:01+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 4694,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 5245,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5245,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11532,
+      "output_tokens": 2206,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1476,
+      "cache_read_input_tokens": 5245,
+      "cache_creation_input_tokens": 5528,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5528,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 5245,
+    "write": 10773
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "The plan refers to three boundary tests in a 'Boundary tests' section below, and to B-a, but neither is in the plan. What are the tests, and what counts as 'run' with findings recorded?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "One release path, checked by code",
+        "Coverage is mandatory"
+      ],
+      "question": "A merge has a clean review at its head, coverage that isn't `checked`, and no recorded owner exception. Is it `merged_unreviewed` (defined as 'no clean review at its head') or some other state?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "One release path, checked by code",
+        "Coverage is mandatory"
+      ],
+      "question": "An exception item 'goes on to `released`', but `vocab_check.py` refuses that word until B-a's first fix. What status does the item carry in the interim, `review` or `done`?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes",
+        "Successful machine review grants release only within Dorian's standing DR-113 authorization"
+      ],
+      "question": "In a wide lane, does the goal's pull request into `main` ever touch `goals/`, `goal-runs/` or GO-001? If it does, it needs his approving review and cannot merge 'as the bot on a clean whole-goal review'."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes",
+        "One release path, checked by code"
+      ],
+      "question": "The plan says the ruleset enforces Dorian's approving review 'at the head'. The listed ruleset settings don't include dismissing stale reviews or requiring approval of the latest push. Is that setting part of `main-gate`?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "Keep `/gstack-verify` advisory; incomplete verification must remain visible",
+        "Coverage is mandatory"
+      ],
+      "question": "Does incomplete `/gstack-verify` output count as review coverage that isn't `checked`, and so block release? If it does, `/gstack-verify` is not advisory."
+    }
+  ]
+}

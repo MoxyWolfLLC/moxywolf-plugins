@@ -1,0 +1,106 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": null,
+  "scope_sha256": "d95381a3a6cfda73237be2df0abdf52143722e682710ab8fdb02f2376d3cacb0",
+  "reviewed_at": "2026-11-12T00:03:27+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 4132,
+      "cache_read_input_tokens": 5430,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11155,
+      "output_tokens": 2982,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2107,
+      "cache_read_input_tokens": 5430,
+      "cache_creation_input_tokens": 4944,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4944,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 10860,
+    "write": 4944
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate is GitHub's"
+      ],
+      "question": "Is the goal's brief pull request (which adds goals/<id>/, a CODEOWNERS path) a 'goal's pull request into main' that goal-envelope fails, or does it target a different branch? If it targets main, how can it pass goal-envelope?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "The pre-merge gate is GitHub's",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "What do the lane states 'closed' and 'wide' mean, who sets them, and where is the current state recorded?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "The 'Boundary tests' section it points to is not in the plan. How is 'the three boundary tests have run and their findings are recorded' decided?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "The pre-merge gate is GitHub's",
+        "Coverage is mandatory"
+      ],
+      "question": "Must the lane-wide 'clean whole-goal review' have coverage 'checked', or can a recorded owner exception stand in for it?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "One release path, checked by code",
+        "Coverage is mandatory"
+      ],
+      "question": "When the owner merges a clean review whose coverage isn't 'checked' and no exception was recorded before the merge, is the item merged_unreviewed, or is it in a state that record-release refuses?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "Keep /gstack-verify advisory; incomplete verification must remain visible",
+        "Coverage is mandatory"
+      ],
+      "question": "Does incomplete /gstack-verify output feed the review coverage status? If so, it blocks release and is no longer advisory."
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "Keep low-risk, authorized work autonomous. Human approval belongs at consequential boundaries"
+      ],
+      "question": "What makes an action 'consequential' or 'low-risk', so that human approval requirements can be decided?"
+    }
+  ]
+}
