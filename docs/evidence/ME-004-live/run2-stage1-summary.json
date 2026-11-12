@@ -1,0 +1,52 @@
+{
+  "total": 4,
+  "ok": 4,
+  "failed": 0,
+  "wall_sec": 85.97,
+  "per_job": [
+    {
+      "id": "s1-analyst",
+      "model": "openai/gpt-4o",
+      "ok": true,
+      "elapsed_sec": 5.26,
+      "cache": {
+        "read": 0,
+        "write": 0,
+        "requested": false
+      }
+    },
+    {
+      "id": "s1-challenger",
+      "model": "google/gemini-2.5-flash",
+      "ok": true,
+      "elapsed_sec": 11.14,
+      "cache": {
+        "read": 0,
+        "write": 0,
+        "requested": false
+      }
+    },
+    {
+      "id": "s1-synthesist",
+      "model": "x-ai/grok-4.3",
+      "ok": true,
+      "elapsed_sec": 20.93,
+      "cache": {
+        "read": 128,
+        "write": 0,
+        "requested": false
+      }
+    },
+    {
+      "id": "s1-strategist",
+      "model": "anthropic/claude-sonnet-5",
+      "ok": true,
+      "elapsed_sec": 85.97,
+      "cache": {
+        "read": 0,
+        "write": 0,
+        "requested": true
+      }
+    }
+  ]
+}

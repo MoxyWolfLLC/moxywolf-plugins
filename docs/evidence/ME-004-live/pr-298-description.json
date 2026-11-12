@@ -1,0 +1,13 @@
+{
+ "fetched_at": "2026-11-12T05:39:57Z",
+ "source": "GET repos/MoxyWolfLLC/moxywolf-plugins/pulls/298",
+ "html_url": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/298",
+ "number": 298,
+ "title": "council 0.13.0: ME-004, Anthropic jobs ask for caching and log what it did",
+ "user": "moxywolf-agent[bot]",
+ "created_at": "2026-11-12T04:38:44Z",
+ "updated_at": "2026-11-12T05:10:39Z",
+ "base": "build/SR-002-constraint-sweep",
+ "head": "build/ME-004-council-cache",
+ "body": "ME-004 from DESIGN.md (council 0.13.0, marketplace 1.165.0). **Stacked on #297 (SR-002)**: the base is that branch, and this retargets to `main` once #297 merges. It does not merge before then.\n\n`openrouter_dispatch.py` adds top-level `cache_control` to `anthropic/` jobs unless the job sets `\"cache\": false`, and records `cache: {read, write, requested}` per job in each result and in `_summary.json`. A job that never asked for caching is reported as caching not requested.\n\n**Live result** (`docs/evidence/ME-004-live.md`): in a real deliberation Claude wrote 13,450 tokens to the cache across stages 2 and 3 and read none; its 320-token stage 1 prompt was below the cache minimum. A cost with no saving, as the item predicted. Nothing is switched off: whether to set `\"cache\": false` in the deliberation engine's jobs is Dorian's call.\n\nAlso seen, not part of this item: at the documented 3,000-token cap the Claude slot returned empty content at stage 1.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nhttps://claude.ai/code/session_01JPBmVTEY1zeYMoA2iD2Esu"
+}

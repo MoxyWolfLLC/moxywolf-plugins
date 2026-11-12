@@ -59,6 +59,20 @@ from openrouter_key import load_key, KeyNotFoundError  # noqa: E402
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
+def cache_usage(data) -> dict:
+    """ME-004.2: {read, write} from OpenRouter's usage.prompt_tokens_details, or null with the reason.
+    Never zero for a field the response didn't carry."""
+    d = ((data or {}).get("usage") or {}).get("prompt_tokens_details") if isinstance(data, dict) else None
+    if not isinstance(d, dict):
+        return {"read": None, "write": None, "reason": "response carried no usage.prompt_tokens_details"}
+    read, write = d.get("cached_tokens"), d.get("cache_write_tokens")
+    missing = [k for k, v in (("cached_tokens", read), ("cache_write_tokens", write)) if not isinstance(v, int)]
+    if missing:   # review F1: the reason names exactly the absent field(s)
+        return {"read": read if isinstance(read, int) else None, "write": write if isinstance(write, int) else None,
+                "reason": "prompt_tokens_details lacked " + " and ".join(missing)}
+    return {"read": read, "write": write}
+
+
 def call_openrouter(job: dict, api_key: str, timeout: int) -> dict:
     """Single OpenRouter call. Returns a result dict; never raises."""
     payload = {
@@ -68,6 +82,9 @@ def call_openrouter(job: dict, api_key: str, timeout: int) -> dict:
     for k in ("temperature", "max_tokens", "top_p", "frequency_penalty", "presence_penalty"):
         if k in job:
             payload[k] = job[k]
+    # ME-004.1: Anthropic jobs ask for automatic caching unless the job opts out with "cache": false
+    if job["model"].startswith("anthropic/") and job.get("cache", True) is not False:
+        payload["cache_control"] = {"type": "ephemeral"}
 
     req = urllib.request.Request(
         OPENROUTER_URL,
@@ -91,6 +108,7 @@ def call_openrouter(job: dict, api_key: str, timeout: int) -> dict:
             "ok": True,
             "model": job["model"],
             "elapsed_sec": round(time.time() - started, 2),
+            "cache": {**cache_usage(data), "requested": "cache_control" in payload},   # ME-004.2
             "response": data,
         }
     except urllib.error.HTTPError as e:
@@ -154,7 +172,7 @@ def main() -> int:
         "failed": sum(1 for r in results if not r["ok"]),
         "wall_sec": round(time.time() - started, 2),
         "per_job": [
-            {"id": r["id"], "model": r["model"], "ok": r["ok"], "elapsed_sec": r["elapsed_sec"]}
+            {"id": r["id"], "model": r["model"], "ok": r["ok"], "elapsed_sec": r["elapsed_sec"], "cache": r.get("cache")}
             for r in results
         ],
     }
