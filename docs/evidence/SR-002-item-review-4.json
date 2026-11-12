@@ -1,0 +1,107 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-002",
+  "scope_sha256": "699e3c5ad3328dbfea476c9e78e618883bafd8ae19876213b9c20231997c1cb9",
+  "reviewed_at": "2026-11-11T18:16:32+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 155,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6876,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6876,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 8624,
+      "output_tokens": 2812,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 4634,
+      "cache_read_input_tokens": 6876,
+      "cache_creation_input_tokens": 930,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 930,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 6876,
+    "write": 7806
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "The pre-merge gate",
+        "Coverage is mandatory"
+      ],
+      "scenario": "A change to a non-CODEOWNERS path has a clean cross-vendor review but coverage `unavailable`. The gate says every other change merges with no human approval. Coverage is mandatory requires the owner's recorded exception at the head and says the owner makes the merge.",
+      "smallest_change": "In the pre-merge gate, extend the exception 'bar that closed-lane goal pull request' to 'bar that closed-lane goal pull request and any change whose review coverage isn't `checked`'."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate"
+      ],
+      "question": "Does 'a change touching any of those' cover only the listed gate paths, or also the owned CI checks, the holdout and the brief pull request? Is the agent's own tooling still included after the 2026-10-05 amendment?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "The pre-merge gate",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Does a wide-lane goal pull request that touches `goals/` or `goal-runs/` (CODEOWNERS paths) still need his approving review at the head, or does it merge as the bot on a clean whole-goal review?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "The constraint cites *Boundary tests* below, but the plan has no such section. Have the three tests run, and does the bar on new item IDs currently apply?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "One release path"
+      ],
+      "question": "For an item merged without review whose merge `record-release` recorded, does it read `review` with 'Merged unreviewed', or move `review` \u2192 `done` directly? Both 'Until then' rules apply to it."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "SR-002.1",
+        "SR-002.2"
+      ],
+      "question": "If Dorian declines a contradiction with a ruling sentence and a later run lists it again, or if leftovers remain after the sixth run, does `check --constraints` fail? That decides whether criterion 5's leniency applies to ME-004."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "SR-002.4"
+      ],
+      "question": "When `--items` names more than one item, which item's id does the 'reviewed item's id' test use to accept a `constraints` label?"
+    }
+  ]
+}

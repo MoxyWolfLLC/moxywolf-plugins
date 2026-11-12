@@ -1,0 +1,157 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-002",
+  "scope_sha256": "71bbe33dbffde755596e5726c73ecab28656e64c7895976efd0de1663794f014",
+  "reviewed_at": "2026-11-11T18:08:42+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 213,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6177,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6177,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 7983,
+      "output_tokens": 2720,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 3659,
+      "cache_read_input_tokens": 6177,
+      "cache_creation_input_tokens": 1284,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 1284,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 6177,
+    "write": 7461
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "Coverage is mandatory",
+        "One release path, checked by code"
+      ],
+      "scenario": "A review's coverage is not_run, unavailable, unusable or broken, and Dorian records a human exception. Coverage is mandatory says it can then reach released. One release path says review to released needs a clean, passing review at the merged head, and a merge with no passing review stays merged_unreviewed. SR-002.3 lists this as a known clash.",
+      "smallest_change": "State that a recorded human exception makes a non-checked-coverage review count as passing for review to released. Alternatively, drop the exception route and keep such items at merged_unreviewed."
+    },
+    {
+      "id": "C2",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes",
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "scenario": "A goal pull request touches no CODEOWNERS path, for example on a product repository. 'Every other change merges with no human approval' and the ruleset's zero required approvals let it merge. The same constraint says a goal reaches main only through 'his approval of the goal pull request'.",
+      "smallest_change": "Say that a goal pull request needs Dorian's approving review at its head whatever paths it touches, and that this is the one exception to 'every other change merges with no human approval'. Or say goal pull requests always touch a goals/ or goal-runs/ path, which is a CODEOWNERS path."
+    },
+    {
+      "id": "C3",
+      "requirements": [
+        "One release path, checked by code",
+        "One release path, checked by code"
+      ],
+      "scenario": "An item such as SR-002 (SR-002.8) is merged with a clean review. released to done is the only route to done, but vocab_check.py refuses released until B-a's first fix. The interim rule only covers items merged without review, which read 'review' with 'Merged unreviewed'. A properly reviewed merge has no valid status.",
+      "smallest_change": "Add an interim rule for reviewed merges. For example, they read 'review' with 'Released at <head>' in the status line until released joins the vocabulary. Or make adding released and merged_unreviewed to vocab_check.py a precondition for finishing any item."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "Does 'A change touching any of those' mean the CODEOWNERS-listed gate paths or the agent-tooling files named just before it? The agent-tooling files were removed from CODEOWNERS."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "One release path, checked by code"
+      ],
+      "question": "What are the statuses of PR #24 (XE-011 and SM-002, review never established) and PR #71 and #73 (merged with no review and no recorded exception)? Are they merged_unreviewed without an exception, or something else?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "One release path, checked by code"
+      ],
+      "question": "Is adding released and merged_unreviewed to the status vocabulary barred 'vocabulary growth', or exempt because B-a's first fix produces it?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "Test the boundaries before adding item IDs",
+        "SR-002"
+      ],
+      "question": "Is the Boundary tests section the constraint points to present? Is the constraint still in force, given the plan says it has been waived for every item since September?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "SR-002.2",
+        "SR-002.5",
+        "SR-002.7"
+      ],
+      "question": "If Dorian declines a contradiction, or the sweep ends at six runs with contradictions left, is the constraints record open? Does ME-004's re-run in SR-002.7 then proceed under SR-002.5's strict rule?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "SR-002.1",
+        "SR-002.2"
+      ],
+      "question": "Which record does check read: constraints.json, which each run presumably overwrites, or the per-run docs/evidence/SR-002-sweep-<n>.json copies?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "SR-002.1"
+      ],
+      "question": "What is 'the same advisor rule' for constraints mode? The plan does not define it."
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "SR-002.5",
+        "SR-002.1"
+      ],
+      "question": "Is 'check <doc> --constraints', which has no --items, whole-file mode, where every contradiction reads as item? What does scope mean in a constraints record?"
+    },
+    {
+      "id": "A9",
+      "requirements": [
+        "SR-002.4"
+      ],
+      "question": "How is scope decided for an entry that names several items, or an item id that is a substring of another id, for example ME-00 and ME-004?"
+    },
+    {
+      "id": "A10",
+      "requirements": [
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "The constraint cites the 'eleventh objective' and the rule 'next item only when asked'. Neither is stated in this plan, so what do they require?"
+    }
+  ]
+}

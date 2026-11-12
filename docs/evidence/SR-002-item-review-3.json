@@ -1,0 +1,119 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "SR-002",
+  "scope_sha256": "7079d2c744b258a301f2c342fbf46b1b02d5f8bd7a3b93c3bd6cde6c971896b0",
+  "reviewed_at": "2026-11-11T18:14:03+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 5585,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6721,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6721,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 13899,
+      "output_tokens": 1541,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2663,
+      "cache_read_input_tokens": 6721,
+      "cache_creation_input_tokens": 5992,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5992,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 6721,
+    "write": 12713
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "SR-002.1",
+        "SR-002.2",
+        "SR-002.3"
+      ],
+      "scenario": "A constraints run samples one of the seeded known clashes and the model lists it as a contradiction. SR-002.1 makes it block in a constraints record, and SR-002.2's stop rule counts it as a contradiction. SR-002.3 says seeded items don't count for check or the stop rule. Nothing says how the script tells seeded entries from others.",
+      "smallest_change": "In SR-002.3, say seeded entries are matched by fixed ids in the record and filtered out before check and the stop count. Alternatively, drop 'don't count' and let them block like any other contradiction."
+    },
+    {
+      "id": "C2",
+      "requirements": [
+        "Coverage is mandatory",
+        "One release path, checked by code"
+      ],
+      "scenario": "A clean review has coverage 'unavailable'. The owner records his exception in his words at the head before the merge, and the merge happens. Coverage is mandatory says this counts as a passing review for record-release. One release path says a merge with no passing review stays merged_unreviewed and 'carries the owner's exception in his words'.",
+      "smallest_change": "State in One release path that a recorded coverage exception makes the review passing, so the item goes to released. Reserve merged_unreviewed for merges with no clean review at the head."
+    },
+    {
+      "id": "C3",
+      "requirements": [
+        "One release path, checked by code",
+        "Test the boundaries before adding item IDs"
+      ],
+      "scenario": "One release path adds 'released' and 'merged_unreviewed' to the status vocabulary with B-a's first fix. Test the boundaries says vocabulary work doesn't grow until it shows value against the boundary tests.",
+      "smallest_change": "Add to Test the boundaries a sentence exempting the vocabulary additions named in One release path."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "SR-002.4"
+      ],
+      "question": "When the reviewed item's id is also one a constraint's own text cites (e.g. GA-011), is a constraints-scope contradiction naming it downgraded to item?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "Which paths does 'a change touching any of those' cover: only the gate paths, or also the goal-folder paths and the goal brief pull request?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "One release path, checked by code"
+      ],
+      "question": "What is the status of PR #24, #71 and #73? The plan says the review state of #24 was never established and #71 and #73 had no recorded exception, but it gives them no status."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "The pre-merge gate is GitHub's, sized to the stakes",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
+      ],
+      "question": "Does a pull request that adds transcript-derived files merge under the ruleset with no human approval, or does the publish gate's owner confirmation also apply to it?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "SR-002.2",
+        "SR-002.3"
+      ],
+      "question": "Must each seeded entry end in an edit to the doc under SR-002.2, or is it only listed for Dorian?"
+    }
+  ]
+}
