@@ -176,6 +176,10 @@ Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or
 - **Phase 5** ✅: Autoresearch — plugin's own prompts self-improve from usage data via `/council-optimize`
 - **Phase 6** ✅ (current): Vault integration — reads organizational context before deliberation, writes decision records to Obsidian vault, syncs model performance and routing intelligence to vault for cross-session learning
 
+## Version History
+
+- **0.13.0**: ME-004. `openrouter_dispatch.py` sends top-level `cache_control` on `anthropic/` jobs (a job's `"cache": false` opts out) and records `cache: {read, write}` from OpenRouter's `usage.prompt_tokens_details` in each result and in `_summary.json`, `null` with a reason when the fields are absent, plus `cache.requested`, so a job that never asked for caching is reported as caching not requested and not as a miss. Kept to measure whether caching pays on one-shot council calls; whether to turn it off is Dorian's call. Test: `scripts/test_openrouter_dispatch.py`.
+
 ## License
 
 MIT — MoxyWolf LLC
