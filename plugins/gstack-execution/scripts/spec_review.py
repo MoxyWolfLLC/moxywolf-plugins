@@ -211,7 +211,8 @@ def effective_scope(entry, item):
     requirements names that item's id, matched whole (ME-00 is not ME-004). Anything else is "item"."""
     if entry.get("scope") != "constraints" or not item:
         return "item"
-    named = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item) + r"(?![A-Za-z0-9])")
+    # review F1: `-` continues an id (ME-004-extra is its own item, as _heading_id reads it); `.` starts a criterion
+    named = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item) + r"(?![A-Za-z0-9-])")
     return "item" if any(named.search(str(r)) for r in entry.get("requirements") or ()) else "constraints"
 
 
@@ -570,6 +571,8 @@ def selftest():
         assert all(r["cache_control"] == {"type": "ephemeral"} for r in c3.calls) and len(c3.calls) == 3
         saved = json.loads(record_path(doc, "R-001").read_text())
         assert saved["cache"] == {"read": 1850, "write": 860} and "cache_reason" not in saved, saved
+        import contextlib
+        import io
         # SR-002.6: the constraints are reviewed alone, and an item's review blocks on the item
         clean = {"contradictions": [], "ambiguities": []}
         cname, csent = scope_constraints(DEMO)
@@ -612,8 +615,14 @@ def selftest():
         e = {"scope": "constraints", "requirements": ["cites R-0011 and XR-001", "GA-011"]}
         assert effective_scope(e, "R-001") == "constraints" and effective_scope(e, "GA-011") == "item"
         assert effective_scope(e, None) == "item", "whole-file mode reads every contradiction as item"
-        import contextlib
-        import io
+        # review F1: a hyphenated extension is a different item; a criterion suffix is the same one
+        ext = {**among["contradictions"][0], "requirements": ["Offline first", "R-001-extra.1"]}
+        assert effective_scope(ext, "R-001") == "constraints" and effective_scope({**ext, "requirements": ["R-001.2"]}, "R-001") == "item"
+        cmd_run(doc, ["R-001"], post=stub_post({"contradictions": [ext], "ambiguities": []}))
+        ok, why = check(doc, ["R-001"])
+        assert ok and "R-001 C1 (Offline first, R-001-extra.1)" in why, why
+        with contextlib.redirect_stdout(io.StringIO()) as out:   # review F2: no subcommand prints help, exit 1
+            assert main([]) == 1 and "usage:" in out.getvalue()
         with contextlib.redirect_stderr(io.StringIO()) as err:
             assert main(["run", str(doc), "--constraints", "--items", "R-001"]) == 1 and "takes no --items" in err.getvalue()
         cpath.unlink(); cpath.with_suffix(".md").unlink()
@@ -710,7 +719,7 @@ def main(argv=None):
     if a.selftest:
         return selftest()
     try:
-        if a.constraints and a.items:
+        if getattr(a, "constraints", False) and getattr(a, "items", None):   # review F2: no subcommand has neither
             raise Refused("--constraints reviews the constraints alone; it takes no --items")
         if a.cmd == "run":
             return cmd_run(a.doc, a.items, constraints=a.constraints)
