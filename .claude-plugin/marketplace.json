@@ -961,8 +961,8 @@
     {
       "name": "sales-department",
       "source": "./plugins/sales-department",
-      "description": "The Sales department agent the Chief of Staff routes to: account qualification, opportunity and pipeline analysis, sales preparation and draft outreach. It borrows the installed sales: skills as specialists, and it never sends, spends or writes to a customer system without Dorian's recorded approval.",
-      "version": "0.1.1",
+      "description": "The Sales department agent the Chief of Staff routes to: account qualification, opportunity and pipeline analysis, sales preparation and draft outreach, plus the SDR operation it runs inside bounded delegation: prospecting, review tables, sequences, reply triage, suppression, credit watch, daily reporting, and CRM upkeep. It borrows the installed sales: skills as specialists, and it never sends, spends or writes to a customer system outside those bounds without Dorian's recorded approval.",
+      "version": "0.2.0",
       "author": {
         "name": "MoxyWolf LLC"
       },

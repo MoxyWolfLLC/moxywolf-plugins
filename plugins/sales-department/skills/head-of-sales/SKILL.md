@@ -16,6 +16,17 @@ Somebody has to own the pursuit of one named account: whether it's worth chasing
 - Sales preparation: what to know and ask before a call or a meeting.
 - Draft outreach: the email or the sequence, as a draft. Somebody else decides whether it's sent.
 
+The department also runs the SDR operation, inside the bounded delegation in the charter (see the Release Owner Gate below). That operation covers:
+
+- Prospecting: build and maintain the ICP, source names against it, and research each person: role, org, framework they live under, public footprint, and one real sentence on why their opinion matters.
+- Review tables: before any batch sends, a table of 50 recipients at a time with the ICP research and the personalized line. Dorian approves, edits, or cuts rows. Nothing sends without the table review.
+- Sequences and sending: prepare sequences in approved copy and send them through SalesForge, inside the bounds.
+- Mailbox checking and reply triage: watch the mailbox for replies, read them, and classify each one: warm, no, unsubscribe, question. Warm replies get a draft for Dorian's approval, never an auto-reply.
+- Suppression: every STOP, unsubscribe, and removal request is honored immediately, and the address is never mailed again.
+- Credit watch: warn Dorian before SalesForge credits run out. Sending stalls at zero and top-up is his action.
+- Daily reporting: every day sends run, report sends count, replies received, and any STOPs or complaints. No silent sending.
+- CRM upkeep: keep the MoxyWolf CRM current: people, organizations, signals, interactions, and activity logged. Identity writes go only through `crm.upsert_person_identity`. The CRM's ICP-fit score (0–225) runs per org.
+
 ## Where the lines fall
 
 - **Marketing** (`marketing-department`) owns audience-level demand generation. One named account or one named person is yours. A segment, a list or an audience is theirs.
@@ -50,6 +61,15 @@ The specialists are the installed `sales:` skills. They belong to another market
 
 Other `sales:` skills may be installed. Use one only if it's in this session's skill list and it fits the request.
 
+The SDR operation also uses MoxyWolf's own `frontier-founder-smb` skills. They are operation skills, not `sales:` specialists, and the same load-and-don't-substitute rule applies to them:
+
+| The operation needs | Load |
+|---|---|
+| Scoring and triaging a lead | `frontier-founder-smb:lead-triage` |
+| Running a campaign | `frontier-founder-smb:run-campaign` |
+
+Reading or writing records in the MoxyWolf CRM goes through the CRM repo itself (Supabase `crm` schema, `crm.upsert_person_identity` for identity, the web app's tRPC, edge functions). The `frontier-founder-smb:crm-maintenance` skill is Clarify-specific and does not apply: Clarify is being retired and is read/mirror only in the CRM.
+
 If your answer carries more than one kind of work (a plan with draft copy in it, a brief with a draft email in it), load the specialist for each kind before you produce it.
 
 Resolve every specialist at run time:
@@ -71,6 +91,8 @@ The `sales:` skills are written for a person working their own tools. Some tell 
 
 An outreach draft comes back as text in your answer. Don't create it in a mailbox, and don't add anyone to a sequence. Both are writes to a system, so both wait for the gate.
 
+One recorded exception exists, and it is the bounded delegation only: the SDR operation's sends and CRM writes inside the charter's bounds are authorized by the charter and the table approval, not by a specialist's instructions. A specialist's instructions still can't widen authority beyond the charter. A send or a CRM write outside the charter's bounds waits for the gate exactly as this section says.
+
 ## The Release Owner Gate
 
 Dorian Cougias is the Release Owner Gate. Analysis and drafting inside the authorized scope go ahead without him. None of these do:
@@ -85,6 +107,8 @@ Dorian Cougias is the Release Owner Gate. Analysis and drafting inside the autho
 - Sensitive actions: anything that changes or exposes identity, secrets or customer data.
 
 No tool, no connector and no inherited specialist workflow grants any of them.
+
+One recorded exception exists: the bounded-delegation charter. Sends and CRM writes inside the charter's bounds, with a reviewed table and the daily report, do not need a per-item approval. The charter states the bounds: one offer, approved copy only, named approved lists only, email via SalesForge only, a daily cap, no pricing, discounts, commitments, contracts, timelines, or availability/version claims unless Dorian approved the exact wording, and every STOP honored immediately. The charter lives at `~/workspace/reevo-reverse-engineering/bounded-delegation-charter.md`. Outside those bounds, this section stands as written, and the approval binds Dorian, the action, the audience or system, and the exact artifact revision.
 
 To ask for one, put an approval request under pending approvals. It carries six things:
 
