@@ -211,7 +211,8 @@ def effective_scope(entry, item):
     requirements names that item's id, matched whole (ME-00 is not ME-004). Anything else is "item"."""
     if entry.get("scope") != "constraints" or not item:
         return "item"
-    named = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item) + r"(?![A-Za-z0-9])")
+    # review F1: `-` continues an id (ME-004-extra is its own item, as _heading_id reads it); `.` starts a criterion
+    named = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item) + r"(?![A-Za-z0-9-])")
     return "item" if any(named.search(str(r)) for r in entry.get("requirements") or ()) else "constraints"
 
 
@@ -334,22 +335,27 @@ def check(doc, items=None, constraints=False):
     if constraints and items:
         return False, "spec_review_missing: --constraints takes no --items"
     text, names, asks, noted = doc.read_text(), [], [], []
+
+    def no(reason):   # review F1: a failing check still lists the constraints findings it set aside
+        return False, reason + (f"; also {len(noted)} contradiction(s) among the constraints, not blocking under the "
+                                "clean constraints record:" + "".join(noted) if noted else "")
+
     for item in (items or [None]):
         hint = f"run `spec_review.py run {doc}{' --constraints' if constraints else ' --items ' + item if item else ''}`"
         try:
             name, sent = scope_constraints(text) if constraints else scope(text, item)
         except Refused as e:
-            return False, f"spec_review_missing: {e}"
+            return no(f"spec_review_missing: {e}")
         rp = record_path(doc, name)
         if not rp.exists():
-            return False, f"spec_review_missing: no {rp.relative_to(doc.parent)} beside {doc.name}; {hint}"
+            return no(f"spec_review_missing: no {rp.relative_to(doc.parent)} beside {doc.name}; {hint}")
         rec = json.loads(rp.read_text())
         if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
-            return False, f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}"
+            return no(f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}")
         if malformed(rec):
-            return False, f"spec_review_missing: {rp.name} is malformed ({malformed(rec)}); {hint}"
+            return no(f"spec_review_missing: {rp.name} is malformed ({malformed(rec)}); {hint}")
         if (rec.get("advisor_calls") or 0) < 1:
-            return False, f"spec_review_missing: {rp.name} records no advisor call; {hint}"
+            return no(f"spec_review_missing: {rp.name} records no advisor call; {hint}")
         open_ = rec.get("contradictions") or []
         # SR-002.4/.5: an item's constraints-scoped contradictions don't fail it while the constraints
         # record is clean; with that record missing, stale or open they block as before
@@ -361,11 +367,11 @@ def check(doc, items=None, constraints=False):
                 noted += [f"\n  {name} {c.get('id', '?')} ({', '.join(map(str, c['requirements']))}): {c['scenario']}" for c in among]
             else:
                 ids = ", ".join(c.get("id", "?") for c in among)
-                return False, (f"spec_review_open: {name} has {len(among)} contradiction(s) among the constraints ({ids}) and "
-                               f"no clean constraints record ({c_why.split(';')[0]}); run `spec_review.py run {doc} --constraints`")
+                return no((f"spec_review_open: {name} has {len(among)} contradiction(s) among the constraints ({ids}) and "
+                           f"no clean constraints record ({c_why.split(';')[0]}); run `spec_review.py run {doc} --constraints`"))
         if open_:
             ids = ", ".join(c.get("id", "?") for c in open_)
-            return False, f"spec_review_open: {name} has {len(open_)} open contradiction(s) ({ids}); amend {doc.name}, then re-run"
+            return no(f"spec_review_open: {name} has {len(open_)} open contradiction(s) ({ids}); amend {doc.name}, then re-run")
         names.append(name)
         asks += [f"\n  {name} {a['id']} ({', '.join(map(str, a['requirements']))}): {a['question']}" for a in rec["ambiguities"]]
     tail = f"; {len(asks)} open ambiguit{'y' if len(asks) == 1 else 'ies'}, not blocking:" + "".join(asks) if asks else ""
@@ -565,6 +571,8 @@ def selftest():
         assert all(r["cache_control"] == {"type": "ephemeral"} for r in c3.calls) and len(c3.calls) == 3
         saved = json.loads(record_path(doc, "R-001").read_text())
         assert saved["cache"] == {"read": 1850, "write": 860} and "cache_reason" not in saved, saved
+        import contextlib
+        import io
         # SR-002.6: the constraints are reviewed alone, and an item's review blocks on the item
         clean = {"contradictions": [], "ambiguities": []}
         cname, csent = scope_constraints(DEMO)
@@ -595,11 +603,26 @@ def selftest():
             cmd_run(doc, ["R-001"], post=stub_post({"contradictions": [entry], "ambiguities": []}))
             ok, why = check(doc, ["R-001"])
             assert not ok and "has 1 open contradiction(s) (C1)" in why, why
+        # review F1: a record with both scopes fails on the item's and still lists the constraints one
+        both = [among["contradictions"][0], {"id": "C2", "requirements": ["R-001.1", "R-001.2"], "scope": "item",
+                                             "scenario": "offline", "smallest_change": "drop 2"}]
+        cmd_run(doc, ["R-001"], post=stub_post({"contradictions": both, "ambiguities": []}))
+        ok, why = check(doc, ["R-001"])
+        assert not ok and "has 1 open contradiction(s) (C2)" in why and "also 1 contradiction(s) among the constraints" in why and "R-001 C1" in why, why
+        cmd_run(doc, ["R-001"], post=stub_post(among)); cmd_run(doc, ["R-002"], post=stub_post(conflict))   # a later item fails
+        ok, why = check(doc, ["R-001", "R-002"])
+        assert not ok and "R-002 has 1 open contradiction(s)" in why and "R-001 C1" in why, why
         e = {"scope": "constraints", "requirements": ["cites R-0011 and XR-001", "GA-011"]}
         assert effective_scope(e, "R-001") == "constraints" and effective_scope(e, "GA-011") == "item"
         assert effective_scope(e, None) == "item", "whole-file mode reads every contradiction as item"
-        import contextlib
-        import io
+        # review F1: a hyphenated extension is a different item; a criterion suffix is the same one
+        ext = {**among["contradictions"][0], "requirements": ["Offline first", "R-001-extra.1"]}
+        assert effective_scope(ext, "R-001") == "constraints" and effective_scope({**ext, "requirements": ["R-001.2"]}, "R-001") == "item"
+        cmd_run(doc, ["R-001"], post=stub_post({"contradictions": [ext], "ambiguities": []}))
+        ok, why = check(doc, ["R-001"])
+        assert ok and "R-001 C1 (Offline first, R-001-extra.1)" in why, why
+        with contextlib.redirect_stdout(io.StringIO()) as out:   # review F2: no subcommand prints help, exit 1
+            assert main([]) == 1 and "usage:" in out.getvalue()
         with contextlib.redirect_stderr(io.StringIO()) as err:
             assert main(["run", str(doc), "--constraints", "--items", "R-001"]) == 1 and "takes no --items" in err.getvalue()
         cpath.unlink(); cpath.with_suffix(".md").unlink()
@@ -696,7 +719,7 @@ def main(argv=None):
     if a.selftest:
         return selftest()
     try:
-        if a.constraints and a.items:
+        if getattr(a, "constraints", False) and getattr(a, "items", None):   # review F2: no subcommand has neither
             raise Refused("--constraints reviews the constraints alone; it takes no --items")
         if a.cmd == "run":
             return cmd_run(a.doc, a.items, constraints=a.constraints)
