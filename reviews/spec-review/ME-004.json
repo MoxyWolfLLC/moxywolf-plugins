@@ -2,26 +2,37 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "ME-004",
-  "scope_sha256": "7f1dc48eb08e57fbefd6a1af8d0d1c69e4b7eb3e75ba00e2328fbdc65493a597",
-  "reviewed_at": "2026-11-12T00:06:02+00:00",
+  "scope_sha256": "bda608b332abb7c57deb5dd7e84e877325d03af3cf96c03253a055f614c14787",
+  "reviewed_at": "2026-11-12T00:21:34+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 3688,
+      "output_tokens": 5236,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 6450,
+      "cache_creation_input_tokens": 6536,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 6450,
+        "ephemeral_5m_input_tokens": 6536,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 11731,
-      "output_tokens": 2382,
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6536,
+      "cache_creation_input_tokens": 5276,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5276,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 13452,
+      "output_tokens": 1623,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -33,32 +44,21 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1640,
-      "cache_read_input_tokens": 6450,
-      "cache_creation_input_tokens": 4280,
+      "output_tokens": 1124,
+      "cache_read_input_tokens": 11812,
+      "cache_creation_input_tokens": 136,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 4280,
+        "ephemeral_5m_input_tokens": 136,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 6450,
-    "write": 10730
+    "read": 18348,
+    "write": 11948
   },
-  "contradictions": [
-    {
-      "id": "C1",
-      "requirements": [
-        "ME-004.2",
-        "ME-004.4"
-      ],
-      "scope": "item",
-      "scenario": "The live deliberation includes a job with \"cache\": false or a non-Anthropic model. It records read 0 and write 0 because no caching was requested. ME-004.4 then requires reporting it as 'below the cache minimum', which is false.",
-      "smallest_change": "Limit the 'both 0 means below the cache minimum' rule to jobs that sent cache_control. Report jobs that did not send it as 'caching not requested'."
-    }
-  ],
+  "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
@@ -66,45 +66,30 @@
         "ME-004.3",
         "ME-004.2"
       ],
-      "question": "Does 'the field' and 'its absence' mean the request's cache_control or the recorded cache field?"
+      "question": "In criterion 3, does 'the field' mean the request-side `cache_control` or the recorded `cache` result? If it means the result, 'its absence on a non-Anthropic job and on cache:false' conflicts with criterion 2, which says those jobs record the same cache fields from whatever OpenRouter returns. Decide which field the test asserts is absent."
     },
     {
       "id": "A2",
       "requirements": [
+        "ME-004.4",
         "ME-004.2"
       ],
-      "question": "What does cache.reason hold when both fields are absent, when only one is, or when neither is? EV-001 is cited but not stated, and the cache shape in 'Links introduced' is {read, write} with no reason."
+      "question": "Criterion 4 gives the reading for 'null' as unverified, but the readings for reads and writes are stated per field. How is a job reported when only one field is null (read 0 with write null, or read above 0 with write null)? Is it unverified, or does the non-null field decide?"
     },
     {
       "id": "A3",
       "requirements": [
-        "ME-004.4"
+        "ME-004.2"
       ],
-      "question": "How is a mixed case classified, for example reads 0 with writes null?"
+      "question": "Criterion 2 relies on EV-001, which the plan doesn't state, for the form of `cache.reason`. What values does `cache.reason` take, and what does it say when both fields are present? What does `_summary.json` carry for a job whose result isn't successful, given that only successful results record `cache`?"
     },
     {
       "id": "A4",
       "requirements": [
-        "ME-004.4"
+        "ME-004 Links introduced",
+        "ME-004.2"
       ],
-      "question": "Is the cost, saving, below-minimum or unverified verdict given per job or per deliberation, when _summary.json carries cache per job?"
-    },
-    {
-      "id": "A5",
-      "requirements": [
-        "ME-004.5",
-        "Shared by ME-002 and ME-003"
-      ],
-      "question": "Does the top-level marketplace version move once or twice when both the council bump and the gstack-execution bump land?"
-    },
-    {
-      "id": "A6",
-      "requirements": [
-        "Shared by ME-002 and ME-003",
-        "ME-004.3",
-        "The pre-merge gate is GitHub's"
-      ],
-      "question": "Does the run_all_tests.py clause apply to ME-004's new test, and does registering it require editing run_all_tests.py, a CODEOWNERS path that would need Dorian's approving review?"
+      "question": "The 'Links introduced' paragraph says each result gains `cache: {read, write}` and that the numbers come from OpenRouter, never estimated. Criterion 2 adds `cache.requested` and `cache.reason` under the same `cache` object, and neither comes from OpenRouter. Is the link's 'never estimated' guarantee limited to `read` and `write`? What does the link promise when a number is `null`?"
     }
   ]
 }
