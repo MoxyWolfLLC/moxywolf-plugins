@@ -2,26 +2,26 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "SR-002",
-  "scope_sha256": "c62a3186dc97c799da42560ca9e85158d5dad582b2a1938c6913903432af07f4",
-  "reviewed_at": "2026-11-12T00:04:57+00:00",
+  "scope_sha256": "0b6375155ee4a78baa2083a3e9d30147fe75daf840e59478734dfa9cb718ae8f",
+  "reviewed_at": "2026-11-12T03:42:31+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 6694,
+      "output_tokens": 12635,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7197,
+      "cache_creation_input_tokens": 7295,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7197,
+        "ephemeral_5m_input_tokens": 7295,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 15484,
-      "output_tokens": 2451,
+      "input_tokens": 21523,
+      "output_tokens": 2861,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -33,19 +33,19 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1100,
-      "cache_read_input_tokens": 7197,
-      "cache_creation_input_tokens": 7265,
+      "output_tokens": 2093,
+      "cache_read_input_tokens": 7295,
+      "cache_creation_input_tokens": 13670,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7265,
+        "ephemeral_5m_input_tokens": 13670,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 7197,
-    "write": 14462
+    "read": 7295,
+    "write": 20965
   },
   "contradictions": [],
   "ambiguities": [
@@ -54,31 +54,39 @@
       "requirements": [
         "SR-002.4"
       ],
-      "question": "When the reviewed item is one a constraint's text cites (e.g. GA-011), how is an entry that 'names the item's id' distinguished from a constraint merely citing it, given 'An id a constraint's own text cites ... doesn't count'?"
+      "question": "When the reviewed item's id is also an id a constraint's own text cites (e.g. reviewing GA-011), does an entry whose requirements list that id count as naming the reviewed item (read as `item`) or as a constraint-text citation that 'doesn't count' (stays `constraints`)?"
     },
     {
       "id": "A2",
       "requirements": [
-        "SR-002.1",
-        "SR-002.6"
+        "SR-002.2",
+        "SR-002.3",
+        "SR-002.7"
       ],
-      "question": "The plan as given has no '## Items and acceptance criteria' heading before SR-002, which sits as a ### subsection under the constraints. Where does the constraints scope end, and is SR-002 itself inside it?"
+      "question": "If an edit to the constraints (e.g. a seed ruling) comes after the six-run cap is spent, is any further run allowed, or does the record stay stale so item contradictions block under SR-002.5? What does 'After the sweep' mean for ME-004's re-run if the count can restart?"
     },
     {
       "id": "A3",
       "requirements": [
-        "A goal delegates item selection, not authority",
-        "The pre-merge gate is GitHub's, sized to the stakes"
+        "SR-002",
+        "Test the boundaries before adding item IDs"
       ],
-      "question": "Does 'a goal's folder' as a CODEOWNERS path mean goals/<id>/ only, or also goal-runs/<id>/, which the gate text says isn't owned (GO-011.2)?"
+      "question": "Is SR-002's waiver needed, given the narrowed rule says 'Any other new item needs no waiver'? Are `constraints.json`/`constraints.md` a 'new measurement report', and is `scope` 'a field an item adds to its own record'?"
     },
     {
       "id": "A4",
       "requirements": [
-        "SR-002.3",
-        "The pre-merge gate is GitHub's, sized to the stakes"
+        "One release path, checked by code"
       ],
-      "question": "The seed 'which paths \"a change touching any of those\" covers' quotes wording the gate no longer contains. Which requirement is it asking about, and is it still an open question?"
+      "question": "What status do the items behind PR #24 (XE-011, SM-002), #71 and #73 hold, given a review state 'never established' and merges with no review and no recorded exception?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "One release path, checked by code",
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "When does 'Until then' end for the interim `review` and `done` rules? The vocabulary words arrive 'with the first fix B-a produces', but B-a's evidence is already recorded."
     }
   ]
 }
