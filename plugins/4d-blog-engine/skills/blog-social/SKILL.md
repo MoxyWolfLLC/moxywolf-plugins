@@ -417,6 +417,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/social_score.py \
 
 Each call emits a scorecard scaffold (with 3-axis judgment scores empty) and a JSON sidecar with deterministic findings. Exit code 1 means format checks failed — fix the issues (length, hook position, per-post char limit, hashtag placement, external-link-in-body for LinkedIn Post) and re-run. **Don't proceed to STEP 7 until every file returns exit code 0.**
 
+**Prose lint (BP-003).** Every call also runs `scripts/prose_lint.py` in short-form on the post and prints its findings under a `Prose lint` heading, one line per finding with its rule id and severity; the JSON sidecar carries them as `lint_findings`, apart from the format `findings`. A Major or Medium lint finding fails the check (exit 1) even when the format passes: hold that post back, name each lint finding to the writer by rule id, rewrite, and re-run. A Minor finding (a closing zinger, a "Here's" opener) is printed and doesn't fail the check; show it to the writer, but don't hold the post back for it.
+
 For the LinkedIn Post specifically: if char count exceeds 2,900, the script flags it. Compress — there is no auto-truncate fallback. The 2,900 cap exists because LinkedIn rejects posts over 3,000 chars, and we keep a 100-char safety margin for typographic-quote substitution and any trailing-whitespace surprises.
 
 For the first-comment file specifically: the script requires at least one URL in the body (opposite of the Post rule). A first-comment with no URLs has nothing useful for the reader; it fails the check.
