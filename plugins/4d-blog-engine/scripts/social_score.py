@@ -54,6 +54,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import prose_lint  # noqa: E402  (BP-003: the lint ships beside this script)
+
 FOLD_CHAR = 210
 
 BANNED_HOOKS = [
@@ -610,7 +613,16 @@ def main() -> int:
             for hit in check_paragraph_density(body):
                 findings.append({"severity": "Minor", "rule": "paragraph_density", "detail": hit})
 
-    passed = not any(f["severity"] == "Major" for f in findings)
+    # BP-003: the BP-002 lint, short-form, on every post. Its findings stay out of
+    # `findings` (the format verdict) and fail the check on Major or Medium.
+    lint = prose_lint.scan(body, longform=False)
+    lint_findings = [
+        {"rule": f["rule"], "severity": f["severity"], "detail": str(f.get("value") or f.get("fix") or "")}
+        for f in lint["findings"]
+    ]
+    lint_failed = any(f["severity"] in ("Major", "Medium") for f in lint_findings)
+
+    passed = not any(f["severity"] == "Major" for f in findings) and not lint_failed
 
     result = {
         "file": str(args.file),
@@ -619,6 +631,8 @@ def main() -> int:
         "passed": passed,
         "metrics": metrics,
         "findings": findings,
+        "lint_findings": lint_findings,
+        "lint_grade": lint["grade"],
         "scorecard_scaffold_path": None,
     }
 
@@ -655,6 +669,11 @@ def main() -> int:
             f"HASHTAGS={metrics.get('hashtag_count', 0)} "
             f"FINDINGS={len(findings)} SCAFFOLD={out}"
         )
+    print(f"Prose lint (grade {lint['grade']}, short-form)")
+    for f in lint_findings:
+        print(f"- {f['rule']} ({f['severity']}): {f['detail']}")
+    if not lint_findings:
+        print("- none")
     return 0 if passed else 1
 
 
