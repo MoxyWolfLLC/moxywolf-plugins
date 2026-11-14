@@ -263,7 +263,9 @@ def open_review(d, base, head, root, reason=None, ledger_runs=None):
     pk = {"outcome": "o", "acceptance_criteria": ["the README says y"],
           "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "b",
           "exclusions": [], "tests": {"ledger_runs": ledger_runs} if ledger_runs else {},
-          "release_owner": "dorianatmoxywolf"}
+          "release_owner": "dorianatmoxywolf",
+          "data_use": {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                       "allow_history": True, "allowed_tools": ["codex", "claude", "openrouter-gpt"]}}
     f = Path(tempfile.mkdtemp()) / "packet.json"; f.write_text(json.dumps(pk))
     pr.REVIEW_DIR = root
     a = SimpleNamespace(packet=str(f), builder="claude", max_rounds=3, timeout=900, accept_narrow_packet=False,
