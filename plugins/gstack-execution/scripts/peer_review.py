@@ -2797,6 +2797,26 @@ def spec_review_gate(packet):
                 raise ReviewError(code, f"{why} (SR-001)")
 
 
+def refuse(reason):
+    """A packet that can't be dispatched is refused before anything is written: stderr, exit 2.
+    ReviewError (exit 1) stays for refusals that already had their own contract."""
+    print(f"refused: {reason}", file=sys.stderr)
+    sys.exit(2)
+
+
+def refuse_without_data_use(packet, reviewer):
+    """Goal review-packet-ready item 1. A missing data_use block used to surface only at round, after
+    open had made the review and spent its id; a round then failed on data_use_denied. Checked here
+    for the reviewer open would choose, so the packet is fixed before anything exists."""
+    if not packet.get("data_use"):
+        refuse("data_use missing; add a data_use block (owner, classification, allow_repository, "
+               "allow_history, allowed_tools) to the packet")
+    try:
+        data_permission(packet, tool=reviewer)
+    except ValueError as e:
+        refuse(f"data_use_denied: {e}; fix the packet's data_use block for reviewer {reviewer}")
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -2866,6 +2886,7 @@ def cmd_open(a):
                               f"{repo['path']}'s ledger under {root}")
 
     reviewer, is_fallback = choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)
+    refuse_without_data_use(packet, reviewer)   # goal review-packet-ready item 1: before any review id or folder
     unusable = surface_unusable(packet, reviewer)   # before the review directory exists: a crash here leaves nothing behind
     stem = time.strftime("%Y%m%d-%H%M%S") + "-" + packet["repos"][0]["head"][:7]
     root.mkdir(parents=True, exist_ok=True)

@@ -214,6 +214,25 @@ def test_a_finding_id_is_a_token_so_the_surface_cannot_carry_a_directive():
     assert all("ignore the packet" not in json.dumps(m) for m in got)
 
 
+def test_a_packet_without_data_use_is_refused_with_exit_2_before_anything_is_written():
+    """Goal review-packet-ready item 1: missing, empty and denying data_use each refuse with exit 2."""
+    good = {"release_owner": "o", "data_use": {"owner": "o", "classification": "internal", "allow_repository": True,
+                                               "allow_history": True, "allowed_tools": ["codex"]}}
+    pr.refuse_without_data_use(good, "codex")                       # allowed: returns, writes nothing
+    for packet, says in (({"release_owner": "o"}, "refused: data_use missing"),
+                         ({"release_owner": "o", "data_use": {}}, "refused: data_use missing"),
+                         (dict(good, data_use=dict(good["data_use"], allowed_tools=["claude"])),
+                          "refused: data_use_denied: data_use: tool destination denied: codex")):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            try:
+                pr.refuse_without_data_use(packet, "codex")
+                raise AssertionError("must refuse")
+            except SystemExit as e:
+                assert e.code == 2, e.code
+        assert err.getvalue().startswith(says), err.getvalue()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
