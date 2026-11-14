@@ -2816,6 +2816,28 @@ def refuse_without_data_use(packet, reviewer):
         refuse(f"data_use: denied: {e}")
 
 
+def refuse_ledger_behind(packet, run_ids=None):
+    """Goal review-packet-ready-3 item 2. A ledger run is evidence for the commit it ran at; one at an older commit
+    than the head being sent cost a round on 2026-10-30. Full 40-character SHAs only, so an abbreviated or older one
+    counts as behind, and a run that records no commit prints `none`. The first such run in tests.ledger_runs order is
+    named. A run naming a repository the packet doesn't list, or one not on the ledger, is left to the
+    malformed_packet checks. run_ids limits the check to the runs a round's --ledger-run arguments name."""
+    import check_ledger
+    root = review_root()
+    for e in (packet.get("tests") or {}).get("ledger_runs") or ():
+        if run_ids is not None and e.get("run_id") not in run_ids:
+            continue
+        try:
+            repo = _packet_repo(packet["repos"], e["repo"])
+        except Exception:
+            continue
+        run = check_ledger.find_run(repo["path"], e["run_id"], root)[0]
+        if run is None:
+            continue
+        if run.get("head") != repo["head"]:
+            refuse(f"tests.ledger_runs: run {e['run_id']} is at {run.get('head') or 'none'}, head is {repo['head']}")
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -2825,6 +2847,11 @@ def cmd_open(a):
     # goal review-packet-ready-3 item 1: data_use first, before any check open made before this goal and before any
     # review id, folder or reviewer call. Choosing the reviewer reads the builder and GSTACK_REVIEWER only.
     refuse_without_data_use(packet, choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)[0])
+    # goal review-packet-ready-3 item 2, next in the fixed order: coverage, then tests.ledger_runs. A packet with no
+    # coverage report used to open unchecked and be refused at release; --accept-narrow-packet stays the recorded way.
+    if not packet.get("coverage") and not getattr(a, "accept_narrow_packet", False):
+        refuse("coverage: not attached")
+    refuse_ledger_behind(packet)
 
     # XE-010: refuse a packet narrower than the items it claims. Only ever adds a gate.
     ok, cov_status, uncovered = coverage_verdict(packet)
@@ -2963,6 +2990,8 @@ def cmd_round(a):
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
     apply_ci_runs(packet, getattr(a, "ci_run", None))
+    if named_ledger_runs:   # goal review-packet-ready-3 item 2: a run this round names is at the head it sends
+        refuse_ledger_behind(packet, set(named_ledger_runs))
     # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
     previous_evidence = state.get("evidence_runs")
     state["evidence_runs"] = {k: packet.get("tests", {}).get(k) for k in ("ci_runs", "ledger_runs")
@@ -3636,6 +3665,7 @@ def selftest():
     pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"], "repos": [{"path": str(repo), "base": base, "head": head}],
           "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}, "release_owner": "fixture-human"}
     pk["data_use"] = {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True, "allowed_tools": ["codex", "claude"]}
+    pk["coverage"] = {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]}   # review-packet-ready-3 item 2
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
 

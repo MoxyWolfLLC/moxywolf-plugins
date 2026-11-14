@@ -68,9 +68,9 @@ class GovernedReview(unittest.TestCase):
     def call(self, *args):
         return subprocess.run([sys.executable, str(SCRIPT), *args], env=self.env, capture_output=True, text=True)
 
-    def open(self):
+    def open(self, *extra):
         self.packet_file.write_text(json.dumps(self.packet))
-        r = self.call("open", "--builder", "claude", "--packet", str(self.packet_file))
+        r = self.call("open", "--builder", "claude", "--packet", str(self.packet_file), *extra)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.rid = json.loads(r.stdout)["review_id"]
 
@@ -194,7 +194,7 @@ class GovernedReview(unittest.TestCase):
         """XE-014.12: an open review with no coverage record releases only on an exception in the
         Release Owner's words, kept verbatim with its time, and the handoff leads with the status."""
         del self.packet["coverage"]
-        self.open(); self.response(); self.round()
+        self.open("--accept-narrow-packet"); self.response(); self.round()   # review-packet-ready-3: a packet about no coverage opens narrow
         r = self.call("release", self.rid)
         self.assertIn("release_blocked", r.stderr)
         self.assertIn("status: not_run", r.stderr)

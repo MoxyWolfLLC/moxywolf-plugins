@@ -17,6 +17,11 @@ import tempfile
 import time
 
 import peer_review as peer
+
+# goal review-packet-ready-3 item 2: a graph peer review checks the graph's own node checks, not design items, so it
+# carries no coverage report and opens as the recorded narrow override, saying why.
+NARROW_EXCLUSION = ('A task-graph peer review scores no design items, so it opens with --accept-narrow-packet '
+                    'and no coverage report.')
 import graph_context
 from enclosure import RULE, enclose   # TB-002
 from ci_log_receipt import LIKELY_SECRET   # XE-036: one home for what counts as a secret
@@ -341,7 +346,7 @@ def worker(node,packet,dependencies,root,correction=None):
     repos=[packet['repos'][i] for i in node.get('repo_indexes',range(len(packet['repos'])))]
     if node['kind']=='peer':
         pk={'outcome':packet.get('scope','repository review'),'acceptance_criteria':node['checks'],'repos':repos,
-            'changed_behavior':packet.get('changed_behavior','See commit diff'),'exclusions':packet.get('exclusions',[]),
+            'changed_behavior':packet.get('changed_behavior','See commit diff'),'exclusions':packet.get('exclusions',[])+[NARROW_EXCLUSION],
             'tests':packet.get('tests',{}),'release_owner':packet['owner'],'data_use':packet['data_use']}
         context=graph_context.materialize(packet,node)
         if context is not None:
@@ -359,7 +364,7 @@ def worker(node,packet,dependencies,root,correction=None):
             opened=read(marker)
             if opened['contract']!=contract:raise ValueError('review contract changed; use a new run for new intent')
         else:
-            opened=cli('open','--builder',packet['builder'],'--packet',str(pp),'--timeout',str(packet.get('timeout',900)))
+            opened=cli('open','--builder',packet['builder'],'--packet',str(pp),'--timeout',str(packet.get('timeout',900)),'--accept-narrow-packet')
             opened['contract']=contract;write(marker,opened)
         review_dir=root/'peer-reviews'/opened['review_id']
         status=cli('status',opened['review_id'])['state']

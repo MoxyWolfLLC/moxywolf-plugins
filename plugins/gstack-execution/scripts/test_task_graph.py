@@ -708,6 +708,21 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
         self.assertEqual(state['timeout'],5)
 
+    def test_a_peer_node_opens_its_review_narrow_and_says_why(self):
+        """Goal review-packet-ready-3 item 2: open now refuses a packet with no coverage report, and a graph peer
+        review scores no design items, so its peer node opens with --accept-narrow-packet and an exclusions line."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        r=self.builtin_run('review');self.ok(r)
+        marker=json.loads((self.run/'review-0-review.json').read_text())
+        review=self.run/'peer-reviews'/marker['review_id']
+        retained=json.loads((review/'packet.json').read_text())
+        self.assertNotIn('coverage',retained)
+        import task_graph as tg
+        self.assertIn(tg.NARROW_EXCLUSION,retained["exclusions"])
+        self.assertTrue(json.loads((review/'state.json').read_text())['outcome'] in {'no_blocking_findings','fixes_verified'})
+
     def test_completed_peer_review_is_not_reused_for_changed_context(self):
         """Review 20261026-115306-aaae2fc-sccuf0td F1: a resumed peer node must not hand back a
         completed review that never saw the context now being delivered. Same repository heads,
