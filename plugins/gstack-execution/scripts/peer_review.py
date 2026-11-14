@@ -279,6 +279,38 @@ def head_blob(r, name):
     return p.stdout if p.returncode == 0 else None
 
 
+def _head_is_link(r, name):
+    return git(r["path"], "ls-tree", r["head"], "--", name).startswith("120000 ")
+
+
+def _head_link_escapes(r, name, target):
+    """Review F1, 20261114-153025: whether a link the head commits points outside the repository, resolved
+    through the links the head commits and never through the checkout, whose directories may be other links.
+    An absolute target is outside the head's tree. ponytail: one ls-tree per path component; 40 hops max."""
+    if target.startswith("/"):
+        return True
+    queue, out, hops = [*name.split("/")[:-1], *target.split("/")], [], 0
+    while queue:
+        part = queue.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not out:
+                return True
+            out.pop()
+            continue
+        out.append(part)
+        here = "/".join(out)
+        if _head_is_link(r, here):
+            hops += 1
+            link = os.fsdecode(head_blob(r, here) or b"")
+            if hops > 40 or link.startswith("/"):
+                return True
+            out.pop()
+            queue = link.split("/") + queue
+    return False
+
+
 def resolve_commit(repo, ref):
     r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"], capture_output=True, text=True)
     if r.returncode != 0:
@@ -1353,8 +1385,7 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
                 # snapshot() refused a symlink escaping the repository; the surface keeps that control,
                 # judged on the link the head commits (mode 120000), not on whatever the disk holds.
                 # ponytail: one ls-tree per surfaced file; read modes once per repo if surfaces grow.
-                if blob is not None and git(r["path"], "ls-tree", r["head"], "--", name).startswith("120000 ") and not (
-                        Path(r["path"]) / Path(name).parent / os.fsdecode(blob)).resolve().is_relative_to(Path(r["path"]).resolve()):
+                if blob is not None and _head_is_link(r, name) and _head_link_escapes(r, name, os.fsdecode(blob)):
                     raise ReviewError("data_use_denied",
                                       f"review surface refused {name}: symlink escapes repository scope")
                 dest.write_bytes(blob if blob is not None else f"(deleted at head {r['head']})\n".encode())
