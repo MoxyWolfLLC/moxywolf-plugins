@@ -65,6 +65,19 @@ A review round requires `data_use`; absent or denied permission yields `data_use
 
 This object is part of the full packet above. Only declare permissions already granted; unclear permission stops dispatch. Graph execution additionally checks output roots and proof command allowlists under the [task graph contract](task-graph-contract.md). Shared snapshot creation refuses symlinks escaping the repository snapshot.
 
+### Refused before dispatch
+
+Before it makes a review id, a review folder or any reviewer call, `open` refuses a packet that isn't ready, on standard error with exit code 2, writing nothing. It checks in this order, before any check it made before, and prints only the first that fails:
+
+| Check | Message |
+|---|---|
+| `data_use` missing or with no keys | `refused: data_use: missing` |
+| `data_use` denies the reviewer `open` would choose | `refused: data_use: denied: <reason>` (the message `governance.data_permission` raises) |
+| no attached coverage report (`coverage` absent or empty), without `--accept-narrow-packet` | `refused: coverage: not attached` |
+| a `tests.ledger_runs` run whose recorded commit isn't the packet's head (full 40-character SHAs; an abbreviated commit counts as behind, a missing one prints `none`) | `refused: tests.ledger_runs: run <id> is at <sha\|none>, head is <sha>` |
+
+`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (a fix round's `--head`, a first round's packet head), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
+
 The builder's summary is a claim to check, not evidence. The reviewer opens the code at the pinned commits.
 
 ## Scope **[reviewer]**
