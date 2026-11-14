@@ -1,5 +1,5 @@
 """Exercise the graph CLI with real subprocess workers and temporary repositories."""
-import json
+import json,shutil
 import os
 import signal
 import time
@@ -708,6 +708,40 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         state=json.loads((self.run/'peer-reviews'/marker['review_id']/'state.json').read_text())
         self.assertEqual(state['timeout'],5)
 
+    def test_a_peer_node_opens_its_review_narrow_and_says_why(self):
+        """Goal review-packet-ready-3 item 2: open now refuses a packet with no coverage report, and a graph peer
+        review scores no design items, so its peer node opens with --accept-narrow-packet and an exclusions line."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        r=self.builtin_run('review');self.ok(r)
+        marker=json.loads((self.run/'review-0-review.json').read_text())
+        review=self.run/'peer-reviews'/marker['review_id']
+        retained=json.loads((review/'packet.json').read_text())
+        self.assertNotIn('coverage',retained)
+        import task_graph as tg
+        self.assertIn(tg.NARROW_EXCLUSION,retained["exclusions"])
+        self.assertEqual(retained['data_use'],self.packet['data_use']);self.assertFalse((retained.get('tests') or {}).get('ledger_runs'))
+        self.assertTrue(json.loads((review/'state.json').read_text())['outcome'] in {'no_blocking_findings','fixes_verified'})
+    def test_a_graph_whose_data_use_is_empty_denies_or_is_absent_never_reaches_a_peer_review(self):
+        """Goal review-packet-ready-3 item 2 (review F3, 20261114-094615; Dorian chose to assert the actual stage): the
+        graph's own governance, unchanged by this goal, refuses an empty data_use, one that denies the reviewer, and a
+        packet with no data_use key before any node runs, each with its own message, so no node state is written, no
+        peer review folder is made and no reviewer is called; open is never reached in any of the three."""
+        self.install_model_tools()
+        (self.repo/'value').write_text('two');self.git('commit','-qam','two')
+        self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
+        policy=dict(self.packet['data_use'])
+        for case,mut,says in (('empty',lambda p:p.__setitem__('data_use',{}),'data_use: repository/history permission and accountable owner required'),
+                              ('denies-reviewer',lambda p:p.__setitem__('data_use',dict(policy,allowed_tools=['codex'])),'data_use: tool destination denied: claude'),
+                              ('absent',lambda p:p.pop('data_use'),'data_use: repository/history permission and accountable owner required')):
+            with self.subTest(case):
+                self.packet['data_use']=dict(policy);mut(self.packet);shutil.rmtree(self.run,ignore_errors=True)
+                r=self.builtin_run('review')
+                self.assertNotEqual(r.returncode,0);self.assertIn(says,r.stderr);self.assertNotIn('refused: data_use',r.stderr)
+                self.assertFalse((self.run/'state.json').exists(),'a node ran')
+                self.assertFalse((self.run/'peer-reviews').exists(),'a refused graph opened a peer review')
+        self.packet['data_use']=policy
     def test_completed_peer_review_is_not_reused_for_changed_context(self):
         """Review 20261026-115306-aaae2fc-sccuf0td F1: a resumed peer node must not hand back a
         completed review that never saw the context now being delivered. Same repository heads,

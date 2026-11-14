@@ -91,7 +91,7 @@ def repo():
 def packet(d, base, head, **extra):
     pk = {"items": ["FX-001"], "outcome": "f adds one", "acceptance_criteria": ["`scripts/a.py` returns x + 1.", "`test_a.py` passes."],
           "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1", "exclusions": [],
-          "tests": {"commands": [], "results": "", "environment": "test"}, "release_owner": "fixture-human",
+          "tests": {"commands": [], "results": "", "environment": "test"}, "release_owner": "fixture-human", "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
           "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True,
                        "allowed_tools": ["codex", "claude"]}}
     pk.update(extra)
