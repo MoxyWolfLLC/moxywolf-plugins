@@ -31,6 +31,8 @@ BibTeX input
     |
 [7] bibliography-generator                   -> <target-slug>.md
     |
+    prose_lint.py  (blocking on D/F)          -> pipeline/prose_lint.md, .json
+    |
 [8] professor                                -> critique_report.md, improvement_plan.md
     |
 [9] release_gate.py                          -> five named checks, blocking
@@ -131,6 +133,15 @@ Invoke each stage's skill in order, passing the run folder. Read the prior stage
 **Skill:** `bibliography-generator`. Formats every cited source in the handoff's citation style and replaces the placeholder. Output: **`<target-slug>.md`** — the main deliverable.
 
 ### Stage 8 — Professor critique
+
+**Prose lint, before Stage 8 (BP-003).** Run the plugin's own copy of the BP-002 lint on the article, in long-form, passing the signature devices the standing voice profile names (Stage 3's `voice_context.json`; Dorian's profile names `contrast-framing,three-beat-reveal`):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/prose_lint.py <target-slug>.md --report --longform \
+  --signature-devices <devices from the voice profile> --out pipeline/prose_lint.md
+```
+
+It writes `pipeline/prose_lint.md` and `pipeline/prose_lint.json` on every grade, then exits 1 on a D or F grade and 0 otherwise. On exit 1, stop before Stage 8: say the grade, point at `pipeline/prose_lint.md`, and revise the draft before re-running the lint. On exit 0, hand `pipeline/prose_lint.md` to the professor with the paper, so the critique's AI-detection phase reads its findings, including those of an A to C grade. The script is a byte-identical copy of `4d-blog-engine/scripts/prose_lint.py`, and `scripts/test_prose_lint_copy.py` fails the moment the two differ.
 
 **Skill:** `professor`. Runs the 10-phase review (AI-detection first, then integrity, citations, logic, methodology, literature, evidence, writing, contribution) on `<target-slug>.md`. Outputs: `critique_report.md`, `improvement_plan.md`.
 
