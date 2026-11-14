@@ -76,7 +76,7 @@ Before it makes a review id, a review folder or any reviewer call, `open` refuse
 | no attached coverage report (`coverage` absent or empty), without `--accept-narrow-packet` | `refused: coverage: not attached` |
 | a `tests.ledger_runs` run whose recorded commit isn't the packet's head (full 40-character SHAs; an abbreviated commit counts as behind, a missing one prints `none`) | `refused: tests.ledger_runs: run <id> is at <sha\|none>, head is <sha>` |
 
-`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (a fix round's `--head`, a first round's packet head), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
+`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (the packet's head after any `--head` the round gives, a first round's included), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
 
 The builder's summary is a claim to check, not evidence. The reviewer opens the code at the pinned commits.
 

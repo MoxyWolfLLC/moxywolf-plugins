@@ -84,7 +84,7 @@ Before it makes a review id, a review folder or any reviewer call, `open` refuse
 | no attached coverage report (`coverage` absent or empty), without `--accept-narrow-packet` | `refused: coverage: not attached` |
 | a `tests.ledger_runs` run whose recorded commit isn't the packet's head (full 40-character SHAs; an abbreviated commit counts as behind, a missing one prints `none`) | `refused: tests.ledger_runs: run <id> is at <sha\|none>, head is <sha>` |
 
-`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (a fix round's `--head`, a first round's packet head), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
+`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (the packet's head after any `--head` the round gives, a first round's included), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
 
 The reviewer runs non-interactively in a fresh session against the head commit: every surfaced file is read with `git show <head>:<path>`, never from the working tree (MOXY-159). Report the outcome exactly as the dispatcher names it. `review_unavailable`, `missing_commits`, `timeout`, `malformed_output`, `model_below_floor`, and `unusable` are results, not passes; say what they mean (for `review_unavailable`: which tool is missing and that no same-tool substitute was made).
 
