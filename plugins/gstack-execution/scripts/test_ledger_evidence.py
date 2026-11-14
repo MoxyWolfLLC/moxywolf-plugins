@@ -302,6 +302,33 @@ def test_h1_a_review_passing_after_a_rejected_round_releases_against_the_adjudic
     assert state["outcome"] == "fixes_verified" and packet["repos"][0]["head"] == head2
 
 
+def test_round_refuses_a_stale_named_run_before_its_existing_checks():
+    """Goal review-packet-ready-3 item 2 (review F1, 20261114-094615): with round 1's blocker undisposed, today's
+    disposition check would stop the round; a stale named run is refused first, exit 2, nothing recorded."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    (rd / "dispositions.json").unlink()
+    _refused_round(d, root, rid, rd, head2, old["id"])
+
+
+def test_a_first_round_checks_its_named_run_against_the_head_it_sends():
+    """Review F2, 20261114-094615: a first round sends the packet's head whatever --head says, as it does today, so
+    a named run at that head passes the ledger check and one at the --head given is behind what is sent."""
+    d, base, head, root = fixture()
+    _, _, at_head = run(d, root, "print('at head')")
+    st = open_review(d, base, head, root, ledger_runs=[{"repo": str(d), "run_id": at_head["id"]}])
+    rid = st["review_id"]; rd = root / rid
+    pk = json.loads((rd / "packet.json").read_text())
+    pk["data_use"] = {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                      "allow_history": True, "allowed_tools": ["claude", "codex"]}
+    (rd / "packet.json").write_text(json.dumps(pk))
+    (d / "README.md").write_text("later\n"); subprocess.run(["git", "-C", str(d), "commit", "-qam", "later"], check=True)
+    later = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    _, _, at_later = run(d, root, "print('later')")
+    _refused_round(d, root, rid, rd, later, at_later["id"])
+    out = _round(d, root, rid, dict(_reply(False), blocker_resolutions=[]), head=later, ledger_runs=[at_head["id"]])
+    assert out == "no_blocking_findings", out
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

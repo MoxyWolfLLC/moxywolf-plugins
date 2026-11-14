@@ -234,6 +234,29 @@ def test_a_packet_without_data_use_is_refused_with_exit_2_before_anything_is_wri
         assert err.getvalue().startswith(says), err.getvalue()
 
 
+def test_open_refuses_for_data_use_before_any_check_it_made_before():
+    """Goal review-packet-ready-3 (review F1, 20261114-094615): a packet that would also fail today's validation
+    (no release_owner, max_rounds out of range) is refused for its data_use first, exit 2, nothing written."""
+    d, base, head = repo()
+    tmp = Path(tempfile.mkdtemp(prefix="gate-order-"))
+    saved = pr.REVIEW_DIR
+    try:
+        pr.REVIEW_DIR = tmp / "reviews"
+        pfile = tmp / "packet.json"
+        pfile.write_text(json.dumps({"acceptance_criteria": ["x"], "repos": [{"path": str(d), "base": base, "head": head}]}))
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                pr.cmd_open(argparse.Namespace(builder="claude", packet=str(pfile), max_rounds=9, timeout=30))
+            raise AssertionError("must refuse")
+        except SystemExit as e:
+            assert e.code == 2, e.code
+        assert err.getvalue().startswith("refused: data_use: missing"), err.getvalue()
+        assert not pr.REVIEW_DIR.exists() or not any(pr.REVIEW_DIR.iterdir())
+    finally:
+        pr.REVIEW_DIR = saved
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
