@@ -87,3 +87,8 @@ Every artifact from one run lives in a single run folder. In a MoxyWolf project 
 Adapted and modernized for Cowork from a set of MoxyWolf academic skills originally written for a GSD-mode runtime. The HITL machinery now uses the AskUserQuestion tool, outputs route to a single run folder, and BibTeX files are read directly.
 
 © MoxyWolf LLC.
+
+## Version history
+
+- **0.9.1**: this version history starts; no behaviour change.
+- **0.9.0**: BP-003 (goal shared-prose-lint, item 2). academic-pipeline carries `scripts/prose_lint.py` and `references/ai-anti-patterns.md`, byte-identical to 4d-blog-engine's, and `scripts/test_prose_lint_copy.py` fails the moment either differs. The pipeline and `/academic-critique` run the lint in long-form with the voice profile's signature devices before the Stage 8 critique; a D or F grade stops before the critique, and otherwise the professor receives the findings.

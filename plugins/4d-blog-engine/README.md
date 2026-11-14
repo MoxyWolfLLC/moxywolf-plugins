@@ -134,3 +134,8 @@ After install, run `/4d-blog-engine:blog-init` once to set up your blog project.
 - Research synthesis: `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/blog-linkedin-tooling-findings-2026-05-25.md`
 - Build log: `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/release-owner-plugin-build-log-2026-05-25.md`
 - Whitepaper: `Taskade/Frontier Founder/11 - Project Knowledge/Papers/Beyond the Prompt – Editorial Forge/04-whitepaper/Beyond the Prompt - MoxyWolf Whitepaper.docx`
+
+## Version history
+
+- **0.23.1**: this version history starts; no behaviour change.
+- **0.23.0**: BP-003 (goal shared-prose-lint, item 1). `social_score.py` runs the BP-002 prose lint in short-form on every social post. Findings print under a `Prose lint` heading, one line per finding with its rule id and severity, and go into the JSON sidecar as `lint_findings`, apart from the format `findings`. A Major or Medium lint finding fails the check (exit 1) and the post is held back; a Minor one is printed only. Test: `tests/test_social_score.py`.
