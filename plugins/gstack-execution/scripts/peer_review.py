@@ -469,7 +469,9 @@ def _no_json_outcome(text):
 SURFACE_CAP = 25
 
 
-CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml"}   # code that can break; not docs that name it
+# code that can break; not docs that name it. JavaScript and TypeScript joined in goal review-packet-ready-4 item 3:
+# its goal test surfaces src/caller.js importing a changed src/value.js, and most MoxyWolf web repos are JS.
+CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"}
 
 # XE-008: the surface layout had four homes -- written in build_surface, parsed in _subject_path,
 # asserted in a test fixture, described in SURFACE.md -- and I broke it twice in an hour by
