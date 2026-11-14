@@ -159,6 +159,19 @@ def _round(d, root, review_id, reply, head=None, ledger_runs=()):
         os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
 
 
+def _refused_round(d, root, rid, rd, head, run_id):
+    """Goal review-packet-ready-3 item 2 (call #1, b): a round naming a ledger run behind its head is refused
+    with exit 2 before its reviewer is called or the round recorded, so the review folder is unchanged."""
+    before = {n.name: n.read_bytes() for n in rd.iterdir() if n.is_file()}
+    try:
+        _round(d, root, rid, _reply(False), head=head, ledger_runs=[run_id])
+    except SystemExit as e:
+        assert e.code == 2, e.code
+    else:
+        raise AssertionError("round accepted a ledger run behind its head")
+    assert {n.name: n.read_bytes() for n in rd.iterdir() if n.is_file()} == before, "a refused round wrote nothing"
+
+
 def _reply(blocking):
     f = [{"id": "F1", "severity": "blocking", "file": "README.md", "line": 1, "what": "wrong", "evidence": "README.md:1",
           "criterion": "the README says y", "fix": "fix it", "category": "general"}]
@@ -220,6 +233,11 @@ def test_a_named_run_at_an_older_head_or_with_a_tampered_or_foreign_receipt_cann
             p = cl.ledger_path(d, "build/x", root)
             with p.open("a") as fh: fh.write(json.dumps(chosen) + "\n")
             (cl.receipts_dir(p) / f"{chosen['id']}.log").write_bytes(receipt_of(other, root, chosen).read_bytes())
+        if case == "older-head":
+            _refused_round(d, root, rid, rd, head2, chosen["id"])
+            for n, b in retained.items():
+                assert (rd / n).read_bytes() == b, (case, n)
+            continue
         try:
             _round(d, root, rid, _reply(False), head=head2, ledger_runs=[chosen["id"]])
         except pr.ReviewError:
@@ -241,19 +259,16 @@ def test_a_rejected_evidence_round_keeps_the_open_blockers_and_corrected_evidenc
     """Review F4: round 1 raises F1; round 2's named run is at the old head and is refused; round 3,
     with the right run at the same candidate, is measured against F1 and verifies it."""
     d, root, rid, rd, head2, old, retained = _fix_fixture()
-    try:
-        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
-    except pr.ReviewError:
-        pass
+    _refused_round(d, root, rid, rd, head2, old["id"])
     st = json.loads((rd / "state.json").read_text())
-    assert st["rounds_used"] == 2 and st["adjudicated_round"] == 1 and st["rejected_rounds"] == [2] and len(st["heads"]) == 2, st
+    assert st["rounds_used"] == 1 and st["adjudicated_round"] == 1 and not st.get("rejected_rounds") and len(st["heads"]) == 2, st
     _, _, fresh = run(d, root, "print('fresh')")
     assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
-    rec3 = json.loads((rd / "round-3.json").read_text())
-    assert [b["id"] for b in rec3["blocker_resolutions"]] == ["F1"], "round 3 verified the blocker round 1 raised"
-    assert rec3["repos"][0]["head"] == head2 and rec3["repos"][0]["base"] != head2
+    rec2 = json.loads((rd / "round-2.json").read_text())
+    assert [b["id"] for b in rec2["blocker_resolutions"]] == ["F1"], "round 2 verified the blocker round 1 raised"
+    assert rec2["repos"][0]["head"] == head2 and rec2["repos"][0]["base"] != head2
     st = json.loads((rd / "state.json").read_text())
-    assert st["outcome"] == "fixes_verified" and st["adjudicated_round"] == 3 and st["heads"][-1] == [head2]
+    assert st["outcome"] == "fixes_verified" and st["adjudicated_round"] == 2 and st["heads"][-1] == [head2]
     for n, b in retained.items():
         assert (rd / n).read_bytes() == b, n
 
@@ -263,15 +278,12 @@ def test_a_review_recorded_before_adjudication_tracking_survives_a_rejected_roun
     must persist the inferred adjudication (round 1), so round 3 still meets round 1's blocker."""
     d, root, rid, rd, head2, old, retained = _fix_fixture()
     st = json.loads((rd / "state.json").read_text()); st.pop("adjudicated_round", None); (rd / "state.json").write_text(json.dumps(st))
-    try:
-        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
-    except pr.ReviewError:
-        pass
+    _refused_round(d, root, rid, rd, head2, old["id"])
     st = json.loads((rd / "state.json").read_text())
-    assert st["adjudicated_round"] == 1 and st["rounds_used"] == 2, st
+    assert "adjudicated_round" not in st and st["rounds_used"] == 1, st
     _, _, fresh = run(d, root, "print('fresh')")
     assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
-    assert [b["id"] for b in json.loads((rd / "round-3.json").read_text())["blocker_resolutions"]] == ["F1"]
+    assert [b["id"] for b in json.loads((rd / "round-2.json").read_text())["blocker_resolutions"]] == ["F1"]
 
 
 def test_h1_a_review_passing_after_a_rejected_round_releases_against_the_adjudicated_round():
@@ -279,10 +291,7 @@ def test_h1_a_review_passing_after_a_rejected_round_releases_against_the_adjudic
     round 1's F1. Release revalidation (passing_review, shared by release and record-release) must measure
     round 3 against round 1, the last adjudicated round, not the refused round 2. Written before the fix."""
     d, root, rid, rd, head2, old, retained = _fix_fixture()
-    try:
-        _round(d, root, rid, _reply(False), head=head2, ledger_runs=[old["id"]])
-    except pr.ReviewError:
-        pass
+    _refused_round(d, root, rid, rd, head2, old["id"])
     _, _, fresh = run(d, root, "print('fresh')")
     assert _round(d, root, rid, _reply(False), head=head2, ledger_runs=[fresh["id"]]) == "fixes_verified"
     os.environ["GSTACK_PEER_REVIEW_DIR"] = str(root)
@@ -291,6 +300,34 @@ def test_h1_a_review_passing_after_a_rejected_round_releases_against_the_adjudic
     finally:
         os.environ.pop("GSTACK_PEER_REVIEW_DIR", None)
     assert state["outcome"] == "fixes_verified" and packet["repos"][0]["head"] == head2
+
+
+def test_round_refuses_a_stale_named_run_before_its_existing_checks():
+    """Goal review-packet-ready-3 item 2 (review F1, 20261114-094615): with round 1's blocker undisposed, today's
+    disposition check would stop the round; a stale named run is refused first, exit 2, nothing recorded."""
+    d, root, rid, rd, head2, old, retained = _fix_fixture()
+    (rd / "dispositions.json").unlink()
+    _refused_round(d, root, rid, rd, head2, old["id"])
+
+
+def test_a_first_round_checks_its_named_run_against_the_head_it_sends():
+    """Review F2, 20261114-094615: a first round given --head sends that head, so a named run at the packet's
+    older head is behind what is sent and refused, and a run at the --head passes and is reviewed at it."""
+    d, base, head, root = fixture()
+    _, _, at_head = run(d, root, "print('at head')")
+    st = open_review(d, base, head, root, ledger_runs=[{"repo": str(d), "run_id": at_head["id"]}])
+    rid = st["review_id"]; rd = root / rid
+    pk = json.loads((rd / "packet.json").read_text())
+    pk["data_use"] = {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                      "allow_history": True, "allowed_tools": ["claude", "codex"]}
+    (rd / "packet.json").write_text(json.dumps(pk))
+    (d / "README.md").write_text("later\n"); subprocess.run(["git", "-C", str(d), "commit", "-qam", "later"], check=True)
+    later = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    _, _, at_later = run(d, root, "print('later')")
+    _refused_round(d, root, rid, rd, later, at_head["id"])
+    out = _round(d, root, rid, dict(_reply(False), blocker_resolutions=[]), head=later, ledger_runs=[at_later["id"]])
+    assert out == "no_blocking_findings", out
+    assert json.loads((rd / "round-1.json").read_text())["repos"][0]["head"] == later
 
 
 if __name__ == "__main__":
