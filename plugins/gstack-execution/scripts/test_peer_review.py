@@ -255,6 +255,43 @@ def test_open_refuses_for_data_use_before_any_check_it_made_before():
         assert not pr.REVIEW_DIR.exists() or not any(pr.REVIEW_DIR.iterdir())
     finally:
         pr.REVIEW_DIR = saved
+def test_a_review_opened_from_another_branch_surfaces_the_head_commit_bytes():
+    """MOXY-159 (goal review-packet-ready-4, item 3): the checkout sits on a branch with other bytes in
+    a.py and without NOTES.md; the reviewer's surface still carries the head commit's bytes."""
+    d, base, head = repo()
+    sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
+    sh("checkout", "-qb", "other", base); (d / "a.py").write_text("POISON = 1\n"); sh("commit", "-qam", "other")
+    tmp = Path(tempfile.mkdtemp(prefix="moxy159-"))
+    saved = pr.REVIEW_DIR, pr.examined_report, pr.run_reviewer, pr.choose_reviewer
+    seen = {}
+    def reviewer(tool, prompt, root, timeout, schema=None, named=()):
+        for n in ("a.py", "NOTES.md"):
+            f = Path(root) / "changed" / "0-repo" / n
+            seen[n] = f.read_bytes() if f.is_file() else None
+        return _reply([]), "gpt-6-astra"
+    try:
+        pr.REVIEW_DIR = tmp / "reviews"
+        pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"],
+              "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
+              "exclusions": [], "tests": {"commands": [], "results": "", "environment": "test"},
+              "release_owner": "fixture-human",
+              "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
+              "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
+                           "allow_history": True, "allowed_tools": ["codex", "claude"]}}
+        pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
+        pr.examined_report = lambda before, root: {"read_tracking": "available", "examined": ["changed/0-repo/a.py"],
+                                                   "examined_count": 1, "offered_count": 2,
+                                                   "examined_beyond_the_diff": [], "looked_beyond_the_diff": False}
+        pr.choose_reviewer = lambda builder, forced=None, require_installed=True: ("codex", False)
+        pr.run_reviewer = reviewer
+        ns = argparse.Namespace
+        with contextlib.redirect_stdout(io.StringIO()):
+            rid = pr.cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
+            pr.cmd_round(ns(review_id=rid, head=[]))
+        assert seen == {"a.py": b"def f(x):\n    return x + 1\n", "NOTES.md": b"# notes\n" + CURL.encode()}, seen
+        assert sh("branch", "--show-current") == "other" and (d / "a.py").read_text() == "POISON = 1\n"
+    finally:
+        pr.REVIEW_DIR, pr.examined_report, pr.run_reviewer, pr.choose_reviewer = saved
 
 
 if __name__ == "__main__":

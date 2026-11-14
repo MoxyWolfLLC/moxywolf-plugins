@@ -263,6 +263,22 @@ def git(repo, *args, check=True):
     return r.stdout.strip()
 
 
+def head_tracked(r):
+    """MOXY-159: the files at the reviewed head, never the checkout's index or working tree.
+    -z and bytes: a quoted or "\r"-bearing name would otherwise vanish uncounted."""
+    p = subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only", r["head"]], capture_output=True)
+    if p.returncode != 0:
+        raise ReviewError("missing_commits", f"git ls-tree {r['head']} in {r['path']}: {p.stderr.decode(errors='replace').strip()}")
+    return [os.fsdecode(f) for f in p.stdout.split(b"\0") if f]
+
+
+def head_blob(r, name):
+    """MOXY-159: a file's bytes at the reviewed head, or None when the head has no such path.
+    A checkout on another branch never leaks into the surface; a symlink is its target text, never followed."""
+    p = subprocess.run(["git", "-C", str(r["path"]), "show", f"{r['head']}:{name}"], capture_output=True)
+    return p.stdout if p.returncode == 0 else None
+
+
 def resolve_commit(repo, ref):
     r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"], capture_output=True, text=True)
     if r.returncode != 0:
@@ -516,17 +532,16 @@ def caller_files(repos, changed, cap, exclude=()):
     hits, seen = [], {(id(r), n) for r, n in changed} | set(exclude)
     for r in repos:
         try:
-            tracked = git(r["path"], "ls-files").split()
+            tracked = head_tracked(r)
         except Exception:
             continue
         for f in tracked:
             if (id(r), f) in seen or Path(f).suffix not in CALLER_SUFFIXES:
                 continue
-            fp = Path(r["path"]) / f
-            try:
-                body = fp.read_text(errors="replace")
-            except OSError:
+            blob = head_blob(r, f)
+            if blob is None:
                 continue
+            body = blob.decode(errors="replace")
             if any(st in body for st in stems):
                 hits.append((r, f)); seen.add((id(r), f))
     dropped = max(0, len(hits) - cap)
@@ -799,7 +814,7 @@ def criterion_files(repos, criteria):
     out = []
     for r in repos:
         found = []   # a repository git can't list raises here, as the diff above it would: no silent miss
-        for f in git(r["path"], "ls-files", "-z").split("\0"):
+        for f in head_tracked(r):
             m = f and f in text and re.search(r"(?<![A-Za-z0-9_.@/-])" + re.escape(f)
                                         + r"(?![A-Za-z0-9_@-]|[./]+[A-Za-z0-9_@-])", text)
             if m:
@@ -808,7 +823,7 @@ def criterion_files(repos, criteria):
     return out
 
 
-def ts_aliases(root, name, tracked):
+def ts_aliases(r, name, tracked):
     """The `compilerOptions.paths` of the tsconfig.json nearest above `name`, as [(prefix, [dirs])]
     with dirs relative to the repository: `"@/*": ["./*"]` in web/tsconfig.json is ("@/", ["web"]).
     Without it a Next.js page's `@/components/x` imports never reach the surface (wfa-web-v1 items 4
@@ -820,8 +835,8 @@ def ts_aliases(root, name, tracked):
             return []
         d = d.parent
     try:
-        opts = json.loads((Path(root) / d / "tsconfig.json").read_text()).get("compilerOptions") or {}
-    except (OSError, ValueError):
+        opts = json.loads(head_blob(r, (d / "tsconfig.json").as_posix()) or b"").get("compilerOptions") or {}
+    except ValueError:
         return []
     base = d / opts.get("baseUrl", ".")
     return [(k[:-1], [os.path.normpath(base / v[:-1]) for v in vs if v.endswith("/*")])
@@ -843,7 +858,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
         add(r, f, CRITERION_WHY)
     for r in repos:
         try:
-            tracked = set(git(r["path"], "ls-files").split())
+            tracked = set(head_tracked(r))
         except Exception:
             continue
         dirs = set()
@@ -861,10 +876,10 @@ def dependency_files(repos, changed, criteria, exclude, cap):
         for rr, name in changed:
             if rr is not r:
                 continue
-            try:
-                body = (Path(r["path"]) / name).read_text(errors="replace")
-            except OSError:
+            blob = head_blob(r, name)
+            if blob is None:
                 continue
+            body = blob.decode(errors="replace")
             for tok in PATH_TOKEN.findall(body):
                 tok = tok.rstrip("/.")
                 if tok in tracked:
@@ -874,7 +889,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
                 for ext in DEP_EXTS:
                     if base + ext in tracked:
                         add(r, base + ext, f"imported by {name}"); break
-            for prefix, dirs in ts_aliases(r["path"], name, tracked):
+            for prefix, dirs in ts_aliases(r, name, tracked):
                 for spec in re.findall(r"""['"]""" + re.escape(prefix) + r"""([^'"\s]+)['"]""", body):
                     for base in (os.path.normpath(os.path.join(d, spec)) for d in dirs):
                         hit = next((base + e for e in DEP_EXTS if base + e in tracked), None)
@@ -1219,8 +1234,7 @@ def criterion_dirs(repos, criteria, surf, idx):
     for r in repos:
         # -z: a quoted path ("src/caf\\303\\251.md") would fail the prefix test and vanish uncounted
         # bytes, not text=True: universal newlines would turn a "\r" in a name into "\n"
-        tracked = [os.fsdecode(f) for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only",
-                                                           r["head"]], capture_output=True, check=True).stdout.split(b"\0") if f]
+        tracked = head_tracked(r)
         names = set(tracked)
         for c in criteria:
             for tok in PATH_TOKEN.findall(c):
@@ -1328,18 +1342,20 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     idx = {id(r): i for i, r in enumerate(repos)}
     for group, sub in zip((changed, callers, [(r, n) for r, n, _ in deps]), SURFACE_KINDS):
         for r, name in group:
-            src = Path(r["path"]) / name
-            # snapshot() refused a symlink escaping the repository; the surface copies with
-            # read_bytes(), which FOLLOWS one. Dropping the snapshot silently dropped that control,
-            # so it is restored here rather than assumed. Found by tracing what snapshot() did
-            # before deleting it.
+            # MOXY-159: bytes come from the reviewed head with `git show`, never the working tree, so a
+            # checkout on another branch surfaces the head's bytes.
             dest = surf / surface_prefix(idx[id(r)], r, sub) / name
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
-                if src.is_symlink() and not src.resolve().is_relative_to(Path(r["path"]).resolve()):
+                blob = head_blob(r, name)
+                # snapshot() refused a symlink escaping the repository; the surface keeps that control,
+                # judged on the link the head commits (mode 120000), not on whatever the disk holds.
+                # ponytail: one ls-tree per surfaced file; read modes once per repo if surfaces grow.
+                if blob is not None and git(r["path"], "ls-tree", r["head"], "--", name).startswith("120000 ") and not (
+                        Path(r["path"]) / Path(name).parent / os.fsdecode(blob)).resolve().is_relative_to(Path(r["path"]).resolve()):
                     raise ReviewError("data_use_denied",
                                       f"review surface refused {name}: symlink escapes repository scope")
-                dest.write_bytes(src.read_bytes())
+                dest.write_bytes(blob if blob is not None else f"(deleted at head {r['head']})\n".encode())
                 prov[str(dest.relative_to(surf))] = provenance("repository")
             except OSError as e:
                 if (id(r), name) in named:   # XE-035.3: never withheld silently
