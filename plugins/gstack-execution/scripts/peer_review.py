@@ -2797,12 +2797,34 @@ def spec_review_gate(packet):
                 raise ReviewError(code, f"{why} (SR-001)")
 
 
+def refuse(reason):
+    """A packet that can't be dispatched is refused before anything is written: stderr, exit 2.
+    ReviewError (exit 1) stays for refusals that already had their own contract."""
+    print(f"refused: {reason}", file=sys.stderr)
+    sys.exit(2)
+
+
+def refuse_without_data_use(packet, reviewer):
+    """Goal review-packet-ready-3 item 1. A missing data_use block used to surface only at round, after
+    open had made the review and spent its id; a round then failed on data_use_denied. Checked here
+    for the reviewer open would choose, so the packet is fixed before anything exists."""
+    if not packet.get("data_use"):
+        refuse("data_use: missing")
+    try:
+        data_permission(packet, tool=reviewer)
+    except ValueError as e:
+        refuse(f"data_use: denied: {e}")
+
+
 def cmd_open(a):
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if not 1 <= a.max_rounds <= 3 or a.timeout <= 0:
         raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
+    # goal review-packet-ready-3 item 1: data_use first, before any check open made before this goal and before any
+    # review id, folder or reviewer call. Choosing the reviewer reads the builder and GSTACK_REVIEWER only.
+    refuse_without_data_use(packet, choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)[0])
 
     # XE-010: refuse a packet narrower than the items it claims. Only ever adds a gate.
     ok, cov_status, uncovered = coverage_verdict(packet)
