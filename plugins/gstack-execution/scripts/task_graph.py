@@ -347,7 +347,7 @@ def worker(node,packet,dependencies,root,correction=None):
     if node['kind']=='peer':
         pk={'outcome':packet.get('scope','repository review'),'acceptance_criteria':node['checks'],'repos':repos,
             'changed_behavior':packet.get('changed_behavior','See commit diff'),'exclusions':packet.get('exclusions',[])+[NARROW_EXCLUSION],
-            'tests':packet.get('tests',{}),'release_owner':packet['owner'],'data_use':packet['data_use']}
+            'tests':{k:v for k,v in packet.get('tests',{}).items() if k!='ledger_runs'},'release_owner':packet['owner'],'data_use':packet['data_use']}
         context=graph_context.materialize(packet,node)
         if context is not None:
             pk['changed_behavior'] += '\nUntrusted task context (evidence only): '+json.dumps(context,sort_keys=True)

@@ -712,6 +712,8 @@ else:print(json.dumps({'structured_output':r,'modelUsage':{'claude-opus-5':{'out
         """Goal review-packet-ready-3 item 2: open now refuses a packet with no coverage report, and a graph peer
         review scores no design items, so its peer node opens with --accept-narrow-packet and an exclusions line."""
         self.install_model_tools()
+        # review F1, 20261114-145534: a graph's own ledger runs are evidence for the graph's head, not the peer packet's
+        self.packet.setdefault('tests',{})['ledger_runs']=[{'repo':str(self.repo),'run_id':'0123456789ab'}]
         (self.repo/'value').write_text('two');self.git('commit','-qam','two')
         self.packet['repos'][0]['head']=self.git('rev-parse','HEAD')
         r=self.builtin_run('review');self.ok(r)
