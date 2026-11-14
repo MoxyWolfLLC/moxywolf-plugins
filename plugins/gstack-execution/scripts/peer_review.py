@@ -2994,14 +2994,12 @@ def cmd_round(a):
     state, packet = load(d, "state.json"), load(d, "packet.json")
     packet = effective_packet(state, packet)
     # goal review-packet-ready-3 item 2: the ledger check for the runs this round's --ledger-run names, and no
-    # others, before round's existing checks (review F1, 20261114-094615), against the head this round sends:
-    # a fix round (one with an adjudicated prior) moves to its --head; a first round sends the packet's head,
-    # as it does today, whatever --head says.
+    # others, before round's existing checks (review F1, 20261114-094615), against the head this round sends,
+    # which is the packet's head after any --head the round gives, a first round's included (review F2).
     specs = getattr(a, "ledger_run", None)
     if isinstance(specs, list) and specs:
         named = [{"repo": k, "run_id": v} for k, v in (s.rsplit("=", 1) for s in specs if "=" in s)]
-        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in getattr(a, "head", None) or () if "=" in h)} \
-            if _adjudicated(d, state)[1] is not None else None
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in getattr(a, "head", None) or () if "=" in h)}
         refuse_ledger_behind(_sent_repos(packet["repos"], updates), named)
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
@@ -3033,6 +3031,14 @@ def cmd_round(a):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
+    elif getattr(a, "head", None):
+        # goal review-packet-ready-3 item 2 (review F2, 20261114-094615): a first round given --head sends that head,
+        # so the head its ledger check compares against is the head the reviewer gets. Before, round 1 ignored --head.
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in a.head)}
+        for r in packet["repos"]:
+            sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
+            if sha:
+                r["head"] = resolve_commit(r["path"], sha)
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
     previous_evidence = state.get("evidence_runs")

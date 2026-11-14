@@ -311,8 +311,8 @@ def test_round_refuses_a_stale_named_run_before_its_existing_checks():
 
 
 def test_a_first_round_checks_its_named_run_against_the_head_it_sends():
-    """Review F2, 20261114-094615: a first round sends the packet's head whatever --head says, as it does today, so
-    a named run at that head passes the ledger check and one at the --head given is behind what is sent."""
+    """Review F2, 20261114-094615: a first round given --head sends that head, so a named run at the packet's
+    older head is behind what is sent and refused, and a run at the --head passes and is reviewed at it."""
     d, base, head, root = fixture()
     _, _, at_head = run(d, root, "print('at head')")
     st = open_review(d, base, head, root, ledger_runs=[{"repo": str(d), "run_id": at_head["id"]}])
@@ -324,9 +324,10 @@ def test_a_first_round_checks_its_named_run_against_the_head_it_sends():
     (d / "README.md").write_text("later\n"); subprocess.run(["git", "-C", str(d), "commit", "-qam", "later"], check=True)
     later = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     _, _, at_later = run(d, root, "print('later')")
-    _refused_round(d, root, rid, rd, later, at_later["id"])
-    out = _round(d, root, rid, dict(_reply(False), blocker_resolutions=[]), head=later, ledger_runs=[at_head["id"]])
+    _refused_round(d, root, rid, rd, later, at_head["id"])
+    out = _round(d, root, rid, dict(_reply(False), blocker_resolutions=[]), head=later, ledger_runs=[at_later["id"]])
     assert out == "no_blocking_findings", out
+    assert json.loads((rd / "round-1.json").read_text())["repos"][0]["head"] == later
 
 
 if __name__ == "__main__":
