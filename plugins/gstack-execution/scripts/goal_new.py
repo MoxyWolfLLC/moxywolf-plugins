@@ -278,9 +278,14 @@ def cmd_successor(goal_dir, why):
         print(f"{dst} already exists", file=sys.stderr)
         return 1
     text = (src / "GOAL.md").read_text()
-    outcome = gsucc.sections(text)["Outcome"]
-    i = text.index(outcome, text.index("## Outcome")) + len(outcome)
-    new = text[:i] + f"\n\nSucceeds {src.name}: {why.strip()}" + text[i:]
+    pre, secs = gsucc.spans(text)
+    out = []
+    for h, b in secs:
+        if re.match(r"^##\s+Outcome\s*$", h):
+            core = b.rstrip("\n")
+            b = f"{core}\n\nSucceeds {src.name}: {why.strip()}" + b[len(core):]
+        out.append(f"{h}\n{b}")
+    new = pre + "".join(out)
     problems = gsucc.compare(text, new, src.name)
     if problems:
         print("; ".join(problems), file=sys.stderr)

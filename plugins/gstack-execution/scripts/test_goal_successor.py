@@ -117,6 +117,16 @@ def test_a_successor_cant_add_or_change_a_section_the_brief_doesnt_let_move():  
         rc, out = run(d, base, head)
         assert rc == 1 and "same order" in out, out
 
+def test_text_before_the_first_section_or_a_second_outcome_paragraph_is_refused():   # review 20261115-085458 F1, F2
+    d, g, base = repo()
+    for text, says in (("Also build y.py.\n" + NEXT, "before its first section"),
+                       (NEXT.replace("says why.\n", "says why.\n \nAlso deliver another feature.\n"), "one paragraph only"),
+                       (NEXT.replace("- never touch z.py", "- never touch z.py "), "Non-goals")):
+        g("checkout", "-q", "-B", "w", base)
+        head = commit(d, g, {"goals/g--s1/GOAL.md": text})
+        rc, out = run(d, base, head)
+        assert rc == 1 and says in out, (says, out)
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

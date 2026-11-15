@@ -44,25 +44,41 @@ def predecessor(folder):
     return m["root"] if m["n"] == "1" else f"{m['root']}--s1"
 
 
-def headings(text):
-    return [m.group(1) for m in re.finditer(r"^##\s+(.+?)\s*$", text, re.M)]
+def spans(text):
+    """(preamble, [(heading line, raw body)]): the whole document, nothing dropped or normalised, so a byte
+    anywhere outside a mutable body is compared (review 20261115-085458 F1)."""
+    parts = re.split(r"(?m)^(?=##\s)", text)
+    pre, rest = (parts[0], parts[1:]) if not parts[0].startswith("##") else ("", parts)
+    return pre, [tuple(x.split("\n", 1)) if "\n" in x else (x, "") for x in rest]
 
 
 def compare(pred_text, succ_text, pred):
-    """Problems with a successor GOAL.md against its predecessor's, as a list. Every section is kept by
-    default (Release companion and Required checkouts carry merge authority; review 20261115-080201 F2)."""
-    p, s = sections(pred_text), sections(succ_text)
-    if headings(succ_text) != headings(pred_text):
-        return [f"its sections aren't {pred}'s, each once and in the same order"]
-    problems = [f"`## {k}` differs from {pred}'s" for k in p if k not in MUTABLE | {"Outcome"} and p[k] != s[k]]
-    if "Outcome" not in p or "Outcome" not in s:
-        problems.append("a GOAL.md has no `## Outcome`")
-    elif not s["Outcome"].startswith(p["Outcome"]):
-        problems.append(f"`## Outcome` doesn't start with {pred}'s Outcome word for word")
-    else:
-        added = s["Outcome"][len(p["Outcome"]):].strip()
-        if not added.startswith(f"Succeeds {pred}:") or "\n\n" in added:
-            problems.append(f"`## Outcome` may add one paragraph only, starting `Succeeds {pred}:`")
+    """Problems with a successor GOAL.md against its predecessor's, as a list. Every byte is kept but the bodies
+    of the MUTABLE sections and one added Outcome paragraph: a single line, after a blank line, starting
+    `Succeeds <predecessor>: ` (Release companion and Required checkouts carry merge authority, F2 of
+    20261115-080201; a whitespace-only line would start a second paragraph, F2 of 20261115-085458)."""
+    (p_pre, p), (s_pre, s) = spans(pred_text), spans(succ_text)
+    if p_pre != s_pre:
+        return [f"the text before its first section isn't {pred}'s byte for byte"]
+    if [h for h, _ in p] != [h for h, _ in s]:
+        return [f"its sections aren't {pred}'s, each once and in the same order, with the same heading lines"]
+    problems = []
+    for (h, pb), (_, sb) in zip(p, s):
+        name = re.match(r"^##\s+(.+?)\s*$", h).group(1)
+        if name in MUTABLE:
+            continue
+        if name != "Outcome":
+            if pb != sb:
+                problems.append(f"`## {name}` differs from {pred}'s")
+            continue
+        core = pb.rstrip("\n")
+        trail = pb[len(core):]
+        lead = f"{core}\n\nSucceeds {pred}: "
+        if not core or not sb.startswith(core):
+            problems.append(f"`## Outcome` doesn't start with {pred}'s Outcome word for word")
+        elif not (sb.startswith(lead) and sb.endswith(trail) and len(sb) - len(trail) > len(lead)
+                  and "\n" not in sb[len(core) + 2:len(sb) - len(trail)]):
+            problems.append(f"`## Outcome` may add one paragraph only, one line starting `Succeeds {pred}: ` after a blank line")
     return problems
 
 
@@ -114,6 +130,10 @@ def selftest():
     assert "doesn't start" in compare(pred, ok.replace("Do it.", "Do more."), "g")[0]
     assert "one paragraph only" in compare(pred, pred.replace("Do it.\n", "Do it. And more.\n"), "g")[0]
     assert "one paragraph only" in compare(pred, ok.replace("fixtures.\n", "fixtures.\n\nAlso this.\n"), "g")[0]
+    assert "one paragraph only" in compare(pred, ok.replace("fixtures.\n", "fixtures.\n \nAlso this.\n"), "g")[0]
+    assert "before its first section" in compare(pred, "Also build Z.\n" + ok, "g")[0]
+    assert compare(pred, ok.replace("- never Y", "- never Y "), "g") == ["`## Non-goals` differs from g's"]
+    assert "heading lines" in compare(pred, ok.replace("## Serves", "##  Serves"), "g")[0]
     assert predecessor("g--s1") == "g" and predecessor("g--s2") == "g--s1"
     assert predecessor("g--s3") is None and predecessor("g") is None and predecessor("G--s1") is None
     print("goal_successor selftest ok")
