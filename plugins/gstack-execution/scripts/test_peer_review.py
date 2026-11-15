@@ -106,6 +106,7 @@ def test_an_embedded_instruction_is_recorded_and_leaves_the_verdict_alone():
               "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
               "exclusions": [], "tests": {"commands": [], "results": "", "environment": "test"},
               "release_owner": "fixture-human",
+              "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
               "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
                            "allow_history": True, "allowed_tools": ["codex", "claude"]}}
         pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
@@ -231,6 +232,44 @@ def test_a_packet_without_data_use_is_refused_with_exit_2_before_anything_is_wri
             except SystemExit as e:
                 assert e.code == 2, e.code
         assert err.getvalue().startswith(says), err.getvalue()
+
+
+def test_open_refuses_for_data_use_before_any_check_it_made_before():
+    """Goal review-packet-ready-3 (review F1, 20261114-094615): a packet that would also fail today's validation
+    (no release_owner, max_rounds out of range) is refused for its data_use first, exit 2, nothing written."""
+    d, base, head = repo()
+    tmp = Path(tempfile.mkdtemp(prefix="gate-order-"))
+    saved = pr.REVIEW_DIR
+    try:
+        pr.REVIEW_DIR = tmp / "reviews"
+        pfile = tmp / "packet.json"
+        pfile.write_text(json.dumps({"acceptance_criteria": ["x"], "repos": [{"path": str(d), "base": base, "head": head}]}))
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                pr.cmd_open(argparse.Namespace(builder="claude", packet=str(pfile), max_rounds=9, timeout=30))
+            raise AssertionError("must refuse")
+        except SystemExit as e:
+            assert e.code == 2, e.code
+        assert err.getvalue().startswith("refused: data_use: missing"), err.getvalue()
+        assert not pr.REVIEW_DIR.exists() or not any(pr.REVIEW_DIR.iterdir())
+    finally:
+        pr.REVIEW_DIR = saved
+
+
+def test_a_reviewer_session_gets_the_packet_refusal_first():
+    """Goal review-packet-ready-5 item 2: main()'s reviewer-session guard no longer runs before open's packet
+    checks, so a reviewer session opening a packet with no data_use gets that refusal, exit 2, nothing written."""
+    import os, sys
+    d, base, head = repo()
+    tmp = Path(tempfile.mkdtemp(prefix="session-order-"))
+    pfile = tmp / "packet.json"
+    pfile.write_text(json.dumps({"acceptance_criteria": ["x"], "repos": [{"path": str(d), "base": base, "head": head}]}))
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(tmp / "reviews"), **{pr.RECURSION_ENV: "1"})
+    r = subprocess.run([sys.executable, str(Path(pr.__file__)), "open", "--builder", "claude", "--packet", str(pfile)],
+                       capture_output=True, text=True, env=env)
+    assert r.returncode == 2 and r.stderr.startswith("refused: data_use: missing"), (r.returncode, r.stderr)
+    assert not (tmp / "reviews").exists() or not any((tmp / "reviews").iterdir())
 
 
 if __name__ == "__main__":

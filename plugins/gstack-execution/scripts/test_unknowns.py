@@ -204,7 +204,7 @@ def _packet(d, base, head):
     return {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2", "f(None) is handled"],
             "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
             "exclusions": [], "tests": {"commands": [], "results": "", "environment": "test"},
-            "release_owner": "fixture-human",
+            "release_owner": "fixture-human", "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
             "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
                          "allow_history": True, "allowed_tools": ["codex", "claude"]}}
 
