@@ -148,11 +148,13 @@ class CriterionFilesTests(unittest.TestCase):
         self.assertIn("docs/huge.txt", cm.exception.detail)
 
     def test_a_named_file_that_cannot_be_read_is_unusable_and_named(self):
+        # Goal review-packet-ready-3 item 3 (MOXY-159), Dorian's call #3, option b: a named file gone only
+        # from the checkout is still at the head, so the surface carries the head's bytes, not an error.
         (self.repo / NAMED[4]).unlink()                          # tracked, and gone from the checkout
-        with self.assertRaises(pr.ReviewError) as cm:
-            self.surface(self.criteria)
-        self.assertEqual(cm.exception.outcome, "unusable")
-        self.assertIn(NAMED[4], cm.exception.detail)
+        surf, _ = self.surface(self.criteria)
+        at_head = subprocess.run(["git", "-C", str(self.repo), "show", f"{self.repos[0]['head']}:{NAMED[4]}"],
+                                 capture_output=True, check=True).stdout
+        self.assertEqual((surf / f"dependencies/{PRE}{NAMED[4]}").read_bytes(), at_head)
 
     def open(self, criteria, reviewer=None):
         """`peer_review.py open` through main(), as the build loop runs it. Returns (exit, state)."""
@@ -188,11 +190,16 @@ class CriterionFilesTests(unittest.TestCase):
         self.assertEqual((code, state["outcome"], state["reviewer"]), (None, "opened", "codex"))
 
     def test_an_unreadable_named_file_opens_as_unusable_for_any_reviewer(self):
+        # Goal review-packet-ready-3 item 3 (MOXY-159), Dorian's call #3, option b: the surface reads the
+        # head commit, never the working tree, so a named file removed only from the checkout is still
+        # surfaced, with the head's bytes, and the review opens.
         (self.repo / NAMED[4]).unlink()
         code, state, _ = self.open(self.criteria)
-        self.assertEqual(state["outcome"], "unusable")
-        self.assertIn(NAMED[4], state["error"])
-        self.assertTrue(str(code).startswith("unusable: "))
+        self.assertEqual((code, state["outcome"]), (None, "opened"))
+        surf, _ = self.surface(self.criteria)
+        at_head = subprocess.run(["git", "-C", str(self.repo), "show", f"{self.repos[0]['head']}:{NAMED[4]}"],
+                                 capture_output=True, check=True).stdout
+        self.assertEqual((surf / f"dependencies/{PRE}{NAMED[4]}").read_bytes(), at_head)
 
 
 if __name__ == "__main__":
