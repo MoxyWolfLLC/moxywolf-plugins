@@ -91,8 +91,9 @@ def compare(pred_text, succ_text, pred):
 
 
 def git(*args):
-    r = subprocess.run(["git", *args], capture_output=True, text=True)
-    return r.returncode, r.stdout
+    # bytes, decoded by hand: text=True would turn \r\n and \r into \n and hide them from compare (20261115-093723 F1)
+    r = subprocess.run(["git", *args], capture_output=True)
+    return r.returncode, r.stdout.decode("utf-8", errors="replace")
 
 
 def check(base, head):

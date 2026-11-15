@@ -127,6 +127,16 @@ def test_text_before_the_first_section_or_a_second_outcome_paragraph_is_refused(
         rc, out = run(d, base, head)
         assert rc == 1 and says in out, (says, out)
 
+def test_a_carriage_return_in_a_kept_section_is_refused_through_git():   # review 20261115-093723 F1
+    d, g, base = repo()
+    for text in (NEXT.replace("- never touch z.py\n", "- never touch z.py\r\n"), NEXT.replace("- a.py\n", "- a.py\r")):
+        g("checkout", "-q", "-B", "w", base)
+        (d / "goals/g--s1").mkdir(parents=True, exist_ok=True)
+        (d / "goals/g--s1/GOAL.md").write_bytes(text.encode())
+        g("add", "-A"); g("commit", "-qm", "c")
+        rc, out = run(d, base, g("rev-parse", "HEAD"))
+        assert rc == 1 and "line break" in out, out
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
