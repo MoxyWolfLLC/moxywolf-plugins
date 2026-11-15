@@ -93,7 +93,10 @@ def compare(pred_text, succ_text, pred):
 def git(*args):
     # bytes, decoded by hand: text=True would turn \r\n and \r into \n and hide them from compare (20261115-093723 F1)
     r = subprocess.run(["git", *args], capture_output=True)
-    return r.returncode, r.stdout.decode("utf-8", errors="replace")
+    try:
+        return r.returncode, r.stdout.decode("utf-8")
+    except UnicodeDecodeError:   # replacing bytes would let two different briefs compare equal; unreadable is refused
+        return 1, ""
 
 
 def check(base, head):
