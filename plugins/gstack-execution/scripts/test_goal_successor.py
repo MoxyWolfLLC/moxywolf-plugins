@@ -100,6 +100,23 @@ def test_a_successor_without_its_predecessor_on_the_base_is_refused():
     assert rc == 1 and "isn't on the base" in out, out
 
 
+def test_an_unowned_name_that_isnt_a_successor_id_is_refused_not_skipped():   # review 20261115-080201 F1
+    d, g, base = repo()
+    for name in ("G--s1", "g--s1--s1", "g---s2"):
+        g("checkout", "-q", "-B", "w", base)
+        head = commit(d, g, {f"goals/{name}/GOAL.md": NEXT})
+        rc, out = run(d, base, head)
+        assert rc == 1 and "not a successor id" in out, (name, out)
+
+
+def test_a_successor_cant_add_or_change_a_section_the_brief_doesnt_let_move():   # review F2
+    d, g, base = repo()
+    for text in (NEXT + "## Release companion\nmarketplace\n", NEXT.replace("## Spend cap", "## Required checkouts\n- x\n\n## Spend cap")):
+        g("checkout", "-q", "-B", "w", base)
+        head = commit(d, g, {"goals/g--s1/GOAL.md": text})
+        rc, out = run(d, base, head)
+        assert rc == 1 and "same order" in out, out
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

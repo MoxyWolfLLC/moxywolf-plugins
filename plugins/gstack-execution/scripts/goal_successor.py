@@ -6,20 +6,21 @@ this check, run inside the required `tests` check, is what holds them instead:
 
   goal_successor.py check --base <sha> --head <sha>
 
-For every `goals/<root>--sN/` path the range touches, the folder must be new (an approved goal never
-changes), the change must touch nothing outside that folder, the predecessor (`<root>` for --s1,
-`<root>--s1` for --s2) must exist at the base, and the successor's GOAL.md must keep the predecessor's
-sections in KEPT byte for byte, and its Outcome must start with the predecessor's Outcome and add only
-a paragraph that starts `Succeeds <predecessor>:`. A range that touches no successor folder passes and
-says so. --s3 and beyond match no unowned pattern, so they go to Dorian as any goal does.
+Every `goals/<name>/` path whose name ends `--s1` or `--s2` (what CODEOWNERS leaves unowned) is examined:
+the name must be a valid successor id, the folder must be new (an approved goal never changes), the change
+must touch nothing outside that folder, the predecessor (`<root>` for --s1, `<root>--s1` for --s2) must
+exist at the base, and the successor's GOAL.md must have the predecessor's sections, each once and in the
+same order, every one byte for byte except those in MUTABLE, and an Outcome that starts with the
+predecessor's and adds only a paragraph that starts `Succeeds <predecessor>:`. A range that touches no
+such folder passes and says so. --s3 and beyond match no unowned pattern, so they go to Dorian.
 Exit 0 pass, 1 refused, 2 bad usage or an unreadable range.
 """
 import re
 import subprocess
 import sys
 
-KEPT = ["Serves", "Non-goals", "Allowed paths", "Spend cap", "Provider budgets", "Max calls", "Max items",
-        "Max review rounds per item", "Stop conditions"]
+MUTABLE = {"Scenarios", "Goal tests", "Pre-mortem"}   # with the Outcome's one added paragraph; nothing else moves
+UNOWNED = re.compile(r"--s[12]$")                      # CODEOWNERS: /goals/*--s1/ and /goals/*--s2/
 SUCCESSOR = re.compile(r"^(?P<root>[a-z0-9]+(?:-[a-z0-9]+)*)--s(?P<n>[12])$")
 
 
@@ -43,10 +44,17 @@ def predecessor(folder):
     return m["root"] if m["n"] == "1" else f"{m['root']}--s1"
 
 
+def headings(text):
+    return [m.group(1) for m in re.finditer(r"^##\s+(.+?)\s*$", text, re.M)]
+
+
 def compare(pred_text, succ_text, pred):
-    """Problems with a successor GOAL.md against its predecessor's, as a list."""
+    """Problems with a successor GOAL.md against its predecessor's, as a list. Every section is kept by
+    default (Release companion and Required checkouts carry merge authority; review 20261115-080201 F2)."""
     p, s = sections(pred_text), sections(succ_text)
-    problems = [f"`## {k}` differs from {pred}'s" for k in KEPT if p.get(k) != s.get(k)]
+    if headings(succ_text) != headings(pred_text):
+        return [f"its sections aren't {pred}'s, each once and in the same order"]
+    problems = [f"`## {k}` differs from {pred}'s" for k in p if k not in MUTABLE | {"Outcome"} and p[k] != s[k]]
     if "Outcome" not in p or "Outcome" not in s:
         problems.append("a GOAL.md has no `## Outcome`")
     elif not s["Outcome"].startswith(p["Outcome"]):
@@ -72,10 +80,13 @@ def check(base, head):
     fields = out.split("\0")
     changes = list(zip(fields[0::2], fields[1::2]))
     folders = sorted({p.split("/")[1] for _, p in changes if p.startswith("goals/") and p.count("/") >= 2
-                      and SUCCESSOR.match(p.split("/")[1])})
+                      and UNOWNED.search(p.split("/")[1])})
     problems = []
     for f in folders:
         pred = predecessor(f)
+        if pred is None:   # unowned by CODEOWNERS but not a successor id: refused, never skipped (review F1)
+            problems.append(f"goals/{f}/: not a successor id (`<lowercase-id>--s1` or `--s2`), yet CODEOWNERS leaves it unowned")
+            continue
         if git("cat-file", "-e", f"{base}:goals/{f}")[0] == 0 or any(st != "A" for st, p in changes if p.startswith(f"goals/{f}/")):
             problems.append(f"goals/{f}/: a successor folder is only ever added; an approved goal never changes")
         outside = [p for _, p in changes if not p.startswith(f"goals/{f}/")]
@@ -97,6 +108,8 @@ def selftest():
     ok = pred.replace("Do it.\n", "Do it.\n\nSucceeds g: the holdout failed on fixtures.\n")
     assert compare(pred, ok, "g") == [], compare(pred, ok, "g")
     assert compare(pred, ok.replace("- never Y", "- never Z"), "g") == ["`## Non-goals` differs from g's"]
+    assert "same order" in compare(pred, ok + "## Release companion\nmarketplace\n", "g")[0]
+    assert "same order" in compare(pred, ok + "## Serves\nY\n", "g")[0]
     assert compare(pred, ok.replace("- a.py", "- a.py\n- b.py"), "g") == ["`## Allowed paths` differs from g's"]
     assert "doesn't start" in compare(pred, ok.replace("Do it.", "Do more."), "g")[0]
     assert "one paragraph only" in compare(pred, pred.replace("Do it.\n", "Do it. And more.\n"), "g")[0]

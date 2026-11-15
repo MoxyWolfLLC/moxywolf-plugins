@@ -584,6 +584,15 @@ class Runner(RunnerFixture):
         self.assertTrue(texts and "Next: g1--s1" in texts[-1] and "no approval needed" in texts[-1], texts)
         self.assertEqual((gr.next_goal("g1"), gr.next_goal("g1--s1"), gr.next_goal("g1--s2")), ("g1--s1", "g1--s2", None))
 
+    def test_a_successors_record_names_its_own_pr_and_its_roots_approval_apart(self):  # review 20261115-080201 F3
+        self.start()
+        self.assertIn("- Approved in PR #", gr.record("g1"))
+        st = gr.load("g1"); st["approval_pr"], st["approval_head"] = 5, "2" * 40
+        gr.save(st)
+        rec = gr.record("g1")
+        self.assertIn("a successor (GO-011.9) approved by review", rec)
+        self.assertIn("root goal's PR #5 at 222222222222", rec)
+
     def test_a_blocked_final_review_ends_the_run_and_names_the_successor(self):  # GO-011.9
         self.start()
         out = gr.review_failed("g1", "rid-1", "F1 an ownerless packet skips data_use")

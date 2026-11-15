@@ -261,7 +261,7 @@ The brief:
 def cmd_successor(goal_dir, why):
     """GO-011.9. Only the parts goal_successor.compare lets change are left to change: the Outcome keeps the
     predecessor's text and gains one paragraph; every other section is copied and revised, if at all, only where
-    goal_successor.KEPT doesn't name it."""
+    goal_successor.MUTABLE names it."""
     import goal_run
     import goal_successor as gsucc
     src = Path(goal_dir).resolve()

@@ -990,7 +990,10 @@ def record(goal_id):
     _, _, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
     lines = [f"# Goal run: {goal_id}", "",
              f"- Outcome: {state['outcome'] or 'running'}" + (f" ({state['reason']})" if state["reason"] else ""),
-             f"- Approved in PR #{state['pr']} by review {state['review_id']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}",
+             (f"- Approved in PR #{state['pr']} by review {state['review_id']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}"
+              if state.get("approval_pr", state["pr"]) == state["pr"] else
+              f"- Added in PR #{state['pr']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}; a successor (GO-011.9) "
+              f"approved by review {state['review_id']} on its root goal's PR #{state['approval_pr']} at {str(state.get('approval_head'))[:12]}"),
              f"- Goal tests drafted by {', '.join(state['drafted_by'])}, read by {state['read_by']}",
              f"- Builder: {state['builder']}", f"- Goal branch: {state['branch']} from {state['main_at_start'][:12]}",
              f"- Spend: ${totals.get('total', '?')} across {json.dumps(totals.get('spent', {}))}; {totals.get('calls', '?')} counted calls",
