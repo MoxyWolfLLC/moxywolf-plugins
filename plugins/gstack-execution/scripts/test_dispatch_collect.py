@@ -80,7 +80,7 @@ def fixture(tmp, body=None, sleep=0, bin_dir=None):
     subprocess.run(["git", "commit", "-qam", "head"], cwd=repo, check=True, capture_output=True)
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
     pkt = {"outcome": "o", "acceptance_criteria": ["c"], "changed_behavior": "b", "exclusions": [],
-           "tests": {"commands": [], "results": "r", "environment": "e"}, "release_owner": "dorianatmoxywolf",
+           "tests": {"commands": [], "results": "r", "environment": "e"}, "release_owner": "dorianatmoxywolf", "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
            "prior_findings": [], "repos": [{"path": str(repo), "base": base, "head": head}],
            "data_use": {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
                         "allow_history": True, "allowed_tools": ["claude", "codex", "gemini"],
