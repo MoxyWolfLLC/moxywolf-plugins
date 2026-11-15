@@ -70,6 +70,14 @@ jobs:
           fi
           python3 plugins/gstack-execution/scripts/version_bump.py --base "$BASE" --head "$GITHUB_SHA"
 
+      # GO-011.9: a successor goal folder (goals/<id>--s1/, --s2/) has no code owner; this step holds it
+      # instead, refusing one that changes a section of the approved brief or anything outside its folder.
+      - name: A successor goal keeps its approved brief word for word
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: python3 plugins/gstack-execution/scripts/goal_successor.py check --base "$BASE" --head "$GITHUB_SHA"
+
       - name: The runner's own check
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --selftest
 

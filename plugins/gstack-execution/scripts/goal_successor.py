@@ -1,0 +1,128 @@
+"""GO-011.9: a successor goal approves itself when it keeps its predecessor's brief word for word.
+
+A goal that fails its holdout or its whole-goal review is followed by `goals/<root>--s1/`, then
+`goals/<root>--s2/`. CODEOWNERS leaves those two folder names unowned, so Dorian's review isn't asked;
+this check, run inside the required `tests` check, is what holds them instead:
+
+  goal_successor.py check --base <sha> --head <sha>
+
+For every `goals/<root>--sN/` path the range touches, the folder must be new (an approved goal never
+changes), the change must touch nothing outside that folder, the predecessor (`<root>` for --s1,
+`<root>--s1` for --s2) must exist at the base, and the successor's GOAL.md must keep the predecessor's
+sections in KEPT byte for byte, and its Outcome must start with the predecessor's Outcome and add only
+a paragraph that starts `Succeeds <predecessor>:`. A range that touches no successor folder passes and
+says so. --s3 and beyond match no unowned pattern, so they go to Dorian as any goal does.
+Exit 0 pass, 1 refused, 2 bad usage or an unreadable range.
+"""
+import re
+import subprocess
+import sys
+
+KEPT = ["Serves", "Non-goals", "Allowed paths", "Spend cap", "Provider budgets", "Max calls", "Max items",
+        "Max review rounds per item", "Stop conditions"]
+SUCCESSOR = re.compile(r"^(?P<root>[a-z0-9]+(?:-[a-z0-9]+)*)--s(?P<n>[12])$")
+
+
+def sections(text):
+    """GOAL.md's `## ` sections, as goal_brief.sections reads them (kept here so the gate has no unowned import)."""
+    out, cur = {}, None
+    for line in text.splitlines():
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m:
+            cur = m.group(1)
+            out[cur] = []
+        elif cur is not None:
+            out[cur].append(line)
+    return {k: "\n".join(v).strip() for k, v in out.items()}
+
+
+def predecessor(folder):
+    m = SUCCESSOR.match(folder)
+    if not m:
+        return None
+    return m["root"] if m["n"] == "1" else f"{m['root']}--s1"
+
+
+def compare(pred_text, succ_text, pred):
+    """Problems with a successor GOAL.md against its predecessor's, as a list."""
+    p, s = sections(pred_text), sections(succ_text)
+    problems = [f"`## {k}` differs from {pred}'s" for k in KEPT if p.get(k) != s.get(k)]
+    if "Outcome" not in p or "Outcome" not in s:
+        problems.append("a GOAL.md has no `## Outcome`")
+    elif not s["Outcome"].startswith(p["Outcome"]):
+        problems.append(f"`## Outcome` doesn't start with {pred}'s Outcome word for word")
+    else:
+        added = s["Outcome"][len(p["Outcome"]):].strip()
+        if not added.startswith(f"Succeeds {pred}:") or "\n\n" in added:
+            problems.append(f"`## Outcome` may add one paragraph only, starting `Succeeds {pred}:`")
+    return problems
+
+
+def git(*args):
+    r = subprocess.run(["git", *args], capture_output=True, text=True)
+    return r.returncode, r.stdout
+
+
+def check(base, head):
+    """(problems, successor folders examined); raises SystemExit(2) when the range can't be read."""
+    rc, out = git("diff", "--name-status", "-z", "--no-renames", f"{base}...{head}")
+    if rc:
+        print(f"can't read the range {base}...{head}", file=sys.stderr)
+        raise SystemExit(2)
+    fields = out.split("\0")
+    changes = list(zip(fields[0::2], fields[1::2]))
+    folders = sorted({p.split("/")[1] for _, p in changes if p.startswith("goals/") and p.count("/") >= 2
+                      and SUCCESSOR.match(p.split("/")[1])})
+    problems = []
+    for f in folders:
+        pred = predecessor(f)
+        if git("cat-file", "-e", f"{base}:goals/{f}")[0] == 0 or any(st != "A" for st, p in changes if p.startswith(f"goals/{f}/")):
+            problems.append(f"goals/{f}/: a successor folder is only ever added; an approved goal never changes")
+        outside = [p for _, p in changes if not p.startswith(f"goals/{f}/")]
+        if outside:
+            problems.append(f"goals/{f}/: its change touches {len(outside)} path(s) outside the folder, e.g. {outside[0]}")
+        rc_p, pred_text = git("show", f"{base}:goals/{pred}/GOAL.md")
+        rc_s, succ_text = git("show", f"{head}:goals/{f}/GOAL.md")
+        if rc_p:
+            problems.append(f"goals/{f}/: its predecessor goals/{pred}/GOAL.md isn't on the base")
+        elif rc_s:
+            problems.append(f"goals/{f}/: no GOAL.md at the head")
+        else:
+            problems += [f"goals/{f}/: {x}" for x in compare(pred_text, succ_text, pred)]
+    return problems, len(folders)
+
+
+def selftest():
+    pred = "## Serves\nX\n\n## Outcome\nDo it.\n\n## Non-goals\n- never Y\n\n## Allowed paths\n- a.py\n\n## Stop conditions\n- HALT\n"
+    ok = pred.replace("Do it.\n", "Do it.\n\nSucceeds g: the holdout failed on fixtures.\n")
+    assert compare(pred, ok, "g") == [], compare(pred, ok, "g")
+    assert compare(pred, ok.replace("- never Y", "- never Z"), "g") == ["`## Non-goals` differs from g's"]
+    assert compare(pred, ok.replace("- a.py", "- a.py\n- b.py"), "g") == ["`## Allowed paths` differs from g's"]
+    assert "doesn't start" in compare(pred, ok.replace("Do it.", "Do more."), "g")[0]
+    assert "one paragraph only" in compare(pred, pred.replace("Do it.\n", "Do it. And more.\n"), "g")[0]
+    assert "one paragraph only" in compare(pred, ok.replace("fixtures.\n", "fixtures.\n\nAlso this.\n"), "g")[0]
+    assert predecessor("g--s1") == "g" and predecessor("g--s2") == "g--s1"
+    assert predecessor("g--s3") is None and predecessor("g") is None and predecessor("G--s1") is None
+    print("goal_successor selftest ok")
+
+
+def main(argv):
+    if argv == ["--selftest"]:
+        selftest()
+        return 0
+    args = dict(zip(argv[1::2], argv[2::2]))
+    if argv[:1] != ["check"] or set(args) != {"--base", "--head"}:
+        print("usage: goal_successor.py check --base <sha> --head <sha> | --selftest", file=sys.stderr)
+        return 2
+    problems, examined = check(args["--base"], args["--head"])
+    if not examined:
+        print("examined 0 successor goal folders: the range adds none, nothing to hold")
+        return 0
+    print(f"examined {examined} successor goal folder(s)")
+    for p in problems:
+        print("FAIL:", p)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
