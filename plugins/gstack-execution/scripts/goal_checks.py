@@ -81,6 +81,9 @@ def pnpm_projects(candidate_dir):
     return out
 
 
+BROWSERS_DIR = "ms-playwright"   # #339: the candidate's own Playwright browsers, under /deps
+
+
 def install_container(deps, workdir, env, command):
     """The networked install container: the deps folder and nothing else, no capabilities, uid 65534."""
     return ["docker", "run", "--rm", "--read-only", "--tmpfs", "/tmp", "--cap-drop", "ALL",
@@ -130,6 +133,14 @@ def install_deps(candidate_dir, run=subprocess.run):
                 capture_output=True, text=True, timeout=1200)
         if r.returncode != 0:
             raise SystemExit(f"npm ci failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
+        # #339: the image's browsers are for its own Playwright; a candidate pinned to another version finds no
+        # executable. Its own playwright-core fetches the matching headless shell here, while there is a network.
+        if (deps / "node_modules" / "playwright-core" / "cli.js").is_file():
+            r = run(install_container(deps, "/deps", [("PLAYWRIGHT_BROWSERS_PATH", "/deps/" + BROWSERS_DIR)],
+                                      ["node", "node_modules/playwright-core/cli.js", "install", "chromium-headless-shell"]),
+                    capture_output=True, text=True, timeout=1200)
+            if r.returncode != 0:
+                raise SystemExit(f"playwright install failed in the install container: {(r.stderr or r.stdout)[-1500:]}")
     for rel, version in projects:
         folder = deps / rel
         folder.mkdir(parents=True, exist_ok=True)
@@ -234,6 +245,7 @@ def sandbox_cmd(main_dir, candidate_dir, gid, deps=None):
             "--pids-limit", "256", "--memory", "1g", "-e", "HOME=/tmp", "-w", "/tmp",
             "-v", f"{Path(main_dir).resolve()}:/main:ro", "-v", f"{Path(candidate_dir).resolve()}:/candidate:ro",
             *(["-v", f"{Path(deps).resolve()}:/deps:ro"] if deps else []),
+            *(["-e", f"PLAYWRIGHT_BROWSERS_PATH=/deps/{BROWSERS_DIR}"] if deps and Path(deps, BROWSERS_DIR).is_dir() else []),
             IMAGE, "python3", "-B", "/main/plugins/gstack-execution/scripts/goal_checks.py", "sandbox-run", gid,
             "--goal", f"/main/goals/{gid}", "--candidate", "/candidate"]
 
