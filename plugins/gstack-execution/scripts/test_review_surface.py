@@ -233,7 +233,7 @@ def test_a_changed_file_named_with_a_space_is_surfaced_whole_and_its_escaping_li
         repos[0]["head"] = git("rev-parse", "HEAD")
         root = Path(t)/"root"; root.mkdir()
         surf, _ = pr.build_surface(repos, root)
-        assert (surf/"changed"/"0-repo"/"two words.py").read_bytes() == b"SPACE = 1\n"
+        assert next(surf.glob("changed/*/two words.py")).read_bytes() == b"SPACE = 1\n"
         (r/"bad link").symlink_to("../../outside.txt"); git("add", "-A"); git("commit", "-qm", "link")
         repos[0]["head"] = git("rev-parse", "HEAD")
         root2 = Path(t)/"root2"; root2.mkdir()
