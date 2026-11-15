@@ -275,8 +275,12 @@ def head_tracked(r):
 def head_blob(r, name):
     """MOXY-159: a file's bytes at the reviewed head, or None when the head has no such path.
     A checkout on another branch never leaks into the surface; a symlink is its target text, never followed."""
-    # cat-file blob, not show: `git show <head>:<dir>` prints a tree listing and succeeds (review F1, 20261114-193502)
-    p = subprocess.run(["git", "-C", str(r["path"]), "cat-file", "blob", f"{r['head']}:{name}"], capture_output=True)
+    # `git show <head>:<dir>` prints a tree listing and succeeds, so the object's type is checked first and only a
+    # blob is read (reviews F1 and F5, 20261114-193502); a tree, a submodule or a missing path is None.
+    kind = subprocess.run(["git", "-C", str(r["path"]), "cat-file", "-t", f"{r['head']}:{name}"], capture_output=True, text=True)
+    if kind.returncode != 0 or kind.stdout.strip() != "blob":
+        return None
+    p = subprocess.run(["git", "-C", str(r["path"]), "show", f"{r['head']}:{name}"], capture_output=True)
     return p.stdout if p.returncode == 0 else None
 
 
