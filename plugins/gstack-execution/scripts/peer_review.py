@@ -2816,15 +2816,71 @@ def refuse_without_data_use(packet, reviewer):
         refuse(f"data_use: denied: {e}")
 
 
+def refuse_ledger_behind(repos, entries):
+    """Goal review-packet-ready-3 item 2. A ledger run is evidence for the commit it ran at; one at an older commit
+    than the head being sent cost a round on 2026-10-30. Full 40-character SHAs only, so an abbreviated or older one
+    counts as behind, and a run that records no commit prints `none`. The first such run in the order given is named.
+    `repos` carry the head being sent; an entry naming a repository they don't list, or a run not on the ledger, is
+    left to the malformed_packet checks that follow."""
+    import check_ledger
+    for e in entries or ():
+        if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not isinstance(e.get("run_id"), str):
+            continue
+        repo = _packet_repo(repos, as_repo_ref(e["repo"]))
+        if repo is None:
+            continue
+        try:
+            run = check_ledger.find_run(repo["path"], e["run_id"], review_root())[0]
+        except Exception:
+            continue
+        if run is None:
+            continue
+        if run.get("head") != repo["head"]:
+            refuse(f"tests.ledger_runs: run {e['run_id']} is at {run.get('head') or 'none'}, head is {repo['head']}")
+
+
+def _sent_repos(repos, updates=None):
+    """The repositories as the review will send them: path resolved, head resolved to a full SHA where git can
+    (a head it can't resolve is kept as written, and today's checks refuse it), any --head update applied."""
+    out = []
+    for r in repos if isinstance(repos, list) else ():
+        if not isinstance(r, dict) or not isinstance(r.get("path"), str) or not isinstance(r.get("head"), str):
+            continue
+        path = str(Path(r["path"]).resolve()); head = r["head"]
+        sha = (updates or {}).get(path, (updates or {}).get(Path(path).name))
+        try:
+            head = resolve_commit(path, sha or head)
+        except Exception:
+            head = sha or head
+        out.append({"path": path, "head": head})
+    return out
+
+
+def gate_packet(raw, builder, accept_narrow):
+    """Goal review-packet-ready-3 items 1-2: open's checks before any check it made before this goal, in a fixed
+    order, data_use, coverage, tests.ledger_runs, and before any review id, folder or reviewer call. Runs on the
+    packet as written; load_packet's validation comes after."""
+    refuse_without_data_use(raw, choose_reviewer(builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)[0])
+    if not raw.get("coverage") and not accept_narrow:
+        refuse("coverage: not attached")
+    tests = raw.get("tests") if isinstance(raw.get("tests"), dict) else {}
+    refuse_ledger_behind(_sent_repos(raw.get("repos")), tests.get("ledger_runs"))
+
+
 def cmd_open(a):
+    # goal review-packet-ready-3: data_use, coverage and tests.ledger_runs come before every check open made before
+    # this goal (review F1, 20261114-094615): only reading the packet's JSON precedes them.
+    try:
+        raw = json.loads(Path(a.packet).read_text())
+    except (ValueError, OSError) as e:
+        raise ReviewError("malformed_packet", str(e))
+    if isinstance(raw, dict):
+        gate_packet(raw, a.builder, getattr(a, "accept_narrow_packet", False))
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if not 1 <= a.max_rounds <= 3 or a.timeout <= 0:
         raise ReviewError("malformed_packet", "max_rounds must be 1..3 and timeout positive")
     packet = load_packet(a.packet)
-    # goal review-packet-ready-3 item 1: data_use first, before any check open made before this goal and before any
-    # review id, folder or reviewer call. Choosing the reviewer reads the builder and GSTACK_REVIEWER only.
-    refuse_without_data_use(packet, choose_reviewer(a.builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)[0])
 
     # XE-010: refuse a packet narrower than the items it claims. Only ever adds a gate.
     ok, cov_status, uncovered = coverage_verdict(packet)
@@ -2922,12 +2978,31 @@ def cmd_open(a):
     return state
 
 
+def _adjudicated(d, state):
+    """The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
+    but adjudicated nothing, so the blockers it is measured against are the round's before it."""
+    round_no = state["rounds_used"] + 1
+    adjudicated = state.get("adjudicated_round")
+    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
+        adjudicated = next((n for n in range(round_no - 1, 0, -1)
+                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
+    return adjudicated, (load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None)
+
+
 def cmd_round(a):
-    if os.environ.get(RECURSION_ENV):
-        sys.exit("refused: this is a reviewer session; peer review does not recurse")
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
     packet = effective_packet(state, packet)
+    # goal review-packet-ready-3 item 2: the ledger check for the runs this round's --ledger-run names, and no
+    # others, before round's existing checks (review F1, 20261114-094615), against the head this round sends,
+    # which is the packet's head after any --head the round gives, a first round's included (review F2).
+    specs = getattr(a, "ledger_run", None)
+    if isinstance(specs, list) and specs:
+        named = [{"repo": k, "run_id": v} for k, v in (s.rsplit("=", 1) for s in specs if "=" in s)]
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in getattr(a, "head", None) or () if "=" in h)}
+        refuse_ledger_behind(_sent_repos(packet["repos"], updates), named)
+    if os.environ.get(RECURSION_ENV):
+        sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if state["outcome"] not in {"opened", "blocking_findings"}:
         raise ReviewError("review_closed", "open a new review after a terminal outcome")
     if state["rounds_used"] >= state["max_rounds"]:
@@ -2935,13 +3010,7 @@ def cmd_round(a):
     round_no = state["rounds_used"] + 1
     named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
                          .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
-    # The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
-    # but adjudicated nothing, so the blockers it is measured against are the round's before it.
-    adjudicated = state.get("adjudicated_round")
-    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
-        adjudicated = next((n for n in range(round_no - 1, 0, -1)
-                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
-    prior = load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None
+    adjudicated, prior = _adjudicated(d, state)
     dispositions = load(d, "dispositions.json") or {}
     if prior is not None:
         open_blockers = [f["id"] for f in prior.get("findings", []) if f["severity"] == "blocking"]
@@ -2962,6 +3031,14 @@ def cmd_round(a):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
+    elif getattr(a, "head", None):
+        # goal review-packet-ready-3 item 2 (review F2, 20261114-094615): a first round given --head sends that head,
+        # so the head its ledger check compares against is the head the reviewer gets. Before, round 1 ignored --head.
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in a.head)}
+        for r in packet["repos"]:
+            sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
+            if sha:
+                r["head"] = resolve_commit(r["path"], sha)
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
     previous_evidence = state.get("evidence_runs")
@@ -3636,6 +3713,7 @@ def selftest():
     pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"], "repos": [{"path": str(repo), "base": base, "head": head}],
           "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}, "release_owner": "fixture-human"}
     pk["data_use"] = {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True, "allowed_tools": ["codex", "claude"]}
+    pk["coverage"] = {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]}   # review-packet-ready-3 item 2
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
 
@@ -3747,7 +3825,10 @@ def main():
         ap.print_help()
         return
     try:
-        if os.environ.get(RECURSION_ENV) and a.cmd != "status":
+        # Goal review-packet-ready-5 item 2: open and round make their packet checks (data_use, coverage,
+        # tests.ledger_runs) before every check they made before, this guard's copy included; each keeps its
+        # own reviewer-session guard right after those checks. review-packet-ready-4 failed its holdout here.
+        if os.environ.get(RECURSION_ENV) and a.cmd not in ("status", "open", "round"):
             raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
