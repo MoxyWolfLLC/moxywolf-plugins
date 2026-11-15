@@ -43,7 +43,7 @@ The builder supplies one packet per completed implementation checkpoint (not per
 | `repos` | List of `{path, base, head}`. Exact commits, one pair per repository. Approval of one pair never carries to another |
 | `changed_behavior` | What now behaves differently, and the entry points where execution reaches it |
 | `exclusions` | Settled decisions and out-of-scope areas the review must not reopen |
-| `tests` | `{commands, results, environment}`, and optionally `ci_runs`: `[{repo, run_id}]` naming GitHub Actions runs, and `ledger_runs`: `[{repo, run_id}]` naming failure-ledger runs (EV-014). What was run, what it showed, where. The dispatcher reads each named run itself and puts it in the surface's `evidence/` folder with its head; the builder's `results` stay a claim. `open` refuses a ledger run id that isn't on that repository's ledger. A fix round names the runs at its new head with `--ledger-run REPO=RUN_ID` (as `--ci-run` names CI runs); they replace `ledger_runs` for that and later rounds, and a named run that is not at the new head, or whose receipt does not hash to its ledger line, stops the round before the reviewer runs (`release_blocked` on the round record; the review stays open, the round is spent). `packet.json` keeps the bytes `open` wrote through every round; the heads the rounds moved to and the runs they named live on `state.json` (`heads`, `evidence_runs`) |
+| `tests` | `{commands, results, environment}`, and optionally `ci_runs`: `[{repo, run_id}]` naming GitHub Actions runs, and `ledger_runs`: `[{repo, run_id}]` naming failure-ledger runs (EV-014). What was run, what it showed, where. The dispatcher reads each named run itself and puts it in the surface's `evidence/` folder with its head; the builder's `results` stay a claim. `open` refuses a ledger run id that isn't on that repository's ledger. A fix round names the runs at its new head with `--ledger-run REPO=RUN_ID` (as `--ci-run` names CI runs); they replace `ledger_runs` for that and later rounds, a named run that is not at the head the round sends is refused before anything is recorded (`refused: tests.ledger_runs: ...`, exit 2; the round is not spent), and one whose receipt does not hash to its ledger line stops the round before the reviewer runs (`release_blocked` on the round record; the review stays open, the round is spent). `packet.json` keeps the bytes `open` wrote through every round; the heads the rounds moved to and the runs they named live on `state.json` (`heads`, `evidence_runs`) |
 | `data_use` | Policy owner matching `release_owner`, classification, explicit repository/history permissions, and allowed reviewer tools; checked before reviewer dispatch |
 | `prior_findings` | Finding IDs and dispositions from earlier rounds (filled in by the dispatcher after round 1) |
 
@@ -64,6 +64,19 @@ A review round requires `data_use`; absent or denied permission yields `data_use
 ```
 
 This object is part of the full packet above. Only declare permissions already granted; unclear permission stops dispatch. Graph execution additionally checks output roots and proof command allowlists under the [task graph contract](task-graph-contract.md). Shared snapshot creation refuses symlinks escaping the repository snapshot.
+
+### Refused before dispatch
+
+Before it makes a review id, a review folder or any reviewer call, `open` refuses a packet that isn't ready, on standard error with exit code 2, writing nothing. It checks in this order, before any check it made before, and prints only the first that fails:
+
+| Check | Message |
+|---|---|
+| `data_use` missing or with no keys | `refused: data_use: missing` |
+| `data_use` denies the reviewer `open` would choose | `refused: data_use: denied: <reason>` (the message `governance.data_permission` raises) |
+| no attached coverage report (`coverage` absent or empty), without `--accept-narrow-packet` | `refused: coverage: not attached` |
+| a `tests.ledger_runs` run whose recorded commit isn't the packet's head (full 40-character SHAs; an abbreviated commit counts as behind, a missing one prints `none`) | `refused: tests.ledger_runs: run <id> is at <sha\|none>, head is <sha>` |
+
+`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (the packet's head after any `--head` the round gives, a first round's included), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
 
 The builder's summary is a claim to check, not evidence. The reviewer opens the code at the pinned commits.
 
