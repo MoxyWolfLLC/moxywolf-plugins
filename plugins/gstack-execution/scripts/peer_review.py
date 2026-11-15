@@ -2875,7 +2875,7 @@ def refuse_without_data_use(packet, reviewer):
     # permission, classification, the reviewer as an allowed tool) still refuses here first.
     probe = packet
     if not (packet.get("owner") or packet.get("release_owner")) and isinstance(packet["data_use"], dict):
-        probe = dict(packet, release_owner=packet["data_use"].get("owner"))
+        probe = dict(packet, owner=packet["data_use"].get("owner"))   # `owner` wins in data_permission, even when null
     try:
         data_permission(probe, tool=reviewer)
     except ValueError as e:

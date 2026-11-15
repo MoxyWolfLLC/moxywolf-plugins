@@ -240,6 +240,8 @@ def test_an_ownerless_packet_is_refused_for_a_denying_data_use_and_left_to_malfo
     allow = {"owner": "o", "classification": "internal", "allow_repository": True, "allow_history": True,
              "allowed_tools": ["codex"]}
     pr.refuse_without_data_use({"data_use": allow}, "codex")       # no owner, policy allows: returns
+    for empty in ({"owner": None}, {"owner": ""}, {"release_owner": ""}, {"owner": None, "release_owner": None}):
+        pr.refuse_without_data_use(dict(empty, data_use=allow), "codex")   # an owner key that names no one is no owner
     for policy, says in ((dict(allow, allow_repository=False), "refused: data_use: denied: data_use: repository/history"),
                          (dict(allow, allow_history=False), "refused: data_use: denied: data_use: repository/history"),
                          ({k: v for k, v in allow.items() if k != "classification"}, "refused: data_use: denied: data_use: repository/history"),
