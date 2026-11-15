@@ -37,7 +37,9 @@ def open_review(criteria, override=False):
     d, base, head = repo()
     pk = {"outcome": "o", "acceptance_criteria": criteria,
           "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "b",
-          "exclusions": [], "tests": {}, "release_owner": "dorianatmoxywolf"}
+          "exclusions": [], "tests": {}, "release_owner": "dorianatmoxywolf",
+          "data_use": {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                       "allow_history": True, "allowed_tools": ["codex", "claude", "openrouter-gpt"]}}
     f = d / "packet.json"; f.write_text(json.dumps(pk))
     pr.REVIEW_DIR = Path(tempfile.mkdtemp())   # read at import; set per test, never a session home
     a = SimpleNamespace(packet=str(f), builder="claude", max_rounds=3, timeout=900,
