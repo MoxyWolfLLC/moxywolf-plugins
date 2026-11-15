@@ -263,6 +263,59 @@ def git(repo, *args, check=True):
     return r.stdout.strip()
 
 
+def head_tracked(r):
+    """MOXY-159: the files at the reviewed head, never the checkout's index or working tree.
+    -z and bytes: a quoted or "\r"-bearing name would otherwise vanish uncounted."""
+    p = subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only", r["head"]], capture_output=True)
+    if p.returncode != 0:
+        raise ReviewError("missing_commits", f"git ls-tree {r['head']} in {r['path']}: {p.stderr.decode(errors='replace').strip()}")
+    return [os.fsdecode(f) for f in p.stdout.split(b"\0") if f]
+
+
+def head_blob(r, name):
+    """MOXY-159: a file's bytes at the reviewed head, or None when the head has no such path.
+    A checkout on another branch never leaks into the surface; a symlink is its target text, never followed."""
+    # `git show <head>:<dir>` prints a tree listing and succeeds, so the object's type is checked first and only a
+    # blob is read (reviews F1 and F5, 20261114-193502); a tree, a submodule or a missing path is None.
+    kind = subprocess.run(["git", "-C", str(r["path"]), "cat-file", "-t", f"{r['head']}:{name}"], capture_output=True, text=True)
+    if kind.returncode != 0 or kind.stdout.strip() != "blob":
+        return None
+    p = subprocess.run(["git", "-C", str(r["path"]), "show", f"{r['head']}:{name}"], capture_output=True)
+    return p.stdout if p.returncode == 0 else None
+
+
+def _head_is_link(r, name):
+    return git(r["path"], "ls-tree", r["head"], "--", name).startswith("120000 ")
+
+
+def _head_link_escapes(r, name, target):
+    """Review F1, 20261114-153025: whether a link the head commits points outside the repository, resolved
+    through the links the head commits and never through the checkout, whose directories may be other links.
+    An absolute target is outside the head's tree. ponytail: one ls-tree per path component; 40 hops max."""
+    if target.startswith("/"):
+        return True
+    queue, out, hops = [*name.split("/")[:-1], *target.split("/")], [], 0
+    while queue:
+        part = queue.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not out:
+                return True
+            out.pop()
+            continue
+        out.append(part)
+        here = "/".join(out)
+        if _head_is_link(r, here):
+            hops += 1
+            link = os.fsdecode(head_blob(r, here) or b"")
+            if hops > 40 or link.startswith("/"):
+                return True
+            out.pop()
+            queue = link.split("/") + queue
+    return False
+
+
 def resolve_commit(repo, ref):
     r = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", f"{ref}^{{commit}}"], capture_output=True, text=True)
     if r.returncode != 0:
@@ -453,7 +506,9 @@ def _no_json_outcome(text):
 SURFACE_CAP = 25
 
 
-CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml"}   # code that can break; not docs that name it
+# code that can break; not docs that name it. JavaScript and TypeScript joined in goal review-packet-ready-4 item 3:
+# its goal test surfaces src/caller.js importing a changed src/value.js, and most MoxyWolf web repos are JS.
+CALLER_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx"}
 
 # XE-008: the surface layout had four homes -- written in build_surface, parsed in _subject_path,
 # asserted in a test fixture, described in SURFACE.md -- and I broke it twice in an hour by
@@ -502,8 +557,11 @@ def surface_prefix(i, repo, kind):
 def changed_files(repos):
     out = []
     for r in repos:
-        names = git(r["path"], "diff", "--name-only", f"{r['base']}..{r['head']}").split()
-        out += [(r, n) for n in names]
+        # Goal review-packet-ready-5 item 4: NUL-separated and never split on whitespace, so a changed file whose
+        # name holds a space, tab or newline is surfaced whole (it was split into paths that don't exist).
+        names = subprocess.run(["git", "-C", str(r["path"]), "diff", "--name-only", "-z", f"{r['base']}..{r['head']}"],
+                               capture_output=True, check=True).stdout.split(b"\0")
+        out += [(r, os.fsdecode(n)) for n in names if n]
     return out
 
 
@@ -516,17 +574,16 @@ def caller_files(repos, changed, cap, exclude=()):
     hits, seen = [], {(id(r), n) for r, n in changed} | set(exclude)
     for r in repos:
         try:
-            tracked = git(r["path"], "ls-files").split()
+            tracked = head_tracked(r)
         except Exception:
             continue
         for f in tracked:
             if (id(r), f) in seen or Path(f).suffix not in CALLER_SUFFIXES:
                 continue
-            fp = Path(r["path"]) / f
-            try:
-                body = fp.read_text(errors="replace")
-            except OSError:
+            blob = head_blob(r, f)
+            if blob is None:
                 continue
+            body = blob.decode(errors="replace")
             if any(st in body for st in stems):
                 hits.append((r, f)); seen.add((id(r), f))
     dropped = max(0, len(hits) - cap)
@@ -799,7 +856,7 @@ def criterion_files(repos, criteria):
     out = []
     for r in repos:
         found = []   # a repository git can't list raises here, as the diff above it would: no silent miss
-        for f in git(r["path"], "ls-files", "-z").split("\0"):
+        for f in head_tracked(r):
             m = f and f in text and re.search(r"(?<![A-Za-z0-9_.@/-])" + re.escape(f)
                                         + r"(?![A-Za-z0-9_@-]|[./]+[A-Za-z0-9_@-])", text)
             if m:
@@ -808,7 +865,7 @@ def criterion_files(repos, criteria):
     return out
 
 
-def ts_aliases(root, name, tracked):
+def ts_aliases(r, name, tracked):
     """The `compilerOptions.paths` of the tsconfig.json nearest above `name`, as [(prefix, [dirs])]
     with dirs relative to the repository: `"@/*": ["./*"]` in web/tsconfig.json is ("@/", ["web"]).
     Without it a Next.js page's `@/components/x` imports never reach the surface (wfa-web-v1 items 4
@@ -820,8 +877,8 @@ def ts_aliases(root, name, tracked):
             return []
         d = d.parent
     try:
-        opts = json.loads((Path(root) / d / "tsconfig.json").read_text()).get("compilerOptions") or {}
-    except (OSError, ValueError):
+        opts = json.loads(head_blob(r, (d / "tsconfig.json").as_posix()) or b"").get("compilerOptions") or {}
+    except ValueError:
         return []
     base = d / opts.get("baseUrl", ".")
     return [(k[:-1], [os.path.normpath(base / v[:-1]) for v in vs if v.endswith("/*")])
@@ -843,7 +900,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
         add(r, f, CRITERION_WHY)
     for r in repos:
         try:
-            tracked = set(git(r["path"], "ls-files").split())
+            tracked = set(head_tracked(r))
         except Exception:
             continue
         dirs = set()
@@ -861,10 +918,10 @@ def dependency_files(repos, changed, criteria, exclude, cap):
         for rr, name in changed:
             if rr is not r:
                 continue
-            try:
-                body = (Path(r["path"]) / name).read_text(errors="replace")
-            except OSError:
+            blob = head_blob(r, name)
+            if blob is None:
                 continue
+            body = blob.decode(errors="replace")
             for tok in PATH_TOKEN.findall(body):
                 tok = tok.rstrip("/.")
                 if tok in tracked:
@@ -874,7 +931,7 @@ def dependency_files(repos, changed, criteria, exclude, cap):
                 for ext in DEP_EXTS:
                     if base + ext in tracked:
                         add(r, base + ext, f"imported by {name}"); break
-            for prefix, dirs in ts_aliases(r["path"], name, tracked):
+            for prefix, dirs in ts_aliases(r, name, tracked):
                 for spec in re.findall(r"""['"]""" + re.escape(prefix) + r"""([^'"\s]+)['"]""", body):
                     for base in (os.path.normpath(os.path.join(d, spec)) for d in dirs):
                         hit = next((base + e for e in DEP_EXTS if base + e in tracked), None)
@@ -1219,8 +1276,7 @@ def criterion_dirs(repos, criteria, surf, idx):
     for r in repos:
         # -z: a quoted path ("src/caf\\303\\251.md") would fail the prefix test and vanish uncounted
         # bytes, not text=True: universal newlines would turn a "\r" in a name into "\n"
-        tracked = [os.fsdecode(f) for f in subprocess.run(["git", "-C", str(r["path"]), "ls-tree", "-r", "-z", "--name-only",
-                                                           r["head"]], capture_output=True, check=True).stdout.split(b"\0") if f]
+        tracked = head_tracked(r)
         names = set(tracked)
         for c in criteria:
             for tok in PATH_TOKEN.findall(c):
@@ -1328,18 +1384,22 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
     idx = {id(r): i for i, r in enumerate(repos)}
     for group, sub in zip((changed, callers, [(r, n) for r, n, _ in deps]), SURFACE_KINDS):
         for r, name in group:
-            src = Path(r["path"]) / name
-            # snapshot() refused a symlink escaping the repository; the surface copies with
-            # read_bytes(), which FOLLOWS one. Dropping the snapshot silently dropped that control,
-            # so it is restored here rather than assumed. Found by tracing what snapshot() did
-            # before deleting it.
+            # MOXY-159: bytes come from the reviewed head with `git show`, never the working tree, so a
+            # checkout on another branch surfaces the head's bytes.
             dest = surf / surface_prefix(idx[id(r)], r, sub) / name
-            dest.parent.mkdir(parents=True, exist_ok=True)
             try:
-                if src.is_symlink() and not src.resolve().is_relative_to(Path(r["path"]).resolve()):
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                blob = head_blob(r, name)
+                # snapshot() refused a symlink escaping the repository; the surface keeps that control,
+                # judged on the link the head commits (mode 120000), not on whatever the disk holds.
+                # ponytail: one ls-tree per surfaced file; read modes once per repo if surfaces grow.
+                if blob is not None and _head_is_link(r, name) and _head_link_escapes(r, name, os.fsdecode(blob)):
                     raise ReviewError("data_use_denied",
                                       f"review surface refused {name}: symlink escapes repository scope")
-                dest.write_bytes(src.read_bytes())
+                if blob is None and subprocess.run(["git", "-C", str(r["path"]), "cat-file", "-t", f"{r['head']}:{name}"],
+                                                   capture_output=True, text=True).stdout.strip() == "tree":
+                    continue   # a file the head replaced with a directory: its files are surfaced, CHANGE.diff shows the deletion
+                dest.write_bytes(blob if blob is not None else f"(deleted at head {r['head']})\n".encode())
                 prov[str(dest.relative_to(surf))] = provenance("repository")
             except OSError as e:
                 if (id(r), name) in named:   # XE-035.3: never withheld silently
@@ -2797,7 +2857,89 @@ def spec_review_gate(packet):
                 raise ReviewError(code, f"{why} (SR-001)")
 
 
+def refuse(reason):
+    """A packet that can't be dispatched is refused before anything is written: stderr, exit 2.
+    ReviewError (exit 1) stays for refusals that already had their own contract."""
+    print(f"refused: {reason}", file=sys.stderr)
+    sys.exit(2)
+
+
+def refuse_without_data_use(packet, reviewer):
+    """Goal review-packet-ready-3 item 1. A missing data_use block used to surface only at round, after
+    open had made the review and spent its id; a round then failed on data_use_denied. Checked here
+    for the reviewer open would choose, so the packet is fixed before anything exists."""
+    if not packet.get("data_use"):
+        refuse("data_use: missing")
+    # Goal review-packet-ready-6 item 1: governance.data_permission compares data_use's owner with the packet's
+    # owner; with no owner at all the packet is malformed, and today's malformed_packet refusal answers it.
+    if not (packet.get("owner") or packet.get("release_owner")):
+        return
+    try:
+        data_permission(packet, tool=reviewer)
+    except ValueError as e:
+        refuse(f"data_use: denied: {e}")
+
+
+def refuse_ledger_behind(repos, entries):
+    """Goal review-packet-ready-3 item 2. A ledger run is evidence for the commit it ran at; one at an older commit
+    than the head being sent cost a round on 2026-10-30. Full 40-character SHAs only, so an abbreviated or older one
+    counts as behind, and a run that records no commit prints `none`. The first such run in the order given is named.
+    `repos` carry the head being sent; an entry naming a repository they don't list, or a run not on the ledger, is
+    left to the malformed_packet checks that follow."""
+    import check_ledger
+    for e in entries or ():
+        if not isinstance(e, dict) or not isinstance(e.get("repo"), str) or not isinstance(e.get("run_id"), str):
+            continue
+        repo = _packet_repo(repos, as_repo_ref(e["repo"]))
+        if repo is None:
+            continue
+        try:
+            run = check_ledger.find_run(repo["path"], e["run_id"], review_root())[0]
+        except Exception:
+            continue
+        if run is None:
+            continue
+        if run.get("head") != repo["head"]:
+            refuse(f"tests.ledger_runs: run {e['run_id']} is at {run.get('head') or 'none'}, head is {repo['head']}")
+
+
+def _sent_repos(repos, updates=None):
+    """The repositories as the review will send them: path resolved, head resolved to a full SHA where git can
+    (a head it can't resolve is kept as written, and today's checks refuse it), any --head update applied."""
+    out = []
+    for r in repos if isinstance(repos, list) else ():
+        if not isinstance(r, dict) or not isinstance(r.get("path"), str) or not isinstance(r.get("head"), str):
+            continue
+        path = str(Path(r["path"]).resolve()); head = r["head"]
+        sha = (updates or {}).get(path, (updates or {}).get(Path(path).name))
+        try:
+            head = resolve_commit(path, sha or head)
+        except Exception:
+            head = sha or head
+        out.append({"path": path, "head": head})
+    return out
+
+
+def gate_packet(raw, builder, accept_narrow):
+    """Goal review-packet-ready-3 items 1-2: open's checks before any check it made before this goal, in a fixed
+    order, data_use, coverage, tests.ledger_runs, and before any review id, folder or reviewer call. Runs on the
+    packet as written; load_packet's validation comes after."""
+    refuse_without_data_use(raw, choose_reviewer(builder, os.environ.get("GSTACK_REVIEWER"), require_installed=False)[0])
+    if not raw.get("coverage") and not accept_narrow:
+        refuse("coverage: not attached")
+    tests = raw.get("tests") if isinstance(raw.get("tests"), dict) else {}
+    refuse_ledger_behind(_sent_repos(raw.get("repos")), tests.get("ledger_runs"))
+
+
 def cmd_open(a):
+    # goal review-packet-ready-3: data_use, coverage and tests.ledger_runs come before every check open made before
+    # this goal (review F1, 20261114-094615): only reading the packet's JSON precedes them.
+    try:
+        raw = json.loads(Path(a.packet).read_text())
+    except (ValueError, OSError) as e:
+        raise ReviewError("malformed_packet", str(e))
+    if isinstance(raw, dict):
+        gate_packet(raw, a.builder, getattr(a, "accept_narrow_packet", False))
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if not 1 <= a.max_rounds <= 3 or a.timeout <= 0:
@@ -2900,12 +3042,31 @@ def cmd_open(a):
     return state
 
 
+def _adjudicated(d, state):
+    """The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
+    but adjudicated nothing, so the blockers it is measured against are the round's before it."""
+    round_no = state["rounds_used"] + 1
+    adjudicated = state.get("adjudicated_round")
+    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
+        adjudicated = next((n for n in range(round_no - 1, 0, -1)
+                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
+    return adjudicated, (load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None)
+
+
 def cmd_round(a):
-    if os.environ.get(RECURSION_ENV):
-        sys.exit("refused: this is a reviewer session; peer review does not recurse")
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
     packet = effective_packet(state, packet)
+    # goal review-packet-ready-3 item 2: the ledger check for the runs this round's --ledger-run names, and no
+    # others, before round's existing checks (review F1, 20261114-094615), against the head this round sends,
+    # which is the packet's head after any --head the round gives, a first round's included (review F2).
+    specs = getattr(a, "ledger_run", None)
+    if isinstance(specs, list) and specs:
+        named = [{"repo": k, "run_id": v} for k, v in (s.rsplit("=", 1) for s in specs if "=" in s)]
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in getattr(a, "head", None) or () if "=" in h)}
+        refuse_ledger_behind(_sent_repos(packet["repos"], updates), named)
+    if os.environ.get(RECURSION_ENV):
+        sys.exit("refused: this is a reviewer session; peer review does not recurse")
     if state["outcome"] not in {"opened", "blocking_findings"}:
         raise ReviewError("review_closed", "open a new review after a terminal outcome")
     if state["rounds_used"] >= state["max_rounds"]:
@@ -2913,13 +3074,7 @@ def cmd_round(a):
     round_no = state["rounds_used"] + 1
     named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
                          .get("tests", {}).get("ledger_runs", [])] if getattr(a, "ledger_run", None) else []
-    # The prior is the last ADJUDICATED round (review F4): a round refused for its evidence is spent
-    # but adjudicated nothing, so the blockers it is measured against are the round's before it.
-    adjudicated = state.get("adjudicated_round")
-    if adjudicated is None:   # a record from before this rule: the last round that was not refused for its evidence
-        adjudicated = next((n for n in range(round_no - 1, 0, -1)
-                            if not ((load(d, f"round-{n}.json") or {}).get("error") and (load(d, f"round-{n}.json") or {}).get("outcome") == "release_blocked")), 0)
-    prior = load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None
+    adjudicated, prior = _adjudicated(d, state)
     dispositions = load(d, "dispositions.json") or {}
     if prior is not None:
         open_blockers = [f["id"] for f in prior.get("findings", []) if f["severity"] == "blocking"]
@@ -2940,6 +3095,14 @@ def cmd_round(a):
             sys.exit("dispositions say fixed but no --head advanced; commit the fix and pass --head <repo>=<sha>")
         packet["prior_findings"] = [{"id": f["id"], "severity": f["severity"], "what": f["what"],
                                      "disposition": dispositions.get(f["id"])} for f in prior.get("findings", [])]
+    elif getattr(a, "head", None):
+        # goal review-packet-ready-3 item 2 (review F2, 20261114-094615): a first round given --head sends that head,
+        # so the head its ledger check compares against is the head the reviewer gets. Before, round 1 ignored --head.
+        updates = {as_repo_ref(k): v for k, v in (h.rsplit("=", 1) for h in a.head)}
+        for r in packet["repos"]:
+            sha = updates.get(r["path"], updates.get(Path(r["path"]).name))
+            if sha:
+                r["head"] = resolve_commit(r["path"], sha)
     apply_ci_runs(packet, getattr(a, "ci_run", None))
     # the runs this round names are the review's evidence from here on; the packet file keeps open's bytes
     previous_evidence = state.get("evidence_runs")
@@ -3614,6 +3777,7 @@ def selftest():
     pk = {"outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"], "repos": [{"path": str(repo), "base": base, "head": head}],
           "changed_behavior": "f returns x+1", "exclusions": [], "tests": {"commands": [], "results": "", "environment": "selftest"}, "release_owner": "fixture-human"}
     pk["data_use"] = {"owner": "fixture-human", "classification": "test", "allow_repository": True, "allow_history": True, "allowed_tools": ["codex", "claude"]}
+    pk["coverage"] = {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]}   # review-packet-ready-3 item 2
     pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
     ns = lambda **k: argparse.Namespace(**k)
 
@@ -3725,7 +3889,10 @@ def main():
         ap.print_help()
         return
     try:
-        if os.environ.get(RECURSION_ENV) and a.cmd != "status":
+        # Goal review-packet-ready-5 item 2: open and round make their packet checks (data_use, coverage,
+        # tests.ledger_runs) before every check they made before, this guard's copy included; each keeps its
+        # own reviewer-session guard right after those checks. review-packet-ready-4 failed its holdout here.
+        if os.environ.get(RECURSION_ENV) and a.cmd not in ("status", "open", "round"):
             raise ReviewError("review_closed", "reviewer sessions cannot mutate review or release state")
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
