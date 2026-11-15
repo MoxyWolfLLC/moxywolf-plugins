@@ -1,0 +1,103 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GO-011",
+  "scope_sha256": "791d7aa0b3b40fc08dfc8bb48fe7cc8968c2381863363408004119f1791234f8",
+  "reviewed_at": "2026-11-15T14:59:45+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 7516,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 8907,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 8907,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 8907,
+      "cache_creation_input_tokens": 7556,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7556,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 18103,
+      "output_tokens": 3023,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 3446,
+      "cache_read_input_tokens": 16463,
+      "cache_creation_input_tokens": 845,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 845,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 25370,
+    "write": 17308
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GO-011.8",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "Does a closed lane's merge-instruction (GA-011) apply to the declared release-companion PR into main? GO-011.8 says the runner merges it as the app and asks for no per-PR merge permission, and it must do so before declaring the goal complete."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GO-011 introduction",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "When an item's blocking review rounds run out, does it escalate to Dorian ('Three blocking rounds escalate to him') or end the run ('goal_run.py failed')? Is the limit a fixed 3 or the goal's 'Max review rounds per item'?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GO-011.2",
+        "GO-011.3"
+      ],
+      "question": "After a sync from main moves the goal head, must goal-tests and goal-holdout be green at the new head, or does the earlier pass stand with only a fresh review? GO-011.3 treats a head move as invalidating what the holdout passed at, while GO-011.2 allows a merge on a fresh review 'without its holdout'."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GO-011.5",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Does Dorian's marking of a usability sheet count as 'asked' for the agent to start `/gstack-build` triage fixes outside a goal, where 'next item only when asked' stands?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GO-011.9"
+      ],
+      "question": "Which pull requests does the 'change outside its folder' refusal in `goal_successor.py check` cover: only the successor's brief PR, or also the successor goal's own PR into main, which carries code and goal-runs records?"
+    }
+  ]
+}
