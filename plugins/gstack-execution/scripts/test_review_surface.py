@@ -183,6 +183,46 @@ def test_a_symlink_escaping_the_repository_is_refused():
             assert e.outcome == "data_use_denied", e.outcome
 
 
+def test_a_link_is_judged_by_the_head_not_by_links_in_the_checkout():
+    """Review F1, 20261114-153025: the head commits sub/ as a directory and sub/link -> ../../outside.txt,
+    which leaves the repository. A checkout on another branch where sub is a link into a/b/ would resolve
+    the same text inside the repository; the surface judges the head's tree, so it is refused. A link the
+    head commits that stays inside, through another committed link, does not escape."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); r = Path(repos[0]["path"])
+        git = lambda *a: subprocess.run(["git", *a], cwd=r, check=True, capture_output=True, text=True).stdout.strip()
+        (r/"sub").mkdir(); (r/"a"/"b").mkdir(parents=True); (r/"a"/"b"/"keep").write_text("x\n")
+        (r/"sub"/"link").symlink_to("../../outside.txt")
+        (r/"inside").symlink_to("a/b"); (r/"widget.py").unlink(); (r/"widget.py").symlink_to("inside/keep")
+        git("add", "-A"); git("commit", "-qm", "links")
+        repos[0]["head"] = git("rev-parse", "HEAD")
+        git("checkout", "-qb", "other"); git("rm", "-rq", "sub"); (r/"sub").symlink_to("a/b"); git("add", "-A"); git("commit", "-qm", "sub is a link here")
+        assert (r/"sub"/"link").resolve().is_relative_to(r.resolve()), "the checkout resolves the link inside"
+        assert pr._head_link_escapes(repos[0], "sub/link", "../../outside.txt")
+        assert not pr._head_link_escapes(repos[0], "widget.py", "inside/keep")
+        root = Path(t)/"root"; root.mkdir()
+        try:
+            pr.build_surface(repos, root)
+            raise AssertionError("the head's escaping link must be refused whatever the checkout holds")
+        except pr.ReviewError as e:
+            assert e.outcome == "data_use_denied" and "sub/link" in e.detail, (e.outcome, e.detail)
+
+
+def test_a_file_the_head_replaces_with_a_directory_is_surfaced_without_a_crash():
+    """Review F1, 20261114-193502: widget.py at the base becomes a directory widget.py/ holding a new file at the
+    head. The surface carries the new file's head bytes and no marker in the directory's place, and doesn't crash."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); r = Path(repos[0]["path"])
+        git = lambda *a: subprocess.run(["git", *a], cwd=r, check=True, capture_output=True, text=True).stdout.strip()
+        git("rm", "-q", "widget.py"); (r/"widget.py").mkdir(); (r/"widget.py"/"inner.py").write_text("INNER = 1\n")
+        git("add", "-A"); git("commit", "-qm", "file to dir")
+        repos[0]["head"] = git("rev-parse", "HEAD")
+        root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root)
+        assert next(surf.glob("changed/*/widget.py/inner.py")).read_bytes() == b"INNER = 1\n"
+        assert pr.head_blob(repos[0], "widget.py") is None, "a directory at the head is not a file's bytes"
+
+
 def test_the_layout_has_exactly_one_producer_and_one_parser():
     """XE-008. The prefix format had four homes and I broke it twice in an hour by updating one.
     This asserts the parser accepts what the writer emits, for any index, without either side
