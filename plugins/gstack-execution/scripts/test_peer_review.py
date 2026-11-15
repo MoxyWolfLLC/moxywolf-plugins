@@ -260,6 +260,7 @@ def test_open_refuses_for_data_use_before_any_check_it_made_before():
 def test_a_reviewer_session_gets_the_packet_refusal_first():
     """Goal review-packet-ready-5 item 2: main()'s reviewer-session guard no longer runs before open's packet
     checks, so a reviewer session opening a packet with no data_use gets that refusal, exit 2, nothing written."""
+    import os, sys
     d, base, head = repo()
     tmp = Path(tempfile.mkdtemp(prefix="session-order-"))
     pfile = tmp / "packet.json"
