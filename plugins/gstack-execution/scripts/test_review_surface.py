@@ -223,6 +223,27 @@ def test_a_file_the_head_replaces_with_a_directory_is_surfaced_without_a_crash()
         assert pr.head_blob(repos[0], "widget.py") is None, "a directory at the head is not a file's bytes"
 
 
+def test_a_changed_file_named_with_a_space_is_surfaced_whole_and_its_escaping_link_refused():
+    """Goal review-packet-ready-5 item 4: a changed file named with a space is surfaced whole with its head
+    bytes, and an escaping symlink named with a space is still refused."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); r = Path(repos[0]["path"])
+        git = lambda *a: subprocess.run(["git", *a], cwd=r, check=True, capture_output=True, text=True).stdout.strip()
+        (r/"two words.py").write_text("SPACE = 1\n"); git("add", "-A"); git("commit", "-qm", "space")
+        repos[0]["head"] = git("rev-parse", "HEAD")
+        root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root)
+        assert (surf/"changed"/"0-repo"/"two words.py").read_bytes() == b"SPACE = 1\n"
+        (r/"bad link").symlink_to("../../outside.txt"); git("add", "-A"); git("commit", "-qm", "link")
+        repos[0]["head"] = git("rev-parse", "HEAD")
+        root2 = Path(t)/"root2"; root2.mkdir()
+        try:
+            pr.build_surface(repos, root2)
+            raise AssertionError("an escaping link named with a space must be refused")
+        except pr.ReviewError as e:
+            assert e.outcome == "data_use_denied" and "bad link" in e.detail, (e.outcome, e.detail)
+
+
 def test_the_layout_has_exactly_one_producer_and_one_parser():
     """XE-008. The prefix format had four homes and I broke it twice in an hour by updating one.
     This asserts the parser accepts what the writer emits, for any index, without either side
