@@ -157,7 +157,9 @@ class CriterionFilesTests(unittest.TestCase):
     def open(self, criteria, reviewer=None):
         """`peer_review.py open` through main(), as the build loop runs it. Returns (exit, state)."""
         pk = {"outcome": "o", "acceptance_criteria": criteria, "repos": self.repos, "changed_behavior": "b",
-              "exclusions": [], "tests": {}, "release_owner": "dorianatmoxywolf"}
+              "exclusions": [], "tests": {}, "release_owner": "dorianatmoxywolf",
+              "data_use": {"owner": "dorianatmoxywolf", "classification": "internal", "allow_repository": True,
+                       "allow_history": True, "allowed_tools": ["codex", "claude", "openrouter-gpt"]}}
         f = self.tmp / "packet.json"; f.write_text(json.dumps(pk))
         root = Path(tempfile.mkdtemp(prefix="reviews-", dir=self.tmp))
         env = {k: v for k, v in os.environ.items() if k != "GSTACK_REVIEWER"} | ({"GSTACK_REVIEWER": reviewer} if reviewer else {})
