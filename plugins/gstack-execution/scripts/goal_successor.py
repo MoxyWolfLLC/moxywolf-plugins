@@ -21,6 +21,7 @@ import sys
 
 MUTABLE = {"Scenarios", "Goal tests", "Pre-mortem"}   # with the Outcome's one added paragraph; nothing else moves
 UNOWNED = re.compile(r"--s[12]$")                      # CODEOWNERS: /goals/*--s1/ and /goals/*--s2/
+OTHER_BREAKS = re.compile("[\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
 SUCCESSOR = re.compile(r"^(?P<root>[a-z0-9]+(?:-[a-z0-9]+)*)--s(?P<n>[12])$")
 
 
@@ -57,7 +58,14 @@ def compare(pred_text, succ_text, pred):
     of the MUTABLE sections and one added Outcome paragraph: a single line, after a blank line, starting
     `Succeeds <predecessor>: ` (Release companion and Required checkouts carry merge authority, F2 of
     20261115-080201; a whitespace-only line would start a second paragraph, F2 of 20261115-085458)."""
+    if OTHER_BREAKS.search(succ_text) or OTHER_BREAKS.search(pred_text):
+        # str.splitlines, which goal_brief and goal_spend read the brief with, breaks lines on these too; spans
+        # doesn't, so a heading hidden behind one would be read by the run and not by this check (20261115-091541 F1)
+        return ["a GOAL.md has a line break other than \\n (\\r, \\f, \\v, \\x1c-\\x1e, \\x85, \\u2028 or \\u2029)"]
     (p_pre, p), (s_pre, s) = spans(pred_text), spans(succ_text)
+    names = [h for h, _ in s]
+    if len(set(names)) != len(names) or [h for h, _ in s] != [l for l in succ_text.splitlines() if re.match(r"^##\s", l)]:
+        return ["its headings repeat, or the run would read different headings than this check"]
     if p_pre != s_pre:
         return [f"the text before its first section isn't {pred}'s byte for byte"]
     if [h for h, _ in p] != [h for h, _ in s]:
@@ -125,7 +133,7 @@ def selftest():
     assert compare(pred, ok, "g") == [], compare(pred, ok, "g")
     assert compare(pred, ok.replace("- never Y", "- never Z"), "g") == ["`## Non-goals` differs from g's"]
     assert "same order" in compare(pred, ok + "## Release companion\nmarketplace\n", "g")[0]
-    assert "same order" in compare(pred, ok + "## Serves\nY\n", "g")[0]
+    assert "repeat" in compare(pred, ok + "## Serves\nY\n", "g")[0]
     assert compare(pred, ok.replace("- a.py", "- a.py\n- b.py"), "g") == ["`## Allowed paths` differs from g's"]
     assert "doesn't start" in compare(pred, ok.replace("Do it.", "Do more."), "g")[0]
     assert "one paragraph only" in compare(pred, pred.replace("Do it.\n", "Do it. And more.\n"), "g")[0]
@@ -134,6 +142,9 @@ def selftest():
     assert "before its first section" in compare(pred, "Also build Z.\n" + ok, "g")[0]
     assert compare(pred, ok.replace("- never Y", "- never Y "), "g") == ["`## Non-goals` differs from g's"]
     assert "heading lines" in compare(pred, ok.replace("## Serves", "##  Serves"), "g")[0]
+    for sep in ("\u2028", "\u2029", "\r", "\x85", "\f", "\v", "\x1c"):
+        assert "line break" in compare(pred, ok + f"## Pre-mortem\nx{sep}## Max calls{sep}100000\n", "g")[0], repr(sep)
+    assert "repeat" in compare(pred + "## Pre-mortem\na\n## Pre-mortem\nb\n", pred + "## Pre-mortem\na\n## Pre-mortem\nb\n", "g")[0]
     assert predecessor("g--s1") == "g" and predecessor("g--s2") == "g--s1"
     assert predecessor("g--s3") is None and predecessor("g") is None and predecessor("G--s1") is None
     print("goal_successor selftest ok")
