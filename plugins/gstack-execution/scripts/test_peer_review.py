@@ -106,6 +106,7 @@ def test_an_embedded_instruction_is_recorded_and_leaves_the_verdict_alone():
               "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
               "exclusions": [], "tests": {"commands": [], "results": "", "environment": "test"},
               "release_owner": "fixture-human",
+              "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
               "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
                            "allow_history": True, "allowed_tools": ["codex", "claude"]}}
         pfile = tmp / "packet.json"; pfile.write_text(json.dumps(pk))
@@ -231,6 +232,84 @@ def test_a_packet_without_data_use_is_refused_with_exit_2_before_anything_is_wri
             except SystemExit as e:
                 assert e.code == 2, e.code
         assert err.getvalue().startswith(says), err.getvalue()
+
+
+def test_open_refuses_for_data_use_before_any_check_it_made_before():
+    """Goal review-packet-ready-3 (review F1, 20261114-094615): a packet that would also fail today's validation
+    (no release_owner, max_rounds out of range) is refused for its data_use first, exit 2, nothing written."""
+    d, base, head = repo()
+    tmp = Path(tempfile.mkdtemp(prefix="gate-order-"))
+    saved = pr.REVIEW_DIR
+    try:
+        pr.REVIEW_DIR = tmp / "reviews"
+        pfile = tmp / "packet.json"
+        pfile.write_text(json.dumps({"acceptance_criteria": ["x"], "repos": [{"path": str(d), "base": base, "head": head}]}))
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                pr.cmd_open(argparse.Namespace(builder="claude", packet=str(pfile), max_rounds=9, timeout=30))
+            raise AssertionError("must refuse")
+        except SystemExit as e:
+            assert e.code == 2, e.code
+        assert err.getvalue().startswith("refused: data_use: missing"), err.getvalue()
+        assert not pr.REVIEW_DIR.exists() or not any(pr.REVIEW_DIR.iterdir())
+    finally:
+        pr.REVIEW_DIR = saved
+
+
+def test_a_reviewer_session_gets_the_packet_refusal_first():
+    """Goal review-packet-ready-5 item 2: main()'s reviewer-session guard no longer runs before open's packet
+    checks, so a reviewer session opening a packet with no data_use gets that refusal, exit 2, nothing written."""
+    import os, sys
+    d, base, head = repo()
+    tmp = Path(tempfile.mkdtemp(prefix="session-order-"))
+    pfile = tmp / "packet.json"
+    pfile.write_text(json.dumps({"acceptance_criteria": ["x"], "repos": [{"path": str(d), "base": base, "head": head}]}))
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(tmp / "reviews"), **{pr.RECURSION_ENV: "1"})
+    r = subprocess.run([sys.executable, str(Path(pr.__file__)), "open", "--builder", "claude", "--packet", str(pfile)],
+                       capture_output=True, text=True, env=env)
+    assert r.returncode == 2 and r.stderr.startswith("refused: data_use: missing"), (r.returncode, r.stderr)
+    assert not (tmp / "reviews").exists() or not any((tmp / "reviews").iterdir())
+
+
+def test_a_run_recorded_on_a_branch_is_found_and_refused_from_a_detached_checkout():
+    """Goal review-packet-ready-6 item 2 (review 20261114-220017, unmet criterion): ledger runs are recorded with
+    check_ledger.py run from a checkout on a branch; after that the checkout may be detached, and open still finds
+    the run (on any branch's ledger) and refuses it for not being at the packet's head, never reading HEAD.
+    Recording from a detached checkout is refused (check_ledger.py requires a branch, unchanged by this goal)."""
+    import os, sys
+    d, base, head = repo()
+    sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
+    tmp = Path(tempfile.mkdtemp(prefix="detached-ledger-"))
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(tmp / "reviews"))
+    env.pop(pr.RECURSION_ENV, None)
+    here = Path(pr.__file__).parent
+    sh("checkout", "-qb", "at-base", base)
+    r = subprocess.run([sys.executable, str(here / "check_ledger.py"), "run", "--repo", ".", "--", sys.executable, "-c", "print(1)"],
+                       cwd=d, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stderr
+    run_id = json.loads((next((tmp / "reviews" / "ledger").rglob("*.jsonl"))).read_text().splitlines()[-1])["id"]
+    sh("checkout", "-q", "--detach", head)
+    r = subprocess.run([sys.executable, str(here / "check_ledger.py"), "run", "--repo", ".", "--", sys.executable, "-c", "print(1)"],
+                       cwd=d, capture_output=True, text=True, env=env)
+    assert r.returncode == 2, ("check_ledger.py records only from a branch", r.returncode, r.stderr)
+    # Detached at the run's own commit: if open compared against the checkout's HEAD it would pass. It refuses,
+    # so the comparison is with the packet's head and HEAD is never read.
+    sh("checkout", "-q", "--detach", base)
+    pfile = tmp / "packet.json"
+    pfile.write_text(json.dumps({
+        "outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"],
+        "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
+        "exclusions": [], "release_owner": "fixture-human",
+        "tests": {"commands": [], "results": "", "environment": "test", "ledger_runs": [{"repo": str(d), "run_id": run_id}]},
+        "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
+        "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
+                     "allow_history": True, "allowed_tools": ["codex", "claude"]}}))
+    r = subprocess.run([sys.executable, str(here / "peer_review.py"), "open", "--builder", "claude", "--packet", str(pfile)],
+                       capture_output=True, text=True, env=env)
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert r.stderr.startswith(f"refused: tests.ledger_runs: run {run_id} is at {base}, head is {head}"), r.stderr
+    assert sh("rev-parse", "--abbrev-ref", "HEAD") == "HEAD", "the checkout stayed detached"
 
 
 if __name__ == "__main__":

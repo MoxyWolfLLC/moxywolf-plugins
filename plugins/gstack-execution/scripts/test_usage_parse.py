@@ -34,7 +34,7 @@ def test_a_round_survives_a_usage_parse_that_raises():
               "repos": [{"path": str(repo), "base": base, "head": head}],
               "changed_behavior": "f returns x+1", "exclusions": [],
               "tests": {"commands": [], "results": "", "environment": "selftest"},
-              "release_owner": "fixture-human",
+              "release_owner": "fixture-human", "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
               "data_use": {"owner": "fixture-human", "classification": "test",
                            "allow_repository": True, "allow_history": True,
                            "allowed_tools": ["codex", "claude"]}}
