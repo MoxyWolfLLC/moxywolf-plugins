@@ -275,7 +275,8 @@ def test_a_reviewer_session_gets_the_packet_refusal_first():
 def test_a_run_recorded_on_a_branch_is_found_and_refused_from_a_detached_checkout():
     """Goal review-packet-ready-6 item 2 (review 20261114-220017, unmet criterion): ledger runs are recorded with
     check_ledger.py run from a checkout on a branch; after that the checkout may be detached, and open still finds
-    the run (on any branch's ledger) and refuses it for not being at the packet's head, never reading HEAD."""
+    the run (on any branch's ledger) and refuses it for not being at the packet's head, never reading HEAD.
+    Recording from a detached checkout is refused (check_ledger.py requires a branch, unchanged by this goal)."""
     import os, sys
     d, base, head = repo()
     sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
@@ -289,6 +290,12 @@ def test_a_run_recorded_on_a_branch_is_found_and_refused_from_a_detached_checkou
     assert r.returncode == 0, r.stderr
     run_id = json.loads((next((tmp / "reviews" / "ledger").rglob("*.jsonl"))).read_text().splitlines()[-1])["id"]
     sh("checkout", "-q", "--detach", head)
+    r = subprocess.run([sys.executable, str(here / "check_ledger.py"), "run", "--repo", ".", "--", sys.executable, "-c", "print(1)"],
+                       cwd=d, capture_output=True, text=True, env=env)
+    assert r.returncode == 2, ("check_ledger.py records only from a branch", r.returncode, r.stderr)
+    # Detached at the run's own commit: if open compared against the checkout's HEAD it would pass. It refuses,
+    # so the comparison is with the packet's head and HEAD is never read.
+    sh("checkout", "-q", "--detach", base)
     pfile = tmp / "packet.json"
     pfile.write_text(json.dumps({
         "outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"],
