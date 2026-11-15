@@ -24,6 +24,7 @@ GATE = [
     "plugins/gstack-execution/scripts/goal_spend.py",
     "plugins/gstack-execution/scripts/goal_checks.py",
     "plugins/gstack-execution/scripts/goal_guard.py",
+    "plugins/gstack-execution/scripts/goal_successor.py",
     "goals/README.md",
     "goal-runs/README.md",
 ]
@@ -75,7 +76,12 @@ def check(rs, root):
     for path in UNOWNED:
         if owners(rs, path):
             errors.append(f"non-gate path is owned, so it needs manual approval: {path}")
-    return errors, len(GATE) + len(hooks) + len(UNOWNED)
+    # GO-011.9: a goal and its third successor stay his; the first two successors are held by goal_successor.py
+    for path, owned in (("goals/x/GOAL.md", True), ("goals/x--s1/GOAL.md", False), ("goals/x--s2/tests/t.py", False),
+                        ("goals/x--s3/GOAL.md", True), ("goals/x--s1x/GOAL.md", True)):
+        if (OWNER in owners(rs, path)) != owned:
+            errors.append(f"{path} should {'be' if owned else 'not be'} owned by {OWNER} (GO-011.9)")
+    return errors, len(GATE) + len(hooks) + len(UNOWNED) + 5
 
 
 def selftest():

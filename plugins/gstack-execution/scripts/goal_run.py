@@ -51,7 +51,10 @@
         envelope (GO-006.2), quoting GitHub's own check output, not the agent's words, into the run
         record; the run holds until Dorian acknowledges it
   goal_run.py holdout-failed <id> --detail <text>
-        goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2)
+        goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2),
+        naming the successor goal that follows (GO-011.9)
+  goal_run.py review-failed <id> --review <review id> --detail <text>
+        the whole-goal review blocked after finalize, where no fix can land: ends the run the same way
   goal_run.py ack <id> --escalation N --words <Dorian's words>
         Dorian's acknowledgement of an escalation that holds the run; until then `next` exits 3
   Every command also prints {"messages": [...]}, when there are new ones: GO-006's digests and
@@ -210,7 +213,8 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     budgets, cap, max_calls = gs.limits(brief)
     secs = gb.sections(brief)
     state = {"goal": goal_id, "pr": pr, "builder": builder, "tree": record["tree"], "approved_head": record["head"],
-             "review_id": record["review_id"], "drafted_by": record["drafted_by"], "read_by": record["read_by"],
+             "review_id": record["review_id"], "approval_pr": record.get("approval_pr", pr),
+             "approval_head": record.get("approval_head", record["head"]), "drafted_by": record["drafted_by"], "read_by": record["read_by"],
              "branch": f"goal/{goal_id}", "main_at_start": main_sha,
              "items": [{"n": i + 1, "title": t, "criteria": c} for i, (t, c) in enumerate(plan_items((goal / "PLAN.md").read_text()))],
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
@@ -254,7 +258,8 @@ def initial_delivery(repo, repo_name, record, state, secs):
             raise Refused(f"Required checkouts names {parts[0]!r} twice; each checkout has one name")
         checkouts.append({"name": parts[0], "path": parts[1], "host": parts[2], "branch": parts[3], "repo": repo_name})
     return {"schema_version": 1, "goal": state["goal"],
-            "approval": {"repo": repo_name, "pr": state["pr"], "review_id": record["review_id"], "head": record["head"],
+            "approval": {"repo": repo_name, "pr": state.get("approval_pr", state["pr"]), "review_id": record["review_id"],
+                         "head": state.get("approval_head", record["head"]),
                          "owner": gb.OWNER},
             "max_review_rounds": state["max_rounds"], "active_seconds": 0, "source_bindings": [],
             "changes": changes, "release_companion": companion if companion != "none" else None,
@@ -907,8 +912,33 @@ def holdout_failed(goal_id, detail):
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
-    escalate(state, "holdout", f"goal-holdout failed, {gb.holdout_reading(detail)}: {detail}")
+    nxt = next_goal(goal_id)
+    escalate(state, "holdout", f"goal-holdout failed, {gb.holdout_reading(detail)}: {detail}. Next: "
+             + (f"{nxt}, drafted with /gstack-goal-new --successor {goal_id} (GO-011.9), no approval needed"
+                if nxt else "the successor chain is at its cap (--s2); the next goal needs Dorian's approval"))
     return end(state, "stopped", f"goal-holdout failed: {detail}")
+
+
+def next_goal(goal_id):
+    """GO-011.9: the goal that follows one that failed. `<root>--s1`, then `--s2`; past that, None (Dorian's)."""
+    import goal_successor as gsucc
+    m = gsucc.SUCCESSOR.match(goal_id)
+    if m is None:
+        return f"{goal_id}--s1"
+    return f"{m['root']}--s2" if m["n"] == "1" else None
+
+
+def review_failed(goal_id, review_id, detail):
+    """GO-011.9: the whole-goal review blocked after finalize, where no code fix can land (the goal tests and the
+    holdout passed at a head the fix would move). The run ends like a failed holdout, and the successor follows."""
+    state = load(goal_id)
+    if state["outcome"]:
+        raise Refused(f"the run already ended: {state['outcome']}")
+    nxt = next_goal(goal_id)
+    escalate(state, "review", f"the whole-goal review {review_id} blocked: {detail}. Next: "
+             + (f"{nxt}, drafted with /gstack-goal-new --successor {goal_id} (GO-011.9), no approval needed"
+                if nxt else "the successor chain is at its cap (--s2); the next goal needs Dorian's approval"))
+    return end(state, "stopped", f"whole-goal review {review_id} blocked: {detail}")
 
 
 def stop(goal_id, reason):
@@ -960,7 +990,10 @@ def record(goal_id):
     _, _, totals = gs.status(d / "spend.jsonl", (d / "goal" / "GOAL.md").read_text())
     lines = [f"# Goal run: {goal_id}", "",
              f"- Outcome: {state['outcome'] or 'running'}" + (f" ({state['reason']})" if state["reason"] else ""),
-             f"- Approved in PR #{state['pr']} by review {state['review_id']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}",
+             (f"- Approved in PR #{state['pr']} by review {state['review_id']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}"
+              if state.get("approval_pr", state["pr"]) == state["pr"] else
+              f"- Added in PR #{state['pr']} at {state['approved_head'][:12]}, tree {state['tree'][:12]}; a successor (GO-011.9) "
+              f"approved by review {state['review_id']} on its root goal's PR #{state['approval_pr']} at {str(state.get('approval_head'))[:12]}"),
              f"- Goal tests drafted by {', '.join(state['drafted_by'])}, read by {state['read_by']}",
              f"- Builder: {state['builder']}", f"- Goal branch: {state['branch']} from {state['main_at_start'][:12]}",
              f"- Spend: ${totals.get('total', '?')} across {json.dumps(totals.get('spent', {}))}; {totals.get('calls', '?')} counted calls",
@@ -1117,7 +1150,8 @@ def establish_authority(goal_id, state, delivery, get, repo_name):
     Anything that can't be read or doesn't agree blocks; nothing defaults."""
     d = run_dir(goal_id)
     approval = delivery.get("approval") or {}
-    for key, mine in (("pr", state.get("pr")), ("review_id", state.get("review_id")), ("head", state.get("approved_head"))):
+    for key, mine in (("pr", state.get("approval_pr", state.get("pr"))), ("review_id", state.get("review_id")),
+                      ("head", state.get("approval_head", state.get("approved_head")))):   # GO-011.9: a successor's is its root's
         if approval.get(key) != mine:
             raise Refused(f"the delivery's approval {key} ({approval.get(key)}) is not this run's ({mine}); authority not established")
     name = approval.get("repo") or repo_name
@@ -1493,6 +1527,9 @@ def _main(argv, repo=gb.ROOT):
             return 0
         if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
             print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
+            return 1
+        if cmd == "review-failed" and goal_id and set(opts) == {"--review", "--detail"}:
+            print(json.dumps(review_failed(goal_id, opts["--review"], opts["--detail"])))
             return 1
         if cmd == "ack" and goal_id and set(opts) == {"--escalation", "--words"}:
             print(json.dumps(acknowledge(goal_id, int(opts["--escalation"]), opts["--words"])))

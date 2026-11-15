@@ -19,6 +19,13 @@
 /plugins/gstack-execution/scripts/goal_guard.py @dorianatmoxywolf
 # GO-001: a goal's brief, plan, tests and run record change only with his approval.
 /goals/ @dorianatmoxywolf
+# GO-011.9 (Dorian, 2026-11-15: "I approve this and it needs to be added to our plugins"): the first two successors of a
+# goal that failed its holdout or whole-goal review carry no owner. goal_successor.py, run in the required `tests`
+# check, holds them instead: added once, nothing else changed, and the approved brief kept word for word. A third
+# successor (--s3) matches neither line and needs his review like any goal.
+/goals/*--s1/
+/goals/*--s2/
+/plugins/gstack-execution/scripts/goal_successor.py @dorianatmoxywolf
 # A goal's own goal-runs/<id>/ (run record, carried holdout) is not owned: the goal PR into main merges on
 # green goal checks and a clean whole-goal review (GO-011.2). The holdout still matches goals/<id>/holdout.sha256.
 /goal-runs/README.md @dorianatmoxywolf

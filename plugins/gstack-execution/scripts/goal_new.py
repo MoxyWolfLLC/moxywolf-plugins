@@ -10,6 +10,12 @@ them (GO-002, GO-003.3):
                                   only its hash entering the folder; the source is never printed
   goal_new.py read <goal dir>     the plain-English reading, by the gemini family through OpenRouter,
                                   printed as the goal pull request's `## Plain-English reading` section
+  goal_new.py successor <goal dir> --why <text>
+                                  GO-011.9: starts the successor of a goal that failed its holdout or its
+                                  whole-goal review, as goals/<root>--s1 (then --s2) beside it: GOAL.md
+                                  copied whole with one `Succeeds <goal>: <why>` paragraph after its
+                                  Outcome, PLAN.md copied for the agent to revise. The tests, holdout and
+                                  reading are then drafted as for any goal.
 
 Each refuses (exit 1) rather than write a partial folder. `goal_brief.py check` and `baseline` still
 decide whether the folder is a goal; nothing here replaces them.
@@ -252,7 +258,49 @@ The brief:
     return 0
 
 
+def cmd_successor(goal_dir, why):
+    """GO-011.9. Only the parts goal_successor.compare lets change are left to change: the Outcome keeps the
+    predecessor's text and gains one paragraph; every other section is copied and revised, if at all, only where
+    goal_successor.MUTABLE names it."""
+    import goal_run
+    import goal_successor as gsucc
+    src = Path(goal_dir).resolve()
+    nxt = goal_run.next_goal(src.name)
+    if nxt is None:
+        print(f"{src.name} is a second successor; the chain stops at --s2 and the next goal needs Dorian's approval",
+              file=sys.stderr)
+        return 1
+    if "\n" in why.strip() or not why.strip():
+        print("--why is one paragraph: what failed and what the successor does about it", file=sys.stderr)
+        return 1
+    dst = src.parent / nxt
+    if dst.exists():
+        print(f"{dst} already exists", file=sys.stderr)
+        return 1
+    text = (src / "GOAL.md").read_text()
+    pre, secs = gsucc.spans(text)
+    out = []
+    for h, b in secs:
+        if re.match(r"^##\s+Outcome\s*$", h):
+            core = b.rstrip("\n")
+            b = f"{core}\n\nSucceeds {src.name}: {why.strip()}" + b[len(core):]
+        out.append(f"{h}\n{b}")
+    new = pre + "".join(out)
+    problems = gsucc.compare(text, new, src.name)
+    if problems:
+        print("; ".join(problems), file=sys.stderr)
+        return 1
+    dst.mkdir()
+    (dst / "GOAL.md").write_text(new)
+    (dst / "PLAN.md").write_text((src / "PLAN.md").read_text())
+    print(json.dumps({"successor": nxt, "dir": str(dst), "next": "revise PLAN.md (and Scenarios, Goal tests, Pre-mortem "
+                      "if the failure calls for it), then tests, holdout, read, goal_brief.py check and baseline"}))
+    return 0
+
+
 def main(argv):
+    if len(argv) == 4 and argv[0] == "successor" and argv[2] == "--why":
+        return cmd_successor(argv[1], argv[3])
     if len(argv) != 2 or argv[0] not in ("tests", "holdout", "read"):
         print(__doc__, file=sys.stderr)
         return 2

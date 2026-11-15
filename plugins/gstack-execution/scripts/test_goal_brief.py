@@ -485,6 +485,70 @@ class Verify(unittest.TestCase):
         self.refused(fake([[review()]], merged=False), "not merged")
 
 
+ROOT_HEAD, BASE2, S_TREE, ADD = "2" * 40, "3" * 40, "5" * 40, "9" * 40
+
+
+def successor_brief(**over):
+    text = brief(**over)
+    out = brief()
+    o = gb.sections(out)["Outcome"]
+    i = text.index(o) + len(o)
+    return text[:i] + "\n\nSucceeds g1: the holdout failed on its fixtures." + text[i:]
+
+
+def fake_successor(root_reviews, succ_reviews=(), succ_text=None):
+    succ = succ_text or successor_brief()
+    trees = {HEAD: {"g1": TREE, "g1--s1": S_TREE}, "main": {"g1": TREE, "g1--s1": S_TREE},
+             BASE: {"g1": TREE}, ROOT_HEAD: {"g1": TREE}, BASE2: {}}
+    def get(path):
+        if path.endswith("/pulls/7"):
+            return {"merged": True, "head": {"sha": HEAD}, "base": {"ref": "main", "sha": BASE}, "body": READING}
+        if path.endswith("/pulls/5"):
+            return {"merged": True, "head": {"sha": ROOT_HEAD}, "base": {"ref": "main", "sha": BASE2}, "body": READING}
+        if "commits?path=goals/g1/GOAL.md" in path:
+            return [{"sha": ADD}]
+        if path.endswith(f"/commits/{ADD}/pulls"):
+            return [{"number": 5, "base": {"ref": "main"}, "merged_at": "2026-11-01T00:00:00Z"}]
+        if "/reviews" in path:
+            page = int(path.rsplit("page=", 1)[1])
+            mine = list(succ_reviews) if "/pulls/7/" in path else list(root_reviews)
+            return mine if page == 1 else []
+        for gid, text in (("g1--s1", succ), ("g1", brief())):
+            if f"/goals/{gid}/GOAL.md" in path:
+                return b64(text)
+            if f"/goals/{gid}/tests?" in path:
+                return [{"name": "test_survives.py", "path": f"goals/{gid}/tests/test_survives.py"}]
+            if f"/goals/{gid}/tests/test_survives.py" in path:
+                return b64(TESTFILE)
+        ref = path.rsplit("ref=", 1)[1]
+        return [{"name": n, "type": "dir", "sha": t} for n, t in trees.get(ref, {}).items()]
+    return get
+
+
+class SuccessorVerify(unittest.TestCase):
+    """GO-011.9: a successor stands on its root goal's approval and on its brief kept word for word."""
+    def go(self, get):
+        return gb.verify("g1--s1", 7, "o/r", get)
+
+    def test_a_successor_inherits_its_roots_approval(self):
+        rec, e = self.go(fake_successor([review(commit=ROOT_HEAD, rid=41)]))
+        self.assertEqual(e, [])
+        self.assertEqual((rec["review_id"], rec["approval_pr"], rec["approval_head"], rec["head"], rec["tree"]),
+                         (41, 5, ROOT_HEAD, HEAD, S_TREE))
+
+    def test_a_successor_whose_brief_changed_a_kept_section_is_refused(self):
+        _, e = self.go(fake_successor([review(commit=ROOT_HEAD)], succ_text=successor_brief(**{"Allowed paths": "- other.py"})))
+        self.assertTrue(any("successor: `## Allowed paths`" in x for x in e), e)
+
+    def test_a_successor_of_an_unapproved_root_is_refused(self):
+        _, e = self.go(fake_successor([review(commit=ROOT_HEAD, state="COMMENTED")]))
+        self.assertTrue(any("whose approval a successor inherits" in x for x in e), e)
+
+    def test_dorian_requesting_changes_on_the_successor_stops_it(self):
+        _, e = self.go(fake_successor([review(commit=ROOT_HEAD)], succ_reviews=[review(state="CHANGES_REQUESTED")]))
+        self.assertTrue(any("requested changes" in x for x in e), e)
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=1).result
     print(f"examined {r.testsRun} cases")

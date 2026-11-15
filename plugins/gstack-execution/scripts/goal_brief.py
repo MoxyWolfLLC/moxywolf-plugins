@@ -545,8 +545,44 @@ def _tests_text(get, repo, goal_id, ref):
                      for f in files if f.get("name", "").endswith(".py"))
 
 
+def _adding_pr(goal_id, repo, get):
+    """The merged pull request into main that added goals/<goal_id>/GOAL.md (an approved goal never changes,
+    so the oldest commit touching it is the one its pull request brought), or None."""
+    commits = get(f"repos/{repo}/commits?path=goals/{goal_id}/GOAL.md&sha=main&per_page=100") or []
+    if not commits:
+        return None
+    prs = get(f"repos/{repo}/commits/{commits[-1]['sha']}/pulls") or []
+    hit = [p for p in prs if (p.get("base") or {}).get("ref") == "main" and p.get("merged_at")]
+    return hit[0]["number"] if hit else None
+
+
 def verify(goal_id, pr, repo, get):
-    """Criterion 3. Returns (record, errors)."""
+    """Criterion 3. Returns (record, errors). GO-011.9: a successor (`<root>--s1`, `--s2`) carries no
+    approving review of its own; it stands on its root goal's approval, verified here as any goal's, and
+    on its brief keeping its predecessor's word for word, checked again from main as the tests check did."""
+    import goal_successor as gsucc
+    pred = gsucc.predecessor(goal_id)
+    if pred is None:
+        return _verify(goal_id, pr, repo, get)
+    record, errors = _verify(goal_id, pr, repo, get, own_review=False)
+    texts = [_decode(get(f"repos/{repo}/contents/goals/{g}/GOAL.md?ref=main") or {}) for g in (pred, goal_id)]
+    if not all(texts):
+        errors.append(f"goals/{pred}/GOAL.md or goals/{goal_id}/GOAL.md can't be read from main")
+    else:
+        errors += [f"successor: {x}" for x in gsucc.compare(texts[0], texts[1], pred)]
+    root = gsucc.SUCCESSOR.match(goal_id)["root"]
+    root_pr = _adding_pr(root, repo, get)
+    if root_pr is None:
+        errors.append(f"no merged pull request into main adds goals/{root}/, so there is no approval to inherit")
+        return record, errors
+    rec, errs = _verify(root, root_pr, repo, get)
+    errors += [f"{root}, whose approval a successor inherits: {e}" for e in errs]
+    record.update(review_id=rec["review_id"], approval_pr=root_pr, approval_head=rec["head"],
+                  approved_via=f"GO-011.9: successor of {root}, approved in PR #{root_pr}")
+    return record, errors
+
+
+def _verify(goal_id, pr, repo, get, own_review=True):
     errors = []
     p = get(f"repos/{repo}/pulls/{pr}")
     head, base_sha = p["head"]["sha"], p["base"]["sha"]
@@ -564,7 +600,11 @@ def verify(goal_id, pr, repo, get):
     mine = [r for r in reviews if r["user"]["login"] == OWNER
             and r["state"] in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED")]
     last = mine[-1] if mine else None   # his latest decision stands
-    if not last or last["state"] != "APPROVED":
+    if not own_review:
+        if last and last["state"] == "CHANGES_REQUESTED":   # he can still stop a successor by saying so on it
+            errors.append(f"{OWNER} requested changes on PR #{pr}")
+        last = None
+    elif not last or last["state"] != "APPROVED":
         errors.append(f"no standing APPROVED review by {OWNER} on PR #{pr}")
     elif last["commit_id"] != head:
         errors.append(f"{OWNER}'s approval is at {last['commit_id'][:7]}, not the head {head[:7]}")

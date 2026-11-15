@@ -1,0 +1,78 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GO-011",
+  "scope_sha256": "0f28c6cc19adda619a32cd86f465c0d34171a7473451c79d6a6af3e3cddf3bc3",
+  "reviewed_at": "2026-11-15T16:16:54+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 5334,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 9126,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9126,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 16053,
+      "output_tokens": 4096,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2474,
+      "cache_read_input_tokens": 9126,
+      "cache_creation_input_tokens": 6158,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6158,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 9126,
+    "write": 15284
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GO-011.9",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "For an --s2 successor, is GOAL.md compared against its predecessor (--s1) or against the root goal's brief? The constraint says the root and 'one added Succeeds paragraph per successor', while GO-011.9 says the predecessor's word for word plus one paragraph. Decide the baseline and how many Succeeds paragraphs --s2 carries."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GO-011.8",
+        "GO-011.2",
+        "The agent merges on a clean review, not on words"
+      ],
+      "question": "Does the declared release-companion PR into main wait for Dorian's merge-instruction on a closed lane (GA-011), or does GO-011.8's 'no per-PR merge permission' apply to it? Is it a 'goal's pull request into main'?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GO-011.8",
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "Is GO-011.8's graph-context runtime (graph_context.py, attest, pointer bindings, preflight refusal) existing capability, or new graph work that the boundary-test waiver rule bars until the three boundary tests have run?"
+    }
+  ]
+}

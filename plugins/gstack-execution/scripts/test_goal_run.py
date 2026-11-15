@@ -577,6 +577,31 @@ class Runner(RunnerFixture):
         self.assertTrue(texts and "missing package requests" in texts[-1] and "reward hack," not in texts[-1], texts)
         self.assertEqual(gr.load("g1")["outcome"], "stopped")
 
+    def test_a_failed_holdout_or_blocked_final_review_names_the_successor(self):  # GO-011.9
+        self.start()
+        gr.holdout_failed("g1", "FAIL: test_x")
+        texts = [m["text"] for m in gr.load("g1").get("messages", []) if m.get("trigger") == "holdout"]
+        self.assertTrue(texts and "Next: g1--s1" in texts[-1] and "no approval needed" in texts[-1], texts)
+        self.assertEqual((gr.next_goal("g1"), gr.next_goal("g1--s1"), gr.next_goal("g1--s2")), ("g1--s1", "g1--s2", None))
+
+    def test_a_successors_record_names_its_own_pr_and_its_roots_approval_apart(self):  # review 20261115-080201 F3
+        self.start()
+        self.assertIn("- Approved in PR #", gr.record("g1"))
+        st = gr.load("g1"); st["approval_pr"], st["approval_head"] = 5, "2" * 40
+        gr.save(st)
+        rec = gr.record("g1")
+        self.assertIn("a successor (GO-011.9) approved by review", rec)
+        self.assertIn("root goal's PR #5 at 222222222222", rec)
+
+    def test_a_blocked_final_review_ends_the_run_and_names_the_successor(self):  # GO-011.9
+        self.start()
+        out = gr.review_failed("g1", "rid-1", "F1 an ownerless packet skips data_use")
+        self.assertEqual(out["outcome"], "stopped")
+        texts = [m["text"] for m in gr.load("g1").get("messages", []) if m.get("trigger") == "review"]
+        self.assertTrue(texts and "rid-1" in texts[-1] and "Next: g1--s1" in texts[-1], texts)
+        with self.assertRaisesRegex(gr.Refused, "already ended"):
+            gr.review_failed("g1", "rid-2", "again")
+
     def test_an_installed_plugin_copy_refuses_to_run(self):  # review F1
         import shutil
         copy = Path(self.tmp.name, "plugin", "scripts")
