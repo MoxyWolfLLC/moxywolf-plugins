@@ -234,6 +234,24 @@ def test_a_packet_without_data_use_is_refused_with_exit_2_before_anything_is_wri
         assert err.getvalue().startswith(says), err.getvalue()
 
 
+def test_an_ownerless_packet_is_refused_for_a_denying_data_use_and_left_to_malformed_packet_otherwise():
+    """Whole-goal review of review-packet-ready-6, F1: no owner on the packet no longer skips the data_use rule.
+    A policy that denies is refused first; one that allows is left to today's malformed_packet refusal."""
+    allow = {"owner": "o", "classification": "internal", "allow_repository": True, "allow_history": True,
+             "allowed_tools": ["codex"]}
+    pr.refuse_without_data_use({"data_use": allow}, "codex")       # no owner, policy allows: returns
+    for policy, says in ((dict(allow, allow_repository=False), "refused: data_use: denied: data_use: repository/history"),
+                         (dict(allow, allowed_tools=["claude"]), "refused: data_use: denied: data_use: tool destination denied: codex")):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            try:
+                pr.refuse_without_data_use({"data_use": policy}, "codex")
+                raise AssertionError("must refuse")
+            except SystemExit as e:
+                assert e.code == 2, e.code
+        assert err.getvalue().startswith(says), err.getvalue()
+
+
 def test_open_refuses_for_data_use_before_any_check_it_made_before():
     """Goal review-packet-ready-3 (review F1, 20261114-094615): a packet that would also fail today's validation
     (no release_owner, max_rounds out of range) is refused for its data_use first, exit 2, nothing written."""

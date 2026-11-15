@@ -2870,12 +2870,14 @@ def refuse_without_data_use(packet, reviewer):
     for the reviewer open would choose, so the packet is fixed before anything exists."""
     if not packet.get("data_use"):
         refuse("data_use: missing")
-    # Goal review-packet-ready-6 item 1: governance.data_permission compares data_use's owner with the packet's
-    # owner; with no owner at all the packet is malformed, and today's malformed_packet refusal answers it.
-    if not (packet.get("owner") or packet.get("release_owner")):
-        return
+    # Whole-goal review of review-packet-ready-6, F1: with no packet owner, only the owner comparison is left to
+    # today's malformed_packet refusal; every other part of data_permission's rule (repository and history
+    # permission, classification, the reviewer as an allowed tool) still refuses here first.
+    probe = packet
+    if not (packet.get("owner") or packet.get("release_owner")) and isinstance(packet["data_use"], dict):
+        probe = dict(packet, release_owner=packet["data_use"].get("owner"))
     try:
-        data_permission(packet, tool=reviewer)
+        data_permission(probe, tool=reviewer)
     except ValueError as e:
         refuse(f"data_use: denied: {e}")
 
