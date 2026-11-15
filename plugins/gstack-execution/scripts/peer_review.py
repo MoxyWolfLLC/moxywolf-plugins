@@ -557,8 +557,11 @@ def surface_prefix(i, repo, kind):
 def changed_files(repos):
     out = []
     for r in repos:
-        names = git(r["path"], "diff", "--name-only", f"{r['base']}..{r['head']}").split()
-        out += [(r, n) for n in names]
+        # Goal review-packet-ready-5 item 4: NUL-separated and never split on whitespace, so a changed file whose
+        # name holds a space, tab or newline is surfaced whole (it was split into paths that don't exist).
+        names = subprocess.run(["git", "-C", str(r["path"]), "diff", "--name-only", "-z", f"{r['base']}..{r['head']}"],
+                               capture_output=True, check=True).stdout.split(b"\0")
+        out += [(r, os.fsdecode(n)) for n in names if n]
     return out
 
 
