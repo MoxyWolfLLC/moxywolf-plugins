@@ -275,7 +275,8 @@ def head_tracked(r):
 def head_blob(r, name):
     """MOXY-159: a file's bytes at the reviewed head, or None when the head has no such path.
     A checkout on another branch never leaks into the surface; a symlink is its target text, never followed."""
-    p = subprocess.run(["git", "-C", str(r["path"]), "show", f"{r['head']}:{name}"], capture_output=True)
+    # cat-file blob, not show: `git show <head>:<dir>` prints a tree listing and succeeds (review F1, 20261114-193502)
+    p = subprocess.run(["git", "-C", str(r["path"]), "cat-file", "blob", f"{r['head']}:{name}"], capture_output=True)
     return p.stdout if p.returncode == 0 else None
 
 
@@ -1379,8 +1380,8 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
             # MOXY-159: bytes come from the reviewed head with `git show`, never the working tree, so a
             # checkout on another branch surfaces the head's bytes.
             dest = surf / surface_prefix(idx[id(r)], r, sub) / name
-            dest.parent.mkdir(parents=True, exist_ok=True)
             try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 blob = head_blob(r, name)
                 # snapshot() refused a symlink escaping the repository; the surface keeps that control,
                 # judged on the link the head commits (mode 120000), not on whatever the disk holds.
@@ -1388,6 +1389,9 @@ def build_surface(repos, root, cap=SURFACE_CAP, prior_findings=(), criteria=(), 
                 if blob is not None and _head_is_link(r, name) and _head_link_escapes(r, name, os.fsdecode(blob)):
                     raise ReviewError("data_use_denied",
                                       f"review surface refused {name}: symlink escapes repository scope")
+                if blob is None and subprocess.run(["git", "-C", str(r["path"]), "cat-file", "-t", f"{r['head']}:{name}"],
+                                                   capture_output=True, text=True).stdout.strip() == "tree":
+                    continue   # a file the head replaced with a directory: its files are surfaced, CHANGE.diff shows the deletion
                 dest.write_bytes(blob if blob is not None else f"(deleted at head {r['head']})\n".encode())
                 prov[str(dest.relative_to(surf))] = provenance("repository")
             except OSError as e:

@@ -208,6 +208,21 @@ def test_a_link_is_judged_by_the_head_not_by_links_in_the_checkout():
             assert e.outcome == "data_use_denied" and "sub/link" in e.detail, (e.outcome, e.detail)
 
 
+def test_a_file_the_head_replaces_with_a_directory_is_surfaced_without_a_crash():
+    """Review F1, 20261114-193502: widget.py at the base becomes a directory widget.py/ holding a new file at the
+    head. The surface carries the new file's head bytes and no marker in the directory's place, and doesn't crash."""
+    with tempfile.TemporaryDirectory() as t:
+        repos = repo(t); r = Path(repos[0]["path"])
+        git = lambda *a: subprocess.run(["git", *a], cwd=r, check=True, capture_output=True, text=True).stdout.strip()
+        git("rm", "-q", "widget.py"); (r/"widget.py").mkdir(); (r/"widget.py"/"inner.py").write_text("INNER = 1\n")
+        git("add", "-A"); git("commit", "-qm", "file to dir")
+        repos[0]["head"] = git("rev-parse", "HEAD")
+        root = Path(t)/"root"; root.mkdir()
+        surf, _ = pr.build_surface(repos, root)
+        assert next(surf.glob("changed/*/widget.py/inner.py")).read_bytes() == b"INNER = 1\n"
+        assert pr.head_blob(repos[0], "widget.py") is None, "a directory at the head is not a file's bytes"
+
+
 def test_the_layout_has_exactly_one_producer_and_one_parser():
     """XE-008. The prefix format had four homes and I broke it twice in an hour by updating one.
     This asserts the parser accepts what the writer emits, for any index, without either side
