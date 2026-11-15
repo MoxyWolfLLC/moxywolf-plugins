@@ -272,6 +272,39 @@ def test_a_reviewer_session_gets_the_packet_refusal_first():
     assert not (tmp / "reviews").exists() or not any((tmp / "reviews").iterdir())
 
 
+def test_a_run_recorded_on_a_branch_is_found_and_refused_from_a_detached_checkout():
+    """Goal review-packet-ready-6 item 2 (review 20261114-220017, unmet criterion): ledger runs are recorded with
+    check_ledger.py run from a checkout on a branch; after that the checkout may be detached, and open still finds
+    the run (on any branch's ledger) and refuses it for not being at the packet's head, never reading HEAD."""
+    import os, sys
+    d, base, head = repo()
+    sh = lambda *c: subprocess.run(["git", "-C", str(d), *c], check=True, capture_output=True, text=True).stdout.strip()
+    tmp = Path(tempfile.mkdtemp(prefix="detached-ledger-"))
+    env = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(tmp / "reviews"))
+    env.pop(pr.RECURSION_ENV, None)
+    here = Path(pr.__file__).parent
+    sh("checkout", "-qb", "at-base", base)
+    r = subprocess.run([sys.executable, str(here / "check_ledger.py"), "run", "--repo", ".", "--", sys.executable, "-c", "print(1)"],
+                       cwd=d, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stderr
+    run_id = json.loads((next((tmp / "reviews" / "ledger").rglob("*.jsonl"))).read_text().splitlines()[-1])["id"]
+    sh("checkout", "-q", "--detach", head)
+    pfile = tmp / "packet.json"
+    pfile.write_text(json.dumps({
+        "outcome": "f adds one", "acceptance_criteria": ["f(1) == 2"],
+        "repos": [{"path": str(d), "base": base, "head": head}], "changed_behavior": "f returns x+1",
+        "exclusions": [], "release_owner": "fixture-human",
+        "tests": {"commands": [], "results": "", "environment": "test", "ledger_runs": [{"repo": str(d), "run_id": run_id}]},
+        "coverage": {"status": "checked", "criteria": [{"item": "fixture", "criterion_no": 1, "declared": "fixture", "probability": 1.0}]},
+        "data_use": {"owner": "fixture-human", "classification": "test", "allow_repository": True,
+                     "allow_history": True, "allowed_tools": ["codex", "claude"]}}))
+    r = subprocess.run([sys.executable, str(here / "peer_review.py"), "open", "--builder", "claude", "--packet", str(pfile)],
+                       capture_output=True, text=True, env=env)
+    assert r.returncode == 2, (r.returncode, r.stderr)
+    assert r.stderr.startswith(f"refused: tests.ledger_runs: run {run_id} is at {base}, head is {head}"), r.stderr
+    assert sh("rev-parse", "--abbrev-ref", "HEAD") == "HEAD", "the checkout stayed detached"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:
