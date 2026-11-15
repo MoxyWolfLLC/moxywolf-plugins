@@ -75,7 +75,18 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" open --builder <claude|co
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" round <review-id>
 ```
 
-The reviewer runs non-interactively in a fresh session against a detached read-only snapshot of the head commit. Report the outcome exactly as the dispatcher names it. `review_unavailable`, `missing_commits`, `timeout`, `malformed_output`, `model_below_floor`, and `unusable` are results, not passes; say what they mean (for `review_unavailable`: which tool is missing and that no same-tool substitute was made).
+Before it makes a review id, a review folder or any reviewer call, `open` refuses a packet that isn't ready, on standard error with exit code 2, writing nothing. It checks in this order, before any check it made before, and prints only the first that fails:
+
+| Check | Message |
+|---|---|
+| `data_use` missing or with no keys | `refused: data_use: missing` |
+| `data_use` denies the reviewer `open` would choose | `refused: data_use: denied: <reason>` (the message `governance.data_permission` raises) |
+| no attached coverage report (`coverage` absent or empty), without `--accept-narrow-packet` | `refused: coverage: not attached` |
+| a `tests.ledger_runs` run whose recorded commit isn't the packet's head (full 40-character SHAs; an abbreviated commit counts as behind, a missing one prints `none`) | `refused: tests.ledger_runs: run <id> is at <sha\|none>, head is <sha>` |
+
+`round` makes only the ledger check, for the runs its `--ledger-run` names, against the head it sends (the packet's head after any `--head` the round gives, a first round's included), before its other checks, its reviewer call or any record: same message, exit 2. Its `data_use` check at the round stays as it was. `task_graph.py` peer nodes open with `--accept-narrow-packet` and say why in `exclusions`.
+
+The reviewer runs non-interactively in a fresh session against the head commit: every surfaced file is read with `git show <head>:<path>`, never from the working tree (MOXY-159). Report the outcome exactly as the dispatcher names it. `review_unavailable`, `missing_commits`, `timeout`, `malformed_output`, `model_below_floor`, and `unusable` are results, not passes; say what they mean (for `review_unavailable`: which tool is missing and that no same-tool substitute was made).
 
 ## Step 3: Substantiate, fix, disposition
 
