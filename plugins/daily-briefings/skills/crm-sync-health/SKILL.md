@@ -114,9 +114,12 @@ Any other source here is new and leads the report. If it also appears in check 4
 Expected: nothing. A source can finish, log `ok`, and still count errors it hit along the way. In the seven days to 2026-11-15 `posthog_events_pull` logged `ok` 39 times with `dormancy: canceling statement due to statement timeout`, and checks 1 to 4 saw none of it. `ok` says the run finished; `error_count` says what it skipped. Pull the rows and **quote `error_detail` verbatim**:
 
 ```sql
-select id, source, started_at, error_count, error_detail from crm.sync_log
-where status='ok' and error_count > 0 and started_at > now()-interval '24 hours' order by started_at desc limit 5;
+select distinct on (source) id, source, started_at, error_count, error_detail from crm.sync_log
+where status='ok' and error_count > 0 and started_at > now()-interval '24 hours'
+order by source, started_at desc;
 ```
+
+One row per source, its latest, so a noisy source can never push another source's detail out of the report.
 
 This applies to every source in `sync_log`, derive jobs included: a derive job's `ok` row that carries errors is reported here, once, and still counts as that job's last `ok` for check 6.
 
@@ -125,9 +128,13 @@ This applies to every source in `sync_log`, derive jobs included: a derive job's
 The jobs in `deriveSources` run hourly on their own schedule and log to `sync_log` like a source, but they aren't in the pipeline's source list, so check 3 never sees them. A row here means a job has had no `ok` within `deriveStaleHours` (or none in the last seven days, shown as `no ok in 7 days`), or logged an `error` in the last 24 hours. For an error, quote `error_detail` verbatim:
 
 ```sql
-select id, source, started_at, error_detail from crm.sync_log
-where source like 'derive\_%' and status='error' and started_at > now()-interval '24 hours' order by started_at desc limit 5;
+select distinct on (source) id, source, started_at, error_detail from crm.sync_log
+where source = any(array['derive_lifecycle_labels','derive_org_adoption','derive_org_icp_fit',
+  'derive_org_permission_level']) and status='error' and started_at > now()-interval '24 hours'
+order by source, started_at desc;
 ```
+
+Substitute `deriveSources` for the array, as in Step 2. One row per failing job, its latest, with no cap that could leave a job out.
 
 `knownIssues` applies to checks 5 and 6 the way it does to check 3: a listed source or job reports as still open and doesn't lead. Anything else listed by check 5 or 6 is new and leads the report, a job that never ran included.
 
