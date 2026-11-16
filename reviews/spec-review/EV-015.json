@@ -1,0 +1,95 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "EV-015",
+  "scope_sha256": "61c0eae913b0e0724fa50d2a066497bebdb891220648858ea5909b93e9c86261",
+  "reviewed_at": "2026-11-16T07:07:24+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2629,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6754,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6754,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6754,
+      "cache_creation_input_tokens": 2669,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2669,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11063,
+      "output_tokens": 2039,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1526,
+      "cache_read_input_tokens": 9423,
+      "cache_creation_input_tokens": 115,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 115,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 16177,
+    "write": 9538
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "EV-015.3"
+      ],
+      "question": "What is 'check 3's rule' for a knownIssues source? The plan defines no check 3 and only introduces checks 5 and 6. Is it an existing check in the skill, or EV-015.1's 'reports as still open'? State the rule or cite where it is defined."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "EV-015.4",
+        "EV-015.5"
+      ],
+      "question": "EV-015.4 says repairs run only through the skill, but EV-015.5 says only that the skill is the only copy of the checks. May the pointer prompt or its canonical copy in references/ contain any repair wording, or only the invocation and the unavailable message? State whether 'only copy' covers repairs as well as checks."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "EV-015.1",
+        "EV-015.2"
+      ],
+      "question": "A derive job with an ok row that has error_count > 0 in the last 24h is a check 5 hit and may also satisfy check 6's 'ok row within deriveStaleHours'. Is it reported under both checks or once? Does an ok row carrying errors count as the ok row that keeps the job from being stale?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "EV-015.2",
+        "EV-015.3"
+      ],
+      "question": "Does the knownIssues exemption apply to derive jobs in check 6? How does a job that never ran, which has no row, lead the report given 'a row from either leads the report'?"
+    }
+  ]
+}

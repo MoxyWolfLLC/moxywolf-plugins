@@ -1,5 +1,5 @@
 ---
-description: "Daily CRM sync pipeline check: stuck runs, budget-exceeded errors, dead-lettered and stale sources. Sweeps orphaned runs and releases a dead-lettered task once a day. One line when healthy. Usage: /crm-sync-health"
+description: "Daily CRM sync pipeline check: stuck runs, budget-exceeded errors, dead-lettered and stale sources, ok runs that carry errors, and derive jobs. Sweeps orphaned runs and releases a dead-lettered task once a day. One line when healthy. Usage: /crm-sync-health"
 allowed-tools: ["Read", "Bash", "Glob", "Grep", "mcp__Supabase__execute_sql", "mcp__remote-devices__get_device_info", "mcp__remote-devices__device_request_folder_access"]
 ---
 
