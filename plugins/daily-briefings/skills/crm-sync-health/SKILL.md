@@ -2,7 +2,7 @@
 name: crm-sync-health
 risk_tier: bounded-write
 description: >
-  Daily health check on the CRM sync pipeline in Supabase that finds stuck runs, budget-exceeded errors, dead-lettered sources and stale sources, then applies two bounded bookkeeping repairs: it sweeps orphaned `running` rows and releases a dead-lettered queue task once a day unless it died of a budget overrun. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill the scheduled daily run invokes. One line on a healthy day. Every repair is reported with its row counts, so the signal stays readable.
+  Daily health check on the CRM sync pipeline in Supabase that finds stuck runs, budget-exceeded errors, stale sources, dead-lettered sources, runs logged `ok` that still carry errors, and stale or failing derive jobs, then applies two bounded bookkeeping repairs: it sweeps orphaned `running` rows and releases a dead-lettered queue task once a day unless it died of a budget overrun. Use when the user asks whether the CRM sync is healthy, whether a source is stuck or stale, what happened to the pipeline overnight, or invokes /crm-sync-health. Also the skill the scheduled daily run invokes. One line on a healthy day. Every repair is reported with its row counts, so the signal stays readable.
 ---
 
 # CRM sync health
@@ -30,19 +30,25 @@ The `crmHealth` block in `briefings.config.json` carries the target and the base
 | `crmHealth.pipelineSources` | The source names that belong to the ticking pipeline |
 | `crmHealth.stuckMinutes` | How long a `running` row may sit before it counts as stuck |
 | `crmHealth.staleHours` | How long without an `ok` before a source counts as stale |
+| `crmHealth.deriveSources` | The `derive_*` jobs that log to `sync_log` on their own (hourly) schedule |
+| `crmHealth.deriveStaleHours` | How long a derive job may go without an `ok` before it counts as stale (default 3) |
 | `crmHealth.knownIssues` | Named open issues, so they report as still open rather than as news |
 | `crmHealth.baseline` | The last verified result of the checks, with its date |
 
 If the block is absent, say so and stop. Never guess a project id, and never run against a database the config does not name.
 
-## Step 2: Run the four checks
+## Step 2: Run the six checks
 
-One query via the Supabase MCP `execute_sql`. Substitute the config's schema, source list and thresholds. The left join on the source list matters: a source with no `ok` row at all must still show up as stale.
+This is daily-briefings 0.3.2's check (EV-015): six checks, of which 5 and 6 are new in 0.3.2. The scheduled prompt looks for check 6 here to tell this version from an older one.
+
+One query via the Supabase MCP `execute_sql`. Substitute the config's schema, source lists and thresholds. The left joins on the source lists matter: a source or derive job with no `ok` row at all must still show up.
 
 ```sql
 with src as (select unnest(array['sams','aiscrapesafe','stripe','clarify_pull','clarify_events_pull','clarify_mirror',
   'stigviewer_partner_pull','sams_events_pull','posthog_events_pull','product_pql',
-  'customer_direct_advance','attio_pull','attio_users_mirror','attio_mirror']) s)
+  'customer_direct_advance','attio_pull','attio_users_mirror','attio_mirror']) s),
+der as (select unnest(array['derive_lifecycle_labels','derive_org_adoption','derive_org_icp_fit',
+  'derive_org_permission_level']) d)
 select 'c1 stuck' chk, source, count(*)::text n, min(started_at)::text oldest, max(started_at)::text newest
   from crm.sync_log where status='running' and finished_at is null and started_at < now()-interval '20 minutes' group by source
 union all
@@ -55,6 +61,18 @@ select 'c3 stale', s, coalesce(round(extract(epoch from now()-max(l.finished_at)
 union all
 select 'c4 deadletter', source, consecutive_failures||'/'||max_attempts, last_finished_at::text, left(last_error,200)
   from crm.sync_tasks where enabled and consecutive_failures >= max_attempts
+union all
+select 'c5 ok-with-errors', source, count(*)||' rows, '||sum(error_count)||' errors', min(started_at)::text, max(started_at)::text
+  from crm.sync_log where status='ok' and error_count > 0 and started_at > now()-interval '24 hours' group by source
+union all
+select 'c6 derive', d,
+  coalesce(round(extract(epoch from now()-max(l.finished_at) filter (where l.status='ok'))/3600,1)::text||' h since ok','no ok in 7 days')
+    ||', '||count(l.id) filter (where l.status='error' and l.started_at > now()-interval '24 hours')||' errors in 24h',
+  (max(l.finished_at) filter (where l.status='ok'))::text, null
+  from der left join crm.sync_log l on l.source=d and l.started_at > now()-interval '7 days' group by d
+  having max(l.finished_at) filter (where l.status='ok') is null
+      or max(l.finished_at) filter (where l.status='ok') < now()-interval '3 hours'
+      or count(l.id) filter (where l.status='error' and l.started_at > now()-interval '24 hours') > 0
 order by 1,2;
 ```
 
@@ -91,6 +109,28 @@ Any other source here is new and leads the report. If it also appears in check 4
 
 `crm.claim_sync_tasks` skips any task where `consecutive_failures >= max_attempts`, and nothing ever resets it. A row here means the queue has stopped running that source entirely. This is the failure that hides best: no new errors, no new orphans, just silence and a growing stale number.
 
+### Check 5: runs logged `ok` that still carry errors
+
+Expected: nothing. A source can finish, log `ok`, and still count errors it hit along the way. In the seven days to 2026-11-15 `posthog_events_pull` logged `ok` 39 times with `dormancy: canceling statement due to statement timeout`, and checks 1 to 4 saw none of it. `ok` says the run finished; `error_count` says what it skipped. Pull the rows and **quote `error_detail` verbatim**:
+
+```sql
+select id, source, started_at, error_count, error_detail from crm.sync_log
+where status='ok' and error_count > 0 and started_at > now()-interval '24 hours' order by started_at desc limit 5;
+```
+
+This applies to every source in `sync_log`, derive jobs included: a derive job's `ok` row that carries errors is reported here, once, and still counts as that job's last `ok` for check 6.
+
+### Check 6: derive jobs
+
+The jobs in `deriveSources` run hourly on their own schedule and log to `sync_log` like a source, but they aren't in the pipeline's source list, so check 3 never sees them. A row here means a job has had no `ok` within `deriveStaleHours` (or none in the last seven days, shown as `no ok in 7 days`), or logged an `error` in the last 24 hours. For an error, quote `error_detail` verbatim:
+
+```sql
+select id, source, started_at, error_detail from crm.sync_log
+where source like 'derive\_%' and status='error' and started_at > now()-interval '24 hours' order by started_at desc limit 5;
+```
+
+`knownIssues` applies to checks 5 and 6 the way it does to check 3: a listed source or job reports as still open and doesn't lead. Anything else listed by check 5 or 6 is new and leads the report, a job that never ran included.
+
 ## Step 4: Repair (two writes, nothing else)
 
 Run these only after the checks have been read and recorded for the report.
@@ -125,7 +165,7 @@ If either write fails, say which and why, verbatim. Don't retry.
 
 ## Step 5: Report
 
-**Healthy (checks 1, 2 and 4 clean, check 3 only known issues, no repairs):** one line. `pipeline healthy.` or `pipeline healthy, <issue> still stale at Nh.`
+**Healthy (checks 1, 2 and 4 clean, checks 3, 5 and 6 only known issues, no repairs):** one line. `pipeline healthy.` or `pipeline healthy, <issue> still stale at Nh.`
 
 **Anything else:** lead with the source name and check number. Quote `error_detail` verbatim where there is one. Say plainly whether it's a known issue or something new. Then a short **Repaired** block: what was swept (per source, count, date span), what was released, and when the next tick will show whether the release held. A repair is never reported as a fix to the underlying cause; it's bookkeeping.
 
@@ -139,5 +179,6 @@ If either write fails, say which and why, verbatim. Don't retry.
 - No code change, deploy, secret, config, schema or `enabled` change. No direct `sync-all` call.
 - Never runs against a project the config does not name.
 - Never paraphrases an `error_detail`.
+- The checks and the repairs live only in this file. The scheduled prompt (`references/crm-sync-health-scheduled-prompt.md`) points here and carries no copy of them.
 - Never reports an unreachable source as a clean one.
 - Ruled-out causes belong in the project's engineering notes, not here.

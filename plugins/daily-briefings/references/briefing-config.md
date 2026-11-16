@@ -101,6 +101,8 @@ Resolve the vault root the way every MoxyWolf skill does: the mounted `MoxyWolf 
     "projectId": "",
     "schema": "crm",
     "pipelineSources": [],
+    "deriveSources": [],
+    "deriveStaleHours": 3,
     "stuckMinutes": 20,
     "staleHours": 10,
     "knownIssues": [],
@@ -183,10 +185,12 @@ Used only by `/crm-sync-health`. If it is absent, that briefing says so and stop
 | `crmHealth.projectId` | *required* | Supabase project id. The check never runs against a project the config does not name. |
 | `crmHealth.schema` | `crm` | Schema holding `sync_log`. |
 | `crmHealth.pipelineSources` | `[]` | The source names belonging to the ticking pipeline. Only these count toward the staleness check. |
+| `crmHealth.deriveSources` | `[]` | The `derive_*` jobs that log to `sync_log` on their own schedule. Check 6 reports one with no `ok` within `deriveStaleHours` or an `error` in the last 24 hours. |
+| `crmHealth.deriveStaleHours` | `3` | How long a derive job may go without an `ok`. The jobs run hourly, so 3 allows two missed runs. |
 | `crmHealth.stuckMinutes` | `20` | How long a `running` row may sit before it counts as stuck. |
 | `crmHealth.staleHours` | `10` | How long without an `ok` before a source counts as stale. Set above the tick interval plus the worst cron drift, or every run reports noise. |
 | `crmHealth.knownIssues` | `[]` | Named open issues. A source listed here reports as still-open rather than as news, and reports clearly when it recovers. |
-| `crmHealth.baseline` | empty | The last verified result of the three checks, with its date. Keeping it current is what lets a run say *this changed* instead of *here are three numbers*. |
+| `crmHealth.baseline` | empty | The last verified result of the checks, with its date. Keeping it current is what lets a run say *this changed* instead of *here are three numbers*. |
 
 ## Categories are derived, not dictated
 

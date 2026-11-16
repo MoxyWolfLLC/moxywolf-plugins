@@ -106,3 +106,8 @@ plugins/daily-briefings/
 ├── GOVERNANCE.md
 └── README.md
 ```
+
+## Version history
+
+- **0.3.2** (2026-11-15, EV-015): `/crm-sync-health` adds check 5 (runs logged `ok` that still carry errors) and check 6 (the `derive_*` jobs). The scheduled prompt becomes a pointer to the skill, kept in `references/crm-sync-health-scheduled-prompt.md`, and carries no copy of the checks.
+- **0.3.1** (2026-10-06): `/crm-sync-health` never auto-releases a budget overrun.
