@@ -106,14 +106,14 @@ class ScorerRuns(unittest.TestCase):
         self.assertEqual(Stub.seen[0]["path"], "/evaluation-model")
 
     def test_one_letter_ids_and_en_dash_headings_are_read(self):
-        """XE-037: cki's `I-087` under an en dash is an item like `XX-NNN` under an em dash; four letters is outside the grammar."""
-        (self.tmp / "DESIGN.md").write_text("# D\n\n### I-087 \u2013 A one-letter item\n\n**Status:** done.\n\n1. First.\n2. Second.\n\n### CSO-001 \u2014 A three-letter item\n\n1. Only.\n")
-        self.packet.write_text(json.dumps({"items": ["I-087", "CSO-001"], "acceptance_criteria": ["First.", "Second.", "Only."]}))
+        """XE-037: cki's `I-087` under an en dash is an item like `XX-NNN` under an em dash. XE-044: four letters (prfaq's `PIPE-002`) are read; five are outside the grammar."""
+        (self.tmp / "DESIGN.md").write_text("# D\n\n### I-087 \u2013 A one-letter item\n\n**Status:** done.\n\n1. First.\n2. Second.\n\n### CSO-001 \u2014 A three-letter item\n\n1. Only.\n\n### PIPE-002 \u2014 A four-letter item\n\n1. Whole.\n2. Loud.\n")
+        self.packet.write_text(json.dumps({"items": ["I-087", "CSO-001", "PIPE-002"], "acceptance_criteria": ["First.", "Second.", "Only.", "Whole.", "Loud."]}))
         r, cov = self.run_scorer(AI_GATEWAY_API_KEY="k-env", JEV_ENDPOINT=self.endpoint)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(sorted((c["item"], c["criterion_no"]) for c in cov["criteria"]), [("CSO-001", 1), ("I-087", 1), ("I-087", 2)])
-        (self.tmp / "DESIGN.md").write_text("# D\n\n### ABCD-087 \u2013 Four letters is not an id\n\n1. First.\n")
-        self.packet.write_text(json.dumps({"items": ["ABCD-087"], "acceptance_criteria": ["First."]}))
+        self.assertEqual(sorted((c["item"], c["criterion_no"]) for c in cov["criteria"]), [("CSO-001", 1), ("I-087", 1), ("I-087", 2), ("PIPE-002", 1), ("PIPE-002", 2)])
+        (self.tmp / "DESIGN.md").write_text("# D\n\n### ABCDE-087 \u2013 Five letters is not an id\n\n1. First.\n")
+        self.packet.write_text(json.dumps({"items": ["ABCDE-087"], "acceptance_criteria": ["First."]}))
         r, cov = self.run_scorer(AI_GATEWAY_API_KEY="k-env", JEV_ENDPOINT=self.endpoint)
         self.assertNotEqual(r.returncode, 0, "an id outside the grammar is not scored")
 

@@ -1,0 +1,87 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "XE-044",
+  "scope_sha256": "49ab916fea6a1f25071d655e2c0a1a10675904c9c8f8428b66deb4b87f65410c",
+  "reviewed_at": "2026-11-16T04:50:46+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3675,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6178,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6178,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6178,
+      "cache_creation_input_tokens": 3715,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3715,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11533,
+      "output_tokens": 1924,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 948,
+      "cache_read_input_tokens": 9893,
+      "cache_creation_input_tokens": 209,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 209,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 16071,
+    "write": 10102
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-044.1",
+        "XE-044.2"
+      ],
+      "question": "Criterion 1 says the title separator is unchanged. Criterion 2 extends a test named for en-dash headings to prove a four-letter id 'under an em dash'. Does the grammar accept en dash, em dash, or both? This decides whether criterion 2's test can pass without changing the separator."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-044.1",
+        "XE-044.3"
+      ],
+      "question": "XE-044.3 says the existing tests pass unchanged apart from criterion 2's. Does any other existing test pin XE-037.2's three-letter prefix limit, for example by asserting that a four-letter id is not scored? If so, is it exempt from 'pass unchanged', or is criterion 2's test the only one that pins the limit?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "One release path, checked by code"
+      ],
+      "question": "`review` \u2192 `released` already requires `record-release` to succeed, and `released` \u2192 `done` 'needs the release record'. What distinct condition does `done` check beyond what `released` already established? Each move is also said to have 'one condition a script can check', but `review` \u2192 `released` lists several (a clean cross-vendor review at the head, Dorian's review on `CODEOWNERS` paths, and `record-release` success). Which single check defines each move?"
+    }
+  ]
+}

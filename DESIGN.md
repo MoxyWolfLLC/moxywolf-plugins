@@ -278,6 +278,20 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 Not in this item: binding a bundle citation back to the real file and line. Add it when a blocking finding needs to cite a bundle.
 
+### XE-044 — The coverage scorer reads four-letter item ids (amends XE-037.2)
+
+**Status:** building
+
+**Why.** prfaq PIPE-002 (PR #35) passed review `20261115-204116-4bbebe7-ae40kqn5` with no blocking findings, and `release` refused it in the wide lane: `coverage was not checked`. `packet_coverage.mjs` answered "declares no criteria for: PIPE-002" because its id prefix is one to three capitals, and prfaq's PIPE-, LAB- and TEAM- ids have four. XE-037 drew the line at three by choice, not by need. Approved by Dorian 2026-11-15 ("Approve both").
+
+**Links introduced:** none. The item id in a coverage report keeps the form the design file uses.
+
+**Links this item introduces:** none.
+
+1. `declaredCriteria()` accepts an item heading whose id prefix is one to four capital letters (`I-087`, `XE-010`, `CSO-001`, `PIPE-002`); the title separator and the criteria grammar are unchanged.
+2. `test_one_letter_ids_and_en_dash_headings_are_read` also proves a four-letter id under an em dash is read with its numbered criteria counted, and that a five-letter prefix is outside the grammar and not scored.
+3. The existing tests pass unchanged apart from criterion 2's; `plugin.json` moves a patch version, with its marketplace entry, the README Version History and the top-level marketplace version (CI-002).
+
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
 **Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
@@ -1821,7 +1835,7 @@ Prompt Master (`nidhinjs/prompt-master` at `2bd9251`, MIT) is markdown only, but
 **Links introduced:** none. The item id in a coverage report keeps the form the design file uses.
 
 1. `declaredCriteria()` accepts an item heading whose id prefix is one to three capital letters (`I-087`, `XE-010`, `CSO-001`) and whose title separator is an em dash or a spaced en dash; everything else about the heading and criteria grammar is unchanged.
-2. A test proves a one-letter id under an en dash and a three-letter id under an em dash are read with their numbered criteria counted, and that a four-letter prefix is outside the grammar and not scored.
+2. A test proves a one-letter id under an en dash and a three-letter id under an em dash are read with their numbered criteria counted, and that a four-letter prefix is outside the grammar and not scored. (Amended by XE-044: four letters are read, five are not.)
 3. The existing tests pass unchanged; the plugin version moves.
 
 ### XE-034 — A check that failed stays failed until the same check passes
@@ -2572,6 +2586,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-15: XE-044 declared on Dorian's approval ("Approve both"): the coverage scorer reads four-letter item ids, amending XE-037.2, after prfaq PIPE-002's release refused `coverage was not checked` in the wide lane.
 - 2026-11-15: GO-011.9 declared and GO-011.3 amended on Dorian's approval ("I approve this and it needs to be added to our plugins. Me manually going in stops things if I'm not at the desk."), given to the proposal that a goal failing its holdout or whole-goal review is followed by a successor that starts on its own while his outcome and never-do lists stay word for word the same. The agent's reading, which his approval of the pull request confirms: "never-do" is the brief's Non-goals, and the scope sections (Serves, Allowed paths, budgets, limits, Stop conditions) are held word for word too, so a successor can't widen what he approved; the chain stops at two successors. The pre-merge gate paragraph names the two unowned folder patterns.
 - 2026-11-12: SR-002 marked done: merged as `e9c166c` (PR #297), recorded `agent_merge_autonomous` on review `20261111-195124-292079b-gzo_cfs5`. Two of the review's open unknowns that needed the repository were closed on round 3's finding that SR-002.4 is met; its limit stands: `peer_review.py open` discards the message a passing item check returns, so the constraints findings a lenient check lists are shown by `spec_review.py check` and not carried into the review packet. SR-002.4 asks only for the former, and no change was made for the latter. Four unknowns that need a human stay open in the ledger.
 - 2026-11-12: Dorian accepts how SR-002.3's five seeds reached him ("Yes", to "Do you accept how the sweep's five seeded questions reached you?"), after review `20261111-195124-292079b-gzo_cfs5` left that criterion unmet: the criterion says one list on the first pass; two seeds reached him during SR-002's item review and three in one later prompt, and he ruled on all five before the sweep ended. The criterion's text is unchanged; this entry is his acceptance of the deviation, and `docs/evidence/SR-002-seeds.md` is the account of it.
