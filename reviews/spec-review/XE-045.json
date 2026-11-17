@@ -2,26 +2,26 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "XE-045",
-  "scope_sha256": "db80f35e876e05cb4cdcf2d3a85ef0fcab2d61c4aed5d5238c6ee858f9f38a56",
-  "reviewed_at": "2026-11-17T17:59:11+00:00",
+  "scope_sha256": "2143163ce9628bdc1d3f7b03cb434270fbf47e75e99df03b33d2c99a89a4074e",
+  "reviewed_at": "2026-11-17T18:22:36+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 2690,
+      "output_tokens": 4215,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7923,
+      "cache_creation_input_tokens": 7962,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7923,
+        "ephemeral_5m_input_tokens": 7962,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 12206,
-      "output_tokens": 4096,
+      "input_tokens": 13770,
+      "output_tokens": 3002,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -33,44 +33,67 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 842,
-      "cache_read_input_tokens": 7923,
-      "cache_creation_input_tokens": 3146,
+      "output_tokens": 3078,
+      "cache_read_input_tokens": 7962,
+      "cache_creation_input_tokens": 5254,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 3146,
+        "ephemeral_5m_input_tokens": 5254,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 7923,
-    "write": 11069
+    "read": 7962,
+    "write": 13216
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "XE-045.4"
+        "XE-045.4",
+        "XE-045.7"
       ],
-      "question": "When the first counted entry names a different set of repositories and also a different head in a repository both share, does `goldfish` read `absent` or `ran_earlier`? State which check takes precedence."
+      "question": "XE-045.4 assigns `absent` to a pre-pass that ran but whose criteria hash or repository set didn't match; XE-045.7 treats `absent` as 'skipped' and excludes it from the drop count. Is a pre-pass followed by a criteria change meant to be excluded from the count?"
     },
     {
       "id": "A2",
       "requirements": [
-        "XE-045.4",
-        "XE-045.7"
+        "XE-045.7",
+        "XE-045.4"
       ],
-      "question": "Criterion 7's drop condition treats `ran_earlier` as meaning the builder changed something after a pre-pass, but criterion 4 assigns `ran_earlier` for any head difference at the first entry. Does `ran_earlier` mean the builder acted on the pre-pass, or only that the head moved? This decides whether the drop condition can be satisfied."
+      "question": "XE-045.7 counts reviews 'under the first repository ... as its `opened` marker names it' from the `state.json` files, but XE-045.4 has `open` write only the `goldfish` field to `state.json`. Where does the repository identity come from at count time?"
     },
     {
       "id": "A3",
       "requirements": [
-        "XE-045.7",
         "XE-045.4"
       ],
-      "question": "Criterion 7 counts reviews under the first repository, read from the `state.json` files. Criterion 4 has `open` write only the `goldfish` field to `state.json`. Where does a review's first-repository identity come from when its checkout is gone: does `state.json` already hold it, or must `open` write it too?"
+      "question": "When the first matching entry names a different repository set and also a different head in a shared repository, does `ran_earlier` or `absent` win?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "XE-045 Links introduced",
+        "XE-045.4"
+      ],
+      "question": "Where an upstream and a fork share one record, does a fork's `open` marker end the counting window for the upstream's pre-passes, or is the 'last `opened` marker' taken per repository?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "XE-045.6",
+        "XE-045.7"
+      ],
+      "question": "Skipping is allowed and skipped reviews don't count, so ten counted reviews may never be reached. Is 'ten' the first ten or any ten, and what decides the item if it never gets there?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "XE-045.2"
+      ],
+      "question": "Is a reply that covers only some criteria 'answered' (exit 0, entry appended) or 'no criteria list' (exit non-zero, nothing appended)?"
     }
   ]
 }
