@@ -2,37 +2,26 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "XE-045",
-  "scope_sha256": "4f234b47f476f96bfd72dc66547afa21bf4ddc978ad0d201f6485b0c2b61bfa1",
-  "reviewed_at": "2026-11-17T17:06:40+00:00",
+  "scope_sha256": "db80f35e876e05cb4cdcf2d3a85ef0fcab2d61c4aed5d5238c6ee858f9f38a56",
+  "reviewed_at": "2026-11-17T17:59:11+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 4235,
+      "output_tokens": 2690,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7872,
+      "cache_creation_input_tokens": 7923,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7872,
+        "ephemeral_5m_input_tokens": 7923,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 4,
-      "output_tokens": 26,
-      "cache_read_input_tokens": 7872,
-      "cache_creation_input_tokens": 4275,
-      "cache_creation": {
-        "ephemeral_5m_input_tokens": 4275,
-        "ephemeral_1h_input_tokens": 0
-      },
-      "type": "message"
-    },
-    {
-      "input_tokens": 13787,
-      "output_tokens": 2180,
+      "input_tokens": 12206,
+      "output_tokens": 4096,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,43 +33,44 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1512,
-      "cache_read_input_tokens": 12147,
-      "cache_creation_input_tokens": 395,
+      "output_tokens": 842,
+      "cache_read_input_tokens": 7923,
+      "cache_creation_input_tokens": 3146,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 395,
+        "ephemeral_5m_input_tokens": 3146,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 20019,
-    "write": 12542
+    "read": 7923,
+    "write": 11069
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "XE-045.6",
-        "XE-045.7"
+        "XE-045.4"
       ],
-      "question": "Skipping the pre-pass is allowed, and skipped (`absent`) reviews don't count toward the ten-review drop test. If builders skip, the count never reaches ten and 'It earns its place or goes' never triggers. Decide whether there is a ceiling on total reviews or a minimum-use rule, or accept that an unused pre-pass stays indefinitely."
+      "question": "When the first counted entry names a different set of repositories and also a different head in a repository both share, does `goldfish` read `absent` or `ran_earlier`? State which check takes precedence."
     },
     {
       "id": "A2",
       "requirements": [
-        "XE-045.4"
+        "XE-045.4",
+        "XE-045.7"
       ],
-      "question": "When the first counted entry with a matching criteria hash names a different set of repositories and also a different head, does `open` write `absent` or `ran_earlier`? The criterion states the repository-set test and the head test without an order of precedence."
+      "question": "Criterion 7's drop condition treats `ran_earlier` as meaning the builder changed something after a pre-pass, but criterion 4 assigns `ran_earlier` for any head difference at the first entry. Does `ran_earlier` mean the builder acted on the pre-pass, or only that the head moved? This decides whether the drop condition can be satisfied."
     },
     {
       "id": "A3",
       "requirements": [
-        "XE-045.2"
+        "XE-045.7",
+        "XE-045.4"
       ],
-      "question": "Does a run that returns answers for only some of the criteria count as 'answered' (exit 0, append) or as 'no criteria list' (exit non-zero, append nothing)? Define what makes a criteria list complete enough."
+      "question": "Criterion 7 counts reviews under the first repository, read from the `state.json` files. Criterion 4 has `open` write only the `goldfish` field to `state.json`. Where does a review's first-repository identity come from when its checkout is gone: does `state.json` already hold it, or must `open` write it too?"
     }
   ]
 }
