@@ -2965,6 +2965,14 @@ def _goldfish_heads(packet):
     return {r["path"]: r["head"] for r in _sent_repos(packet["repos"])}
 
 
+def _goldfish_new_record(packet):
+    """F10: the record names its first repository by identity (origin, no credentials), so the count can
+    attribute a review after the checkout it ran in is gone."""
+    import check_ledger
+    return {"items": packet.get("items") or [], "base": packet["repos"][0]["base"],
+            "repo": check_ledger.repo_id(packet["repos"][0]["path"]), "entries": []}
+
+
 def goldfish_open(packet, review_id):
     """XE-045.4: what `open` records, then `open`'s own marker. Only pre-passes after the record's last
     `opened` marker count, so each checkpoint is judged by its own. Among those whose criteria hash matches,
@@ -2976,7 +2984,7 @@ def goldfish_open(packet, review_id):
         entries = rec["entries"]
         assert isinstance(entries, list)
     except FileNotFoundError:   # no pre-pass yet: the record starts here, so this open's marker is kept (F2)
-        rec = {"items": packet.get("items") or [], "base": packet["repos"][0]["base"], "entries": []}
+        rec = _goldfish_new_record(packet)
         entries = rec["entries"]
     except (OSError, ValueError, KeyError, TypeError, AssertionError):
         return "absent"   # unreadable: never overwritten, and open goes on
@@ -3040,7 +3048,7 @@ def cmd_goldfish(a):
     try:
         rec = json.loads(p.read_text())
     except (OSError, ValueError):
-        rec = {"items": packet.get("items") or [], "base": packet["repos"][0]["base"], "entries": []}
+        rec = _goldfish_new_record(packet)
     rec["entries"].append(entry)   # earlier entries are never rewritten (XE-045.2)
     tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(rec, indent=2)); tmp.replace(p)
     for q in questions:
@@ -3053,33 +3061,39 @@ def cmd_goldfish(a):
 
 
 def cmd_goldfish_count(a):
-    """XE-045.7: read and quote the `goldfish` field of every review under GSTACK_PEER_REVIEW_DIR whose
-    packet's first repository is --repo. Read-only; nothing in review or release calls it. It counts by
-    the line it prints, never by adding up anything else (XE-029)."""
+    """XE-045.7: quote the `goldfish` field of every review opened against a record that names --repo as its
+    first repository. It reads the record's `opened` markers and each review's own state.json, so a review
+    counts after its checkout is gone (F10). Read-only; nothing in review or release calls it. It counts the
+    lines it prints, never by adding up anything else (XE-029)."""
     import check_ledger
     want = check_ledger.repo_id(a.repo)
-    counted, unresolved = [], 0
-    for st in sorted(review_root().glob("*/state.json")):
+    counted, unnamed = [], 0
+    for rp in sorted((review_root() / "goldfish").glob("*.json")):
         try:
-            state = json.loads(st.read_text())
-            first = json.loads((st.parent / "packet.json").read_text())["repos"][0]["path"]
-        except (OSError, ValueError, KeyError, IndexError, TypeError):
+            rec = json.loads(rp.read_text())
+        except (OSError, ValueError):
             continue
-        if state.get("goldfish") not in ("ran_at_head", "ran_earlier"):
+        if "repo" not in rec:
+            unnamed += 1   # written before records named their repository
             continue
-        if not Path(first).is_dir():
-            unresolved += 1   # its checkout is gone, so which repository it was can't be told
+        if rec["repo"] != want:
             continue
-        if check_ledger.repo_id(first) == want:
-            counted.append((state.get("review_id", st.parent.name), state["goldfish"]))
+        for e in rec.get("entries") or ():
+            rid = e.get("opened") if isinstance(e, dict) else None
+            try:
+                value = json.loads((review_root() / str(rid) / "state.json").read_text()).get("goldfish") if rid else None
+            except (OSError, ValueError):
+                value = None
+            if value in ("ran_at_head", "ran_earlier"):
+                counted.append((rid, value))
     for rid, value in counted:
         print(f"{rid} goldfish={value}")
     earlier = sum(v == "ran_earlier" for _, v in counted)
     print(f"counted {len(counted)}, ran_earlier {earlier}"
-          + (f", not counted (checkout gone) {unresolved}" if unresolved else ""))
+          + (f", records naming no repository {unnamed}" if unnamed else ""))
     if len(counted) >= 10 and not earlier:
         print("XE-045.7: ten counted reviews and none reads ran_earlier; bring XE-045 back to Dorian to be dropped")
-    return {"counted": counted, "ran_earlier": earlier, "unresolved": unresolved}
+    return {"counted": counted, "ran_earlier": earlier, "unnamed": unnamed}
 
 
 def cmd_open(a):

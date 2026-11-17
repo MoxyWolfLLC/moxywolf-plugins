@@ -214,6 +214,22 @@ class GoldfishTests(unittest.TestCase):
         self.assertEqual((len(got["counted"]), got["ran_earlier"]), (11, 1))
         self.assertNotIn("bring XE-045 back", text)
 
+    def test_the_drop_condition_survives_a_removed_checkout(self):
+        self.sh("remote", "add", "origin", "https://example.invalid/acme/repo.git")
+        for i in range(9):
+            self.goldfish(); self.open_review()
+        self.goldfish()
+        self.at(self.commit("def f(x):\n    return x + 1  # moved\n"))
+        self.open_review()   # the one ran_earlier
+        moved = self.tmp / "elsewhere"
+        subprocess.run(["git", "clone", "-q", str(self.repo), str(moved)], check=True)
+        subprocess.run(["git", "-C", str(moved), "remote", "set-url", "origin", "https://example.invalid/acme/repo.git"], check=True)
+        shutil.rmtree(self.repo)   # every review's checkout is gone
+        with contextlib.redirect_stdout(io.StringIO()):
+            got = pr.cmd_goldfish_count(argparse.Namespace(repo=str(moved)))
+        self.assertEqual((len(got["counted"]), got["ran_earlier"]), (10, 1),
+                         "a removed checkout neither hides a ran_earlier nor drops a ran_at_head")
+
     def test_the_drop_condition_counts_only_this_repository(self):
         self.goldfish(); self.open_review()
         other = self.tmp / "other"; other.mkdir()
