@@ -1,0 +1,271 @@
+{
+  "round": 1,
+  "started": "2026-11-17T15:07:42",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "c70729f4b490c2e3db920e18930e47902782892b",
+      "head": "84309c191277a4357fd74dfb14304bd6b95f1db3",
+      "review_base": "c70729f4b490c2e3db920e18930e47902782892b"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44195164863,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "5ce8079c559b",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "1bc372de25850bec409207cc0fd3bde58d13981cdd56d1aa4de8faaeaaead99b",
+      "shown": "evidence/ledger-5ce8079c559b.log"
+    },
+    {
+      "run_id": "a524587744e9",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "00261c6f3f1d3e143a5db4c4894be415eb5c77c218509df611cee83abf43706a",
+      "shown": "evidence/ledger-a524587744e9.log"
+    },
+    {
+      "run_id": "defde95ce0e2",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e742e42b382403a81204388fff965f582a1e7c2103e0ec1dbd75a166a3756bfb",
+      "shown": "evidence/ledger-defde95ce0e2.log"
+    }
+  ],
+  "surface": {
+    "changed": 41,
+    "callers": 25,
+    "callers_withheld": 164,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 26,
+    "dependencies_withheld": 309,
+    "criterion_files": [
+      "changed/0-mwp/plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-clarify.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-prd.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/project-charter.md",
+      "changed/0-mwp/plugins/project-init/skills/session-end/SKILL.md",
+      "changed/0-mwp/plugins/team-kanban/skills/team-kanban/SKILL.md",
+      "dependencies/0-mwp/CHARTER.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "skill-bundles",
+        "files": 72,
+        "binary": 60,
+        "withheld": 48
+      },
+      {
+        "dir": "plugins",
+        "files": 1,
+        "binary": 1,
+        "withheld": 1029
+      }
+    ],
+    "provenance": {
+      "entries": 104,
+      "untrusted": 102
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "error": "codex exited 1: n the exact line can't be known, cite the nearest line that can be and say so in `evidence`. A line past the end of the file binds to nothing.\n\nFinding IDs are stable across rounds. In a fix-verification round, reuse the IDs from `prior_findings`; a genuinely new blocker gets the next unused ID and must meet the same evidence and scope rules.\n\n\n\nReturn only the JSON object described in the contract.\n2026-11-17T23:08:26.029138Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\nERROR: Your workspace is out of credits. Add credits to continue.\nERROR: Your workspace is out of credits. Add credits to continue.",
+  "outcome": "review_unavailable",
+  "origin": "external_text",
+  "examined_by": "unexamined"
+}

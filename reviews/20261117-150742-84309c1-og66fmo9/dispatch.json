@@ -1,0 +1,13 @@
+{
+  "pid": 25428,
+  "started": "2026-11-17T15:09:31",
+  "started_epoch": 1794956971,
+  "rounds_at_dispatch": 1,
+  "log": "/Users/doriancougias/st001-review/review-records/20261117-150742-84309c1-og66fmo9/dispatch.log",
+  "argv": [
+    "/Users/doriancougias/st001-review/mwp/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20261117-150742-84309c1-og66fmo9"
+  ],
+  "origin": "gate_output"
+}

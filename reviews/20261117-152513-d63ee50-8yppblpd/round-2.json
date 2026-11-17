@@ -1,0 +1,221 @@
+{
+  "round": 2,
+  "started": "2026-11-17T15:37:30",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "d63ee508a53cc66240f613c645eaf7b440386b95",
+      "head": "9e38874f0341c213783a4255f374af85a131727d",
+      "review_base": "c70729f4b490c2e3db920e18930e47902782892b"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44199681837,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "808d1b35f58a",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "1bc372de25850bec409207cc0fd3bde58d13981cdd56d1aa4de8faaeaaead99b",
+      "shown": "evidence/ledger-808d1b35f58a.log"
+    },
+    {
+      "run_id": "19807000e49a",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "225defe1f68a892fca0007e11949caa06264d477adee94906cbe98e0f1c344c0",
+      "shown": "evidence/ledger-19807000e49a.log"
+    },
+    {
+      "run_id": "12a1f90fd189",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "323884877260b6532e7f09cb03c4c741a735b4745719aa87d6edd7f8613f42b0",
+      "shown": "evidence/ledger-12a1f90fd189.log"
+    }
+  ],
+  "surface": {
+    "changed": 25,
+    "callers": 25,
+    "callers_withheld": 106,
+    "cap": 25,
+    "from_prior_findings": 4,
+    "dependencies": 25,
+    "dependencies_withheld": 309,
+    "criterion_files": [
+      "changed/0-mwp/plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-clarify.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-prd.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/project-charter.md",
+      "changed/0-mwp/plugins/project-init/skills/session-end/SKILL.md",
+      "changed/0-mwp/plugins/team-kanban/skills/team-kanban/SKILL.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "skill-bundles",
+        "files": 72,
+        "binary": 60,
+        "withheld": 48
+      },
+      {
+        "dir": "plugins",
+        "files": 1,
+        "binary": 1,
+        "withheld": 1029
+      }
+    ],
+    "provenance": {
+      "entries": 88,
+      "untrusted": 86
+    }
+  },
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "transport": "openrouter",
+  "max_output_enforced": true,
+  "error": "named in an acceptance criterion and would not reach openrouter-gpt under its 400000-character surface cap, even with large changed files sent as diff hunks: plugins/project-init/skills/session-end/SKILL.md. Name fewer files in the criteria, or split the review.",
+  "outcome": "unusable",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

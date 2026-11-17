@@ -1,0 +1,120 @@
+{
+  "coverage": {
+    "status": "covered"
+  },
+  "review_id": "20261117-132735-cd6679d-kqk7t9_f",
+  "action": "merge",
+  "release_owner": "dorianatmoxywolf",
+  "unknowns_open": [
+    {
+      "id": "0513d42e0c8d",
+      "revision": 1,
+      "needs": "ci_run",
+      "question": "Do the CI report lines at cd6679d explicitly include ste-lint.py --selftest among the executed checks and identify asd-ste100 in the packaging check's examined inputs?"
+    },
+    {
+      "id": "1488ce9afb32",
+      "revision": 1,
+      "needs": "ci_run",
+      "question": "Does dispatcher-fetched CI evidence at cd6679d show a successful full run_all_tests.py run?"
+    }
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "review_base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074"
+    }
+  ],
+  "target": "main",
+  "requested_at": "2026-11-17T21:35:18Z",
+  "outcome": "awaiting_human_release",
+  "links": {
+    "outcome": "links_verified",
+    "examined": 7,
+    "broken": 0,
+    "mis_cited_fixed": 0
+  },
+  "observations": [
+    {
+      "claim": "release head of mwp is the reviewed head cd6679d",
+      "command": "git -C /Users/doriancougias/st001-review/mwp rev-parse HEAD",
+      "supported": true,
+      "output_digest": "5d9eb3e9214f3007",
+      "output_head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "automatic": true
+    }
+  ],
+  "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "instruction": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
+  "reviewer_advisor": null,
+  "advisor_note": null,
+  "origin": "gate_output"
+}

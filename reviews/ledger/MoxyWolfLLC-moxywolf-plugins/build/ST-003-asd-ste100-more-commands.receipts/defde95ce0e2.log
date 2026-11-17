@@ -1,0 +1,6 @@
+spec_review_ok: ST-003 in DESIGN.md match their records, no open contradictions; 5 open ambiguities, not blocking:
+  ST-003 A1 (ST-003.7, ST-003.5): For the Chief of Staff, is the 'report to the person who ran it' the run log, given that person is Dorian and the line must never appear in a result or memo to him? State where the line is printed.
+  ST-003 A2 (ST-003.3): What is 'STE-flavored mode' and how does it differ from 'Strict mode'? Is it a mode the asd-ste100 skill defines?
+  ST-003 A3 (ST-003.3, ST-003.6): When a feedback_*.md or shared-memory rule text is Dorian's own words, is it rewritten in Strict mode (criterion 3) or kept verbatim (criterion 6)?
+  ST-003 A4 (ST-003.7, ST-003.10): No script, check or test reads the report line, so how is criterion 7 decided as met? Name the evidence, such as a text-presence check or a reviewer reading the command files.
+  ST-003 A5 (ST-003.7): When a pass runs and finds nothing to rewrite, does the run print 'asd-ste100: 0 rewritten, 0 kept as-is' or no line? No line is defined to mean the pass did not run.

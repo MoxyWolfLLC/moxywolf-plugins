@@ -1,0 +1,623 @@
+{
+  "round": 2,
+  "started": "2026-11-17T15:51:13",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "9e38874f0341c213783a4255f374af85a131727d",
+      "head": "58bb239f522611a1abb9ae4d294996905f80ec92",
+      "review_base": "c70729f4b490c2e3db920e18930e47902782892b"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44201786353,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "30201ca14717",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "2b271d3a2d9bceea77ab3569417e9d3f32fcf8899601eced6d58458695796c9d",
+      "shown": "evidence/ledger-30201ca14717.log"
+    },
+    {
+      "run_id": "a4667be1bbc7",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "f6be6c80811d0bd5521a6e5fbbef59a5580b07b9cebac48068f240d7b0ecaa19",
+      "shown": "evidence/ledger-a4667be1bbc7.log"
+    },
+    {
+      "run_id": "384cb95cb9a3",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "323884877260b6532e7f09cb03c4c741a735b4745719aa87d6edd7f8613f42b0",
+      "shown": "evidence/ledger-384cb95cb9a3.log"
+    }
+  ],
+  "surface": {
+    "changed": 25,
+    "callers": 25,
+    "callers_withheld": 106,
+    "cap": 25,
+    "from_prior_findings": 3,
+    "dependencies": 25,
+    "dependencies_withheld": 309,
+    "criterion_files": [
+      "changed/0-mwp/plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-clarify.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/product-prd.md",
+      "changed/0-mwp/plugins/product-orchestrator/commands/project-charter.md",
+      "changed/0-mwp/plugins/project-init/skills/session-end/SKILL.md",
+      "changed/0-mwp/plugins/team-kanban/skills/team-kanban/SKILL.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "skill-bundles",
+        "files": 72,
+        "binary": 60,
+        "withheld": 48
+      },
+      {
+        "dir": "plugins",
+        "files": 1,
+        "binary": 1,
+        "withheld": 1029
+      }
+    ],
+    "provenance": {
+      "entries": 88,
+      "untrusted": 86
+    }
+  },
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "max_output": 16000,
+  "transport": "openrouter",
+  "max_output_enforced": true,
+  "model": "openai/gpt-6-astra",
+  "reviewer_usage": {
+    "input": 107625,
+    "output": 1888,
+    "cache_read": 0,
+    "total": 109513,
+    "source": "openrouter usage"
+  },
+  "examined": {
+    "read_tracking": "not_applicable",
+    "why": "this reviewer has no filesystem; it read exactly what it was sent, which is recorded under 'sent'"
+  },
+  "sent": {
+    "files": [
+      {
+        "path": "CHANGE.diff",
+        "sent": true,
+        "chars": 126442
+      },
+      {
+        "path": "PROVENANCE.json",
+        "sent": true,
+        "chars": 11295
+      },
+      {
+        "path": "ROUND.diff",
+        "sent": true,
+        "chars": 1601
+      },
+      {
+        "path": "SURFACE.md",
+        "sent": true,
+        "chars": 9083
+      },
+      {
+        "path": "evidence/ci-44201786353.json",
+        "sent": true,
+        "chars": 2403
+      },
+      {
+        "path": "evidence/ledger-30201ca14717.json",
+        "sent": true,
+        "chars": 715
+      },
+      {
+        "path": "evidence/ledger-30201ca14717.log",
+        "sent": true,
+        "chars": 119
+      },
+      {
+        "path": "evidence/ledger-384cb95cb9a3.json",
+        "sent": true,
+        "chars": 754
+      },
+      {
+        "path": "evidence/ledger-384cb95cb9a3.log",
+        "sent": true,
+        "chars": 1317
+      },
+      {
+        "path": "evidence/ledger-a4667be1bbc7.json",
+        "sent": true,
+        "chars": 749
+      },
+      {
+        "path": "evidence/ledger-a4667be1bbc7.log",
+        "sent": true,
+        "chars": 246
+      },
+      {
+        "path": "changed/0-mwp/.claude-plugin/marketplace.json",
+        "sent": true,
+        "chars": 218,
+        "as": "diff_hunks",
+        "whole_chars": 53869,
+        "why": "its hunks are in CHANGE.diff; the whole file made way for criterion-named files"
+      },
+      {
+        "path": "changed/0-mwp/DESIGN.md",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "changed/0-mwp/plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 637
+      },
+      {
+        "path": "changed/0-mwp/plugins/chief-of-staff/README.md",
+        "sent": true,
+        "chars": 4615
+      },
+      {
+        "path": "changed/0-mwp/plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "sent": true,
+        "chars": 21041,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/plugins/gstack-execution/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 9952
+      },
+      {
+        "path": "changed/0-mwp/plugins/gstack-execution/README.md",
+        "sent": true,
+        "chars": 34797
+      },
+      {
+        "path": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+        "sent": true,
+        "chars": 7411
+      },
+      {
+        "path": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+        "sent": true,
+        "chars": 9295
+      },
+      {
+        "path": "changed/0-mwp/plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 701
+      },
+      {
+        "path": "changed/0-mwp/plugins/product-orchestrator/README.md",
+        "sent": true,
+        "chars": 9164
+      },
+      {
+        "path": "changed/0-mwp/plugins/product-orchestrator/commands/product-clarify.md",
+        "sent": true,
+        "chars": 3113,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/plugins/product-orchestrator/commands/product-prd.md",
+        "sent": true,
+        "chars": 1925,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/plugins/product-orchestrator/commands/project-charter.md",
+        "sent": true,
+        "chars": 3972,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/plugins/project-init/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 13722
+      },
+      {
+        "path": "changed/0-mwp/plugins/project-init/README.md",
+        "sent": true,
+        "chars": 23496
+      },
+      {
+        "path": "changed/0-mwp/plugins/project-init/skills/session-end/SKILL.md",
+        "sent": true,
+        "chars": 46190,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/plugins/team-kanban/.claude-plugin/plugin.json",
+        "sent": true,
+        "chars": 1297
+      },
+      {
+        "path": "changed/0-mwp/plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "sent": true,
+        "chars": 13076,
+        "criterion_named": true
+      },
+      {
+        "path": "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.jsonl",
+        "sent": true,
+        "chars": 1424
+      },
+      {
+        "path": "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/087d609d40c5.log",
+        "sent": true,
+        "chars": 1069
+      },
+      {
+        "path": "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/1e33bf5480da.log",
+        "sent": true,
+        "chars": 184
+      },
+      {
+        "path": "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/6512fabe59ce.log",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "changed/0-mwp/reviews/spec-review/ST-003.json",
+        "sent": true,
+        "chars": 3114
+      },
+      {
+        "path": "changed/0-mwp/reviews/spec-review/ST-003.md",
+        "sent": true,
+        "chars": 3326
+      },
+      {
+        "path": "callers/0-mwp/.github/test_codeowners.py",
+        "sent": true,
+        "chars": 4561
+      },
+      {
+        "path": "callers/0-mwp/.github/workflows/goal-envelope.yml",
+        "sent": true,
+        "chars": 3312
+      },
+      {
+        "path": "callers/0-mwp/.github/workflows/goal-holdout.yml",
+        "sent": true,
+        "chars": 4840
+      },
+      {
+        "path": "callers/0-mwp/.github/workflows/goal-tests.yml",
+        "sent": true,
+        "chars": 3348
+      },
+      {
+        "path": "callers/0-mwp/.github/workflows/tests.yml",
+        "sent": true,
+        "chars": 4264
+      },
+      {
+        "path": "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+        "sent": true,
+        "chars": 1638
+      },
+      {
+        "path": "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+        "sent": true,
+        "chars": 8288
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      },
+      {
+        "path": "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+        "sent": false,
+        "why": "surface cap 400000 reached"
+      }
+    ],
+    "sent_count": 41,
+    "offered_count": 61
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"ST-003.1. The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.\",\n      \"met\": true,\n      \"evidence\": \"plugins/product-orchestrator/commands/product-prd.md:13 retains the pre-save Strict pass and explicitly leaves the remaining PRD text unchanged. ROUND.diff changes only the report footer's placement.\"\n    },\n    {\n      \"criterion\": \"ST-003.2. `plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> \u2192 A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.\",\n      \"met\": true,\n      \"evidence\": \"product-clarify.md:17 preserves the answer bullet and quoted words while applying Strict mode to encoded prose; project-charter.md:19 applies Strict mode before writing. Both are unchanged by the fix.\"\n    },\n    {\n      \"criterion\": \"ST-003.3. `plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's \\\"Open work\\\" and \\\"Procedural reminders\\\" sections are rewritten in STE-flavored mode; \\\"What landed\\\", \\\"Mistakes\\\" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.\",\n      \"met\": true,\n      \"evidence\": \"plugins/project-init/skills/session-end/SKILL.md:194 and :389 specify the two scoped passes and exclusions. Neither is changed in ROUND.diff.\"\n    },\n    {\n      \"criterion\": \"ST-003.4. `plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.\",\n      \"met\": true,\n      \"evidence\": \"plugins/team-kanban/skills/team-kanban/SKILL.md:92 specifies Strict mode for Acceptance and preserves the originating signal's quoted words in Context; unchanged by the fix.\"\n    },\n    {\n      \"criterion\": \"ST-003.5. `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.\",\n      \"met\": true,\n      \"evidence\": \"plugins/chief-of-staff/skills/chief-of-staff/SKILL.md:87 retains the pre-dispatch Strict pass, verbatim ask, and exclusion of results sent to Dorian.\"\n    },\n    {\n      \"criterion\": \"ST-003.6. Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.\",\n      \"met\": true,\n      \"evidence\": \"The six command/skill additions retain the verbatim and advisory rules and missing-skill continuation. In the only edited file, product-prd.md:13 retains the protections and :25 retains `asd-ste100: not installed` and continuation.\"\n    },\n    {\n      \"criterion\": \"ST-003.7. Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.\",\n      \"met\": true,\n      \"evidence\": \"F1 is fixed: product-prd.md:17 now only requests the summary; :18\u201324 retain next-step recommendations; :25 explicitly ends the report after those recommendations with the aggregate summary and kept-phrase lines or missing-skill line. The other seven reporting locations are unchanged.\"\n    },\n    {\n      \"criterion\": \"ST-003.8. No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff modifies instruction text, manifests, README histories, DESIGN.md and review records only. ROUND.diff modifies only plugins/product-orchestrator/commands/product-prd.md.\"\n    },\n    {\n      \"criterion\": \"ST-003.9. Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff retains the five specified manifest and marketplace version moves and README history additions; marketplace moves 1.170.0 to 1.171.0. Verified head-matching ledger a4667be1bbc7 reports PASS and names all five plugins.\"\n    },\n    {\n      \"criterion\": \"ST-003.10. Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined.\",\n      \"met\": true,\n      \"evidence\": \"CI run 44201786353 has head_matches=true and a successful 'Run every check in the repository' step, mapped by .github/workflows/tests.yml to run_all_tests.py. Head-matching, receipt-verified ledger 30201ca14717 reports packaging PASS over 247 packages with 0 failed. Similarly verified ledger a4667be1bbc7 reports version-check PASS and names all five plugins. These ledger receipts supply the counts unavailable from the CI job summary.\"\n    }\n  ],\n  \"findings\": [],\n  \"blocker_resolutions\": [\n    {\n      \"id\": \"F1\",\n      \"resolved\": true,\n      \"evidence\": \"Builder disposition is fixed at 58bb239. ROUND.diff and the reviewed-head product-prd.md confirm removal of the footer from step 2 and addition of step 4 at line 25: 'End the report, after the next-step suggestion'. The complete report now ends with the required footer without removing the recommendations or changing counting and missing-skill behavior.\"\n    }\n  ],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"Fix verification was limited to F1, the single-file round diff, and refreshed head evidence. No regression was found. The previously reported embedded-instruction locations remain historical untrusted data and are not reported again.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "ST-003.1. The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.",
+      "met": true,
+      "evidence": "plugins/product-orchestrator/commands/product-prd.md:13 retains the pre-save Strict pass and explicitly leaves the remaining PRD text unchanged. ROUND.diff changes only the report footer's placement."
+    },
+    {
+      "criterion": "ST-003.2. `plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> \u2192 A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.",
+      "met": true,
+      "evidence": "product-clarify.md:17 preserves the answer bullet and quoted words while applying Strict mode to encoded prose; project-charter.md:19 applies Strict mode before writing. Both are unchanged by the fix."
+    },
+    {
+      "criterion": "ST-003.3. `plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's \"Open work\" and \"Procedural reminders\" sections are rewritten in STE-flavored mode; \"What landed\", \"Mistakes\" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.",
+      "met": true,
+      "evidence": "plugins/project-init/skills/session-end/SKILL.md:194 and :389 specify the two scoped passes and exclusions. Neither is changed in ROUND.diff."
+    },
+    {
+      "criterion": "ST-003.4. `plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.",
+      "met": true,
+      "evidence": "plugins/team-kanban/skills/team-kanban/SKILL.md:92 specifies Strict mode for Acceptance and preserves the originating signal's quoted words in Context; unchanged by the fix."
+    },
+    {
+      "criterion": "ST-003.5. `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.",
+      "met": true,
+      "evidence": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md:87 retains the pre-dispatch Strict pass, verbatim ask, and exclusion of results sent to Dorian."
+    },
+    {
+      "criterion": "ST-003.6. Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.",
+      "met": true,
+      "evidence": "The six command/skill additions retain the verbatim and advisory rules and missing-skill continuation. In the only edited file, product-prd.md:13 retains the protections and :25 retains `asd-ste100: not installed` and continuation."
+    },
+    {
+      "criterion": "ST-003.7. Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.",
+      "met": true,
+      "evidence": "F1 is fixed: product-prd.md:17 now only requests the summary; :18\u201324 retain next-step recommendations; :25 explicitly ends the report after those recommendations with the aggregate summary and kept-phrase lines or missing-skill line. The other seven reporting locations are unchanged."
+    },
+    {
+      "criterion": "ST-003.8. No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.",
+      "met": true,
+      "evidence": "CHANGE.diff modifies instruction text, manifests, README histories, DESIGN.md and review records only. ROUND.diff modifies only plugins/product-orchestrator/commands/product-prd.md."
+    },
+    {
+      "criterion": "ST-003.9. Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).",
+      "met": true,
+      "evidence": "CHANGE.diff retains the five specified manifest and marketplace version moves and README history additions; marketplace moves 1.170.0 to 1.171.0. Verified head-matching ledger a4667be1bbc7 reports PASS and names all five plugins."
+    },
+    {
+      "criterion": "ST-003.10. Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined.",
+      "met": true,
+      "evidence": "CI run 44201786353 has head_matches=true and a successful 'Run every check in the repository' step, mapped by .github/workflows/tests.yml to run_all_tests.py. Head-matching, receipt-verified ledger 30201ca14717 reports packaging PASS over 247 packages with 0 failed. Similarly verified ledger a4667be1bbc7 reports version-check PASS and names all five plugins. These ledger receipts supply the counts unavailable from the CI job summary."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [
+    {
+      "id": "F1",
+      "resolved": true,
+      "evidence": "Builder disposition is fixed at 58bb239. ROUND.diff and the reviewed-head product-prd.md confirm removal of the footer from step 2 and addition of step 4 at line 25: 'End the report, after the next-step suggestion'. The complete report now ends with the required footer without removing the recommendations or changing counting and missing-skill behavior."
+    }
+  ],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Fix verification was limited to F1, the single-file round diff, and refreshed head evidence. No regression was found. The previously reported embedded-instruction locations remain historical untrusted data and are not reported again.",
+  "subjects": {},
+  "embedded_instructions": [],
+  "embedded_instructions_new": [],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

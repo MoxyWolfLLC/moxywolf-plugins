@@ -1,0 +1,517 @@
+{
+  "outcome": "ST-001 and ST-002: vendor danyuchn/asd-ste100-skill at 7073627 (MIT) as plugins/asd-ste100, scoped to text an agent builds or acts from and never Dorian's published prose; and have /gstack-design-doc and /gstack-goal-new run it over acceptance criteria, advisory only.",
+  "items": [
+    "ST-001",
+    "ST-002"
+  ],
+  "acceptance_criteria": [
+    "ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+    "ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+    "ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+    "ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+    "ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+    "ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+    "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+    "ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+    "ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+    "ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+    "ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.",
+    "ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+    "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined."
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "review_base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074"
+    }
+  ],
+  "changed_behavior": "New plugin asd-ste100 0.1.0 (skill plus advisory linter). gstack-execution 0.104.0: two command files gain one instruction each telling the agent to run the skill over criteria it drafts; no script, hook or workflow changes. Marketplace 1.170.0.",
+  "exclusions": [
+    "Upstream's STE rules, wording and linter logic are danyuchn's and are not under review; only fidelity to upstream at 7073627 and the four MoxyWolf changes to SKILL.md are.",
+    "The decision to vendor asd-ste100 and its scope (agent-facing text, never Dorian's published prose, drafts included) is settled: ST-001 and ST-002, approved by Dorian 2026-11-17.",
+    "The linter is advisory by decision (ST-001.4); its findings on any document are not defects of this change.",
+    "Removing upstream's metadata block is settled (ST-001.3 amendment, Dorian 2026-11-17).",
+    "Constraints and settled decisions in DESIGN.md's Constraints section apply as written."
+  ],
+  "tests": {
+    "commands": [
+      "python3 ../ste_blobcheck.py ../ste . (ledger 08dbdb0748e5): compares each vendored file's git blob with upstream's at 7073627",
+      "python3 plugins/gstack-execution/scripts/skill_packaging.py --root . (ledger 7cd2a7f2b951)",
+      "python3 plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest (ledger 6b33a66ba150)",
+      "python3 plugins/gstack-execution/scripts/version_bump.py --base 5d5d5e6 --head HEAD (ledger b9acbbce760c)",
+      "python3 plugins/gstack-execution/scripts/spec_review.py check DESIGN.md --items ST-001 / --items ST-002",
+      "GitHub Actions tests workflow on PR #346"
+    ],
+    "results": "Blob check: OK, 6 files examined at upstream 7073627, every file matches except SKILL.md (the one modified file). Packaging: PASS, examined 247 packages, 0 failed (an earlier run failed on upstream's nested metadata block; cleared by the same command after the approved fix). ste-lint selftest: selftest OK. Version bump: PASS, 28 changed files, examined 2 plugins: asd-ste100, gstack-execution. Spec review: no open contradictions for either item. run_all_tests in the build sandbox: 116 of 118 passed; the two failures were the sandbox (shallow clone, no gitleaks) and the ledger entry was retired on Dorian's words citing CI. CI tests run 44176529960 passed at 17f0b86, and run 44178845739 passed at the review head cd6679d. The four ledger runs above were re-run at cd6679d with the same results.",
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "08dbdb0748e5"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "7cd2a7f2b951"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "6b33a66ba150"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "b9acbbce760c"
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/Users/doriancougias/st001-review/mwp/reviews"
+    ]
+  },
+  "vocabulary_version": "1.13.0",
+  "origin": "gate_output",
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-17T21:22:14.998Z",
+    "inputs": {
+      "items": [
+        "ST-001",
+        "ST-002"
+      ],
+      "criteria_count": 13,
+      "criteria": [
+        "ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+        "ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+        "ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+        "ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+        "ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+        "ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+        "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+        "ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+        "ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+        "ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+        "ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.",
+        "ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+        "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined."
+      ],
+      "paths_named": [
+        "plugins/asd-ste100/skills/asd-ste100/",
+        "SKILL.md",
+        "references/writing-rules.md",
+        "examples/before-after.md",
+        "examples/linter-edge-cases.md",
+        "scripts/ste-lint.py",
+        "plugins/asd-ste100/LICENSE",
+        "check_ledger.py",
+        "run_all_tests.py",
+        "ste-lint.py",
+        "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "0.1.0",
+        "README.md",
+        ".claude-plugin/",
+        "marketplace.json",
+        "./plugins/asd-ste100",
+        "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "plugins/gstack-execution/commands/gstack-design-doc.md",
+        "plugins/gstack-execution/commands/gstack-goal-new.md",
+        "PLAN.md",
+        "GOAL.md",
+        "plugin.json"
+      ],
+      "files_read": 9,
+      "files": [
+        {
+          "path": "plugins/asd-ste100/skills/asd-ste100/",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 7,
+          "head": "tree cd6679d31e085026242b1b42e7515a4ec08b790f:plugins/asd-ste100/skills/asd-ste100/\n\nSKILL.md\nexamples/\nreferences/\nscripts/\n"
+        },
+        {
+          "path": "SKILL.md",
+          "exists": false
+        },
+        {
+          "path": "references/writing-rules.md",
+          "exists": false
+        },
+        {
+          "path": "examples/before-after.md",
+          "exists": false
+        },
+        {
+          "path": "examples/linter-edge-cases.md",
+          "exists": false
+        },
+        {
+          "path": "scripts/ste-lint.py",
+          "exists": false
+        },
+        {
+          "path": "plugins/asd-ste100/LICENSE",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 22,
+          "head": "MIT License\n\nCopyright (c) 2026 Dustin Yuchen Teng\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+        },
+        {
+          "path": "check_ledger.py",
+          "exists": false
+        },
+        {
+          "path": "run_all_tests.py",
+          "exists": false
+        },
+        {
+          "path": "ste-lint.py",
+          "exists": false
+        },
+        {
+          "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 11,
+          "head": "{\n  \"name\": \"asd-ste100\",\n  \"version\": \"0.1.0\",\n  \"description\": \"Rewrite text an agent will build or act from (DESIGN.md items, goal briefs, review contracts, SKILL.md files, tool descriptions) into ASD-STE100 Simplified Technical English, so a reader with no one to ask can't misparse it. Never for MoxyWolf published prose or anything in Dorian's voice, drafts included. Its linter is advice, never a gate. Vendored from danyuchn/asd-ste100-skill (MIT) at 7073627.\",\n  \"author\": {\n    \"name\": \"MoxyWolf LLC\"\n  },\n  \"license\": \"MIT\",\n  \"keywords\": [\"ste100\", \"simplified-technical-english\", \"controlled-language\", \"agent-instructions\", \"clarity\", \"moxywolf\"]\n}\n"
+        },
+        {
+          "path": "0.1.0",
+          "exists": false
+        },
+        {
+          "path": "README.md",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 314,
+          "head": "# MoxyWolf Plugin Marketplace\n\nCanonical home for every plugin authored by MoxyWolf LLC, plus a bundle of the standalone skills used across the team. Hosted as a Claude Code / Cowork marketplace at `github.com/MoxyWolfLLC/moxywolf-plugins`.\n\nAdding this marketplace on any Mac gives that machine all 37 plugins in one shot, with updates flowing from `main` whenever someone pushes a fix.\n\n## Contents\n\n- [What's inside](#whats-inside)\n- [Install on a new computer](#install-on-a-new-computer)\n  - [From Cowork (most users)](#from-cowork-most-users)\n  - [From Claude Code CLI](#from-claude-code-cli)\n  - [Fallback: drag-drop a single plugin](#fallback-drag-drop-a-single-plugin)\n- [How we work together \u2014 handoff protocol](#how-we-work-together--handoff-protocol)\n  - [The short version](#the-short-version)\n  - [What syncs through Drive vs. what doesn't](#what-syncs-through-drive-vs-what-doesnt)\n  - [Ending a session](#ending-a-session)\n  - [Starting a session](#starting-a-session)\n  - [Handoff frontmatter \u2014 author and baton-pass fields](#handoff-frontmatter--author-and-baton-pass-fields)\n  - [Conflict rules](#conflict-rules)\n  - [Beyond the marketplace \u2014 what else a new teammate needs](#beyond-the-marketplace--what-else-a-new-teammate-needs)\n  - [Memory \u2014 per-Mac, per-user, and that's the right design](#memory--per-mac-per-user-and-thats-the-right-design)\n  - [Failure modes](#failure-modes)\n- [Governance & conformance](#governance--conformance)\n- [Updating](#updating)\n- [Adding a new plugin](#adding-a-new-plugin)\n- [Adding a new standalone skill](#adding-a-new-standalone-skill)\n- [What is NOT in this marketplace (and why)](#what-is-not-in-this-marketplace-and-why)\n- [Reserved-name note](#reserved-name-note)\n- [Related](#related)\n\n## What's inside\n\n```\nmoxywolf-plugins/                       \u2190 repo root (this is the marketplace root)\n\u251c\u2500\u2500 .claude-plugin/\n\u2502   \u2514\u2500\u2500 marketplace.json                \u2190 catalog (37 plugins) \u2014 source of truth for versions\n\u251c\u2500\u2500 README.md                            \u2190 this file\n\u251c\u2500\u2500 plugins/                             \u2190 35 MoxyWolf-owned plugins\n\u2502   \u251c\u2500\u2500 4d-blog-engine/             All commands prefixed /blog-* \u2014 init, voice, start, pillar, delegate, describe, discern, diligence, pipeline, publish, social, status \u2014 base doc \u2192 4-phase pipeline \u2192 publication-ready blog with Release Owner Gate. Single front door for every MoxyWolf blog property (targets/ registry), hub-and-spoke: every post picks a target + pillar (new/existing); /blog-pillar manages pillars + linking maps; each pillar carries a why: belief statement (Sinek Golden Circle) that drafts open from and the Release Owner Celery-Tests. /blog-social is channel-aware (discovers your authorable LinkedIn channels via Chrome): on a Company/Showcase Page it produces an Article-led trio (Article \u2192 teaser Post w/ image \u2192 first comment linking back), personal stays Post + first-comment; plus Twitter (thread), Facebook (single post). /blog-publish can publish to the chosen channel via Chrome and nudge #general on Slack to reshare\n\u2502   \u251c\u2500\u2500 academic-pipeline/          BibTeX \u2192 critiqued, publication-ready academic article\n\u2502   \u251c\u2500\u2500 analytics/                  Read-only reporting, one command per source \u2014 /analytics:google-analytics (GA4 Data API, generic + Lens-Test campaign reports); built to add Clarity/Ahrefs/PostHog\n\u2502   \u251c\u2500\u2500 bibtex-builder/             Build + enrich BibTeX with AI-generated abstracts\n\u2502   \u251c\u2500\u2500 board-deck/                 PPTX board deck from LivePlan/GA4/Taskade/GitHub\n\u2502   \u251c\u2500\u2500 composio/                   Composio Tool Router \u2014 1000+ app toolkits for apps with no native MCP\n\u2502   \u251c\u2500\u2500 council/                    Multi-model deliberation with vault-aware memory; v0.9.0: `jev_route.py --selftest` runs offline against a stubbed gateway on every machine, and the live three-call check moves to `--selftest --live`, where a missing key exits 3 instead of passing\n\u2502   \u251c\u2500\u2500 daily-ops/                  Energy-aware standup/triage/review + fitness coach\n\u2502   \u251c\u2500\u2500 dev-infrastructure-skills/  React/Next/Supabase/TDD/Playwright best practices\n\u2502   \u251c\u2500\u2500 document-analysis/          Document \u2192 Markdown ingestion via MarkItDown (batch, frontmatter, manifest, OCR)\n\u2502   \u251c\u2500\u2500 editorial-forge/            AI content \u2192 author-owned via voice + DOB framing\n\u2502   \u251c\u2500\u2500 excalidraw-vault/           Generate Excalidraw diagrams directly into the MoxyWolf Vault in zsviczian's native .excalidraw.md format \u2014 /excalidraw <description> and /excalidraw-here; diagrams embed in any note via wikilink and version in git. Parallels vault-code-learn and graphify-vault on the diagram axis\n\u2502   \u251c\u2500\u2500 frontier-founder/           Draft markdown \u2192 SEO/AEO-structured blog post (JSON-LD, FAQ, canonical) + hero image\n\u2502   \u251c\u2500\u2500 frontier-founder-smb/       SMB all-in-one (FFSMB) \u2014 cash flow, invoicing, CRM, campaigns, hiring on Clarify/Stripe/QuickBooks/DocuSign/Google/claude.ai/design; fork of Anthropic's Small Business\n\u2502   \u251c\u2500\u2500 github-repo-analyzer/       Repo health, security issue review, PRD reverse-engineering, fix verification; v0.12.0 adds /review-retrieval, which asks a RAG pipeline to prove its reranking, top-k cut, grounding floor and citations did their work, and an opt-in probe that runs the pipeline or says it did not\n\u2502   \u251c\u2500\u2500 graphify/                   Standalone knowledge-graph runner \u2014 /graphify any dir, /graphify-supabase databases, /graphify-vault the Obsidian vault; Obsidian-format exports back into the vault\n\u2502   \u251c\u2500\u2500 gstack-execution/           Code review, adversarial Codex review, security audit, debug, QA, ship; carries the verification-discipline contract as a hook \u2014 claims are checked through the user's own path, /gstack-ship reports Verified/Unverified lines, and the checks load without the skill being invoked. v0.9.0: cloud sessions fire SessionStart before synced plugins register (DR-089), so the checks now also arrive on the first user prompt, once per session; v0.40.0: a review won't open on a criterion about a place the reviewer can't see (the Mac, the vault, a local run) unless the criterion names an in-repo evidence file (XE-025)\n\u2502   \u251c\u2500\u2500 linkedin-gtm/               Daily LinkedIn GTM via the GTM API MCP server: signals, drafts in Dorian's voice, ONE daily approval batch signed by the Release Owner, then approved items only through preview/confirm; stops on any limit, block or checkpoint\n\u2502   \u251c\u2500\u2500 obsidian-skills/            Steph Ango / Obsidian's five official agent skills (markdown, bases, canvas, cli, defuddle) vendored so every teammate gets them with one marketplace install\n\u2502   \u251c\u2500\u2500 obsidian-update/            Vault-native personal OS + Council integration; v2.8.0 standup harvests team completions from Jira (MOXY); v2.7.0 added DR auto-routing + Operating Norms _INDEX.md master index\n\u2502   \u251c\u2500\u2500 ponytail/                   Horizontal restraint layer for coding work \u2014 always-on \"lazy senior dev\" ruleset injected every turn; v0.2.0 delivers it on the first prompt in cloud sessions, where SessionStart fires before the plugin registers (DR-089)"
+        },
+        {
+          "path": ".claude-plugin/",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 4,
+          "head": "tree cd6679d31e085026242b1b42e7515a4ec08b790f:.claude-plugin/\n\nmarketplace.json\n"
+        },
+        {
+          "path": "marketplace.json",
+          "exists": false
+        },
+        {
+          "path": "./plugins/asd-ste100",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 8,
+          "head": "tree cd6679d31e085026242b1b42e7515a4ec08b790f:./plugins/asd-ste100\n\n.claude-plugin/\nLICENSE\nNOTICE\nREADME.md\nskills/\n"
+        },
+        {
+          "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 3342,
+          "head": "#!/usr/bin/env python3\n\"\"\"Deterministic linter for the structural STE rules in SKILL.md.\n\nChecks only rules verifiable without ASD's dictionary. Deliberately never\nflags hedges or modality (may/might/could): the skill treats confidence as\ncontent, and a linter that pressures hedges out would rewrite claims.\n\nUsage:\n    ste-lint.py FILE [FILE ...]\n    echo \"text\" | ste-lint.py [--json]\n    ste-lint.py --baseline 5 FILE      # pass unless hard violations exceed 5\n    ste-lint.py --disable passive-voice,present-perfect FILE\n    ste-lint.py --selftest\n\nExit 1 when hard (\"advisory-free\") violations exceed the baseline (default 0).\nAdvisory findings (passive voice, compound tenses) never fail the run.\nExit 2 on a usage error (unknown flag, bad value, unknown rule, unreadable file).\n\"\"\"\nimport argparse\nimport bisect\nimport contextlib\nimport html.entities\nimport io\nimport json\nimport os\nimport re\nimport sys\nimport tempfile\nimport unicodedata\n\n# ponytail: regex heuristics, not a parser. No noun-cluster rule \u2014 needs POS\n# tagging to avoid constant false positives; add spaCy-backed rule if ever needed.\n# No ellipsis rule by owner's choice: technical writing sometimes earns one.\n# Irregular past participles used by the present-perfect heuristic.\nIRREGULAR_PARTICIPLES = \"given|taken|made|done|found|seen|known|shown|written|built|sent|set|run|read|kept|held|left|put|cut|hit|let|shut|split|spread|begun|become|come|gone|got|gotten|lost|met|paid|said|sold|told|thought|brought|bought|caught|taught|won|worn|torn|born|drawn|grown|thrown|flown|driven|risen|chosen|broken|spoken|frozen|hidden|ridden|forgotten|fallen|eaten|beaten|understood|stood|struck|stuck|swung|hung|led|fed|bled|fled|sped|bound|wound|dug|spun|slid|bit|lit|quit\"\n\n# Preserve the original passive heuristic; perfects also include intransitive verbs.\nPASSIVE_PARTICIPLES = \"given|taken|made|done|found|seen|known|shown|written|built|sent|set|run|read|kept|held|left|put\"\n# Up to two words may stand between the modal and \"have\": \"may not\",\n# \"might already\", \"could not possibly\", \"may very well\".\nMODAL_PERFECT_PREFIX = re.compile(\n    r\"\\b(?:(?:may|might|could|should|would|must|can|will|shall)(?:n['\u2019]t)?\"\n    r\"|cannot|can['\u2019]t|won['\u2019]t|shan['\u2019]t)\"\n    r\"(?:\\s+(?:not|already|also|ever|even|just|never|still|very|well|\\w+ly)){0,2}\\s+$\",\n    re.I,\n)\n\nRULES = [\n    (\"semicolon\", \"advisory-free\",\n     re.compile(r\";\"),\n     \"STE bans the semicolon (Rule 8.1). Split into separate sentences.\"),\n    (\"phrasal-verb\", \"advisory-free\",\n     re.compile(r\"\\b(spin(?:ning|s)? up|spun up|reach(?:ing|es|ed)? out|div(?:e|es|ing|ed) into|dove into|kick(?:ing|s|ed)? off|circl(?:e|es|ing|ed) back|touch(?:ing|es|ed)? base)\\b\", re.I),\n     \"Soft phrasal verb. Use the single plain verb (start, contact, read, begin).\"),\n    (\"marketing-adjective\", \"advisory-free\",\n     re.compile(r\"\\b(seamless(?:ly)?|robust(?:ly)?|cutting-edge|effortless(?:ly)?|blazing[- ]fast|world-class|state-of-the-art|game-chang(?:ing|er))\\b\", re.I),\n     \"Marketing adjective. Delete, or replace with the measurement that earns the claim.\"),\n    (\"nominalization\", \"advisory-free\",\n     re.compile(r\"\\b(perform|performs|performed|conduct|conducts|conducted|carry out|carries out|carried out)\\s+(?:a|an|the)\\s+\\w+(?:tion|sion|ment|ance|ence|ysis)\\b\", re.I),\n     \"Action frozen into a noun. Use the verb (analyze, not perform an analysis of).\"),"
+        },
+        {
+          "path": "plugins/gstack-execution/commands/gstack-design-doc.md",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 72,
+          "head": "---\ndescription: Create or refresh a repo's DESIGN.md as an editable artifact; on approval it is written to the repo (canonical) and the project's workspace folder (mirror), committed, pushed, verified, and pulled back\nallowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion, Artifact\nargument-hint: [--repo <path>] [--workspace <project folder>] [--from <prd/spec paths ...>] [notes about the goal ...]\n---\n\nProduce the design document that `/gstack-build` gates on. Format and structure: `references/design-doc-template.md` (Goal, Constraints and settled decisions, Items with checkable acceptance criteria, Amendments log). The user edits it as an artifact and approves it there; nothing is written to disk until they do.\n\nRaw slash-command arguments: `$ARGUMENTS`\n\n## Step 1: Resolve both locations, mount what is missing\n\nTwo directories are required:\n\n- **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `Shared drives/GitHub/<repo>` (the GitHub root on the MoxyWolf Google shared drive).\n- **Project workspace folder** (mirror at `06 \u2013 Engineering/DESIGN-<repo>.md`): `--workspace`, else the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one).\n\nCheck both against `get_device_info().connectedFolders` (or, on-computer, by probing the paths). For any that is not mounted, request it with `device_request_folder_access` in one call. If the request is unavailable or declined, ask the user for the directories with AskUserQuestion (free text is fine) and re-check. Do not proceed with only one of the two; the mirror is part of the contract.\n\n## Step 2: Gather\n\nRead, in this order, whatever exists: the current `DESIGN.md`; the repo README, manifests, and top-level tree; `--from` documents; the project's `02 \u2013 Product Strategy/` PRDs and `06 \u2013 Engineering/` specs; the team-shared INDEX rules that constrain this repo (commit workflow, version bumps, model floors, coding loop); recent decision records. The notes in `$ARGUMENTS` state the goal in the user's words and win over everything inferred.\n\n## Step 3: Draft\n\nWrite the document to the template. Rules that make it usable by `/gstack-build`:\n\n- Goal is one paragraph and says what \"working\" means to the user of the repo.\n- Every constraint is a decision already made, stated so a reviewer cannot reopen it; cite the DR or date where one exists.\n- Every item has numbered acceptance criteria that are checkable statements (a command and its expected result, a URL and what renders, a value and its expected value), not intentions. Items already in flight or done carry their status and review ID.\n- The Amendments log gets a first line: created, by whom, pending approval.\n- Refreshing an existing doc: keep every existing line unless the repo contradicts it; put what changed in the Amendments log.\n- Before Step 3b, load the `asd-ste100` skill (ST-002). Rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text that quotes Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release. If the skill isn't installed, say so in the Step 6 report and go on.\n\n## Step 3b: Two reviewers argue the draft (XE-031)\n\nBefore the editor is published, run `/gstack-plan-review critics=2 target=design` on the draft. It reviews the sections this draft adds or changes, with Goal and Constraints for context, and ends `converged`, `cap_reached`, `stalled` or `incomplete`. On `cap_reached` or `stalled`, `design_review.py dissent` gives the `## Dissent` section; add it to the draft before publishing. Put `design_review.py status`'s JSON into the editor state as `review`, so the page shows the outcome, any policy proposals and the log path. The loop never approves anything. **Mark approved** stays the human's.\n\n## Step 4: Publish the editor\n\nFill `references/design-doc-editor.html`: `{{TITLE}}` \u2192 `<repo> Design Doc`; `{{STATE_JSON}}` \u2192 `{\"repo\",\"repoPath\",\"taskadePath\" (the workspace folder; the key keeps its old name),\"markdown\",\"approved\":false,\"savedAt\":null,\"review\":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {\"artifact\": {}}`, favicon `\ud83d\udcd0`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.\n\nTell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.\n\n## Step 5: On approval, write both copies on a feature branch\n\nWhen the user says it is approved (or a republish notice arrives, or they ask you to check): `Artifact read` the page, parse the `design-state` JSON, and require `approved: true`; if it is false, say the page is saved but not approved and stop.\n\nThen, in this order:\n\n1. Before any write or commit, reuse the authorized feature branch supplied by `/gstack-build`. For standalone design work, create or reuse a design feature branch from up-to-date main. Never write or commit the design on main or another protected branch.\n2. Write `markdown` to `<repo>/DESIGN.md` and to `<workspace>/06 \u2013 Engineering/DESIGN-<repo>.md` (create the folder if missing; note the en dash in `06 \u2013 Engineering`).\n3. Commit the repo copy alone on that feature branch: `design: create DESIGN.md` or `design: refresh DESIGN.md (<what changed>)`, plain text, Claude-authored.\n4. Push that feature branch as the `moxywolf-agent` app, `agent_token.py exec -- git push origin <branch>`, which cannot push to a protected target; verify `git ls-remote origin refs/heads/<branch>` equals `git rev-parse HEAD`; pull back into the local clone if the commit was made elsewhere.\n5. Republish the editor once with `approved` still true and `savedAt` unchanged, so the page and the files agree.\n\nContent approval authorizes saving the design, not its release. When called by `/gstack-build`, retain these commits on the same feature branch through implementation, peer review, and human merge; do not merge the design separately or restart the branch from main. For standalone design work, prepare a PR, complete the applicable peer review and revision-bound release handoff, and stop for the named human to merge in GitHub or to tell the agent to merge (`/gstack-build` Step 6). Record that merge via `peer_review.py record-release` before claiming it landed. Personal credentials remain outside agent access.\n\n## Step 6: Report\n"
+        },
+        {
+          "path": "plugins/gstack-execution/commands/gstack-goal-new.md",
+          "exists": true,
+          "at": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+          "lines": 46,
+          "head": "---\ndescription: Draft a goal (GO-007) \u2014 brief and plan by the agent, goal tests and holdout by another model family, the plain-English reading by a third \u2014 and open the one pull request Dorian approves before /gstack-goal can run it\nallowed-tools: Read, Grep, Glob, Bash, Edit, Write\nargument-hint: <goal-id> \"<the outcome, in Dorian's words>\"\n---\n\nA goal is `goals/<id>/`: `GOAL.md`, `PLAN.md`, `tests/` and `holdout.sha256` (GO-001). `goals/README.md` holds every format `goal_brief.py check` enforces. Read it before drafting. This command drafts the folder and opens its pull request. It never approves, never merges and never starts a run.\n\nThe goal id is lowercase words joined by hyphens. An approved goal never changes, so a changed goal is a new id (`<id>-2`).\n\nWork in a checkout of the governed repository, on a branch `build/goal-<id>` made from `origin/main`, and run the scripts from that checkout: `python3 plugins/gstack-execution/scripts/<script> ...`. Every exit but 0 means stop and fix what it names.\n\n1. **The outcome, co-authored (GO-011.1).** Dorian gives the outcome in a few sentences. Draft the brief as a live doc he can edit and comment on (Claude Docs; load the docs skill first): his outcome in his words, what it must never do, the Scenarios in plain words, and the plan items one line each. Send him the link once. Read his edits and comments, fold them in, and ask in the doc, not in chat, about anything his edits leave open. Go on only when he says the draft is right. Pick the one DESIGN.md objective it serves. If it needs the charter loosened, stop. That's a DESIGN.md amendment for him, not a goal (GO-001.5).\n2. **Brief and plan.** Turn the agreed doc into `GOAL.md` and `PLAN.md` in the README's formats, keeping his wording for the outcome and the never-do's. A brief that changes anything he agreed goes back to the doc first.\n   - **Scenarios and Goal tests.** Each goal test has its own Scenario. At least one test is an `outcome` test and one an `invariant`.\n   - **Allowed paths.** These are the files the items change, plus the touched plugins' `plugin.json` and `.claude-plugin/marketplace.json`. Never a `CODEOWNERS` path.\n   - **Stop conditions.** Include \"the marketplace's top-level version moves on the goal branch\" (GO-004.1). Name every deployment environment the repository reports other than `goal-holdout` (`agent_token.py api GET repos/<owner>/<repo>/environments`; on a Vercel repository that's `Preview` and `Production`) as Dorian's call, for example \"a deploy to Preview or Production beyond the host's own builds on a push and on the merge into main\". `goal_run.py start` refuses a goal whose stop conditions leave one out, and an approved goal can't be edited, so a miss costs a new goal folder. When merging into `main` deploys (Vercel's Git integration does), name Production as Dorian's call after his usability sign-off, for example \"attaching wfa.opencontrols.ai is Dorian's call; main deploys to the project's vercel.app addresses\", and check it with him in the doc (GO-011.6).\n   - **Pre-mortem.** List the ways the tests could pass while the goal fails. The holdout is drafted against them.\n   - **Plan items.** Each item's criteria say which output stream each message goes to and every exit code.\n   - **Plain criteria (ST-002).** Load the `asd-ste100` skill and rewrite `PLAN.md`'s item criteria in its Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes him. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release. If the skill isn't installed, say so in the message to Dorian at step 7 and go on.\n3. **Goal tests.** `goal_new.py tests goals/<id>` asks the gpt family (Codex, read-only) for exactly the tests the brief names and writes them with its `drafted-by` line. Never edit a drafted test by hand: that makes you a co-drafter. If one is wrong, fix the brief or plan and run `tests` again.\n4. **Holdout.** `goal_new.py holdout goals/<id>` asks the same family for the holdout. It writes the file to `~/.goal-holdouts/<id>.py` (mode 600, outside every repository), writes only its hash to `holdout.sha256`, and prints the file path. The file stays there until the run's finalize step, which code (never the agent) reads, checks against the approved hash and carries into the goal pull request (GO-002.8). Never open, print or copy the holdout file.\n5. **Check.** `goal_brief.py check goals/<id>`, then `goal_brief.py baseline goals/<id>`. Outcome tests must fail on `main` and invariant tests must pass. A test on the wrong side means the brief or plan was unclear: fix it and redo steps 3 and 4.\n6. **Reading.** `goal_new.py read goals/<id>` asks the gemini family for the plain-English reading of every goal test. It prints the `## Plain-English reading` section with its `Read by:` line. The builder of the run will be neither family (GO-003.3), so it builds as `claude`.\n7. **Pull request.** Commit `goals/<id>/` alone with the trailer `Co-Authored-By: Dorian C <dorianc@moxywolf.com>` (the brief is his as much as yours), push as the bot (`agent_token.py exec -- git push`), and open the pull request into `main` titled `Goal: <outcome in a few words> (<id>)`.\n   - **The body.** The outcome, the plan's items in one line each, the spend cap, the live doc's link, a line saying the brief was co-authored with Dorian, and the reading from step 6 as printed.\n   - **What to tell Dorian, in one message:** the pull request link, and that it needs his approving review. Nothing else is his to do: there is no secret to set.\n8. **After he approves:** merge the goal pull request on his instruction, pinned to the approved head. Then `/gstack-goal <id> --pr <N>`. Leave the holdout file where step 4 put it; the run's finalize step needs it.\n\n## Successor goals (GO-011.9)\n\n`/gstack-goal-new --successor <id>` follows a goal whose holdout or whole-goal review failed, with no question to Dorian. Run `goal_new.py successor goals/<id> --why \"<what failed and what changes>\"`: it writes `goals/<root>--s1/` (or `--s2` after `--s1`) with GOAL.md copied whole plus one `Succeeds <id>:` paragraph after the Outcome, and PLAN.md copied. Revise PLAN.md, and Scenarios, Goal tests or Pre-mortem where the failure calls for it; never any other section of GOAL.md, nor the Outcome's existing text (`goal_successor.py` refuses any of those changed, added or reordered, inside the required `tests` check). If the fix needs one of them changed, it isn't a successor: draft a new goal with Dorian (steps 1 to 8). Then steps 3 to 6 as written, on a branch `build/goal-<root>--sN`. Commit the folder alone, push as the bot and open its pull request into `main` titled `Goal: <outcome> (<root>--sN, successor)`, with the reading and a line saying it stands on the root goal's approval (GO-011.9). Run `/gstack-peer-review` on it, then merge it as the bot, pinned to its head, on a clean review with `tests` green there: CODEOWNERS leaves `goals/*--s1/` and `goals/*--s2/` unowned, so no review of Dorian's is waited on. Then `/gstack-goal <root>--sN --pr <N>`: `goal_brief.py verify` accepts the root goal's approval for it after checking the brief again from `main`. If Dorian requests changes on that pull request, it stops there.\n\nGoals come from Dorian, from the open work under each objective, from the session handoff, from the project's Jira label, from a failed holdout (GO-011.3) and from usability findings that change what the product does (GO-011.5). Drafting one asks Dorian nothing beyond the live doc in step 1 and the approval in step 7.\n\n## Any repository: local mode (GO-010)\n\nGoal mode runs in any GitHub repository the moxywolf-agent app can reach, with no onboarding. If `goal_ready.py` reports the repository isn't set up, don't stop and don't ask Dorian for setup: draft the goal in local mode. Everything above holds except where the scripts run:\n\n- Run every script from the moxywo",
+          "head_truncated_at_chars": 8000
+        },
+        {
+          "path": "PLAN.md",
+          "exists": false
+        },
+        {
+          "path": "GOAL.md",
+          "exists": false
+        },
+        {
+          "path": "plugin.json",
+          "exists": false
+        }
+      ],
+      "links_introduced": [
+        {
+          "item": "ST-001",
+          "links_introduced": "`NOTICE` names the upstream as `danyuchn/asd-ste100-skill` at commit `707362731928d0d92526c066df15dbbe6a378c07` (MIT, read 2026-11-17), which re-resolves by cloning that commit. Each vendored file's git blob hash is compared with its upstream blob at that commit by criterion 2's ledger run."
+        },
+        {
+          "item": "ST-002",
+          "links_introduced": "none. Both commands name the skill by its plugin name, `asd-ste100`, which the marketplace entry from ST-001 resolves."
+        }
+      ]
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.17
+      },
+      "cross_file": {
+        "probability": 0.98
+      },
+      "docs_only": {
+        "probability": 0.6
+      },
+      "has_tests": {
+        "probability": 0.99
+      },
+      "risky": {
+        "probability": 0.23
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": false,
+      "cross_file": true,
+      "docs_only": true,
+      "has_tests": true,
+      "risky": false
+    },
+    "rule": "cross_file",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 31232,
+    "quorum": {
+      "line_id": "850547947e34",
+      "ledger": "/Users/doriancougias/st001-review/mwp/reviews/decisions/202611.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 823,
+          "cost": "0.000450534",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.17
+            },
+            "cross_file": {
+              "probability": 0.98
+            },
+            "docs_only": {
+              "probability": 0.6
+            },
+            "has_tests": {
+              "probability": 0.99
+            },
+            "risky": {
+              "probability": 0.23
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 1384,
+          "cost": "0.00020292",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.07463642207712083
+            },
+            "cross_file": {
+              "probability": 0.9368828682187308
+            },
+            "docs_only": {
+              "probability": 0.6987078252740776
+            },
+            "has_tests": {
+              "probability": 0.9781679510858515
+            },
+            "risky": {
+              "probability": 0.019414500031063153
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 874,
+          "cost": "0.00126745",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.22
+            },
+            "cross_file": {
+              "probability": 1
+            },
+            "docs_only": {
+              "probability": 0
+            },
+            "has_tests": {
+              "probability": 0.99
+            },
+            "risky": {
+              "probability": 0
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.17
+        },
+        "cross_file": {
+          "probability": 0.98
+        },
+        "docs_only": {
+          "probability": 0.6
+        },
+        "has_tests": {
+          "probability": 0.99
+        },
+        "risky": {
+          "probability": 0.019414500031063153
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "cross_file"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice"
+  },
+  "ci_runs": [
+    {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "run_id": 44178845739
+    }
+  ],
+  "coverage": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-17T21:26:45.481Z",
+    "status": "checked",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 1719,
+    "verbatim": 12,
+    "model_scored": 1,
+    "criteria": [
+      {
+        "item": "ST-001",
+        "criterion_no": 1,
+        "declared": "`plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 2,
+        "declared": "A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 3,
+        "declared": "`SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 4,
+        "declared": "Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 5,
+        "declared": "`plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 6,
+        "declared": "`marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-001",
+        "criterion_no": 7,
+        "declared": "Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined. Not taken in this item: wiring the skill into `/gstack-design-doc` and `/gstack-goal-new`, which is ST-002. A refresh from upstream isn't CI-004, which compares whole directories, so it needs its own item.",
+        "probability": 0.98,
+        "match": "model"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 1,
+        "declared": "`plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 2,
+        "declared": "`plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 3,
+        "declared": "Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 4,
+        "declared": "No script, hook, workflow or `CODEOWNERS` path changes.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 5,
+        "declared": "`gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-002",
+        "criterion_no": 6,
+        "declared": "Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.",
+        "probability": 1,
+        "match": "verbatim"
+      }
+    ]
+  }
+}
