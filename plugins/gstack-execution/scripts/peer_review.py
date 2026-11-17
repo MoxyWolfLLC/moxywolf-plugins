@@ -2933,6 +2933,103 @@ def gate_packet(raw, builder, accept_narrow):
     refuse_ledger_behind(_sent_repos(raw.get("repos")), tests.get("ledger_runs"))
 
 
+# ---------- goldfish pre-pass (XE-045) ----------
+# A fresh reader from the builder's own family goes over the review surface before `open`. It only
+# advises: nothing in round, collect, release or record-release reads its record, and it never goes
+# through choose_reviewer, whose same-family refusal is what makes a review a review (XE-005).
+
+GOLDFISH_SCHEMA = strict({
+    "type": "object", "required": ["criteria"],
+    "properties": {"criteria": {"type": "array", "items": {
+        "type": "object", "required": ["criterion_no", "shown", "assumes"],
+        "properties": {"criterion_no": {"type": "integer"}, "shown": {"type": "boolean"},
+                       "assumes": {"type": "array", "items": {"type": "string"}}}}}}})
+
+
+def _criteria_sha256(criteria):
+    return hashlib.sha256(json.dumps(criteria, ensure_ascii=False).encode()).hexdigest()
+
+
+def goldfish_path(packet):
+    """XE-045 link: named by item ids and the first repository's base; heads live inside the record."""
+    items = "+".join(re.sub(r"[^A-Za-z0-9_.-]", "_", str(i)) for i in packet.get("items") or ()) or "packet"
+    return review_root() / "goldfish" / f"{items}-{packet['repos'][0]['base'][:12]}.json"
+
+
+def _goldfish_heads(packet):
+    return {r["path"]: r["head"] for r in _sent_repos(packet["repos"])}
+
+
+def goldfish_status(packet):
+    """XE-045.4: what `open` records. Among entries whose criteria hash matches, the FIRST decides, so a
+    later re-run at the opened head can't hide a change made after the first pre-pass.
+    ponytail: a first entry naming a different set of repositories is a different change, so `absent`."""
+    try:
+        entries = json.loads(goldfish_path(packet).read_text()).get("entries") or []
+    except (OSError, ValueError, AttributeError):
+        return "absent"
+    h = _criteria_sha256(packet["acceptance_criteria"])
+    matching = [e for e in entries if isinstance(e, dict) and e.get("criteria_sha256") == h]
+    if not matching:
+        return "absent"
+    first, now = matching[0].get("heads") or {}, _goldfish_heads(packet)
+    if set(first) != set(now):
+        return "absent"
+    return "ran_at_head" if first == now else "ran_earlier"
+
+
+def cmd_goldfish(a):
+    """XE-045. A tool that can't start, or starts and then fails, raises ReviewError: non-zero exit and
+    no entry appended. Whatever the questions say, a run that answered exits 0."""
+    if os.environ.get(RECURSION_ENV):
+        sys.exit("refused: this is a reviewer session; a goldfish pre-pass does not run inside one")
+    from enclosure import RULE
+    packet = load_packet(a.packet)
+    try:
+        data_permission(packet, tool=a.builder)   # the surface goes to the builder's own tool
+    except ValueError as e:
+        raise ReviewError("data_use_denied", str(e))
+    root = Path(tempfile.mkdtemp(prefix="gstack-goldfish-"))
+    try:
+        surf, _ = build_surface(packet["repos"], root, criteria=packet["acceptance_criteria"],
+                                ci_runs=(packet.get("tests") or {}).get("ci_runs"),
+                                ledger_runs=(packet.get("tests") or {}).get("ledger_runs"))
+        crit = "\n".join(f"{i}. {c}" for i, c in enumerate(packet["acceptance_criteria"], 1))
+        prompt = "\n\n".join([
+            "You are reading a change you have never seen, with no other context. Read-only. Do not edit, "
+            "deploy, or start a review. `SURFACE.md` says what this directory holds.",
+            RULE,
+            f"Acceptance criteria:\n{crit}",
+            "For each criterion, by number: set `shown` to whether this surface alone shows it is met, and "
+            "list in `assumes` what the change assumes that the surface doesn't show. Return JSON only."])
+        text, model = run_reviewer(a.builder, prompt, surf, a.timeout, schema=GOLDFISH_SCHEMA)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    try:
+        answer = json.loads(text)
+        questions = answer["criteria"]
+        assert isinstance(questions, list)
+    except (ValueError, KeyError, TypeError, AssertionError):
+        raise ReviewError("malformed_output", f"{a.builder} returned no criteria list: {str(text)[:300]}")
+    entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "tool": a.builder, "model": model,
+             "heads": _goldfish_heads(packet), "criteria_sha256": _criteria_sha256(packet["acceptance_criteria"]),
+             "usage": LAST_REVIEWER_USAGE, "questions": questions}   # usage: XE-012
+    p = goldfish_path(packet); p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        rec = json.loads(p.read_text())
+    except (OSError, ValueError):
+        rec = {"items": packet.get("items") or [], "base": packet["repos"][0]["base"], "entries": []}
+    rec["entries"].append(entry)   # earlier entries are never rewritten (XE-045.2)
+    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(rec, indent=2)); tmp.replace(p)
+    for q in questions:
+        mark = "shown" if q.get("shown") else "NOT shown"
+        print(f"criterion {q.get('criterion_no')}: {mark}")
+        for s in q.get("assumes") or ():
+            print(f"  assumes: {s}")
+    print(f"goldfish record: {p}")
+    return entry
+
+
 def cmd_open(a):
     # goal review-packet-ready-3: data_use, coverage and tests.ledger_runs come before every check open made before
     # this goal (review F1, 20261114-094615): only reading the packet's JSON precedes them.
@@ -3035,7 +3132,8 @@ def cmd_open(a):
              "unknowns_open": unknowns_open_count(packet["repos"]),   # EV-011.6
              "model_selection": model_selection,                      # MR-001.3
              "release_lane": lane,                                    # GA-010.2
-             "heads": [[r["head"] for r in packet["repos"]]]}
+             "heads": [[r["head"] for r in packet["repos"]]],
+             "goldfish": goldfish_status(packet)}                     # XE-045.4: recorded, never a refusal
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     for r in packet["repos"]:
         r["review_base"] = r["base"]                # XE-029.1: fix rounds still see the whole change
@@ -3871,6 +3969,9 @@ def main():
     di.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
     di.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
     co = sub.add_parser("collect"); co.add_argument("review_id")
+    gf = sub.add_parser("goldfish", help="XE-045: a fresh same-family reader over the review surface, before open")
+    gf.add_argument("packet"); gf.add_argument("--builder", required=True, choices=["claude", "codex"])
+    gf.add_argument("--timeout", type=int, default=900)
     s = sub.add_parser("status"); s.add_argument("review_id")
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
@@ -3899,7 +4000,8 @@ def main():
         result = {"open": cmd_open, "round": cmd_round, "dispatch": cmd_dispatch, "collect": cmd_collect,
                   "disposition": cmd_disposition, "status": cmd_status, "verify": cmd_verify,
                   "release": cmd_release, "record-release": cmd_record_release,
-                  "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log, "unknowns": cmd_unknowns}[a.cmd](a)
+                  "merge-instruction": cmd_merge_instruction, "ci-log": cmd_ci_log, "unknowns": cmd_unknowns,
+                  "goldfish": cmd_goldfish}[a.cmd](a)
         if a.cmd == "round" and result not in {"no_blocking_findings", "fixes_verified"}:
             sys.exit(1)
         if a.cmd == "unknowns":

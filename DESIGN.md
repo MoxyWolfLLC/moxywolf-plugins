@@ -294,7 +294,7 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 ### XE-045 — A fresh reader goes over the packet before the other vendor does
 
-**Status:** planned
+**Status:** building
 
 **Why.** google/elephant-goldfish-model (Apache-2.0; idea only, no code copied) splits the work between an "elephant" that holds the context and "goldfish" reviewers that read the draft and its sources without the conversation, so what the author assumed but never wrote down comes to the surface. Our cross-vendor reviewer already reads without the conversation, so independence isn't the gap here. Cost is. Every criterion the surface doesn't visibly meet is found by the other vendor, one capped round at a time. The packaging half of that waste (a missing `data_use`, coverage not attached, a ledger run behind the head; item 2 of the 2026-10-31 handoff) is already closed: goal `review-packet-ready-3` put those checks in `gate_packet`, ahead of `open`. What's left is substance, and a reader from the builder's own family, started fresh over the same surface and asked only "does this surface show each criterion is met?", is cheap and runs before the round clock starts. It isn't a review and nothing counts it as one (XE-005). Design docs are out of scope: XE-031 already argues a draft across three families before Dorian reads it.
 

@@ -84,6 +84,13 @@ In a goal run (`/gstack-goal`), the goal branch `goal/<id>` takes `main`'s place
 one review per item. Build the items, then open one review whose `acceptance_criteria` are the
 criteria of all of them, verbatim. Two or three related items in one checkpoint is normal.
 
+**A fresh reader first, if you want one (XE-045).** Once per checkpoint, before `open`, run
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/peer_review.py" goldfish <packet> --builder <tool>`. One fresh
+process of your own tool reads the same surface the reviewer will get, with none of this conversation,
+and says per criterion whether the surface alone shows it is met and what the change assumes that it
+doesn't show. Act on its questions or leave them; skipping it is allowed. It is not a review, nothing
+in the release reads it, and `open` only records whether it ran (`ran_at_head`, `ran_earlier`, `absent`).
+
 **Dispatch the review; do not sit on it.** `dispatch` starts the reviewer detached and returns at
 once; `collect` answers once, with `pending`, `complete`, or `failed`:
 
