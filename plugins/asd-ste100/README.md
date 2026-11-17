@@ -18,7 +18,7 @@ The skill and the linter check sentence structure only. They don't establish ASD
 
 ## Source
 
-Vendored from [danyuchn/asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill) at `707362731928d0d92526c066df15dbbe6a378c07` (MIT). `SKILL.md` is modified (see `NOTICE`); every other upstream file is verbatim. Not taken: upstream's `.claude-plugin/` manifests and its README. Design item: ST-001 in the repository's `DESIGN.md`.
+Vendored from [danyuchn/asd-ste100-skill](https://github.com/danyuchn/asd-ste100-skill) at `707362731928d0d92526c066df15dbbe6a378c07` (MIT). `SKILL.md` is modified in four places (see `NOTICE`); every other upstream file is verbatim. Not taken: upstream's `.claude-plugin/` manifests and its README. Design item: ST-001 in the repository's `DESIGN.md`.
 
 ## Version history
 

@@ -1,10 +1,8 @@
 ---
 name: asd-ste100
 description: "Use when English text must be parsed without a human to resolve ambiguity — tool descriptions, error messages, inter-agent instructions, system prompts, status reports — and misreading has a real cost, or when text reads as dense, hedged, or easy to misparse. Triggers: disambiguate, STE100 rewrite, apply Simplified Technical English, plain-language rewrite, controlled-language rewrite, rewrite so an agent cannot misread this. Not for creative or marketing copy. Never for MoxyWolf published prose: blog posts, articles, papers, email, LinkedIn posts or anything in Dorian's voice, drafts included, even when an agent reads them."
-metadata:
-  version: 0.4.0
 ---
-<!-- Modified by MoxyWolf from danyuchn/asd-ste100-skill at 707362731928d0d92526c066df15dbbe6a378c07: one sentence added to the description, and the "MoxyWolf scope" section under the title. Everything else is upstream's, unchanged. -->
+<!-- Modified by MoxyWolf from danyuchn/asd-ste100-skill at 707362731928d0d92526c066df15dbbe6a378c07: the frontmatter's metadata block (upstream skill version 0.4.0) removed, one sentence added to the description, and the "MoxyWolf scope" section under the title. Everything else is upstream's, unchanged. -->
 
 # Simplified Technical English (ASD-STE100)
 

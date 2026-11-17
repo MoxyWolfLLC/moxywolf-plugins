@@ -16,9 +16,12 @@ What was taken, byte for byte unless marked:
   skills/asd-ste100/scripts/ste-lint.py           verbatim
   LICENSE                                         verbatim
 
-SKILL.md was modified by MoxyWolf LLC in three places: a comment under the
-frontmatter saying so, one sentence added to the description, and a
-"MoxyWolf scope" section under the title. Everything else is upstream's.
+SKILL.md was modified by MoxyWolf LLC in four places: the frontmatter's
+two-line metadata block, which held upstream's skill version 0.4.0, was
+removed because this repository's frontmatter check can't read a nested
+map; a comment under the frontmatter says so; one sentence was added to
+the description; and a "MoxyWolf scope" section sits under the title.
+Everything else is upstream's.
 
 What was NOT taken: upstream's .claude-plugin/ manifests (marketplace.json
 and plugin.json) and its README.md. This plugin's manifest and README are

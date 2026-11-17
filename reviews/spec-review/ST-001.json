@@ -2,26 +2,37 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "ST-001",
-  "scope_sha256": "667ee7265ca2840be59cec70ad3218f9814dbd93e2e9f832d9b5d2e8757346d6",
-  "reviewed_at": "2026-11-17T20:53:14+00:00",
+  "scope_sha256": "246b31975fa5fb06c69416e85fc68883950d4521272ec1614fbc0d0ef85f27b8",
+  "reviewed_at": "2026-11-17T21:03:40+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 2844,
+      "output_tokens": 2867,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7154,
+      "cache_creation_input_tokens": 7222,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7154,
+        "ephemeral_5m_input_tokens": 7222,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 11591,
-      "output_tokens": 1870,
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7222,
+      "cache_creation_input_tokens": 2907,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2907,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11769,
+      "output_tokens": 1841,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -33,19 +44,19 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1389,
-      "cache_read_input_tokens": 7154,
-      "cache_creation_input_tokens": 3515,
+      "output_tokens": 1443,
+      "cache_read_input_tokens": 10129,
+      "cache_creation_input_tokens": 333,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 3515,
+        "ephemeral_5m_input_tokens": 333,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 7154,
-    "write": 10669
+    "read": 17351,
+    "write": 10462
   },
   "contradictions": [],
   "ambiguities": [
@@ -55,30 +66,21 @@
         "ST-001.4",
         "ST-001.7"
       ],
-      "question": "ST-001.4 says lint findings and lint-run exit status never gate merge, yet run_all_tests.py must require ste-lint.py --selftest to pass, and a failing self-test blocks the required `tests` check. Does a self-test exit status count as a lint-run exit status? If yes, one of the two must change. If no, say so explicitly."
+      "question": "Criterion 4 says lint findings and lint-run exit status never gate design, review, merge or release. Criterion 4 also requires the `ste-lint.py --selftest` to pass in `run_all_tests.py`, and criterion 7 requires that run to be green in CI at the head. Does the self-test's exit status count as a gating 'lint-run exit status'? Or is the self-test the one stated exception, so a self-test failure may block merge through the required `tests` check?"
     },
     {
       "id": "A2",
       "requirements": [
-        "ST-001.4",
-        "ST-001.7",
-        "The pre-merge gate is GitHub's, sized to the stakes"
+        "ST-001.3"
       ],
-      "question": "run_all_tests.py is a CODEOWNERS path that this item must edit, so Dorian's approving review at the head is required. Does ST-001 acknowledge that, or is it meant to merge on a clean cross-vendor review alone? State the review path for this item."
+      "question": "Can the 1,024-character limit on `description` be met after the added sentence? The plan doesn't give upstream's description length or the added sentence, so it can't be decided from the text. What should happen if upstream's description plus the sentence goes over the limit? The text allows only four changes to SKILL.md, so trimming the description would be a fifth."
     },
     {
       "id": "A3",
       "requirements": [
         "ST-001.3"
       ],
-      "question": "The in-scope list (DESIGN.md items and amendments, goal briefs) conflicts with the exclusion of 'anything written in Dorian's voice'. Which governs when in-scope text carries Dorian's own words or voice?"
-    },
-    {
-      "id": "A4",
-      "requirements": [
-        "ST-001.6"
-      ],
-      "question": "The diff must show 'the new entry and the version line only', but the new entry has its own version (0.1.0) and the top-level version also moves. Which version lines are allowed in the diff?"
+      "question": "The scope section lists DESIGN.md items and amendments as in scope. The description sentence and the title exclude Dorian's published prose and 'anything written in Dorian's voice'. DESIGN.md items and amendments record his words, for example 'Dorian, 2026-09-30'. Is a DESIGN.md amendment that quotes or records his words in scope or excluded? The text doesn't say whether 'in Dorian's voice' covers recorded owner statements or only published writing."
     }
   ]
 }
