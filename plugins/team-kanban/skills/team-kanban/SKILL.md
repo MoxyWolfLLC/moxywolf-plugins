@@ -107,7 +107,7 @@ When an assignee moves their issue to Done, don't let it close unreviewed — mo
 The `last_standup_read` timestamp lives in the config note (not on the board); personal-os's morning standup reads it to filter Done/In Review to items changed since the last standup, and updates it. This sync leaves it untouched.
 
 #### Step 8: Report
-Summarize what changed: issues created, updated, moved, and anything flagged for triage (over-limit columns, ambiguous tombstones, contractors unassigned). End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. No digest is posted anywhere — the board itself is the team-visible artifact.
+Summarize what changed: issues created, updated, moved, and anything flagged for triage (over-limit columns, ambiguous tombstones, contractors unassigned). End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass. No digest is posted anywhere — the board itself is the team-visible artifact.
 
 ### Mode 2: Quick Update
 **Triggers:** "quick kanban update", "just refresh the board", "push current tasks to Jira".

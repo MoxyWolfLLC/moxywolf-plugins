@@ -22,7 +22,7 @@ A charter is the project's **constitution**: the small set of durable principles
 
 5. **Confirm the wiring.** Remind the user that once `CHARTER.md` exists at the project root, `/product-scope` and `/product-prd` automatically load it as Council context — it informs deliberation but never blocks it (progressive opt-in rigor: tiny changes ignore it, large changes lean on it). See DR-004.
 
-6. **Present a summary** of the charter's principles and boundaries, and suggest the next step (`/product-scope` or `/product-prd`) now that the governing context exists. End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on.
+6. **Present a summary** of the charter's principles and boundaries, and suggest the next step (`/product-scope` or `/product-prd`) now that the governing context exists. End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass.
 
 ## Notes
 

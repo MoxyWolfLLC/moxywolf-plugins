@@ -447,7 +447,7 @@ Run this after the Project mirror; it changes no mirrored file. Count before cha
 
 ### Step 8: Report what was written
 
-Output a short summary in chat. Its last line is `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on (ST-003), counting Steps 4 and 6 together.
+Output a short summary in chat. Its last line is `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass (ST-003), counting Steps 4 and 6 together.
 
 ```
 ## Session handoff saved
