@@ -2080,7 +2080,22 @@ Dorian asked for it on 2026-11-17, after the external-repo fitment sweep (vault:
 6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.
 7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.
 
-Not taken in this item: wiring the skill into `/gstack-design-doc`, `/gstack-goal-new` or the review packet, which is a later item once Dorian has used it by hand. A refresh from upstream isn't CI-004, which compares whole directories, so it needs its own item.
+Not taken in this item: wiring the skill into `/gstack-design-doc` and `/gstack-goal-new`, which is ST-002. A refresh from upstream isn't CI-004, which compares whole directories, so it needs its own item.
+
+### ST-002 — `/gstack-design-doc` and `/gstack-goal-new` run asd-ste100 over the text an agent will build from
+
+**Status:** planned. Needs ST-001.
+
+**Links introduced:** none. Both commands name the skill by its plugin name, `asd-ste100`, which the marketplace entry from ST-001 resolves.
+
+Dorian asked for it on 2026-11-17 ("wire it up"). An acceptance criterion is the text a builder and a reviewer each read on their own, so it's where ambiguity costs a review round. Dorian's own words in a brief or a ruling are never rewritten.
+
+1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.
+2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is anything copied from the live doc he edited.
+3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.
+4. No script, hook, workflow or `CODEOWNERS` path changes.
+5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).
+6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.
 
 ## Eleventh objective: goal mode
 
@@ -2894,3 +2909,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-17: XE-045 escalated after review 20261117-092914-8ee3af7-82zm6mgy exhausted its rounds on F13 (an upstream and a fork can share a record); Dorian chose "Fix F13, fresh review". Each `opened` marker names its review's first repository and the count reads the marker.
 
 - 2026-11-17: ST-001 added on Dorian's ask ("Add the asd-ste100-skill to plugins then.") and approval ("Approved. The revised criteria resolve the self-test conflict and make the exclusion clear, including drafts an agent reads."), after his edits to criteria 3 and 4: vendor danyuchn/asd-ste100-skill at `7073627` (MIT) as `plugins/asd-ste100`, scoped to text an agent reads and never Dorian's published prose; its linter stays advisory.
+
+- 2026-11-17: ST-002 added on Dorian's ask ("And wire it up, pushing to production on main.") and approval ("Approve"): `/gstack-design-doc` and `/gstack-goal-new` run asd-ste100 over acceptance criteria and item text, advisory only, never over Dorian's own words. ST-001's not-taken line points at it.
