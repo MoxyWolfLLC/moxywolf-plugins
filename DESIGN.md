@@ -2064,6 +2064,24 @@ M-053 repeated M-012. SM-008 criterion 8 required the Project mirror to use "the
 3. `test_off_repo_criterion.py` gains SM-008 criterion 8's exact text: refused with no evidence, opened with an evidence path, opened with a quoting exclusion.
 4. `gstack-execution` gets a version bump with a changelog line, and the marketplace version moves with it (CI-002).
 
+### ST-001 — Vendor asd-ste100 for text an agent reads, never for Dorian's published prose
+
+**Status:** planned.
+
+**Links introduced:** `NOTICE` names the upstream as `danyuchn/asd-ste100-skill` at commit `707362731928d0d92526c066df15dbbe6a378c07` (MIT, read 2026-11-17), which re-resolves by cloning that commit. Each vendored file's git blob hash is compared with its upstream blob at that commit by criterion 2's ledger run.
+
+Dorian asked for it on 2026-11-17, after the external-repo fitment sweep (vault: `Projects/Moxywolf Plugins/11-Knowledge/research-github-repo-fitment-sweep-2026-11-17.md`). Simplified Technical English rewrites text so a reader with no one to ask can't misparse it, which is the reader of a DESIGN.md item, a goal brief, a review contract or a SKILL.md. Upstream calls its own output deliberately flat and literal, so it must never touch prose written in Dorian's voice. Its linter is advice here, not a gate: run over XE-045's own text (1,067 words) it reports 27 hard violations, 16 semicolons and 11 long sentences, so as a gate it would fail every item in this document.
+
+1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.
+2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.
+3. `SKILL.md` changes in three places and no others: one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those three hunks only.
+4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.
+5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.
+6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.
+7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.
+
+Not taken in this item: wiring the skill into `/gstack-design-doc`, `/gstack-goal-new` or the review packet, which is a later item once Dorian has used it by hand. A refresh from upstream isn't CI-004, which compares whole directories, so it needs its own item.
+
 ## Eleventh objective: goal mode
 
 Opened 2026-10-01. Dorian asked how gstack becomes a goal-oriented agent: he co-designs a goal once, the agent runs everything after it, and he isn't in the loop for each step. He's granting more trust and wants judgment calls taken to the council more often, not to him. The proposal went to the council (record `d_20261001_001`, four model families, chair Claude Sonnet 5.5) and Dorian approved its staged form the same day. Write-up: `Taskade/Team Plugins/06 – Engineering/goal-mode-proposal-2026-10-01.md`.
@@ -2874,3 +2892,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-17: XE-045 links line and criterion 7 clarified from review 20261117-092914-8ee3af7-82zm6mgy F10: the pre-pass record names its first repository by identity, so `goldfish-count` attributes a review after its checkout is gone. How criterion 7 is met, not what it requires; no criterion added or removed.
 
 - 2026-11-17: XE-045 escalated after review 20261117-092914-8ee3af7-82zm6mgy exhausted its rounds on F13 (an upstream and a fork can share a record); Dorian chose "Fix F13, fresh review". Each `opened` marker names its review's first repository and the count reads the marker.
+
+- 2026-11-17: ST-001 added on Dorian's ask ("Add the asd-ste100-skill to plugins then.") and approval ("Approved. The revised criteria resolve the self-test conflict and make the exclusion clear, including drafts an agent reads."), after his edits to criteria 3 and 4: vendor danyuchn/asd-ste100-skill at `7073627` (MIT) as `plugins/asd-ste100`, scoped to text an agent reads and never Dorian's published prose; its linter stays advisory.
