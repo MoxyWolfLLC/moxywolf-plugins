@@ -1,0 +1,110 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "XE-045",
+  "scope_sha256": "4768b9d63ac41a8f445f232f135b8dc15aad8521f6ef44940361b5e861c86eae",
+  "reviewed_at": "2026-11-17T16:14:57+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 5487,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7652,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7652,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7652,
+      "cache_creation_input_tokens": 5527,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5527,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 14819,
+      "output_tokens": 2346,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2095,
+      "cache_read_input_tokens": 13179,
+      "cache_creation_input_tokens": 643,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 643,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 20831,
+    "write": 13822
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-045 criterion 4"
+      ],
+      "question": "What does `goldfish` read when the first hash-matching entry names a different set of repositories (for example a subset) than the packet being opened, with no differing head among the shared ones? Is that `ran_at_head`, `ran_earlier` or `absent`?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-045 criterion 7",
+        "XE-045 criterion 4"
+      ],
+      "question": "`ran_earlier` fires on any head change, including a rebase or unrelated edit. A builder who acts on the questions by amending the criteria changes the hash and reads `absent`, so it is uncounted. A rebase changes the base, so the record name no longer matches and it also reads `absent`. Is 'none reads ran_earlier' meant to prove 'the builder changed nothing after a pre-pass'? If it is, how are these cases handled?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "XE-045 criterion 7"
+      ],
+      "question": "Does 'ten counted reviews in this repository' include reviews whose packet spans several repositories? If it does, which repository does each review belong to?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "XE-045 criterion 7",
+        "XE-045 criterion 6"
+      ],
+      "question": "Skipping the pre-pass is allowed and skipped reviews don't count. What happens if ten counted reviews never accrue? Is there a deadline or fallback for the earn-its-place test?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "XE-045 criterion 2",
+        "XE-045 criterion 5"
+      ],
+      "question": "When the fresh process starts but then fails, times out or returns unusable output, what is the exit code, and is an entry appended? Criterion 2 says it exits 0 whatever the questions say, and criterion 5 covers only a tool that can't start."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "XE-045 Links bullet 1",
+        "XE-045 criterion 4"
+      ],
+      "question": "The record name carries a single 12-character base, but heads are compared across 'every repository'. For a multi-repository packet, which base names the file, and how are the other repositories' bases matched?"
+    }
+  ]
+}
