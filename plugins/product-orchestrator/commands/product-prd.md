@@ -14,7 +14,7 @@ Before saving, load the `asd-ste100` skill (ST-003) and rewrite the PRD's requir
 
 After generating the PRD:
 1. Save it to the workspace folder as `PRD-{product-slug}.md`
-2. Present a summary to the user, ending with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass
+2. Present a summary to the user
 3. Suggest which deliberation to run next based on the PRD's open questions, risks, and gaps:
    - Scope ambiguity → suggest `/product-scope`
    - Technical unknowns → suggest `/product-arch`
@@ -22,3 +22,4 @@ After generating the PRD:
    - Positioning unclear → suggest `/product-gtm`
    - High-likelihood unmitigated risks → suggest `/product-scope` to reconsider scope
    - PRD is crisp → suggest `/product-sprint`
+4. End the report, after the next-step suggestion, with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass
