@@ -84,7 +84,7 @@ There's one exception, and Dorian set it on 2026-10-07. A disagreement that invo
 
 1. Name the departments you're sending the ask to, and why, before you send it.
 2. Run departments that don't depend on each other in parallel, in one message.
-3. Every dispatch carries five things: the context card's path, the ask in Dorian's words, the success criteria (what a good answer has to settle, stated so it can be checked), the authorized scope, and the evidence you already hold.
+3. Every dispatch carries five things: the context card's path, the ask in Dorian's words, the success criteria (what a good answer has to settle, stated so it can be checked), the authorized scope, and the evidence you already hold. Before sending, rewrite the success criteria with the `asd-ste100` skill's Strict mode (ST-003). The ask stays in Dorian's words, and nothing in a result, memo or report that goes back to Dorian is rewritten. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.
 4. A goal hands a department which item to work on. It doesn't hand it more authority than a plain dispatch has. No department starts a goal run, and none claims a goal was approved.
 
 ## The return contract
@@ -170,7 +170,10 @@ Every `/cos` run appends one entry to `<workspace>/00 – Project Hub/chief-of-s
 - Sent to: <departments>, <parallel or in order>
 - Outcome: done | proposed | escalated (<reason, when escalated>)
 - Decision: <what Dorian decided, or "pending">
+- asd-ste100: <n> rewritten, <m> kept as-is | not installed
 ```
+
+The `asd-ste100` line (ST-003) counts the success criteria rewritten across the run's dispatches, followed by upstream's `Kept as-is:` line for each kept phrase. It goes in this log only, never in a result, memo or report to Dorian.
 
 Know what this log is. It's a record you wrote from memory of the run, not one captured by code, so treat it as a summary. The session transcript is the full trace. The `Run:` line joins it to the code-captured records: the model-router ledger (every dispatch with its department and model) and `claim-checks.jsonl` (every check with its department, model and result), which the after-action report reads (CS-007). Moving to Managed Agents tracing is the planned upgrade.
 

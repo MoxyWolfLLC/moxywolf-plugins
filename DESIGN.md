@@ -2066,7 +2066,7 @@ M-053 repeated M-012. SM-008 criterion 8 required the Project mirror to use "the
 
 ### ST-001 — Vendor asd-ste100 for text an agent reads, never for Dorian's published prose
 
-**Status:** building.
+**Status:** done. Merged to `main` in `c70729f` (PR #346, head `cd6679d`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-132735-cd6679d-kqk7t9_f` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44178845739).
 
 **Links introduced:** `NOTICE` names the upstream as `danyuchn/asd-ste100-skill` at commit `707362731928d0d92526c066df15dbbe6a378c07` (MIT, read 2026-11-17), which re-resolves by cloning that commit. Each vendored file's git blob hash is compared with its upstream blob at that commit by criterion 2's ledger run.
 
@@ -2084,7 +2084,7 @@ Not taken in this item: wiring the skill into `/gstack-design-doc` and `/gstack-
 
 ### ST-002 — `/gstack-design-doc` and `/gstack-goal-new` run asd-ste100 over the text an agent will build from
 
-**Status:** building. Needs ST-001.
+**Status:** done. Merged to `main` in `c70729f` (PR #346, head `cd6679d`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-132735-cd6679d-kqk7t9_f` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44178845739).
 
 **Links introduced:** none. Both commands name the skill by its plugin name, `asd-ste100`, which the marketplace entry from ST-001 resolves.
 
@@ -2099,7 +2099,7 @@ Dorian asked for it on 2026-11-17 ("wire it up"). An acceptance criterion is the
 
 ### ST-003 — Six more commands and skills run asd-ste100 over text an agent acts on, and each run reports what it did
 
-**Status:** planned. Needs ST-001 and ST-002.
+**Status:** building. Needs ST-001 and ST-002.
 
 **Links introduced:** none. Each command names the skill by its plugin name, `asd-ste100`, which ST-001's marketplace entry resolves. The report line in criterion 7 is printed in the run's report, and is stored only where that report already is (for the Chief of Staff, its existing run log); nothing reads it back.
 

@@ -89,7 +89,7 @@ Combine candidates. Resolution rules:
 #### Step 6: File and update issues on MOXY
 Read `references/jira-board-mapping.md` for the full column/status/label mapping and issue-authoring standard.
 
-- **New candidate** → `createJiraIssue` (type Task) authored to standard: imperative summary; description with **Context** (originating signal, who/when), **Acceptance** (observable done-state), and **Notes** (blockers, reviewer, deadlines) — fill every section the source allows. Every entry in `subtasks` becomes a real **Subtask** issue under the parent (its own summary/assignee/status; `Done` if flagged) — never a `[ ]` checklist in the description. Dependencies on other tracked work become issue links (`getIssueLinkTypes` → `createIssueLink`, type "Blocks"; the blocker is the *inward* side), not prose. New tickets default to **Backlog** (they are not auto-added to an active sprint).
+- **New candidate** → `createJiraIssue` (type Task) authored to standard: imperative summary; description with **Context** (originating signal, who/when), **Acceptance** (observable done-state), and **Notes** (blockers, reviewer, deadlines) — fill every section the source allows. Rewrite **Acceptance** with the `asd-ste100` skill's Strict mode (ST-003); **Context** keeps the originating signal's words as quoted. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release. Every entry in `subtasks` becomes a real **Subtask** issue under the parent (its own summary/assignee/status; `Done` if flagged) — never a `[ ]` checklist in the description. Dependencies on other tracked work become issue links (`getIssueLinkTypes` → `createIssueLink`, type "Blocks"; the blocker is the *inward* side), not prose. New tickets default to **Backlog** (they are not auto-added to an active sprint).
 - **Existing issue changed** (title, priority, assignee, labels, blocked context) → `editJiraIssue`; for column moves, `getTransitionsForJiraIssue` → `transitionJiraIssue`.
 - **Update batching:** only touch issues that actually changed — an unchanged board is a no-op sync.
 - **Bulk-creation gate:** if a sync would create more than 5 new issues at once (e.g. the first sync after setup), show Dorian the full list first and get explicit approval — a mass write to the shared tracker is team-visible.
@@ -107,7 +107,7 @@ When an assignee moves their issue to Done, don't let it close unreviewed — mo
 The `last_standup_read` timestamp lives in the config note (not on the board); personal-os's morning standup reads it to filter Done/In Review to items changed since the last standup, and updates it. This sync leaves it untouched.
 
 #### Step 8: Report
-Summarize what changed: issues created, updated, moved, and anything flagged for triage (over-limit columns, ambiguous tombstones, contractors unassigned). No digest is posted anywhere — the board itself is the team-visible artifact.
+Summarize what changed: issues created, updated, moved, and anything flagged for triage (over-limit columns, ambiguous tombstones, contractors unassigned). End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. No digest is posted anywhere — the board itself is the team-visible artifact.
 
 ### Mode 2: Quick Update
 **Triggers:** "quick kanban update", "just refresh the board", "push current tasks to Jira".
