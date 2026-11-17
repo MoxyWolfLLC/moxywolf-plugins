@@ -1,0 +1,86 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ST-001",
+  "scope_sha256": "246b31975fa5fb06c69416e85fc68883950d4521272ec1614fbc0d0ef85f27b8",
+  "reviewed_at": "2026-11-17T21:03:40+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2867,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7222,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7222,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7222,
+      "cache_creation_input_tokens": 2907,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2907,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11769,
+      "output_tokens": 1841,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1443,
+      "cache_read_input_tokens": 10129,
+      "cache_creation_input_tokens": 333,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 333,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 17351,
+    "write": 10462
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "ST-001.4",
+        "ST-001.7"
+      ],
+      "question": "Criterion 4 says lint findings and lint-run exit status never gate design, review, merge or release. Criterion 4 also requires the `ste-lint.py --selftest` to pass in `run_all_tests.py`, and criterion 7 requires that run to be green in CI at the head. Does the self-test's exit status count as a gating 'lint-run exit status'? Or is the self-test the one stated exception, so a self-test failure may block merge through the required `tests` check?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "ST-001.3"
+      ],
+      "question": "Can the 1,024-character limit on `description` be met after the added sentence? The plan doesn't give upstream's description length or the added sentence, so it can't be decided from the text. What should happen if upstream's description plus the sentence goes over the limit? The text allows only four changes to SKILL.md, so trimming the description would be a fifth."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ST-001.3"
+      ],
+      "question": "The scope section lists DESIGN.md items and amendments as in scope. The description sentence and the title exclude Dorian's published prose and 'anything written in Dorian's voice'. DESIGN.md items and amendments record his words, for example 'Dorian, 2026-09-30'. Is a DESIGN.md amendment that quotes or records his words in scope or excluded? The text doesn't say whether 'in Dorian's voice' covers recorded owner statements or only published writing."
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ST-002",
+  "scope_sha256": "73ddba8260f90fd49d4264885da5d5afae9a81f2b786ea21ef41a472cfed2315",
+  "reviewed_at": "2026-11-17T20:58:12+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2170,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6372,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6372,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6372,
+      "cache_creation_input_tokens": 2210,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2210,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10222,
+      "output_tokens": 1722,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1130,
+      "cache_read_input_tokens": 8582,
+      "cache_creation_input_tokens": 263,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 263,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 14954,
+    "write": 8845
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "ST-002.4",
+        "ST-002.6"
+      ],
+      "question": "ST-002.6 requires the CI-002 version check to name `gstack-execution` and `asd-ste100` among what it examined. ST-002.4 forbids any script change. Does the existing check already examine both plugins, or does this item need a script change that ST-002.4 forbids?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "ST-002.1",
+        "ST-002.3"
+      ],
+      "question": "Is the design-doc rewrite in ST-002.1 a required step, or advisory like the skill's suggestions? How does a reviewer decide whether it was done? ST-002.3 says the findings never gate anything and the step is skipped when the skill isn't installed."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ST-002.2",
+        "ST-002.3"
+      ],
+      "question": "Is the goal-new Strict-mode pass over `PLAN.md` criteria required or advisory? What counts as satisfying it when the skill is absent?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "ST-002.5",
+        "ST-002.6"
+      ],
+      "question": "Which pull request, ST-001's or ST-002's, moves the top-level marketplace version? What does CI-002 expect to see at ST-002's head if ST-001 has or hasn't already moved it?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "ST-002.1",
+        "ST-002.2"
+      ],
+      "question": "Does 'the same pass' in ST-002.2 include the STE-flavored mode for non-criteria text, as in ST-002.1? Or is it Strict mode over item criteria only, as the sentence reads?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "ST-002.2",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Where does the `PLAN.md` that `/gstack-goal-new` rewrites live? If it is inside `goals/<id>/` or a successor folder, the rewrite may touch a `CODEOWNERS` path or break the byte-for-byte hold by `goal_successor.py`. If it is elsewhere, say where."
+    }
+  ]
+}
