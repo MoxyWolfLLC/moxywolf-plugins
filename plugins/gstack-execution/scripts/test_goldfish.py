@@ -110,6 +110,16 @@ class GoldfishTests(unittest.TestCase):
         self.at(self.commit("def f(x):\n    return 1 + x\n"))
         self.assertEqual(self.open_review()["goldfish"], "absent")
 
+    def test_each_checkpoint_is_judged_by_its_own_pre_passes(self):
+        self.goldfish()
+        self.assertEqual(self.open_review()["goldfish"], "ran_at_head")
+        self.at(self.commit("def f(x):\n    return x + 1  # second checkpoint\n"))
+        self.assertEqual(self.open_review()["goldfish"], "absent", "the first checkpoint's pre-pass is spent")
+        self.goldfish()
+        self.assertEqual(self.open_review()["goldfish"], "ran_at_head",
+                         "a pre-pass after the last open decides, not the first one ever written")
+        self.assertEqual(sum("opened" in e for e in self.entries()), 3)
+
     # ---- what it refuses ----
 
     def test_a_missing_tool_exits_non_zero_and_nothing_is_substituted_or_written(self):
@@ -124,6 +134,16 @@ class GoldfishTests(unittest.TestCase):
         self.assertEqual(e.exception.outcome, "review_unavailable")
         self.assertIn("codex", e.exception.detail)
         self.assertFalse(pr.goldfish_path(self.packet).exists(), "a run that did not answer appends nothing")
+
+    def test_a_tool_that_starts_and_fails_appends_nothing(self):
+        os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "echo partial; exit 3"
+        try:
+            with self.assertRaises(pr.ReviewError) as e:
+                pr.cmd_goldfish(argparse.Namespace(packet=str(self.pfile), builder="claude", timeout=30))
+        finally:
+            os.environ.pop("GSTACK_PEER_REVIEW_FAKE_CMD", None)
+        self.assertEqual(e.exception.outcome, "review_unavailable")
+        self.assertFalse(pr.goldfish_path(self.packet).exists())
 
     def test_an_unknown_builder_exits_non_zero(self):
         r = subprocess.run([sys.executable, os.path.join(HERE, "peer_review.py"), "goldfish", str(self.pfile),

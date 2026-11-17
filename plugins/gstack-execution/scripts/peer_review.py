@@ -2960,22 +2960,33 @@ def _goldfish_heads(packet):
     return {r["path"]: r["head"] for r in _sent_repos(packet["repos"])}
 
 
-def goldfish_status(packet):
-    """XE-045.4: what `open` records. Among entries whose criteria hash matches, the FIRST decides, so a
-    later re-run at the opened head can't hide a change made after the first pre-pass.
-    ponytail: a first entry naming a different set of repositories is a different change, so `absent`."""
+def goldfish_open(packet, review_id):
+    """XE-045.4: what `open` records, then `open`'s own marker. Only pre-passes after the record's last
+    `opened` marker count, so each checkpoint is judged by its own. Among those whose criteria hash matches,
+    the FIRST decides, so a later re-run at the opened head can't hide a change made after the first.
+    Never raises: the field is recorded, never a refusal."""
+    p = goldfish_path(packet)
     try:
-        entries = json.loads(goldfish_path(packet).read_text()).get("entries") or []
-    except (OSError, ValueError, AttributeError):
+        rec = json.loads(p.read_text())
+        entries = rec["entries"]
+        assert isinstance(entries, list)
+    except (OSError, ValueError, KeyError, TypeError, AssertionError):
         return "absent"
+    marks = [i for i, e in enumerate(entries) if isinstance(e, dict) and "opened" in e]
+    since = entries[marks[-1] + 1:] if marks else entries
     h = _criteria_sha256(packet["acceptance_criteria"])
-    matching = [e for e in entries if isinstance(e, dict) and e.get("criteria_sha256") == h]
-    if not matching:
-        return "absent"
-    first, now = matching[0].get("heads") or {}, _goldfish_heads(packet)
-    if set(first) != set(now):
-        return "absent"
-    return "ran_at_head" if first == now else "ran_earlier"
+    matching = [e for e in since if isinstance(e, dict) and "questions" in e and e.get("criteria_sha256") == h]
+    status = "absent"
+    if matching:
+        first, now = matching[0].get("heads") or {}, _goldfish_heads(packet)
+        # ponytail: a first entry naming a different set of repositories is a different change, so `absent`
+        status = "absent" if set(first) != set(now) else ("ran_at_head" if first == now else "ran_earlier")
+    entries.append({"opened": review_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    try:
+        tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(rec, indent=2)); tmp.replace(p)
+    except OSError:
+        pass   # a marker that can't be written leaves the next checkpoint reading this one's pre-passes; open goes on
+    return status
 
 
 def cmd_goldfish(a):
@@ -3133,7 +3144,7 @@ def cmd_open(a):
              "model_selection": model_selection,                      # MR-001.3
              "release_lane": lane,                                    # GA-010.2
              "heads": [[r["head"] for r in packet["repos"]]],
-             "goldfish": goldfish_status(packet)}                     # XE-045.4: recorded, never a refusal
+             "goldfish": goldfish_open(packet, review_id)}                     # XE-045.4: recorded, never a refusal
     packet["vocabulary_version"] = VOCAB_VERSION   # XE-011: the version this review was written against
     for r in packet["repos"]:
         r["review_base"] = r["base"]                # XE-029.1: fix rounds still see the whole change
