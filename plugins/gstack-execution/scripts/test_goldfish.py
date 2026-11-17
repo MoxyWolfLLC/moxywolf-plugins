@@ -230,6 +230,20 @@ class GoldfishTests(unittest.TestCase):
         self.assertEqual((len(got["counted"]), got["ran_earlier"]), (10, 1),
                          "a removed checkout neither hides a ran_earlier nor drops a ran_at_head")
 
+    def test_a_fork_sharing_the_record_is_counted_under_its_own_repository(self):
+        self.sh("remote", "add", "origin", "https://example.invalid/acme/repo.git")
+        fork = self.tmp / "fork"
+        subprocess.run(["git", "clone", "-q", str(self.repo), str(fork)], check=True)
+        subprocess.run(["git", "-C", str(fork), "remote", "set-url", "origin", "https://example.invalid/forker/repo.git"], check=True)
+        self.goldfish(); self.open_review()   # upstream creates the shared record
+        self.packet["repos"][0]["path"] = str(fork); self.save()
+        self.goldfish(); self.open_review()   # the fork: same item ids, same base, same record file
+        self.assertEqual(sum(1 for _ in (pr.REVIEW_DIR / "goldfish").glob("*.json")), 1, "one shared record")
+        with contextlib.redirect_stdout(io.StringIO()):
+            up = pr.cmd_goldfish_count(argparse.Namespace(repo=str(self.repo)))
+            fk = pr.cmd_goldfish_count(argparse.Namespace(repo=str(fork)))
+        self.assertEqual((len(up["counted"]), len(fk["counted"])), (1, 1))
+
     def test_the_drop_condition_counts_only_this_repository(self):
         self.goldfish(); self.open_review()
         other = self.tmp / "other"; other.mkdir()

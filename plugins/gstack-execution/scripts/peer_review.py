@@ -2997,7 +2997,11 @@ def goldfish_open(packet, review_id):
         first, now = matching[0].get("heads") or {}, _goldfish_heads(packet)
         # ponytail: a first entry naming a different set of repositories is a different change, so `absent`
         status = "absent" if set(first) != set(now) else ("ran_at_head" if first == now else "ran_earlier")
-    entries.append({"opened": review_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    import check_ledger
+    # F13: the marker names the repository this review was opened for; a record can be shared by an
+    # upstream and a fork with the same item ids and base, so the record's own `repo` can't attribute it
+    entries.append({"opened": review_id, "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "repo": check_ledger.repo_id(packet["repos"][0]["path"])})
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps(rec, indent=2)); tmp.replace(p)
@@ -3061,9 +3065,9 @@ def cmd_goldfish(a):
 
 
 def cmd_goldfish_count(a):
-    """XE-045.7: quote the `goldfish` field of every review opened against a record that names --repo as its
-    first repository. It reads the record's `opened` markers and each review's own state.json, so a review
-    counts after its checkout is gone (F10). Read-only; nothing in review or release calls it. It counts the
+    """XE-045.7: quote the `goldfish` field of every review whose `opened` marker names --repo as its first
+    repository (F13). It reads the markers and each review's own state.json, so a review counts after its
+    checkout is gone (F10). Read-only; nothing in review or release calls it. It counts the
     lines it prints, never by adding up anything else (XE-029)."""
     import check_ledger
     want = check_ledger.repo_id(a.repo)
@@ -3073,15 +3077,17 @@ def cmd_goldfish_count(a):
             rec = json.loads(rp.read_text())
         except (OSError, ValueError):
             continue
-        if "repo" not in rec:
-            unnamed += 1   # written before records named their repository
-            continue
-        if rec["repo"] != want:
-            continue
         for e in rec.get("entries") or ():
             rid = e.get("opened") if isinstance(e, dict) else None
+            if not rid:
+                continue
+            if "repo" not in e:
+                unnamed += 1   # a marker written before markers named their repository
+                continue
+            if e["repo"] != want:
+                continue
             try:
-                value = json.loads((review_root() / str(rid) / "state.json").read_text()).get("goldfish") if rid else None
+                value = json.loads((review_root() / str(rid) / "state.json").read_text()).get("goldfish")
             except (OSError, ValueError):
                 value = None
             if value in ("ran_at_head", "ran_earlier"):
@@ -3090,7 +3096,7 @@ def cmd_goldfish_count(a):
         print(f"{rid} goldfish={value}")
     earlier = sum(v == "ran_earlier" for _, v in counted)
     print(f"counted {len(counted)}, ran_earlier {earlier}"
-          + (f", records naming no repository {unnamed}" if unnamed else ""))
+          + (f", markers naming no repository {unnamed}" if unnamed else ""))
     if len(counted) >= 10 and not earlier:
         print("XE-045.7: ten counted reviews and none reads ran_earlier; bring XE-045 back to Dorian to be dropped")
     return {"counted": counted, "ran_earlier": earlier, "unnamed": unnamed}
