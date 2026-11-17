@@ -175,6 +175,7 @@ Optional versioned context now complements the existing executable workflows. No
 
 ## Version history
 
+- **0.104.1**: ST-003. `/gstack-design-doc` and `/gstack-goal-new` end their report with one `asd-ste100: <n> rewritten, <m> kept as-is` line (or `not installed`), so a reader can tell the pass ran.
 - **0.104.0**: ST-002. `/gstack-design-doc` runs the `asd-ste100` skill over each new or changed item before the two-reviewer step (criteria in Strict mode, other text STE-flavored), and `/gstack-goal-new` runs it over `PLAN.md`'s criteria. Text that quotes Dorian, and a goal's outcome and never-do's, are never rewritten. Advice only: nothing gates on it, and a missing skill is reported, not fatal.
 - **0.103.0**: XE-045. `peer_review.py goldfish <packet> --builder claude|codex` runs one fresh process of the builder's own tool over the review surface before `open` and records, per criterion, whether the surface alone shows it is met. It only advises: `open` records `goldfish: ran_at_head | ran_earlier | absent` from the pre-passes since the previous `open`, appends its own marker, and never refuses on it, and nothing in `round`, `collect`, `release` or `record-release` reads it. `peer_review.py goldfish-count --repo <path>` quotes the field for one repository's reviews and names the drop condition when it holds. Idea from google/elephant-goldfish-model (Apache-2.0), no code copied.
 - **0.102.1**: XE-044. The coverage scorer reads four-letter item ids (`PIPE-002`), amending XE-037.2; five letters stay outside the grammar.

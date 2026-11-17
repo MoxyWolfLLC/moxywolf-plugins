@@ -2066,7 +2066,7 @@ M-053 repeated M-012. SM-008 criterion 8 required the Project mirror to use "the
 
 ### ST-001 — Vendor asd-ste100 for text an agent reads, never for Dorian's published prose
 
-**Status:** building.
+**Status:** done. Merged to `main` in `c70729f` (PR #346, head `cd6679d`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-132735-cd6679d-kqk7t9_f` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44178845739).
 
 **Links introduced:** `NOTICE` names the upstream as `danyuchn/asd-ste100-skill` at commit `707362731928d0d92526c066df15dbbe6a378c07` (MIT, read 2026-11-17), which re-resolves by cloning that commit. Each vendored file's git blob hash is compared with its upstream blob at that commit by criterion 2's ledger run.
 
@@ -2084,7 +2084,7 @@ Not taken in this item: wiring the skill into `/gstack-design-doc` and `/gstack-
 
 ### ST-002 — `/gstack-design-doc` and `/gstack-goal-new` run asd-ste100 over the text an agent will build from
 
-**Status:** building. Needs ST-001.
+**Status:** done. Merged to `main` in `c70729f` (PR #346, head `cd6679d`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-132735-cd6679d-kqk7t9_f` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44178845739).
 
 **Links introduced:** none. Both commands name the skill by its plugin name, `asd-ste100`, which the marketplace entry from ST-001 resolves.
 
@@ -2096,6 +2096,27 @@ Dorian asked for it on 2026-11-17 ("wire it up"). An acceptance criterion is the
 4. No script, hook, workflow or `CODEOWNERS` path changes.
 5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).
 6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.
+
+### ST-003 — Six more commands and skills run asd-ste100 over text an agent acts on, and each run reports what it did
+
+**Status:** building. Needs ST-001 and ST-002.
+
+**Links introduced:** none. Each command names the skill by its plugin name, `asd-ste100`, which ST-001's marketplace entry resolves. The report line in criterion 7 is printed in the run's report, and is stored only where that report already is (for the Chief of Staff, its existing run log); nothing reads it back.
+
+Dorian asked for it on 2026-11-17 ("Wouldn't it work in other plug-in commands?", then "Yes"). The test for a place is ST-001's scope: an agent reads the text and acts on it with no one to ask. ST-002's spec review left open what shows the pass ran (its A2 and A3), so this item adds one report line and applies it to ST-002's two commands as well.
+
+1. The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.
+2. `plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> → A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.
+3. `plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's "Open work" and "Procedural reminders" sections are rewritten in STE-flavored mode; "What landed", "Mistakes" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.
+4. `plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.
+5. `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.
+6. Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.
+7. Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.
+8. No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.
+9. Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).
+10. Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined.
+
+Not taken: `mcp-builder` and `skill-creator`, where tool descriptions and SKILL.md descriptions are upstream's headline use, are vendored byte for byte in `skill-bundles/moxywolf-skills` (CI-004), so they aren't edited; a pointer there waits for CI-003. Never in scope, per ST-001: 4d-blog-engine, academic-pipeline, editorial-forge, research-pipeline's `/write-article`, linkedin-gtm, synergy-engine, email-lifecycle, and sales or marketing drafts.
 
 ## Eleventh objective: goal mode
 
@@ -2917,3 +2938,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-17: ST-001.3 amended on Dorian's approval ("Drop the block") after CI-001's packaging check rejected upstream's nested `metadata:` frontmatter: a fourth change removes that block, and `NOTICE` records the upstream skill version it held.
 
 - 2026-11-17: ST-001.3 says "four changes" rather than "four hunks": the description sentence and the removed `metadata:` block are adjacent lines, so a diff prints them as one hunk. How the criterion is met, not what it requires; no change added or removed.
+
+- 2026-11-17: ST-003 added on Dorian's ask ("Wouldn't it work in other plug-in commands?", then "Yes") and approval ("Approve"): six more commands and skills run asd-ste100 over text an agent acts on, and every run prints one summary line, applied to ST-002's two commands too. Spec review: no open contradictions after two wording passes.
+
+- 2026-11-17: ST-003.2 names "the project's charter file" instead of the path `CHARTER.md`, which lives in each product's own repository, not this one, so a review surface can't carry it. Wording only; no criterion added or removed.

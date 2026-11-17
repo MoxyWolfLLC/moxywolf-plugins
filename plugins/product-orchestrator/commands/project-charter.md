@@ -16,13 +16,13 @@ A charter is the project's **constitution**: the small set of durable principles
 
 2. **Interview only for what's missing.** Using the `charter-template.md` protocol, gather: the project's mission in one line, 3–7 durable principles, hard technical constraints, explicit architectural boundaries (what owns what / what must never happen), and any non-negotiables (compliance, security, data-egress rules). Ask only what isn't already evident from $ARGUMENTS, the repo, prior conversation, or an existing charter. Use AskUserQuestion for structured choices. Pull candidate principles from existing decision records (`DR-*.md` / `PD-*.md`) when available and ask the user to confirm them.
 
-3. **Keep it short and durable.** A charter is invariants, not a spec. If a line would change feature-to-feature, it belongs in a PRD, not the charter. Aim for one screen. Every principle should be falsifiable enough that the Council can check a decision against it.
+3. **Keep it short and durable.** A charter is invariants, not a spec. If a line would change feature-to-feature, it belongs in a PRD, not the charter. Aim for one screen. Every principle should be falsifiable enough that the Council can check a decision against it. Before writing, load the `asd-ste100` skill (ST-003) and rewrite the principles, technical constraints, architectural boundaries and non-negotiables in its Strict mode. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.
 
 4. **Write `CHARTER.md` to the project root** in the format from `charter-template.md`. On an update, preserve the version-history block and append a dated entry describing what changed.
 
 5. **Confirm the wiring.** Remind the user that once `CHARTER.md` exists at the project root, `/product-scope` and `/product-prd` automatically load it as Council context — it informs deliberation but never blocks it (progressive opt-in rigor: tiny changes ignore it, large changes lean on it). See DR-004.
 
-6. **Present a summary** of the charter's principles and boundaries, and suggest the next step (`/product-scope` or `/product-prd`) now that the governing context exists.
+6. **Present a summary** of the charter's principles and boundaries, and suggest the next step (`/product-scope` or `/product-prd`) now that the governing context exists. End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass.
 
 ## Notes
 

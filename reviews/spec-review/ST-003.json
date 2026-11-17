@@ -1,0 +1,97 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "ST-003",
+  "scope_sha256": "2b29bfb53edcc17f329a9aa4c9acfc87a3353055237f85ce0521c35ff242720a",
+  "reviewed_at": "2026-11-17T23:18:01+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3512,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7451,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7451,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7451,
+      "cache_creation_input_tokens": 3552,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3552,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12643,
+      "output_tokens": 2442,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1781,
+      "cache_read_input_tokens": 11003,
+      "cache_creation_input_tokens": 755,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 755,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 18454,
+    "write": 11758
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "ST-003 criterion 7",
+        "ST-003 criterion 5"
+      ],
+      "question": "For the Chief of Staff, does the run-log line satisfy criterion 7's 'ends its report to the person who ran it', given the line must never appear in a result or memo to Dorian? Where does the line go for session-end and team-kanban if they have no report?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "ST-003 criterion 7",
+        "ST-003 criterion 6",
+        "ST-003 criterion 2"
+      ],
+      "question": "Do text quoted verbatim from Dorian or a user's answer (exempt under criterion 6) count in the '<m> kept as-is' tally and the 'Kept as-is:' lines, or are they excluded from the counts?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "ST-003 criterion 7"
+      ],
+      "question": "When a run never reaches a pass (team-kanban outside Mode 1, product-clarify with no encoded answer, Chief of Staff with no dispatch), must it print a zero-count line, print nothing, or is it excluded? 'No line means the pass didn't run' cannot then be told apart from a legitimate no-op."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "ST-003 criterion 5",
+        "ST-003 criterion 3",
+        "ST-003 criterion 6"
+      ],
+      "question": "When the success criteria (criterion 5) or a feedback rule (criterion 3, Step 6) are Dorian's own words, are they rewritten in Strict mode or kept verbatim under criterion 6?"
+    }
+  ]
+}

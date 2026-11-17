@@ -191,6 +191,8 @@ Run the session review exactly as `commands/session-review.md` steps 1 to 4 desc
 
 Use this exact structure. The frontmatter format is fixed so `/session-start` can parse it.
 
+Once the handoff is drafted, load the `asd-ste100` skill (ST-003) and rewrite its "Open work" and "Procedural reminders" sections in the skill's STE-flavored mode. Leave "What landed", "Mistakes" and the suggested opening line as written. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.
+
 ```markdown
 ---
 title: "Session Handoff — [Project Name]"
@@ -384,6 +386,8 @@ If the session produced significant new context that future Claude sessions shou
 
 - A rule the whole team should follow goes in `GitHub/Projects/_shared-memory/` with `scope: team-shared` and a one-line entry in its `INDEX.md`. Then, on the user's computer: commit only `_shared-memory/` in `GitHub/Projects`, push as the `moxywolf-agent` app (`agent_token.py exec -- git push`), check that `git ls-remote origin refs/heads/main` equals `git rev-parse HEAD`, and pull back. Teammates see a rule only once it is on the remote (SM-007). If the push doesn't land, say so in the handoff and the Step 8 report: the rule is local only, not shared.
 
+Before writing a new or edited `feedback_*.md` or shared-memory rule file, rewrite its rule text with the `asd-ste100` skill's Strict mode (ST-003). Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.
+
 This step is optional — only do it if the handoff alone won't carry the weight. Most session-end runs don't need a memory update.
 
 ### Step 7: Run `/obsidian-update` to persist cross-project knowledge to the vault
@@ -443,7 +447,7 @@ Run this after the Project mirror; it changes no mirrored file. Count before cha
 
 ### Step 8: Report what was written
 
-Output a short summary in chat:
+Output a short summary in chat. Its last line is `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on. Leave the line out when the run never reached the pass (ST-003), counting Steps 4 and 6 together.
 
 ```
 ## Session handoff saved
