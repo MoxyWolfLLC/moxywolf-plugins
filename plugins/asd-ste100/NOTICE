@@ -1,0 +1,28 @@
+asd-ste100
+==========
+
+This plugin redistributes material from:
+
+  asd-ste100-skill - https://github.com/danyuchn/asd-ste100-skill
+  Commit 707362731928d0d92526c066df15dbbe6a378c07, read 2026-11-17
+  Licensed under the MIT License. The full text is in LICENSE.
+
+What was taken, byte for byte unless marked:
+
+  skills/asd-ste100/SKILL.md                      MODIFIED (see below)
+  skills/asd-ste100/references/writing-rules.md   verbatim
+  skills/asd-ste100/examples/before-after.md      verbatim
+  skills/asd-ste100/examples/linter-edge-cases.md verbatim
+  skills/asd-ste100/scripts/ste-lint.py           verbatim
+  LICENSE                                         verbatim
+
+SKILL.md was modified by MoxyWolf LLC in three places: a comment under the
+frontmatter saying so, one sentence added to the description, and a
+"MoxyWolf scope" section under the title. Everything else is upstream's.
+
+What was NOT taken: upstream's .claude-plugin/ manifests (marketplace.json
+and plugin.json) and its README.md. This plugin's manifest and README are
+MoxyWolf's own.
+
+ASD-STE100 itself is a standard of ASD. Neither upstream nor this plugin
+reproduces its approved-word dictionary.

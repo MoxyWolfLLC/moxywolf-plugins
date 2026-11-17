@@ -2066,7 +2066,7 @@ M-053 repeated M-012. SM-008 criterion 8 required the Project mirror to use "the
 
 ### ST-001 — Vendor asd-ste100 for text an agent reads, never for Dorian's published prose
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** `NOTICE` names the upstream as `danyuchn/asd-ste100-skill` at commit `707362731928d0d92526c066df15dbbe6a378c07` (MIT, read 2026-11-17), which re-resolves by cloning that commit. Each vendored file's git blob hash is compared with its upstream blob at that commit by criterion 2's ledger run.
 
@@ -2084,7 +2084,7 @@ Not taken in this item: wiring the skill into `/gstack-design-doc` and `/gstack-
 
 ### ST-002 — `/gstack-design-doc` and `/gstack-goal-new` run asd-ste100 over the text an agent will build from
 
-**Status:** planned. Needs ST-001.
+**Status:** building. Needs ST-001.
 
 **Links introduced:** none. Both commands name the skill by its plugin name, `asd-ste100`, which the marketplace entry from ST-001 resolves.
 

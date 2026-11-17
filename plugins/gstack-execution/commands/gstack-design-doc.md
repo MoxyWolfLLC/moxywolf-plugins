@@ -30,6 +30,7 @@ Write the document to the template. Rules that make it usable by `/gstack-build`
 - Every item has numbered acceptance criteria that are checkable statements (a command and its expected result, a URL and what renders, a value and its expected value), not intentions. Items already in flight or done carry their status and review ID.
 - The Amendments log gets a first line: created, by whom, pending approval.
 - Refreshing an existing doc: keep every existing line unless the repo contradicts it; put what changed in the Amendments log.
+- Before Step 3b, load the `asd-ste100` skill (ST-002). Rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text that quotes Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release. If the skill isn't installed, say so in the Step 6 report and go on.
 
 ## Step 3b: Two reviewers argue the draft (XE-031)
 

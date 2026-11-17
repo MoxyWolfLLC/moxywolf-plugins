@@ -1,0 +1,10 @@
+{
+  "name": "asd-ste100",
+  "version": "0.1.0",
+  "description": "Rewrite text an agent will build or act from (DESIGN.md items, goal briefs, review contracts, SKILL.md files, tool descriptions) into ASD-STE100 Simplified Technical English, so a reader with no one to ask can't misparse it. Never for MoxyWolf published prose or anything in Dorian's voice, drafts included. Its linter is advice, never a gate. Vendored from danyuchn/asd-ste100-skill (MIT) at 7073627.",
+  "author": {
+    "name": "MoxyWolf LLC"
+  },
+  "license": "MIT",
+  "keywords": ["ste100", "simplified-technical-english", "controlled-language", "agent-instructions", "clarity", "moxywolf"]
+}
