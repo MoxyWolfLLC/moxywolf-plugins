@@ -90,6 +90,8 @@ process of your own tool reads the same surface the reviewer will get, with none
 and says per criterion whether the surface alone shows it is met and what the change assumes that it
 doesn't show. Act on its questions or leave them; skipping it is allowed. It is not a review, nothing
 in the release reads it, and `open` only records whether it ran (`ran_at_head`, `ran_earlier`, `absent`).
+After each `open`, `peer_review.py goldfish-count --repo <path>` quotes that field for this repository's
+reviews and says when ten counted reviews hold no `ran_earlier`; then XE-045 goes back to Dorian to be dropped.
 
 **Dispatch the review; do not sit on it.** `dispatch` starts the reviewer detached and returns at
 once; `collect` answers once, with `pending`, `complete`, or `failed`:

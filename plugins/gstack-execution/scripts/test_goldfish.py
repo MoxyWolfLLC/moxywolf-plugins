@@ -101,14 +101,26 @@ class GoldfishTests(unittest.TestCase):
         self.assertEqual(len(self.entries()), 2, "a re-run appends; it never rewrites the first entry")
         self.assertEqual(self.open_review()["goldfish"], "ran_earlier")
 
-    def test_a_changed_criteria_hash_reads_absent_even_when_the_head_also_moved(self):
-        self.goldfish()
-        self.packet["acceptance_criteria"] = ["f(1) == 2 and f(2) == 3"]
-        self.packet["coverage"]["criteria"][0]["declared"] = "fixture 2"
+    def change_criteria(self, text):
+        self.packet["acceptance_criteria"] = [text]
+        self.packet["coverage"]["criteria"][0]["declared"] = text
         self.save()
+
+    def test_a_changed_criteria_hash_reads_absent_at_the_same_head(self):
+        self.goldfish()
+        self.change_criteria("f(1) == 2 and f(2) == 3")
         self.assertEqual(self.open_review()["goldfish"], "absent")
+
+    def test_a_changed_criteria_hash_reads_absent_when_the_head_also_moved(self):
+        self.goldfish()   # unconsumed: no open has run in this fixture
+        self.change_criteria("f(1) == 2 and f(2) == 3")
         self.at(self.commit("def f(x):\n    return 1 + x\n"))
+        self.assertEqual(self.open_review()["goldfish"], "absent",
+                         "without the hash check this would read ran_earlier")
+
+    def test_an_open_with_no_pre_pass_still_appends_its_marker(self):
         self.assertEqual(self.open_review()["goldfish"], "absent")
+        self.assertEqual([e.get("opened") is not None for e in self.entries()], [True])
 
     def test_each_checkpoint_is_judged_by_its_own_pre_passes(self):
         self.goldfish()
@@ -161,14 +173,66 @@ class GoldfishTests(unittest.TestCase):
         self.assertIn("reviewer session", str(e.exception.code))
         self.assertFalse(pr.goldfish_path(self.packet).exists())
 
+    def test_the_prompt_carries_the_surface_trust_lines_round_carries(self):
+        seen = {}
+        real = pr.run_reviewer
+        def capture(tool, prompt, root, timeout, schema=None, named=()):
+            seen["prompt"] = prompt
+            return json.dumps(ANSWER), "fake"
+        pr.run_reviewer = capture
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                pr.cmd_goldfish(argparse.Namespace(packet=str(self.pfile), builder="claude", timeout=30))
+        finally:
+            pr.run_reviewer = real
+        from enclosure import RULE
+        for line in (pr.TRUST_FILES, pr.TRUST_PROVENANCE, RULE):
+            self.assertIn(line, seen["prompt"])
+        round_prompt = pr.build_prompt(self.packet, 1, None, None)
+        self.assertIn(pr.TRUST_FILES, round_prompt)
+        self.assertIn(pr.TRUST_PROVENANCE, round_prompt)
+
+    def count(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            got = pr.cmd_goldfish_count(argparse.Namespace(repo=str(self.repo)))
+        return got, out.getvalue()
+
+    def test_the_drop_condition_quotes_counted_reviews_and_refers_after_ten(self):
+        self.open_review()   # absent: not counted
+        for i in range(10):
+            self.goldfish()
+            self.open_review()
+        got, text = self.count()
+        self.assertEqual((len(got["counted"]), got["ran_earlier"]), (10, 0))
+        self.assertEqual(text.count("goldfish=ran_at_head"), 10)
+        self.assertIn("bring XE-045 back to Dorian", text)
+        self.goldfish()
+        self.at(self.commit("def f(x):\n    return x + 1  # after the pre-pass\n"))
+        self.open_review()
+        got, text = self.count()
+        self.assertEqual((len(got["counted"]), got["ran_earlier"]), (11, 1))
+        self.assertNotIn("bring XE-045 back", text)
+
+    def test_the_drop_condition_counts_only_this_repository(self):
+        self.goldfish(); self.open_review()
+        other = self.tmp / "other"; other.mkdir()
+        subprocess.run(["git", "-C", str(other), "init", "-q"], check=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            got = pr.cmd_goldfish_count(argparse.Namespace(repo=str(other)))
+        self.assertEqual(got["counted"], [])
+        self.assertEqual(len(self.count()[0]["counted"]), 1)
+
     # ---- the review never reads it ----
 
     def test_a_review_comes_out_the_same_with_or_without_a_pre_pass(self):
         without, out_a = self.review()
         reviews_before = sorted(p.name for p in pr.REVIEW_DIR.iterdir())
+        states_before = sorted(pr.REVIEW_DIR.glob("*/state.json"))
         self.goldfish()
-        self.assertEqual(sorted(p.name for p in pr.REVIEW_DIR.iterdir()), reviews_before + ["goldfish"],
-                         "the pre-pass opens no review and writes no state.json")
+        self.assertEqual(sorted(p.name for p in pr.REVIEW_DIR.iterdir()), reviews_before,
+                         "the pre-pass opens no review")
+        self.assertEqual(sorted(pr.REVIEW_DIR.glob("*/state.json")), states_before, "and writes no state.json")
         with_, out_b = self.review()
         self.assertEqual(out_a, out_b)
         for k in ("outcome", "coverage_status", "coverage_checked", "release_lane", "reviewer", "rounds_used"):
