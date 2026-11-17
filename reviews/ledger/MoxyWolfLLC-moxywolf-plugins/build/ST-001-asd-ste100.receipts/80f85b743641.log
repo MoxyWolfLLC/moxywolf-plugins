@@ -1,0 +1,8 @@
+usage: skill_packaging.py [-h] [--root ROOT] [--json]
+
+CI-001: every SKILL.md in this repository is one a loader can read.
+
+options:
+  -h, --help   show this help message and exit
+  --root ROOT
+  --json
