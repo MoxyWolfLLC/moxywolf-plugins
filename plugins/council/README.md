@@ -48,7 +48,7 @@ prints the source label and path the loader resolved.
 | `/deliberate <question>` | Run a multi-model deliberation (always uses full council) |
 | `/council-config` | View or modify model lineup, router mode, and settings |
 | `/council-stats` | View performance metrics, routing accuracy, and deliberation history |
-| `/council-optimize` | Run the autoresearch loop to self-improve deliberation prompts |
+| `/council-optimize` | Disabled by DR-140 until the case store (CC-002) and a new optimizer exist |
 | `/decide <question>` | Ask the decider council one typed question (predicate, `--choices`, or `--levels`) and see each voice, the majority and the ledger receipt |
 
 ### /deliberate Options
@@ -85,14 +85,9 @@ prints the source label and path the loader resolved.
 /council-config templates                         # List available deliberation templates
 ```
 
-### /council-optimize Options
+### /council-optimize
 
-```
-/council-optimize                                 # Run with defaults ($2.00 budget)
-/council-optimize --budget 5.00                   # Larger optimization budget
-/council-optimize --dry-run                       # Preview plan without running
-/council-optimize --variable analyst_role          # Target a specific prompt variable
-```
+Disabled by DR-140. Every run, with any flag, prints the reason and stops.
 
 ## Skills
 
@@ -134,7 +129,7 @@ The output is JSON: `id` and `ledger` (the receipt), `voices` (model, status, la
 
 **Templates:** Pre-built context wrappers for common scenarios — code review, architecture decisions, writing critique, research synthesis, compliance checks, and business strategy. Each template frames the question and suggests optimal flags.
 
-**Self-Improvement:** After 3+ rated deliberations, `/council-optimize` runs an autoresearch loop that systematically tests prompt modifications against your real usage data and keeps only changes that improve deliberation quality.
+**Self-Improvement:** disabled by DR-140. The legacy `/council-optimize` loop worked from rating fields alone, which aren't replayable cases. A new optimizer will use the CC-002 case store.
 
 ## Cost
 
@@ -177,6 +172,8 @@ Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or
 - **Phase 6** ✅ (current): Vault integration — reads organizational context before deliberation, writes decision records to Obsidian vault, syncs model performance and routing intelligence to vault for cross-session learning
 
 ## Version History
+
+- **0.13.1**: CC-001. `/council-optimize` is disabled by DR-140: it stops before any step with every flag, including `--dry-run`, and prints why. `/council-stats optimization` shows `optimizer: disabled (DR-140)`. The legacy loop's references carry a disabled line. It stays off until the case store (CC-002) and a new optimizer item exist.
 
 - **0.13.0**: ME-004. `openrouter_dispatch.py` sends top-level `cache_control` on `anthropic/` jobs (a job's `"cache": false` opts out) and records `cache: {read, write}` from OpenRouter's `usage.prompt_tokens_details` in each result and in `_summary.json`, `null` with a reason when the fields are absent, plus `cache.requested`, so a job that never asked for caching is reported as caching not requested and not as a miss. Kept to measure whether caching pays on one-shot council calls; whether to turn it off is Dorian's call. Test: `scripts/test_openrouter_dispatch.py`.
 

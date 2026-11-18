@@ -2649,7 +2649,7 @@ Opened 2026-11-17 by Dorian C, under DR-140 (accepted 2026-11-17, `MoxyWolf Vaul
 
 ### CC-001 — The legacy `/council-optimize` refuses every run
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the refusal names DR-140 by its vault path. Nothing is stored.
 
