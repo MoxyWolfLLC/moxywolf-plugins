@@ -1,0 +1,145 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "CC-002",
+  "scope_sha256": "ae360b060b1c672382d1dffd4cc0812a5e0ab60d0b7b07fa46677548440fc8ce",
+  "reviewed_at": "2026-11-18T04:29:38+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 9617,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 10401,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 10401,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 21611,
+      "output_tokens": 2638,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2935,
+      "cache_read_input_tokens": 10401,
+      "cache_creation_input_tokens": 10374,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 10374,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 10401,
+    "write": 20775
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "CC-002.4",
+        "CC-002.7"
+      ],
+      "question": "What values may `confirm --retention <class>` take? CC-002.7 requires every manifest to state the retention rule, 'not a role or a date'. Must <class> be the rule text, and may it never name a role such as proposal or held-out?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "CC-002.7"
+      ],
+      "question": "'No ledger line ever holds a role without its matching date' conflicts with held-out having 'no deletion date until it's retired'. Is a null date a matching date for an active held-out line?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "CC-002.10",
+        "CC-002.8"
+      ],
+      "question": "`status` exits 0 when ready and 3 when not, and it runs `verify` first. `verify` exits non-zero on a Drive conflict copy. What does `status` exit with then, and does it print readiness at all?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "CC-002.10",
+        "CC-002.5",
+        "CC-002.8"
+      ],
+      "question": "A case is eligible when 'published' and in an active state. Between `publish` and `apply` it has a folder and a pending `add` but no ledger state or role. Is it eligible, ineligible, or counted only after `apply`?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "CC-002.10",
+        "CC-002.5"
+      ],
+      "question": "Which counts feed the quarter rule: the 'active held-out' count against a total of 'eligible' proposal and held-out cases? How are several `add` requests in one `apply` counted, and are earlier ones in the batch included?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "CC-002.7",
+        "CC-002.10"
+      ],
+      "question": "May `retire` act on a proposal case? If so, does its date change from publication plus 12 months to retirement plus 12 months, and does a retired case keep a role?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "CC-002.4",
+        "CC-002.7"
+      ],
+      "question": "When is the manifest final? `publish` records the publication time in it, after `confirm` and the second gitleaks pass, yet the manifest is called 'write-once'. Which manifest content does the second pass cover, and when is the hash in the `add` request taken?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "CC-002.4"
+      ],
+      "question": "`--by` must be the person who ran the deliberation, but the constraint says 'the owner confirms'. Can a deliberator other than Dorian confirm? Can a cloud-session deliberator, who has no owner-only staging device, confirm?"
+    },
+    {
+      "id": "A9",
+      "requirements": [
+        "CC-002.4",
+        "CC-002.2"
+      ],
+      "question": "The source-identity refusal covers excluded, retired and deleted entries, but not an active or pending one. Is a re-redacted restage of an already-active deliberation, with a new case id, refused or allowed to double-count?"
+    },
+    {
+      "id": "A10",
+      "requirements": [
+        "CC-002.12"
+      ],
+      "question": "Does satisfying 'run_all_tests.py names test_council_cases.py' require editing `run_all_tests.py`, which is a CODEOWNERS path needing Dorian's approving review? Or does the runner discover the test automatically?"
+    },
+    {
+      "id": "A11",
+      "requirements": [
+        "CC-002.10"
+      ],
+      "question": "Is the `status` readiness report a 'new measurement report or score' barred until the three boundary tests have run, or an exempt field and command within the item's own record?"
+    },
+    {
+      "id": "A12",
+      "requirements": [
+        "CC-002.4"
+      ],
+      "question": "Does the manifest gitleaks pass inside `publish` satisfy 'gitleaks, run separately', or must it be a separate `scan` receipt?"
+    }
+  ]
+}

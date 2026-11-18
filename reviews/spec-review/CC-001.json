@@ -1,0 +1,78 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "CC-001",
+  "scope_sha256": "ea6dc8497c2d76176b2e0f8d88469626181e5b17b598f98f334290c767ba1496",
+  "reviewed_at": "2026-11-18T04:32:48+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2574,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6254,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6254,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6254,
+      "cache_creation_input_tokens": 2614,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2614,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10508,
+      "output_tokens": 1309,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 453,
+      "cache_read_input_tokens": 8868,
+      "cache_creation_input_tokens": 134,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 134,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 15122,
+    "write": 9002
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "CC-001.1"
+      ],
+      "question": "What is DR-140's exact vault path that the refusal message must print? The plan never states it, so a test can't check the message text."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "CC-001.4"
+      ],
+      "question": "CI-002 isn't defined in this plan. What rule does it set for the top-level marketplace version bump (patch, minor, or other), and what is the target version?"
+    }
+  ]
+}
