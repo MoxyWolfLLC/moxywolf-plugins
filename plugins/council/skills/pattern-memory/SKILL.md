@@ -475,10 +475,14 @@ For each deliberation record where `vault_synced: false`:
 
 **Error handling:** If vault write fails, log warning but don't fail. The JSON file is authoritative; vault notes are best-effort persistence.
 
+## Replay cases and compaction (CC-002)
+
+A deliberation saved as a replay case carries `case_id` on its record. Whenever records are compacted, trimmed or rewritten, keep `case_id`: it's the case's id in the vault store (`MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/council-cases/<project>/<case-id>/`). The case itself never depends on this file. Its manifest holds its own rating and source identity, so `council_cases.py verify` and `status` never read `council-memory.json`. To check a `case_id`, run `council_cases.py lookup <case-id>`. It reads the index with any pending exclude overlaid, so a case that has gone reports `excluded` or `deleted`. Never read `index.json` directly.
+
 ## Privacy
 
 - **Query content is never stored** — only hashed fingerprints, category classifications, and keyword flags
-- The full deliberation text stays ephemeral (in the Cowork conversation, not the file)
+- The full deliberation text stays ephemeral (in the Cowork conversation, not the file), unless the person opts in to save it as a redacted replay case (CC-002), which goes to the vault store and never into this file
 - Only structural metadata needed for learning is persisted
 - Self-preference tracking uses model IDs and boolean flags only — no response content
 

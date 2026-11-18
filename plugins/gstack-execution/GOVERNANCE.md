@@ -148,3 +148,8 @@ Data-use checks precede dispatch and report export: named policy owner, classifi
 The review surface carries the same field per file in `PROVENANCE.json`, and a directive found inside untrusted content is a reported finding (`embedded_instruction`), never an instruction and never a blocker (EV-010). What a reviewer could not settle is a revisioned record in the branch's unknowns ledger, closed only by evidence of matching authority, listed in the release handoff and not refused on (EV-011). Both are from morluto/rea at `7a6defa` (MIT), ideas only.
 
 A signed observation label is not a digital signature. Human observations do not convert machine success into human approval. Release remains the named human's GitHub action under the peer-review contract.
+
+## Council replay cases (CC-002, DR-140)
+
+No deliberation content leaves a session unless its person opts in, and `council_cases.py publish` passes its gate: a gitleaks scan of the redacted case, the staging person's own confirmation on the staging device naming the approved audience word for word, a second scan of the final manifest, and a non-excluded project. The audience is recorded in the store's `store.json` only with Dorian's words. Until then nothing is published. One device, named in `store.json`, writes the ledger. Others file requests. Proposal cases expire 12 months after publication; held-out cases 12 months after retirement. `verify` detects accidental and incomplete changes and is not tamper evidence.
+

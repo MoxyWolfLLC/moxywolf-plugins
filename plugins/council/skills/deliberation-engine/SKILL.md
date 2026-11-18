@@ -375,7 +375,16 @@ After presenting results, log the deliberation outcome to persistent storage. Th
 6. Check if routing model needs rebuilding (every 10th deliberation, >= 20 total)
 7. Write the updated memory file
 
-**8c. Watch for user rating.** After presenting the deliberation result, monitor the user's next 1-2 messages for rating signals:
+**8c. Ask for a rating, then offer to save a replay case (CC-002, DR-140).** After the answer is shown, ask one AskUserQuestion: positive, negative, neutral or skip. Skip leaves `user_rating` null. Record the answer with pattern-memory Operation 3.
+
+Then ask a second AskUserQuestion, "Save this deliberation as a replay case for tuning Council?", with **no** (the default) and yes. Ask it only when `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/council_cases.py" status --project <slug>` can reach the store, the rating isn't skip, the project isn't in `store.json`'s `excluded_projects`, and `store.json` holds an approved audience. Nothing is saved on no, skip, silence or an excluded project, and no setting turns saving on by default. On yes:
+
+1. Write the deliberation (workspace, record id, full query, the context used, each model's response, the synthesis, the rating, the time, the models) to a temporary JSON file, then run `council_cases.py stage --input <file> --project <slug> --by <person> --consent yes [--name "<text>=<role>" ...]`, passing their answer as `--consent`; anything but yes stages nothing, listing each person or client name in the text. It redacts secrets, emails, phone and account numbers and the listed names, and writes owner-only staging under `~/council-case-staging/<case-id>/`.
+2. Show the person the redacted `case.md` path and the replaced names, and run `scan <case-id>` (gitleaks).
+3. Only on the person's own go-ahead, run `confirm <case-id> --by <person> --audience "<the store's audience, exactly>" --retention 12m-rule --words "<their words>"`, then `publish <case-id>`. Record the printed case id on the memory record as `case_id`.
+4. If this device is the store's writer, run `apply`; otherwise the request waits in `inbox/` for the writer.
+
+If no rating signal comes as an answer, still watch the user's next 1-2 messages for rating signals:
 
 - Positive signals: "great", "perfect", "exactly", "helpful", "thanks" (with enthusiasm), explicit approval
 - Negative signals: "wrong", "not helpful", "missed the point", "bad answer", rejection

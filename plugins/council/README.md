@@ -171,7 +171,23 @@ Customize via `/council-config set analyst meta-llama/llama-3.3-70b-instruct` or
 - **Phase 5** ✅: Autoresearch — plugin's own prompts self-improve from usage data via `/council-optimize`
 - **Phase 6** ✅ (current): Vault integration — reads organizational context before deliberation, writes decision records to Obsidian vault, syncs model performance and routing intelligence to vault for cross-session learning
 
+## Replay cases (CC-002, DR-140)
+
+A rated deliberation can be saved as a redacted replay case, only by opt-in, for a future optimizer to replay. `scripts/council_cases.py` (stdlib) does all of it:
+
+- **Publish gate.** `stage` redacts (secrets via `session_record.py`'s patterns, emails, phone and account numbers, listed names) into owner-only staging. `scan` runs gitleaks on `case.md`. `confirm` is run by the person who staged the case, on that device, with the store's audience word for word, the `12m-rule` retention and their own words. `publish` checks all of that, scans the final manifest a second time, writes an `add` request, and then copies the case into `council-cases/<project>/<case-id>/`. A missing gitleaks binary refuses; it never passes.
+- **Audience.** Until `init --audience … --approved-by … --words …` records Dorian's approval, no save question is asked and `publish` refuses with `audience not approved`. OpenControls projects (cki, living-lexicon, mwe-ner and any project whose `project-surfaces.json` names OpenControls) are excluded. Access is shared-drive membership; organizers can open even a limited-access folder.
+- **One writer.** Drive has no atomic append, so only the device named in `store.json` runs `apply`. It applies inbox requests in order, and writes the ledger and index to temp files renamed into place. Every other device only drops requests.
+- **Retention.** Proposal cases expire 12 months after publication. Held-out cases have no date until retired, then 12 months. `exclude` takes effect for readers as soon as it's requested. People delete folders; `delete-record` and `cleared` record each remaining copy. The store never deletes.
+- **Readers** go through `lookup <case-id>`, which overlays pending excludes on the index. `init` needs a readable projects root, so every OpenControls project is found, and `--backup` names each backup that must be `cleared` after a deletion. `apply` holds a lock on the writer device.
+- **verify** detects accidental and incomplete changes (hashes, the ledger chain, the writer id, Drive conflict copies). It is not tamper evidence.
+- **Readiness.** `status --project <slug>` exits 0 at 15 eligible proposal and 5 eligible held-out cases, else 3. The thresholds are an operational starting point.
+
+The store is found on the workspace or Google Drive mount, or given with `--store`. There is no Drive API writer.
+
 ## Version History
+
+- **0.14.0**: CC-002. Opt-in, redacted Council replay cases in the vault by project: `council_cases.py` with the publish gate, approved audience, single writer, retention, `verify` and readiness `status`. `/deliberate` asks for a rating and then, only when allowed, whether to save a case. `/council-stats cases` reports readiness. Test: `scripts/test_council_cases.py`.
 
 - **0.13.1**: CC-001. `/council-optimize` is disabled by DR-140: it stops before any step with every flag, including `--dry-run`, and prints why. `/council-stats optimization` shows `optimizer: disabled (DR-140)`. The legacy loop's references carry a disabled line. It stays off until the case store (CC-002) and a new optimizer item exist.
 

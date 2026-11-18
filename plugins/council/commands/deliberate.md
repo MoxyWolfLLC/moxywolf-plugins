@@ -32,4 +32,4 @@ This prints the source label and path the loader resolved (env var, `OPENROUTER_
 After the deliberation completes:
 1. Present the formatted output as specified in the deliberation-engine skill (Step 7)
 2. Log the outcome to pattern memory (Step 8) — requires Write tool for `council-memory.json`
-3. Watch for user rating in the next 1-2 messages (Step 8c)
+3. Ask for the rating, then, only when allowed, ask whether to save a replay case (Step 8c, CC-002). On this device, if it's the case store's writer, run `council_cases.py apply`

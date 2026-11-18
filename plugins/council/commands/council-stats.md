@@ -1,7 +1,7 @@
 ---
 description: View Council learning metrics and deliberation history
-allowed-tools: Read
-argument-hint: [summary | models | history | cost | optimization]
+allowed-tools: Read, Bash
+argument-hint: [summary | models | history | cost | optimization | cases]
 ---
 
 Display Council performance metrics from the persistent pattern memory file (`council-memory.json` in the workspace folder).
@@ -73,3 +73,7 @@ Show cost breakdown:
 **If `optimization`:**
 
 Print one line: `optimizer: disabled (DR-140)`. Report no optimization history, spend or budget. Any existing `optimization_log` entries are from the legacy optimizer, which DR-140 disabled; they aren't read.
+
+**If `cases`:**
+
+Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/council_cases.py" status --project <slug>` for the project's `project_id`. If this device is the store's writer, run `apply` first. Print its output as it is: the eligible proposal and held-out counts, `ready` or `not ready: <p>/15 proposal, <h>/5 held-out`, the number of requests awaiting `apply`, and the note that the thresholds are an operational starting point. Exit 4 means a Drive conflict copy stopped `verify`: say so, and print no readiness.
