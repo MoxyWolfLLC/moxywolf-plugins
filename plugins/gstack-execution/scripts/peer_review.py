@@ -3853,9 +3853,6 @@ def cmd_record_release(a):
     if agent and words:
         # GA-012.4: a merge on a coverage exception is the Release Owner's to make. An agent merge of
         # one, instructed or not, is a fact to keep and is recorded out of lane, with no authority.
-        if merger.get("login") != AGENT_LOGIN:
-            raise ReviewError("release_blocked", f"unrequested agent merge: {merger.get('login')} merged PR #{a.pr} "
-                              "on a coverage exception, which is the Release Owner's merge to make")
         decision.update({"merged_by": merger.get("login"), "outcome": "agent_merge_out_of_lane",
                          "lane": "closed", "matched": (state.get("release_lane") or {}).get("matched")})
     elif agent:

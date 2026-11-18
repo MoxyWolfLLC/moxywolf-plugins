@@ -790,12 +790,14 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual(rec["coverage"]["exception"]["words"], "Release without coverage")
 
     def test_an_agent_merge_of_an_exception_handoff_is_out_of_lane_instructed_or_not(self):
-        for comments in ([], [self.instruction_comment()]):
-            with self.subTest(instructed=bool(comments)):
+        other = {"login": "some-other-app[bot]", "type": "Bot"}   # review 20261117-164556-b59197b F1: any bot
+        for bot, comments in ((self.BOT, []), (self.BOT, [self.instruction_comment()]),
+                              (other, []), (other, [self.instruction_comment(by=other)])):
+            with self.subTest(bot=bot["login"], instructed=bool(comments)):
                 self.setUp()
                 self.commit_change("scripts/helper6.py", "x = 6\n")
                 self.exception_release()
-                self.install_github_response(merged_by=self.BOT)
+                self.install_github_response(merged_by=bot)
                 self.env["GITHUB_COMMENTS"] = json.dumps(comments)
                 r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
                 self.assertEqual(r.returncode, 0, r.stderr)
