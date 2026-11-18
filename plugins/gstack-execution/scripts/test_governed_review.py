@@ -731,6 +731,78 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual((rec["outcome"], rec["release_lane"]["lane"]), ("agent_merge_autonomous", "contained"))
 
 
+    # GA-012: a coverage exception hands the merge to the Release Owner in every lane
+    def exception_release(self, *extra):
+        del self.packet["coverage"]
+        self.open("--accept-narrow-packet"); self.response(); self.round()
+        return self.call("release", self.rid, "--coverage-exception", "Release without coverage", *extra)
+
+    def test_a_wide_lane_release_on_an_exception_writes_a_closed_handoff(self):
+        self.commit_change("scripts/helper2.py", "x = 2\n")
+        r = self.exception_release()
+        self.assertIn("awaiting_human_release", r.stdout + r.stderr)
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual((rec["release_lane"]["lane"], rec["lane_in_force"]), ("wide", "closed"))   # the lane never moves
+        self.assertEqual(rec["coverage"]["exception"]["words"], "Release without coverage")
+        self.assertIn('"Release without coverage"', rec["instruction"])
+        self.assertIn("DR-113 does not apply", rec["instruction"]); self.assertIn("does not merge", rec["instruction"])
+
+    def test_an_exception_does_not_answer_an_open_ledger_failure_in_the_wide_lane(self):
+        self.commit_change("scripts/helper3.py", "x = 3\n")
+        del self.packet["coverage"]
+        self.open("--accept-narrow-packet"); self.response(); self.round()
+        ledger = Path(__file__).with_name("check_ledger.py")
+        subprocess.run([sys.executable, str(ledger), "run", "--repo", str(self.repo), "--", "test", "-f", "ok"],
+                       env=self.env, capture_output=True, text=True, cwd=str(self.repo))
+        r = self.call("release", self.rid, "--coverage-exception", "Release without coverage")
+        self.assertIn("release_blocked", r.stdout + r.stderr); self.assertIn("open failure", r.stdout + r.stderr)
+        self.assertNotIn("coverage was not checked", r.stdout + r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+
+    def test_a_contained_lane_release_on_an_exception_is_closed(self):
+        self.exception_release()
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual((rec["release_lane"]["lane"], rec["lane_in_force"]), ("contained", "closed"))
+
+    def test_a_deferred_closed_lane_on_an_exception_is_closed(self):
+        self.commit_change("db/migrations/0015.sql", "x\n")
+        self.exception_release("--target", "goal/g1")
+        rec = json.loads((self.root / "reviews" / self.rid / "release.json").read_text())
+        self.assertEqual(rec["lane_in_force"], "closed")
+        self.assertNotIn("deferred", rec["instruction"])
+
+    def test_a_wide_lane_release_without_an_exception_still_refuses_on_coverage(self):
+        self.commit_change("scripts/helper4.py", "x = 4\n")
+        del self.packet["coverage"]
+        self.open("--accept-narrow-packet"); self.response(); self.round()
+        r = self.call("release", self.rid)
+        self.assertIn("release_blocked", r.stdout + r.stderr)
+        self.assertFalse((self.root / "reviews" / self.rid / "release.json").exists())
+
+    def test_the_owners_merge_of_an_exception_handoff_is_recorded(self):
+        self.commit_change("scripts/helper5.py", "x = 5\n")
+        self.exception_release()
+        self.install_github_response()                    # merged by the Release Owner, a User
+        r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rec = json.loads(r.stdout)
+        self.assertEqual((rec["outcome"], rec["lane_in_force"]), ("human_merge_recorded", "closed"))
+        self.assertEqual(rec["coverage"]["exception"]["words"], "Release without coverage")
+
+    def test_an_agent_merge_of_an_exception_handoff_is_out_of_lane_instructed_or_not(self):
+        for comments in ([], [self.instruction_comment()]):
+            with self.subTest(instructed=bool(comments)):
+                self.setUp()
+                self.commit_change("scripts/helper6.py", "x = 6\n")
+                self.exception_release()
+                self.install_github_response(merged_by=self.BOT)
+                self.env["GITHUB_COMMENTS"] = json.dumps(comments)
+                r = self.call("record-release", self.rid, "--repo", str(self.repo), "--pr", "1")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                rec = json.loads(r.stdout)
+                self.assertEqual((rec["outcome"], rec["lane"]), ("agent_merge_out_of_lane", "closed"))
+                self.assertNotIn("authority", rec); self.assertNotIn("instruction", rec)
+
 # ReleaseLanes borrows GovernedReview's fixture, not its tests
 for _name in [n for n in vars(GovernedReview) if n.startswith("test_")]:
     setattr(ReleaseLanes, _name, None)

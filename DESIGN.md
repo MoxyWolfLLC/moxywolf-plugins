@@ -194,7 +194,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GA-012 — A coverage exception hands the merge to the Release Owner in every lane
 
-**Status:** planned.
+**Status:** building.
 
 **Links introduced:** the release handoff's `coverage.exception` (the Release Owner's words and the time they were recorded) becomes an input to `lane_in_force`. The reader's assumption is that a handoff carrying an exception was released by the Release Owner's merge, not the agent's. That holds because `release` and `record-release` both compute the lane in force from the handoff through `lane_in_force`, its one home, and a handoff with an exception is in force as `closed`.
 
