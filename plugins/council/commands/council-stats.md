@@ -72,12 +72,4 @@ Show cost breakdown:
 
 **If `optimization`:**
 
-Show optimization history from the `optimization_log` array:
-
-- **Last optimization run:** date, experiment count, baseline → final pass rate
-- **Total optimization spend:** sum of all experiment `cost_usd` values
-- **Changes kept / reverted / skipped:** counts by `decision`
-- **Recent experiments (last 5):** experiment_id, variable_modified, modification_type, pass rate delta, decision
-- **Current prompt version:** note that `stage-prompts.md` reflects all kept changes
-
-If no optimization history exists, report: "No optimization runs yet. Rate 3+ deliberations, then run `/council-optimize` to start improving Council's prompts."
+Print one line: `optimizer: disabled (DR-140)`. Report no optimization history, spend or budget. Any existing `optimization_log` entries are from the legacy optimizer, which DR-140 disabled; they aren't read.

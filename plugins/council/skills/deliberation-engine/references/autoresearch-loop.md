@@ -1,3 +1,5 @@
+> **Disabled by DR-140.** The optimization loop is disabled; nothing reads this file until the new optimizer item replaces it.
+
 # Autoresearch Optimization Loop
 
 **The agent instructions file** — tells the optimization agent how to modify, test, and iterate on Council's prompts. This is the third file in the 3-file autoresearch pattern:

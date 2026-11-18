@@ -1,29 +1,27 @@
 # Spec review: DESIGN.md constraints
 
-_2026-11-12T00:03:27+00:00 · claude-sonnet-5-5 with claude-fable-5-2 advisor (1 calls)_
+_2026-11-18T04:32:03+00:00 · claude-sonnet-5-5 with claude-fable-5-2 advisor (1 calls)_
 
-I found no contradictions in the plan, only ambiguities. Of the advisor's candidate pairs, two are resolved by the plan's own text and I dropped them. The first is *Test the boundaries before adding item IDs* against *One release path*, because the plan exempts `released` and `merged_unreviewed`. The second is the `review` → `done` shortcut against `released` → `done`, which the plan marks as interim. I also dropped the pair on low-risk autonomy against "merges with no human approval". Assessing a merge's effects, including deployment triggers, doesn't require a human approval, and this repository has no deployment target.
+I found no contradictions among the constraints. The plan has no items under review, so any contradiction would have been scope `constraints`. I kept three ambiguities. I tested the advisor's four candidate additions against the plan text and dropped all of them:
 
-The plan has no items, so every id below is a constraint heading or the opening words of a bullet.
+- **XE-015 reviewed afterwards at the same head:** *One release path* already settles this. It says "an item marked 'Merged unreviewed' can't become `released` by a review after the fact", and that "a review after the fact isn't permission given before it".
+- **Interim `review` → `done` against `released` → `done`:** the plan states the interim rule and ties its end to "the first fix B-a produces". That is decidable.
+- **Deployment-trigger assessment against "merges with no human approval":** the constraint says to assess effects, not to gate them on a human. `.github/` is owned, so workflow changes that trigger deployment still need Dorian's review.
+- **Successor folders against "No autonomous topology expansion":** successor folders are held byte for byte to the root brief by `goal_successor.py`, which is a static check. I don't read them as topology growth.
 
-**Ambiguities**
-- **A1** (*The pre-merge gate is GitHub's*): the brief pull request adds `goals/<id>/`, which is a `CODEOWNERS` path. The same constraint says `goal-envelope` fails a goal's pull request into `main` that touches one. The plan doesn't say whether the brief PR is such a pull request or targets another branch.
-- **A2** (*The pre-merge gate is GitHub's*, *The agent merges on a clean review*): "closed" and "wide" for the lane are never defined, and neither is who switches it.
-- **A3** (*Test the boundaries before adding item IDs*): the "*Boundary tests* below" section is missing. Whether the three tests "have run and their findings are recorded" can't be decided from the plan.
-- **A4** (*The pre-merge gate is GitHub's*, *Coverage is mandatory*): the lane-wide merge needs a "clean whole-goal review", but the plan doesn't say whether that review needs coverage `checked` or can use a recorded exception.
-- **A5** (*One release path*, *Coverage is mandatory*): the owner merges a clean review whose coverage isn't `checked`, with no exception recorded. The plan doesn't say whether that item is `merged_unreviewed` or stuck in a state `record-release` refuses.
-- **A6** (Keep `/gstack-verify` advisory, *Coverage is mandatory*): the plan doesn't say whether incomplete verification feeds the review coverage status, which blocks release. If it does, "advisory" no longer holds.
-- **A7** (Keep low-risk, authorized work autonomous): "consequential boundaries" is undefined, so which actions need human approval can't be decided.
+The ambiguities:
+
+- **A1:** `goals/` must stay owned under GA-008, but successor folders under it must be unowned. The plan doesn't say how the test reconciles the two.
+- **A2:** *One release path* says each move has "one condition a script can check". The `review` → `released` move has several conditions. This sits inside that one constraint.
+- **A3:** the `/gstack-verify` constraint says it is advisory. *Coverage is mandatory* says non-`checked` coverage is a block. The plan doesn't say whether the block applies to `/gstack-verify`.
+
+I dropped my earlier A4, because the gate paragraph already says `goal_successor.py` is owned, so the answer is in the plan.
 
 ```json
 {"contradictions": [],
  "ambiguities": [
-  {"id": "A1", "requirements": ["The pre-merge gate is GitHub's"], "question": "Is the goal's brief pull request (which adds goals/<id>/, a CODEOWNERS path) a 'goal's pull request into main' that goal-envelope fails, or does it target a different branch? If it targets main, how can it pass goal-envelope?"},
-  {"id": "A2", "requirements": ["The pre-merge gate is GitHub's", "The agent merges on a clean review, not on words"], "question": "What do the lane states 'closed' and 'wide' mean, who sets them, and where is the current state recorded?"},
-  {"id": "A3", "requirements": ["Test the boundaries before adding item IDs"], "question": "The 'Boundary tests' section it points to is not in the plan. How is 'the three boundary tests have run and their findings are recorded' decided?"},
-  {"id": "A4", "requirements": ["The pre-merge gate is GitHub's", "Coverage is mandatory"], "question": "Must the lane-wide 'clean whole-goal review' have coverage 'checked', or can a recorded owner exception stand in for it?"},
-  {"id": "A5", "requirements": ["One release path, checked by code", "Coverage is mandatory"], "question": "When the owner merges a clean review whose coverage isn't 'checked' and no exception was recorded before the merge, is the item merged_unreviewed, or is it in a state that record-release refuses?"},
-  {"id": "A6", "requirements": ["Keep /gstack-verify advisory; incomplete verification must remain visible", "Coverage is mandatory"], "question": "Does incomplete /gstack-verify output feed the review coverage status? If so, it blocks release and is no longer advisory."},
-  {"id": "A7", "requirements": ["Keep low-risk, authorized work autonomous. Human approval belongs at consequential boundaries"], "question": "What makes an action 'consequential' or 'low-risk', so that human approval requirements can be decided?"}
+  {"id": "A1", "requirements": ["The pre-merge gate is GitHub's, sized to the stakes", "A goal delegates item selection, not authority"], "question": "`goals/` is a CODEOWNERS path that GA-008's test requires to stay owned, but successor folders `goals/<id>--s1/` and `--s2/` under it must be unowned. Does `test_codeowners.py` accept an override for successor folders, and what is the exact pattern?"},
+  {"id": "A2", "requirements": ["One release path, checked by code"], "question": "The plan says each state move has 'one condition a script can check', but `review` → `released` needs a clean cross-vendor review at the head, `record-release` success, Dorian's approving review for a CODEOWNERS path, and a recorded exception when coverage isn't `checked`. Is that one composite condition or several, and which script checks which?"},
+  {"id": "A3", "requirements": ["Keep `/gstack-verify` advisory; incomplete verification must remain visible", "Coverage is mandatory"], "question": "Does the 'visible block, not a pass' rule for non-`checked` coverage apply to `/gstack-verify` results, or only to peer-review coverage? If it applies, `/gstack-verify` is no longer advisory."}
  ]}
 ```

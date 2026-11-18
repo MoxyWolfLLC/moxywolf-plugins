@@ -1,3 +1,5 @@
+> **Disabled by DR-140.** The optimization loop is disabled; nothing reads this file until the new optimizer item replaces it.
+
 # Evaluation Criteria for Prompt Optimization
 
 **STATUS: LOCKED** — This file defines the binary pass/fail criteria used to evaluate prompt modifications during the autoresearch optimization loop. It should only be changed deliberately after analyzing optimization outcomes, never by the optimization agent itself.
