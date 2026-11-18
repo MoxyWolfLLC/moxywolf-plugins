@@ -413,6 +413,37 @@ class ReviewFindings(Base):
         self.assertEqual(rc, 2); self.assertIn("can't list", out)
         self.assertFalse((self.tmp / "s3" / "store.json").exists())
 
+    def test_r2_f1_copy_in_progress_isnt_quarantined(self):
+        rc, out, cid = self.stage(); run("scan", cid); self.confirm(cid)
+        real = cc.copy_case
+        paused = []
+        def pause(folder, dest):  # the copy has made its temp folder and not yet renamed it
+            tmp = dest.parent / f".tmp-{dest.name}-abc123"; tmp.mkdir(parents=True)
+            for f in cc.STAGED_FILES:
+                shutil.copy2(folder / f, tmp / f)
+            paused.append((tmp, dest))
+        cc.copy_case = pause
+        try:
+            self.assertEqual(run("publish", cid, "--store", self.store)[0], 0)
+        finally:
+            cc.copy_case = real
+        tmp, dest = paused[0]
+        run("apply", "--store", self.store)
+        self.assertTrue(tmp.is_dir(), "not quarantined mid-copy")
+        os.replace(tmp, dest)
+        run("apply", "--store", self.store)
+        self.assertIn(cid, self.S().current())
+
+    def test_r2_f2_conflict_copy_inside_a_case_folder_stops_verify(self):
+        cid = self.full(); run("apply", "--store", self.store)
+        case = Path(self.store) / "moxywolf-plugins" / cid
+        for name in ("case (1).md", "manifest (1).json"):
+            shutil.copy(case / "case.md", case / name)
+            self.assertEqual(run("verify", "--store", self.store)[0], 4, name)
+            self.assertEqual(run("status", "--project", "moxywolf-plugins", "--store", self.store)[0], 4, name)
+            (case / name).unlink()
+        self.assertEqual(run("verify", "--store", self.store)[0], 0)
+
     def test_f8_lookup_reads_the_ledger_when_the_index_is_stale(self):
         cid = self.full(); run("apply", "--store", self.store)
         stale = (Path(self.store) / "index.json").read_text()

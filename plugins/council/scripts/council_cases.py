@@ -228,10 +228,11 @@ class Store:
         return {r["case_id"]: r for r, _ in self.inbox() if r["op"] == op}
 
     def conflicts(self):
-        hits = []
-        for p in [self.root, *[d for d in self.root.iterdir() if d.is_dir()]] if self.root.exists() else []:
-            hits += [str(c.relative_to(self.root)) for c in p.iterdir() if CONFLICT.search(c.name)]
-        return sorted(set(hits))
+        """Drive conflict copies anywhere in the store: the root, inbox, project and case folders."""
+        if not self.root.exists():
+            return []
+        return sorted(str(c.relative_to(self.root)) for c in self.root.rglob("*")
+                      if CONFLICT.search(c.name) and "quarantine" not in c.relative_to(self.root).parts)
 
     def projects(self):
         skip = {"inbox", "quarantine"}
@@ -275,6 +276,8 @@ def verify(store):
                 problems.append(f"{cid}: {name} doesn't match the ledger")
     for proj in store.projects():
         for d in proj.iterdir():
+            if d.name.startswith(".tmp-") and d.name[5:21] in pend_add:
+                continue  # a publish copy in progress: its add request was written first
             if d.is_dir() and d.name not in cur and d.name not in pend_add:
                 problems.append(f"{proj.name}/{d.name}: folder with neither a ledger line nor a pending add")
     return [], problems
