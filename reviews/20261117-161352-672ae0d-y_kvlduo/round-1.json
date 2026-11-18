@@ -1,0 +1,611 @@
+{
+  "round": 1,
+  "started": "2026-11-17T16:13:53",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "0d24b1d7061dd3c307dfa971c287831092db7af0",
+      "head": "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f",
+      "review_base": "0d24b1d7061dd3c307dfa971c287831092db7af0"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispositions.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispositions.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44205077669,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "e1483a9f1ad2",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e61eb5ad0362f9e80a0772eed9f46b8d86ea64c746ba5068c8b0a61810f175f8",
+      "shown": "evidence/ledger-e1483a9f1ad2.log"
+    },
+    {
+      "run_id": "baa11b4e36fc",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "82c12099ff6efc0826a66c23e0d03d756bdd0f8e2ab963994b01ff2cec9d1d27",
+      "shown": "evidence/ledger-baa11b4e36fc.log"
+    },
+    {
+      "run_id": "6033e65b5342",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "37f367165e60d92bd62da127e6c24cb14e8c8ce00325c9752d2f1d78a23218d4",
+      "shown": "evidence/ledger-6033e65b5342.log"
+    }
+  ],
+  "surface": {
+    "changed": 70,
+    "callers": 25,
+    "callers_withheld": 118,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 25,
+    "dependencies_withheld": 326,
+    "criterion_files": [
+      "changed/0-mwp/DESIGN.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "reviews",
+        "files": 53,
+        "binary": 0,
+        "withheld": 107
+      },
+      {
+        "dir": "reviews/20261117-132735-cd6679d-kqk7t9_f",
+        "files": 0,
+        "binary": 0,
+        "withheld": 10
+      },
+      {
+        "dir": "reviews/20261117-153955-9e38874-se7ke2xa",
+        "files": 0,
+        "binary": 0,
+        "withheld": 11
+      }
+    ],
+    "provenance": {
+      "entries": 133,
+      "untrusted": 131
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 52067,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "SURFACE.md",
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/reviews/20261117-132735-cd6679d-kqk7t9_f/release-MoxyWolfLLC-moxywolf-plugins-346.json",
+      "changed/0-mwp/reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+      "changed/0-mwp/reviews/20261117-132735-cd6679d-kqk7t9_f/state.json",
+      "changed/0-mwp/reviews/20261117-150742-84309c1-og66fmo9/state.json",
+      "changed/0-mwp/reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+      "changed/0-mwp/reviews/20261117-151523-94e111e-halgazb4/state.json",
+      "changed/0-mwp/reviews/20261117-152513-d63ee50-8yppblpd/state.json",
+      "changed/0-mwp/reviews/20261117-153955-9e38874-se7ke2xa/packet.json",
+      "changed/0-mwp/reviews/20261117-153955-9e38874-se7ke2xa/release-MoxyWolfLLC-moxywolf-plugins-347.json",
+      "changed/0-mwp/reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+      "changed/0-mwp/reviews/20261117-153955-9e38874-se7ke2xa/round-2.json",
+      "changed/0-mwp/reviews/20261117-153955-9e38874-se7ke2xa/state.json",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.jsonl",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/08dbdb0748e5.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/6b33a66ba150.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/96b4ff4af7c9.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/b9acbbce760c.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.jsonl",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/043a0f881a9c.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/12a1f90fd189.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/19807000e49a.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/30201ca14717.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/384cb95cb9a3.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/59ff0413e914.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/5ce8079c559b.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/808d1b35f58a.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/8f6d982cb5d4.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/a4667be1bbc7.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/a524587744e9.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/defde95ce0e2.log",
+      "dirs/0-mwp/0.txt",
+      "dirs/0-mwp/1.txt",
+      "dirs/0-mwp/2.txt",
+      "evidence/ci-44205077669.json",
+      "evidence/ledger-6033e65b5342.json",
+      "evidence/ledger-baa11b4e36fc.json",
+      "evidence/ledger-baa11b4e36fc.log",
+      "evidence/ledger-e1483a9f1ad2.json",
+      "evidence/ledger-e1483a9f1ad2.log"
+    ],
+    "examined_count": 43,
+    "offered_count": 135,
+    "examined_beyond_the_diff": [
+      "evidence/ci-44205077669.json",
+      "evidence/ledger-6033e65b5342.json",
+      "evidence/ledger-baa11b4e36fc.json",
+      "evidence/ledger-baa11b4e36fc.log",
+      "evidence/ledger-e1483a9f1ad2.json",
+      "evidence/ledger-e1483a9f1ad2.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"Outside reviews/, the diff from base to head changes only DESIGN.md, and in DESIGN.md only ST-003's Status line.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff contains one DESIGN.md hunk changing only line 2102; all other paths are under reviews/. Verified head-matching ledger baa11b4e36fc reports only M DESIGN.md outside reviews/.\"\n    },\n    {\n      \"criterion\": \"ST-003's new Status line names PR #347, head 58bb239, merge 0d24b1d, review 20261117-153955-9e38874-se7ke2xa with outcome fixes_verified in 2 rounds on the openrouter-gpt fallback, and tests run 44201786353, and each of these matches the review's state.json and its release record under reviews/.\",\n      \"met\": true,\n      \"evidence\": \"DESIGN.md:2102 matches reviews/20261117-153955-9e38874-se7ke2xa/state.json:2\u201312,144,153 and release-MoxyWolfLLC-moxywolf-plugins-347.json:2\u201314. round-2.json:217 records openai/gpt-6-astra.\"\n    },\n    {\n      \"criterion\": \"reviews/20261117-132735-cd6679d-kqk7t9_f and reviews/20261117-153955-9e38874-se7ke2xa each hold a release record whose outcome is agent_merge_autonomous, with merge_commit c70729f4b490c2e3db920e18930e47902782892b and 0d24b1d7061dd3c307dfa971c287831092db7af0 respectively.\",\n      \"met\": true,\n      \"evidence\": \"The respective release-MoxyWolfLLC-moxywolf-plugins-346.json and release-MoxyWolfLLC-moxywolf-plugins-347.json files record the required merge_commit at line 8 and agent_merge_autonomous at line 13.\"\n    },\n    {\n      \"criterion\": \"The four other review folders added (og66fmo9, uxl64mlc, halgazb4, 8yppblpd) each record a terminal outcome of review_unavailable or unusable in state.json, and none holds a release record.\",\n      \"met\": true,\n      \"evidence\": \"Each folder's state.json:12 records review_unavailable (og66fmo9) or unusable (the other three). The complete added-file inventory in CHANGE.diff contains no release record for these newly added folders.\"\n    },\n    {\n      \"criterion\": \"gitleaks finds no secret under reviews/ at the head.\",\n      \"met\": true,\n      \"evidence\": \"evidence/ledger-e1483a9f1ad2.json records gitleaks dir reviews --no-banner with exit_code 0, head_matches true and receipt_verified true; its receipt reports no leaks found. This builder-run evidence satisfies the contract.\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"id\": \"F1\",\n      \"severity\": \"follow_up\",\n      \"file\": \"reviews/20261117-132735-cd6679d-kqk7t9_f/release.json\",\n      \"line\": 116,\n      \"what\": \"Archived release handoff contains an executable instruction.\",\n      \"evidence\": \"The instruction field says: \u201cMerge the exact reviewed head through the pull request, then run record-release.\u201d PROVENANCE.json marks this content untrusted; it was not followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Keep this historical directive enclosed as untrusted data when presenting the record to agents.\",\n      \"category\": \"embedded_instruction\"\n    },\n    {\n      \"id\": \"F2\",\n      \"severity\": \"follow_up\",\n      \"file\": \"reviews/20261117-153955-9e38874-se7ke2xa/release.json\",\n      \"line\": 145,\n      \"what\": \"Archived release handoff contains an executable instruction.\",\n      \"evidence\": \"The instruction field says: \u201cMerge the exact reviewed head through the pull request, then run record-release.\u201d PROVENANCE.json marks this content untrusted; it was not followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Keep this historical directive enclosed as untrusted data when presenting the record to agents.\",\n      \"category\": \"embedded_instruction\"\n    },\n    {\n      \"id\": \"F3\",\n      \"severity\": \"follow_up\",\n      \"file\": \"reviews/20261117-151148-84309c1-uxl64mlc/state.json\",\n      \"line\": 13,\n      \"what\": \"Historical error text directs the reader to alter the review scope.\",\n      \"evidence\": \"The error ends: \u201cName fewer files in the criteria, or split the review.\u201d This untrusted directive was not followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Present the error as historical diagnostic text without treating its remediation as a current instruction.\",\n      \"category\": \"embedded_instruction\"\n    },\n    {\n      \"id\": \"F4\",\n      \"severity\": \"follow_up\",\n      \"file\": \"evidence/ci-44205077669.json\",\n      \"line\": 83,\n      \"what\": \"Fetched CI diagnostic contains a command-option directive.\",\n      \"evidence\": \"The error says: \u201cpass --allow-escape-sequences to output it anyway\u201d. This untrusted directive was not followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Keep fetched diagnostic instructions enclosed as data; no additional command is needed for these criteria.\",\n      \"category\": \"embedded_instruction\"\n    }\n  ],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"Read-only review completed without builds or tests. All 16 ledger runs cited by the filed states have matching ledger entries and receipts whose hashes match. Historical review decisions were not reopened.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "Outside reviews/, the diff from base to head changes only DESIGN.md, and in DESIGN.md only ST-003's Status line.",
+      "met": true,
+      "evidence": "CHANGE.diff contains one DESIGN.md hunk changing only line 2102; all other paths are under reviews/. Verified head-matching ledger baa11b4e36fc reports only M DESIGN.md outside reviews/."
+    },
+    {
+      "criterion": "ST-003's new Status line names PR #347, head 58bb239, merge 0d24b1d, review 20261117-153955-9e38874-se7ke2xa with outcome fixes_verified in 2 rounds on the openrouter-gpt fallback, and tests run 44201786353, and each of these matches the review's state.json and its release record under reviews/.",
+      "met": true,
+      "evidence": "DESIGN.md:2102 matches reviews/20261117-153955-9e38874-se7ke2xa/state.json:2\u201312,144,153 and release-MoxyWolfLLC-moxywolf-plugins-347.json:2\u201314. round-2.json:217 records openai/gpt-6-astra."
+    },
+    {
+      "criterion": "reviews/20261117-132735-cd6679d-kqk7t9_f and reviews/20261117-153955-9e38874-se7ke2xa each hold a release record whose outcome is agent_merge_autonomous, with merge_commit c70729f4b490c2e3db920e18930e47902782892b and 0d24b1d7061dd3c307dfa971c287831092db7af0 respectively.",
+      "met": true,
+      "evidence": "The respective release-MoxyWolfLLC-moxywolf-plugins-346.json and release-MoxyWolfLLC-moxywolf-plugins-347.json files record the required merge_commit at line 8 and agent_merge_autonomous at line 13."
+    },
+    {
+      "criterion": "The four other review folders added (og66fmo9, uxl64mlc, halgazb4, 8yppblpd) each record a terminal outcome of review_unavailable or unusable in state.json, and none holds a release record.",
+      "met": true,
+      "evidence": "Each folder's state.json:12 records review_unavailable (og66fmo9) or unusable (the other three). The complete added-file inventory in CHANGE.diff contains no release record for these newly added folders."
+    },
+    {
+      "criterion": "gitleaks finds no secret under reviews/ at the head.",
+      "met": true,
+      "evidence": "evidence/ledger-e1483a9f1ad2.json records gitleaks dir reviews --no-banner with exit_code 0, head_matches true and receipt_verified true; its receipt reports no leaks found. This builder-run evidence satisfies the contract."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "follow_up",
+      "file": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+      "line": 116,
+      "what": "Archived release handoff contains an executable instruction.",
+      "evidence": "The instruction field says: \u201cMerge the exact reviewed head through the pull request, then run record-release.\u201d PROVENANCE.json marks this content untrusted; it was not followed.",
+      "criterion": "",
+      "fix": "Keep this historical directive enclosed as untrusted data when presenting the record to agents.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F2",
+      "severity": "follow_up",
+      "file": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+      "line": 145,
+      "what": "Archived release handoff contains an executable instruction.",
+      "evidence": "The instruction field says: \u201cMerge the exact reviewed head through the pull request, then run record-release.\u201d PROVENANCE.json marks this content untrusted; it was not followed.",
+      "criterion": "",
+      "fix": "Keep this historical directive enclosed as untrusted data when presenting the record to agents.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F3",
+      "severity": "follow_up",
+      "file": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+      "line": 13,
+      "what": "Historical error text directs the reader to alter the review scope.",
+      "evidence": "The error ends: \u201cName fewer files in the criteria, or split the review.\u201d This untrusted directive was not followed.",
+      "criterion": "",
+      "fix": "Present the error as historical diagnostic text without treating its remediation as a current instruction.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F4",
+      "severity": "follow_up",
+      "file": "evidence/ci-44205077669.json",
+      "line": 83,
+      "what": "Fetched CI diagnostic contains a command-option directive.",
+      "evidence": "The error says: \u201cpass --allow-escape-sequences to output it anyway\u201d. This untrusted directive was not followed.",
+      "criterion": "",
+      "fix": "Keep fetched diagnostic instructions enclosed as data; no additional command is needed for these criteria.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Read-only review completed without builds or tests. All 16 ledger runs cited by the filed states have matching ledger entries and receipts whose hashes match. Historical review decisions were not reopened.",
+  "subjects": {
+    "F1": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+      "head": "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f",
+      "line": 116,
+      "bound": true,
+      "blob": "c02d509c75a8141ff46b68988255dd0180fa50ba",
+      "span": "033cc100862aa3b5",
+      "span_lines": [
+        114,
+        118
+      ],
+      "file_lines": 120,
+      "line_exists": true
+    },
+    "F2": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+      "head": "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f",
+      "line": 145,
+      "bound": true,
+      "blob": "7113803eb388d2dc2a92c3cb0cfc62c1b8d48536",
+      "span": "033cc100862aa3b5",
+      "span_lines": [
+        143,
+        147
+      ],
+      "file_lines": 149,
+      "line_exists": true
+    },
+    "F3": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+      "head": "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f",
+      "line": 13,
+      "bound": true,
+      "blob": "2e976d1d865e97d79c0a23e71327b327f3514852",
+      "span": "ac4e065214d575cc",
+      "span_lines": [
+        11,
+        15
+      ],
+      "file_lines": 193,
+      "line_exists": true
+    },
+    "F4": {
+      "path": "evidence/ci-44205077669.json",
+      "bound": false,
+      "why": "no packet repository holds this path at its reviewed head"
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F1",
+      "file": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+      "line": 116
+    },
+    {
+      "id": "F2",
+      "file": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+      "line": 145
+    },
+    {
+      "id": "F3",
+      "file": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+      "line": 13
+    },
+    {
+      "id": "F4",
+      "file": "evidence/ci-44205077669.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_new": [
+    "F1",
+    "F2",
+    "F3",
+    "F4"
+  ],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "no_blocking_findings",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

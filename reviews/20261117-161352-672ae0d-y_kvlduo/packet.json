@@ -1,0 +1,236 @@
+{
+  "outcome": "Administrative: file the 2026-11-17 review and release records for PR #346 (ST-001, ST-002) and PR #347 (ST-003) under reviews/, with the ledger lines they cited, and mark ST-003 done in DESIGN.md. No code changes.",
+  "items": [],
+  "acceptance_criteria": [
+    "Outside reviews/, the diff from base to head changes only DESIGN.md, and in DESIGN.md only ST-003's Status line.",
+    "ST-003's new Status line names PR #347, head 58bb239, merge 0d24b1d, review 20261117-153955-9e38874-se7ke2xa with outcome fixes_verified in 2 rounds on the openrouter-gpt fallback, and tests run 44201786353, and each of these matches the review's state.json and its release record under reviews/.",
+    "reviews/20261117-132735-cd6679d-kqk7t9_f and reviews/20261117-153955-9e38874-se7ke2xa each hold a release record whose outcome is agent_merge_autonomous, with merge_commit c70729f4b490c2e3db920e18930e47902782892b and 0d24b1d7061dd3c307dfa971c287831092db7af0 respectively.",
+    "The four other review folders added (og66fmo9, uxl64mlc, halgazb4, 8yppblpd) each record a terminal outcome of review_unavailable or unusable in state.json, and none holds a release record.",
+    "gitleaks finds no secret under reviews/ at the head."
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "0d24b1d7061dd3c307dfa971c287831092db7af0",
+      "head": "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f",
+      "review_base": "0d24b1d7061dd3c307dfa971c287831092db7af0"
+    }
+  ],
+  "changed_behavior": "None. Records and one status line.",
+  "exclusions": [
+    "The contents of the review rounds (findings, reviewer prose) are historical records and are not under review; only that they are filed accurately.",
+    "The decisions in ST-001, ST-002 and ST-003 are settled and released.",
+    "No DESIGN.md item covers filing records; coverage cannot be checked, and the Release Owner's exception governs the merge."
+  ],
+  "tests": {
+    "commands": [
+      "gitleaks dir reviews --no-banner (ledger e1483a9f1ad2)",
+      "git diff --name-status 0d24b1d HEAD -- . ':(exclude)reviews' (ledger baa11b4e36fc)",
+      "git diff --stat 0d24b1d HEAD (ledger 6033e65b5342)",
+      "GitHub Actions tests workflow on PR #348"
+    ],
+    "results": "gitleaks: no leaks found. Outside reviews/ the diff is 'M DESIGN.md' only. 70 files changed, 19342 insertions, 1 deletion.",
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "e1483a9f1ad2"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "baa11b4e36fc"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "6033e65b5342"
+      }
+    ],
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44205077669
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/Users/doriancougias/st001-review/review-records"
+    ]
+  },
+  "vocabulary_version": "1.13.0",
+  "origin": "gate_output",
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-18T00:10:12.846Z",
+    "inputs": {
+      "items": [],
+      "criteria_count": 5,
+      "criteria": [
+        "Outside reviews/, the diff from base to head changes only DESIGN.md, and in DESIGN.md only ST-003's Status line.",
+        "ST-003's new Status line names PR #347, head 58bb239, merge 0d24b1d, review 20261117-153955-9e38874-se7ke2xa with outcome fixes_verified in 2 rounds on the openrouter-gpt fallback, and tests run 44201786353, and each of these matches the review's state.json and its release record under reviews/.",
+        "reviews/20261117-132735-cd6679d-kqk7t9_f and reviews/20261117-153955-9e38874-se7ke2xa each hold a release record whose outcome is agent_merge_autonomous, with merge_commit c70729f4b490c2e3db920e18930e47902782892b and 0d24b1d7061dd3c307dfa971c287831092db7af0 respectively.",
+        "The four other review folders added (og66fmo9, uxl64mlc, halgazb4, 8yppblpd) each record a terminal outcome of review_unavailable or unusable in state.json, and none holds a release record.",
+        "gitleaks finds no secret under reviews/ at the head."
+      ],
+      "paths_named": [],
+      "files_read": 0,
+      "files": [],
+      "links_introduced": []
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.06
+      },
+      "cross_file": {
+        "probability": 0.74
+      },
+      "docs_only": {
+        "probability": 0.82
+      },
+      "has_tests": {
+        "probability": 0.15
+      },
+      "risky": {
+        "probability": 0.13
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": false,
+      "cross_file": true,
+      "docs_only": true,
+      "has_tests": false,
+      "risky": false
+    },
+    "rule": "cross_file",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 3429,
+    "quorum": {
+      "line_id": "220d58746cf0",
+      "ledger": "/Users/doriancougias/st001-review/review-records/decisions/202611.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 805,
+          "cost": "0.00004515",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.06
+            },
+            "cross_file": {
+              "probability": 0.74
+            },
+            "docs_only": {
+              "probability": 0.82
+            },
+            "has_tests": {
+              "probability": 0.15
+            },
+            "risky": {
+              "probability": 0.13
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 805,
+          "cost": "0.0000188",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.011012817647062701
+            },
+            "cross_file": {
+              "probability": 0.7036608401254769
+            },
+            "docs_only": {
+              "probability": 0.9931878566471647
+            },
+            "has_tests": {
+              "probability": 0.06754789247658848
+            },
+            "risky": {
+              "probability": 0.04613613563743482
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 805,
+          "cost": "0.0001414",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.02
+            },
+            "cross_file": {
+              "probability": 0.08
+            },
+            "docs_only": {
+              "probability": 0.99
+            },
+            "has_tests": {
+              "probability": 0.02
+            },
+            "risky": {
+              "probability": 0.03
+            }
+          },
+          "tier": "light",
+          "rule": "docs_only"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.02
+        },
+        "cross_file": {
+          "probability": 0.7036608401254769
+        },
+        "docs_only": {
+          "probability": 0.99
+        },
+        "has_tests": {
+          "probability": 0.06754789247658848
+        },
+        "risky": {
+          "probability": 0.04613613563743482
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "cross_file"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice"
+  }
+}
