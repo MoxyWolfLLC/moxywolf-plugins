@@ -296,7 +296,7 @@ class Retention(Base):
         run("retire", b, "--store", self.store); run("apply", "--store", self.store)
         cur = self.S().current()
         self.assertEqual(cur[a]["state"], "excluded"); self.assertEqual(cur[b]["state"], "retired")
-        self.assertGreater(cc.parse(cur[b]["delete_after"]), cc.now() + timedelta(days=364))
+        self.assertEqual(cur[b]["delete_after"], cc.iso(cc.add_months(cc.parse(cur[b]["at"]))))
         rc, out = run("delete-record", a, "--store", self.store)
         self.assertIn("delete the case folder first", out)
         shutil.rmtree(Path(self.store) / "moxywolf-plugins" / a)
@@ -388,6 +388,22 @@ class ReviewFindings(Base):
         finally:
             cc.PROJECTS_CANDIDATES = old
         self.assertEqual(rc, 2); self.assertIn("projects root", out)
+
+    def test_f4_init_refuses_an_unreadable_project_record(self):
+        root = self.tmp / "P2" / "Y" / "00 – Project Hub"; root.mkdir(parents=True)
+        (root / "project-surfaces.json").write_text("{not json")
+        rc, out = run("init", "--store", str(self.tmp / "s2"), "--projects-root", str(self.tmp / "P2"))
+        self.assertEqual(rc, 2); self.assertIn("can't read", out)
+        self.assertFalse((self.tmp / "s2" / "store.json").exists())
+        (root / "project-surfaces.json").write_text(json.dumps({"note": "OpenControls"}))
+        self.assertIn("no project_id", run("init", "--store", str(self.tmp / "s2"), "--projects-root", str(self.tmp / "P2"))[1])
+
+    def test_f8_lookup_reads_the_ledger_when_the_index_is_stale(self):
+        cid = self.full(); run("apply", "--store", self.store)
+        stale = (Path(self.store) / "index.json").read_text()
+        run("exclude", cid, "--store", self.store, "--reason", "t"); run("apply", "--store", self.store)
+        (Path(self.store) / "index.json").write_text(stale)  # interrupted after archival, before the index
+        self.assertEqual(cc.lookup(self.S(), cid)["state"], "excluded")
 
     def test_f5_status_gives_no_readiness_on_a_bad_chain_or_writer(self):
         self.full(); self.full(); run("apply", "--store", self.store)

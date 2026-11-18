@@ -286,11 +286,14 @@ def opencontrols_projects(projects_root):
     out = []
     for f in Path(projects_root).glob("*/*/project-surfaces.json"):
         try:
-            if "OpenControls" in f.read_text():
-                pid = json.loads(f.read_text()).get("project_id")
-                out += [pid] if pid else []
-        except (OSError, ValueError):
-            continue
+            text = f.read_text()
+            pid = json.loads(text).get("project_id")
+        except (OSError, ValueError) as e:  # fail closed: an unread record could be an OpenControls project
+            raise Refused(f"can't read {f}: {e}; init needs every project record")
+        if "OpenControls" in text:
+            if not pid:
+                raise Refused(f"{f} names OpenControls but has no project_id")
+            out.append(pid)
     return out
 
 
@@ -613,6 +616,7 @@ def _apply(store):
                     continue
                 if line != "noop":
                     append_line(store, line); n += 1; applied_ids.add(req["id"])
+                    rebuild_index(store)  # the index is current before the request is archived
             os.replace(path, store.root / "inbox" / "applied" / path.name)
     rebuild_index(store)
     _, problems = verify(store)
@@ -699,7 +703,8 @@ def cmd_change(a):
 
 def lookup(store, case_id):
     """Index lookup for every reader: the index entry with pending exclude and delete-record overlaid."""
-    entry = dict((jload(store.root / "index.json", {}).get("cases") or {}).get(case_id) or {})
+    line = store.current().get(case_id)  # the ledger is authoritative; the index may be stale
+    entry = {k: line.get(k) for k in ("project", "state", "role", "delete_after", "rating", "published_at")} if line else {}
     if case_id in store.pending("exclude"):
         entry["state"] = "excluded"
     if not entry and case_id in store.pending("add"):
