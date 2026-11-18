@@ -2099,7 +2099,7 @@ Dorian asked for it on 2026-11-17 ("wire it up"). An acceptance criterion is the
 
 ### ST-003 — Six more commands and skills run asd-ste100 over text an agent acts on, and each run reports what it did
 
-**Status:** building. Needs ST-001 and ST-002.
+**Status:** done. Merged to `main` in `0d24b1d` (PR #347, head `58bb239`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-153955-9e38874-se7ke2xa` (openrouter-gpt/gpt-6-astra as the recorded fallback while Codex was out of credits, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44201786353).
 
 **Links introduced:** none. Each command names the skill by its plugin name, `asd-ste100`, which ST-001's marketplace entry resolves. The report line in criterion 7 is printed in the run's report, and is stored only where that report already is (for the Chief of Staff, its existing run log); nothing reads it back.
 

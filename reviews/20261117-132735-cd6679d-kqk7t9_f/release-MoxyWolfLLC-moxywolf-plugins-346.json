@@ -1,0 +1,89 @@
+{
+  "review_id": "20261117-132735-cd6679d-kqk7t9_f",
+  "action": "merge",
+  "repo": "MoxyWolfLLC/moxywolf-plugins",
+  "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+  "reviewed_head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+  "target": "main",
+  "merge_commit": "c70729f4b490c2e3db920e18930e47902782892b",
+  "approver": "dorianatmoxywolf",
+  "recorded_at": "2026-11-17T21:35:39Z",
+  "merged_at": "2026-11-17T21:35:31Z",
+  "source": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/346",
+  "outcome": "agent_merge_autonomous",
+  "merged_by": "moxywolf-agent[bot]",
+  "authorized_by": "dorianatmoxywolf",
+  "authority": "DR-113: Dorian's standing authorization of 2026-09-30",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "council_outcome": {
+    "status": "written",
+    "line_id": "850547947e34"
+  },
+  "model_selection_ledger": "/Users/doriancougias/st001-review/review-records/model-selection/MoxyWolfLLC-moxywolf-plugins.jsonl",
+  "origin": "human_instruction"
+}

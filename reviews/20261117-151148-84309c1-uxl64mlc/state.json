@@ -1,0 +1,193 @@
+{
+  "review_id": "20261117-151148-84309c1-uxl64mlc",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 0,
+  "outcome": "unusable",
+  "error": "named in an acceptance criterion and would not reach openrouter-gpt under its 400000-character surface cap, even with large changed files sent as diff hunks: plugins/chief-of-staff/skills/chief-of-staff/SKILL.md, plugins/product-orchestrator/commands/product-clarify.md, plugins/product-orchestrator/commands/product-prd.md, plugins/product-orchestrator/commands/project-charter.md, plugins/project-init/skills/session-end/SKILL.md, plugins/team-kanban/skills/team-kanban/SKILL.md, CHARTER.md. Name fewer files in the criteria, or split the review.",
+  "coverage_checked": true,
+  "coverage_status": "covered",
+  "coverage_overridden": false,
+  "off_repo_evidence": [],
+  "off_repo_overridden": [],
+  "ledger_status": "clear",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "cross_file",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "84309c191277a4357fd74dfb14304bd6b95f1db3"
+    ]
+  ],
+  "goldfish": "absent",
+  "origin": "gate_output"
+}

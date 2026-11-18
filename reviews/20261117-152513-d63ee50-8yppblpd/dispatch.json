@@ -1,0 +1,23 @@
+{
+  "pid": 44363,
+  "started": "2026-11-17T15:37:30",
+  "started_epoch": 1794958650,
+  "rounds_at_dispatch": 1,
+  "log": "/Users/doriancougias/st001-review/review-records/20261117-152513-d63ee50-8yppblpd/dispatch.log",
+  "argv": [
+    "/Users/doriancougias/st001-review/mwp/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20261117-152513-d63ee50-8yppblpd",
+    "--head",
+    "/Users/doriancougias/st001-review/mwp=9e38874f0341c213783a4255f374af85a131727d",
+    "--ci-run",
+    "/Users/doriancougias/st001-review/mwp=44199681837",
+    "--ledger-run",
+    "/Users/doriancougias/st001-review/mwp=808d1b35f58a",
+    "--ledger-run",
+    "/Users/doriancougias/st001-review/mwp=19807000e49a",
+    "--ledger-run",
+    "/Users/doriancougias/st001-review/mwp=12a1f90fd189"
+  ],
+  "origin": "gate_output"
+}

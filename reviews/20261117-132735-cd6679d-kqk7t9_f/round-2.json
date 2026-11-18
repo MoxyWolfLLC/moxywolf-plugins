@@ -1,0 +1,323 @@
+{
+  "round": 2,
+  "started": "2026-11-17T13:32:06",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "review_base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44178845739,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "08dbdb0748e5",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e7879ea7df0a962ddbad3cb7c2fff4394ac59720d44f30f4cda96900d74d6be9",
+      "shown": "evidence/ledger-08dbdb0748e5.log"
+    },
+    {
+      "run_id": "96b4ff4af7c9",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "1bc372de25850bec409207cc0fd3bde58d13981cdd56d1aa4de8faaeaaead99b",
+      "shown": "evidence/ledger-96b4ff4af7c9.log"
+    },
+    {
+      "run_id": "6b33a66ba150",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "80856c9400fca3245f9a93fb6e732c48070ff16262d57e90355cbc270917e1d6",
+      "shown": "evidence/ledger-6b33a66ba150.log"
+    },
+    {
+      "run_id": "b9acbbce760c",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "6053af8e21e378097a0280c2038e37d237588d3a99d32a1a514427d3bbb9cc4a",
+      "shown": "evidence/ledger-b9acbbce760c.log"
+    }
+  ],
+  "surface": {
+    "changed": 28,
+    "callers": 25,
+    "callers_withheld": 106,
+    "cap": 25,
+    "from_prior_findings": 3,
+    "dependencies": 26,
+    "dependencies_withheld": 166,
+    "criterion_files": [
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/LICENSE",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "dependencies/0-mwp/README.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "plugins/asd-ste100/skills/asd-ste100",
+        "files": 5,
+        "binary": 0,
+        "withheld": 0
+      },
+      {
+        "dir": ".claude-plugin",
+        "files": 1,
+        "binary": 0,
+        "withheld": 0
+      }
+    ],
+    "provenance": {
+      "entries": 95,
+      "untrusted": 93
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 63408,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "ROUND.diff",
+      "SURFACE.md",
+      "UNKNOWNS.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/NOTICE",
+      "changed/0-mwp/plugins/asd-ste100/README.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "changed/0-mwp/plugins/gstack-execution/README.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44178845739.json",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-96b4ff4af7c9.json",
+      "evidence/ledger-96b4ff4af7c9.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "examined_count": 23,
+    "offered_count": 97,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44178845739.json",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-96b4ff4af7c9.json",
+      "evidence/ledger-96b4ff4af7c9.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.\",\n      \"met\": true,\n      \"evidence\": \"The files are present under changed/0-mwp/plugins/asd-ste100/. Verified receipt evidence/ledger-08dbdb0748e5.log reports matching upstream blob hashes for all five unchanged files at 707362731928d0d92526c066df15dbbe6a378c07.\"\n    },\n    {\n      \"criterion\": \"ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.\",\n      \"met\": true,\n      \"evidence\": \"Packet-named ledger 08dbdb0748e5 has exit_code 0, head_matches true and receipt_verified true. Its receipt reports six comparisons and SKILL.md as the only mismatch.\"\n    },\n    {\n      \"criterion\": \"ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.\",\n      \"met\": true,\n      \"evidence\": \"SKILL.md:3-17 contains the specified modifications; NOTICE:19-23 records version 0.4.0. Reversing precisely those four modifications in memory reproduces upstream blob 1c59344b57e4a9433dce17f98b055297404f170d from the verified receipt. Packaging receipt 96b4ff4af7c9 reports a passing 632-character description.\"\n    },\n    {\n      \"criterion\": \"ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.\",\n      \"met\": true,\n      \"evidence\": \"SKILL.md:17 makes findings and exit status advisory. dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py:28-35 discovers the selftest, :52-59 names it, and :70-87 fails on unsuccessful checks. Verified ledger 6b33a66ba150 reports selftest OK.\"\n    },\n    {\n      \"criterion\": \"ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.\",\n      \"met\": true,\n      \"evidence\": \"The plugin manifest contains the required identity, author, license and scope. NOTICE:6-8 credits upstream and its commit; :26-28 identifies excluded manifests and README. README's Scope and Source sections repeat the exclusions, scope and attribution.\"\n    },\n    {\n      \"criterion\": \"ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff's marketplace hunks add the required entry and move 1.169.0 to 1.170.0; the only other edit is the gstack-execution version change expressly required by ST-002.5. No reformatting appears.\"\n    },\n    {\n      \"criterion\": \"ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.\",\n      \"met\": true,\n      \"evidence\": \"evidence/ci-44178845739.json records head_matches true and success for 'Run every check in the repository'; callers/0-mwp/.github/workflows/tests.yml:84-85 maps that step to run_all_tests.py. Runner discovery and reporting at :28-35, :52-59 and :70-78 necessarily include the present ste-lint.py selftest. Verified head-matching packaging receipt 96b4ff4af7c9:117-119 explicitly names asd-ste100; version receipt b9acbbce760c names both plugins. The CI summary itself was unavailable; naming of the selftest is established from the executed runner's code.\"\n    },\n    {\n      \"criterion\": \"ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.\",\n      \"met\": true,\n      \"evidence\": \"changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md:33 contains the single added bullet with both modes, timing and verbatim quotation protection.\"\n    },\n    {\n      \"criterion\": \"ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.\",\n      \"met\": true,\n      \"evidence\": \"changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md:20 adds the specified Strict-mode pass and explicitly preserves the outcome, never-do's and quotations.\"\n    },\n    {\n      \"criterion\": \"ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.\",\n      \"met\": true,\n      \"evidence\": \"gstack-design-doc.md:33 and gstack-goal-new.md:20 explicitly state advisory treatment, all four non-gating boundaries, and reporting followed by continuation when the skill is absent.\"\n    },\n    {\n      \"criterion\": \"ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff shows ST-002 modifying only the two command files, plugin manifest, README and shared marketplace version. The newly vendored linter belongs to the explicitly required ST-001 addition; existing scripts, hooks, workflows and CODEOWNERS are unchanged.\"\n    },\n    {\n      \"criterion\": \"ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff contains the two 0.103.0-to-0.104.0 replacements, the README's 0.104.0 history entry, and one top-level marketplace replacement from 1.169.0 to 1.170.0.\"\n    },\n    {\n      \"criterion\": \"ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.\",\n      \"met\": true,\n      \"evidence\": \"CI run 44178845739 has head_matches true and a successful full-test step, mapped to run_all_tests.py by tests.yml:84-85. Verified, head-matching ledger b9acbbce760c reports PASS and 'examined 2 plugin(s): asd-ste100, gstack-execution'.\"\n    }\n  ],\n  \"findings\": [],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"ROUND.diff is empty. Prior F1\u2013F3 remain unchanged, non-blocking embedded instructions already recorded in SURFACE.md; none was followed or duplicated. No prior blockers or fix regressions exist. Existing unknown 1488ce9afb32 is answered by the fetched successful CI step and workflow mapping; 0513d42e0c8d's acceptance concern is addressed by deterministic runner reporting and the verified packaging receipt, without claiming the unavailable CI summary was inspected. No project builds or tests were run.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+      "met": true,
+      "evidence": "The files are present under changed/0-mwp/plugins/asd-ste100/. Verified receipt evidence/ledger-08dbdb0748e5.log reports matching upstream blob hashes for all five unchanged files at 707362731928d0d92526c066df15dbbe6a378c07."
+    },
+    {
+      "criterion": "ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+      "met": true,
+      "evidence": "Packet-named ledger 08dbdb0748e5 has exit_code 0, head_matches true and receipt_verified true. Its receipt reports six comparisons and SKILL.md as the only mismatch."
+    },
+    {
+      "criterion": "ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+      "met": true,
+      "evidence": "SKILL.md:3-17 contains the specified modifications; NOTICE:19-23 records version 0.4.0. Reversing precisely those four modifications in memory reproduces upstream blob 1c59344b57e4a9433dce17f98b055297404f170d from the verified receipt. Packaging receipt 96b4ff4af7c9 reports a passing 632-character description."
+    },
+    {
+      "criterion": "ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+      "met": true,
+      "evidence": "SKILL.md:17 makes findings and exit status advisory. dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py:28-35 discovers the selftest, :52-59 names it, and :70-87 fails on unsuccessful checks. Verified ledger 6b33a66ba150 reports selftest OK."
+    },
+    {
+      "criterion": "ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+      "met": true,
+      "evidence": "The plugin manifest contains the required identity, author, license and scope. NOTICE:6-8 credits upstream and its commit; :26-28 identifies excluded manifests and README. README's Scope and Source sections repeat the exclusions, scope and attribution."
+    },
+    {
+      "criterion": "ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+      "met": true,
+      "evidence": "CHANGE.diff's marketplace hunks add the required entry and move 1.169.0 to 1.170.0; the only other edit is the gstack-execution version change expressly required by ST-002.5. No reformatting appears."
+    },
+    {
+      "criterion": "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+      "met": true,
+      "evidence": "evidence/ci-44178845739.json records head_matches true and success for 'Run every check in the repository'; callers/0-mwp/.github/workflows/tests.yml:84-85 maps that step to run_all_tests.py. Runner discovery and reporting at :28-35, :52-59 and :70-78 necessarily include the present ste-lint.py selftest. Verified head-matching packaging receipt 96b4ff4af7c9:117-119 explicitly names asd-ste100; version receipt b9acbbce760c names both plugins. The CI summary itself was unavailable; naming of the selftest is established from the executed runner's code."
+    },
+    {
+      "criterion": "ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md:33 contains the single added bullet with both modes, timing and verbatim quotation protection."
+    },
+    {
+      "criterion": "ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md:20 adds the specified Strict-mode pass and explicitly preserves the outcome, never-do's and quotations."
+    },
+    {
+      "criterion": "ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+      "met": true,
+      "evidence": "gstack-design-doc.md:33 and gstack-goal-new.md:20 explicitly state advisory treatment, all four non-gating boundaries, and reporting followed by continuation when the skill is absent."
+    },
+    {
+      "criterion": "ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.",
+      "met": true,
+      "evidence": "CHANGE.diff shows ST-002 modifying only the two command files, plugin manifest, README and shared marketplace version. The newly vendored linter belongs to the explicitly required ST-001 addition; existing scripts, hooks, workflows and CODEOWNERS are unchanged."
+    },
+    {
+      "criterion": "ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+      "met": true,
+      "evidence": "CHANGE.diff contains the two 0.103.0-to-0.104.0 replacements, the README's 0.104.0 history entry, and one top-level marketplace replacement from 1.169.0 to 1.170.0."
+    },
+    {
+      "criterion": "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.",
+      "met": true,
+      "evidence": "CI run 44178845739 has head_matches true and a successful full-test step, mapped to run_all_tests.py by tests.yml:84-85. Verified, head-matching ledger b9acbbce760c reports PASS and 'examined 2 plugin(s): asd-ste100, gstack-execution'."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "ROUND.diff is empty. Prior F1\u2013F3 remain unchanged, non-blocking embedded instructions already recorded in SURFACE.md; none was followed or duplicated. No prior blockers or fix regressions exist. Existing unknown 1488ce9afb32 is answered by the fetched successful CI step and workflow mapping; 0513d42e0c8d's acceptance concern is addressed by deterministic runner reporting and the verified packaging receipt, without claiming the unavailable CI summary was inspected. No project builds or tests were run.",
+  "subjects": {},
+  "embedded_instructions": [],
+  "embedded_instructions_new": [],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

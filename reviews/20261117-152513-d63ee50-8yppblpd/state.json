@@ -1,0 +1,184 @@
+{
+  "review_id": "20261117-152513-d63ee50-8yppblpd",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "openrouter-gpt",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": true,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 2,
+  "outcome": "unusable",
+  "coverage_checked": true,
+  "coverage_status": "covered",
+  "coverage_overridden": false,
+  "off_repo_evidence": [],
+  "off_repo_overridden": [],
+  "ledger_status": "clear",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "cross_file",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "d63ee508a53cc66240f613c645eaf7b440386b95"
+    ],
+    [
+      "d63ee508a53cc66240f613c645eaf7b440386b95"
+    ],
+    [
+      "9e38874f0341c213783a4255f374af85a131727d"
+    ]
+  ],
+  "goldfish": "absent",
+  "origin": "gate_output",
+  "evidence_runs": {
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44199681837
+      }
+    ],
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "808d1b35f58a"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "19807000e49a"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "12a1f90fd189"
+      }
+    ]
+  },
+  "reviewer_intended": "openrouter-gpt",
+  "embedded_locations": [
+    {
+      "file": "reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/087d609d40c5.log",
+      "line": 2
+    },
+    {
+      "file": "reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-003-asd-ste100-more-commands.receipts/087d609d40c5.log",
+      "line": 5
+    }
+  ],
+  "embedded_instructions_reported": 2,
+  "adjudicated_round": 2
+}

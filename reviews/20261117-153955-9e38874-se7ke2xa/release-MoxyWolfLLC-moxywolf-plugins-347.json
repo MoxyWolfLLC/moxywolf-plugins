@@ -1,0 +1,131 @@
+{
+  "review_id": "20261117-153955-9e38874-se7ke2xa",
+  "action": "merge",
+  "repo": "MoxyWolfLLC/moxywolf-plugins",
+  "head": "58bb239f522611a1abb9ae4d294996905f80ec92",
+  "reviewed_head": "58bb239f522611a1abb9ae4d294996905f80ec92",
+  "target": "main",
+  "merge_commit": "0d24b1d7061dd3c307dfa971c287831092db7af0",
+  "approver": "dorianatmoxywolf",
+  "recorded_at": "2026-11-17T23:52:43Z",
+  "merged_at": "2026-11-17T23:52:41Z",
+  "source": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/347",
+  "outcome": "agent_merge_autonomous",
+  "merged_by": "moxywolf-agent[bot]",
+  "authorized_by": "dorianatmoxywolf",
+  "authority": "DR-113: Dorian's standing authorization of 2026-09-30",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/product-orchestrator/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/project-init/skills/session-end/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "council_outcome": {
+    "status": "written",
+    "line_id": "bb2c84565bbd"
+  },
+  "model_selection_ledger": "/Users/doriancougias/st001-review/review-records/model-selection/MoxyWolfLLC-moxywolf-plugins.jsonl",
+  "origin": "human_instruction"
+}

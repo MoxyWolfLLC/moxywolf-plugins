@@ -1,0 +1,855 @@
+{
+  "round": 1,
+  "started": "2026-11-17T13:27:40",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "review_base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 0,
+    "read": 0,
+    "head_matched": 0,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [],
+  "ledger_runs": [
+    {
+      "run_id": "08dbdb0748e5",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e7879ea7df0a962ddbad3cb7c2fff4394ac59720d44f30f4cda96900d74d6be9",
+      "shown": "evidence/ledger-08dbdb0748e5.log"
+    },
+    {
+      "run_id": "7cd2a7f2b951",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "2b271d3a2d9bceea77ab3569417e9d3f32fcf8899601eced6d58458695796c9d",
+      "shown": "evidence/ledger-7cd2a7f2b951.log"
+    },
+    {
+      "run_id": "6b33a66ba150",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "80856c9400fca3245f9a93fb6e732c48070ff16262d57e90355cbc270917e1d6",
+      "shown": "evidence/ledger-6b33a66ba150.log"
+    },
+    {
+      "run_id": "b9acbbce760c",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "6053af8e21e378097a0280c2038e37d237588d3a99d32a1a514427d3bbb9cc4a",
+      "shown": "evidence/ledger-b9acbbce760c.log"
+    }
+  ],
+  "surface": {
+    "changed": 28,
+    "callers": 25,
+    "callers_withheld": 106,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 26,
+    "dependencies_withheld": 166,
+    "criterion_files": [
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/LICENSE",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "dependencies/0-mwp/README.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "plugins/asd-ste100/skills/asd-ste100",
+        "files": 5,
+        "binary": 0,
+        "withheld": 0
+      },
+      {
+        "dir": ".claude-plugin",
+        "files": 1,
+        "binary": 0,
+        "withheld": 0
+      }
+    ],
+    "provenance": {
+      "entries": 92,
+      "untrusted": 90
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 90523,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "SURFACE.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/LICENSE",
+      "changed/0-mwp/plugins/asd-ste100/NOTICE",
+      "changed/0-mwp/plugins/asd-ste100/README.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/examples/before-after.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/examples/linter-edge-cases.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/references/writing-rules.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.jsonl",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/09741b18463a.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/61d1cc129a6b.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/7a7ef37f17c3.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/80f85b743641.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/9977a3d71631.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/9fde48c7a27e.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/a9be56575a67.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/build/ST-001-asd-ste100.receipts/faedaa820f01.log",
+      "changed/0-mwp/reviews/spec-review/ST-001.json",
+      "changed/0-mwp/reviews/spec-review/ST-001.md",
+      "changed/0-mwp/reviews/spec-review/ST-002.json",
+      "changed/0-mwp/reviews/spec-review/ST-002.md",
+      "dependencies/0-mwp/.github/CODEOWNERS",
+      "dependencies/0-mwp/CHARTER.md",
+      "dependencies/0-mwp/PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md",
+      "dependencies/0-mwp/README.md",
+      "dependencies/0-mwp/docs/evidence/ME-001-session-start.patch",
+      "dependencies/0-mwp/docs/evidence/ME-002-ME-003-live.md",
+      "dependencies/0-mwp/docs/evidence/SM-009-cloud-review-kept-2026-10-24.md",
+      "dependencies/0-mwp/docs/evidence/SS-001-session-end.patch",
+      "dependencies/0-mwp/docs/evidence/XE-022-macos-run.md",
+      "dependencies/0-mwp/docs/evidence/XE-035-release-2026-10-07.md",
+      "dependencies/0-mwp/docs/evidence/boundary-a-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-c-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-d-2026-09-30.md",
+      "dependencies/0-mwp/docs/evidence/gate-relaxed-2026-09-30.md",
+      "dependencies/0-mwp/goal-runs/README.md",
+      "dependencies/0-mwp/plugins/frontier-founder-smb/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/test_task_graph.py",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/untrusted-enclosure.md",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+      "dependencies/0-mwp/plugins/marketing-department/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/project-init/tests/test_briefing_never_skipped.py",
+      "dependencies/0-mwp/plugins/sales-department/GOVERNANCE.md",
+      "dirs/0-mwp/0.txt",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-7cd2a7f2b951.json",
+      "evidence/ledger-7cd2a7f2b951.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "examined_count": 82,
+    "offered_count": 94,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "dependencies/0-mwp/.github/CODEOWNERS",
+      "dependencies/0-mwp/CHARTER.md",
+      "dependencies/0-mwp/PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md",
+      "dependencies/0-mwp/README.md",
+      "dependencies/0-mwp/docs/evidence/ME-001-session-start.patch",
+      "dependencies/0-mwp/docs/evidence/ME-002-ME-003-live.md",
+      "dependencies/0-mwp/docs/evidence/SM-009-cloud-review-kept-2026-10-24.md",
+      "dependencies/0-mwp/docs/evidence/SS-001-session-end.patch",
+      "dependencies/0-mwp/docs/evidence/XE-022-macos-run.md",
+      "dependencies/0-mwp/docs/evidence/XE-035-release-2026-10-07.md",
+      "dependencies/0-mwp/docs/evidence/boundary-a-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-c-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-d-2026-09-30.md",
+      "dependencies/0-mwp/docs/evidence/gate-relaxed-2026-09-30.md",
+      "dependencies/0-mwp/goal-runs/README.md",
+      "dependencies/0-mwp/plugins/frontier-founder-smb/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/test_task_graph.py",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/untrusted-enclosure.md",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+      "dependencies/0-mwp/plugins/marketing-department/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/project-init/tests/test_briefing_never_skipped.py",
+      "dependencies/0-mwp/plugins/sales-department/GOVERNANCE.md",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-7cd2a7f2b951.json",
+      "evidence/ledger-7cd2a7f2b951.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "verdict": "blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+      "met": true,
+      "evidence": "All six files are present. Independently calculated git blob hashes match evidence/ledger-08dbdb0748e5.log:2-7, which records upstream comparison at 707362731928d0d92526c066df15dbbe6a378c07. Only SKILL.md differs."
+    },
+    {
+      "criterion": "ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+      "met": true,
+      "evidence": "Named ledger run 08dbdb0748e5 has exit_code 0, head_matches true and receipt_verified true. Its verified output compares all six files at the specified upstream commit and explicitly identifies SKILL.md as the only mismatch."
+    },
+    {
+      "criterion": "ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+      "met": true,
+      "evidence": "SKILL.md:3-17 contains the specified additions and scope; NOTICE:19-23 records version 0.4.0 and metadata removal. Read-only reconstruction reversing exactly those four changes reproduces upstream blob 1c59344b57e4a9433dce17f98b055297404f170d from the verified receipt. Description length is 632 characters."
+    },
+    {
+      "criterion": "ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+      "met": true,
+      "evidence": "SKILL.md:17 and README.md:15 explicitly make findings and exit status advisory. dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py:28-35 discovers Python files containing --selftest, lines 53-59 schedules and reports them, and lines 74-87 propagate failures. The new linter handles --selftest at lines 3310-3312. Verified ledger 6b33a66ba150 passed at the reviewed head."
+    },
+    {
+      "criterion": "ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+      "met": true,
+      "evidence": "The new manifest supplies the required identity, version, author and license. NOTICE:6-8 identifies upstream, commit and MIT; lines 26-28 distinguish the omitted upstream manifests and README from the local files. README.md:7-11 repeats the scope and exclusions, and line 21 repeats provenance and omitted files."
+    },
+    {
+      "criterion": "ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+      "met": true,
+      "evidence": "CHANGE.diff:2-47 shows the new entry with the required source and version, top-level 1.169.0 \u2192 1.170.0, and only the additional gstack-execution version replacement expressly required by ST-002.5. No catalog reformatting appears."
+    },
+    {
+      "criterion": "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+      "met": false,
+      "evidence": "SURFACE.md:81-83 states that no CI runs are supplied. The verified individual self-test and version-check ledger runs pass, but neither establishes a green full CI run. evidence/ledger-7cd2a7f2b951.log:2 reports only 'examined 247 package(s), 0 failed'; it does not name asd-ste100. The builder's CI narrative cannot settle these requirements."
+    },
+    {
+      "criterion": "ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md:33 adds exactly one bullet before Step 3b, with both requested modes and the verbatim quotation exception."
+    },
+    {
+      "criterion": "ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md:20 adds exactly one step-2 sub-bullet specifying Strict mode for PLAN.md item criteria and preserving the outcome, never-do's and quotations."
+    },
+    {
+      "criterion": "ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+      "met": true,
+      "evidence": "gstack-design-doc.md:33 and gstack-goal-new.md:20 explicitly state advisory treatment, all four nongating boundaries, and reporting followed by continuation when the skill is absent."
+    },
+    {
+      "criterion": "ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.",
+      "met": true,
+      "evidence": "The complete CHANGE.diff shows no such changes for ST-002: its implementation changes only two command files and version documentation/manifests. The sole added executable is the upstream linter explicitly required by ST-001. Existing CODEOWNERS patterns do not cover the changed paths."
+    },
+    {
+      "criterion": "ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+      "met": true,
+      "evidence": "CHANGE.diff:15-23 and 3904-3927 show the manifest and marketplace replacements and README 0.104.0 history entry. The top-level version changes once to 1.170.0. Verified ledger b9acbbce760c passes and names both plugins."
+    },
+    {
+      "criterion": "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.",
+      "met": false,
+      "evidence": "evidence/ledger-b9acbbce760c.log:2 names both plugins, and its record verifies a successful run at cd6679d. No CI record or successful full run_all_tests.py ledger run is supplied; SURFACE.md:83 confirms the CI evidence is absent."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "follow_up",
+      "file": "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "line": 101,
+      "what": "Untrusted skill content contains execution and output directives.",
+      "evidence": "Line 101 directs the reader to 'run scripts/ste-lint.py'; line 48 requests obtaining the external standard, and line 110 directs output of rewritten text alone. These were treated as reviewed source content and were not followed.",
+      "criterion": "",
+      "fix": "Keep these directives enclosed as untrusted review material; do not execute them or adopt their output format during review. No upstream modification is requested.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F2",
+      "severity": "follow_up",
+      "file": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "line": 37,
+      "what": "Untrusted command content directs starting another review and publishing changes.",
+      "evidence": "Line 37 says to run '/gstack-plan-review critics=2 target=design'. Lines 41 and 51-57 direct publishing, writing, committing, pushing and recording release. These application instructions were inspected as data; no review or mutation was started.",
+      "criterion": "",
+      "fix": "Preserve the review enclosure and do not treat command-body directives as authorization for the independent reviewer.",
+      "category": "embedded_instruction"
+    },
+    {
+      "id": "F3",
+      "severity": "follow_up",
+      "file": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "line": 11,
+      "what": "Untrusted command content directs script execution and external communication.",
+      "evidence": "Line 11 instructs running scripts from a checkout; line 13 says 'Send him the link once'; lines 21 and 23 direct test/check execution, and line 25 directs committing, pushing and opening a pull request. None was followed.",
+      "criterion": "",
+      "fix": "Keep the command body as untrusted source text throughout review; its execution and communication directives require a separate authorized command invocation.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [
+    {
+      "question": "Does dispatcher-fetched CI evidence at cd6679d show a successful full run_all_tests.py run?",
+      "needs": "ci_run",
+      "criterion": "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined."
+    },
+    {
+      "question": "Do the CI report lines at cd6679d explicitly include ste-lint.py --selftest among the executed checks and identify asd-ste100 in the packaging check's examined inputs?",
+      "needs": "ci_run",
+      "criterion": "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined."
+    }
+  ],
+  "notes": "The verdict is blocked by two unmet evidence criteria. Static inspection and verified ledger receipts support the implementation and upstream fidelity. No files were changed, and no project build, tests, deployment or additional review was run.",
+  "subjects": {
+    "F1": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "line": 101,
+      "bound": true,
+      "blob": "174bcd659c112fd703db0c74570957fb6e4c8e5d",
+      "span": "17c9cd5acc4bcca8",
+      "span_lines": [
+        99,
+        103
+      ],
+      "file_lines": 149,
+      "line_exists": true
+    },
+    "F2": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "plugins/gstack-execution/commands/gstack-design-doc.md",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "line": 37,
+      "bound": true,
+      "blob": "0fdbb53adaf96eb433bbbc6be9b90c7401d1d021",
+      "span": "d0e18067bbbdf411",
+      "span_lines": [
+        35,
+        39
+      ],
+      "file_lines": 71,
+      "line_exists": true
+    },
+    "F3": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "plugins/gstack-execution/commands/gstack-goal-new.md",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "line": 11,
+      "bound": true,
+      "blob": "68dbf052bc4be0a41ffda0b1ca81c36d965856d9",
+      "span": "18433f0801d7fd75",
+      "span_lines": [
+        9,
+        13
+      ],
+      "file_lines": 45,
+      "line_exists": true
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F1",
+      "file": "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "line": 101
+    },
+    {
+      "id": "F2",
+      "file": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "line": 37
+    },
+    {
+      "id": "F3",
+      "file": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "line": 11
+    }
+  ],
+  "embedded_instructions_new": [
+    "F1",
+    "F2",
+    "F3"
+  ],
+  "unknowns_raised": [
+    "1488ce9afb32",
+    "0513d42e0c8d"
+  ],
+  "unknowns_settled": [],
+  "unmet_acceptance": [
+    "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+    "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined."
+  ],
+  "outcome": "blocking_findings",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}
+{
+  "round": 2,
+  "started": "2026-11-17T13:32:06",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "head": "cd6679d31e085026242b1b42e7515a4ec08b790f",
+      "review_base": "5d5d5e6059ee5ada448cee7d5f77a4aa331fc074"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44178845739,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "08dbdb0748e5",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e7879ea7df0a962ddbad3cb7c2fff4394ac59720d44f30f4cda96900d74d6be9",
+      "shown": "evidence/ledger-08dbdb0748e5.log"
+    },
+    {
+      "run_id": "96b4ff4af7c9",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "1bc372de25850bec409207cc0fd3bde58d13981cdd56d1aa4de8faaeaaead99b",
+      "shown": "evidence/ledger-96b4ff4af7c9.log"
+    },
+    {
+      "run_id": "6b33a66ba150",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "80856c9400fca3245f9a93fb6e732c48070ff16262d57e90355cbc270917e1d6",
+      "shown": "evidence/ledger-6b33a66ba150.log"
+    },
+    {
+      "run_id": "b9acbbce760c",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "6053af8e21e378097a0280c2038e37d237588d3a99d32a1a514427d3bbb9cc4a",
+      "shown": "evidence/ledger-b9acbbce760c.log"
+    }
+  ],
+  "surface": {
+    "changed": 28,
+    "callers": 25,
+    "callers_withheld": 106,
+    "cap": 25,
+    "from_prior_findings": 3,
+    "dependencies": 26,
+    "dependencies_withheld": 166,
+    "criterion_files": [
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/LICENSE",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "dependencies/0-mwp/README.md"
+    ],
+    "criterion_dirs": [
+      {
+        "dir": "plugins/asd-ste100/skills/asd-ste100",
+        "files": 5,
+        "binary": 0,
+        "withheld": 0
+      },
+      {
+        "dir": ".claude-plugin",
+        "files": 1,
+        "binary": 0,
+        "withheld": 0
+      }
+    ],
+    "provenance": {
+      "entries": 95,
+      "untrusted": 93
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 63408,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "ROUND.diff",
+      "SURFACE.md",
+      "UNKNOWNS.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "changed/0-mwp/plugins/asd-ste100/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/asd-ste100/NOTICE",
+      "changed/0-mwp/plugins/asd-ste100/README.md",
+      "changed/0-mwp/plugins/asd-ste100/skills/asd-ste100/SKILL.md",
+      "changed/0-mwp/plugins/gstack-execution/README.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44178845739.json",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-96b4ff4af7c9.json",
+      "evidence/ledger-96b4ff4af7c9.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "examined_count": 23,
+    "offered_count": 97,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44178845739.json",
+      "evidence/ledger-08dbdb0748e5.json",
+      "evidence/ledger-08dbdb0748e5.log",
+      "evidence/ledger-6b33a66ba150.json",
+      "evidence/ledger-6b33a66ba150.log",
+      "evidence/ledger-96b4ff4af7c9.json",
+      "evidence/ledger-96b4ff4af7c9.log",
+      "evidence/ledger-b9acbbce760c.json",
+      "evidence/ledger-b9acbbce760c.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "ST-001.1. `plugins/asd-ste100/skills/asd-ste100/` holds upstream's `SKILL.md`, `references/writing-rules.md`, `examples/before-after.md`, `examples/linter-edge-cases.md` and `scripts/ste-lint.py`, and `plugins/asd-ste100/LICENSE` holds upstream's `LICENSE`. Every one of them except `SKILL.md` is byte for byte upstream's at the named commit.",
+      "met": true,
+      "evidence": "The files are present under changed/0-mwp/plugins/asd-ste100/. Verified receipt evidence/ledger-08dbdb0748e5.log reports matching upstream blob hashes for all five unchanged files at 707362731928d0d92526c066df15dbbe6a378c07."
+    },
+    {
+      "criterion": "ST-001.2. A `check_ledger.py` run compares each vendored file's git blob hash with upstream's at the named commit and is named in the packet's `tests.ledger_runs`. `SKILL.md` is the only mismatch, and the run says so.",
+      "met": true,
+      "evidence": "Packet-named ledger 08dbdb0748e5 has exit_code 0, head_matches true and receipt_verified true. Its receipt reports six comparisons and SKILL.md as the only mismatch."
+    },
+    {
+      "criterion": "ST-001.3. `SKILL.md` changes in four places and no others: the frontmatter's two-line `metadata:` block (upstream's skill version, 0.4.0) is removed, because CI-001's stdlib reader can't read a nested map, and `NOTICE` records that version; one HTML comment under the frontmatter saying the file is modified from upstream and where; one sentence added to `description` ruling out MoxyWolf published prose (blog posts, articles, papers, email, LinkedIn posts and anything written in Dorian's voice); and a `## MoxyWolf scope` section after the title naming what it's for here (DESIGN.md items and amendments, goal briefs, review contracts and acceptance criteria, SKILL.md files and command descriptions, tool descriptions and error messages) and what it's never for. The section says it overrides upstream's broader triggers: blog posts, articles, papers, email and LinkedIn posts are excluded even when an agent reads them, drafts included. Upstream's own warnings stay as written, including that the skill and its linter check structure only and don't establish ASD dictionary compliance. The description stays within CI-001's 1,024 characters, and the diff against upstream shows those four changes only.",
+      "met": true,
+      "evidence": "SKILL.md:3-17 contains the specified modifications; NOTICE:19-23 records version 0.4.0. Reversing precisely those four modifications in memory reproduces upstream blob 1c59344b57e4a9433dce17f98b055297404f170d from the verified receipt. Packaging receipt 96b4ff4af7c9 reports a passing 632-character description."
+    },
+    {
+      "criterion": "ST-001.4. Lint findings and lint-run exit status are advisory and never gate design, review, merge or release. `run_all_tests.py` runs `ste-lint.py --selftest` and requires that self-test to pass.",
+      "met": true,
+      "evidence": "SKILL.md:17 makes findings and exit status advisory. dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py:28-35 discovers the selftest, :52-59 names it, and :70-87 fails on unsuccessful checks. Verified ledger 6b33a66ba150 reports selftest OK."
+    },
+    {
+      "criterion": "ST-001.5. `plugins/asd-ste100/.claude-plugin/plugin.json` (name `asd-ste100`, version `0.1.0`, author MoxyWolf LLC, license MIT), `NOTICE` and `README.md` are ours. They credit upstream (MIT, the commit), list what wasn't taken (upstream's `.claude-plugin/` manifests and its README) and repeat criterion 3's scope.",
+      "met": true,
+      "evidence": "The plugin manifest contains the required identity, author, license and scope. NOTICE:6-8 credits upstream and its commit; :26-28 identifies excluded manifests and README. README's Scope and Source sections repeat the exclusions, scope and attribution."
+    },
+    {
+      "criterion": "ST-001.6. `marketplace.json` gains an `asd-ste100` entry with `source` `./plugins/asd-ste100` at version `0.1.0`, and the top-level version moves (CI-002). The file is edited as text, and its diff shows the new entry and the version line only.",
+      "met": true,
+      "evidence": "CHANGE.diff's marketplace hunks add the required entry and move 1.169.0 to 1.170.0; the only other edit is the gstack-execution version change expressly required by ST-002.5. No reformatting appears."
+    },
+    {
+      "criterion": "ST-001.7. Tests: `run_all_tests.py` is green in CI at the head and names `plugins/asd-ste100/skills/asd-ste100/scripts/ste-lint.py --selftest` among what it ran, and the CI-001 packaging check and the CI-002 version check both report `asd-ste100` among what they examined.",
+      "met": true,
+      "evidence": "evidence/ci-44178845739.json records head_matches true and success for 'Run every check in the repository'; callers/0-mwp/.github/workflows/tests.yml:84-85 maps that step to run_all_tests.py. Runner discovery and reporting at :28-35, :52-59 and :70-78 necessarily include the present ste-lint.py selftest. Verified head-matching packaging receipt 96b4ff4af7c9:117-119 explicitly names asd-ste100; version receipt b9acbbce760c names both plugins. The CI summary itself was unavailable; naming of the selftest is established from the executed runner's code."
+    },
+    {
+      "criterion": "ST-002.1. `plugins/gstack-execution/commands/gstack-design-doc.md` Step 3 gains one bullet: before Step 3b, load the `asd-ste100` skill and rewrite each new or changed item's acceptance criteria in its Strict mode and the item's other text in its STE-flavored mode. Text quoting Dorian (an approval, a ruling, an Amendments log quotation) stays verbatim.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-design-doc.md:33 contains the single added bullet with both modes, timing and verbatim quotation protection."
+    },
+    {
+      "criterion": "ST-002.2. `plugins/gstack-execution/commands/gstack-goal-new.md` step 2 gains one sub-bullet: the same pass over `PLAN.md`'s item criteria in Strict mode. `GOAL.md`'s outcome and never-do's are Dorian's words and are never rewritten, and nor is any text that quotes Dorian.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-goal-new.md:20 adds the specified Strict-mode pass and explicitly preserves the outcome, never-do's and quotations."
+    },
+    {
+      "criterion": "ST-002.3. Both additions say the skill's suggestions and `ste-lint.py`'s findings are advisory and never gate design, review, merge or release, and that when the skill isn't installed the command says so in its report and goes on.",
+      "met": true,
+      "evidence": "gstack-design-doc.md:33 and gstack-goal-new.md:20 explicitly state advisory treatment, all four non-gating boundaries, and reporting followed by continuation when the skill is absent."
+    },
+    {
+      "criterion": "ST-002.4. No script, hook, workflow or `CODEOWNERS` path changes.",
+      "met": true,
+      "evidence": "CHANGE.diff shows ST-002 modifying only the two command files, plugin manifest, README and shared marketplace version. The newly vendored linter belongs to the explicitly required ST-001 addition; existing scripts, hooks, workflows and CODEOWNERS are unchanged."
+    },
+    {
+      "criterion": "ST-002.5. `gstack-execution` moves 0.103.0 to 0.104.0 in `plugin.json`, its `marketplace.json` entry and its README Version History, by text replacement. The top-level marketplace version moves once for ST-001 and ST-002 together (CI-002).",
+      "met": true,
+      "evidence": "CHANGE.diff contains the two 0.103.0-to-0.104.0 replacements, the README's 0.104.0 history entry, and one top-level marketplace replacement from 1.169.0 to 1.170.0."
+    },
+    {
+      "criterion": "ST-002.6. Tests: `run_all_tests.py` green in CI at the head, and the CI-002 version check names `gstack-execution` and `asd-ste100` among what it examined.",
+      "met": true,
+      "evidence": "CI run 44178845739 has head_matches true and a successful full-test step, mapped to run_all_tests.py by tests.yml:84-85. Verified, head-matching ledger b9acbbce760c reports PASS and 'examined 2 plugin(s): asd-ste100, gstack-execution'."
+    }
+  ],
+  "findings": [],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "ROUND.diff is empty. Prior F1\u2013F3 remain unchanged, non-blocking embedded instructions already recorded in SURFACE.md; none was followed or duplicated. No prior blockers or fix regressions exist. Existing unknown 1488ce9afb32 is answered by the fetched successful CI step and workflow mapping; 0513d42e0c8d's acceptance concern is addressed by deterministic runner reporting and the verified packaging receipt, without claiming the unavailable CI summary was inspected. No project builds or tests were run.",
+  "subjects": {},
+  "embedded_instructions": [],
+  "embedded_instructions_new": [],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

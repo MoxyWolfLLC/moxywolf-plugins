@@ -1,0 +1,8 @@
+MISMATCH SKILL.md upstream=1c59344b57e4a9433dce17f98b055297404f170d ours=174bcd659c112fd703db0c74570957fb6e4c8e5d
+match    references/writing-rules.md upstream=9e291425b0dd9e81118ebaacc5180f97696bd5da ours=9e291425b0dd9e81118ebaacc5180f97696bd5da
+match    examples/before-after.md upstream=ad7ee5b99e486aa6bdd2dc5354ce0e1d3f96c020 ours=ad7ee5b99e486aa6bdd2dc5354ce0e1d3f96c020
+match    examples/linter-edge-cases.md upstream=b5ad9158da6c091d39a228ddf63e1fb914f67085 ours=b5ad9158da6c091d39a228ddf63e1fb914f67085
+match    scripts/ste-lint.py upstream=44c62334cda2aeba06f425960d1c9d0f2b7a51af ours=44c62334cda2aeba06f425960d1c9d0f2b7a51af
+match    LICENSE upstream=cf3b9052d36f05227a3e3c364910b9f96c86cc5f ours=cf3b9052d36f05227a3e3c364910b9f96c86cc5f
+examined 6 files at upstream 707362731928d0d92526c066df15dbbe6a378c07 and head cd6679d31e085026242b1b42e7515a4ec08b790f
+OK: every vendored file matches upstream except SKILL.md, the one modified file

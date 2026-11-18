@@ -1,0 +1,415 @@
+{
+  "outcome": "ST-003: six more commands and skills run asd-ste100 over text an agent acts on, advisory only and never over Dorian's or a user's words, and every run (including ST-002's two commands) ends its report with one asd-ste100 summary line. The change also marks ST-001 and ST-002 done; their review records follow in a separate pull request.",
+  "items": [
+    "ST-003"
+  ],
+  "acceptance_criteria": [
+    "ST-003.1. The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.",
+    "ST-003.2. `plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> \u2192 A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.",
+    "ST-003.3. `plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's \"Open work\" and \"Procedural reminders\" sections are rewritten in STE-flavored mode; \"What landed\", \"Mistakes\" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.",
+    "ST-003.4. `plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.",
+    "ST-003.5. `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.",
+    "ST-003.6. Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.",
+    "ST-003.7. Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.",
+    "ST-003.8. No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.",
+    "ST-003.9. Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).",
+    "ST-003.10. Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined."
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "c70729f4b490c2e3db920e18930e47902782892b",
+      "head": "d63ee508a53cc66240f613c645eaf7b440386b95",
+      "review_base": "c70729f4b490c2e3db920e18930e47902782892b"
+    }
+  ],
+  "changed_behavior": "Instruction text only: seven command/skill files gain a step telling the agent to run the asd-ste100 skill and print a summary line. No scripts, hooks or workflows change. Version moves in five plugins and the marketplace. DESIGN.md: ST-001/ST-002 status lines marked done. The PR #346 review records are not in this change.",
+  "exclusions": [
+    "The asd-ste100 skill's rules and upstream content are not under review (ST-001, done).",
+    "Which places get the pass, and the scope rule (agent-acted text only, never Dorian's published prose or his or a user's words), are settled: ST-003 approved by Dorian 2026-11-17.",
+    "The pass and its linter are advisory by decision; their output never gates.",
+    "Constraints and settled decisions in DESIGN.md's Constraints section apply as written."
+  ],
+  "tests": {
+    "commands": [
+      "python3 plugins/gstack-execution/scripts/skill_packaging.py --root . --json (ledger 08c4960f0849)",
+      "python3 plugins/gstack-execution/scripts/version_bump.py --base c70729f --head HEAD (ledger 6e6d26b31ea0)",
+      "python3 plugins/gstack-execution/scripts/spec_review.py check DESIGN.md --items ST-003 (ledger 4b20d21a7c68)",
+      "GitHub Actions tests workflow on PR #347"
+    ],
+    "results": "Packaging: 247 packages examined, failed list empty. Version bump: PASS, examined 5 plugins: chief-of-staff, gstack-execution, product-orchestrator, project-init, team-kanban. Spec review check: ST-003 matches its record, no open contradictions, 5 ambiguities not blocking.",
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "08c4960f0849"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "6e6d26b31ea0"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "4b20d21a7c68"
+      }
+    ],
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44198180530
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/Users/doriancougias/st001-review/review-records"
+    ]
+  },
+  "vocabulary_version": "1.13.0",
+  "origin": "gate_output",
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-17T23:24:34.898Z",
+    "inputs": {
+      "items": [
+        "ST-003"
+      ],
+      "criteria_count": 10,
+      "criteria": [
+        "ST-003.1. The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.",
+        "ST-003.2. `plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> \u2192 A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.",
+        "ST-003.3. `plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's \"Open work\" and \"Procedural reminders\" sections are rewritten in STE-flavored mode; \"What landed\", \"Mistakes\" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.",
+        "ST-003.4. `plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.",
+        "ST-003.5. `plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.",
+        "ST-003.6. Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.",
+        "ST-003.7. Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.",
+        "ST-003.8. No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.",
+        "ST-003.9. Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).",
+        "ST-003.10. Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined."
+      ],
+      "paths_named": [
+        "plugins/product-orchestrator/commands/product-prd.md",
+        "plugins/product-orchestrator/commands/product-clarify.md",
+        "plugins/product-orchestrator/commands/project-charter.md",
+        "plugins/project-init/skills/session-end/SKILL.md",
+        "plugins/team-kanban/skills/team-kanban/SKILL.md",
+        "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+        "ste-lint.py",
+        "skill-bundles/",
+        "plugin.json",
+        "marketplace.json",
+        "run_all_tests.py"
+      ],
+      "files_read": 7,
+      "files": [
+        {
+          "path": "plugins/product-orchestrator/commands/product-prd.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 25,
+          "head": "---\ndescription: Generate a Product Requirements Document\nallowed-tools: Read, Write, Edit, Bash, Agent, AskUserQuestion\nargument-hint: [product-name-or-description]\n---\n\nGenerate a PRD for the product or feature described in $ARGUMENTS.\n\nRead the product-orchestrator skill (trigger it by context \u2014 this is a product orchestration task). Then read `references/prd-template.md` from the product-orchestrator skill directory for the PRD format and interview protocol.\n\nFollow the PRD interview process to extract required inputs from the user. Ask only what the user hasn't already provided in their arguments or prior conversation. Use AskUserQuestion for structured questions.\n\nBefore saving, load the `asd-ste100` skill (ST-003) and rewrite the PRD's requirements and acceptance criteria in its Strict mode. Leave the rest of the PRD as written. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.\n\nAfter generating the PRD:\n1. Save it to the workspace folder as `PRD-{product-slug}.md`\n2. Present a summary to the user, ending with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on\n3. Suggest which deliberation to run next based on the PRD's open questions, risks, and gaps:\n   - Scope ambiguity \u2192 suggest `/product-scope`\n   - Technical unknowns \u2192 suggest `/product-arch`\n   - NFRs or dependencies surface architecture questions \u2192 suggest `/product-arch`\n   - Positioning unclear \u2192 suggest `/product-gtm`\n   - High-likelihood unmitigated risks \u2192 suggest `/product-scope` to reconsider scope\n   - PRD is crisp \u2192 suggest `/product-sprint`\n"
+        },
+        {
+          "path": "plugins/product-orchestrator/commands/product-clarify.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 25,
+          "head": "---\ndescription: Scan a PRD for ambiguity and coverage gaps, then resolve them with up to 5 targeted questions encoded back into the PRD\nallowed-tools: Read, Write, Edit, Bash, AskUserQuestion\nargument-hint: [prd-path-or-product-name]\n---\n\nRun a structured clarification pass on a PRD before it goes to architecture deliberation. Concept-ported from spec-kit's `/speckit.clarify` (MIT) \u2014 the ambiguity-scan discipline, re-specified for the product-orchestrator PRD flow. See DR-004's clarify follow-on.\n\nRead the product-orchestrator skill for context, then read `references/clarify-protocol.md` for the ambiguity taxonomy, the question-selection heuristic, and the encode-back rules.\n\nSteps:\n\n1. **Locate the PRD.** Load the PRD named in $ARGUMENTS, or the most recent `PRD-*.md` in the workspace. If none exists, tell the user to run `/product-prd` first \u2014 clarify operates on an existing PRD, it doesn't create one.\n2. **Coverage scan.** Walk the PRD against the ambiguity taxonomy in the protocol. For each category, mark Clear / Partial / Missing. Build the coverage map internally (don't dump it unless no questions are warranted).\n3. **Prioritize.** Queue at most 5 candidate questions, ranked by Impact \u00d7 Uncertainty. Only include questions whose answers materially change architecture, data model, task decomposition, scope, or verification. Exclude anything already answered, stylistic, or pure execution detail.\n4. **Ask one at a time.** Use AskUserQuestion, exactly one question per turn, each answerable from a short option set or a one-line answer. Never reveal the queue. Stop early once the critical ambiguities are resolved; never exceed 5.\n5. **Encode back.** After each accepted answer, write it into the right PRD section (not a scratchpad), and append a `- Q: <question> \u2192 A: <answer>` bullet to a `## Clarifications ({date})` block. Replace any statement the answer invalidates \u2014 leave no contradictory text. Load the `asd-ste100` skill (ST-003) and rewrite the prose you write into the PRD section in its Strict mode. The `- Q: \u2026 \u2192 A: \u2026` bullet keeps the user's answer verbatim, and so do any words the prose quotes from it. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.\n6. **Report.** Summarize: questions asked/answered, categories still Partial/Missing (as explicit Deferred items with rationale), and the recommended next step (`/product-scope` or `/product-arch`). End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on.\n\nIf the scan finds no material ambiguities, say \"No critical ambiguities detected worth formal clarification\" and suggest advancing \u2014 do not manufacture questions.\n\nThe target PRD is: $ARGUMENTS\n\nIf no arguments provided, look for the most recent PRD in the workspace and confirm it with the user before scanning.\n"
+        },
+        {
+          "path": "plugins/product-orchestrator/commands/project-charter.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 32,
+          "head": "---\ndescription: Create or update a project's CHARTER.md \u2014 the durable principles and boundaries the Council consults before scope and PRD decisions\nallowed-tools: Read, Write, Edit, Bash, Agent, AskUserQuestion\nargument-hint: [project-name-or-path]\n---\n\nCreate or update the project charter for the project described in $ARGUMENTS (default: the current working directory / active project).\n\nRead the product-orchestrator skill (trigger it by context \u2014 this is a product orchestration task), then read `references/charter-template.md` from the product-orchestrator skill directory for the charter format and interview protocol.\n\nA charter is the project's **constitution**: the small set of durable principles, technical constraints, and architectural boundaries that should hold across every feature \u2014 the kind of invariant that, once decided, shouldn't be relitigated on every scope or PRD call (e.g. \"the importer owns Supabase writes; the extractor never writes the lexicon store directly\"). It is governance the Council loads as context, not a gate that blocks work.\n\n## Steps\n\n1. **Locate the charter.** Look for an existing `CHARTER.md` at the project root (the active GitHub repo, or the path in $ARGUMENTS). If one exists, read it and treat this as an update; otherwise create a new one.\n\n2. **Interview only for what's missing.** Using the `charter-template.md` protocol, gather: the project's mission in one line, 3\u20137 durable principles, hard technical constraints, explicit architectural boundaries (what owns what / what must never happen), and any non-negotiables (compliance, security, data-egress rules). Ask only what isn't already evident from $ARGUMENTS, the repo, prior conversation, or an existing charter. Use AskUserQuestion for structured choices. Pull candidate principles from existing decision records (`DR-*.md` / `PD-*.md`) when available and ask the user to confirm them.\n\n3. **Keep it short and durable.** A charter is invariants, not a spec. If a line would change feature-to-feature, it belongs in a PRD, not the charter. Aim for one screen. Every principle should be falsifiable enough that the Council can check a decision against it. Before writing, load the `asd-ste100` skill (ST-003) and rewrite the principles, technical constraints, architectural boundaries and non-negotiables in its Strict mode. Text that quotes Dorian or a user's answer stays verbatim. The skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release.\n\n4. **Write `CHARTER.md` to the project root** in the format from `charter-template.md`. On an update, preserve the version-history block and append a dated entry describing what changed.\n\n5. **Confirm the wiring.** Remind the user that once `CHARTER.md` exists at the project root, `/product-scope` and `/product-prd` automatically load it as Council context \u2014 it informs deliberation but never blocks it (progressive opt-in rigor: tiny changes ignore it, large changes lean on it). See DR-004.\n\n6. **Present a summary** of the charter's principles and boundaries, and suggest the next step (`/product-scope` or `/product-prd`) now that the governing context exists. End with one line: `asd-ste100: <n> rewritten, <m> kept as-is` (counts combined across this run), then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed` when the skill is missing, and go on.\n\n## Notes\n\n- The charter does not gate anything. It is passive context. Absent a `CHARTER.md`, every other command behaves exactly as before.\n- Do not invent principles. Use only what the user confirms or what existing decision records establish.\n- This command lives in product-orchestrator because the charter governs the *decide-what-to-build* phase. Implementation-time consistency checks against the charter are a separate, optional concern (see DR-004's `/product-analyze` and `/gstack-verify` follow-ons).\n"
+        },
+        {
+          "path": "plugins/project-init/skills/session-end/SKILL.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 523,
+          "head": "---\nname: session-end\ndescription: This skill should be used when the user says \"session-end\", \"end session\", \"wrap session\", \"save handoff\", \"/session-end\", \"we're done\", \"sign off\", or any request to wrap up a Cowork session and persist what was done plus what's next for the following session. It scans the conversation for what landed, what's still open, and the commit/push state of the active repo(s), asks who authored this handoff and whether it's a baton-pass to a teammate, then writes a canonical-named handoff document (with `author` and optional `for` frontmatter fields auto-populated) to the project's `00 \u2013 Project Hub/cowork-session-handoff.md`. Supports `--author=<name>`, `--handoff-to=<name>`, and `--solo` flags to skip the prompts. Step 5c keeps each writable GitHub repo's README.md current against the canonical 16-section structure. The companion `/session-start` skill reads the handoff file to brief next-session Claude.\n---\n\n# Session End\n\nWrap a Cowork session by extracting what was done plus what's queued for next time, and persisting it to a canonical-named handoff document. The companion `/session-start` skill reads that exact file to brief next-session Claude in one step.\n\n## When to use\n\nTrigger when the user is wrapping a Cowork session and wants the work persisted in a way the next session can pick up. Common triggers:\n\n- `/session-end [project-name]`\n- `/session-end [project-name] --author=<name>` *(skip the author prompt)*\n- `/session-end [project-name] --handoff-to=<name>` *(skip the baton-pass prompt; implies an active handoff)*\n- `/session-end [project-name] --solo` *(skip the baton-pass prompt; writes no `for:` field)*\n- `/session-end [project-name] --archive` *(also write a dated archive copy)*\n- \"session-end\" / \"end session\" / \"wrap session\"\n- \"save handoff\" / \"save the handoff for tomorrow\"\n- \"we're done for the day\"\n- \"sign off\"\n- \"write the continuation prompt\"\n\nThe skill assumes the project has been initialized via `/init-project` and has a saved `cowork-project-instructions.md` in its `00 \u2013 Project Hub/`. If not, route the user to `/init-project` first.\n\n## Standard handoff filename\n\nThe canonical path is **`[project]/00 \u2013 Project Hub/cowork-session-handoff.md`**. Single file. Overwritten each session-end. Drive versioning preserves history.\n\nThis filename is **fixed**. `/session-start` reads exactly this path. Don't add date suffixes, don't write to a different location, don't split into multiple files. Free-form continuation prompts can still live in `06 \u2013 Engineering/` or wherever for project-specific use, but the canonical handoff is at this fixed path.\n\nIf the user wants an explicit dated archive in addition to the canonical file, the `--archive` flag writes a copy to `00 \u2013 Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md`. The canonical file is still written; the archive is an additional copy.\n\n## Steps\n\n### Step 1: Resolve which project\n\nIf the user passed a project name with the slash command (e.g. `/session-end Nexus`), use it directly. Otherwise, in order:\n\na. Check the currently-mounted folders. If exactly one project folder is mounted (e.g. `GitHub/Projects/MW Plugins` or `Taskade/Nexus`), assume that's the project. Confirm via a single AskUserQuestion before proceeding.\n\nb. If none is obviously mounted, scan `GitHub/Projects/` (org-shared; skip `Directory Template`), `Taskade/` and `MoxyWolf Vault/Projects/` for subfolders that contain `00 \u2013 Project Hub/cowork-project-instructions.md`. Sort by recency of modification of the saved instructions file. Present the top ~6 candidates via AskUserQuestion.\n\nc. If the user passes a name that doesn't match any folder, list available project folders and ask them to pick (don't create new ones \u2014 that's `/init-project`'s job).\n\n### Step 2: Read the saved Project Instructions (for context)\n\nRead `[WORKSPACE]/00 \u2013 Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, `Taskade/[PROJECT_NAME]` for a personal one, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Org-shared projects are never stored in Taskade. Every handoff path below uses the same `[WORKSPACE]`.\n\nThis gives you:\n\n- The active Taskade subfolder name\n- The list of active GitHub repo(s)\n- Any project-specific overrides\n\nYou'll cite specific repo names in the handoff's \"Commit & push state\" section so next-session Claude knows where to look.\n\n### Step 3: Scan the session for extractable handoff content\n"
+        },
+        {
+          "path": "plugins/team-kanban/skills/team-kanban/SKILL.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 144,
+          "head": "---\nname: team-kanban\ndescription: >\n  This skill should be used when the user says \"team kanban\", \"update the team board\",\n  \"sync tasks to Jira\", \"what's the team working on\", \"team task board\", \"push tasks to Jira\",\n  \"update the MOXY board\", \"team kanban update\", \"kanban sync\", \"team status board\", or any\n  request to aggregate action items into the team-visible Jira board. Also trigger when the\n  user asks to \"set up the team board\" or references the MOXY board. This skill sweeps\n  non-chat sources (Google Drive Active Tasks, Google Calendar, Gmail) for action items and\n  files them into the Jira board (project MOXY) with best-practice issue authoring\n  (Context/Acceptance/Notes descriptions, sub-items as real Subtasks, dependencies as issue\n  links), then maintains board hygiene (priorities, In Review workflow, dedup against Done).\n  Jira is the single canonical board \u2014 there is no vault kanban and no Slack digest.\n---\n\n# Team Kanban \u2014 Single Board on Jira (project MOXY)\n\n**Jira (project MOXY, https://moxywolf.atlassian.net) is the single canonical task board.** This skill sweeps non-chat sources (Google Drive Active Tasks, Google Calendar, Gmail) for action items and files genuinely-new ones into MOXY, then keeps the board healthy (priorities, In Review workflow, dedup). Team members file their own tasks directly into Jira \u2014 including straight from Slack via the Jira Slack app \u2014 so there is no chat scraping and no digest to post.\n\n> **Migration note (2026-07-16):** MoxyWolf retired the vault kanban (`KANBAN_VIEW.md`) and all Slack task flows. Jira is now the only board. Do not read or write a vault kanban, do not scrape Slack for action items, and do not post a #general digest. Older sessions that reference those are pre-migration.\n\n---\n\n## Team Roster\n\nPeople who can be assigned tasks. Use the short name for reference and the Jira accountId (resolved once at setup via `lookupJiraAccountId` from the email, stored in the config note) for issue assignment.\n\n| Name | Short Name | Email | Role |\n|------|-----------|-------|------|\n| Dorian Cougias | dorian | dorianc@moxywolf.com | Founder/CEO |\n| Philip Mudhir | phil | philm@moxywolf.com | Core team |\n| Steven P | steven | stevenp@moxywolf.com | Core team |\n| Michael Flanagan | michael | michaelf@moxywolf.com | Core team |\n\nContractors can be assigned by name; if they have no Jira account, leave the issue unassigned and put their name in the description.\n\n---\n\n## Board Columns (Jira statuses)\n\n| Column | Purpose |\n|--------|---------|\n| Backlog | Captured but not yet prioritized. New tickets (incl. those filed from Slack) land here by default. |\n| P0 - Today | Max 3. Time-sensitive, blocks other work, or external deadline within 24h |\n| P1 - This Week | Max 7. Important but not today-urgent; must move before Friday |\n| Blocked | Waiting on external input. Include who/what is blocking and how long |\n| In Progress | Actively being worked on right now |\n| In Review | Marked complete by the assignee \u2014 awaiting confirmation before Done |\n| Done | Confirmed complete. Clear weekly on Monday |\n\nStatuses are **discovered, never assumed** \u2014 if a target status doesn't exist on the board, use the fallback label (`blocked`, `in-review`, priority labels) per `references/jira-board-mapping.md`. Priorities are expressed as labels + column position.\n\n---\n\n## Operating Modes\n\n### Mode 1: Full Sync (default)\n\n**Triggers:** \"team kanban\", \"update the team board\", \"sync tasks to Jira\", or the `/team-kanban` command.\n"
+        },
+        {
+          "path": "plugins/chief-of-staff/skills/chief-of-staff/SKILL.md",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 183,
+          "head": "---\nname: chief-of-staff\ndescription: \"The Chief of Staff's operating manual: who MoxyWolf's ten department agents are, which one owns which ask, what the Chief of Staff may do without asking, what it sends back, and how it writes a decision memo. Load it before routing work to finance, people, it-operations, security, pmo, operations, corporate-strategy, customer-experience, sales-department or marketing-department, and whenever an ask could belong to more than one of them.\"\n---\n\n# Chief of Staff\n\nYou're Dorian's Chief of Staff. You don't do the departments' work. You decide who owns an ask, send it to them with what they need, check what comes back, and bring Dorian only what needs him.\n\nYou run in the main session, because you have to dispatch agents and a subagent can't. Never run this manual inside a subagent.\n\n## Reading order\n\n1. The context card: `MoxyWolf Vault/_Shared Knowledge/Operating Norms/chief-of-staff-context.md`. It's the only home for MoxyWolf's entities, products, tools, team and standing rules. Read it. Don't copy it into a dispatch; pass its path.\n2. The current project's `00 \u2013 Project Hub/cowork-project-instructions.md`, if a project is attached.\n3. The ask.\n\nIf the context card is missing, say so and stop. A department working without it gives a generic answer.\n\n## Roster\n\nOne line per department agent. `tests/test_roster.py` holds this block to the agents that actually exist in the marketplace, so edit both together.\n\n```roster\nfinance | money: budgets, forecasts, unit economics, cash, runway, pricing math, tax, controls\npeople | people: org design, hiring, comp and leveling, performance, onboarding, payroll, employment law\nit-operations | running the IT estate: service desk, endpoints, Workspace, cloud admin, networks, backups, account creation and removal\nsecurity | risk to systems and data: threat models, architecture review, access policy and review, vulnerabilities, security incidents\npmo | the portfolio across projects: governance, schedules, dependencies, delivery risk, benefits, adoption\noperations | how work runs: processes, cadence, vendors, procurement, SLAs, quality, continuity, operational outages\ncorporate-strategy | where to play: portfolio, partnerships and JVs, market entry, M&A, scenarios\ncustomer-experience | after the sale: onboarding, support, escalations, customer success, voice of the customer\nsales-department | pursuing one account: account qualification, opportunity and pipeline analysis, sales preparation, draft outreach\nmarketing-department | demand from an audience: audience, positioning, campaign and content planning, performance analysis\n```\n\n### Where the lines fall\n\n- **Incidents.** A security event (a leaked key, an intrusion, a suspicious login) goes to security. An operational outage (a sync stuck, a site down, a vendor failing) goes to operations. If you can't tell yet, send it to security first.\n- **Identity.** Creating, changing and removing accounts goes to it-operations. Who should have access, and checking who does, goes to security.\n- **Program management.** Anything spanning projects goes to pmo. A program inside one process or one vendor relationship goes to operations.\n- **Revenue.** One named account or one named person goes to sales-department: is it a fit, where the opportunity stands, the pipeline, call prep, an outreach draft. An audience, a segment, positioning, a campaign, content or a channel's results go to marketing-department. The customer after the sale goes to customer-experience. Pricing economics go to finance. A market-entry decision goes to corporate-strategy. A legal judgment goes to legal. Anything that needs code goes to `/gstack-build`.\n- **Mixed asks.** Name one lead and the departments contributing to it before you dispatch. The lead owns the answer. Each contributor owns its part. If two departments both claim the lead, or their answers conflict, don't pick one. That's a decision memo for Dorian.\n\n### What the ten don't cover\n\nNever answer these yourself, and never stretch a department to fit them.\n\n- Legal: the `legal:` skills.\n- Product: `product-orchestrator:`.\n- Engineering: `/gstack-build`. Code never goes to a department.\n\nThe `sales:` and `marketing:` skills are still installed from other marketplaces. They're the specialists sales-department and marketing-department load. Route the ask to the department, not to the skill.\n\n## Authority\n\nDorian set this on 2026-10-06. When an action isn't listed, treat it as the next level up.\n\n| Level | What it covers |\n|---|---|"
+        },
+        {
+          "path": "ste-lint.py",
+          "exists": false
+        },
+        {
+          "path": "skill-bundles/",
+          "exists": true,
+          "at": "d63ee508a53cc66240f613c645eaf7b440386b95",
+          "lines": 4,
+          "head": "tree d63ee508a53cc66240f613c645eaf7b440386b95:skill-bundles/\n\nmoxywolf-skills/\n"
+        },
+        {
+          "path": "plugin.json",
+          "exists": false
+        },
+        {
+          "path": "marketplace.json",
+          "exists": false
+        },
+        {
+          "path": "run_all_tests.py",
+          "exists": false
+        }
+      ],
+      "links_introduced": [
+        {
+          "item": "ST-003",
+          "links_introduced": "none. Each command names the skill by its plugin name, `asd-ste100`, which ST-001's marketplace entry resolves. The report line in criterion 7 is printed in the run's report, and is stored only where that report already is (for the Chief of Staff, its existing run log); nothing reads it back."
+        }
+      ]
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.18
+      },
+      "cross_file": {
+        "probability": 0.95
+      },
+      "docs_only": {
+        "probability": 0.63
+      },
+      "has_tests": {
+        "probability": 0.96
+      },
+      "risky": {
+        "probability": 0.27
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": false,
+      "cross_file": true,
+      "docs_only": true,
+      "has_tests": true,
+      "risky": false
+    },
+    "rule": "cross_file",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 23377,
+    "quorum": {
+      "line_id": "dcf2d312d788",
+      "ledger": "/Users/doriancougias/st001-review/review-records/decisions/202611.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 619,
+          "cost": "0.000333732",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.18
+            },
+            "cross_file": {
+              "probability": 0.95
+            },
+            "docs_only": {
+              "probability": 0.63
+            },
+            "has_tests": {
+              "probability": 0.96
+            },
+            "risky": {
+              "probability": 0.27
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 1121,
+          "cost": "0.00015172",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.01699905709495097
+            },
+            "cross_file": {
+              "probability": 0.8225417322572175
+            },
+            "docs_only": {
+              "probability": 0.9650997487544709
+            },
+            "has_tests": {
+              "probability": 0.974815469575661
+            },
+            "risky": {
+              "probability": 0.03140577457076401
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 672,
+          "cost": "0.0009532",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.02
+            },
+            "cross_file": {
+              "probability": 0.98
+            },
+            "docs_only": {
+              "probability": 0.96
+            },
+            "has_tests": {
+              "probability": 1
+            },
+            "risky": {
+              "probability": 0
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.02
+        },
+        "cross_file": {
+          "probability": 0.95
+        },
+        "docs_only": {
+          "probability": 0.96
+        },
+        "has_tests": {
+          "probability": 0.974815469575661
+        },
+        "risky": {
+          "probability": 0.03140577457076401
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "cross_file"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice"
+  },
+  "coverage": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-17T23:24:36.269Z",
+    "status": "checked",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 1561,
+    "verbatim": 9,
+    "model_scored": 1,
+    "criteria": [
+      {
+        "item": "ST-003",
+        "criterion_no": 1,
+        "declared": "The six places are three commands and three skills. `plugins/product-orchestrator/commands/product-prd.md`: before the PRD is saved, the agent loads the `asd-ste100` skill and rewrites the PRD's requirements and acceptance criteria in its Strict mode. Other PRD text is left as written.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 2,
+        "declared": "`plugins/product-orchestrator/commands/product-clarify.md` step 5: text the agent writes into a PRD section to encode an answer is rewritten in Strict mode. The `- Q: <question> \u2192 A: <answer>` bullet keeps the user's answer verbatim; prose that encodes it is the agent's and is rewritten, but any words it quotes from the answer stay as quoted. `plugins/product-orchestrator/commands/project-charter.md` step 3: principles, technical constraints, architectural boundaries and non-negotiables are rewritten in Strict mode before the project's charter file is written.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 3,
+        "declared": "`plugins/project-init/skills/session-end/SKILL.md`: at Step 4 the handoff's \"Open work\" and \"Procedural reminders\" sections are rewritten in STE-flavored mode; \"What landed\", \"Mistakes\" and the suggested opening line are left as written. At Step 6, the rule text of each new or edited `feedback_*.md` or shared-memory file is rewritten in Strict mode.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 4,
+        "declared": "`plugins/team-kanban/skills/team-kanban/SKILL.md` Mode 1: a new issue's **Acceptance** section is rewritten in Strict mode. **Context** keeps the originating signal's words as quoted.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 5,
+        "declared": "`plugins/chief-of-staff/skills/chief-of-staff/SKILL.md` Dispatching item 3: the success criteria are rewritten in Strict mode before dispatch. The ask stays in Dorian's words, and nothing in a result that goes back to Dorian is rewritten.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 6,
+        "declared": "Every addition in criteria 1 to 5 says: text that quotes Dorian or a user's answer stays verbatim; the skill's suggestions and `ste-lint.py`'s findings are advice and never gate design, review, merge or release; and when the skill isn't installed the command says so and goes on.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 7,
+        "declared": "Each run of the six places in criteria 1 to 5, and of ST-002's `/gstack-design-doc` and `/gstack-goal-new`, ends its report to the person who ran it with one summary line, counts combined across that run's passes: `asd-ste100: <n> rewritten, <m> kept as-is`, then upstream's `Kept as-is:` line for each kept phrase; or `asd-ste100: not installed`, which is how the run says the skill is missing (criterion 6). For the Chief of Staff the line goes in its run log, never in a result or memo to Dorian. A count line shows the pass ran; `not installed` shows the run reached the pass and found no skill; no line means the pass didn't run. None of them fails the run. The line is the command's own output, not a measurement report or score, and no ledger or check reads it. ST-002's two commands already carry criterion 6's rules and gain only this line.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 8,
+        "declared": "No script, hook, workflow or `CODEOWNERS` path changes, and nothing under `skill-bundles/`.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 9,
+        "declared": "Versions move by text replacement in each plugin's `plugin.json`, its `marketplace.json` entry and, where the plugin keeps one, its README Version History: `product-orchestrator` 0.6.0 to 0.7.0, `project-init` 0.46.1 to 0.47.0, `team-kanban` 0.7.0 to 0.8.0, `chief-of-staff` 0.3.1 to 0.4.0, `gstack-execution` 0.104.0 to 0.104.1. The top-level marketplace version moves once (CI-002).",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "ST-003",
+        "criterion_no": 10,
+        "declared": "Tests: `run_all_tests.py` green in CI at the head, the CI-001 packaging check passes, and the CI-002 version check names all five plugins among what it examined. Not taken: `mcp-builder` and `skill-creator`, where tool descriptions and SKILL.md descriptions are upstream's headline use, are vendored byte for byte in `skill-bundles/moxywolf-skills` (CI-004), so they aren't edited; a pointer there waits for CI-003. Never in scope, per ST-001: 4d-blog-engine, academic-pipeline, editorial-forge, research-pipeline's `/write-article`, linkedin-gtm, synergy-engine, email-lifecycle, and sales or marketing drafts.",
+        "probability": 0.99,
+        "match": "model"
+      }
+    ]
+  }
+}
