@@ -194,7 +194,7 @@ class Store:
     def request(self, op, case_id, **fields):
         """An immutable, uniquely named change request. Any device may write one."""
         d = self.root / "inbox"; d.mkdir(parents=True, exist_ok=True)
-        rid = f"{iso(now()).replace(':', '')}-{uuid.uuid4().hex[:12]}"
+        rid = f"{time.time_ns():020d}-{uuid.uuid4().hex[:12]}"  # sorts in true request order
         req = {"id": rid, "op": op, "case_id": case_id, "at": iso(now()), "device": device_id(), **fields}
         atomic_write(d / f"{rid}.json", json.dumps(req, indent=1) + "\n")
         return req
