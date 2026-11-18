@@ -434,6 +434,18 @@ class ReviewFindings(Base):
         run("apply", "--store", self.store)
         self.assertIn(cid, self.S().current())
 
+    def test_r3_f1_publication_after_the_snapshot_isnt_quarantined(self):
+        orphan = Path(self.store) / "moxywolf-plugins" / "deadbeefdeadbeef"; orphan.mkdir(parents=True)
+        _, stale = cc.verify(self.S())  # the writer's snapshot, taken before the publication below
+        cid = self.full()  # request written, then the folder copied
+        stale.append(f"moxywolf-plugins/{cid}: folder with neither a ledger line nor a pending add")
+        stale.append("moxywolf-plugins/.tmp-0123456789abcdef-zz: folder with neither a ledger line nor a pending add")
+        (Path(self.store) / "moxywolf-plugins" / ".tmp-0123456789abcdef-zz").mkdir()
+        cc.quarantine_orphans(self.S(), stale)
+        self.assertTrue((Path(self.store) / "moxywolf-plugins" / cid).is_dir(), "rechecked against the inbox now")
+        self.assertTrue((Path(self.store) / "moxywolf-plugins" / ".tmp-0123456789abcdef-zz").is_dir())
+        self.assertFalse(orphan.exists(), "a real orphan still goes to quarantine")
+
     def test_r2_f2_conflict_copy_inside_a_case_folder_stops_verify(self):
         cid = self.full(); run("apply", "--store", self.store)
         case = Path(self.store) / "moxywolf-plugins" / cid

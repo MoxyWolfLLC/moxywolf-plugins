@@ -276,8 +276,8 @@ def verify(store):
                 problems.append(f"{cid}: {name} doesn't match the ledger")
     for proj in store.projects():
         for d in proj.iterdir():
-            if d.name.startswith(".tmp-") and d.name[5:21] in pend_add:
-                continue  # a publish copy in progress: its add request was written first
+            if d.name.startswith("."):
+                continue  # a publish copy in progress, never a case
             if d.is_dir() and d.name not in cur and d.name not in pend_add:
                 problems.append(f"{proj.name}/{d.name}: folder with neither a ledger line nor a pending add")
     return [], problems
@@ -596,6 +596,22 @@ def apply_lock(store):
     return f
 
 
+def quarantine_orphans(store, problems):
+    """Move a case folder with neither a ledger line nor a pending add to quarantine/. `problems` may be
+    stale, so each candidate is rechecked against the inbox and ledger as they are now, just before the
+    move. publish writes its add request before it creates any folder, so a folder that exists has its
+    request on disk by then. Hidden temporary folders (.tmp-*) are never moved."""
+    for p in problems:
+        if "neither a ledger line nor a pending add" not in p:
+            continue
+        rel = p.split(":")[0]
+        name = rel.rsplit("/", 1)[-1]
+        if name.startswith(".") or name in store.pending("add") or name in store.current():
+            continue
+        q = store.root / "quarantine" / rel.replace("/", "__")
+        os.replace(store.root / rel, q); print(f"quarantined {rel}")
+
+
 def cmd_apply(a):
     store = Store(store_root(a.store))
     if device_id() != store.cfg["writer"]:
@@ -629,11 +645,7 @@ def _apply(store):
             os.replace(path, store.root / "inbox" / "applied" / path.name)
     rebuild_index(store)
     _, problems = verify(store)
-    for p in problems:
-        if "neither a ledger line nor a pending add" in p:
-            rel = p.split(":")[0]
-            q = store.root / "quarantine" / rel.replace("/", "__")
-            os.replace(store.root / rel, q); print(f"quarantined {rel}")
+    quarantine_orphans(store, problems)
     print(f"applied {n} ledger line(s); {len(store.inbox())} request(s) still pending")
 
 
