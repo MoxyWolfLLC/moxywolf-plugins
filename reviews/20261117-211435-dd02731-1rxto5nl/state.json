@@ -1,0 +1,105 @@
+{
+  "review_id": "20261117-211435-dd02731-1rxto5nl",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 1,
+  "outcome": "no_blocking_findings",
+  "coverage_checked": true,
+  "coverage_status": "covered",
+  "coverage_overridden": false,
+  "off_repo_evidence": [
+    {
+      "criterion": "CC-001.1. `plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.",
+      "matched": "vault",
+      "evidence": "plugins/council/commands/council-optimize.md"
+    }
+  ],
+  "off_repo_overridden": [],
+  "ledger_status": "clear",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "cross_file",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "dd027315ad1f1b295f839e9ce5723471fa580f42"
+    ],
+    [
+      "dd027315ad1f1b295f839e9ce5723471fa580f42"
+    ]
+  ],
+  "goldfish": "absent",
+  "origin": "gate_output",
+  "evidence_runs": {
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44238971654
+      }
+    ],
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "4a12df4e4b19"
+      }
+    ]
+  },
+  "reviewer_intended": "codex",
+  "embedded_locations": [
+    {
+      "file": "evidence/ci-44238971654.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_reported": 1,
+  "adjudicated_round": 1
+}

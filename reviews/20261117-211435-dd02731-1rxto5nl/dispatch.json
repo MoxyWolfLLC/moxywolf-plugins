@@ -1,0 +1,13 @@
+{
+  "pid": 28845,
+  "started": "2026-11-17T21:14:48",
+  "started_epoch": 1794978888,
+  "rounds_at_dispatch": 0,
+  "log": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub/Projects/MW Plugins/06 \u2013 Engineering/peer-reviews/CC/20261117-211435-dd02731-1rxto5nl/dispatch.log",
+  "argv": [
+    "/Users/doriancougias/st001-review/mwp/plugins/gstack-execution/scripts/peer_review.py",
+    "round",
+    "20261117-211435-dd02731-1rxto5nl"
+  ],
+  "origin": "gate_output"
+}

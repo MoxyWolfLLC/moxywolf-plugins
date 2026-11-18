@@ -1,0 +1,803 @@
+{
+  "round": 1,
+  "started": "2026-11-17T16:45:57",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "499d4bac3c1b34107ea3680ede4ec27844af0b60",
+      "head": "b59197bc6a5539753e51550b5a120ed5e45f75d6",
+      "review_base": "499d4bac3c1b34107ea3680ede4ec27844af0b60"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/GOVERNANCE.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_governed_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44209426783,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "fcb5f3dc82e9",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "2b271d3a2d9bceea77ab3569417e9d3f32fcf8899601eced6d58458695796c9d",
+      "shown": "evidence/ledger-fcb5f3dc82e9.log"
+    },
+    {
+      "run_id": "4f6984843b8b",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "dd4dea7deefe3aa08a6f8bc7e1ef9e2f82ca2ba85c01887689664f638dc45707",
+      "shown": "evidence/ledger-4f6984843b8b.log"
+    },
+    {
+      "run_id": "4d8e2f0b1623",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "6d65f9acf7c5290a9fdd3c9d3b993bb282e11ebed62df90f8f4d771af7ba797c",
+      "shown": "evidence/ledger-4d8e2f0b1623.log"
+    },
+    {
+      "run_id": "d1aa62dbff32",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "f97d8d1014f7706f937cd92c4d82b1a67c202a7ce6b96c39894a3829bc3df2cf",
+      "shown": "evidence/ledger-d1aa62dbff32.log"
+    }
+  ],
+  "surface": {
+    "changed": 20,
+    "callers": 25,
+    "callers_withheld": 156,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 25,
+    "dependencies_withheld": 112,
+    "criterion_files": [],
+    "criterion_dirs": [],
+    "provenance": {
+      "entries": 82,
+      "untrusted": 80
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 77289,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "SURFACE.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "changed/0-mwp/.claude-plugin/marketplace.json",
+      "changed/0-mwp/DESIGN.md",
+      "changed/0-mwp/plugins/gstack-execution/GOVERNANCE.md",
+      "changed/0-mwp/plugins/gstack-execution/README.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-build.md",
+      "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py",
+      "changed/0-mwp/plugins/gstack-execution/scripts/test_governed_review.py",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.json",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.log",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/packet.json",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/round-1-prompt.txt",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/round-1.json",
+      "changed/0-mwp/reviews/20261117-161352-672ae0d-y_kvlduo/state.json",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/records/2026-11-17-asd-ste100.jsonl",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/records/2026-11-17-asd-ste100.receipts/6033e65b5342.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/records/2026-11-17-asd-ste100.receipts/baa11b4e36fc.log",
+      "changed/0-mwp/reviews/ledger/MoxyWolfLLC-moxywolf-plugins/records/2026-11-17-asd-ste100.receipts/e1483a9f1ad2.log",
+      "changed/0-mwp/reviews/spec-review/GA-012.json",
+      "changed/0-mwp/reviews/spec-review/GA-012.md",
+      "dependencies/0-mwp/CHARTER.md",
+      "dependencies/0-mwp/PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md",
+      "dependencies/0-mwp/README.md",
+      "dependencies/0-mwp/docs/evidence/ME-001-session-start.patch",
+      "dependencies/0-mwp/docs/evidence/ME-002-ME-003-live.md",
+      "dependencies/0-mwp/docs/evidence/SM-009-cloud-review-kept-2026-10-24.md",
+      "dependencies/0-mwp/docs/evidence/SS-001-session-end.patch",
+      "dependencies/0-mwp/docs/evidence/XE-022-macos-run.md",
+      "dependencies/0-mwp/docs/evidence/XE-035-release-2026-10-07.md",
+      "dependencies/0-mwp/docs/evidence/boundary-a-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-c-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-d-2026-09-30.md",
+      "dependencies/0-mwp/docs/evidence/gate-relaxed-2026-09-30.md",
+      "dependencies/0-mwp/goal-runs/README.md",
+      "dependencies/0-mwp/plugins/frontier-founder-smb/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/untrusted-enclosure.md",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+      "dependencies/0-mwp/plugins/marketing-department/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/project-init/tests/test_briefing_never_skipped.py",
+      "dependencies/0-mwp/plugins/sales-department/GOVERNANCE.md",
+      "evidence/ci-44209426783.json",
+      "evidence/ledger-4f6984843b8b.json",
+      "evidence/ledger-4f6984843b8b.log",
+      "evidence/ledger-d1aa62dbff32.json",
+      "evidence/ledger-d1aa62dbff32.log"
+    ],
+    "examined_count": 70,
+    "offered_count": 84,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "dependencies/0-mwp/CHARTER.md",
+      "dependencies/0-mwp/PLUGIN-CONFORMANCE-AND-MIGRATION-PLAN.md",
+      "dependencies/0-mwp/README.md",
+      "dependencies/0-mwp/docs/evidence/ME-001-session-start.patch",
+      "dependencies/0-mwp/docs/evidence/ME-002-ME-003-live.md",
+      "dependencies/0-mwp/docs/evidence/SM-009-cloud-review-kept-2026-10-24.md",
+      "dependencies/0-mwp/docs/evidence/SS-001-session-end.patch",
+      "dependencies/0-mwp/docs/evidence/XE-022-macos-run.md",
+      "dependencies/0-mwp/docs/evidence/XE-035-release-2026-10-07.md",
+      "dependencies/0-mwp/docs/evidence/boundary-a-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-c-2026-09-29.md",
+      "dependencies/0-mwp/docs/evidence/boundary-d-2026-09-30.md",
+      "dependencies/0-mwp/docs/evidence/gate-relaxed-2026-09-30.md",
+      "dependencies/0-mwp/goal-runs/README.md",
+      "dependencies/0-mwp/plugins/frontier-founder-smb/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/untrusted-enclosure.md",
+      "dependencies/0-mwp/plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json",
+      "dependencies/0-mwp/plugins/marketing-department/GOVERNANCE.md",
+      "dependencies/0-mwp/plugins/project-init/tests/test_briefing_never_skipped.py",
+      "dependencies/0-mwp/plugins/sales-department/GOVERNANCE.md",
+      "evidence/ci-44209426783.json",
+      "evidence/ledger-4f6984843b8b.json",
+      "evidence/ledger-4f6984843b8b.log",
+      "evidence/ledger-d1aa62dbff32.json",
+      "evidence/ledger-d1aa62dbff32.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "verdict": "blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "GA-012.1. `lane_in_force(release_lane, target, coverage_exception)` returns `closed` when `coverage_exception` holds words, whatever `release_lane` and `target` say. An exception is recorded only when coverage isn't `checked` (as `coverage_line` does today), so an exception passed with checked coverage isn't recorded and changes nothing. Otherwise it returns what it returns today. `release_lane` itself never moves.",
+      "met": true,
+      "evidence": "peer_review.py:703\u2013713 returns closed before inspecting lane or target when exception words exist. coverage_line at 3592\u20133603 omits exceptions for checked coverage; release reads only the resulting coverage object's exception at 3629. The original release_lane is preserved at 3644."
+    },
+    {
+      "criterion": "GA-012.2. `release` with `--coverage-exception` and coverage not `checked` writes the handoff with `lane_in_force` `closed` and the exception's words and time. When `release_lane` is `wide`, its other gates still hold: an open failure in the ledger, links that aren't verified, or an open unknown needing the repository still refuses, naming each. Coverage is the only wide gate the exception answers.",
+      "met": true,
+      "evidence": "peer_review.py:3602\u20133603 retains exception words and timestamp. Lines 3630\u20133635 evaluate the original wide gates and remove only 'coverage was not checked'; wide_gates at 808\u2013821 retains ledger, link and repository-unknown refusals. Lines 3636\u20133645 write coverage and the closed effective lane."
+    },
+    {
+      "criterion": "GA-012.3. That handoff's instruction says coverage wasn't checked, quotes the exception, says DR-113 doesn't apply and the agent doesn't merge, and says the Release Owner merges under their own login. *Coverage is mandatory* has the owner make that merge, so a merge-instruction doesn't open it to the agent.",
+      "met": true,
+      "evidence": "peer_review.py:828 contains every required statement, including 'even on an instruction'; lines 3646\u20133647 select that instruction and substitute the recorded words."
+    },
+    {
+      "criterion": "GA-012.4. `record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded.",
+      "met": false,
+      "evidence": "peer_review.py:3851\u20133852 reads the handoff exception and computes its effective lane; 3893 copies coverage. However, 3856\u20133858 refuses other Bot identities before writing agent_merge_out_of_lane. Thus the required outcome does not cover any agent merge, including another bot carrying a matching merge-instruction."
+    },
+    {
+      "criterion": "GA-012.5. Without `--coverage-exception`, every lane behaves as it does today, and the wide lane still refuses on \"coverage was not checked\".",
+      "met": true,
+      "evidence": "The default argument at peer_review.py:703 preserves existing callers; lines 712\u2013713 retain prior lane behavior. coverage_line:3598\u20133601 retains the coverage refusal, and the non-exception record-release branches at 3861\u20133890 retain prior behavior."
+    },
+    {
+      "criterion": "GA-012.6. `/gstack-build` Step 6 and `GOVERNANCE.md` each gain one sentence saying a coverage exception closes the lane for that release and the owner merges.",
+      "met": true,
+      "evidence": "The added sentences appear in plugins/gstack-execution/commands/gstack-build.md:179 and plugins/gstack-execution/GOVERNANCE.md:21."
+    },
+    {
+      "criterion": "GA-012.7. Tests in `test_governed_review.py`: a wide-lane release with an exception writes a handoff in force as `closed` that carries the words; the same release with an open ledger failure refuses and names it; a contained-lane release with an exception is in force as `closed`; a closed lane deferred into `goal/g1` with an exception is in force as `closed`; a wide-lane release without an exception refuses as today; `record-release` records the owner's merge of an exception handoff as `human_merge_recorded` and an agent merge of one as `agent_merge_out_of_lane`, with a merge-instruction posted and without one.",
+      "met": true,
+      "evidence": "test_governed_review.py:740\u2013804 implements all seven requested scenarios, including both instruction states for moxywolf-agent[bot]. evidence/ledger-d1aa62dbff32.json has matching head, exit 0 and a verified receipt; its log reports 66 tests, OK. This builder execution corroborates the inspected tests but does not cover the other-bot defect."
+    },
+    {
+      "criterion": "GA-012.8. `gstack-execution` moves 0.104.1 to 0.105.0 in `plugin.json`, its marketplace entry and its README Version History, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_governed_review.py` among what it ran and reports no failures.",
+      "met": true,
+      "evidence": "plugin.json:3 and marketplace.json:370 set 0.105.0; README.md:178 adds its history entry; marketplace.json:5 moves to 1.172.0. CI run 44209426783 matches the reviewed head and its 'Run every check in the repository' step succeeded. tests.yml:84\u201385 invokes run_all_tests.py, whose discovery at 28\u201336 includes test_governed_review.py, whose lines 58\u201359 print suite names, and whose result handling reports failures and returns nonzero for them. CI naming and zero failures are established from this code plus the successful step; the fetched log summary itself was unavailable."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "blocking",
+      "file": "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py",
+      "line": 3856,
+      "what": "Exception merges by another bot are refused instead of recorded as agent_merge_out_of_lane.",
+      "evidence": "Line 3820 classifies any GitHub Bot merger as agent. With a recorded coverage exception, lines 3856\u20133858 raise release_blocked unless its login is AGENT_LOGIN, so execution never reaches the outcome assignment or record write. A different bot with an otherwise matching merge-instruction was supported by the existing instruction branch at 3866\u20133876, making this a concrete omitted case rather than an unsupported actor assumption.",
+      "criterion": "GA-012.4: Any agent merge of an exception handoff, with or without a merge-instruction, is agent_merge_out_of_lane.",
+      "fix": "After the existing revision, target and timestamp validation, record every Bot merge of an exception handoff as agent_merge_out_of_lane without granting authority. Add cases for a different bot with and without a matching instruction.",
+      "category": "general"
+    },
+    {
+      "id": "F2",
+      "severity": "follow_up",
+      "file": "evidence/ci-44209426783.json",
+      "line": 83,
+      "what": "The untrusted CI-fetch error contains advice to rerun with an additional command flag.",
+      "evidence": "The error says 'pass --allow-escape-sequences to output it anyway'. PROVENANCE.json marks this entry untrusted. The directive was treated as data and was not followed.",
+      "criterion": "",
+      "fix": "Keep this diagnostic as quoted evidence; any log retrieval should be performed separately by the dispatcher under its own authorization.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Read-only review of the supplied diff, relevant head files, callers, contracts and execution receipts. No builds, tests, edits, deployments or additional reviews were run. Excluded historical review records were not reassessed.",
+  "subjects": {
+    "F1": {
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "path": "plugins/gstack-execution/scripts/peer_review.py",
+      "head": "b59197bc6a5539753e51550b5a120ed5e45f75d6",
+      "line": 3856,
+      "bound": true,
+      "blob": "7703cfba12c35de55cd77775e2c72d14a4d42baf",
+      "span": "8e4ee260d6feba28",
+      "span_lines": [
+        3854,
+        3858
+      ],
+      "file_lines": 4119,
+      "line_exists": true
+    },
+    "F2": {
+      "path": "evidence/ci-44209426783.json",
+      "bound": false,
+      "why": "no packet repository holds this path at its reviewed head"
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F2",
+      "file": "evidence/ci-44209426783.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_new": [
+    "F2"
+  ],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [
+    "GA-012.4. `record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded."
+  ],
+  "outcome": "blocking_findings",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}
+{
+  "round": 2,
+  "started": "2026-11-17T16:56:16",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "b59197bc6a5539753e51550b5a120ed5e45f75d6",
+      "head": "2afbe0f307eed1fc509df3b83c05248d13265202",
+      "review_base": "499d4bac3c1b34107ea3680ede4ec27844af0b60"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/GOVERNANCE.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_governed_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44211059454,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "04db5493a342",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "2b271d3a2d9bceea77ab3569417e9d3f32fcf8899601eced6d58458695796c9d",
+      "shown": "evidence/ledger-04db5493a342.log"
+    },
+    {
+      "run_id": "b71bc818dddc",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "05cdd01c42d03a146da48777e614d3553a93189946a9eb8da80ed6bc45886b19",
+      "shown": "evidence/ledger-b71bc818dddc.log"
+    },
+    {
+      "run_id": "c0a62ced7195",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "6d65f9acf7c5290a9fdd3c9d3b993bb282e11ebed62df90f8f4d771af7ba797c",
+      "shown": "evidence/ledger-c0a62ced7195.log"
+    },
+    {
+      "run_id": "e0d88f0f424e",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "e1cdc5a7a9b58cfbb0aa004473ba07019631906fdbec0d85269aa68c23057330",
+      "shown": "evidence/ledger-e0d88f0f424e.log"
+    }
+  ],
+  "surface": {
+    "changed": 20,
+    "callers": 25,
+    "callers_withheld": 156,
+    "cap": 25,
+    "from_prior_findings": 2,
+    "dependencies": 25,
+    "dependencies_withheld": 112,
+    "criterion_files": [],
+    "criterion_dirs": [],
+    "provenance": {
+      "entries": 83,
+      "untrusted": 81
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 55834,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "ROUND.diff",
+      "SURFACE.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "changed/0-mwp/.claude-plugin/marketplace.json",
+      "changed/0-mwp/plugins/gstack-execution/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/gstack-execution/GOVERNANCE.md",
+      "changed/0-mwp/plugins/gstack-execution/README.md",
+      "changed/0-mwp/plugins/gstack-execution/commands/gstack-build.md",
+      "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py",
+      "changed/0-mwp/plugins/gstack-execution/scripts/test_governed_review.py",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44211059454.json",
+      "evidence/ledger-04db5493a342.json",
+      "evidence/ledger-04db5493a342.log",
+      "evidence/ledger-b71bc818dddc.json",
+      "evidence/ledger-b71bc818dddc.log",
+      "evidence/ledger-c0a62ced7195.json",
+      "evidence/ledger-c0a62ced7195.log",
+      "evidence/ledger-e0d88f0f424e.json",
+      "evidence/ledger-e0d88f0f424e.log"
+    ],
+    "examined_count": 22,
+    "offered_count": 85,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44211059454.json",
+      "evidence/ledger-04db5493a342.json",
+      "evidence/ledger-04db5493a342.log",
+      "evidence/ledger-b71bc818dddc.json",
+      "evidence/ledger-b71bc818dddc.log",
+      "evidence/ledger-c0a62ced7195.json",
+      "evidence/ledger-c0a62ced7195.log",
+      "evidence/ledger-e0d88f0f424e.json",
+      "evidence/ledger-e0d88f0f424e.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "GA-012.1. `lane_in_force(release_lane, target, coverage_exception)` returns `closed` when `coverage_exception` holds words, whatever `release_lane` and `target` say. An exception is recorded only when coverage isn't `checked` (as `coverage_line` does today), so an exception passed with checked coverage isn't recorded and changes nothing. Otherwise it returns what it returns today. `release_lane` itself never moves.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py:703\u2013713 returns closed for nonblank exception words without modifying the lane; coverage_line at 3592\u20133603 omits exceptions when coverage_checked holds."
+    },
+    {
+      "criterion": "GA-012.2. `release` with `--coverage-exception` and coverage not `checked` writes the handoff with `lane_in_force` `closed` and the exception's words and time. When `release_lane` is `wide`, its other gates still hold: an open failure in the ledger, links that aren't verified, or an open unknown needing the repository still refuses, naming each. Coverage is the only wide gate the exception answers.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py:3602\u20133603 preserves words and timestamp; 3629\u20133647 removes only the coverage failure before writing the closed handoff. wide_gates at 808\u2013821 retains ledger, links and repository-unknown checks."
+    },
+    {
+      "criterion": "GA-012.3. That handoff's instruction says coverage wasn't checked, quotes the exception, says DR-113 doesn't apply and the agent doesn't merge, and says the Release Owner merges under their own login. *Coverage is mandatory* has the owner make that merge, so a merge-instruction doesn't open it to the agent.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py:828 contains all required instruction language; 3646 substitutes the recorded exception words."
+    },
+    {
+      "criterion": "GA-012.4. `record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py:3832\u20133857 validates the merge, retains human_merge_recorded for the owner, and records every Bot exception merge as agent_merge_out_of_lane before instruction handling. Lines 3888\u20133890 preserve the lane and handoff coverage. F1's login restriction is removed."
+    },
+    {
+      "criterion": "GA-012.5. Without `--coverage-exception`, every lane behaves as it does today, and the wide lane still refuses on \"coverage was not checked\".",
+      "met": true,
+      "evidence": "ROUND.diff changes only the agent-with-exception branch and its regression test. In changed/0-mwp/plugins/gstack-execution/scripts/peer_review.py:3598\u20133601, absent exceptions still refuse unchecked coverage; 3858\u20133887 retains ordinary agent handling."
+    },
+    {
+      "criterion": "GA-012.6. `/gstack-build` Step 6 and `GOVERNANCE.md` each gain one sentence saying a coverage exception closes the lane for that release and the owner merges.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/commands/gstack-build.md:179 and changed/0-mwp/plugins/gstack-execution/GOVERNANCE.md:21 contain the required added sentences."
+    },
+    {
+      "criterion": "GA-012.7. Tests in `test_governed_review.py`: a wide-lane release with an exception writes a handoff in force as `closed` that carries the words; the same release with an open ledger failure refuses and names it; a contained-lane release with an exception is in force as `closed`; a closed lane deferred into `goal/g1` with an exception is in force as `closed`; a wide-lane release without an exception refuses as today; `record-release` records the owner's merge of an exception handoff as `human_merge_recorded` and an agent merge of one as `agent_merge_out_of_lane`, with a merge-instruction posted and without one.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/gstack-execution/scripts/test_governed_review.py:740\u2013806 covers all specified cases. Lines 793\u2013806 now exercise both the configured bot and another bot, each instructed and uninstructed. Dispatcher-verified ledger-e0d88f0f424e at the reviewed head reports 66 tests, OK."
+    },
+    {
+      "criterion": "GA-012.8. `gstack-execution` moves 0.104.1 to 0.105.0 in `plugin.json`, its marketplace entry and its README Version History, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_governed_review.py` among what it ran and reports no failures.",
+      "met": true,
+      "evidence": "CHANGE.diff shows plugin and marketplace entry moving to 0.105.0 and marketplace to 1.172.0; README.md:178 records 0.105.0. evidence/ci-44211059454.json confirms the reviewed-head 'Run every check in the repository' step succeeded. callers/0-mwp/.github/workflows/tests.yml:84\u201385 invokes run_all_tests.py; dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py:28\u201335 discovers this test, 58\u201359 and 78 print its name, and 84\u201387 reports failures and fails on any. This establishes the criterion from successful execution and inspected code despite unavailable log summary."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F3",
+      "severity": "follow_up",
+      "file": "evidence/ci-44211059454.json",
+      "line": 83,
+      "what": "The untrusted CI-fetch diagnostic directs the reader to use an additional command flag.",
+      "evidence": "The diagnostic says 'pass --allow-escape-sequences to output it anyway'. PROVENANCE.json marks this file untrusted. This is a different location from previously reported F2; the directive was not followed.",
+      "criterion": "",
+      "fix": "Treat the diagnostic as quoted evidence; leave any further log retrieval to the dispatcher.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [
+    {
+      "id": "F1",
+      "resolved": true,
+      "evidence": "Verified disposition fixed: ROUND.diff removes the AGENT_LOGIN rejection from the exception branch. peer_review.py:3853\u20133857 now records every validated Bot exception merge as agent_merge_out_of_lane. test_governed_review.py:793\u2013806 covers both bots with and without matching instructions; verified reviewed-head ledger evidence reports all 66 tests passed."
+    }
+  ],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Read-only fix verification completed. No builds or tests were run. F1 is resolved, with no regressions found in the fix.",
+  "subjects": {
+    "F3": {
+      "path": "evidence/ci-44211059454.json",
+      "bound": false,
+      "why": "no packet repository holds this path at its reviewed head"
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F3",
+      "file": "evidence/ci-44211059454.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_new": [
+    "F3"
+  ],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "fixes_verified",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

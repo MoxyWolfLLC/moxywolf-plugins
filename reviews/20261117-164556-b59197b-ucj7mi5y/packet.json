@@ -1,0 +1,350 @@
+{
+  "outcome": "GA-012: a release on the Release Owner's coverage exception is in force as closed in every lane, so the owner merges and record-release records it, as the Coverage is mandatory constraint already says. The branch also carries PR #348's review record.",
+  "items": [
+    "GA-012"
+  ],
+  "acceptance_criteria": [
+    "GA-012.1. `lane_in_force(release_lane, target, coverage_exception)` returns `closed` when `coverage_exception` holds words, whatever `release_lane` and `target` say. An exception is recorded only when coverage isn't `checked` (as `coverage_line` does today), so an exception passed with checked coverage isn't recorded and changes nothing. Otherwise it returns what it returns today. `release_lane` itself never moves.",
+    "GA-012.2. `release` with `--coverage-exception` and coverage not `checked` writes the handoff with `lane_in_force` `closed` and the exception's words and time. When `release_lane` is `wide`, its other gates still hold: an open failure in the ledger, links that aren't verified, or an open unknown needing the repository still refuses, naming each. Coverage is the only wide gate the exception answers.",
+    "GA-012.3. That handoff's instruction says coverage wasn't checked, quotes the exception, says DR-113 doesn't apply and the agent doesn't merge, and says the Release Owner merges under their own login. *Coverage is mandatory* has the owner make that merge, so a merge-instruction doesn't open it to the agent.",
+    "GA-012.4. `record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded.",
+    "GA-012.5. Without `--coverage-exception`, every lane behaves as it does today, and the wide lane still refuses on \"coverage was not checked\".",
+    "GA-012.6. `/gstack-build` Step 6 and `GOVERNANCE.md` each gain one sentence saying a coverage exception closes the lane for that release and the owner merges.",
+    "GA-012.7. Tests in `test_governed_review.py`: a wide-lane release with an exception writes a handoff in force as `closed` that carries the words; the same release with an open ledger failure refuses and names it; a contained-lane release with an exception is in force as `closed`; a closed lane deferred into `goal/g1` with an exception is in force as `closed`; a wide-lane release without an exception refuses as today; `record-release` records the owner's merge of an exception handoff as `human_merge_recorded` and an agent merge of one as `agent_merge_out_of_lane`, with a merge-instruction posted and without one.",
+    "GA-012.8. `gstack-execution` moves 0.104.1 to 0.105.0 in `plugin.json`, its marketplace entry and its README Version History, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_governed_review.py` among what it ran and reports no failures."
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "499d4bac3c1b34107ea3680ede4ec27844af0b60",
+      "head": "b59197bc6a5539753e51550b5a120ed5e45f75d6",
+      "review_base": "499d4bac3c1b34107ea3680ede4ec27844af0b60"
+    }
+  ],
+  "changed_behavior": "peer_review.py: lane_in_force gains a coverage_exception argument; release accepts a coverage exception in the wide lane for the coverage gate only and writes a closed handoff; record-release records an agent merge of an exception handoff as agent_merge_out_of_lane and carries the coverage object. Docs: one sentence each in gstack-build Step 6 and GOVERNANCE.md. Seven tests.",
+  "exclusions": [
+    "The Coverage is mandatory constraint and DR-113 are settled; GA-012 implements them and was approved by Dorian 2026-11-17, including dropping the merge-instruction route.",
+    "reviews/20261117-161352-672ae0d-y_kvlduo and the records/ ledger lines are the historical record of PR #348, not behaviour under review.",
+    "Lanes, gates and outcomes other than those GA-012 names behave as before."
+  ],
+  "tests": {
+    "commands": [
+      "python3 plugins/gstack-execution/scripts/test_governed_review.py (ledger d1aa62dbff32)",
+      "python3 plugins/gstack-execution/scripts/skill_packaging.py --root . (ledger fcb5f3dc82e9)",
+      "python3 plugins/gstack-execution/scripts/version_bump.py --base 499d4ba --head HEAD (ledger 4f6984843b8b)",
+      "python3 plugins/gstack-execution/scripts/spec_review.py check DESIGN.md --items GA-012 (ledger 4d8e2f0b1623)",
+      "GitHub Actions tests workflow on PR #349"
+    ],
+    "results": "test_governed_review.py: Ran 66 tests, OK (7 new GA-012 tests). Packaging PASS, 247 packages. Version bump PASS, examined gstack-execution. Spec review: GA-012 matches its record, no open contradictions.",
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "fcb5f3dc82e9"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "4f6984843b8b"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "4d8e2f0b1623"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "d1aa62dbff32"
+      }
+    ],
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44209426783
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/Users/doriancougias/st001-review/review-records"
+    ]
+  },
+  "vocabulary_version": "1.13.0",
+  "origin": "gate_output",
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-18T00:42:37.927Z",
+    "inputs": {
+      "items": [
+        "GA-012"
+      ],
+      "criteria_count": 8,
+      "criteria": [
+        "GA-012.1. `lane_in_force(release_lane, target, coverage_exception)` returns `closed` when `coverage_exception` holds words, whatever `release_lane` and `target` say. An exception is recorded only when coverage isn't `checked` (as `coverage_line` does today), so an exception passed with checked coverage isn't recorded and changes nothing. Otherwise it returns what it returns today. `release_lane` itself never moves.",
+        "GA-012.2. `release` with `--coverage-exception` and coverage not `checked` writes the handoff with `lane_in_force` `closed` and the exception's words and time. When `release_lane` is `wide`, its other gates still hold: an open failure in the ledger, links that aren't verified, or an open unknown needing the repository still refuses, naming each. Coverage is the only wide gate the exception answers.",
+        "GA-012.3. That handoff's instruction says coverage wasn't checked, quotes the exception, says DR-113 doesn't apply and the agent doesn't merge, and says the Release Owner merges under their own login. *Coverage is mandatory* has the owner make that merge, so a merge-instruction doesn't open it to the agent.",
+        "GA-012.4. `record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded.",
+        "GA-012.5. Without `--coverage-exception`, every lane behaves as it does today, and the wide lane still refuses on \"coverage was not checked\".",
+        "GA-012.6. `/gstack-build` Step 6 and `GOVERNANCE.md` each gain one sentence saying a coverage exception closes the lane for that release and the owner merges.",
+        "GA-012.7. Tests in `test_governed_review.py`: a wide-lane release with an exception writes a handoff in force as `closed` that carries the words; the same release with an open ledger failure refuses and names it; a contained-lane release with an exception is in force as `closed`; a closed lane deferred into `goal/g1` with an exception is in force as `closed`; a wide-lane release without an exception refuses as today; `record-release` records the owner's merge of an exception handoff as `human_merge_recorded` and an agent merge of one as `agent_merge_out_of_lane`, with a merge-instruction posted and without one.",
+        "GA-012.8. `gstack-execution` moves 0.104.1 to 0.105.0 in `plugin.json`, its marketplace entry and its README Version History, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_governed_review.py` among what it ran and reports no failures."
+      ],
+      "paths_named": [
+        "GOVERNANCE.md",
+        "test_governed_review.py",
+        "goal/g1",
+        "plugin.json",
+        "run_all_tests.py"
+      ],
+      "files_read": 0,
+      "files": [
+        {
+          "path": "GOVERNANCE.md",
+          "exists": false
+        },
+        {
+          "path": "test_governed_review.py",
+          "exists": false
+        },
+        {
+          "path": "goal/g1",
+          "exists": false
+        },
+        {
+          "path": "plugin.json",
+          "exists": false
+        },
+        {
+          "path": "run_all_tests.py",
+          "exists": false
+        }
+      ],
+      "links_introduced": [
+        {
+          "item": "GA-012",
+          "links_introduced": "the release handoff's `coverage.exception` (the Release Owner's words and the time they were recorded) becomes an input to `lane_in_force`. The reader's assumption is that a handoff carrying an exception was released by the Release Owner's merge, not the agent's. That holds because `release` and `record-release` both compute the lane in force from the handoff through `lane_in_force`, its one home, and a handoff with an exception is in force as `closed`."
+        }
+      ]
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.73
+      },
+      "cross_file": {
+        "probability": 0.97
+      },
+      "docs_only": {
+        "probability": 0.04
+      },
+      "has_tests": {
+        "probability": 0.99
+      },
+      "risky": {
+        "probability": 0.85
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": true,
+      "cross_file": true,
+      "docs_only": false,
+      "has_tests": true,
+      "risky": true
+    },
+    "rule": "risky",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 5034,
+    "quorum": {
+      "line_id": "0ebbdc4b577a",
+      "ledger": "/Users/doriancougias/st001-review/review-records/decisions/202611.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 360,
+          "cost": "0.0000672",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.73
+            },
+            "cross_file": {
+              "probability": 0.97
+            },
+            "docs_only": {
+              "probability": 0.04
+            },
+            "has_tests": {
+              "probability": 0.99
+            },
+            "risky": {
+              "probability": 0.85
+            }
+          },
+          "tier": "floor",
+          "rule": "risky"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 831,
+          "cost": "0.00002904",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.4400130992740787
+            },
+            "cross_file": {
+              "probability": 0.9110273095482926
+            },
+            "docs_only": {
+              "probability": 0.0075181594370900065
+            },
+            "has_tests": {
+              "probability": 0.9984948901018033
+            },
+            "risky": {
+              "probability": 0.10232205082212091
+            }
+          },
+          "tier": "floor",
+          "rule": "trust_boundary"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 579,
+          "cost": "0.0001982",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.94
+            },
+            "cross_file": {
+              "probability": 1
+            },
+            "docs_only": {
+              "probability": 0
+            },
+            "has_tests": {
+              "probability": 1
+            },
+            "risky": {
+              "probability": 0.73
+            }
+          },
+          "tier": "floor",
+          "rule": "risky"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.73
+        },
+        "cross_file": {
+          "probability": 0.97
+        },
+        "docs_only": {
+          "probability": 0.0075181594370900065
+        },
+        "has_tests": {
+          "probability": 0.9984948901018033
+        },
+        "risky": {
+          "probability": 0.73
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "risky"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice"
+  },
+  "coverage": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-18T00:42:38.007Z",
+    "status": "checked",
+    "credential_source": null,
+    "input_tokens": 0,
+    "verbatim": 8,
+    "model_scored": 0,
+    "criteria": [
+      {
+        "item": "GA-012",
+        "criterion_no": 1,
+        "declared": "`lane_in_force(release_lane, target, coverage_exception)` returns `closed` when `coverage_exception` holds words, whatever `release_lane` and `target` say. An exception is recorded only when coverage isn't `checked` (as `coverage_line` does today), so an exception passed with checked coverage isn't recorded and changes nothing. Otherwise it returns what it returns today. `release_lane` itself never moves.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 2,
+        "declared": "`release` with `--coverage-exception` and coverage not `checked` writes the handoff with `lane_in_force` `closed` and the exception's words and time. When `release_lane` is `wide`, its other gates still hold: an open failure in the ledger, links that aren't verified, or an open unknown needing the repository still refuses, naming each. Coverage is the only wide gate the exception answers.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 3,
+        "declared": "That handoff's instruction says coverage wasn't checked, quotes the exception, says DR-113 doesn't apply and the agent doesn't merge, and says the Release Owner merges under their own login. *Coverage is mandatory* has the owner make that merge, so a merge-instruction doesn't open it to the agent.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 4,
+        "declared": "`record-release` reads the exception from the handoff and computes the lane in force through `lane_in_force`. The Release Owner's merge is `human_merge_recorded`. Any agent merge of an exception handoff, with or without a merge-instruction, is `agent_merge_out_of_lane`. No outcome is added to the vocabulary. The record carries the handoff's `coverage` object as `release` wrote it, so the exception appears exactly when one was recorded.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 5,
+        "declared": "Without `--coverage-exception`, every lane behaves as it does today, and the wide lane still refuses on \"coverage was not checked\".",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 6,
+        "declared": "`/gstack-build` Step 6 and `GOVERNANCE.md` each gain one sentence saying a coverage exception closes the lane for that release and the owner merges.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 7,
+        "declared": "Tests in `test_governed_review.py`: a wide-lane release with an exception writes a handoff in force as `closed` that carries the words; the same release with an open ledger failure refuses and names it; a contained-lane release with an exception is in force as `closed`; a closed lane deferred into `goal/g1` with an exception is in force as `closed`; a wide-lane release without an exception refuses as today; `record-release` records the owner's merge of an exception handoff as `human_merge_recorded` and an agent merge of one as `agent_merge_out_of_lane`, with a merge-instruction posted and without one.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "GA-012",
+        "criterion_no": 8,
+        "declared": "`gstack-execution` moves 0.104.1 to 0.105.0 in `plugin.json`, its marketplace entry and its README Version History, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` names `test_governed_review.py` among what it ran and reports no failures.",
+        "probability": 1,
+        "match": "verbatim"
+      }
+    ]
+  }
+}
