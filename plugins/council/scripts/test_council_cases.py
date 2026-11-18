@@ -286,7 +286,7 @@ class Retention(Base):
         cur = self.S().current()
         self.assertEqual(cur[a]["state"], "active_held_out"); self.assertIsNone(cur[a]["delete_after"])
         self.assertEqual(cur[b]["state"], "active_proposal")
-        self.assertEqual(cc.parse(cur[b]["delete_after"]), cc.parse(cur[b]["published_at"]) + timedelta(days=365))
+        self.assertEqual(cur[b]["delete_after"], cc.iso(cc.add_months(cc.parse(cur[b]["published_at"]))))
         m = json.loads((Path(self.store) / "moxywolf-plugins" / a / "manifest.json").read_text())
         self.assertEqual(m["retention_rule"], cc.RULE); self.assertNotIn("delete_after", m)
         run("exclude", a, "--store", self.store, "--reason", "client asked")
@@ -397,6 +397,21 @@ class ReviewFindings(Base):
         self.assertFalse((self.tmp / "s2" / "store.json").exists())
         (root / "project-surfaces.json").write_text(json.dumps({"note": "OpenControls"}))
         self.assertIn("no project_id", run("init", "--store", str(self.tmp / "s2"), "--projects-root", str(self.tmp / "P2"))[1])
+
+    def test_f4_init_refuses_a_project_folder_it_cant_list(self):
+        root = self.tmp / "P3"; (root / "Z").mkdir(parents=True)
+        real = os.scandir
+        def deny(path):
+            if str(path).endswith("Z"):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real(path)
+        cc.os.scandir = deny
+        try:
+            rc, out = run("init", "--store", str(self.tmp / "s3"), "--projects-root", str(root))
+        finally:
+            cc.os.scandir = real
+        self.assertEqual(rc, 2); self.assertIn("can't list", out)
+        self.assertFalse((self.tmp / "s3" / "store.json").exists())
 
     def test_f8_lookup_reads_the_ledger_when_the_index_is_stale(self):
         cid = self.full(); run("apply", "--store", self.store)

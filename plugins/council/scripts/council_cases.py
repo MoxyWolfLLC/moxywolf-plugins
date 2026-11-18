@@ -284,7 +284,13 @@ def verify(store):
 def opencontrols_projects(projects_root):
     """CC-002.6: any project whose project-surfaces.json names OpenControls."""
     out = []
-    for f in Path(projects_root).glob("*/*/project-surfaces.json"):
+    try:  # explicit traversal: glob would silently skip a folder it can't list
+        records = [Path(h.path) / "project-surfaces.json"
+                   for proj in os.scandir(projects_root) if proj.is_dir()
+                   for h in os.scandir(proj.path) if h.is_dir() and (Path(h.path) / "project-surfaces.json").exists()]
+    except OSError as e:
+        raise Refused(f"can't list {e.filename}: {e.strerror}; init needs every project record")
+    for f in records:
         try:
             text = f.read_text()
             pid = json.loads(text).get("project_id")
