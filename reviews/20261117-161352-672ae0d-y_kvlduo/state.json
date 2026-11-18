@@ -1,0 +1,350 @@
+{
+  "review_id": "20261117-161352-672ae0d-y_kvlduo",
+  "builder": "claude",
+  "builder_family": "claude",
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "release_owner": "dorianatmoxywolf",
+  "max_rounds": 3,
+  "timeout": 900,
+  "rounds_used": 1,
+  "outcome": "no_blocking_findings",
+  "coverage_checked": false,
+  "coverage_status": "not_run",
+  "coverage_overridden": false,
+  "off_repo_evidence": [],
+  "off_repo_overridden": [],
+  "ledger_status": "clear",
+  "open_failures": [],
+  "open_failures_overridden": null,
+  "unknowns_open": 0,
+  "model_selection": {
+    "status": "checked",
+    "mode": "shadow",
+    "tier": "floor",
+    "rule": "cross_file",
+    "override": null
+  },
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-132735-cd6679d-kqk7t9_f/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-150742-84309c1-og66fmo9/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-151523-94e111e-halgazb4/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/dispositions.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-152513-d63ee50-8yppblpd/state.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/dispositions.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/round-2.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-153955-9e38874-se7ke2xa/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "heads": [
+    [
+      "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f"
+    ],
+    [
+      "672ae0d34645d5b42bdbce4eaa5f82f0f5534b9f"
+    ]
+  ],
+  "goldfish": "absent",
+  "origin": "gate_output",
+  "evidence_runs": {
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44205077669
+      }
+    ],
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "e1483a9f1ad2"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "baa11b4e36fc"
+      },
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "6033e65b5342"
+      }
+    ]
+  },
+  "reviewer_intended": "codex",
+  "embedded_locations": [
+    {
+      "file": "reviews/20261117-132735-cd6679d-kqk7t9_f/release.json",
+      "line": 116
+    },
+    {
+      "file": "reviews/20261117-153955-9e38874-se7ke2xa/release.json",
+      "line": 145
+    },
+    {
+      "file": "reviews/20261117-151148-84309c1-uxl64mlc/state.json",
+      "line": 13
+    },
+    {
+      "file": "evidence/ci-44205077669.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_reported": 4,
+  "adjudicated_round": 1
+}

@@ -1,0 +1,81 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GA-012",
+  "scope_sha256": "c7d8408ae538778ef4c2469fe4dae371e52682289226b6c530019ae79e06f98f",
+  "reviewed_at": "2026-11-18T00:29:44+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3461,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7060,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7060,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7060,
+      "cache_creation_input_tokens": 3501,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3501,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12201,
+      "output_tokens": 3023,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1384,
+      "cache_read_input_tokens": 10561,
+      "cache_creation_input_tokens": 538,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 538,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 17621,
+    "write": 11099
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GA-012.1",
+        "GA-012.2"
+      ],
+      "question": "GA-012.1 returns `closed` whenever `coverage_exception` holds words. It also says an exception passed with checked coverage 'isn't recorded and changes nothing.' Is the filter applied in `release`, so the handoff never carries the exception, or inside `lane_in_force`? What does `lane_in_force` return when called with words and checked coverage?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GA-012.3",
+        "GA-012.4",
+        "Coverage is mandatory"
+      ],
+      "question": "Is `human_merge_recorded` for an exception handoff limited to the Release Owner's own login, or does a merge by any other human count? The plan says 'the Release Owner', 'the owner' and 'a human merge' without defining the identity check."
+    }
+  ]
+}
