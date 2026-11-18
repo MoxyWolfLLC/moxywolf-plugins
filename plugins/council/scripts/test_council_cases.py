@@ -37,7 +37,10 @@ class Base(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def init(self, audience=True, **kw):
-        args = ["init", "--store", self.store]
+        proj = self.tmp / "Projects"; proj.mkdir(exist_ok=True)
+        args = ["init", "--store", self.store, "--projects-root", str(proj)]
+        for b in kw.get("backup", []):
+            args += ["--backup", b]
         if audience:
             args += ["--audience", AUDIENCE, "--approved-by", "Dorian C", "--words", "Approved for this audience."]
         for e in kw.get("exclude", []):
@@ -53,7 +56,7 @@ class Base(unittest.TestCase):
         p = self.tmp / f"d{self.n}.json"; p.write_text(json.dumps(d)); return p
 
     def stage(self, project="moxywolf-plugins", d=None, names=()):
-        args = ["stage", "--store", self.store, "--input", str(d or self.deliberation()), "--project", project, "--by", "Dorian C"]
+        args = ["stage", "--store", self.store, "--input", str(d or self.deliberation()), "--project", project, "--by", "Dorian C", "--consent", "yes"]
         for n in names:
             args += ["--name", n]
         rc, out = run(*args)
@@ -92,7 +95,7 @@ class OptIn(Base):
         self.assertIn("living-lexicon", self.S().cfg["excluded_projects"])
 
     def test_audience_needs_approval_words(self):
-        rc, out = run("init", "--store", self.store, "--audience", "anyone")
+        rc, out = run("init", "--store", self.store, "--projects-root", str(self.tmp), "--audience", "anyone")
         self.assertEqual(rc, 2); self.assertIn("approved-by", out)
 
 
@@ -346,6 +349,114 @@ class Compaction(Base):
         d.unlink()  # the council-memory record is gone; nothing reads it
         self.assertEqual(run("verify", "--store", self.store)[0], 0)
         self.assertIn(cid, [c[0] for c in cc.eligible(self.S(), cc.now())])
+
+
+class ReviewFindings(Base):
+    """Regression tests for review 20261117-220246-f00d10b-xxlh7dnk, F1-F11."""
+    def setUp(self):
+        super().setUp(); self.init(backup=["time-machine"])
+
+    def test_f1_second_apply_refused_while_one_holds_the_lock(self):
+        lock = cc.apply_lock(self.S())
+        try:
+            rc, out = run("apply", "--store", self.store)
+            self.assertEqual(rc, 2); self.assertIn("another apply is running", out)
+        finally:
+            lock.close()
+        self.assertEqual(run("apply", "--store", self.store)[0], 0)
+
+    def test_f2_edit_and_rescan_after_confirm_needs_a_new_confirmation(self):
+        rc, out, cid = self.stage(); run("scan", cid); self.confirm(cid)
+        f = self.tmp / "staging" / cid / "case.md"; f.write_text(f.read_text() + "\nadded after confirmation\n")
+        run("scan", cid)
+        self.assertIn("confirm again", run("publish", cid, "--store", self.store)[1])
+        rc, out, cid2 = self.stage(); run("scan", cid2); self.confirm(cid2); run("scan", cid2)
+        self.assertIn("confirm again", run("publish", cid2, "--store", self.store)[1], "a rescan alone")
+
+    def test_f3_unexpected_staged_file_refused_and_only_two_files_published(self):
+        rc, out, cid = self.stage(); run("scan", cid); self.confirm(cid)
+        (self.tmp / "staging" / cid / "notes.txt").write_text("LEAKYKEY")
+        self.assertIn("unexpected files", run("publish", cid, "--store", self.store)[1])
+        (self.tmp / "staging" / cid / "notes.txt").unlink()
+        self.assertEqual(run("publish", cid, "--store", self.store)[0], 0)
+        self.assertEqual(sorted(p.name for p in (Path(self.store) / "moxywolf-plugins" / cid).iterdir()), ["case.md", "manifest.json"])
+
+    def test_f4_init_without_a_projects_root_refuses(self):
+        old = cc.PROJECTS_CANDIDATES; cc.PROJECTS_CANDIDATES = []
+        try:
+            rc, out = run("init", "--store", str(self.tmp / "other"))
+        finally:
+            cc.PROJECTS_CANDIDATES = old
+        self.assertEqual(rc, 2); self.assertIn("projects root", out)
+
+    def test_f5_status_gives_no_readiness_on_a_bad_chain_or_writer(self):
+        self.full(); self.full(); run("apply", "--store", self.store)
+        lines = self.S().ledger_path.read_text().splitlines()
+        self.S().ledger_path.write_text(lines[1] + "\n" + lines[0] + "\n")
+        rc, out = run("status", "--project", "moxywolf-plugins", "--store", self.store)
+        self.assertEqual(rc, 1); self.assertIn("no readiness", out)
+        s = json.loads((Path(self.store) / "store.json").read_text()); s["writer"] = "someone-else"
+        self.S().ledger_path.write_text("\n".join(lines) + "\n"); (Path(self.store) / "store.json").write_text(json.dumps(s))
+        rc, out = run("status", "--project", "moxywolf-plugins", "--store", self.store)
+        self.assertEqual(rc, 1); self.assertIn("isn't the store's writer", out)
+
+    def test_f6_quarter_rule_ignores_an_ineligible_held_out_case(self):
+        a = self.full(); run("apply", "--store", self.store)
+        self.assertEqual(self.S().current()[a]["state"], "active_held_out")
+        (Path(self.store) / "moxywolf-plugins" / a / "case.md").write_text("corrupted")
+        b = self.full(); run("apply", "--store", self.store)
+        self.assertEqual(self.S().current()[b]["state"], "active_held_out", "the corrupted case doesn't count")
+
+    def test_f7_half_copied_add_stays_pending(self):
+        cid = self.full()
+        (Path(self.store) / "moxywolf-plugins" / cid / "manifest.json").unlink()
+        other = self.full()
+        self.assertEqual(run("apply", "--store", self.store)[0], 0)
+        self.assertNotIn(cid, self.S().current()); self.assertIn(other, self.S().current())
+        self.assertIn(cid, self.S().pending("add"))
+
+    def test_f8_lookup_overlays_a_pending_exclude(self):
+        cid = self.full(); run("apply", "--store", self.store)
+        self.assertEqual(cc.lookup(self.S(), cid)["state"], "active_held_out")
+        run("exclude", cid, "--store", self.store, "--reason", "t")
+        self.assertEqual(cc.lookup(self.S(), cid)["state"], "excluded")
+        self.assertIn('"excluded"', run("lookup", cid, "--store", self.store)[1])
+
+    def test_f9_deleting_a_case_before_its_add_applies_records_a_tombstone(self):
+        cid = self.full()
+        shutil.rmtree(Path(self.store) / "moxywolf-plugins" / cid)
+        self.assertEqual(run("delete-record", cid, "--store", self.store)[0], 0)
+        run("apply", "--store", self.store)
+        line = self.S().current()[cid]
+        self.assertEqual(line["state"], "deleted"); self.assertEqual(self.S().inbox(), [])
+        self.assertEqual(line["remaining"], ["drive_trash", "time-machine"])
+
+    def test_f10_twelve_calendar_months_across_a_leap_day(self):
+        self.assertEqual(cc.iso(cc.add_months(cc.parse("2027-02-28T09:00:00Z"))), "2028-02-28T09:00:00Z")
+        self.assertEqual(cc.iso(cc.add_months(cc.parse("2028-02-29T09:00:00Z"))), "2029-02-28T09:00:00Z")
+        self.assertEqual(cc.iso(cc.add_months(cc.parse("2027-03-01T09:00:00Z"))), "2028-03-01T09:00:00Z")
+        cid = self.full(); self.full(); run("apply", "--store", self.store)
+        b = [l for l in self.S().current().values() if l["state"] == "active_proposal"][0]
+        self.assertEqual(b["delete_after"], cc.iso(cc.add_months(cc.parse(b["published_at"]))))
+
+    def test_f11_no_default_or_silence_saves_nothing(self):
+        for answer in ("no", None, "", "  "):
+            args = ["stage", "--store", self.store, "--input", str(self.deliberation()), "--project", "moxywolf-plugins", "--by", "Dorian C"]
+            if answer is not None:
+                args += ["--consent", answer]
+            rc, out = run(*args)
+            self.assertEqual(rc, 2, answer); self.assertIn("wasn't answered yes", out)
+        self.assertFalse((self.tmp / "staging").exists())
+
+    def test_f11_removal_needs_trash_and_backup_cleared(self):
+        cid = self.full(); run("apply", "--store", self.store)
+        shutil.rmtree(Path(self.store) / "moxywolf-plugins" / cid)
+        run("delete-record", cid, "--store", self.store); run("apply", "--store", self.store)
+        run("cleared", cid, "--where", "drive_trash", "--store", self.store); run("apply", "--store", self.store)
+        self.assertFalse(cc.fully_removed(self.S().current()[cid]))
+        self.assertIn("time-machine", run("due", "--store", self.store)[1])
+        run("cleared", cid, "--where", "time-machine", "--store", self.store); run("apply", "--store", self.store)
+        self.assertTrue(cc.fully_removed(self.S().current()[cid]))
 
 
 if __name__ == "__main__":

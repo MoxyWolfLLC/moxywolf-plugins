@@ -2,8 +2,8 @@
 """CC-002: Council replay cases, saved by opt-in, redacted, gated, stored in the vault by project (DR-140).
 
   council_cases.py init      --store S [--writer ID] [--audience TEXT --approved-by NAME --words TEXT]
-                             [--exclude SLUG ...] [--projects-root DIR]
-  council_cases.py stage     --input deliberation.json --project SLUG --by NAME [--name "text=role" ...]
+                             [--exclude SLUG ...] [--projects-root DIR] [--backup NAME ...]
+  council_cases.py stage     --input deliberation.json --project SLUG --by NAME --consent yes [--name "text=role" ...]
   council_cases.py scan      <case-id>
   council_cases.py confirm   <case-id> --by NAME --audience TEXT --retention 12m-rule --words TEXT
   council_cases.py publish   <case-id> --store S
@@ -13,6 +13,7 @@
   council_cases.py retire|exclude|delete-record <case-id> --store S [--reason TEXT]
   council_cases.py cleared   <case-id> --where PLACE --store S
   council_cases.py due       --store S
+  council_cases.py lookup    <case-id> --store S   the index entry, with pending excludes overlaid
 
 The store is located from the workspace mount, then the Google Drive mount, or --store; with neither
 it refuses with `vault not mounted`. There is no Drive API writer (CC-002 amendment, 2026-11-17).
@@ -27,8 +28,9 @@ Readings of the spec review's open ambiguities (CC-002 A1-A12), so a reviewer ca
   A2 an active held-out line's matching date is `null` ("none until retired").
   A3 status runs verify first; a conflict copy stops it with exit 4 and no readiness.
   A4 a published case counts only after `apply` gives it a ledger state.
-  A5 the quarter rule is computed at apply, case by case, counting earlier adds in the same batch.
-  A6 retire acts on either active role; the date becomes retirement plus 12 months; the line keeps the role.
+  A5 the quarter rule is computed at apply, case by case, over the same eligible set status counts,
+     including earlier adds in the same batch.
+  A6 retire acts on either active role; the date becomes retirement plus 12 calendar months; the line keeps the role.
   A7 publish writes publication time into the staged manifest, gitleaks-scans that final manifest,
      then hashes it into the add request. The manifest never changes after that.
   A8 confirm's --by must equal the staging person and run on the staging device.
@@ -37,7 +39,7 @@ Readings of the spec review's open ambiguities (CC-002 A1-A12), so a reviewer ca
   A12 the manifest gitleaks pass inside publish is the second pass.
 ponytail: one JSONL ledger rewritten whole on each apply; fine until a store holds thousands of lines.
 """
-import argparse, hashlib, json, math, os, re, shutil, subprocess, sys, tempfile, time, uuid
+import argparse, fcntl, hashlib, json, math, os, re, shutil, subprocess, sys, tempfile, time, uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -65,6 +67,14 @@ def iso(t):
 
 def parse(s):
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) if s else None
+
+
+def add_months(t, months=12):
+    """Calendar months; a day the target month lacks becomes its last day (29 Feb + 12 months = 28 Feb)."""
+    y, m = divmod(t.month - 1 + months, 12)
+    y, m = t.year + y, m + 1
+    nxt = datetime(y + (m == 12), m % 12 + 1, 1, tzinfo=t.tzinfo)
+    return t.replace(year=y, month=m, day=min(t.day, (nxt - timedelta(days=1)).day))
 
 
 def sha(data):
@@ -103,6 +113,11 @@ def device_id():
 def staging_root():
     return Path(os.environ.get("COUNCIL_CASES_STAGING") or Path.home() / "council-case-staging")
 
+
+PROJECTS_CANDIDATES = [
+    Path.home() / "mnt" / "GitHub" / "Projects",
+    *Path.home().glob("Library/CloudStorage/GoogleDrive-*/Shared drives/GitHub/Projects"),
+]
 
 VAULT_CANDIDATES = [
     Path.home() / "mnt" / "MoxyWolf Vault",
@@ -285,10 +300,12 @@ def cmd_init(a):
     cfg.setdefault("schema", "council-cases/1")
     cfg.setdefault("writer", a.writer or device_id())
     excluded = set(cfg.get("excluded_projects", DEFAULT_EXCLUDED)) | set(DEFAULT_EXCLUDED) | set(a.exclude or [])
-    if a.projects_root:
-        excluded |= set(opencontrols_projects(a.projects_root))
+    roots = [Path(a.projects_root)] if a.projects_root else [r for r in PROJECTS_CANDIDATES if r.is_dir()]
+    if not roots or not roots[0].is_dir():
+        raise Refused("no readable projects root: pass --projects-root so every OpenControls project is excluded")
+    excluded |= set(opencontrols_projects(roots[0]))
     cfg["excluded_projects"] = sorted(excluded)
-    cfg.setdefault("backups", [])
+    cfg["backups"] = sorted(set(cfg.get("backups", [])) | set(a.backup or []))
     if a.audience:
         if not (a.approved_by and a.words):
             raise Refused("an audience is written only with --approved-by and Dorian's --words")
@@ -314,7 +331,14 @@ def render_case(d):
     return "".join(parts)
 
 
+def consented(answer):
+    """CC-002.1: only an explicit yes saves; no, the default (nothing chosen) and silence don't."""
+    return (answer or "").strip().lower() == "yes"
+
+
 def cmd_stage(a):
+    if not consented(a.consent):
+        raise Refused("not saved: the save question wasn't answered yes")
     d = json.loads(Path(a.input).read_text())
     store = Store(store_root(a.store))
     if not offer_save(store, a.project, d.get("rating")):
@@ -359,13 +383,14 @@ def cmd_scan(a):
     with tempfile.TemporaryDirectory() as t:
         shutil.copy(folder / "case.md", t)
         rc = gitleaks(t)
-    receipt = {"exit_code": rc, "case_sha256": fsha(folder / "case.md"), "at": iso(now())}
+    receipt = {"id": uuid.uuid4().hex, "exit_code": rc, "case_sha256": fsha(folder / "case.md"), "at": iso(now())}
     (staging_root() / f"{a.case_id}.scan.json").write_text(json.dumps(receipt) + "\n")
     print("scan: no findings" if rc == 0 else f"scan: findings (gitleaks exit {rc}); edit case.md and scan again")
     return rc
 
 
 def scan_ok(case_id, folder):
+    """Returns the receipt when it's clean and still matches case.md."""
     r = jload(staging_root() / f"{case_id}.scan.json")
     if not r:
         raise Refused("no gitleaks receipt; run scan")
@@ -373,12 +398,24 @@ def scan_ok(case_id, folder):
         raise Refused("the scan found secrets")
     if r["case_sha256"] != fsha(folder / "case.md"):
         raise Refused("the scan is stale: case.md changed since")
+    return r
+
+
+STAGED_FILES = ["case.md", "manifest.json"]
+
+
+def only_staged_files(folder):
+    """F3: exactly the two files cross the publish boundary; anything else in the folder refuses."""
+    extra = sorted(p.name for p in folder.iterdir() if p.name not in STAGED_FILES)
+    if extra:
+        raise Refused("unexpected files in the staged case: " + ", ".join(extra))
 
 
 def cmd_confirm(a):
     folder, m = staged(a.case_id)
     store = Store(store_root(a.store))
-    scan_ok(a.case_id, folder)
+    receipt = scan_ok(a.case_id, folder)
+    only_staged_files(folder)
     if m["published_at"]:
         raise Refused("already in publication; the manifest no longer changes")
     if a.by != m["source"]["staged_by"] or device_id() != m["source"]["device"]:
@@ -389,9 +426,10 @@ def cmd_confirm(a):
         raise Refused("--audience doesn't match the store's approved audience exactly")
     if a.retention != RULE_ID:
         raise Refused(f"--retention must be {RULE_ID}: the manifest states the rule, not a role or a date")
-    files = ["case.md", "manifest.json"]
+    files = STAGED_FILES
     m["confirmation"] = {"by": a.by, "audience": a.audience, "retention": RULE_ID, "words": a.words,
-                         "at": iso(now()), "files": files}
+                         "at": iso(now()), "files": files, "scan_id": receipt["id"],
+                         "case_sha256": receipt["case_sha256"]}
     (folder / "manifest.json").write_text(json.dumps(m, indent=1) + "\n")
     print("will publish:", ", ".join(str(folder / f) for f in files))
 
@@ -400,7 +438,9 @@ def copy_case(folder, dest):
     """Copy to a hidden temp folder beside the destination, then rename it into place."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.parent / f".tmp-{dest.name}-{uuid.uuid4().hex[:6]}"
-    shutil.copytree(folder, tmp)
+    tmp.mkdir()
+    for f in STAGED_FILES:
+        shutil.copy2(folder / f, tmp / f)
     os.replace(tmp, dest)
 
 
@@ -431,10 +471,13 @@ def cmd_publish(a):
         raise Refused("audience not approved")
     if project in store.cfg.get("excluded_projects", []):
         raise Refused(f"project {project} is excluded")
-    scan_ok(cid, folder)
+    receipt = scan_ok(cid, folder)
+    only_staged_files(folder)
     c = m.get("confirmation")
     if not c:
         raise Refused("not confirmed; run confirm")
+    if c.get("scan_id") != receipt["id"] or c.get("case_sha256") != fsha(folder / "case.md"):
+        raise Refused("case.md was edited or rescanned after confirmation; confirm again")
     if c["audience"] != store.cfg["audience"]:
         raise Refused("the confirmed audience isn't the store's approved audience")
     key = m["source_key"]
@@ -472,18 +515,6 @@ def append_line(store, line):
     atomic_write(store.ledger_path, text)
 
 
-def active_counts(store, project, at):
-    held = total = 0
-    for cid, l in store.current().items():
-        if l["project"] != project or effective_state(store, cid, l) not in ("active_proposal", "active_held_out"):
-            continue
-        if l.get("delete_after") and parse(l["delete_after"]) <= at:
-            continue
-        total += 1
-        held += l["state"] == "active_held_out"
-    return held, total
-
-
 def apply_one(store, req):
     """Returns a ledger line to write, or None to leave the request pending."""
     cid, op, at = req["case_id"], req["op"], now()
@@ -493,22 +524,33 @@ def apply_one(store, req):
         if cur:
             return "noop"
         d = store.case_dir(req["project"], cid)
-        if not d.is_dir() or fsha(d / "case.md") != req["case_sha256"] or fsha(d / "manifest.json") != req["manifest_sha256"]:
+        try:
+            if fsha(d / "case.md") != req["case_sha256"] or fsha(d / "manifest.json") != req["manifest_sha256"]:
+                return None
+        except OSError:  # not synced yet, or half-copied: leave it pending
             return None
-        held, total = active_counts(store, req["project"], at)
+        cases = [c for c in eligible(store, at) if c[1] == req["project"]]
+        held, total = sum(c[2] == "active_held_out" for c in cases), len(cases)
         if held < math.ceil((total + 1) / 4):
             state, after = "active_held_out", None
         else:
-            state, after = "active_proposal", iso(parse(req["published_at"]) + timedelta(days=365))
+            state, after = "active_proposal", iso(add_months(parse(req["published_at"])))
         return {**base, **{k: req[k] for k in ("project", "source_key", "rating", "published_at", "case_sha256", "manifest_sha256")},
                 "state": state, "role": state.split("_", 1)[1], "delete_after": after}
+    if not cur and op == "delete-record":
+        add = store.pending("add").get(cid)
+        if not add or store.case_dir(add["project"], cid).exists():
+            return None
+        return {**base, **{k: add[k] for k in ("project", "source_key", "rating", "published_at", "case_sha256", "manifest_sha256")},
+                "role": None, "state": "deleted", "delete_after": None, "remaining": ["drive_trash"] + list(store.cfg.get("backups", [])),
+                "cleared": [], "drive_trash_expires": iso(at + timedelta(days=30))}
     if not cur:
         return None
     keep = {k: cur.get(k) for k in ("project", "source_key", "rating", "published_at", "case_sha256", "manifest_sha256", "role")}
     if op == "retire":
         if not cur["state"].startswith("active"):
             return "noop"
-        return {**base, **keep, "state": "retired", "delete_after": iso(at + timedelta(days=365))}
+        return {**base, **keep, "state": "retired", "delete_after": iso(add_months(at))}
     if op == "exclude":
         if cur["state"] == "deleted":
             return "noop"
@@ -530,10 +572,30 @@ def apply_one(store, req):
     raise Refused(f"unknown request op {op}")
 
 
+def apply_lock(store):
+    """An exclusive lock on this device, held for the whole apply. The lock file is local, not on Drive,
+    because only the writer device applies; a second apply on it waits for nothing and refuses."""
+    d = Path.home() / ".config" / "council-cases"; d.mkdir(parents=True, exist_ok=True)
+    f = open(d / f"apply-{sha(str(store.root.resolve()))[:16]}.lock", "w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close(); raise Refused("another apply is running on this device")
+    return f
+
+
 def cmd_apply(a):
     store = Store(store_root(a.store))
     if device_id() != store.cfg["writer"]:
         raise Refused(f"apply runs only on the writer device {store.cfg['writer']}")
+    lock = apply_lock(store)
+    try:
+        return _apply(store)
+    finally:
+        lock.close()
+
+
+def _apply(store):
     conflicts, problems = verify(store)
     if conflicts:
         raise Refused("conflict copies in the store: " + ", ".join(conflicts))
@@ -542,16 +604,16 @@ def cmd_apply(a):
     rebuild_index(store)  # recovers an apply interrupted between ledger and index
     applied_ids = {l.get("request") for l in store.ledger()}
     (store.root / "inbox" / "applied").mkdir(parents=True, exist_ok=True)
-    reqs = store.inbox()
     n = 0
-    for req, path in reqs:
-        if req["id"] not in applied_ids:
-            line = apply_one(store, req)
-            if line is None:
-                continue
-            if line != "noop":
-                append_line(store, line); n += 1
-        os.replace(path, store.root / "inbox" / "applied" / path.name)
+    for _ in range(2):  # a second pass retires an add that a tombstone in the first pass made moot
+        for req, path in store.inbox():
+            if req["id"] not in applied_ids:
+                line = apply_one(store, req)
+                if line is None:
+                    continue
+                if line != "noop":
+                    append_line(store, line); n += 1; applied_ids.add(req["id"])
+            os.replace(path, store.root / "inbox" / "applied" / path.name)
     rebuild_index(store)
     _, problems = verify(store)
     for p in problems:
@@ -601,6 +663,11 @@ def cmd_status(a):
     if conflicts:
         print(VERIFY_CLAIM); print("conflict copies: " + ", ".join(conflicts) + "; no readiness until they're resolved")
         return 4
+    _, problems = verify(store)
+    glob = [p for p in problems if p.startswith("ledger line")]
+    if glob:
+        print(VERIFY_CLAIM); print("ledger fails verify: " + "; ".join(glob) + "; no readiness until it's repaired")
+        return 1
     cases = [c for c in eligible(store, now()) if c[1] == a.project]
     p = sum(c[2] == "active_proposal" for c in cases)
     h = sum(c[2] == "active_held_out" for c in cases)
@@ -630,6 +697,21 @@ def cmd_change(a):
     print(f"{a.op} {a.case_id}: requested; readers honour a pending exclude at once")
 
 
+def lookup(store, case_id):
+    """Index lookup for every reader: the index entry with pending exclude and delete-record overlaid."""
+    entry = dict((jload(store.root / "index.json", {}).get("cases") or {}).get(case_id) or {})
+    if case_id in store.pending("exclude"):
+        entry["state"] = "excluded"
+    if not entry and case_id in store.pending("add"):
+        entry = {"state": "pending_add", "project": store.pending("add")[case_id]["project"]}
+    return entry or {"state": "unknown"}
+
+
+def cmd_lookup(a):
+    store = Store(store_root(a.store))
+    print(json.dumps({"case_id": a.case_id, **lookup(store, a.case_id)}))
+
+
 def cmd_due(a):
     store = Store(store_root(a.store)); at = now()
     for cid, l in sorted(store.current().items()):
@@ -657,19 +739,21 @@ def main(argv=None):
         return p
     p = sub("init"); p.add_argument("--writer"); p.add_argument("--audience"); p.add_argument("--approved-by")
     p.add_argument("--words"); p.add_argument("--exclude", action="append"); p.add_argument("--projects-root")
+    p.add_argument("--backup", action="append", help="a backup holding store copies; each must be cleared after a deletion")
     p = sub("stage"); p.add_argument("--input", required=True); p.add_argument("--project", required=True)
     p.add_argument("--by", required=True); p.add_argument("--name", action="append")
+    p.add_argument("--consent", help="the person's answer to the save question; only `yes` stages")
     sub("scan", case=True)
     p = sub("confirm", case=True); p.add_argument("--by", required=True); p.add_argument("--audience", required=True)
     p.add_argument("--retention", required=True); p.add_argument("--words", required=True)
-    sub("publish", case=True); sub("apply"); sub("verify"); sub("due")
+    sub("publish", case=True); sub("apply"); sub("verify"); sub("due"); sub("lookup", case=True)
     p = sub("status"); p.add_argument("--project", required=True)
     for op in ("retire", "exclude", "delete-record", "cleared"):
         p = sub(op, case=True); p.add_argument("--reason"); p.add_argument("--where", required=op == "cleared")
         p.set_defaults(op=op)
     a = ap.parse_args(argv)
     fn = {"init": cmd_init, "stage": cmd_stage, "scan": cmd_scan, "confirm": cmd_confirm, "publish": cmd_publish,
-          "apply": cmd_apply, "verify": cmd_verify, "status": cmd_status, "due": cmd_due}.get(a.cmd, cmd_change)
+          "apply": cmd_apply, "verify": cmd_verify, "status": cmd_status, "due": cmd_due, "lookup": cmd_lookup}.get(a.cmd, cmd_change)
     try:
         rc = fn(a)
     except Refused as e:

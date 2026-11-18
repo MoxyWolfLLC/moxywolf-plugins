@@ -477,7 +477,7 @@ For each deliberation record where `vault_synced: false`:
 
 ## Replay cases and compaction (CC-002)
 
-A deliberation saved as a replay case carries `case_id` on its record. Whenever records are compacted, trimmed or rewritten, keep `case_id`: it's the case's id in the vault store (`MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/council-cases/<project>/<case-id>/`). The case itself never depends on this file. Its manifest holds its own rating and source identity, so `council_cases.py verify` and `status` never read `council-memory.json`. To check a `case_id`, run `council_cases.py status --project <slug>`. A case that has gone reports `excluded` or `deleted` in the store's index.
+A deliberation saved as a replay case carries `case_id` on its record. Whenever records are compacted, trimmed or rewritten, keep `case_id`: it's the case's id in the vault store (`MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/council-cases/<project>/<case-id>/`). The case itself never depends on this file. Its manifest holds its own rating and source identity, so `council_cases.py verify` and `status` never read `council-memory.json`. To check a `case_id`, run `council_cases.py lookup <case-id>`. It reads the index with any pending exclude overlaid, so a case that has gone reports `excluded` or `deleted`. Never read `index.json` directly.
 
 ## Privacy
 
