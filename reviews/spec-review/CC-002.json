@@ -2,19 +2,19 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "CC-002",
-  "scope_sha256": "7af9498e73d64473b71febaab6e502fc815e9882ceec0cd50307b2451d046d66",
-  "reviewed_at": "2026-11-18T05:36:02+00:00",
+  "scope_sha256": "31e7677c4f9853cba108d8d404d8f4d93b0ff86a1f4a0d8fc2472281d1c2f91a",
+  "reviewed_at": "2026-11-18T05:43:46+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 8846,
+      "output_tokens": 11527,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 10803,
+      "cache_creation_input_tokens": 10895,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 10803,
+        "ephemeral_5m_input_tokens": 10895,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
@@ -22,17 +22,17 @@
     {
       "input_tokens": 4,
       "output_tokens": 26,
-      "cache_read_input_tokens": 10803,
-      "cache_creation_input_tokens": 8886,
+      "cache_read_input_tokens": 10895,
+      "cache_creation_input_tokens": 11567,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 8886,
+        "ephemeral_5m_input_tokens": 11567,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 21329,
-      "output_tokens": 3986,
+      "input_tokens": 24102,
+      "output_tokens": 3262,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,97 +44,100 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 8934,
-      "cache_read_input_tokens": 19689,
-      "cache_creation_input_tokens": 879,
+      "output_tokens": 2872,
+      "cache_read_input_tokens": 22462,
+      "cache_creation_input_tokens": 693,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 879,
+        "ephemeral_5m_input_tokens": 693,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 30492,
-    "write": 20568
+    "read": 33357,
+    "write": 23155
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "CC-002 criterion 7",
-        "CC-002 criterion 10"
+        "CC-002.4",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
       ],
-      "question": "Does `retire` apply to proposal cases? If it does, retirement plus 12 months always falls after the manifest-stated expiry of publication plus 12 months. Which date is authoritative, and may retirement extend a proposal case's life?"
+      "question": "The constraint calls the Council manifest write-once, but stage drafts it, confirm rewrites it, and publish records the publication time. At which step does the manifest become write-once, and does the second gitleaks pass cover the publication-time edit?"
     },
     {
       "id": "A2",
       "requirements": [
-        "CC-002 criterion 8",
-        "CC-002 criterion 10"
+        "CC-002.8",
+        "CC-002.10"
       ],
-      "question": "`status` runs `verify` first, and a conflict copy makes `verify` fail non-zero everywhere. Does a store-wide `verify` failure make all cases ineligible, make `status` refuse, or leave the count unchanged? What exit code does `status` return, given it is documented as 0 or 3 only?"
+      "question": "What exit code does status return when verify fails, for example on a Drive conflict copy? Exit 3 already means not ready, so the plan must say whether the two outcomes are distinguishable."
     },
     {
       "id": "A3",
       "requirements": [
-        "Constraint: Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds",
-        "CC-002 criterion 4"
+        "CC-002.4",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
       ],
-      "question": "The constraint calls the manifest 'write-once', but it is rewritten at `confirm` and `publish` adds the publication time. When does it become write-once? Does the confirmed file list and the second gitleaks pass still match after `publish` edits the manifest?"
+      "question": "The constraint says the owner confirms the files and audience, but CC-002.4 lets only the person who ran the deliberation confirm. Is that person always the owner, and what happens when it isn't?"
     },
     {
       "id": "A4",
       "requirements": [
-        "CC-002 criterion 6",
-        "CC-002 criterion 1"
+        "CC-002.10",
+        "Test the boundaries before adding item IDs"
       ],
-      "question": "`excluded_projects` is populated at `init`. How is a project added later, or one whose `project-surfaces.json` later names OpenControls, kept out of the opt-in question and out of `publish`?"
+      "question": "Does the status readiness count, with its ready and not-ready score, count as new metrics work that the boundary-test constraint bars until the boundary tests have run?"
     },
     {
       "id": "A5",
       "requirements": [
-        "CC-002 criterion 5",
-        "CC-002 criterion 8"
+        "CC-002.4"
       ],
-      "question": "`apply` processes requests in time order but leaves an `add` pending when its hashes don't match. What happens to a later `exclude`, `retire` or `delete-record` for that case id in the same `apply` run?"
+      "question": "Does publish refuse a restage with a different redaction, and so a different case id, when its source key matches an active case? The refusal list names only excluded, retired and deleted entries."
     },
     {
       "id": "A6",
       "requirements": [
-        "CC-002 criterion 4",
-        "CC-002 criterion 8"
+        "CC-002.7",
+        "CC-002.10"
       ],
-      "question": "The guarantee that the writer never sees a folder without its pending request depends on Drive sync order, which the plan does not control. `apply` quarantines a folder with no ledger line and no pending `add`. How is an in-flight published case protected from quarantine if the folder syncs to the writer first?"
+      "question": "Can retire be applied to an active_proposal case? If so, its ledger date becomes retirement plus 12 months, which differs from the manifest's 'proposal expires 12 months after publication'. Decide whether retire is held-out-only or which date governs."
     },
     {
       "id": "A7",
       "requirements": [
-        "CC-002 preamble (store root and vault not mounted)",
-        "CC-002 preamble (single serialized writer)",
-        "CC-002 criterion 1",
-        "CC-002 criterion 2"
+        "CC-002.7",
+        "CC-002.8"
       ],
-      "question": "With no workspace or Drive mount every command refuses, yet cloud sessions are said to drop requests in `inbox/`. How can a cloud session without a mount do that, and how do rating, opt-in and local staging work there?"
+      "question": "Between the person deleting a case folder and running delete-record, the folder is missing for a case that is neither deleted nor has a pending delete-record, so verify fails. Does that failure block publish, apply and status in that window, and is it intended?"
     },
     {
       "id": "A8",
       "requirements": [
-        "Constraint: Test the boundaries before adding item IDs",
-        "CC-002 criterion 10",
-        "CC-002 criterion 12"
+        "CC-002.7",
+        "CC-002.8"
       ],
-      "question": "Is the `status` readiness count with its ready and not-ready thresholds, or the `/council-stats` change, a new 'measurement report or score' that falls under the metrics bar?"
+      "question": "Do due and verify treat a pending exclude request in inbox/ as an exclusion before apply records it, given that every case is in exactly one ledger state?"
     },
     {
       "id": "A9",
       "requirements": [
-        "CC-002 criterion 4",
-        "CC-002 criterion 7",
-        "CC-002 criterion 10"
+        "CC-002.12",
+        "The pre-merge gate is GitHub's, sized to the stakes"
       ],
-      "question": "`confirm --retention <class>` takes a class, but the manifest states the rule 'not a role or a date' and the role is set at `apply` by the quarter rule. Which values are valid classes, and must the class match the role `apply` later assigns?"
+      "question": "Does the item edit run_all_tests.py, a CODEOWNERS path that needs Dorian's approving review, or does the runner discover test_council_cases.py without an edit?"
+    },
+    {
+      "id": "A10",
+      "requirements": [
+        "CC-002.5",
+        "CC-002.8"
+      ],
+      "question": "When /deliberate or /council-stats runs apply on the writer and verify stops on a conflict copy, does the command fail, or does it only report the failure and carry on?"
     }
   ]
 }
