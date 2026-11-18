@@ -1,0 +1,64 @@
+{
+  "review_id": "20261117-211435-dd02731-1rxto5nl",
+  "action": "merge",
+  "repo": "MoxyWolfLLC/moxywolf-plugins",
+  "head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+  "reviewed_head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+  "target": "main",
+  "merge_commit": "7f4e10ffb89b9cc8d6938cb1b0168143bbaf6b79",
+  "approver": "dorianatmoxywolf",
+  "recorded_at": "2026-11-18T05:18:19Z",
+  "merged_at": "2026-11-18T05:17:54Z",
+  "source": "https://github.com/MoxyWolfLLC/moxywolf-plugins/pull/350",
+  "outcome": "agent_merge_autonomous",
+  "merged_by": "moxywolf-agent[bot]",
+  "authorized_by": "dorianatmoxywolf",
+  "authority": "DR-113: Dorian's standing authorization of 2026-09-30",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "coverage": {
+    "status": "covered"
+  },
+  "council_outcome": {
+    "status": "written",
+    "line_id": "db0d6df0d099"
+  },
+  "model_selection_ledger": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub/Projects/MW Plugins/06 \u2013 Engineering/peer-reviews/CC/model-selection/MoxyWolfLLC-moxywolf-plugins.jsonl",
+  "origin": "human_instruction"
+}

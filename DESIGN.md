@@ -194,7 +194,7 @@ Not covered: a branch named `goal/<id>` with no goal run behind it gets the same
 
 ### GA-012 — A coverage exception hands the merge to the Release Owner in every lane
 
-**Status:** building.
+**Status:** done. Merged to `main` in `1d7fbbf` (PR #349, head `2afbe0f`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-164556-b59197b-ucj7mi5y` (codex/gpt-6-astra, `fixes_verified`, 2 rounds), with the `tests` workflow green at the head (run 44211059454).
 
 **Links introduced:** the release handoff's `coverage.exception` (the Release Owner's words and the time they were recorded) becomes an input to `lane_in_force`. The reader's assumption is that a handoff carrying an exception was released by the Release Owner's merge, not the agent's. That holds because `release` and `record-release` both compute the lane in force from the handoff through `lane_in_force`, its one home, and a handoff with an exception is in force as `closed`.
 
@@ -2649,7 +2649,7 @@ Opened 2026-11-17 by Dorian C, under DR-140 (accepted 2026-11-17, `MoxyWolf Vaul
 
 ### CC-001 — The legacy `/council-optimize` refuses every run
 
-**Status:** building.
+**Status:** done. Merged to `main` in `7f4e10f` (PR #350, head `dd02731`) on 17 November 2026 by `moxywolf-agent[bot]`, recorded by `record-release` as `agent_merge_autonomous` (DR-113, wide lane). Review `20261117-211435-dd02731-1rxto5nl` (codex/gpt-6-astra, `no_blocking_findings`, 1 round), with the `tests` workflow green at the head (run 44238971654).
 
 **Links introduced:** the refusal names DR-140 by its vault path. Nothing is stored.
 

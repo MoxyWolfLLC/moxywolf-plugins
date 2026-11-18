@@ -1,0 +1,79 @@
+{
+  "coverage": {
+    "status": "covered"
+  },
+  "review_id": "20261117-211435-dd02731-1rxto5nl",
+  "action": "merge",
+  "release_owner": "dorianatmoxywolf",
+  "unknowns_open": [],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772",
+      "head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+      "review_base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772"
+    }
+  ],
+  "target": "main",
+  "requested_at": "2026-11-18T05:17:40Z",
+  "outcome": "awaiting_human_release",
+  "links": {
+    "outcome": "links_unverifiable",
+    "examined": 4,
+    "broken": 1,
+    "mis_cited_fixed": 0
+  },
+  "observations": [
+    {
+      "claim": "release head of mwp is the reviewed head dd02731",
+      "command": "git -C /Users/doriancougias/st001-review/mwp rev-parse HEAD",
+      "supported": true,
+      "output_digest": "89d3ebcf39b04d56",
+      "output_head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+      "automatic": true
+    }
+  ],
+  "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "instruction": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
+  "reviewer_advisor": null,
+  "advisor_note": null,
+  "origin": "gate_output"
+}

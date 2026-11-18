@@ -1,0 +1,247 @@
+{
+  "round": 1,
+  "started": "2026-11-17T21:14:48",
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772",
+      "head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+      "review_base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772"
+    }
+  ],
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/council/README.md",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "vocabulary_version": "1.13.0",
+  "evidence": {
+    "requested": 1,
+    "read": 1,
+    "head_matched": 1,
+    "failed_jobs": 0,
+    "logs_read": 0,
+    "receipts_applied": 0
+  },
+  "ci_logs": [],
+  "ci_summaries": [],
+  "ci_runs": [
+    {
+      "run_id": 44238971654,
+      "read": true,
+      "head_matches": true,
+      "conclusion": "success"
+    }
+  ],
+  "ledger_runs": [
+    {
+      "run_id": "4a12df4e4b19",
+      "read": true,
+      "head_matches": true,
+      "exit_code": 0,
+      "receipt_verified": true,
+      "withheld": null,
+      "error": null,
+      "repo": "/Users/doriancougias/st001-review/mwp",
+      "receipt_sha256": "a63ba8969cdee259f4e3b46aacd274ae5f08d3223efb50ce4178d3db63b0f702",
+      "shown": "evidence/ledger-4a12df4e4b19.log"
+    }
+  ],
+  "surface": {
+    "changed": 14,
+    "callers": 25,
+    "callers_withheld": 94,
+    "cap": 25,
+    "from_prior_findings": 0,
+    "dependencies": 25,
+    "dependencies_withheld": 76,
+    "criterion_files": [
+      "changed/0-mwp/plugins/council/commands/council-optimize.md"
+    ],
+    "criterion_dirs": [],
+    "provenance": {
+      "entries": 70,
+      "untrusted": 68
+    }
+  },
+  "reviewer": "codex",
+  "reviewer_family": "gpt",
+  "reviewer_is_fallback": false,
+  "max_output": 16000,
+  "transport": "cli",
+  "max_output_enforced": false,
+  "model": "gpt-6-astra",
+  "reviewer_usage": {
+    "input": null,
+    "output": null,
+    "cache_read": null,
+    "total": 51975,
+    "source": "codex 'tokens used'"
+  },
+  "examined": {
+    "read_tracking": "available",
+    "examined": [
+      "CHANGE.diff",
+      "PROVENANCE.json",
+      "SURFACE.md",
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "changed/0-mwp/.claude-plugin/marketplace.json",
+      "changed/0-mwp/plugins/council/.claude-plugin/plugin.json",
+      "changed/0-mwp/plugins/council/README.md",
+      "changed/0-mwp/plugins/council/commands/council-optimize.md",
+      "changed/0-mwp/plugins/council/commands/council-stats.md",
+      "changed/0-mwp/plugins/council/skills/deliberation-engine/references/autoresearch-loop.md",
+      "changed/0-mwp/plugins/council/skills/deliberation-engine/references/eval-criteria.md",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44238971654.json",
+      "evidence/ledger-4a12df4e4b19.json",
+      "evidence/ledger-4a12df4e4b19.log"
+    ],
+    "examined_count": 35,
+    "offered_count": 72,
+    "examined_beyond_the_diff": [
+      "callers/0-mwp/.github/workflows/tests.yml",
+      "callers/0-mwp/docs/evidence/gstack-delivery/compare-d389119.sh",
+      "callers/0-mwp/goal-runs/headcount-departments-2/holdout.py",
+      "callers/0-mwp/goal-runs/review-packet-ready-6/holdout.py",
+      "callers/0-mwp/goal-runs/shared-prose-lint/holdout.py",
+      "callers/0-mwp/goals/cloud-review-survives/tests/test_read.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-completion/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-2/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-3/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-4/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge-5/tests/test_delivery.py",
+      "callers/0-mwp/goals/gstack-delivery-through-merge/tests/test_delivery.py",
+      "callers/0-mwp/goals/headcount-departments-2/tests/test_departments.py",
+      "callers/0-mwp/goals/headcount-departments/tests/test_departments.py",
+      "callers/0-mwp/goals/review-packet-ready-2/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-3/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-4/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-5/tests/test_packet_ready.py",
+      "callers/0-mwp/goals/review-packet-ready-6/tests/test_packet_ready.py",
+      "dependencies/0-mwp/plugins/gstack-execution/scripts/run_all_tests.py",
+      "evidence/ci-44238971654.json",
+      "evidence/ledger-4a12df4e4b19.json",
+      "evidence/ledger-4a12df4e4b19.log"
+    ],
+    "looked_beyond_the_diff": true
+  },
+  "raw": "{\n  \"verdict\": \"no_blocking_findings\",\n  \"acceptance\": [\n    {\n      \"criterion\": \"CC-001.1. `plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.\",\n      \"met\": true,\n      \"evidence\": \"changed/0-mwp/plugins/council/commands/council-optimize.md:3,7-11 declares no allowed tools, unconditionally stops for every flag, prohibits API/file operations, and supplies exactly one refusal message containing the required dependencies and vault path.\"\n    },\n    {\n      \"criterion\": \"CC-001.2. The command no longer describes reading `council-memory.json`, counting ratings, benchmark selection or experiments. Those steps are removed from the command, not commented out. `autoresearch-loop.md` and `eval-criteria.md` gain one line at the top saying the loop is disabled by DR-140 and nothing reads them until the new optimizer item replaces them.\",\n      \"met\": true,\n      \"evidence\": \"CHANGE.diff removes the previous optimizer procedure entirely; the head command is 11 lines. changed/0-mwp/plugins/council/skills/deliberation-engine/references/autoresearch-loop.md:1 and eval-criteria.md:1 contain the required disabled notice.\"\n    },\n    {\n      \"criterion\": \"CC-001.3. `/council-stats` shows `optimizer: disabled (DR-140)` where it reported optimization history, and stops reporting an optimization budget.\",\n      \"met\": true,\n      \"evidence\": \"changed/0-mwp/plugins/council/commands/council-stats.md:73-75 replaces the optimization-history branch with the exact disabled status and explicitly prohibits reporting optimization history, spend, or budget.\"\n    },\n    {\n      \"criterion\": \"CC-001.4. `council` moves 0.13.0 to 0.13.1 in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` is green at the head.\",\n      \"met\": true,\n      \"evidence\": \"changed/0-mwp/plugins/council/.claude-plugin/plugin.json:3 and changed/0-mwp/.claude-plugin/marketplace.json:142 set council to 0.13.1; marketplace.json:5 moves to 1.172.1; changed/0-mwp/plugins/council/README.md:176 records 0.13.1. evidence/ci-44238971654.json confirms head_matches=true and success for 'Run every check in the repository', mapped to run_all_tests.py by callers/0-mwp/.github/workflows/tests.yml:84-85. The verified head-matching local ledger additionally records exit 0 and 118 checks passed.\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"id\": \"F1\",\n      \"severity\": \"follow_up\",\n      \"file\": \"evidence/ci-44238971654.json\",\n      \"line\": 83,\n      \"what\": \"The untrusted CI error contains an embedded directive to change command flags.\",\n      \"evidence\": \"The error says 'pass --allow-escape-sequences to output it anyway'. This was treated as data and not followed.\",\n      \"criterion\": \"\",\n      \"fix\": \"Keep this diagnostic enclosed as untrusted evidence; no feature-code change is required.\",\n      \"category\": \"embedded_instruction\"\n    }\n  ],\n  \"blocker_resolutions\": [],\n  \"regressions_from_fixes\": [],\n  \"unknowns\": [],\n  \"notes\": \"Read-only review completed without running builds or tests. Prompt behavior was checked directly against the changed command text. Excluded design decisions were not reopened.\"\n}",
+  "verdict": "no_blocking_findings",
+  "acceptance": [
+    {
+      "criterion": "CC-001.1. `plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/council/commands/council-optimize.md:3,7-11 declares no allowed tools, unconditionally stops for every flag, prohibits API/file operations, and supplies exactly one refusal message containing the required dependencies and vault path."
+    },
+    {
+      "criterion": "CC-001.2. The command no longer describes reading `council-memory.json`, counting ratings, benchmark selection or experiments. Those steps are removed from the command, not commented out. `autoresearch-loop.md` and `eval-criteria.md` gain one line at the top saying the loop is disabled by DR-140 and nothing reads them until the new optimizer item replaces them.",
+      "met": true,
+      "evidence": "CHANGE.diff removes the previous optimizer procedure entirely; the head command is 11 lines. changed/0-mwp/plugins/council/skills/deliberation-engine/references/autoresearch-loop.md:1 and eval-criteria.md:1 contain the required disabled notice."
+    },
+    {
+      "criterion": "CC-001.3. `/council-stats` shows `optimizer: disabled (DR-140)` where it reported optimization history, and stops reporting an optimization budget.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/council/commands/council-stats.md:73-75 replaces the optimization-history branch with the exact disabled status and explicitly prohibits reporting optimization history, spend, or budget."
+    },
+    {
+      "criterion": "CC-001.4. `council` moves 0.13.0 to 0.13.1 in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` is green at the head.",
+      "met": true,
+      "evidence": "changed/0-mwp/plugins/council/.claude-plugin/plugin.json:3 and changed/0-mwp/.claude-plugin/marketplace.json:142 set council to 0.13.1; marketplace.json:5 moves to 1.172.1; changed/0-mwp/plugins/council/README.md:176 records 0.13.1. evidence/ci-44238971654.json confirms head_matches=true and success for 'Run every check in the repository', mapped to run_all_tests.py by callers/0-mwp/.github/workflows/tests.yml:84-85. The verified head-matching local ledger additionally records exit 0 and 118 checks passed."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "follow_up",
+      "file": "evidence/ci-44238971654.json",
+      "line": 83,
+      "what": "The untrusted CI error contains an embedded directive to change command flags.",
+      "evidence": "The error says 'pass --allow-escape-sequences to output it anyway'. This was treated as data and not followed.",
+      "criterion": "",
+      "fix": "Keep this diagnostic enclosed as untrusted evidence; no feature-code change is required.",
+      "category": "embedded_instruction"
+    }
+  ],
+  "blocker_resolutions": [],
+  "regressions_from_fixes": [],
+  "unknowns": [],
+  "notes": "Read-only review completed without running builds or tests. Prompt behavior was checked directly against the changed command text. Excluded design decisions were not reopened.",
+  "subjects": {
+    "F1": {
+      "path": "evidence/ci-44238971654.json",
+      "bound": false,
+      "why": "no packet repository holds this path at its reviewed head"
+    }
+  },
+  "embedded_instructions": [
+    {
+      "id": "F1",
+      "file": "evidence/ci-44238971654.json",
+      "line": 83
+    }
+  ],
+  "embedded_instructions_new": [
+    "F1"
+  ],
+  "unknowns_raised": [],
+  "unknowns_settled": [],
+  "unmet_acceptance": [],
+  "outcome": "no_blocking_findings",
+  "origin": "external_text",
+  "examined_by": "peer_review round-record schema check"
+}

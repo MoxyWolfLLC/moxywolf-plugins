@@ -1,0 +1,307 @@
+{
+  "outcome": "CC-001: the legacy /council-optimize refuses every run, with every flag, naming DR-140's vault path; council 0.13.1. The branch also carries the approved CC-001/CC-002 design commit.",
+  "items": [
+    "CC-001"
+  ],
+  "acceptance_criteria": [
+    "CC-001.1. `plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.",
+    "CC-001.2. The command no longer describes reading `council-memory.json`, counting ratings, benchmark selection or experiments. Those steps are removed from the command, not commented out. `autoresearch-loop.md` and `eval-criteria.md` gain one line at the top saying the loop is disabled by DR-140 and nothing reads them until the new optimizer item replaces them.",
+    "CC-001.3. `/council-stats` shows `optimizer: disabled (DR-140)` where it reported optimization history, and stops reporting an optimization budget.",
+    "CC-001.4. `council` moves 0.13.0 to 0.13.1 in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` is green at the head."
+  ],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772",
+      "head": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+      "review_base": "1d7fbbfe1deb355392823aaf0d23c28ea455f772"
+    }
+  ],
+  "changed_behavior": "council-optimize.md is replaced by a stop-and-print refusal; council-stats `optimization` prints `optimizer: disabled (DR-140)`; autoresearch-loop.md and eval-criteria.md gain a disabled line; README, plugin.json and marketplace versions move. Docs/prompt only; no script changes.",
+  "exclusions": [
+    "DR-140 is accepted and the CC-001/CC-002 design was approved by Dorian on 2026-11-17; DESIGN.md's CC-002 section and the constraint amendment are reviewed by spec_review (records clean), not in this code review.",
+    "CC-002 (council_cases.py) isn't built in this PR.",
+    "Legacy optimization_log entries in existing council-memory.json files are left as they are; nothing reads them."
+  ],
+  "tests": {
+    "commands": [
+      "python3 plugins/gstack-execution/scripts/run_all_tests.py (ledger 4a12df4e4b19)",
+      "GitHub Actions tests workflow on PR #350"
+    ],
+    "results": "run_all_tests.py: examined 118 checks: 118 passed, 0 failed (Mac, at dd02731). Earlier runs on this branch failed on setup only (gitleaks absent in the Linux VM; macOS /tmp symlink and uninstalled npm deps); the same command passing closed them. Spec review: CC-001, CC-002 and constraints match their records, no open contradictions. The user path exercised: none beyond the suite; CC-001 is command-prompt text, verified by reading.",
+    "ledger_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": "4a12df4e4b19"
+      }
+    ],
+    "ci_runs": [
+      {
+        "repo": "/Users/doriancougias/st001-review/mwp",
+        "run_id": 44238971654
+      }
+    ]
+  },
+  "release_owner": "dorianatmoxywolf",
+  "prior_findings": [],
+  "data_use": {
+    "owner": "dorianatmoxywolf",
+    "classification": "internal",
+    "allow_repository": true,
+    "allow_history": true,
+    "allowed_tools": [
+      "claude",
+      "codex",
+      "openrouter-gpt"
+    ],
+    "allowed_commands": [],
+    "output_roots": [
+      "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub/Projects/MW Plugins/06 \u2013 Engineering/peer-reviews/CC"
+    ]
+  },
+  "vocabulary_version": "1.13.0",
+  "origin": "gate_output",
+  "model_selection": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-18T04:49:49.904Z",
+    "inputs": {
+      "items": [
+        "CC-001"
+      ],
+      "criteria_count": 4,
+      "criteria": [
+        "CC-001.1. `plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.",
+        "CC-001.2. The command no longer describes reading `council-memory.json`, counting ratings, benchmark selection or experiments. Those steps are removed from the command, not commented out. `autoresearch-loop.md` and `eval-criteria.md` gain one line at the top saying the loop is disabled by DR-140 and nothing reads them until the new optimizer item replaces them.",
+        "CC-001.3. `/council-stats` shows `optimizer: disabled (DR-140)` where it reported optimization history, and stops reporting an optimization budget.",
+        "CC-001.4. `council` moves 0.13.0 to 0.13.1 in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` is green at the head."
+      ],
+      "paths_named": [
+        "plugins/council/commands/council-optimize.md",
+        "council-memory.json",
+        "autoresearch-loop.md",
+        "eval-criteria.md",
+        "plugin.json",
+        "run_all_tests.py"
+      ],
+      "files_read": 1,
+      "files": [
+        {
+          "path": "plugins/council/commands/council-optimize.md",
+          "exists": true,
+          "at": "dd027315ad1f1b295f839e9ce5723471fa580f42",
+          "lines": 12,
+          "head": "---\ndescription: Disabled by DR-140 \u2014 the legacy prompt optimizer refuses every run\nallowed-tools: []\nargument-hint: \"(disabled; every flag, including --dry-run, is refused)\"\n---\n\n**Stop here. Do not run any other step, whatever flags were passed (including `--dry-run`).** Make no API call, and read or write no file.\n\nPrint exactly this message and end:\n\n> `/council-optimize` is disabled by DR-140 (MoxyWolf Vault/Projects/Moxywolf Plugins/06-Engineering/DR-140-council-replay-cases-live-in-the-vault-by-project-2026-11-17.md). It stays disabled until the Council case store (CC-002) and a new optimizer item exist. Rating fields alone are not replayable cases, so this command no longer optimizes anything.\n"
+        },
+        {
+          "path": "council-memory.json",
+          "exists": false
+        },
+        {
+          "path": "autoresearch-loop.md",
+          "exists": false
+        },
+        {
+          "path": "eval-criteria.md",
+          "exists": false
+        },
+        {
+          "path": "plugin.json",
+          "exists": false
+        },
+        {
+          "path": "run_all_tests.py",
+          "exists": false
+        }
+      ],
+      "links_introduced": [
+        {
+          "item": "CC-001",
+          "links_introduced": "the refusal names DR-140 by its vault path. Nothing is stored."
+        }
+      ]
+    },
+    "status": "checked",
+    "mode": "shadow",
+    "answers": {
+      "trust_boundary": {
+        "probability": 0.23
+      },
+      "cross_file": {
+        "probability": 0.82
+      },
+      "docs_only": {
+        "probability": 0.6
+      },
+      "has_tests": {
+        "probability": 0.93
+      },
+      "risky": {
+        "probability": 0.18
+      }
+    },
+    "answers_from": "typesafe-ai/jev",
+    "booleans": {
+      "trust_boundary": false,
+      "cross_file": true,
+      "docs_only": true,
+      "has_tests": true,
+      "risky": false
+    },
+    "rule": "cross_file",
+    "tier": "floor",
+    "thresholds": {
+      "risky": 0.7,
+      "upgrade": 0.3,
+      "downgrade": 0.6,
+      "has_tests": 0.5
+    },
+    "applied_tier": "floor",
+    "credential_source": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/aigateway.env",
+    "input_tokens": 4418,
+    "quorum": {
+      "line_id": "db0d6df0d099",
+      "ledger": "/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub/Projects/MW Plugins/06 \u2013 Engineering/peer-reviews/CC/decisions/202611.jsonl",
+      "status": "full",
+      "agreed": false,
+      "tie": false,
+      "voices": [
+        {
+          "model": "typesafe-ai/jev",
+          "status": 200,
+          "latency_ms": 324,
+          "cost": "0.000059388",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.23
+            },
+            "cross_file": {
+              "probability": 0.82
+            },
+            "docs_only": {
+              "probability": 0.6
+            },
+            "has_tests": {
+              "probability": 0.93
+            },
+            "risky": {
+              "probability": 0.18
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "perplexity/pplx-decider-v1.2",
+          "status": 200,
+          "latency_ms": 848,
+          "cost": "0.00002484",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.13915469785346907
+            },
+            "cross_file": {
+              "probability": 0.6560604996810386
+            },
+            "docs_only": {
+              "probability": 0.9379689406490742
+            },
+            "has_tests": {
+              "probability": 0.8798511290308207
+            },
+            "risky": {
+              "probability": 0.056148163297633884
+            }
+          },
+          "tier": "floor",
+          "rule": "cross_file"
+        },
+        {
+          "model": "openai/gpt-6-luna-decisions",
+          "status": 200,
+          "latency_ms": 495,
+          "cost": "0.0001762",
+          "answers": {
+            "trust_boundary": {
+              "probability": 0.7
+            },
+            "cross_file": {
+              "probability": 1
+            },
+            "docs_only": {
+              "probability": 0.91
+            },
+            "has_tests": {
+              "probability": 0.99
+            },
+            "risky": {
+              "probability": 0.01
+            }
+          },
+          "tier": "floor",
+          "rule": "trust_boundary"
+        }
+      ],
+      "majority_answers": {
+        "trust_boundary": {
+          "probability": 0.23
+        },
+        "cross_file": {
+          "probability": 0.82
+        },
+        "docs_only": {
+          "probability": 0.91
+        },
+        "has_tests": {
+          "probability": 0.93
+        },
+        "risky": {
+          "probability": 0.056148163297633884
+        }
+      },
+      "majority_tier": "floor",
+      "majority_rule": "cross_file"
+    },
+    "jev_tier": "floor",
+    "declared_tier": "floor",
+    "routing": "advice"
+  },
+  "coverage": {
+    "model": "typesafe-ai/jev",
+    "checked_at": "2026-11-18T04:49:57.767Z",
+    "status": "checked",
+    "credential_source": null,
+    "input_tokens": 0,
+    "verbatim": 4,
+    "model_scored": 0,
+    "criteria": [
+      {
+        "item": "CC-001",
+        "criterion_no": 1,
+        "declared": "`plugins/council/commands/council-optimize.md` stops before any other step, with every flag including `--dry-run`. It prints one message: the optimizer is disabled by DR-140 until the case store (CC-002) and a new optimizer item exist; the message names DR-140's vault path. It makes no API call and reads or writes no file.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "CC-001",
+        "criterion_no": 2,
+        "declared": "The command no longer describes reading `council-memory.json`, counting ratings, benchmark selection or experiments. Those steps are removed from the command, not commented out. `autoresearch-loop.md` and `eval-criteria.md` gain one line at the top saying the loop is disabled by DR-140 and nothing reads them until the new optimizer item replaces them.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "CC-001",
+        "criterion_no": 3,
+        "declared": "`/council-stats` shows `optimizer: disabled (DR-140)` where it reported optimization history, and stops reporting an optimization budget.",
+        "probability": 1,
+        "match": "verbatim"
+      },
+      {
+        "item": "CC-001",
+        "criterion_no": 4,
+        "declared": "`council` moves 0.13.0 to 0.13.1 in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `run_all_tests.py` is green at the head.",
+        "probability": 1,
+        "match": "verbatim"
+      }
+    ]
+  }
+}

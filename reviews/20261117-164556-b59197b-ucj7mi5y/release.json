@@ -1,0 +1,148 @@
+{
+  "coverage": {
+    "status": "covered"
+  },
+  "review_id": "20261117-164556-b59197b-ucj7mi5y",
+  "action": "merge",
+  "release_owner": "dorianatmoxywolf",
+  "unknowns_open": [],
+  "repos": [
+    {
+      "path": "/Users/doriancougias/st001-review/mwp",
+      "base": "b59197bc6a5539753e51550b5a120ed5e45f75d6",
+      "head": "2afbe0f307eed1fc509df3b83c05248d13265202",
+      "review_base": "499d4bac3c1b34107ea3680ede4ec27844af0b60"
+    }
+  ],
+  "target": "main",
+  "requested_at": "2026-11-18T00:58:56Z",
+  "outcome": "awaiting_human_release",
+  "links": {
+    "outcome": "links_unverifiable",
+    "examined": 9,
+    "broken": 2,
+    "mis_cited_fixed": 0
+  },
+  "observations": [
+    {
+      "claim": "release head of mwp is the reviewed head 2afbe0f",
+      "command": "git -C /Users/doriancougias/st001-review/mwp rev-parse HEAD",
+      "supported": true,
+      "output_digest": "f41810b5840a24fa",
+      "output_head": "2afbe0f307eed1fc509df3b83c05248d13265202",
+      "automatic": true
+    }
+  ],
+  "observations_note": "These record which commands were run and what they returned. They are not evidence that a person read the result.",
+  "release_lane": {
+    "lane": "wide",
+    "decided_by": [
+      "effect",
+      "path"
+    ],
+    "matched": [
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": ".claude-plugin/marketplace.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "DESIGN.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/.claude-plugin/plugin.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/GOVERNANCE.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/README.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/commands/gstack-build.md",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "plugins/gstack-execution/scripts/peer_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "path",
+        "path": "plugins/gstack-execution/scripts/test_governed_review.py",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/dispatch.log",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/packet.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/round-1.json",
+        "repo": "mwp"
+      },
+      {
+        "lane": "wide",
+        "decided_by": "effect",
+        "effect": "many_callers",
+        "path": "reviews/20261117-161352-672ae0d-y_kvlduo/state.json",
+        "repo": "mwp"
+      }
+    ],
+    "table": "default"
+  },
+  "lane_in_force": "wide",
+  "instruction": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
+  "reviewer_advisor": null,
+  "advisor_note": null,
+  "origin": "gate_output"
+}
