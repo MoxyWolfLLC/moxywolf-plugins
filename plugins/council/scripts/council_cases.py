@@ -323,7 +323,7 @@ def cmd_stage(a):
     source = {"workspace": d["workspace"], "record_id": d["record_id"], "query_sha256": sha(d["query"]),
               "deliberated_at": d["deliberated_at"], "models": d.get("models", []),
               "staged_by": a.by, "device": device_id()}
-    source_key = sha(json.dumps({k: source[k] for k in ("workspace", "record_id", "query_sha256", "deliberated_at")}, sort_keys=True))
+    source_key = sha(json.dumps({k: source[k] for k in ("workspace", "record_id", "query_sha256", "deliberated_at", "models")}, sort_keys=True))
     case_id = sha(text + json.dumps(source, sort_keys=True))[:16]
     folder = staging_root() / case_id
     staging_root().mkdir(mode=0o700, parents=True, exist_ok=True)
