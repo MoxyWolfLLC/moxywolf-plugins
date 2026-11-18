@@ -2664,7 +2664,7 @@ Today `/council-optimize` can start on rating fields alone, and its prerequisite
 
 **Status:** building.
 
-**Links introduced:**
+**Links introduced:** three, each below with what a reader assumes and what checks it.
 - `case_id` on a `council-memory.json` deliberation record: the case's id in the store. Compaction keeps it. A reader assumes the case still exists; `council_cases.py` resolves it and reports `excluded` or `deleted` when it doesn't.
 - In the store: each case's `manifest.json` names its source identity (workspace, memory record id, query hash, deliberation time, models, and the person and device that staged it), and the publication time `publish` recorded, and each ledger line names a case id and the sha256 of its `case.md` and `manifest.json`. A reader assumes the files match the ledger; `verify` checks that.
 - `store.json` names the one writer device (criterion 5) and the approved audience (criterion 6). A reader assumes only that device wrote the ledger; each ledger line carries its writer id, and `verify` checks it.
