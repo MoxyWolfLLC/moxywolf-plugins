@@ -652,6 +652,20 @@ class ParallelPlan(RunnerFixture):
         gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\np = 1\n"), 3)
         self.assertEqual([i["n"] for i in self.next()[1]["items"]], [1])
 
+    def test_an_item_behind_an_unmerged_prerequisite_can_still_be_reported_failed(self):
+        self.start()
+        out = gr.failed("g1", 3, "blocked: its prerequisite done is blocked")
+        self.assertEqual(out["outcome"], "stopped")
+
+    def test_a_successor_with_a_deps_file_is_refused(self):
+        for f in ("GOAL.md", "PLAN.md", "DEPS.json", "holdout.sha256"):
+            src = self.repo / "goals" / "g1" / f
+            self.commit("successor", {f"goals/g1--s1/{f}": src.read_text()})
+        self.tree = self.git("rev-parse", "main:goals/g1--s1")
+        with self.assertRaisesRegex(gr.Refused, "successor; its DEPS.json"):
+            gr.start(self.repo, "g1--s1", 7, "claude/claude-opus", self.verify(), {"contents": "write", "pull_requests": "write"},
+                     self.create, base="main", repo_name="o/r", environments=lambda: ["goal-holdout"])
+
     def test_a_plan_whose_overlapping_writes_have_no_order_is_refused_at_start(self):
         bad = dict(self.DEPS, items=dict(self.DEPS["items"], **{"3": {"id": "polish", "writes": ["goalmod.py"]}}))
         self.commit("unordered", {"goals/g1/DEPS.json": json.dumps(bad)})

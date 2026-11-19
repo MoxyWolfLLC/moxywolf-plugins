@@ -383,7 +383,7 @@ def merge_gate(run, iid, repo, target, halted=False):
             git(repo, "merge-base", "--is-ancestor", tip, st["evidence"]["head"])
         except subprocess.CalledProcessError:
             reasons.append(f"evidence at {st['evidence']['head'][:12]} isn't built on the target {tip[:12]}; refresh review and checks")
-    reasons += [f"integration waits for {d}" for d in i["integrate_after"] if s["items"][d]["status"] != "merged"]
+    reasons += [f"integration waits for {d}" for d in sorted(_edges(s)[iid]) if s["items"][d]["status"] != "merged"]
     return reasons
 
 

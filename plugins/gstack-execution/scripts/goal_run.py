@@ -221,11 +221,17 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
     if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
+        if re.search(r"--s\d+$", goal_id):
+            # goal_successor.py holds an unowned successor folder to its root's brief, not to a DEPS.json, so one here
+            # was never approved: a successor runs serially
+            raise Refused(f"{goal_id} is a successor; its DEPS.json isn't covered by the root goal's approval. Remove it to run serially")
         import swarm
         plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
-        ids = {i["n"]: i["id"] for i in plan["items"]}
-        by_id = {v: k for k, v in ids.items()}
-        state["parallel"] = {str(i["n"]): {"id": i["id"], "integrate_after": [by_id[x] for x in i["integrate_after"]]}
+        by_id = {i["id"]: i["n"] for i in plan["items"]}
+        before = {i["id"]: set(i["start_after"]) | set(i["integrate_after"]) for i in plan["items"]}
+        for a, b in plan["order"]:
+            before[b].add(a)
+        state["parallel"] = {str(i["n"]): {"id": i["id"], "integrate_after": sorted(by_id[x] for x in before[i["id"]])}
                              for i in plan["items"]}
     state["delivery"] = initial_delivery(repo, checkout_repo(repo, repo_name), record, state, secs)    # GO-012.1, before any side effect
     gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
@@ -637,7 +643,7 @@ def bind_companion(goal_id, get, pr_number, review_id, repo_name=REPO):
     return {"companion": cid, "pr": p.get("number"), "head": head, "base": base, "review_id": review_id}
 
 
-def current_item(state, item):
+def current_item(state, item, merging=True):
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
     remaining = [i for i in state["items"] if i["n"] not in state["done"]]
@@ -648,7 +654,7 @@ def current_item(state, item):
         if entry is None or item not in [i["n"] for i in remaining]:
             raise Refused(f"item {item} isn't an unmerged item of this plan")
         waiting = [n for n in entry["integrate_after"] if n not in state["done"]]
-        if waiting:
+        if waiting and merging:                        # an item that can't go on may always be reported failed
             raise Refused(f"item {item} integrates after item(s) {waiting}, not merged yet")
         return [next(i for i in remaining if i["n"] == item)] + [i for i in remaining if i["n"] != item]
     if item != remaining[0]["n"]:
@@ -659,7 +665,7 @@ def current_item(state, item):
 def failed(goal_id, item, reason):
     """An item build that ended without a merge ends the run."""
     state = load(goal_id)
-    current_item(state, item)
+    current_item(state, item, merging=False)
     if "rounds_exhausted" in reason:
         escalate(state, "review_cap", f"Item {item} reached the review cap: {reason}")
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
