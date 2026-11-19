@@ -574,8 +574,8 @@ class Mr004(Hooks):
         r = self.call("Agent", {"subagent_type": "something:new", "prompt": "x"}, endpoint="http://127.0.0.1:9")
         self.assertEqual(r.stdout.strip(), "")
         l = self.ledger()[-1]
-        self.assertEqual((l["class"], l["recommended_model"], l["requested_model"], l["inherited"], l["mutated"], l["launch"]),
-                         ("unclassified", None, None, True, False, "requested"))
+        self.assertEqual((l["class"], l["recommended_model"], l["decided_by"], l["requested_model"], l["inherited"], l["mutated"], l["launch"]),
+                         ("unclassified", "opus", "default_floor", None, True, False, "requested"))
 
     def test_aar_counts_a_requested_model_as_a_launch_only_when_confirmed(self):   # review F2
         d = self.root / "aar"; d.mkdir()
@@ -587,6 +587,16 @@ class Mr004(Hooks):
         r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", day], capture_output=True, text=True)
         self.assertIn("1 department dispatches", r.stdout)
         self.assertIn("1 Agent requests named a model but no launch line confirms they ran", r.stdout)
+        # round 2: another session's confirmation and an id-less one confirm nothing here
+        other = [{"ts": f"{day}T11:00:00Z", "class": "department-subagent", "tool": "Agent", "routed": False, "department": "pmo",
+                  "requested_model": "haiku", "tool_use_id": t, "subagent_type": "pmo:pmo"} for t in ("ran", None)]
+        (d / "20261119-s2.jsonl").write_text("\n".join(json.dumps(r) for r in other) + "\n")
+        with open(d / "20261119-s1.jsonl", "a") as f:
+            f.write(json.dumps({"ts": f"{day}T11:00:05Z", "event": "launch", "tool": "Agent", "tool_use_id": None, "outcome": "returned"}) + "\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", day], capture_output=True, text=True)
+        self.assertIn("1 department dispatches", r.stdout)
+        self.assertIn("3 Agent requests named a model but no launch line confirms they ran", r.stdout)
+        self.assertIn("4 calls across 2 session ledgers", r.stdout)   # unconfirmed requests are still calls
 
 
 for _n in [n for n in dir(Hooks) if n.startswith("test_") and n not in Mr004.__dict__]:

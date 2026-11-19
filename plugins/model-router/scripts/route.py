@@ -358,9 +358,10 @@ def cmd_pre_tool_use(h):
     floor_rule = (decided_by == "jev" and line.get("rule") in FLOOR_RULES) or (decided_by == "table" and tier == "floor")
     if (c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS) and tier != "floor":
         line["floor_locked_from"] = tier; tier = "floor"; floor_rule = True
-    if tier is None:                      # unclassified Agent with Jev unavailable: unchanged, and recorded as such (review F1)
-        line.update(recommended_model=None, requested_model=tin.get("model") or None, inherited=not tin.get("model"),
-                    mutated=False, launch="requested")
+    if tier is None:                      # unclassified Agent with Jev unavailable: the input is unchanged (review F1)
+        # the recommendation is the table's floor, the same fallback route.py recommend gives a dispatcher (MR-004.5)
+        line.update(recommended_model=table["tiers"]["floor"], decided_by="default_floor", requested_model=tin.get("model") or None,
+                    inherited=not tin.get("model"), mutated=False, launch="requested")
         append(path, line); return 0
     line.update(tier=tier, decided_by=decided_by, model=table["tiers"][tier])
     if tool != "Agent":                   # a script chooses its own model; the tier is recorded, not applied
@@ -515,7 +516,12 @@ def aar(d, date):
     tag written at the time (applied_model, declared_tier); nothing is inferred after the fact."""
     d = Path(d)
     session_files = sorted(f for f in d.glob("*.jsonl") if f.name != CLAIM_CHECKS) if d.exists() else []
-    lines = [l for f in session_files for l in read_lines(f) if str(l.get("ts", "")).startswith(date)]   # F3: by ts, not file name
+    lines, confirmed = [], set()
+    for f in session_files:
+        own = read_lines(f)
+        # Review F2 (round 2): a launch confirms a request only in its own session's ledger and only by a non-empty id
+        confirmed |= {(f.name, l["tool_use_id"]) for l in own if l.get("event") == "launch" and l.get("tool_use_id")}
+        lines += [dict(l, _file=f.name) for l in own if str(l.get("ts", "")).startswith(date)]   # F3: by ts, not file name
     calls = [l for l in lines if "class" in l]
     checks_file = d / CLAIM_CHECKS
     checks = [l for l in read_lines(checks_file) if str(l.get("ts", "")).startswith(date)] if checks_file.exists() else []
@@ -536,11 +542,10 @@ def aar(d, date):
     # a refused or inherited launch names none and is not attributed to a model.
     # Review F1 (20261119-151334): a 0.3.0 request counts as a launch only when post-tool-use confirmed it by tool_use_id.
     # An older line with applied_model is counted as before: 0.2.0 wrote nothing else.
-    confirmed = {l.get("tool_use_id") for f in session_files for l in read_lines(f) if l.get("event") == "launch"}
     unconfirmed = 0
     for l in calls:
         if l.get("tool") == "Agent" and not l.get("applied_model") and l.get("requested_model"):
-            if l.get("tool_use_id") in confirmed:
+            if l.get("tool_use_id") and (l["_file"], l["tool_use_id"]) in confirmed:
                 l["applied_model"] = l["requested_model"]
             else:
                 unconfirmed += 1
