@@ -220,6 +220,13 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
+    if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
+        import swarm
+        plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
+        ids = {i["n"]: i["id"] for i in plan["items"]}
+        by_id = {v: k for k, v in ids.items()}
+        state["parallel"] = {str(i["n"]): {"id": i["id"], "integrate_after": [by_id[x] for x in i["integrate_after"]]}
+                             for i in plan["items"]}
     state["delivery"] = initial_delivery(repo, checkout_repo(repo, repo_name), record, state, secs)    # GO-012.1, before any side effect
     gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
     gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
@@ -385,6 +392,10 @@ def next_step(repo, goal_id, base="origin/main"):
     if not remaining or capped:
         failing = sorted(set(ids) - set(state["passing"]))
         return False, end(state, "exhausted", f"the plan ran out with goal tests still failing: {failing}")
+    if state.get("parallel"):                          # GO-017: the coordinator dispatches; goal_run still gates each merge
+        return True, {"step": "swarm", "items": remaining, "swarm_run": str(d / "swarm"), "goal_dir": str(d / "goal"),
+                      "base_branch": state["branch"], "max_rounds": state["max_rounds"], "ledger": str(d / "spend.jsonl"),
+                      "spend": totals}
     item = remaining[0]
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
                   "max_rounds": state["max_rounds"],
@@ -632,6 +643,14 @@ def current_item(state, item):
     remaining = [i for i in state["items"] if i["n"] not in state["done"]]
     if not remaining:
         raise Refused("no item is in progress")
+    if state.get("parallel"):                          # GO-017: any item whose integration prerequisites have merged
+        entry = state["parallel"].get(str(item))
+        if entry is None or item not in [i["n"] for i in remaining]:
+            raise Refused(f"item {item} isn't an unmerged item of this plan")
+        waiting = [n for n in entry["integrate_after"] if n not in state["done"]]
+        if waiting:
+            raise Refused(f"item {item} integrates after item(s) {waiting}, not merged yet")
+        return [next(i for i in remaining if i["n"] == item)] + [i for i in remaining if i["n"] != item]
     if item != remaining[0]["n"]:
         raise Refused(f"item {item} isn't the item in progress; that's item {remaining[0]['n']}")
     return remaining

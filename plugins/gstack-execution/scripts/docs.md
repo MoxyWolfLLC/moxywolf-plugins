@@ -6,6 +6,7 @@ Path: @/plugins/gstack-execution/scripts
 
 - [peer_review.py](/plugins/gstack-execution/scripts/peer_review.py) executes bounded cross-tool review and records revision-bound human release handoffs.
 - [task_graph.py](/plugins/gstack-execution/scripts/task_graph.py) compiles static workflow declarations and schedules evidence-producing nodes with bounded concurrency.
+- [swarm.py](/plugins/gstack-execution/scripts/swarm.py) is the goal run's build coordinator (GO-017): it reads an approved `DEPS.json` (or makes an existing plan a serial chain), claims every eligible item up to three workers, reserves spend before dispatch, checks each worker's actual diff against its claim, counts review rounds per item across attempts, and gates each merge on its integration prerequisites and evidence at the actual target. It reuses the graph's atomic write and cycle test.
 - The scripts support the command workflows in [commands](/plugins/gstack-execution/commands); the [peer-review contract](/plugins/gstack-execution/skills/gstack-execution/references/peer-review-contract.md) supplies the reviewer-facing rules.
 
 ### How it fits into the larger codebase
