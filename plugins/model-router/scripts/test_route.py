@@ -570,6 +570,24 @@ class Mr004(Hooks):
         rc, out = rec("--subagent-type", "Explore", MODEL_ROUTER_ALLOWED_MODELS="opus,sonnet")
         self.assertEqual(rc, 2); self.assertIn("doesn't allow", out["error"])
 
+    def test_an_unclassified_launch_with_jev_down_still_records_the_mr004_fields(self):   # review F1
+        r = self.call("Agent", {"subagent_type": "something:new", "prompt": "x"}, endpoint="http://127.0.0.1:9")
+        self.assertEqual(r.stdout.strip(), "")
+        l = self.ledger()[-1]
+        self.assertEqual((l["class"], l["recommended_model"], l["requested_model"], l["inherited"], l["mutated"], l["launch"]),
+                         ("unclassified", None, None, True, False, "requested"))
+
+    def test_aar_counts_a_requested_model_as_a_launch_only_when_confirmed(self):   # review F2
+        d = self.root / "aar"; d.mkdir()
+        day = "2026-11-19"
+        rows = [{"ts": f"{day}T10:00:00Z", "class": "department-subagent", "tool": "Agent", "routed": False, "department": "finance",
+                 "requested_model": "sonnet", "tool_use_id": t, "subagent_type": "finance:finance", "cos_run": "r1"} for t in ("ran", "never")]
+        rows.append({"ts": f"{day}T10:00:05Z", "event": "launch", "tool": "Agent", "tool_use_id": "ran", "outcome": "returned"})
+        (d / "20261119-s1.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", day], capture_output=True, text=True)
+        self.assertIn("1 department dispatches", r.stdout)
+        self.assertIn("1 Agent requests named a model but no launch line confirms they ran", r.stdout)
+
 
 for _n in [n for n in dir(Hooks) if n.startswith("test_") and n not in Mr004.__dict__]:
     setattr(Mr004, _n, None)   # Mr004 reuses Hooks' stub and helpers, not its MR-003 (opt-in rewrite) tests

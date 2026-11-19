@@ -358,7 +358,9 @@ def cmd_pre_tool_use(h):
     floor_rule = (decided_by == "jev" and line.get("rule") in FLOOR_RULES) or (decided_by == "table" and tier == "floor")
     if (c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS) and tier != "floor":
         line["floor_locked_from"] = tier; tier = "floor"; floor_rule = True
-    if tier is None:                      # unclassified Agent with Jev unavailable: unchanged
+    if tier is None:                      # unclassified Agent with Jev unavailable: unchanged, and recorded as such (review F1)
+        line.update(recommended_model=None, requested_model=tin.get("model") or None, inherited=not tin.get("model"),
+                    mutated=False, launch="requested")
         append(path, line); return 0
     line.update(tier=tier, decided_by=decided_by, model=table["tiers"][tier])
     if tool != "Agent":                   # a script chooses its own model; the tier is recorded, not applied
@@ -532,14 +534,23 @@ def aar(d, date):
 
     # F2: the model the launch named, written at launch. MR-004: requested_model (applied_model on lines before 0.3.0);
     # a refused or inherited launch names none and is not attributed to a model.
+    # Review F1 (20261119-151334): a 0.3.0 request counts as a launch only when post-tool-use confirmed it by tool_use_id.
+    # An older line with applied_model is counted as before: 0.2.0 wrote nothing else.
+    confirmed = {l.get("tool_use_id") for f in session_files for l in read_lines(f) if l.get("event") == "launch"}
+    unconfirmed = 0
     for l in calls:
         if l.get("tool") == "Agent" and not l.get("applied_model") and l.get("requested_model"):
-            l["applied_model"] = l["requested_model"]
+            if l.get("tool_use_id") in confirmed:
+                l["applied_model"] = l["requested_model"]
+            else:
+                unconfirmed += 1
     launches = [l for l in calls if l.get("tool") == "Agent" and l.get("applied_model")]
     dispatches = [l for l in launches if l.get("department")]
     out = [f"# After-action report for {date}", "",
            f"Read {read['files']} files and {read['lines']} lines dated {date}: {len(calls)} calls across {len(session_files)} session ledgers, "
            f"{len(dispatches)} department dispatches, {len(checks)} claim checks, {len(sel)} model-selection lines."]
+    if unconfirmed:
+        out.append(f"{unconfirmed} Agent requests named a model but no launch line confirms they ran; they are not counted as launches.")
     if read["lines"] == 0:
         out.append("Zero lines read. That is not a clean day; it is a day with no record.")
     out += ["", "Note: harder tasks go to stronger models by design. MR-001 and MR-002 send trust-boundary, cross-file and risky "
