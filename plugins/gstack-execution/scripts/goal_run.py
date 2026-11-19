@@ -16,6 +16,9 @@
         (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded. --unsure
         is what the agent is least sure of in the item, for its digest (GO-006.1); --review names the
         item's review, whose blocking findings' files are compared with the previous item's
+  goal_run.py blocked <id> --item N --reason <text>
+        GO-017, a parallel run only: item N can't go on; Dorian is told at once (a review cap escalates as
+        review_cap) and independent items continue. failed ends the run once nothing else can proceed
   goal_run.py failed <id> --item N --reason <text>
         item N's build ended without a merge (rounds_exhausted, review_unavailable, ...): the run
         stops with that reason
@@ -669,6 +672,19 @@ def failed(goal_id, item, reason):
     if "rounds_exhausted" in reason:
         escalate(state, "review_cap", f"Item {item} reached the review cap: {reason}")
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
+
+
+def blocked(goal_id, item, reason):
+    """GO-017: in a swarm, an item that can't go on is told to Dorian at once (a review cap escalates, as three blocking
+    rounds always have) while independent items continue; failed ends the run once nothing else can proceed."""
+    state = load(goal_id)
+    if not state.get("parallel"):
+        raise Refused("blocked is for a parallel run; a serial item that can't go on is failed")
+    current_item(state, item, merging=False)
+    escalate(state, "review_cap" if "rounds_exhausted" in reason or "review cap" in reason else "item_blocked",
+             f"Item {item} is blocked: {reason}. Independent items continue; its dependents wait.")
+    save(state)
+    return {"item": item, "blocked": reason}
 
 
 SANDBOXED = True   # GO-003.11; the unit tests set it False and test the container in test_goal_checks
@@ -1550,6 +1566,8 @@ def _main(argv, repo=gb.ROOT):
                 raise Refused("refused needs GITHUB_TOKEN: run it under agent_token.py exec --")
             print(json.dumps(refused(goal_id, int(opts["--pr"]), gb.github(token), opts.get("--repo", REPO))))
             return 0
+        if cmd == "blocked" and goal_id and set(opts) == {"--item", "--reason"}:
+            print(json.dumps(blocked(goal_id, int(opts["--item"]), opts["--reason"]))); return 0
         if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
             print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
             return 1

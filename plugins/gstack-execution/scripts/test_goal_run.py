@@ -657,6 +657,23 @@ class ParallelPlan(RunnerFixture):
         out = gr.failed("g1", 3, "blocked: its prerequisite done is blocked")
         self.assertEqual(out["outcome"], "stopped")
 
+    def test_a_blocked_item_is_told_to_dorian_at_once_and_the_run_goes_on(self):
+        self.start()
+        gr.blocked("g1", 2, "rounds_exhausted after 3 rounds")
+        st = gr.load("g1")
+        self.assertEqual([(m["trigger"], m["kind"]) for m in st["messages"] if m["kind"] == "escalation"], [("review_cap", "escalation")])
+        ok, step = self.next()
+        self.assertEqual((ok, step["step"], st["outcome"]), (True, "swarm", None))
+        gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nh = 1\n"), 1)   # independent item 1 still merges
+
+    def test_blocked_is_refused_on_a_serial_run(self):
+        (self.repo / "goals" / "g1" / "DEPS.json").unlink()
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "serial")
+        self.tree = self.git("rev-parse", "main:goals/g1")
+        self.start()
+        with self.assertRaisesRegex(gr.Refused, "for a parallel run"):
+            gr.blocked("g1", 1, "x")
+
     def test_a_successor_with_a_deps_file_is_refused(self):
         for f in ("GOAL.md", "PLAN.md", "DEPS.json", "holdout.sha256"):
             src = self.repo / "goals" / "g1" / f
