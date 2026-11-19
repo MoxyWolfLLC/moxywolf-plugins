@@ -1,0 +1,453 @@
+{
+  "plan": {
+    "version": 1,
+    "max_workers": 3,
+    "serial": false,
+    "items": [
+      {
+        "n": 1,
+        "id": "reader",
+        "writes": [
+          "reader/**",
+          "tests/test_reader.py"
+        ],
+        "start_after": [],
+        "integrate_after": [],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "estimate_usd": 3.0
+      },
+      {
+        "n": 2,
+        "id": "engine",
+        "writes": [
+          "engine/**",
+          "tests/test_engine.py"
+        ],
+        "start_after": [],
+        "integrate_after": [
+          "reader"
+        ],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "estimate_usd": 3.0
+      },
+      {
+        "n": 3,
+        "id": "view",
+        "writes": [
+          "view/**",
+          "tests/test_view.py"
+        ],
+        "start_after": [],
+        "integrate_after": [
+          "engine"
+        ],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "estimate_usd": 3.0
+      }
+    ],
+    "order": []
+  },
+  "base": "60aa10e461b8abe2490ca22205450e0e1c253666",
+  "integration_head": "73481f0a43181d59ba2b452c6e1310737400cd4c",
+  "budget": 12.0,
+  "spent": 9.0,
+  "reserved": {},
+  "review_cap": 3,
+  "items": {
+    "reader": {
+      "status": "merged",
+      "attempts": 1,
+      "review_rounds": 1,
+      "evidence": {
+        "head": "f05e6554608b509ff3f5d3ad4c34cd8f508c16df",
+        "base": "60aa10e461b8abe2490ca22205450e0e1c253666",
+        "files": [
+          "reader/read.py",
+          "tests/test_reader.py"
+        ],
+        "tests": "passed",
+        "unresolved": "none",
+        "attempt": 1
+      },
+      "why": null,
+      "claim": {
+        "id": "reader",
+        "n": 1,
+        "attempt": 1,
+        "base": "60aa10e461b8abe2490ca22205450e0e1c253666",
+        "branch": "swarm/reader-a1",
+        "writes": [
+          "reader/**",
+          "tests/test_reader.py"
+        ],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "return": [
+          "head SHA or patch",
+          "tests run and their result",
+          "unresolved issues"
+        ],
+        "may_not": [
+          "dispatch workers",
+          "write run state",
+          "merge",
+          "deploy",
+          "read the holdout"
+        ]
+      },
+      "started_at": "2026-11-19T23:05:28Z",
+      "finished_at": "2026-11-19T23:06:19Z",
+      "review": {
+        "head": "f05e6554608b509ff3f5d3ad4c34cd8f508c16df",
+        "id": "coordinator-integration-check"
+      },
+      "merged": "c566eaf7c50830961ae74a5f1b4ca70773e11e33"
+    },
+    "engine": {
+      "status": "merged",
+      "attempts": 1,
+      "review_rounds": 1,
+      "evidence": {
+        "head": "355b377293615a9bb84755d3ebd188c8b3e75298",
+        "base": "c566eaf7c50830961ae74a5f1b4ca70773e11e33",
+        "files": [
+          "engine/__init__.py",
+          "engine/decide.py",
+          "tests/test_engine.py"
+        ],
+        "tests": "passed",
+        "unresolved": "run_id NNN fixed at 001; supersedes always null",
+        "attempt": 1,
+        "refreshed_from": "5d141fd7ee61b117fea54411d030ea6eba0058b0"
+      },
+      "why": null,
+      "claim": {
+        "id": "engine",
+        "n": 2,
+        "attempt": 1,
+        "base": "60aa10e461b8abe2490ca22205450e0e1c253666",
+        "branch": "swarm/engine-a1",
+        "writes": [
+          "engine/**",
+          "tests/test_engine.py"
+        ],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "return": [
+          "head SHA or patch",
+          "tests run and their result",
+          "unresolved issues"
+        ],
+        "may_not": [
+          "dispatch workers",
+          "write run state",
+          "merge",
+          "deploy",
+          "read the holdout"
+        ]
+      },
+      "started_at": "2026-11-19T23:05:28Z",
+      "finished_at": "2026-11-19T23:06:50Z",
+      "review": {
+        "head": "355b377293615a9bb84755d3ebd188c8b3e75298",
+        "id": "coordinator-integration-check"
+      },
+      "merged": "68a1e59ff7ef27d9072c1b732b7a8787c414eed3"
+    },
+    "view": {
+      "status": "merged",
+      "attempts": 1,
+      "review_rounds": 1,
+      "evidence": {
+        "head": "e5460fa2c09a580f9ffbddb775d3a1b30ae3ce95",
+        "base": "68a1e59ff7ef27d9072c1b732b7a8787c414eed3",
+        "files": [
+          "tests/test_view.py",
+          "view/embed.py",
+          "view/index.html",
+          "view/template.html"
+        ],
+        "tests": "passed",
+        "unresolved": "visual and screen-reader not checked by worker",
+        "attempt": 1,
+        "refreshed_from": "86d41dab8b322c95543bb6dabcbe0ac070091bf3"
+      },
+      "why": null,
+      "claim": {
+        "id": "view",
+        "n": 3,
+        "attempt": 1,
+        "base": "60aa10e461b8abe2490ca22205450e0e1c253666",
+        "branch": "swarm/view-a1",
+        "writes": [
+          "view/**",
+          "tests/test_view.py"
+        ],
+        "contracts": [
+          {
+            "path": "interface/INTERFACE.md",
+            "sha256": "428e43404244a17c5390d0bc30f5fa9c286c8d16bbddc56b1c0b935ab5b28ea6"
+          },
+          {
+            "path": "interface/record.schema.json",
+            "sha256": "6fa520e0e263424be169540943a04d027fb6bf2cf09fdf66e360086ea8ceba8e"
+          },
+          {
+            "path": "interface/rule-cards.json",
+            "sha256": "85910bb1738d1c8e124bd34439a27a49d6de21d4a947e9b79ab1c36f121a4e3c"
+          },
+          {
+            "path": "interface/sample-record-done.json",
+            "sha256": "cc3b4fe7dd2f89595ce839699b87ec9c845a6c9cbbdd9307bb61d3a520a219f8"
+          },
+          {
+            "path": "interface/sample-record-exception.json",
+            "sha256": "57a1ece2054ab2bf68c083ff661a8de87e8e266033eebf106c6aa4b249178d47"
+          },
+          {
+            "path": "fixtures/doc-a.txt",
+            "sha256": "294faed175608bc7693ef9f9165cdedccd4dae2e5624b4d14642bc74791a6147"
+          },
+          {
+            "path": "fixtures/doc-b.txt",
+            "sha256": "ebfc98082f58a14193a340b8ebf1517a6defde69f87fe55cdd376d4cbc1692a7"
+          },
+          {
+            "path": "fixtures/proposals.json",
+            "sha256": "a84f484fea5667112aa7b9a9314ae415ced6c26af37e0fc969ba3fde67cf5fcb"
+          },
+          {
+            "path": "fixtures/votes.json",
+            "sha256": "6ec9b3bdb8168c198464ca556982847abddf1f16dbe0de15e7a8d681e0028b1c"
+          },
+          {
+            "path": "fixtures/reliability.json",
+            "sha256": "d9bbbdbf491dc70f4304c7cef96e4d0e91d2ca8b8f271065e191d55b7a6c93ae"
+          }
+        ],
+        "return": [
+          "head SHA or patch",
+          "tests run and their result",
+          "unresolved issues"
+        ],
+        "may_not": [
+          "dispatch workers",
+          "write run state",
+          "merge",
+          "deploy",
+          "read the holdout"
+        ]
+      },
+      "started_at": "2026-11-19T23:05:29Z",
+      "finished_at": "2026-11-19T23:08:50Z",
+      "review": {
+        "head": "e5460fa2c09a580f9ffbddb775d3a1b30ae3ce95",
+        "id": "coordinator-integration-check"
+      },
+      "merged": "73481f0a43181d59ba2b452c6e1310737400cd4c"
+    }
+  }
+}
