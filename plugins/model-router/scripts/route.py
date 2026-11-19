@@ -5,15 +5,21 @@ choice ask Jev.
 Three hooks and two commands, stdlib only:
 
   route.py session-start   (hook JSON on stdin)  opens the session ledger
-  route.py pre-tool-use    (hook JSON on stdin)  classifies the call; may return updatedInput
+  route.py pre-tool-use    (hook JSON on stdin)  classifies and recommends; never rewrites unless MODEL_ROUTER_REWRITE=1 (MR-004)
+  route.py post-tool-use   (hook JSON on stdin)  records a confirmed Agent launch (MR-004.4)
+  route.py recommend --subagent-type T [--description D] [--prompt-file F]
+                                                 the dispatcher's pre-launch model choice, as JSON (MR-004.5)
   route.py session-end     (hook JSON on stdin)  appends the session summary line
   route.py score --dir D                         counts a ledger directory
   route.py aar --dir D --date YYYY-MM-DD         one day's after-action report (CS-007)
   route.py cos-run start <id> | end              the live /cos run id, recorded by the hook in the session ledger (CS-007)
   route.py --selftest
 
-The hard limit: a hook cannot change the model answering the current turn. Only a subagent launch
-(the Agent tool's `model`) is rewritten. Script classes that choose their own model are recorded,
+The hard limit: a hook cannot change the model answering the current turn. MR-004: the hook no longer
+rewrites a subagent launch either, by default. Hosts that run the subagent outside the hook's environment
+refuse any hook-changed input ("A plugin hook changed this tool call's input... the call was not made"), so
+the hook recommends and records; the dispatcher passes the model itself (route.py recommend). A role with a
+required floor launched without a model is denied with the model to use, never silently run below it. Script classes that choose their own model are recorded,
 not rewritten. A hook never blocks a call and never raises: a failure is a ledger line and the
 call proceeds unchanged.
 """
@@ -358,16 +364,82 @@ def cmd_pre_tool_use(h):
     if tool != "Agent":                   # a script chooses its own model; the tier is recorded, not applied
         line["note"] = "script selects its own model"
         append(path, line); return 0
+    recommended = table["tiers"][tier]
+    line["recommended_model"] = recommended
     if tin.get("model"):                  # MR-001.7: a caller's explicit choice stands and is recorded
-        # F2/F5 (review 20261014-082908): the model the launch actually used, and whether a floor rule put it there,
-        # are written here, not inferred by a reader later
-        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {table['tiers'][tier]})",
-                    applied_model=tin["model"], floor_rule=False)
+        # MR-004: what the caller asked for is the requested model; a launch is confirmed only by post-tool-use
+        line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {recommended})",
+                    requested_model=tin["model"], floor_rule=False, mutated=False, launch="requested")
         append(path, line); return 0
-    line.update(routed=True, applied_model=table["tiers"][tier], floor_rule=floor_rule)
+    required = c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS
+    if rewrite_opted_in():                # MR-004.3: the legacy rewrite, only where the operator opted in
+        line.update(routed=True, requested_model=recommended, floor_rule=floor_rule, mutated=True, launch="requested")
+        append(path, line)
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": recommended}}}))
+        return 0
+    if required:                          # MR-004.2: a floor this hook can't guarantee is not dispatched
+        why = (f"model-router: {c['class']}{' (' + line['department'] + ')' if line.get('department') else ''} requires the "
+               f"floor model; relaunch this Agent call with model: \"{recommended}\". The hook does not rewrite inputs on this host.")
+        line.update(requested_model=None, floor_rule=True, mutated=False, launch="refused_floor_unverified")
+        append(path, line)
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                 "permissionDecisionReason": why}}))
+        return 0
+    # MR-004.1: recommend, never mutate. The call runs on the host's own default (the session's model).
+    line.update(requested_model=None, inherited=True, floor_rule=floor_rule, mutated=False, launch="requested")
     append(path, line)
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": table["tiers"][tier]}}}))
     return 0
+
+
+def rewrite_opted_in():
+    """MR-004.3: input rewriting is opt-in. Unknown and incompatible hosts get the non-mutating default."""
+    return os.environ.get("MODEL_ROUTER_REWRITE") == "1"
+
+
+def cmd_post_tool_use(h):
+    """MR-004.4: a hook invocation is not a launch. PostToolUse fires only for a call that ran and returned,
+    so this line, matched by tool_use_id, is the ledger's only confirmed launch."""
+    if (h.get("tool_name") or "") != "Agent":
+        return 0
+    resp = h.get("tool_response")
+    text = json.dumps(resp) if not isinstance(resp, str) else resp
+    append(session_file(h.get("session_id") or "unknown"), {"ts": now(), "event": "launch", "tool": "Agent",
+           "tool_use_id": h.get("tool_use_id"), "outcome": "returned", "response_chars": len(text or "")})
+    return 0
+
+
+ALLOWED_MODELS = ("opus", "sonnet", "haiku", "fable")   # the Agent tool's model values on Claude Code 2.1
+
+
+def recommend(subagent_type, description="", prompt=""):
+    """MR-004.5: the dispatcher's pre-launch choice. Same table, same Jev, same floor locks as the hook, but
+    the answer goes into the launch the caller makes, so no hook needs to touch the input.
+    Returns {model, tier, class, required_floor} or {error}."""
+    table, why = load_table_safely()
+    if table is None:
+        return {"error": why}
+    tin = {"subagent_type": subagent_type, "description": description, "prompt": prompt}
+    c = classify(table, "Agent", tin)
+    tier = c["default_tier"] if c["default_tier"] != "none" else None
+    decided_by = "table"
+    if c["ask"]:
+        r = ask_jev({"class": c["class"], "tool": "Agent", "subagent_type": subagent_type,
+                     "description": description, "prompt": str(prompt)[:PROMPT_HEAD]})
+        if "answers" in r:
+            tier, decided_by = decide(r["answers"])["tier"], "jev"
+    dept = str(subagent_type).split(":", 1)[0] if c["class"] == "department-subagent" else None
+    required = c["class"] in FLOOR_LOCKED or dept in FLOOR_LOCKED_DEPARTMENTS
+    if required:
+        tier = "floor"
+    if tier is None:
+        tier = "floor"                     # unclassified with Jev down: the dearer tier, never a guess downward
+        decided_by = "default_floor"
+    model = table["tiers"][tier]
+    allowed = tuple(x for x in os.environ.get("MODEL_ROUTER_ALLOWED_MODELS", ",".join(ALLOWED_MODELS)).split(",") if x)
+    if model not in allowed:
+        return {"error": f"tier {tier} maps to {model}, which this host doesn't allow ({', '.join(allowed)})",
+                "class": c["class"], "required_floor": required}
+    return {"model": model, "tier": tier, "class": c["class"], "decided_by": decided_by, "required_floor": required}
 
 
 def summarize(lines):
@@ -458,7 +530,12 @@ def aar(d, date):
     tiers = (table or {}).get("tiers", {"floor": "opus", "standard": "sonnet", "light": "haiku"})
     tier_of = {m: t for t, m in tiers.items()}
 
-    launches = [l for l in calls if l.get("tool") == "Agent" and l.get("applied_model")]   # F2: what actually ran, written at launch
+    # F2: the model the launch named, written at launch. MR-004: requested_model (applied_model on lines before 0.3.0);
+    # a refused or inherited launch names none and is not attributed to a model.
+    for l in calls:
+        if l.get("tool") == "Agent" and not l.get("applied_model") and l.get("requested_model"):
+            l["applied_model"] = l["requested_model"]
+    launches = [l for l in calls if l.get("tool") == "Agent" and l.get("applied_model")]
     dispatches = [l for l in launches if l.get("department")]
     out = [f"# After-action report for {date}", "",
            f"Read {read['files']} files and {read['lines']} lines dated {date}: {len(calls)} calls across {len(session_files)} session ledgers, "
@@ -571,6 +648,11 @@ def main(argv):
         d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
         date = argv[argv.index("--date") + 1] if "--date" in argv else datetime.now(timezone.utc).strftime("%Y-%m-%d")
         print(aar(d, date), end=""); return 0
+    if cmd == "recommend":
+        a = dict(zip(argv[1::2], argv[2::2]))
+        prompt = Path(a["--prompt-file"]).read_text(encoding="utf-8") if a.get("--prompt-file") else ""
+        r = recommend(a.get("--subagent-type", ""), a.get("--description", ""), prompt)
+        print(json.dumps(r)); return 0 if "model" in r else 2
     if cmd == "score":
         d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
         print_score(score_dir(d), d); return 0
@@ -582,6 +664,8 @@ def main(argv):
             return cmd_pre_tool_use(h)
         if cmd == "session-end":
             return cmd_session_end(h)
+        if cmd == "post-tool-use":
+            return cmd_post_tool_use(h)
     except Exception as e:  # MR-003.8: a hook never raises; the failure is a line and the call proceeds
         try:
             append(session_file(h.get("session_id") or "unknown"), {"ts": now(), "event": "hook_error", "cmd": cmd,
