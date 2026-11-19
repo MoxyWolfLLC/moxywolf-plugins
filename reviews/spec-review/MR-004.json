@@ -1,0 +1,96 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "MR-004",
+  "scope_sha256": "06d7955d14b69a0a11fe0dbd4c1cfde40d03e9c42c651cb67a00245baba343bf",
+  "reviewed_at": "2026-11-19T23:12:58+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 6014,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7571,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7571,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7571,
+      "cache_creation_input_tokens": 6054,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6054,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 15265,
+      "output_tokens": 1436,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1145,
+      "cache_read_input_tokens": 13625,
+      "cache_creation_input_tokens": 252,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 252,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 21196,
+    "write": 13877
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "MR-004.1",
+        "MR-004.3"
+      ],
+      "question": "Under MODEL_ROUTER_REWRITE=1, does requested_model hold the caller's value (null when no model was given, as MR-004.1 defines it) or the rewritten model? The MR-003 and CS-007 tests, which read requested_model, can only pass unchanged if it holds the rewritten model."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "MR-004.2",
+        "MR-004.5"
+      ],
+      "question": "What does the hook do when a required floor's model is outside the allowed set? MR-004.2 requires a deny that names the floor model, and MR-004.5 makes recommend exit 2 for that case."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "MR-004.7",
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "Does run_all_tests.py already run test_route.py, or must MR-004 edit it? An edit touches a CODEOWNERS path and so needs Dorian's approving review, which MR-004.7 doesn't acknowledge."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "MR-004.2",
+        "MR-004.3"
+      ],
+      "question": "Under MODEL_ROUTER_REWRITE=1, is an explicit model below a required floor left alone (MR-004.2: a caller's explicit model stands, per MR-001.7) or rewritten to the floor (MR-004.3: MR-003.7's lock restored)?"
+    }
+  ]
+}
