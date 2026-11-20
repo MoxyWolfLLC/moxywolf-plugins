@@ -225,6 +225,21 @@ def _item(s, iid):
     return next(i for i in s["plan"]["items"] if i["id"] == iid), s["items"][iid]
 
 
+def _settle(run, s, iid, attempt, reserved, cost):
+    """Settle one attempt's spend once. A reported dollar cost is charged as reported, overrun included; with none
+    (a host that reports tokens, not dollars) the reservation is charged and the attempt is marked estimated, so the
+    ledger never shows a dollar figure nobody measured."""
+    charged = float(cost) if cost is not None else reserved
+    s["spent"] += charged
+    if cost is None:
+        s["estimated"] = s.get("estimated", 0) + 1
+    if charged > reserved + 1e-9:
+        _event(run, "overrun", id=iid, attempt=attempt, reserved=reserved, charged=charged)
+    if s["spent"] > s["budget"] + 1e-9:
+        _event(run, "over_budget", id=iid, attempt=attempt, spent=round(s["spent"], 4), budget=s["budget"])
+    _event(run, "settled", id=iid, attempt=attempt, reserved=reserved, charged=charged, estimated=cost is None)
+
+
 def _remaining(s):
     return s["budget"] - s["spent"] - sum(s["reserved"].values())
 
@@ -355,7 +370,7 @@ def result(run, iid, attempt, head, repo, tests, cost=None, unresolved=""):
         outside = [f for f in files if not any(fnmatch.fnmatch(f, w) or f == w for w in i["writes"])]
         changed = [c["path"] for c in i["contracts"] if c["path"] in files]
         res = s["reserved"].pop(f"{iid}#{attempt}", 0.0)
-        s["spent"] += float(cost) if cost is not None else res   # settle: the actual cost, else the reservation
+        _settle(run, s, iid, attempt, res, cost)
         st["finished_at"] = now(); st["inflight"] = None
         if st["status"] == "blocked":                    # blocked while it ran: the spend settles, nothing advances
             _event(run, "result_after_block", id=iid, attempt=attempt, head=head)
@@ -485,6 +500,7 @@ def merged(run, iid, sha):
 def status(run):
     s = load(run)
     return {"budget": s["budget"], "spent": round(s["spent"], 4), "reserved": round(sum(s["reserved"].values()), 4),
+            "over_budget": s["spent"] > s["budget"] + 1e-9, "estimated_settlements": s.get("estimated", 0),
             "integration_head": s["integration_head"],
             "items": {k: {x: v.get(x) for x in ("status", "attempts", "review_rounds", "why", "started_at", "finished_at")}
                       for k, v in s["items"].items()}}

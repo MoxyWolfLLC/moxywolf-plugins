@@ -369,6 +369,45 @@ class Swarm(unittest.TestCase):
         swarm.init(self.run, self.goal, self.base, 10)
         self.assertEqual(swarm.load(self.run)["review_cap"], 1)
 
+    # Dorian 2026-11-19: the dollar cap and HALT with workers already running
+    def test_the_dollar_cap_holds_dispatch_while_workers_run_and_records_an_overrun(self):
+        self.plan([self.item("a", ["a/**"], est=2), self.item("b", ["b/**"], est=2), self.item("c", ["c/**"], est=2)])
+        swarm.init(self.run, self.goal, self.base, 5)
+        t = swarm.tick(self.run)
+        self.assertEqual([c["id"] for c in t["dispatch"]], ["a", "b"])      # $4 reserved of $5: c can't fit
+        ca, cb = t["dispatch"]
+        swarm.launched(self.run, "a", 1); swarm.launched(self.run, "b", 1)
+        self.assertTrue(any(w["id"] == "c" and w["why"].startswith("budget") for w in swarm.tick(self.run)["waiting"]))
+        swarm.result(self.run, "a", 1, self.work(ca, ["a/x"]), self.repo, "passed", cost=4)   # a overran its $2
+        st = swarm.status(self.run)
+        self.assertEqual((st["spent"], st["reserved"], st["over_budget"]), (4.0, 2.0, False))
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])               # spent + in flight past the cap: nothing new
+        swarm.result(self.run, "b", 1, self.work(cb, ["b/x"]), self.repo, "passed")          # no dollar figure reported
+        st = swarm.status(self.run)
+        self.assertEqual((st["spent"], st["reserved"], st["estimated_settlements"], st["over_budget"]), (6.0, 0, 1, True))   # charged at its estimate
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])
+        ev = [json.loads(l) for l in (self.run / "swarm-events.jsonl").read_text().splitlines()]
+        self.assertEqual([(e["id"], e["charged"]) for e in ev if e["event"] == "overrun"], [("a", 4.0)])
+        self.assertTrue(any(e["event"] == "over_budget" for e in ev))
+        self.assertEqual([e["estimated"] for e in ev if e["event"] == "settled"], [False, True])
+
+    def test_halt_raised_after_launch_stops_dispatch_and_integration_through_the_cli(self):
+        self.plan([self.item("a", ["a/**"]), self.item("b", ["b/**"], start=["a"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        swarm.launched(self.run, "a", 1)
+        halt = self.tmp / "HALT"; halt.write_text("stop\n")                 # raised while a runs
+        cli = lambda *a: subprocess.run([sys.executable, str(HERE / "swarm.py"), *a], capture_output=True, text=True)
+        r = cli("tick", str(self.run), "--halt", str(halt))
+        self.assertEqual((json.loads(r.stdout)["stopped"], json.loads(r.stdout)["dispatch"]), ("HALT", []))
+        head = self.work(c, ["a/x"])
+        self.assertEqual(cli("result", str(self.run), "a", "--attempt", "1", "--head", head, "--repo", str(self.repo), "--tests", "passed").returncode, 0)
+        swarm.review(self.run, "a", head, "clean")
+        r = cli("merge-gate", str(self.run), "a", "--repo", str(self.repo), "--target", "main", "--halt", str(halt))
+        self.assertEqual(r.returncode, 1); self.assertIn("HALT", json.loads(r.stdout))
+        halt.unlink()
+        self.assertEqual(cli("merge-gate", str(self.run), "a", "--repo", str(self.repo), "--target", "main", "--halt", str(halt)).returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
