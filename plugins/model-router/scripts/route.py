@@ -43,6 +43,10 @@ JEV_TIMEOUT = 8
 FLOOR_LOCKED = {"review-subagent"}   # MR-003.7: never moved below floor, whatever Jev says
 FLOOR_RULES = {"risky", "trust_boundary", "cross_file"}
 FLOOR_LOCKED_DEPARTMENTS = {"security"}   # CS-007: the security department never drops below floor either
+# MR-004.2 (Dorian, 2026-11-19): the floor is enforced before routing, the table and the ledger, so it reads none of them.
+# Second home of the ontology's review-subagent match and its security department; selftest and test_route hold them equal.
+FLOOR_ROLES = (("review-subagent", r"review"), ("security", r"^security:"))
+FLOOR_MODEL = "opus"
 DEPARTMENTS = ("finance", "people", "it-operations", "security", "pmo", "operations", "corporate-strategy",
                "customer-experience", "sales-department", "marketing-department")
 CLAIM_CHECKS = "claim-checks.jsonl"
@@ -287,10 +291,67 @@ def cmd_cos_run(argv):
 # ---- hooks ----
 
 def hook_input():
+    raw = sys.stdin.read()
     try:
-        return json.loads(sys.stdin.read() or "{}")
+        h = json.loads(raw or "{}")
+        return h if isinstance(h, dict) else {"_raw": raw}
     except ValueError:
-        return {}
+        return {"_raw": raw}
+
+
+def floor_role(tool, tin):
+    if tool != "Agent":
+        return None
+    st = str(tin.get("subagent_type") or "")
+    return next((name for name, pat in FLOOR_ROLES if re.search(pat, st)), None)
+
+
+def floor_allows(model):
+    """An explicit model at or above the floor that the host's Agent tool allows."""
+    allowed = {x for x in os.environ.get("MODEL_ROUTER_ALLOWED_MODELS", ",".join(ALLOWED_MODELS)).split(",") if x}
+    r = model_rank(model)
+    return meets_floor(model, FLOOR_MODEL) and any(MODEL_RANK.get(a) == r for a in allowed)
+
+
+def floor_gate(h):
+    """MR-004.2: refuse a review or security launch that doesn't name an allowed model at or above the floor, before
+    anything else the hook does can fail. The refusal is printed and flushed first; the ledger line after it is best
+    effort. Input that isn't readable JSON but names the Agent tool and a floor role is refused too. Returns True when
+    it refused."""
+    if os.environ.get("MODEL_ROUTER_FORCE_GATE_ERROR"):   # the gate's own failure, for the test only
+        raise RuntimeError("forced by MODEL_ROUTER_FORCE_GATE_ERROR")
+    raw = h.get("_raw")
+    if raw is not None:
+        if '"Agent"' in raw and ("review" in raw or '"security:' in raw):
+            _print_deny("the hook could not read this call's input")
+            return True
+        return False
+    tool = h.get("tool_name") or ""
+    tin = h.get("tool_input") if isinstance(h.get("tool_input"), dict) else {}
+    role = floor_role(tool, tin)
+    if not role:
+        return False
+    model = tin.get("model")
+    if model and floor_allows(model):
+        return False
+    _print_deny(f"{role} launch names {'model ' + repr(model) + ', below or outside the floor' if model else 'no model'}")
+    try:
+        append(session_file(h.get("session_id") or "unknown"),
+               {"ts": now(), "class": role if role == "review-subagent" else "department-subagent", "tool": tool,
+                "subagent_type": tin.get("subagent_type"), "tool_use_id": h.get("tool_use_id"), "routed": False,
+                "floor_rule": True, "mutated": False, "launch": "refused_floor_unverified",
+                "requested_model": model or None, "caller_model": model or None, "recommended_model": FLOOR_MODEL})
+    except Exception:
+        pass                              # the refusal already stands; logging can't undo it
+    return True
+
+
+def _print_deny(problem):
+    why = (f"model-router: this {problem}; it requires the floor model. Relaunch this Agent call with "
+           f"model: \"{FLOOR_MODEL}\". The hook does not rewrite inputs on this host.")
+    sys.stdout.write(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                        "permissionDecisionReason": why}}) + "\n")
+    sys.stdout.flush()
 
 
 def cmd_session_start(h):
@@ -371,10 +432,7 @@ def cmd_pre_tool_use(h):
     line["recommended_model"] = recommended
     required = c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS
     if tin.get("model"):                  # MR-001.7: a caller's explicit choice stands and is recorded
-        if required and not meets_floor(tin["model"], table["tiers"]["floor"]):
-            # MR-004.2 (Dorian, 2026-11-19): a required floor holds for every launch, an explicit model included
-            return deny(path, line, c, recommended, f"names model {tin['model']!r}, below or outside the floor",
-                        caller_model=tin["model"], requested_model=tin["model"])
+        # a floor role reaches here only with an allowed model at or above the floor (floor_gate)
         # MR-004: what the caller asked for is the requested model; a launch is confirmed only by post-tool-use
         line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {recommended})",
                     requested_model=tin["model"], floor_rule=bool(required), mutated=False, launch="requested")
@@ -384,8 +442,6 @@ def cmd_pre_tool_use(h):
         append(path, line)
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": recommended}}}))
         return 0
-    if required:                          # MR-004.2: a floor this hook can't guarantee is not dispatched
-        return deny(path, line, c, recommended, "names no model", requested_model=None)
     # MR-004.1: recommend, never mutate. The call runs on the host's own default (the session's model).
     line.update(requested_model=None, inherited=True, floor_rule=floor_rule, mutated=False, launch="requested")
     append(path, line)
@@ -406,17 +462,6 @@ def meets_floor(model, floor):
     """True only when the model is known and ranks at or above the floor; an unknown model can't be shown to meet it."""
     r, f = model_rank(model), model_rank(floor)
     return r is not None and f is not None and r >= f
-
-
-def deny(path, line, c, floor_model, problem, **fields):
-    who = f"{c['class']}{' (' + line['department'] + ')' if line.get('department') else ''}"
-    why = (f"model-router: {who} requires the floor model and this launch {problem}; relaunch this Agent call with "
-           f"model: \"{floor_model}\". The hook does not rewrite inputs on this host.")
-    line.update(floor_rule=True, mutated=False, launch="refused_floor_unverified", **fields)
-    append(path, line)
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                             "permissionDecisionReason": why}}))
-    return 0
 
 
 def rewrite_opted_in():
@@ -698,6 +743,15 @@ def main(argv):
         d = argv[argv.index("--dir") + 1] if "--dir" in argv else str(ledger_dir()[0])
         print_score(score_dir(d), d); return 0
     h = hook_input()
+    if cmd == "pre-tool-use":
+        try:
+            if floor_gate(h):             # MR-004.2: before routing, the table and the ledger
+                return 0
+        except Exception:                 # the gate itself failed: a floor role is refused, never let through
+            tin = h.get("tool_input") if isinstance(h.get("tool_input"), dict) else {}
+            if h.get("_raw") is not None or h.get("tool_name") == "Agent" and floor_role("Agent", tin) is not None:
+                _print_deny("launch could not be checked against the floor")
+                return 0
     try:
         if cmd == "session-start":
             return cmd_session_start(h)
@@ -721,6 +775,13 @@ def main(argv):
 def selftest():
     table, why = load_table()
     assert table and not why, why
+    assert table["tiers"]["floor"] == FLOOR_MODEL, "FLOOR_MODEL must equal the ontology's floor tier"
+    for name, pat in FLOOR_ROLES:   # the floor gate's second home of the ontology's floor roles
+        if name == "review-subagent":
+            assert next(c for c in table["classes"] if c["class"] == name)["match"] == {"subagent_type": pat}
+        else:
+            dep = next(c for c in table["classes"] if c["class"] == "department-subagent")["match"]["subagent_type"]
+            assert name in dep and name in FLOOR_LOCKED_DEPARTMENTS
     assert classify(table, "Read", {})["class"] == "read-file"
     assert classify(table, "Bash", {"command": "git status"})["class"] == "git"
     assert classify(table, "Bash", {"command": "ls"})["class"] == "shell"
