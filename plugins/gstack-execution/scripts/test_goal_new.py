@@ -144,5 +144,20 @@ class GoalNew(unittest.TestCase):
             self.run_cmd(gn.cmd_read, post=lambda p: (full, "google/gemini-3.1-pro-preview"))
 
 
+class Successor(unittest.TestCase):   # GO-023.8
+    def test_a_successor_copies_its_predecessors_deps_byte_for_byte_or_has_none(self):
+        for deps in (b'{"version": 1,  "items": {}}\n', None):
+            root = Path(tempfile.mkdtemp()) / "g"
+            root.mkdir()
+            (root / "GOAL.md").write_text("## Serves\nX\n\n## Outcome\nDo it.\n")
+            (root / "PLAN.md").write_text(PLAN)
+            if deps:
+                (root / "DEPS.json").write_bytes(deps)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(gn.cmd_successor(str(root), "the holdout failed"), 0)
+            out = root.parent / "g--s1" / "DEPS.json"
+            self.assertEqual(out.read_bytes() if out.exists() else None, deps)
+
+
 if __name__ == "__main__":
     unittest.main()

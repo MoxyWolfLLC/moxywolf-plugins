@@ -293,6 +293,8 @@ def cmd_successor(goal_dir, why):
     dst.mkdir()
     (dst / "GOAL.md").write_text(new)
     (dst / "PLAN.md").write_text((src / "PLAN.md").read_text())
+    if (src / "DEPS.json").is_file():                  # GO-023.8: copied byte for byte; goal_successor holds it there
+        (dst / "DEPS.json").write_bytes((src / "DEPS.json").read_bytes())
     print(json.dumps({"successor": nxt, "dir": str(dst), "next": "revise PLAN.md (and Scenarios, Goal tests, Pre-mortem "
                       "if the failure calls for it), then tests, holdout, read, goal_brief.py check and baseline"}))
     return 0

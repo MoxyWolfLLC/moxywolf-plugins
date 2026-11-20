@@ -5,15 +5,21 @@ A goal's PLAN.md stays as goal_brief.py checks it. A parallel plan adds goals/<i
 and frozen with the goal; without one the plan is serial (each item starts after the one before), exactly the
 one-item loop goal_run.py has always run.
 
-DEPS.json: {"version": 1, "max_workers": 1-3,
+DEPS.json: {"version": 1, "max_workers": 5,           (optional: a positive integer, the goal's own ceiling; absent, none)
             "items": {"<plan item n>": {"id": "page", "writes": ["assets/x.html", "tests/test_x.py"],
-                                        "start_after": [], "integrate_after": ["cli"],
+                                        "start_after": [{"id": "cli", "because": "needs its CLI"}], "integrate_after": ["cli"],
                                         "contracts": [{"path": "assets/gate.js", "sha256": "..."}],
                                         "estimate_usd": 2.0}},
             "order": [["cli", "page"]]}
 A start dependency blocks dispatch until the dependency has merged. An integration dependency blocks only the
 merge: the item is drafted and tested against its pinned contracts meanwhile. Two items that write the same
 path need an order between them (integrate_after, directly or through others, or an "order" pair).
+A start_after entry is an item id (approved before GO-023) or {"id", "because"}.
+
+GO-023: no fixed worker cap. tick claims every ready item while running and claimed slots stay under the smaller of
+the goal's max_workers and the host limit, where each applies. The host limit lives in
+<GSTACK_GOAL_RUN_DIR>/hosts/<host>.json ({limit, events, approvals_used}); only a refused launch lowers it and only an
+approved retest that ran with no refusal raises it.
 
 The coordinator is the only writer of <run>/swarm.json. Workers get a claim (item, attempt, pinned base, branch,
 writable paths, contracts, what to return) and return the head SHA they committed on the claim's branch, test results
@@ -21,13 +27,18 @@ and unresolved issues.
 They don't dispatch workers, write run state, merge, deploy or see the holdout.
 
   swarm.py check <goal dir>                                   validate DEPS.json against PLAN.md
-  swarm.py init <run> --goal <goal dir> --base <sha> --budget <usd> [--review-cap N]
+  swarm.py init <run> --goal <goal dir> --base <sha> --budget <usd> [--review-cap N] [--host H]
+               [--retest --approval <owner>/<repo>#<pr>]   a retest goes above the host limit, once per approval
                                                               --budget is a dispatch budget, not a spend cap
                                                               the cap is the brief's Max review rounds per item when
                                                               the goal has a GOAL.md; --review-cap must then agree
-  swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every eligible item up to max_workers
+  swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every ready item under the ceiling
+  swarm.py launch-check <run> <id> --attempt N [--halt <path>] [--spend-stop]
+                                                              prints launch, or do not launch: <why> (claim returned)
+  swarm.py launch-sent <run> <id> --attempt N                 the launch is sent; it holds its slot until answered
   swarm.py launched <run> <id> --attempt N                    the Agent call started
-  swarm.py launch-failed <run> <id> --attempt N --reason R    it didn't; visible, retried by a later tick
+  swarm.py launch-failed <run> <id> --attempt N --reason R [--host-refused]
+                                                              it didn't; visible, retried by a later tick
   swarm.py apply-patch <run> <id> --attempt N --repo R --patch FILE
                                                               a returned patch, committed on the claim's branch at its
                                                               pinned base; prints the head to pass to result
@@ -45,7 +56,9 @@ import fcntl
 import fnmatch
 import math
 import json
+import os
 import re
+import socket
 import subprocess
 import sys
 import tempfile
@@ -56,10 +69,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from task_graph import write   # the graph's atomic write, reused
 
-MAX_WORKERS = 3
 MAX_LAUNCHES = 2           # a launch that failed twice is blocked, not retried forever
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
-RUNNING = ("dispatched", "running")
+RUNNING = ("dispatched", "sent", "running")
+HOST = re.compile(r"^[A-Za-z0-9._-]{1,255}$")
 DEFAULT_ESTIMATE = 1.0
 
 
@@ -85,21 +98,32 @@ def money(value, what, positive=False):
     return v
 
 
+def is_hard_cap(goal_dir, deps):
+    """GO-023.8: the marker that makes a goal hard-cap, or None. A hard-cap goal never runs through the swarm."""
+    brief = Path(goal_dir) / "GOAL.md"
+    text = brief.read_text() if brief.is_file() else ""
+    if re.search(r"^## Hard cap\s*$", text, re.M):
+        return "## Hard cap"
+    if isinstance(deps, dict) and deps.get("hard_dollar_cap"):
+        return "hard_dollar_cap"
+    m = re.search(r"^## Spend cap\s*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if m and re.search(r"\bhard\b", m.group(1), re.I):
+        return "Spend cap says hard"
+    return None
+
+
 def refuse_hard_cap(goal_dir, deps):
     """Dorian, 2026-11-19: swarm workers are Agent-tool workers, and nothing can stop one from spending past its
     reservation once launched, so the swarm's budget limits dispatch only. A goal that needs a hard dollar cap is
     refused here rather than run on a promise the coordinator can't keep."""
-    if deps.get("hard_dollar_cap"):
+    if is_hard_cap(goal_dir, deps) == "hard_dollar_cap":
         raise ValueError("this goal requires a hard dollar cap; swarm workers can't be held to one, so it can't run as a swarm")
     unknown = set(deps) - TOP_KEYS - {"hard_dollar_cap"}
     unknown |= {f"items.{k}.{x}" for k, v in (deps.get("items") or {}).items() if isinstance(v, dict) for x in set(v) - ITEM_KEYS}
     if unknown:
         raise ValueError(f"DEPS.json has keys the coordinator doesn't read: {sorted(unknown)}")
-    brief = Path(goal_dir) / "GOAL.md"
-    if brief.is_file():
-        m = re.search(r"^## Spend cap\s*\n(.*?)(?=^## |\Z)", brief.read_text(), re.M | re.S)
-        if m and re.search(r"\bhard\b", m.group(1), re.I):
-            raise ValueError("the brief's Spend cap asks for a hard cap; swarm workers can't be held to one, so it can't run as a swarm")
+    if is_hard_cap(goal_dir, {}) == "Spend cap says hard":
+        raise ValueError("the brief's Spend cap asks for a hard cap; swarm workers can't be held to one, so it can't run as a swarm")
 
 
 def plan_numbers(plan_text):
@@ -141,11 +165,23 @@ def load_plan(goal_dir):
         raise ValueError(f"DEPS.json items {sorted(d['items'])} don't match PLAN.md items {numbers}")
     items = []
     for k, v in sorted(d["items"].items(), key=lambda kv: int(kv[0])):
-        items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": v.get("start_after", []),
+        items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": _start_ids(k, v.get("start_after", [])),
                       "integrate_after": v.get("integrate_after", []), "contracts": v.get("contracts", []),
                       "estimate_usd": money(v.get("estimate_usd", DEFAULT_ESTIMATE), f"item {k} estimate_usd", positive=True)})
-    return validate({"version": d.get("version"), "max_workers": d.get("max_workers", MAX_WORKERS), "serial": False,
+    return validate({"version": d.get("version"), "max_workers": d.get("max_workers"), "serial": False,
                      "items": items, "order": d.get("order", [])})
+
+
+def _start_ids(k, entries):
+    """start_after entries: an id (legacy, approved goals) or {"id", "because"} with a non-empty reason (GO-023.8)."""
+    out = []
+    for e in entries if isinstance(entries, list) else [entries]:
+        if isinstance(e, dict):
+            if set(e) != {"id", "because"} or not isinstance(e["because"], str) or not e["because"].strip():
+                raise ValueError(f"item {k}: a start_after entry is an id or {{id, because}} with a non-empty because")
+            e = e["id"]
+        out.append(e)
+    return out
 
 
 def validate(plan):
@@ -153,8 +189,9 @@ def validate(plan):
     ids = [i["id"] for i in items]
     if plan.get("version") != 1:
         raise ValueError("DEPS.json version must be 1")
-    if not isinstance(plan["max_workers"], int) or not 1 <= plan["max_workers"] <= MAX_WORKERS:
-        raise ValueError(f"max_workers must be 1 to {MAX_WORKERS}")
+    mw = plan["max_workers"]
+    if mw is not None and (isinstance(mw, bool) or not isinstance(mw, int) or mw < 1):
+        raise ValueError(f"max_workers must be a positive integer when present, not {mw!r}")
     if len(set(ids)) != len(ids) or not all(isinstance(i, str) and ID.match(i) for i in ids):
         raise ValueError(f"item ids must be unique, lowercase, hyphenated: {ids}")
     for i in items:
@@ -222,6 +259,7 @@ def mutate(run, fn):
         try:
             s = json.loads(state_f.read_text())
             out = fn(s)
+            _retest_close(run, s)
             write(state_f, s)
             return out
         finally:
@@ -239,22 +277,159 @@ def goal_review_cap(goal_dir):
     return int(m.group(1))
 
 
-def init(run, goal_dir, base, budget, review_cap=None):
+# ---- the host limit (GO-023): one record per host, shared by every run on it ----
+
+def host_file(run, host):
+    if not HOST.match(host or ""):
+        raise ValueError(f"host name {host!r} can't name a host record")
+    root = os.environ.get("GSTACK_GOAL_RUN_DIR")
+    return (Path(root) if root else Path(run).resolve().parent) / "hosts" / f"{host}.json"
+
+
+def host_update(path, fn=None):
+    """Read (and with fn, change) a host record under its own lock. Taken inside a run's lock, never the other way."""
+    path = Path(path); path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path.with_suffix(".lock"), "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            rec = json.loads(path.read_text()) if path.is_file() else {"limit": None, "events": [], "approvals_used": []}
+            out = fn(rec) if fn else None
+            if fn:
+                write(path, rec)
+            return rec if fn is None else out
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def _ceiling(s):
+    """The smaller of the goal's max_workers and the host's ceiling, where each applies; None is no ceiling. An open
+    retest with no refusal runs to its approved ceiling instead of the host limit."""
+    caps = [s["plan"]["max_workers"]]
+    rt = s.get("retest")
+    if rt and rt["open"] and not rt["refused"]:
+        caps.append(rt["ceiling"])
+    elif s.get("host_file"):
+        caps.append(host_update(s["host_file"])["limit"])
+    caps = [c for c in caps if c is not None]
+    return min(caps) if caps else None
+
+
+def _held(s, states=("sent", "running")):
+    """Slots held by launches sent or accepted, a worker blocked while in flight included."""
+    return sum(1 for v in s["items"].values()
+               if v["status"] in states or (v["status"] == "blocked" and v.get("inflight") and v.get("sent")))
+
+
+def _return_claim(run, s, iid, why):
+    """An unlaunched claim goes back to pending; its reservation is released uncharged. Never a sent launch."""
+    st = s["items"][iid]
+    assert st["status"] == "dispatched"
+    s["reserved"].pop(f"{iid}#{st['inflight']}", None)
+    st.update(status="pending", inflight=None, why=why)
+    _event(run, "claim_returned", id=iid, attempt=st["attempts"], why=why)
+
+
+def _return_above(run, s, ceiling, why):
+    """Every unlaunched claim whose slot is above the ceiling, slots counted after sent and running launches."""
+    claims = sorted((v["claim"]["seq"], k) for k, v in s["items"].items() if v["status"] == "dispatched")
+    held = _held(s)
+    out = []
+    for rank, (_, k) in enumerate(claims, 1):
+        if ceiling is not None and held + rank > ceiling:
+            _return_claim(run, s, k, why); out.append(k)
+    return out
+
+
+def _retest_close(run, s):
+    """GO-023.5: a retest run that ends (nothing left to dispatch or in flight) with no refusal raises the host limit
+    to the most workers that ran at once. A refusal already applied criterion 4."""
+    rt = s.get("retest")
+    if not rt or not rt["open"] or any(v["status"] not in ("merged", "blocked") or v.get("inflight") for v in s["items"].values()):
+        return
+    rt["open"] = False
+    if rt["refused"]:
+        return
+    def go(rec):
+        rec["limit"] = max(rec["limit"] or 0, rt["peak"]) or rec["limit"]
+        rec["events"].append({"run": str(run), "kind": "retest", "running": rt["peak"], "approval": rt["approval"], "at": now()})
+        return rec["limit"]
+    _event(run, "retest_closed", peak=rt["peak"], limit=host_update(s["host_file"], go))
+
+
+def init(run, goal_dir, base, budget, review_cap=None, host=None, retest=False, approval=None):
     plan = load_plan(goal_dir)
+    marker = is_hard_cap(goal_dir, {})
+    if marker:
+        raise ValueError(f"a hard-cap goal ({marker}) never runs through the swarm")
     brief_cap = goal_review_cap(goal_dir)
     if brief_cap is not None and review_cap is not None and review_cap != brief_cap:
         raise ValueError(f"--review-cap {review_cap} differs from the brief's Max review rounds per item {brief_cap}")
     review_cap = brief_cap if brief_cap is not None else (review_cap or 3)
-    run = Path(run); run.mkdir(parents=True, exist_ok=True)
+    run = Path(run)
     if _paths(run)[0].exists():
         raise ValueError(f"{run} already has a swarm; resume it with tick")
-    s = {"plan": plan, "base": base, "integration_head": base, "budget": money(budget, "--budget", positive=True), "spent": 0.0,
+    host = host or socket.gethostname()
+    hf = host_file(run, host)
+    budget_usd = money(budget, "--budget", positive=True)
+    rt = None
+    if retest or approval:
+        rt = _approve_retest(run, plan, hf, host, budget_usd, approval)
+    run.mkdir(parents=True, exist_ok=True)
+    s = {"plan": plan, "base": base, "integration_head": base, "budget": budget_usd, "spent": 0.0,
+         "host": host, "host_file": str(hf), "retest": rt,
          "reserved": {}, "review_cap": review_cap,
          "items": {i["id"]: {"status": "pending", "attempts": 0, "review_rounds": 0, "evidence": None, "why": None}
                    for i in plan["items"]}}
     write(_paths(run)[0], s)
-    _event(run, "init", base=base, budget=budget, serial=plan["serial"], items=[i["id"] for i in plan["items"]])
+    _event(run, "init", base=base, budget=budget, serial=plan["serial"], items=[i["id"] for i in plan["items"]], host=host,
+           retest=rt and {k: rt[k] for k in ("approval", "limit", "ceiling")})
     return s
+
+
+def _approve_retest(run, plan, hf, host, budget_usd, approval):
+    """GO-023.5: a retest needs Dorian's approving review on a pull request whose body names this host, its current
+    limit, the retest ceiling and the dispatch budget. The host and limit must match; the run's ceiling
+    (min(2 x limit, ready items)) and budget may be at or below the approved ones, never above. Each approval is
+    consumed once, in the host record, when init accepts it, whatever ceiling and budget it ran at."""
+    m = re.fullmatch(r"([\w.-]+/[\w.-]+)#(\d+)", approval or "")
+    if not m:
+        raise ValueError("--retest needs --approval <owner>/<repo>#<pr>; free text is not an approval")
+    limit = host_update(hf)["limit"]
+    if limit is None:
+        raise ValueError(f"host {host} has no limit; there is nothing to retest")
+    ready = sum(1 for i in plan["items"] if not i["start_after"])
+    ceiling = min(2 * limit, ready)
+    repo, pr = m.group(1), int(m.group(2))
+    import goal_brief
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise ValueError("verifying a retest approval needs GITHUB_TOKEN; run under `agent_token.py exec --`")
+    fetch, seen = goal_brief.github(token), {}
+    def get(path):                                   # goal_brief's own GitHub helper; keeps the body it verified
+        out = fetch(path)
+        if path == f"repos/{repo}/pulls/{pr}":
+            seen["body"] = (out or {}).get("body") or ""
+        return out
+    required = [f"host `{host}`", f"current limit {limit} workers"]
+    r = goal_brief.verify_review_approval(repo, pr, required, get=get)   # raises ValueError when it doesn't verify
+    body = seen.get("body", "")
+    ceilings = re.findall(r"retest ceiling (\d+) workers", body)
+    budgets = re.findall(r"dispatch budget \$(\d+(?:\.\d+)?) USD", body)
+    if len(ceilings) != 1 or len(budgets) != 1:
+        raise ValueError(f"{approval}'s body must name one `retest ceiling <n> workers` and one `dispatch budget $<usd> USD`")
+    if ceiling > int(ceilings[0]):
+        raise ValueError(f"the retest ceiling {ceiling} is above the approved {ceilings[0]}")
+    if budget_usd > float(budgets[0]) + 1e-9:
+        raise ValueError(f"the dispatch budget ${budget_usd:.2f} is above the approved ${float(budgets[0]):.2f}")
+    key = f"{approval}@{r['review_id']}"
+    def go(rec):
+        if key in rec["approvals_used"]:
+            raise ValueError(f"approval {key} was already used")
+        if rec["limit"] != limit:
+            raise ValueError(f"host {host}'s limit changed to {rec['limit']} while the approval was checked")
+        rec["approvals_used"].append(key)
+    host_update(hf, go)
+    return {"approval": key, "limit": limit, "ceiling": ceiling, "open": True, "refused": False, "peak": 0}
 
 
 def _item(s, iid):
@@ -285,7 +460,7 @@ def _remaining(s):
 
 
 def tick(run, halted=False, spend_stop=False):
-    """Claim every eligible item up to max_workers. Never claims an item that is already claimed, so a restarted
+    """Claim every ready item while running and claimed slots stay under the ceiling (_ceiling). Never claims an item that is already claimed, so a restarted
     coordinator that ticks again dispatches nothing twice. Returns what to launch, what's running, and why the
     rest waits."""
     def go(s):
@@ -297,6 +472,8 @@ def tick(run, halted=False, spend_stop=False):
             out["stopped"] = "HALT" if halted else "spend stop"
         # review F9: a worker blocked while it runs holds its slot until it reports
         running = [k for k, v in s["items"].items() if v["status"] in RUNNING or (v["status"] == "blocked" and v.get("inflight"))]
+        ceiling = _ceiling(s)
+        writes = {i["id"]: i["writes"] for i in s["plan"]["items"]}
         for i in s["plan"]["items"]:
             st = s["items"][i["id"]]
             if st["status"] in RUNNING:
@@ -315,8 +492,11 @@ def tick(run, halted=False, spend_stop=False):
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "start waits for " + ", ".join(blockers)}); continue
             if out["stopped"]:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": out["stopped"]}); continue
-            if len(running) >= s["plan"]["max_workers"]:
+            if ceiling is not None and len(running) >= ceiling:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "all workers busy"}); continue
+            clash = [k for k in running if any(_glob_overlap(a, b) for a in i["writes"] for b in writes[k])]
+            if clash:   # GO-023.2: against running items and items claimed earlier in this tick
+                out["waiting"].append({"id": i["id"], "status": st["status"], "why": "writes overlap " + ", ".join(clash)}); continue
             if i["estimate_usd"] > _remaining(s) + 1e-9:
                 if not running:
                     # spec review GO-017 C1: with nothing in flight no money can come back (a reservation is released
@@ -327,12 +507,13 @@ def tick(run, halted=False, spend_stop=False):
                     out["waiting"].append({"id": i["id"], "status": "blocked", "why": why}); continue
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": f"budget: ${_remaining(s):.2f} left, needs ${i['estimate_usd']:.2f}"}); continue
             st["attempts"] += 1
-            st["inflight"] = st["attempts"]
+            st["inflight"] = st["attempts"]; st["sent"] = False
+            s["seq"] = s.get("seq", 0) + 1
             key = f"{i['id']}#{st['attempts']}"
             s["reserved"][key] = i["estimate_usd"]       # reserved before the launch, released or settled after
             base = s["base"] if not i["start_after"] else s["integration_head"]
             claim = {"id": i["id"], "n": i["n"], "attempt": st["attempts"], "base": base,
-                     "branch": f"swarm/{i['id']}-a{st['attempts']}", "writes": i["writes"], "contracts": i["contracts"],
+                     "seq": s["seq"], "branch": f"swarm/{i['id']}-a{st['attempts']}", "writes": i["writes"], "contracts": i["contracts"],
                      "return": ["head SHA committed on the claim's branch, or a patch against the pinned base", "tests run and their result", "unresolved issues"],
                      "may_not": ["dispatch workers", "write run state", "merge", "deploy", "read the holdout"]}
             st.update(status="dispatched", why=None, claim=claim)
@@ -357,27 +538,90 @@ def _attempt(st, attempt, iid):
         raise ValueError(f"{iid} attempt {attempt} isn't in flight (status {st['status']}, attempt {st['attempts']})")
 
 
+def launch_check(run, iid, attempt, halted=False, spend_stop=False):
+    """GO-023.3, run immediately before a launch: re-reads HALT, the spend stop and the host limit. 'launch', or
+    'do not launch: <why>' with the claim returned to pending and its reservation released uncharged. A launch
+    already sent is never touched here: it holds its slot and reservation until launched or launch-failed."""
+    def go(s):
+        _, st = _item(s, iid)
+        if st["status"] != "dispatched" or st.get("inflight") != attempt:   # released or stale: answer, never raise
+            return f"do not launch: {iid} attempt {attempt} is not a pending claim (status {st['status']})" + (", already sent" if st.get("sent") else "")
+        _attempt(st, attempt, iid)
+        if halted or spend_stop or s["spent"] > s["budget"] + 1e-9:
+            why = "HALT" if halted else "spend stop" if spend_stop else "over budget"
+            for k, v in s["items"].items():          # every claim not yet launched stops, not just this one
+                if v["status"] == "dispatched":
+                    _return_claim(run, s, k, why)
+            return f"do not launch: {why}"
+        ceiling = _ceiling(s)
+        if iid in _return_above(run, s, ceiling, f"above the host limit {ceiling}"):
+            return f"do not launch: its slot is above the limit {ceiling}"
+        return "launch"
+    return mutate(run, go)
+
+
+def launch_sent(run, iid, attempt):
+    """The coordinator is sending this launch now. From here it is in flight: HALT, a spend stop, a host refusal
+    and a restart leave its slot and reservation alone until launched or launch-failed records the host's answer."""
+    def go(s):
+        _, st = _item(s, iid); _attempt(st, attempt, iid)
+        if st["status"] != "dispatched":
+            raise ValueError(f"{iid} is {st['status']}; only a checked claim is sent")
+        st.update(status="sent", sent=True)
+        _event(run, "launch_sent", id=iid, attempt=attempt)
+    mutate(run, go)
+
+
 def launched(run, iid, attempt):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
         if st["status"] == "blocked":
-            raise ValueError(f"{iid} was blocked before its launch was recorded")
-        st["status"] = "running"; st["started_at"] = now()
+            if not st.get("sent"):
+                raise ValueError(f"{iid} was blocked before its launch was recorded")
+            st["started_at"] = now()                     # sent, then blocked: it runs, holds its slot and reports
+            _event(run, "launched_after_block", id=iid, attempt=attempt); return
+        st.update(status="running", sent=True, started_at=now())
+        rt = s.get("retest")
+        if rt and rt["open"]:
+            rt["peak"] = max(rt["peak"], _held(s, ("running",)))
         _event(run, "launched", id=iid, attempt=attempt)
     mutate(run, go)
 
 
-def launch_failed(run, iid, attempt, reason):
+def launch_failed(run, iid, attempt, reason, host_refused=False):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
         s["reserved"].pop(f"{iid}#{attempt}", None)      # nothing ran, nothing is charged
-        st["inflight"] = None
+        was = st["status"]
+        st.update(inflight=None, sent=False)
+        if was != "blocked":
+            st["status"] = "pending"                     # out of the count before the host's running number is taken
+        if host_refused and s.get("host_file"):
+            running = _held(s)
+            rt = s.get("retest")
+            def lower(rec):
+                old = rec["limit"]
+                rec["events"].append({"run": str(run), "kind": "refused", "running": running,
+                                      "approval": rt["approval"] if rt and rt["open"] else None, "at": now()})
+                if old == 1:
+                    return None                          # refusals can't repeat without end: this one counts
+                rec["limit"] = max(1, running) if old is None else min(old, max(1, running))
+                return rec["limit"]
+            new = host_update(s["host_file"], lower)
+            if rt and rt["open"]:
+                rt["refused"] = True
+            _event(run, "host_refused", id=iid, attempt=attempt, running=running, limit=new, reason=reason)
+            if new is not None:                          # GO-023.4: not counted toward the item's block
+                if was != "blocked":
+                    st["why"] = f"host refused at {running} running; waits for a slot under {new}"
+                _return_above(run, s, _ceiling(s), f"above the host limit {new} after a refusal")
+                return
         st["launch_failures"] = st.get("launch_failures", 0) + 1   # review F3: its own count, not the attempt number
-        if st["status"] != "blocked":
+        if was != "blocked":
             if st["launch_failures"] >= MAX_LAUNCHES:
                 _block(run, s, iid, f"launch failed {st['launch_failures']} times: {reason}")
             else:
-                st.update(status="pending", why=f"launch failed: {reason}")
+                st["why"] = f"launch failed: {reason}"
         _event(run, "launch_failed", id=iid, attempt=attempt, reason=reason)
     mutate(run, go)
 
@@ -550,7 +794,7 @@ def merged(run, iid, sha):
 
 def status(run):
     s = load(run)
-    return {"budget": s["budget"], "spent": round(s["spent"], 4), "reserved": round(sum(s["reserved"].values()), 4),
+    return {"host": s.get("host"), "ceiling": _ceiling(s), "retest": s.get("retest"), "budget": s["budget"], "spent": round(s["spent"], 4), "reserved": round(sum(s["reserved"].values()), 4),
             "over_budget": s["spent"] > s["budget"] + 1e-9, "estimated_settlements": s.get("estimated", 0),
             "integration_head": s["integration_head"],
             "items": {k: {x: v.get(x) for x in ("status", "attempts", "review_rounds", "why", "started_at", "finished_at")}
@@ -564,21 +808,30 @@ def main(argv):
               "--unresolved", "--outcome", "--review-id", "--target", "--sha"):
         p.add_argument(f)
     p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int)
-    p.add_argument("--spend-stop", action="store_true")
+    p.add_argument("--spend-stop", action="store_true"); p.add_argument("--host-refused", action="store_true")
+    p.add_argument("--host"); p.add_argument("--retest", action="store_true"); p.add_argument("--approval")
     a = p.parse_args(argv)
     try:
         if a.cmd == "check":
             plan = load_plan(a.path); print(json.dumps({"serial": plan["serial"], "max_workers": plan["max_workers"],
                                                         "items": [i["id"] for i in plan["items"]]})); return 0
         if a.cmd == "init":
-            init(a.path, a.goal, a.base, a.budget, a.review_cap); print("ok"); return 0
+            if a.retest and not a.approval:
+                raise ValueError("--retest needs --approval <owner>/<repo>#<pr>")
+            if a.approval and not a.retest:
+                raise ValueError("--approval is only for --retest")
+            init(a.path, a.goal, a.base, a.budget, a.review_cap, a.host, a.retest, a.approval); print("ok"); return 0
         halted = bool(a.halt) and Path(a.halt).exists()
         if a.cmd == "tick":
             print(json.dumps(tick(a.path, halted, a.spend_stop), indent=1)); return 0
+        if a.cmd == "launch-check":
+            print(launch_check(a.path, a.id, a.attempt, halted, a.spend_stop)); return 0
+        if a.cmd == "launch-sent":
+            launch_sent(a.path, a.id, a.attempt); return 0
         if a.cmd == "launched":
             launched(a.path, a.id, a.attempt); return 0
         if a.cmd == "launch-failed":
-            launch_failed(a.path, a.id, a.attempt, a.reason); return 0
+            launch_failed(a.path, a.id, a.attempt, a.reason, a.host_refused); return 0
         if a.cmd == "apply-patch":
             print(apply_patch(a.path, a.id, a.attempt, a.repo, a.patch)); return 0
         if a.cmd == "result":

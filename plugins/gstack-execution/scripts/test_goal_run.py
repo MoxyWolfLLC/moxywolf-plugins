@@ -15,6 +15,20 @@ import goal_run as gr  # noqa: E402
 import goal_guard as gguard  # noqa: E402
 import spec_review as sr  # noqa: E402
 gr.SANDBOXED = False   # the container is test_goal_checks' to test; one test below checks merged uses it
+import swarm  # noqa: E402
+if not hasattr(swarm, "is_hard_cap"):
+    # GO-023.8: swarm.is_hard_cap lands from another worker; until it does, a stand-in with the pinned interface
+    import re as _re
+
+    def _is_hard_cap(goal_dir, deps):
+        brief = Path(goal_dir, "GOAL.md").read_text() if Path(goal_dir, "GOAL.md").is_file() else ""
+        if _re.search(r"^## Hard cap\s*$", brief, _re.M):
+            return "## Hard cap"
+        if (deps or {}).get("hard_dollar_cap") is True:
+            return "hard_dollar_cap"
+        m = _re.search(r"^## Spend cap\s*\n(.*?)(?=^## |\Z)", brief, _re.M | _re.S)
+        return "Spend cap says hard" if m and _re.search(r"\bhard\b", m.group(1), _re.I) else None
+    swarm.is_hard_cap = _is_hard_cap
 
 BRIEF = """## Goal tests
 - `tests/test_g.py::G.test_done` (outcome)
@@ -674,14 +688,14 @@ class ParallelPlan(RunnerFixture):
         with self.assertRaisesRegex(gr.Refused, "for a parallel run"):
             gr.blocked("g1", 1, "x")
 
-    def test_a_successor_with_a_deps_file_is_refused(self):
+    def test_a_successor_with_a_deps_file_runs_its_plan(self):   # GO-023.8 supersedes GO-017.7's refusal
         for f in ("GOAL.md", "PLAN.md", "DEPS.json", "holdout.sha256"):
             src = self.repo / "goals" / "g1" / f
             self.commit("successor", {f"goals/g1--s1/{f}": src.read_text()})
         self.tree = self.git("rev-parse", "main:goals/g1--s1")
-        with self.assertRaisesRegex(gr.Refused, "successor; its DEPS.json"):
-            gr.start(self.repo, "g1--s1", 7, "claude/claude-opus", self.verify(), {"contents": "write", "pull_requests": "write"},
-                     self.create, base="main", repo_name="o/r", environments=lambda: ["goal-holdout"])
+        st = gr.start(self.repo, "g1--s1", 7, "claude/claude-opus", self.verify(), {"contents": "write", "pull_requests": "write"},
+                      self.create, base="main", repo_name="o/r", environments=lambda: ["goal-holdout"])
+        self.assertEqual(sorted(st["parallel"]), ["1", "2", "3"])
 
     def test_a_plan_whose_overlapping_writes_have_no_order_is_refused_at_start(self):
         bad = dict(self.DEPS, items=dict(self.DEPS["items"], **{"3": {"id": "polish", "writes": ["goalmod.py"]}}))
@@ -689,6 +703,37 @@ class ParallelPlan(RunnerFixture):
         self.tree = self.git("rev-parse", "main:goals/g1")
         with self.assertRaisesRegex(ValueError, "overlapping paths with no order"):
             self.start()
+
+
+class HardCapGoal(RunnerFixture):
+    """GO-023.8: a hard-cap goal never runs through the swarm, and with no runner that checks the remaining spend
+    before each billable call, start refuses it before any paid work. DEPS.json is optional for it."""
+
+    def refused(self, files):
+        self.commit("hard-cap goal", files)
+        self.tree = self.git("rev-parse", "main:goals/g1")
+        with self.assertRaisesRegex(gr.Refused, "hard-cap goal .*no runner that checks the remaining spend before each billable call"):
+            self.start()
+        d = gr.run_dir("g1")
+        self.assertEqual(self.branches, [])                     # no goal branch, no ledger, no spend record, no state
+        for f in ("ledger.jsonl", "spend.jsonl", "state.json"):
+            self.assertFalse((d / f).exists(), f)
+
+    def test_hard_cap_heading_with_no_deps_file(self):
+        self.refused({"goals/g1/GOAL.md": BRIEF + "\n## Hard cap\nyes\n"})
+
+    def test_hard_dollar_cap_in_deps(self):
+        deps = dict(ParallelPlan.DEPS, hard_dollar_cap=True)
+        self.refused({"goals/g1/DEPS.json": json.dumps(deps)})
+
+    def test_spend_cap_says_hard_with_no_deps_file(self):
+        self.refused({"goals/g1/GOAL.md": BRIEF.replace("## Spend cap\n$5\n", "## Spend cap\n$5 hard\n")})
+
+    def test_an_approved_goal_with_no_deps_file_runs_the_serial_chain(self):
+        st = self.start()
+        self.assertNotIn("parallel", st)
+        ok, step = self.next()
+        self.assertEqual((ok, step["step"], step["item"]["n"]), (True, "build", 1))
 
 
 class MergedUsesTheContainer(RunnerFixture):

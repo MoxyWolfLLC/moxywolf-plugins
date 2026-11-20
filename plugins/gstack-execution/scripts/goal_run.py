@@ -210,6 +210,14 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
     archive = subprocess.run(["git", "-C", str(repo), "archive", record["tree"]], capture_output=True, check=True).stdout
     subprocess.run(["tar", "-x", "-C", str(goal)], input=archive, check=True)
     brief = (goal / "GOAL.md").read_text()
+    import swarm
+    deps = json.loads((goal / "DEPS.json").read_text()) if (goal / "DEPS.json").is_file() else {}
+    marker = swarm.is_hard_cap(goal, deps)             # GO-023.8: a hard-cap goal never runs through the swarm
+    if marker:
+        # ponytail: no runner checks the remaining spend before each billable call, so every hard-cap goal is refused here,
+        # before any paid work; accept one only once such a runner exists
+        raise Refused(f"{goal_id} is a hard-cap goal ({marker}); no runner that checks the remaining spend before each "
+                      f"billable call is available, so it can't start")
     problems, triggers = gguard.assess(repo, base, brief, environments())    # GO-005.5
     if problems:
         raise Refused("a goal push, pull request or merge would set off more than the checks: " + "; ".join(problems))
@@ -223,12 +231,8 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
-    if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
-        if re.search(r"--s\d+$", goal_id):
-            # goal_successor.py holds an unowned successor folder to its root's brief, not to a DEPS.json, so one here
-            # was never approved: a successor runs serially
-            raise Refused(f"{goal_id} is a successor; its DEPS.json isn't covered by the root goal's approval. Remove it to run serially")
-        import swarm
+    if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel; GO-023.8: a
+        # successor's too (goal_successor.py holds it to its predecessor's byte for byte)
         plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
         by_id = {i["id"]: i["n"] for i in plan["items"]}
         before = {i["id"]: set(i["start_after"]) | set(i["integrate_after"]) for i in plan["items"]}

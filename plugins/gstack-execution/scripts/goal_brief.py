@@ -304,7 +304,84 @@ def check(goal_dir, design_text, codeowners_text):
                 errors.append(f"PLAN.md item has no indented acceptance criteria: {head.strip()}")
         if max_items is not None and len(items) > max_items:
             errors.append(f"PLAN.md lists {len(items)} items, more than Max items {max_items}")
+    examined += deps_check(goal_dir, errors)
     return errors, examined
+
+
+def _git(cwd, *args):
+    r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def go023_merged_at(ref="origin/main"):
+    """When GO-023 reached this repository's main: the first-parent commit that brought deps_check, or None if it hasn't."""
+    out = _git(ROOT, "log", "--first-parent", "--reverse", "--format=%ct", "-S", "def deps_check(", ref, "--",
+               "plugins/gstack-execution/scripts/goal_brief.py")
+    return int(out.splitlines()[0]) if out else None
+
+
+def pre_go023_successor(goal_dir, ref="origin/main"):
+    """GO-023.8 (spec review C1): a successor whose predecessor is on main with no DEPS.json at the first-parent commit
+    on main that brought goals/<pred>/ (its approval's merge), and that commit came before GO-023 merged. It stays serial."""
+    import goal_successor as gsucc
+    pred = gsucc.predecessor(Path(goal_dir).name)
+    if pred is None:
+        return False
+    out = _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H %ct", ref, "--", f":/goals/{pred}/GOAL.md")
+    if not out:
+        return False                     # not on main: nothing verified to inherit
+    sha, when = out.splitlines()[0].split(" ", 1)
+    if _git(goal_dir, "cat-file", "-e", f"{sha}:goals/{pred}/DEPS.json") is not None:
+        return False                     # it had a DEPS.json; the successor copies it
+    cut = go023_merged_at()
+    return cut is None or int(when) < cut
+
+
+def deps_check(goal_dir, errors):
+    """GO-023.8. `check` runs only when a goal is drafted (goal_new, goal_local brief), never on an approved goal,
+    so these rules bind new goals and an approved goal keeps its DEPS.json, or its lack of one, as approved.
+    Returns 1 when DEPS.json was examined."""
+    f = goal_dir / "DEPS.json"
+    deps = None
+    if f.is_file():
+        try:
+            deps = json.loads(f.read_text())
+        except ValueError as e:
+            errors.append(f"DEPS.json is not JSON: {e}")
+            return 1
+        if not isinstance(deps, dict) or not isinstance(deps.get("items"), dict):
+            errors.append("DEPS.json needs an items object keyed by PLAN.md item number")
+            return 1
+    if deps is None and pre_go023_successor(goal_dir):
+        return 0
+    try:
+        import swarm   # one home for the hard-cap markers and the plan rules
+    except ImportError:
+        swarm = None
+    if not hasattr(swarm, "is_hard_cap"):   # guarded: without swarm.py, a goal with DEPS.json is still checked
+        if deps is None:
+            errors.append("DEPS.json is missing and the hard-cap rule can't be read from swarm.py")
+            return 0
+        hard = False
+    else:
+        hard = swarm.is_hard_cap(goal_dir, deps or {})
+    if deps is None:
+        if not hard:
+            errors.append("missing DEPS.json: a new goal says what runs in parallel and what must run in sequence; "
+                          "only a hard-cap goal may leave it out")
+        return 0
+    shape = len(errors)
+    for k, v in deps["items"].items():
+        for sa in (v.get("start_after") or []) if isinstance(v, dict) else []:
+            if not (isinstance(sa, dict) and isinstance(sa.get("because"), str) and sa["because"].strip()):
+                errors.append(f"DEPS.json item {k}: start_after {sa!r} needs a non-empty 'because' naming the file, "
+                              f"contract or result the later item needs")
+    if len(errors) == shape and not hard and swarm is not None and (goal_dir / "PLAN.md").is_file():
+        try:   # a hard-cap goal's DEPS.json is read for order only, and load_plan refuses one
+            swarm.load_plan(goal_dir)
+        except (ValueError, TypeError) as e:
+            errors.append(f"DEPS.json: {e}")
+    return 1
 
 
 _HARNESS = """import sys
@@ -582,14 +659,8 @@ def verify(goal_id, pr, repo, get):
     return record, errors
 
 
-def _verify(goal_id, pr, repo, get, own_review=True):
-    errors = []
-    p = get(f"repos/{repo}/pulls/{pr}")
-    head, base_sha = p["head"]["sha"], p["base"]["sha"]
-    if p["base"]["ref"] != "main":
-        errors.append(f"PR #{pr} targets {p['base']['ref']}, not main")
-    if not p.get("merged"):
-        errors.append(f"PR #{pr} is not merged")
+def _decision(repo, pr, get):
+    """The Release Owner's latest standing decision on a pull request, or None."""
     reviews, page = [], 1
     while True:   # every page: a later decision on page 2 overrides an approval on page 1
         batch = get(f"repos/{repo}/pulls/{pr}/reviews?per_page=100&page={page}") or []
@@ -599,7 +670,42 @@ def _verify(goal_id, pr, repo, get, own_review=True):
         page += 1
     mine = [r for r in reviews if r["user"]["login"] == OWNER
             and r["state"] in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED")]
-    last = mine[-1] if mine else None   # his latest decision stands
+    return mine[-1] if mine else None   # his latest decision stands
+
+
+def verify_review_approval(owner_repo, pr, required_text, get=None):
+    """GO-023.5: a retest's approval, verified as a goal approval is (GO-001.3): his standing APPROVED review at the
+    pull request's head, on a body that names every string in required_text. Raises ValueError otherwise."""
+    if get is None:
+        token = os.environ.get("GITHUB_TOKEN")
+        if not token:
+            raise ValueError("verifying an approval needs GITHUB_TOKEN; run under `agent_token.py exec --`")
+        get = github(token)
+    p = get(f"repos/{owner_repo}/pulls/{pr}")
+    if not p:
+        raise ValueError(f"{owner_repo}#{pr} not found")
+    head = p["head"]["sha"]
+    last = _decision(owner_repo, pr, get)
+    if not last or last["state"] != "APPROVED":
+        raise ValueError(f"no standing APPROVED review by {OWNER} on {owner_repo}#{pr}")
+    if last["commit_id"] != head:
+        raise ValueError(f"{OWNER}'s approval is at {last['commit_id'][:7]}, not the head {head[:7]}")
+    body = p.get("body") or ""
+    missing = [t for t in ([required_text] if isinstance(required_text, str) else required_text) if str(t) not in body]
+    if missing:
+        raise ValueError(f"{owner_repo}#{pr}'s body doesn't name {missing}")
+    return {"review_id": last["id"], "head": head}
+
+
+def _verify(goal_id, pr, repo, get, own_review=True):
+    errors = []
+    p = get(f"repos/{repo}/pulls/{pr}")
+    head, base_sha = p["head"]["sha"], p["base"]["sha"]
+    if p["base"]["ref"] != "main":
+        errors.append(f"PR #{pr} targets {p['base']['ref']}, not main")
+    if not p.get("merged"):
+        errors.append(f"PR #{pr} is not merged")
+    last = _decision(repo, pr, get)
     if not own_review:
         if last and last["state"] == "CHANGES_REQUESTED":   # he can still stop a successor by saying so on it
             errors.append(f"{OWNER} requested changes on PR #{pr}")

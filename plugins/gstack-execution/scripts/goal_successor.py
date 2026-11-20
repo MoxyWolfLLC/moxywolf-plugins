@@ -13,8 +13,11 @@ exist at the base, and the successor's GOAL.md must have the predecessor's secti
 same order, every one byte for byte except those in MUTABLE, and an Outcome that starts with the
 predecessor's and adds only a paragraph that starts `Succeeds <predecessor>:`. A range that touches no
 such folder passes and says so. --s3 and beyond match no unowned pattern, so they go to Dorian.
+A successor may carry a DEPS.json (GO-023.8): its predecessor's byte for byte, except the entries for items its
+revised PLAN.md adds or removes. A predecessor with no DEPS.json gives a successor with none.
 Exit 0 pass, 1 refused, 2 bad usage or an unreadable range.
 """
+import json
 import re
 import subprocess
 import sys
@@ -90,6 +93,35 @@ def compare(pred_text, succ_text, pred):
     return problems
 
 
+def deps_problems(pred_raw, succ_raw, pred):
+    """GO-023.8: a successor's DEPS.json against its predecessor's (None when absent). Kept items are matched by id
+    (a PLAN.md item added before them renumbers their key); an `order` pair may differ only if it names an added or
+    removed item. Anything else, max_workers included, is refused."""
+    if pred_raw is None or succ_raw is None:
+        if pred_raw is None and succ_raw is None:
+            return []                                   # a serial goal's successor stays serial
+        if pred_raw is None:
+            return [f"has a DEPS.json but {pred} has none; a successor of a serial goal stays serial"]
+        return [f"has no DEPS.json but {pred} has one; dropping it would turn the approved parallel plan serial"]
+    if pred_raw == succ_raw:
+        return []
+    try:
+        p, s = json.loads(pred_raw), json.loads(succ_raw)
+        pi = {v["id"]: v for v in p.pop("items").values()}
+        si = {v["id"]: v for v in s.pop("items").values()}
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return ["its DEPS.json or its predecessor's isn't a DEPS.json with an items object of entries with ids"]
+    moved = set(pi) ^ set(si)
+    if not moved:
+        return [f"DEPS.json isn't {pred}'s byte for byte, and its PLAN.md adds or removes no item"]
+    problems = [f"DEPS.json entry `{i}` differs from {pred}'s" for i in sorted(set(pi) & set(si)) if pi[i] != si[i]]
+    keep = lambda d: [x for x in d.pop("order", []) if not (isinstance(x, list) and moved & set(map(str, x)))]
+    if keep(p) != keep(s):
+        problems.append(f"DEPS.json `order` differs from {pred}'s beyond pairs naming an added or removed item")
+    problems += [f"DEPS.json `{k}` differs from {pred}'s" for k in sorted(set(p) | set(s)) if p.get(k) != s.get(k)]
+    return problems
+
+
 def git(*args):
     # bytes, decoded by hand: text=True would turn \r\n and \r into \n and hide them from compare (20261115-093723 F1)
     r = subprocess.run(["git", *args], capture_output=True)
@@ -128,6 +160,11 @@ def check(base, head):
             problems.append(f"goals/{f}/: no GOAL.md at the head")
         else:
             problems += [f"goals/{f}/: {x}" for x in compare(pred_text, succ_text, pred)]
+        raw = []
+        for ref in (f"{base}:goals/{pred}/DEPS.json", f"{head}:goals/{f}/DEPS.json"):
+            rc, text = git("show", ref) if git("cat-file", "-e", ref)[0] == 0 else (0, None)
+            raw.append(text if not rc else "\0unreadable")   # present but not UTF-8: never read as absent
+        problems += [f"goals/{f}/: {x}" for x in deps_problems(*raw, pred)]
     return problems, len(folders)
 
 
