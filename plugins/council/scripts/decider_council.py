@@ -740,8 +740,9 @@ def score_rows(lines, caller=None):
         for v in l["voices"]:
             r = c["voices"].setdefault(v["model"], _voice_row())
             r["calls"] += 1
-            if v.get("cost") is not None:
-                r["cost"].append(float(v["cost"]))
+            known = known_cost(v.get("cost"))     # review F11: the ledger keeps costs as received, so read them safely
+            if known is not None:
+                r["cost"].append(known)
             if "unavailable" not in v:
                 r["latency"].append(v["latency_ms"])
         if l.get("outcome") is not None:

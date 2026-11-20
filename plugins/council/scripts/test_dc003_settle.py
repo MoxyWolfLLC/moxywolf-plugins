@@ -267,6 +267,40 @@ class DC003Settlement(unittest.TestCase):
     def test_rf3_malformed_envelope_preserves_numeric_cost(self):
         self.check_malformed_envelope_cost(0.012)
 
+    def test_rf11_score_survives_unusable_raw_costs_kept_on_the_ledger(self):
+        # review 20261120-150642 F11: a raw cost kept as received (object, non-numeric string) must not break `score`
+        for cost in ({"amount": "0.012"}, "abc"):
+            with self.subTest(cost=cost):
+                self.server.costs[VOICES[0]] = cost
+                self.server.RequestHandlerClass = self._malformed_stub()
+                self.budget.unlink(missing_ok=True)
+                init = self.run_dc("budget", "init", "--budget", str(self.budget), "--run", self.run_id,
+                                   "--limit-usd", "1", "--key-id", "offline-key-id")
+                self.assertEqual(init.returncode, 0, init.stdout + init.stderr)
+                ask = self.run_dc("ask", "--caller", "dc003-test", "--ref", "f11", "--input", str(self.root / "input.txt"),
+                                  "--questions", str(self.root / "questions.json"), "--voices", VOICES[0],
+                                  "--budget", str(self.budget), "--run", self.run_id, "--pricing", str(self.pricing),
+                                  "--timeout-ms", "500")
+                self.assertEqual(ask.returncode, 1, ask.stdout + ask.stderr)
+                row = json.loads(ask.stdout)["voices"][0]
+                self.assertEqual(json.dumps(row["cost"]), json.dumps(cost))
+                self.assertEqual(row["budget_state"], "kept_unknown")
+                score = self.run_dc("score", "--caller", "dc003-test")
+                self.assertEqual(score.returncode, 0, score.stdout + score.stderr)
+                self.assertNotIn("Traceback", score.stderr)
+
+    def _malformed_stub(self):
+        class MalformedEnvelopeStub(SettlementStub):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                raw = json.dumps({"answers": 7, "provider_metadata": {"gateway": {"cost": self.server.costs[body["model"]]}}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+        return MalformedEnvelopeStub
+
 
 if __name__ == "__main__":
     unittest.main()
