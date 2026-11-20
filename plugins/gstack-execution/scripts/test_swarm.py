@@ -63,6 +63,84 @@ class Swarm(unittest.TestCase):
         r = swarm.result(self.run, claim["id"], claim["attempt"], head, self.repo, "passed", cost)
         return head, r
 
+    def test_v1_explicit_width_and_legacy_defaults(self):
+        self.plan([self.item(f"i{i}", [f"{i}.py"]) for i in range(41)], max_workers=40)
+        swarm.init(self.run, self.goal, self.base, 41)
+        self.assertEqual(len(swarm.tick(self.run)["dispatch"]), 40)
+        deps = self.goal / "DEPS.json"
+        d = json.loads(deps.read_text())
+        d.pop("max_workers")
+        deps.write_text(json.dumps(d))
+        default = self.tmp / "default"
+        swarm.init(default, self.goal, self.base, 41)
+        self.assertEqual(len(swarm.tick(default)["dispatch"]), 3)
+        for invalid in (0, True, "4"):
+            with self.subTest(invalid=invalid):
+                d["max_workers"] = invalid
+                deps.write_text(json.dumps(d))
+                with self.assertRaisesRegex(ValueError, "max_workers"):
+                    swarm.load_plan(self.goal)
+
+    def test_v1_refusal_counts_running_and_sent_and_clears_unsent(self):
+        self.plan([self.item(f"i{i}", [f"{i}.py"]) for i in range(6)], max_workers=6)
+        swarm.init(self.run, self.goal, self.base, 6)
+        claims = swarm.tick(self.run)["dispatch"]
+        for c in claims[:4]:
+            self.assertEqual(swarm.launch_sent(self.run, c["id"], c["attempt"]), "launch")
+        for c in claims[:2]:
+            swarm.launched(self.run, c["id"], c["attempt"])
+        swarm.launch_failed(self.run, "i2", 1, "capacity", host_refused=True)
+        state = swarm.load(self.run)
+        self.assertEqual([v["status"] for v in state["items"].values()],
+                         ["running", "running", "pending", "sent", "pending", "pending"])
+        self.assertEqual(swarm.status(self.run)["reserved"], 3)
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])
+        other = self.tmp / "other"
+        swarm.init(other, self.goal, self.base, 6)
+        self.assertEqual(len(swarm.tick(other)["dispatch"]), 3)
+
+    def test_v1_halt_keeps_sent_reservation_and_blocks_unsent(self):
+        self.plan([self.item(f"i{i}", [f"{i}.py"]) for i in range(4)], max_workers=4)
+        swarm.init(self.run, self.goal, self.base, 4)
+        swarm.tick(self.run)
+        with self.assertRaisesRegex(ValueError, "sent"):
+            swarm.launched(self.run, "i0", 1)
+        self.assertEqual(swarm.launch_sent(self.run, "i0", 1), "launch")
+        self.assertIn("HALT", swarm.launch_sent(self.run, "i1", 1, halted=True))
+        self.assertEqual(swarm.status(self.run)["reserved"], 1)
+        self.assertEqual(swarm.load(self.run)["items"]["i0"]["status"], "sent")
+        swarm.launched(self.run, "i0", 1)
+        self.assertEqual(swarm.load(self.run)["items"]["i0"]["status"], "running")
+
+    def test_v1_does_not_open_hard_caps_or_retest(self):
+        self.plan([self.item("a", ["a.py"])], max_workers=4)
+        brief = self.goal / "GOAL.md"
+        brief.write_text("## Hard cap\n$40\n")
+        with self.assertRaisesRegex(ValueError, "hard dollar cap"):
+            swarm.init(self.run, self.goal, self.base, 4)
+        self.assertFalse(self.run.exists())
+        with self.assertRaises(SystemExit) as exc:
+            swarm.main(["init", str(self.run), "--goal", str(self.goal), "--retest"])
+        self.assertEqual(exc.exception.code, 2)
+
+    def test_v1_four_results_still_need_review_and_ordered_integration(self):
+        self.plan([self.item(f"i{i}", [f"{i}.py"], integ=["i0"] if i == 1 else [])
+                   for i in range(4)], max_workers=4)
+        swarm.init(self.run, self.goal, self.base, 4)
+        claims = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(claims), 4)
+        for c in claims:
+            self.assertEqual(swarm.launch_sent(self.run, c["id"], c["attempt"]), "launch")
+        for i, c in enumerate(claims):
+            head, result = self.finish(c, [f"{i}.py"])
+            self.assertTrue(result["accepted"])
+            self.assertNotEqual(swarm.merge_gate(self.run, c["id"], self.repo, "main"), [])
+            swarm.review(self.run, c["id"], head, "clean")
+        self.assertIn("integration waits for i0", swarm.merge_gate(self.run, "i1", self.repo, "main"))
+        self.assertEqual(swarm.merge_gate(self.run, "i0", self.repo, "main"), [])
+        self.assertEqual(swarm.status(self.run)["spent"], 4)
+        self.assertEqual(swarm.status(self.run)["reserved"], 0)
+
     # 1
     def test_two_independent_items_are_dispatched_together_and_really_overlap(self):
         self.plan([self.item("a", ["a/**"]), self.item("b", ["b/**"])])
@@ -282,7 +360,7 @@ class Swarm(unittest.TestCase):
             ({"1": {"id": "Bad_ID", "writes": ["a/x"]}}, 3, None, 1, "unique, lowercase"),
             ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["a"]}}, 3, None, 1, "depends on itself"),
             ({"1": {"id": "a", "writes": ["a/x"], "contracts": [{"path": "c.json"}]}}, 3, None, 1, "pinned as"),
-            ({"1": {"id": "a", "writes": ["a/x"]}}, 4, None, 1, "max_workers"),
+            ({"1": {"id": "a", "writes": ["a/x"]}}, True, None, 1, "max_workers"),
             ({"1": {"id": "a", "writes": ["a/x"]}}, 0, None, 1, "max_workers"),
             ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["c"]}, "2": {"id": "b", "writes": ["b/x"], "integrate_after": ["a"]},
               "3": {"id": "c", "writes": ["c/x"]}}, 3, [["b", "c"]], 3, "cycle"),   # start, integration and order edges together

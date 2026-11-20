@@ -5,7 +5,7 @@ A goal's PLAN.md stays as goal_brief.py checks it. A parallel plan adds goals/<i
 and frozen with the goal; without one the plan is serial (each item starts after the one before), exactly the
 one-item loop goal_run.py has always run.
 
-DEPS.json: {"version": 1, "max_workers": 1-3,
+DEPS.json: {"version": 1, "max_workers": positive integer (default 3),
             "items": {"<plan item n>": {"id": "page", "writes": ["assets/x.html", "tests/test_x.py"],
                                         "start_after": [], "integrate_after": ["cli"],
                                         "contracts": [{"path": "assets/gate.js", "sha256": "..."}],
@@ -25,9 +25,10 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
                                                               --budget is a dispatch budget, not a spend cap
                                                               the cap is the brief's Max review rounds per item when
                                                               the goal has a GOAL.md; --review-cap must then agree
-  swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every eligible item up to max_workers
+  swarm.py tick <run> [--halt <path>] [--spend-stop]          claims eligible items up to the goal and applicable host ceiling
   swarm.py launched <run> <id> --attempt N                    the Agent call started
-  swarm.py launch-failed <run> <id> --attempt N --reason R    it didn't; visible, retried by a later tick
+  swarm.py launch-sent <run> <id> --attempt N [--halt <path>] [--spend-stop]  opt-in pre-send check
+  swarm.py launch-failed <run> <id> --attempt N --reason R [--host-refused]    it didn't; visible, retried by a later tick
   swarm.py apply-patch <run> <id> --attempt N --repo R --patch FILE
                                                               a returned patch, committed on the claim's branch at its
                                                               pinned base; prints the head to pass to result
@@ -42,6 +43,8 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
 """
 import argparse
 import fcntl
+import os
+import socket
 import fnmatch
 import math
 import json
@@ -56,10 +59,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from task_graph import write   # the graph's atomic write, reused
 
-MAX_WORKERS = 3
+DEFAULT_WORKERS = 3
 MAX_LAUNCHES = 2           # a launch that failed twice is blocked, not retried forever
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
-RUNNING = ("dispatched", "running")
+RUNNING = ("dispatched", "sent", "running")
 DEFAULT_ESTIMATE = 1.0
 
 
@@ -139,12 +142,16 @@ def load_plan(goal_dir):
         raise ValueError("DEPS.json needs an items object keyed by PLAN.md item number")
     if sorted(int(k) for k in d["items"]) != sorted(numbers):
         raise ValueError(f"DEPS.json items {sorted(d['items'])} don't match PLAN.md items {numbers}")
+    brief = goal_dir / "GOAL.md"
+    width = d.get("max_workers")
+    if type(width) is int and width > DEFAULT_WORKERS and brief.is_file() and re.search(r"^## Hard cap\s*$", brief.read_text(), re.M):
+        raise ValueError("this goal requires a hard dollar cap; it cannot opt into a wider swarm")
     items = []
     for k, v in sorted(d["items"].items(), key=lambda kv: int(kv[0])):
         items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": v.get("start_after", []),
                       "integrate_after": v.get("integrate_after", []), "contracts": v.get("contracts", []),
                       "estimate_usd": money(v.get("estimate_usd", DEFAULT_ESTIMATE), f"item {k} estimate_usd", positive=True)})
-    return validate({"version": d.get("version"), "max_workers": d.get("max_workers", MAX_WORKERS), "serial": False,
+    return validate({"version": d.get("version"), "max_workers": d.get("max_workers", DEFAULT_WORKERS), "serial": False,
                      "items": items, "order": d.get("order", [])})
 
 
@@ -153,8 +160,8 @@ def validate(plan):
     ids = [i["id"] for i in items]
     if plan.get("version") != 1:
         raise ValueError("DEPS.json version must be 1")
-    if not isinstance(plan["max_workers"], int) or not 1 <= plan["max_workers"] <= MAX_WORKERS:
-        raise ValueError(f"max_workers must be 1 to {MAX_WORKERS}")
+    if type(plan["max_workers"]) is not int or plan["max_workers"] < 1:
+        raise ValueError("max_workers must be a positive integer")
     if len(set(ids)) != len(ids) or not all(isinstance(i, str) and ID.match(i) for i in ids):
         raise ValueError(f"item ids must be unique, lowercase, hyphenated: {ids}")
     for i in items:
@@ -239,6 +246,56 @@ def goal_review_cap(goal_dir):
     return int(m.group(1))
 
 
+def host_file(run):
+    host = socket.gethostname()
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", host):
+        raise ValueError("host name cannot name a host record")
+    root = os.environ.get("GSTACK_GOAL_RUN_DIR")
+    return (Path(root).resolve() if root else Path(run).resolve().parent) / "hosts" / f"{host}.json"
+
+
+def host_limit(path, running=None):
+    """Read or lower the opt-in ceiling under the host lock; never reset or raise it."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        record = json.loads(path.read_text()) if path.is_file() else {"limit": None}
+        cap = record["limit"]
+        if cap is not None and (type(cap) is not int or cap < 1):
+            raise ValueError("invalid saved host limit")
+        if running is None:
+            return cap
+        value = max(1, running)
+        if cap is not None:
+            value = min(value, cap)
+        record["limit"] = value
+        write(path, record)
+        return cap, value
+
+
+def _ceiling(s):
+    cap = s["plan"]["max_workers"]
+    host = host_limit(s["host_file"]) if s.get("host_file") else None
+    return cap if host is None else min(cap, host)
+
+
+def _held(s):
+    return sum(1 for v in s["items"].values() if v["status"] in ("running", "sent") or
+               (v["status"] == "blocked" and v.get("inflight") and v.get("sent")))
+
+
+def _release_unsent(run, s, ceiling, why):
+    claims = sorted((v["claim"]["seq"], item) for item, v in s["items"].items() if v["status"] == "dispatched")
+    held = _held(s)
+    for rank, (_, item) in enumerate(claims, 1):
+        if held + rank > ceiling:
+            v = s["items"][item]
+            s["reserved"].pop(f"{item}#{v['inflight']}", None)
+            v.update(status="pending", inflight=None, why=why)
+            _event(run, "claim_returned", id=item, attempt=v["attempts"], why=why)
+
+
 def init(run, goal_dir, base, budget, review_cap=None):
     plan = load_plan(goal_dir)
     brief_cap = goal_review_cap(goal_dir)
@@ -252,6 +309,8 @@ def init(run, goal_dir, base, budget, review_cap=None):
          "reserved": {}, "review_cap": review_cap,
          "items": {i["id"]: {"status": "pending", "attempts": 0, "review_rounds": 0, "evidence": None, "why": None}
                    for i in plan["items"]}}
+    if plan["max_workers"] > DEFAULT_WORKERS:
+        s.update(host_file=str(host_file(run)), seq=0)
     write(_paths(run)[0], s)
     _event(run, "init", base=base, budget=budget, serial=plan["serial"], items=[i["id"] for i in plan["items"]])
     return s
@@ -295,6 +354,10 @@ def tick(run, halted=False, spend_stop=False):
                 _block(run, s, k, v["why"] or "blocked")
         if halted or spend_stop:
             out["stopped"] = "HALT" if halted else "spend stop"
+        ceiling = _ceiling(s)
+        writes = {i["id"]: i["writes"] for i in s["plan"]["items"]}
+        if s.get("host_file") and out["stopped"]:
+            _release_unsent(run, s, 0, out["stopped"])
         # review F9: a worker blocked while it runs holds its slot until it reports
         running = [k for k, v in s["items"].items() if v["status"] in RUNNING or (v["status"] == "blocked" and v.get("inflight"))]
         for i in s["plan"]["items"]:
@@ -315,8 +378,12 @@ def tick(run, halted=False, spend_stop=False):
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "start waits for " + ", ".join(blockers)}); continue
             if out["stopped"]:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": out["stopped"]}); continue
-            if len(running) >= s["plan"]["max_workers"]:
+            if len(running) >= ceiling:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "all workers busy"}); continue
+            if s.get("host_file"):
+                clash = next((k for k in running if any(_glob_overlap(a, b) for a in i["writes"] for b in writes[k])), None)
+                if clash:
+                    out["waiting"].append({"id": i["id"], "status": "pending", "why": f"writes overlap {clash}"}); continue
             if i["estimate_usd"] > _remaining(s) + 1e-9:
                 if not running:
                     # spec review GO-017 C1: with nothing in flight no money can come back (a reservation is released
@@ -335,7 +402,11 @@ def tick(run, halted=False, spend_stop=False):
                      "branch": f"swarm/{i['id']}-a{st['attempts']}", "writes": i["writes"], "contracts": i["contracts"],
                      "return": ["head SHA committed on the claim's branch, or a patch against the pinned base", "tests run and their result", "unresolved issues"],
                      "may_not": ["dispatch workers", "write run state", "merge", "deploy", "read the holdout"]}
-            st.update(status="dispatched", why=None, claim=claim)
+            if s.get("host_file"):
+                s["seq"] += 1
+                claim["seq"] = s["seq"]
+                st["started_at"] = None
+            st.update(status="dispatched", why=None, claim=claim, sent=False)
             running.append(i["id"])
             _event(run, "dispatch", **{k: claim[k] for k in ("id", "attempt", "base", "branch")}, reserved=i["estimate_usd"])
             out["dispatch"].append(claim)
@@ -357,21 +428,62 @@ def _attempt(st, attempt, iid):
         raise ValueError(f"{iid} attempt {attempt} isn't in flight (status {st['status']}, attempt {st['attempts']})")
 
 
+def launch_sent(run, iid, attempt, halted=False, spend_stop=False):
+    """For an opt-in swarm, validate and hold the slot in one run-state update immediately before sending."""
+    def go(s):
+        if not s.get("host_file"):
+            raise ValueError("launch-sent is for swarms opted into more than three workers")
+        _, st = _item(s, iid)
+        if st["status"] != "dispatched" or st.get("inflight") != attempt:
+            return "do not launch: no matching unsent claim"
+        if halted or spend_stop or s["spent"] > s["budget"] + 1e-9:
+            reason = "HALT" if halted else "spend stop"
+            _release_unsent(run, s, 0, reason)
+            return f"do not launch: {reason}"
+        _release_unsent(run, s, _ceiling(s), "above the host limit")
+        if st["status"] != "dispatched":
+            return "do not launch: above the host limit"
+        st.update(status="sent", sent=True)
+        _event(run, "launch_sent", id=iid, attempt=attempt)
+        return "launch"
+    return mutate(run, go)
+
+
 def launched(run, iid, attempt):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
+        if s.get("host_file") and st["status"] != "sent" and not (st["status"] == "blocked" and st.get("sent")):
+            raise ValueError(f"{iid}: only a sent launch can be acknowledged")
         if st["status"] == "blocked":
-            raise ValueError(f"{iid} was blocked before its launch was recorded")
-        st["status"] = "running"; st["started_at"] = now()
+            if not st.get("sent"):
+                raise ValueError(f"{iid} was blocked before its launch was recorded")
+        else:
+            st["status"] = "running"
+        st["started_at"] = now()
         _event(run, "launched", id=iid, attempt=attempt)
     mutate(run, go)
 
 
-def launch_failed(run, iid, attempt, reason):
+def launch_failed(run, iid, attempt, reason, host_refused=False):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
+        wide = s.get("host_file")
+        if host_refused and not wide:
+            raise ValueError("host backoff is for swarms opted into more than three workers")
+        if wide and st["status"] != "sent" and not (st["status"] == "blocked" and st.get("sent")):
+            raise ValueError(f"{iid}: only a sent launch can fail")
+        if host_refused:
+            held = _held(s) - 1
+            previous, ceiling = host_limit(wide, held)
         s["reserved"].pop(f"{iid}#{attempt}", None)      # nothing ran, nothing is charged
-        st["inflight"] = None
+        st.update(inflight=None, sent=False)
+        if host_refused:
+            if st["status"] != "blocked":
+                st.update(status="pending", why=f"host refused: {reason}")
+            _release_unsent(run, s, min(s["plan"]["max_workers"], ceiling), "above the reduced host limit")
+            _event(run, "host_refused", id=iid, attempt=attempt, running=held, limit=ceiling, reason=reason)
+            if previous != 1:
+                return
         st["launch_failures"] = st.get("launch_failures", 0) + 1   # review F3: its own count, not the attempt number
         if st["status"] != "blocked":
             if st["launch_failures"] >= MAX_LAUNCHES:
@@ -416,6 +528,10 @@ def result(run, iid, attempt, head, repo, tests, cost=None, unresolved=""):
     """Check the worker's actual diff against its assignment before anything else believes it."""
     def go(s):
         i, st = _item(s, iid); _attempt(st, attempt, iid)
+        if s.get("host_file") and st["status"] != "running" and not (
+            st["status"] == "blocked" and st.get("started_at")
+        ):
+            raise ValueError(f"{iid}: a result needs a host-acknowledged launch")
         base = st["claim"]["base"]
         files = _changed(repo, base, head)
         outside = [f for f in files if not any(fnmatch.fnmatch(f, w) or f == w for w in i["writes"])]
@@ -565,6 +681,7 @@ def main(argv):
         p.add_argument(f)
     p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int)
     p.add_argument("--spend-stop", action="store_true")
+    p.add_argument("--host-refused", action="store_true")
     a = p.parse_args(argv)
     try:
         if a.cmd == "check":
@@ -575,10 +692,15 @@ def main(argv):
         halted = bool(a.halt) and Path(a.halt).exists()
         if a.cmd == "tick":
             print(json.dumps(tick(a.path, halted, a.spend_stop), indent=1)); return 0
+        if a.cmd == "launch-sent":
+            if not a.halt:
+                raise ValueError("launch-sent requires --halt")
+            verdict = launch_sent(a.path, a.id, a.attempt, halted, a.spend_stop)
+            print(verdict); return 0 if verdict == "launch" else 1
         if a.cmd == "launched":
             launched(a.path, a.id, a.attempt); return 0
         if a.cmd == "launch-failed":
-            launch_failed(a.path, a.id, a.attempt, a.reason); return 0
+            launch_failed(a.path, a.id, a.attempt, a.reason, a.host_refused); return 0
         if a.cmd == "apply-patch":
             print(apply_patch(a.path, a.id, a.attempt, a.repo, a.patch)); return 0
         if a.cmd == "result":
