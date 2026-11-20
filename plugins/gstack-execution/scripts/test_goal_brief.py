@@ -14,6 +14,7 @@ DESIGN = "## Goal\nx\n## Items and acceptance criteria\n## Eleventh objective: g
 CO = ("/.github/ @d\n**/hooks/ @d\n/plugins/gstack-execution/scripts/peer_review.py @d\n"
       "/goals/ @d\n/goal-runs/ @d\n")
 PLAN = "1. Write the thing\n   - it exists\n2. Test the thing\n   - the test fails without it\n"
+PLAN3 = PLAN + "3. Document the thing\n   - the doc names it\n"
 DEPS = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]}, "2": {"id": "test", "writes": ["test_a.py"]}}}
 SERIAL = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
                                   "2": {"id": "test", "writes": ["a.py"],
@@ -274,7 +275,11 @@ class Check(unittest.TestCase):
     LEGACY = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
                                       "2": {"id": "test", "writes": ["a.py"], "start_after": ["write"]}}}
 
-    def successor_copy(self, succ_deps, merged_at):
+    LEGACY3 = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
+                                       "2": {"id": "test", "writes": ["a.py"], "start_after": ["write"]},
+                                       "3": {"id": "docs", "writes": ["b.md"]}}}
+
+    def successor_copy(self, succ_deps, merged_at, pred=None, plan=None):
         """origin/main brought goals/g1/ at time 1000 with a GO-017-style DEPS.json (string start_after); the
         successor goals/g1--s1/ carries succ_deps as its DEPS.json text."""
         import os, shutil
@@ -282,13 +287,13 @@ class Check(unittest.TestCase):
         repo = Path(self.tmp.name, f"repo{self.n}")
         (repo / "goals" / "g1").mkdir(parents=True)
         (repo / "goals" / "g1" / "GOAL.md").write_text(brief())
-        legacy_text = json.dumps(self.LEGACY)
+        legacy_text = json.dumps(pred or self.LEGACY)
         (repo / "goals" / "g1" / "DEPS.json").write_text(legacy_text)
         env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
         for c in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "g1"],
                   ["update-ref", "refs/remotes/origin/main", "HEAD"]):
             subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
-        s1 = self.make(deps=succ_deps if succ_deps is not None else legacy_text)
+        s1 = self.make(deps=succ_deps if succ_deps is not None else legacy_text, **({"plan": plan} if plan else {}))
         shutil.move(str(s1), repo / "goals" / "g1--s1")
         with mock.patch.object(gb, "go023_merged_at", return_value=merged_at):
             return self.errs(repo / "goals" / "g1--s1")
@@ -298,9 +303,35 @@ class Check(unittest.TestCase):
         self.assertEqual(self.successor_copy(None, merged_at=2000), [])
 
     @W1
-    def test_a_changed_copy_cannot_use_the_legacy_exemption(self):
-        changed = json.dumps({**self.LEGACY, "max_workers": 2})
-        self.assertTrue(any("because" in e for e in self.successor_copy(changed, merged_at=2000)))
+    def test_adding_an_item_keeps_an_unrelated_legacy_entry(self):
+        d = json.loads(json.dumps(self.LEGACY))
+        d["items"]["3"] = {"id": "docs", "writes": ["b.md"], "start_after": [{"id": "test", "because": "documents the tested a.py"}]}
+        self.assertEqual(self.successor_copy(json.dumps(d), merged_at=2000, plan=PLAN3), [])
+
+    @W1
+    def test_removing_an_item_keeps_an_unrelated_legacy_entry(self):
+        d = json.loads(json.dumps(self.LEGACY3)); del d["items"]["3"]
+        self.assertEqual(self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3), [])
+
+    @W1
+    def test_a_new_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY))
+        d["items"]["3"] = {"id": "docs", "writes": ["b.md"], "start_after": ["test"]}
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, plan=PLAN3)))
+
+    @W1
+    def test_a_retargeted_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY3))
+        d["items"]["2"]["start_after"] = ["docs"]
+        d["items"]["3"]["writes"] = ["c.md"]
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3, plan=PLAN3)))
+
+    @W1
+    def test_a_moved_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY3))
+        d["items"]["2"]["start_after"] = [{"id": "write", "because": "the test imports a.py"}]
+        d["items"]["3"]["writes"] = ["a.py"]; d["items"]["3"]["start_after"] = ["write"]
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3, plan=PLAN3)))
 
     @W1
     def test_a_copy_of_a_post_go023_predecessor_gets_no_legacy_exemption(self):

@@ -337,24 +337,31 @@ def pre_go023_successor(goal_dir, ref="origin/main"):
     return cut is None or int(when) < cut
 
 
-def legacy_deps_copy(goal_dir, ref="origin/main"):
-    """GO-023.8 (spec review C1, 2026-11-20): legacy string start_after entries are allowed only when the successor's
-    whole DEPS.json is byte for byte the DEPS.json its predecessor had at the first-parent commit on main that brought
-    goals/<pred>/, and that commit came before GO-023 merged. Any changed copy follows the rules for new entries."""
+def legacy_start_after(goal_dir, ref="origin/main"):
+    """GO-023.8 (spec review, 2026-11-20): the legacy string start_after entries a successor may keep: for each item id,
+    the bare strings its approved predecessor's DEPS.json held under that same item id, at the first-parent commit on
+    main that brought goals/<pred>/, when that commit came before GO-023 merged. Empty when none qualify. A string
+    moved to another item or retargeted to another id isn't in the set, so it needs a `because` like any new entry."""
     import goal_successor as gsucc
     pred = gsucc.predecessor(Path(goal_dir).name)
-    mine = Path(goal_dir) / "DEPS.json"
-    if pred is None or not mine.is_file():
-        return False
+    if pred is None:
+        return {}
     out = _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H %ct", ref, "--", f":/goals/{pred}/GOAL.md")
     if not out:
-        return False
+        return {}
     sha, when = out.splitlines()[0].split(" ", 1)
     cut = go023_merged_at()
     if cut is not None and int(when) >= cut:
-        return False
+        return {}
     r = subprocess.run(["git", "-C", str(goal_dir), "show", f"{sha}:goals/{pred}/DEPS.json"], capture_output=True)
-    return r.returncode == 0 and r.stdout == mine.read_bytes()
+    if r.returncode:
+        return {}
+    try:
+        items = json.loads(r.stdout).get("items") or {}
+    except (ValueError, AttributeError):
+        return {}
+    return {v["id"]: {x for x in (v.get("start_after") or []) if isinstance(x, str)}
+            for v in items.values() if isinstance(v, dict) and isinstance(v.get("id"), str)}
 
 
 def deps_check(goal_dir, errors):
@@ -391,9 +398,11 @@ def deps_check(goal_dir, errors):
                           "only a hard-cap goal may leave it out")
         return 0
     shape = len(errors)
-    legacy = legacy_deps_copy(goal_dir)   # a verified byte-for-byte copy of a pre-GO-023 predecessor's DEPS.json
-    for k, v in ([] if legacy else deps["items"].items()):
+    legacy = legacy_start_after(goal_dir)   # bare strings kept unchanged under the same item id of a pre-GO-023 predecessor
+    for k, v in deps["items"].items():
         for sa in (v.get("start_after") or []) if isinstance(v, dict) else []:
+            if isinstance(sa, str) and sa in legacy.get(v.get("id"), ()):
+                continue
             if not (isinstance(sa, dict) and isinstance(sa.get("because"), str) and sa["because"].strip()):
                 errors.append(f"DEPS.json item {k}: start_after {sa!r} needs a non-empty 'because' naming the file, "
                               f"contract or result the later item needs")
