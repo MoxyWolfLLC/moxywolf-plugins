@@ -1,0 +1,112 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "DC-003",
+  "scope_sha256": "b07f6b4b181b517b85ee551ba3602d86eaabaa444472095c627884c6cd1f0a36",
+  "reviewed_at": "2026-11-20T22:59:26+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 6207,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 8707,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 8707,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 8707,
+      "cache_creation_input_tokens": 6247,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6247,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 16594,
+      "output_tokens": 2287,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1925,
+      "cache_read_input_tokens": 14954,
+      "cache_creation_input_tokens": 346,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 346,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 23661,
+    "write": 15300
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "DC-003 criterion 9",
+        "DC-003 criterion 10"
+      ],
+      "question": "Criterion 9 says limit_usd is no higher than the key's Vercel budget and that criterion 10(a) checks it. 10(a) only shows the key has a $1 limit with refresh none and doesn't compare it to the budget file's limit_usd. Which step enforces limit_usd <= the Vercel limit, and does 10(a) fail when the file's limit_usd is above the Vercel limit?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "DC-003 criterion 7",
+        "DC-003 criterion 4"
+      ],
+      "question": "What exit code does ask return when a voice settles as kept_unknown, or when a voice is refused as no_price or unbounded_fee while other voices are sent? Only ceiling_exceeded (exit 5) and whole-call refusals (exit 4) are specified."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "DC-003 criterion 8",
+        "DC-003 criterion 7"
+      ],
+      "question": "How is a reservation's process judged gone (pid reuse, a live but slow process)? What happens when a process settles a reservation that recover has already marked kept_unknown: is the settle ignored, does it overwrite, or does it fail?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "DC-003 criterion 3",
+        "DC-003 criterion 6"
+      ],
+      "question": "Which decider ledger supplies the per-model ceilings when each process has its own GSTACK_PEER_REVIEW_DIR? Different ledgers give different ceilings for the same budget file."
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "DC-003 criterion 3",
+        "DC-003 criterion 7"
+      ],
+      "question": "Criterion 3 reads a ledger row's budget_state, but criterion 7 and the Links list declare only reserved_usd and settled_usd on the ledger line, and state lives on the budget file. Is budget_state a ledger field this item writes, with what values, and how does it relate to the budget file's state?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "DC-003 criterion 3",
+        "DC-003 criterion 4"
+      ],
+      "question": "Criterion 3 skips rows 'refused under criterion 4 (no_price, unbounded_fee:<name>)', but no_price is defined in criterion 3, not criterion 4. Which ledger field records a refused voice and its reason, so the reader can identify which rows to skip?"
+    }
+  ]
+}
