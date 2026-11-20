@@ -458,6 +458,21 @@ class Swarm(unittest.TestCase):
         (self.goal / "GOAL.md").write_text("# g\n\n## Spend cap\n$40\n\n## Max review rounds per item\n2\n")
         swarm.load_plan(self.goal)
 
+    def test_an_item_that_can_never_fit_is_blocked_once_nothing_is_in_flight(self):   # spec review GO-017 C1
+        self.plan([self.item("a", ["a/**"], est=3), self.item("b", ["b/**"], est=3), self.item("c", ["c/**"], est=1, start=["b"])],
+                  max_workers=1)
+        swarm.init(self.run, self.goal, self.base, 5)
+        ca = swarm.tick(self.run)["dispatch"][0]
+        t = swarm.tick(self.run)
+        self.assertEqual(swarm.status(self.run)["items"]["b"]["status"], "pending")   # a is in flight: b waits
+        swarm.launched(self.run, "a", 1)
+        swarm.result(self.run, "a", 1, self.work(ca, ["a/x"]), self.repo, "passed")
+        t = swarm.tick(self.run)                                          # $2 left, b needs $3, nothing in flight
+        st = swarm.status(self.run)["items"]
+        self.assertEqual((st["b"]["status"], st["c"]["status"]), ("blocked", "blocked"))
+        self.assertIn("dispatch budget exhausted", st["b"]["why"])
+        self.assertEqual(t["dispatch"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
