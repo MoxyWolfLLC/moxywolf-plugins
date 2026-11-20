@@ -319,8 +319,8 @@ def tick(run, halted=False, spend_stop=False):
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "all workers busy"}); continue
             if i["estimate_usd"] > _remaining(s) + 1e-9:
                 if not running:
-                    # spec review GO-017 C1: with nothing in flight no money can come back (a reservation is only ever
-                    # released by a failed launch), so the item can never fit. Blocking it, and so its dependents, lets
+                    # spec review GO-017 C1: with nothing in flight no money can come back (a reservation is released
+                    # only by a failed launch or a block before launch), so the item can never fit. Blocking it, and so its dependents, lets
                     # the run end through goal_run.py failed instead of waiting forever.
                     why = f"dispatch budget exhausted: ${_remaining(s):.2f} left, needs ${i['estimate_usd']:.2f}"
                     _block(run, s, i["id"], why)
