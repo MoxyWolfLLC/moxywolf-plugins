@@ -255,6 +255,16 @@ class Check(unittest.TestCase):
                 self.refused(self.make(brief(**{"Provider budgets": f"- openrouter: $3\n- {name}: $1"})),
                              f"{name} is a subscription CLI that reports no cost")
 
+    def cut_at(self, repo, merged_at):
+        if merged_at is None:
+            return ""
+        if merged_at <= 1000:   # same commit is not older than the cutoff
+            return gb._git(repo, "rev-parse", "HEAD")
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
+                        "commit", "--allow-empty", "-qm", "GO-023"], check=True)
+        subprocess.run(["git", "-C", str(repo), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        return gb._git(repo, "rev-parse", "HEAD")
+
     def successor_in_repo(self, pred_deps, merged_at):
         """A repo whose origin/main added goals/g1/ at time 1000, and goals/g1--s1/ drafted beside it with no DEPS.json."""
         import os, shutil
@@ -269,7 +279,7 @@ class Check(unittest.TestCase):
                   ["update-ref", "refs/remotes/origin/main", "HEAD"]):
             subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
         shutil.move(str(self.make(deps=None)), repo / "goals" / "g1--s1")
-        with mock.patch.object(gb, "go023_merged_at", return_value=merged_at):
+        with mock.patch.object(gb, "go023_merge", return_value=self.cut_at(repo, merged_at)):
             return self.errs(repo / "goals" / "g1--s1")
 
     LEGACY = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
@@ -295,7 +305,7 @@ class Check(unittest.TestCase):
             subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
         s1 = self.make(deps=succ_deps if succ_deps is not None else legacy_text, **({"plan": plan} if plan else {}))
         shutil.move(str(s1), repo / "goals" / "g1--s1")
-        with mock.patch.object(gb, "go023_merged_at", return_value=merged_at):
+        with mock.patch.object(gb, "go023_merge", return_value=self.cut_at(repo, merged_at)):
             return self.errs(repo / "goals" / "g1--s1")
 
     @W1
@@ -347,8 +357,57 @@ class Check(unittest.TestCase):
     def test_a_successor_whose_predecessor_had_deps_is_not_exempt(self):
         self.assertTrue(any("DEPS.json" in e for e in self.successor_in_repo(pred_deps=True, merged_at=2000)))
 
-    def test_go023_merged_at_reads_main(self):
-        self.assertIsNone(gb.go023_merged_at(ref="refs/heads/no-such-branch-xyz"))
+    @W1
+    def test_second_generation_carries_only_unchanged_legacy_ancestry(self):
+        import os, shutil
+
+        env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
+
+        for root_deps, s1_deps, s2_deps, reject, root_before in (
+            (self.LEGACY, self.LEGACY, self.LEGACY, False, True),
+            (None, None, None, False, True),
+            (self.LEGACY, SERIAL, self.LEGACY, True, True),
+            (SERIAL, self.LEGACY, self.LEGACY, True, True),
+            (self.LEGACY, self.LEGACY, self.LEGACY, True, False),
+            (self.LEGACY, None, None, True, True),
+            (None, None, None, True, False),
+        ):
+            with self.subTest(root_deps=root_deps, s1_deps=s1_deps, s2_deps=s2_deps, root_before=root_before):
+                repo = Path(self.tmp.name, f"history{self.n}")
+                repo.mkdir()
+
+                def git(*args):
+                    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
+
+                def commit(label):
+                    git("add", "-A")
+                    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", label)
+
+                def approved(name, deps):
+                    shutil.move(str(self.make(deps=deps)), repo / "goals" / name)
+                    commit(name)
+
+                git("init", "-q")
+                if root_before:
+                    approved("g1", root_deps)
+                marker = repo / "plugins/gstack-execution/scripts/goal_brief.py"
+                marker.parent.mkdir(parents=True)
+                marker.write_text("def deps_check(): pass\n")
+                commit("GO-023 introduced")
+                if not root_before:
+                    approved("g1", root_deps)
+                approved("g1--s1", s1_deps)
+                git("update-ref", "refs/remotes/origin/main", "HEAD")
+                s2 = self.make(deps=s2_deps)
+                shutil.move(str(s2), repo / "goals" / "g1--s2")
+                errors = self.errs(repo / "goals" / "g1--s2")
+                if reject:
+                    self.assertTrue(any("DEPS.json" in error for error in errors), errors)
+                else:
+                    self.assertEqual(errors, [])
+
+    def test_go023_merge_uses_requested_ref(self):
+        self.assertIsNone(gb.go023_merge(gb.ROOT, "refs/heads/no-such-branch-xyz"))
 
     # GO-023.8: check runs only on a goal being drafted, so these rules bind new goals
     def deps_errors(self, g):

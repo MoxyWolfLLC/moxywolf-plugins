@@ -313,55 +313,81 @@ def _git(cwd, *args):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
-def go023_merged_at(ref="origin/main"):
-    """When GO-023 reached this repository's main: the first-parent commit that brought deps_check, or None if it hasn't."""
-    out = _git(ROOT, "log", "--first-parent", "--reverse", "--format=%ct", "-S", "def deps_check(", ref, "--",
-               "plugins/gstack-execution/scripts/goal_brief.py")
-    return int(out.splitlines()[0]) if out else None
+def go023_merge(goal_dir, ref):
+    """The first-parent main commit introducing the new dependency rules, or empty before GO-023."""
+    return _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H", "-S", "def deps_check(",
+                ref, "--", ":/plugins/gstack-execution/scripts/goal_brief.py")
+
+
+def _legacy_approvals(goal_dir, ref):
+    """Ordered immutable DEPS snapshots for the pre-GO-023 root and each approved ancestor."""
+    import goal_successor as gsucc
+
+    names = []
+    pred = gsucc.predecessor(Path(goal_dir).name)
+    while pred is not None:
+        names.insert(0, pred)
+        pred = gsucc.predecessor(pred)
+    if not names:
+        return []
+    ref = _git(goal_dir, "rev-parse", "--verify", f"{ref}^{{commit}}")
+    if ref is None:
+        return []
+    cut = go023_merge(goal_dir, ref)
+    if cut is None or _git(goal_dir, "rev-parse", "--is-shallow-repository") != "false":
+        return []
+    previous = None
+    snapshots = []
+    for i, name in enumerate(names):
+        approvals = _git(goal_dir, "log", "--first-parent", "--full-history", "--diff-filter=A",
+                         "--format=%H", ref, "--", f":/goals/{name}/GOAL.md")
+        if not approvals or len(approvals.splitlines()) != 1:
+            return []   # no immutable approval, or the folder was reintroduced
+        approved = approvals.splitlines()[0]
+        later = cut.splitlines()[0] if i == 0 and cut else None
+        # Both commits came from the same ref's first-parent history. Require strict order, not wall-clock timestamps.
+        older, newer = (approved, later) if later else (previous, approved)
+        if older and (older == newer or _git(goal_dir, "merge-base", "--is-ancestor", older, newer) is None):
+            return []
+        deps_path = f"goals/{name}/DEPS.json"
+        tree = _git(goal_dir, "ls-tree", "--full-tree", approved, "--", f":/{deps_path}")
+        if tree is None:
+            return []
+        if not tree:
+            snapshots.append(None)
+        else:
+            raw = _git(goal_dir, "show", f"{approved}:{deps_path}")
+            if raw is None:
+                return []
+            snapshots.append(raw)
+        previous = approved
+    return snapshots
 
 
 def pre_go023_successor(goal_dir, ref="origin/main"):
-    """GO-023.8 (spec review C1): a successor whose predecessor is on main with no DEPS.json at the first-parent commit
-    on main that brought goals/<pred>/ (its approval's merge), and that commit came before GO-023 merged. It stays serial."""
-    import goal_successor as gsucc
-    pred = gsucc.predecessor(Path(goal_dir).name)
-    if pred is None:
-        return False
-    out = _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H %ct", ref, "--", f":/goals/{pred}/GOAL.md")
-    if not out:
-        return False                     # not on main: nothing verified to inherit
-    sha, when = out.splitlines()[0].split(" ", 1)
-    if _git(goal_dir, "cat-file", "-e", f"{sha}:goals/{pred}/DEPS.json") is not None:
-        return False                     # it had a DEPS.json; the successor copies it
-    cut = go023_merged_at()
-    return cut is None or int(when) < cut
+    """The no-DEPS exemption stays serial only along an uninterrupted pre-GO-023 root lineage."""
+    snapshots = _legacy_approvals(goal_dir, ref)
+    return bool(snapshots) and all(raw is None for raw in snapshots)
 
 
 def legacy_start_after(goal_dir, ref="origin/main"):
-    """GO-023.8 (spec review, 2026-11-20): the legacy string start_after entries a successor may keep: for each item id,
-    the bare strings its approved predecessor's DEPS.json held under that same item id, at the first-parent commit on
-    main that brought goals/<pred>/, when that commit came before GO-023 merged. Empty when none qualify. A string
-    moved to another item or retargeted to another id isn't in the set, so it needs a `because` like any new entry."""
-    import goal_successor as gsucc
-    pred = gsucc.predecessor(Path(goal_dir).name)
-    if pred is None:
-        return {}
-    out = _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H %ct", ref, "--", f":/goals/{pred}/GOAL.md")
-    if not out:
-        return {}
-    sha, when = out.splitlines()[0].split(" ", 1)
-    cut = go023_merged_at()
-    if cut is not None and int(when) >= cut:
-        return {}
-    r = subprocess.run(["git", "-C", str(goal_dir), "show", f"{sha}:goals/{pred}/DEPS.json"], capture_output=True)
-    if r.returncode:
-        return {}
-    try:
-        items = json.loads(r.stdout).get("items") or {}
-    except (ValueError, AttributeError):
-        return {}
-    return {v["id"]: {x for x in (v.get("start_after") or []) if isinstance(x, str)}
-            for v in items.values() if isinstance(v, dict) and isinstance(v.get("id"), str)}
+    """Only bare strings under the same item id in every immutable approved ancestor may carry forward."""
+    edges = None
+    for raw in _legacy_approvals(goal_dir, ref):
+        if raw is None:
+            return {}
+        try:
+            items = json.loads(raw)["items"].values()
+            current = {}
+            for v in items:
+                item_id, deps = v["id"], v.get("start_after", [])
+                if not isinstance(item_id, str) or item_id in current or not isinstance(deps, list):
+                    return {}
+                current[item_id] = {x for x in deps if isinstance(x, str)}
+        except (ValueError, AttributeError, KeyError, TypeError):
+            return {}
+        edges = current if edges is None else {i: e & current.get(i, set()) for i, e in edges.items()}
+    return edges or {}
 
 
 def deps_check(goal_dir, errors):
@@ -398,7 +424,7 @@ def deps_check(goal_dir, errors):
                           "only a hard-cap goal may leave it out")
         return 0
     shape = len(errors)
-    legacy = legacy_start_after(goal_dir)   # bare strings kept unchanged under the same item id of a pre-GO-023 predecessor
+    legacy = legacy_start_after(goal_dir)   # bare strings kept under the same item id throughout a pre-GO-023 lineage
     for k, v in deps["items"].items():
         for sa in (v.get("start_after") or []) if isinstance(v, dict) else []:
             if isinstance(sa, str) and sa in legacy.get(v.get("id"), ()):
