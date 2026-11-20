@@ -473,6 +473,25 @@ class Swarm(unittest.TestCase):
         self.assertIn("dispatch budget exhausted", st["b"]["why"])
         self.assertEqual(t["dispatch"], [])
 
+    # review 20261119-212242 F1: literal Unicode names for both checks
+    def test_f1_a_change_to_a_pinned_unicode_filename_is_refused(self):
+        (self.repo / "caf\u00e9.json").write_text('{"v": 1}\n'); git(self.repo, "add", "."); git(self.repo, "commit", "-qm", "contract")
+        base = git(self.repo, "rev-parse", "HEAD")
+        self.plan([dict(self.item("a", ["**"]), contracts=[{"path": "caf\u00e9.json", "sha256": "0" * 64}])])
+        swarm.init(self.run, self.goal, base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        swarm.launched(self.run, "a", 1)
+        r = swarm.result(self.run, "a", 1, self.work(c, ["caf\u00e9.json"]), self.repo, "passed")
+        self.assertFalse(r["accepted"]); self.assertIn("changed a pinned contract: caf\u00e9.json", r["why"])
+
+    def test_f1_a_change_to_an_allowed_unicode_filename_is_accepted(self):
+        self.plan([self.item("a", ["docs/r\u00e9sum\u00e9-*.md"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        swarm.launched(self.run, "a", 1)
+        r = swarm.result(self.run, "a", 1, self.work(c, ["docs/r\u00e9sum\u00e9-1.md"]), self.repo, "passed")
+        self.assertEqual(r, {"accepted": True, "files": ["docs/r\u00e9sum\u00e9-1.md"]})
+
 
 if __name__ == "__main__":
     unittest.main()

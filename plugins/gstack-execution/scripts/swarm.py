@@ -387,8 +387,12 @@ def git(repo, *a):
 
 
 def _changed(repo, base, head):
-    """Every path the change touches, both sides of a rename (review F6): a pinned contract moved away is a change to it."""
-    return sorted({f for f in git(repo, "diff", "--name-only", "--no-renames", f"{base}..{head}").splitlines() if f})
+    """Every path the change touches, both sides of a rename (review F6): a pinned contract moved away is a change to it.
+    Paths come NUL-delimited and unquoted (-z), so the writable-path and pinned-contract checks compare the literal
+    names; without -z git quotes and escapes a name such as caf\u00e9.json (review 20261119-212242 F1)."""
+    out = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", "--no-renames", "-z", f"{base}..{head}"],
+                         capture_output=True, check=True).stdout.decode("utf-8", "surrogateescape")
+    return sorted({f for f in out.split("\0") if f})
 
 
 def apply_patch(run, iid, attempt, repo, patch):
