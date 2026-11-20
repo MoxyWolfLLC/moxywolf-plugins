@@ -8,6 +8,8 @@ call lands on one ledger with its caller, and the caller writes the outcome late
   decider_council.py outcome --line <id> --result <json>
   decider_council.py score [--caller <name>] [--since YYYY-MM]
   decider_council.py gate --caller <name>
+  decider_council.py ask ... --budget <file> --run <id> [--pricing <models.json>]   DC-003
+  decider_council.py budget init|show|recover --budget <file> --run <id> [--limit-usd X --key-id K]
 
 Majority (Dorian, 2026-10-18: "Majority wins"): for a choice, the value more than half the available
 voices picked; for a predicate or a score, the median. No majority is a tie, returned as a tie.
@@ -27,8 +29,11 @@ ponytail: one request body, built once; three daemon threads; a JSONL file under
 """
 import argparse
 import fcntl
+import hashlib
 import json
+import math
 import os
+import re
 import statistics
 import sys
 import tempfile
@@ -270,18 +275,270 @@ def quorum_of(answers):
     return "full" if low >= 2 else ("degraded" if low == 1 else "unavailable")
 
 
+# ---------- DC-003: a run's budget ----------
+# ponytail: one JSON file per run under its own flock, rewritten whole; fine for a run's few dozen calls.
+
+CEILING_FLOOR = 0.01       # DC-003.3: never reserve less than this per voice
+CEILING_DEFAULT = 0.05     # DC-003.3: a model with no settled charge on the ledger
+_DECIMAL = re.compile(r"^\+?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?$")
+
+
+class Refusal(Exception):
+    """A whole budgeted call refused before anything is sent: stdout {"refused": reason}, exit 4."""
+
+
+def known_cost(v):
+    """DC-003.7: a finite non-negative number (not a boolean) or decimal string; anything else is None."""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        f = float(v)
+    elif isinstance(v, str) and _DECIMAL.match(v.strip()):
+        f = float(v.strip())
+    else:
+        return None
+    return f if math.isfinite(f) and f >= 0 else None
+
+
+def council_key():
+    """DC-003.2: the run's key comes only from the file GSTACK_COUNCIL_AIGATEWAY_ENV names."""
+    f = os.environ.get("GSTACK_COUNCIL_AIGATEWAY_ENV")
+    try:
+        for raw in Path(f).read_text(encoding="utf-8").splitlines() if f else []:
+            k, _, v = raw.strip().partition("=")
+            if k.replace("export ", "").strip() == "AI_GATEWAY_API_KEY" and v.strip():
+                return v.strip().strip("\"'")
+    except OSError:
+        pass
+    raise Refusal("budget_key_missing")
+
+
+def sha256(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+class budget_lock:
+    """DC-003.5: one flock beside the budget file, whatever GSTACK_PEER_REVIEW_DIR says."""
+
+    def __init__(self, path):
+        self.path = Path(str(path) + ".lock")
+
+    def __enter__(self):
+        self.fh = open(self.path, "a")
+        fcntl.flock(self.fh, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self.fh, fcntl.LOCK_UN)
+        self.fh.close()
+
+
+def load_budget(path, run):
+    try:
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
+        ok = isinstance(d, dict) and isinstance(d.get("reservations"), list) \
+            and known_cost(d.get("limit_usd")) is not None and isinstance(d.get("key_sha256"), str)
+    except (OSError, ValueError):
+        ok = False
+    if not ok:
+        raise Refusal("budget_unreadable")
+    if d.get("run") != run:
+        raise Refusal("budget_run_mismatch")
+    return d
+
+
+def save_budget(path, d):
+    """Temp file in the same directory, fsynced, then os.replace: a kill never leaves half a file (DC-003.5)."""
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, indent=1, sort_keys=True)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def budget_totals(d):
+    open_ = sum(r["reserved_usd"] for r in d["reservations"] if r["state"] == "open")
+    settled = sum(r["settled_usd"] or 0 for r in d["reservations"] if r["state"] != "open")
+    r10 = lambda x: round(x, 10)  # ponytail: float sums of cents; 1e-10 is far below any charge
+    return r10(open_), r10(settled), r10(float(d["limit_usd"]) - open_ - settled)
+
+
+def pricing(path):
+    """slug -> pricing object, from --pricing or GET /v1/models; unreadable refuses the call (DC-003.4)."""
+    def table(data):
+        return {m["id"]: m.get("pricing") for m in data["data"] if isinstance(m, dict) and "id" in m}
+    if path:
+        try:
+            return table(json.loads(Path(path).read_text(encoding="utf-8")))
+        except Exception:
+            pass                  # DC-003.4: "if neither can be read" -- fall back to the endpoint
+    try:
+        url = os.environ.get("JEV_ENDPOINT", GATEWAY).rstrip("/") + "/v1/models"
+        with urllib.request.urlopen(url, timeout=10) as r:
+            return table(json.loads(r.read().decode()))
+    except Exception:
+        raise Refusal("pricing_unavailable")
+
+
+def price_refusal(p):
+    """None when the voice may be sent; else no_price or unbounded_fee:<name> (DC-003.3, .4)."""
+    if not isinstance(p, dict) or known_cost(p.get("input")) is None:
+        return "no_price"
+
+    def fee(obj):
+        for k, v in obj.items():
+            if k in ("input", "output") or k.startswith("input_"):
+                continue
+            if k == "regional" and isinstance(v, dict):
+                for region in v.values():
+                    f = fee(region) if isinstance(region, dict) else None
+                    if f:
+                        return f
+                continue
+            return k
+        return None
+    f = fee(p)
+    return f"unbounded_fee:{f}" if f else None
+
+
+def ceilings(slugs):
+    """DC-003.3: twice the largest settled charge for each model on the ledger, floor CEILING_FLOOR,
+    CEILING_DEFAULT with no history."""
+    top = {}
+    for _, l in _lines():
+        for v in l.get("voices") or []:
+            if str(v.get("unavailable", "")).startswith(("no_price", "unbounded_fee:")):
+                continue          # refused by DC-003, never sent, so never charged
+            if v.get("budget_state") == "kept_unknown":
+                continue          # a ceiling stand-in, not a charge; counting it would double the next ceiling
+            c = known_cost(v.get("settled_usd")) if "settled_usd" in v else known_cost(v.get("cost"))
+            if c is not None and v.get("model") in slugs:
+                top[v["model"]] = max(top.get(v["model"], 0.0), c)
+    return {m: max(2 * top[m], CEILING_FLOOR) if m in top else CEILING_DEFAULT for m in slugs}
+
+
+def gateway_cost(r):
+    resp = r.get("response") if r.get("status") == 200 else None
+    gw = resp.get("provider_metadata") if isinstance(resp, dict) else None
+    gw = gw.get("gateway") if isinstance(gw, dict) else None
+    return gw.get("cost") if isinstance(gw, dict) else None
+
+
+def pid_alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except PermissionError:
+        return True
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def pause(phase):
+    """DC-003.8's kill tests stop ask here: GSTACK_DC003_PAUSE=after_reserve|after_dispatch|during_settle."""
+    if os.environ.get("GSTACK_DC003_PAUSE") == phase:
+        print(f"paused:{phase}", file=sys.stderr, flush=True)
+        time.sleep(60)
+
+
+def refuse(reason, **extra):
+    print(json.dumps({"refused": reason, **extra}))
+    return 4
+
+
+def cmd_budget(a):
+    try:
+        if a.action == "init":
+            if a.limit_usd is None or not a.key_id or known_cost(a.limit_usd) is None:
+                print("budget init needs --limit-usd (non-negative) and --key-id", file=sys.stderr)
+                return 2
+            key = council_key()
+            with budget_lock(a.budget):
+                if Path(a.budget).exists():
+                    raise Refusal("budget_exists")
+                save_budget(a.budget, {"run": a.run, "limit_usd": float(a.limit_usd), "key_id": a.key_id,
+                                       "key_sha256": sha256(key), "reservations": []})
+                d = load_budget(a.budget, a.run)
+        elif a.action == "recover":
+            with budget_lock(a.budget):
+                d = load_budget(a.budget, a.run)
+                n = 0
+                for r in d["reservations"]:
+                    if r["state"] == "open" and not pid_alive(r.get("pid")):   # never released: kept at the full ceiling
+                        r["state"], r["settled_usd"] = "kept_unknown", r["reserved_usd"]
+                        n += 1
+                if n:
+                    save_budget(a.budget, d)
+            print(json.dumps({"run": a.run, "recovered": n}))
+            return 0
+        else:
+            with budget_lock(a.budget):
+                d = load_budget(a.budget, a.run)
+    except Refusal as e:
+        return refuse(str(e))
+    o, s_, left = budget_totals(d)
+    print(json.dumps({"run": d["run"], "limit_usd": float(d["limit_usd"]), "open_usd": o, "settled_usd": s_, "left_usd": left}))
+    return 0
+
+
 # ---------- commands ----------
 
 def cmd_ask(a):
     text = sys.stdin.read() if a.input == "-" else Path(a.input).read_text(encoding="utf-8")
     qs = json.loads(Path(a.questions).read_text(encoding="utf-8")) if os.path.exists(a.questions) else json.loads(a.questions)
     validate_questions(qs)
-    key, source = gateway_key()
     slugs = [v.strip() for v in a.voices.split(",")] if a.voices else voices()
     payload = json.dumps({"input": text, "questions": qs})
     line_id = uuid.uuid4().hex[:12]
     voice_rows, by_q = [], {q["name"]: {} for q in qs}
-    raw = ask_all(payload, key, a.timeout_ms, slugs) if key else {m: {"status": "no_key", "error": source, "latency_ms": 0} for m in slugs}
+    refused, ceil, left = {}, {}, None
+    if a.budget:                      # DC-003: checked and reserved before any voice is sent
+        try:
+            key, source = council_key(), "GSTACK_COUNCIL_AIGATEWAY_ENV"
+            with budget_lock(a.budget):
+                d = load_budget(a.budget, a.run)
+            if sha256(key) != d["key_sha256"]:
+                raise Refusal("budget_key_mismatch")
+            prices = pricing(a.pricing)
+            for m in slugs:
+                why = price_refusal(prices.get(m)) if m in prices else "no_price"
+                if why:
+                    refused[m] = why
+            ceil = ceilings([m for m in slugs if m not in refused])
+            with budget_lock(a.budget):
+                d = load_budget(a.budget, a.run)
+                _, _, left = budget_totals(d)
+                if ceil and sum(ceil.values()) > left + 1e-12:
+                    line = {"id": line_id, "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                            "caller": a.caller, "ref": a.ref, "questions": [{"name": q["name"], "type": q["type"]} for q in qs],
+                            "voices": [], "answers": {}, "quorum": "unavailable", "refused": "budget_exhausted",
+                            "budget": {"run": a.run, "left_usd": left, "needed_usd": sum(ceil.values())}, "outcome": None}
+                    with ledger_lock(), open(ledger_dir() / (datetime.now(timezone.utc).strftime("%Y%m") + ".jsonl"), "a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(line, sort_keys=True) + "\n")
+                    raise Refusal("budget_exhausted")
+                if ceil:
+                    d["reservations"] += [{"line": line_id, "voice": m, "pid": os.getpid(), "reserved_usd": c,
+                                           "settled_usd": None, "state": "open"} for m, c in ceil.items()]
+                    save_budget(a.budget, d)
+                    left -= sum(ceil.values())
+        except Refusal as e:
+            return refuse(str(e))
+        pause("after_reserve")
+    else:
+        key, source = gateway_key()
+    sendable = [m for m in slugs if m not in refused]
+    raw = (ask_all(payload, key, a.timeout_ms, sendable) if sendable else {}) if key else \
+        {m: {"status": "no_key", "error": source, "latency_ms": 0} for m in sendable}
+    if a.budget:
+        pause("after_dispatch")
+    for m, why in refused.items():
+        raw[m] = {"status": "refused", "error": why, "latency_ms": 0}
     for m in slugs:
         r = raw[m]
         row = {"model": m, "status": r.get("status"), "latency_ms": r["latency_ms"], "cost": None, "input_tokens": None,
@@ -315,7 +572,28 @@ def cmd_ask(a):
         if r.get("error") and isinstance(r.get("status"), int) and r["status"] != 200:
             row["error"] = r["error"]
             row["unavailable"] = f"HTTP {r['status']}"
+        if m in refused:
+            row["unavailable"], row["reserved_usd"], row["settled_usd"] = refused[m], 0, 0
         voice_rows.append(row)
+    exceeded = False
+    if a.budget and ceil:             # DC-003.7: settle every reservation this call made, under the lock
+        with budget_lock(a.budget):
+            d = load_budget(a.budget, a.run)
+            mine = {r["voice"]: r for r in d["reservations"] if r["line"] == line_id and r["state"] == "open"}
+            for i, row in enumerate(x for x in voice_rows if x["model"] in mine):
+                res, c = mine[row["model"]], known_cost(gateway_cost(raw[row["model"]]))
+                if c is None:
+                    res["state"], res["settled_usd"] = "kept_unknown", res["reserved_usd"]
+                else:
+                    res["settled_usd"] = c
+                    res["state"] = "ceiling_exceeded" if c > res["reserved_usd"] else "settled"
+                    exceeded = exceeded or res["state"] == "ceiling_exceeded"
+                row["reserved_usd"], row["settled_usd"], row["budget_state"] = res["reserved_usd"], res["settled_usd"], res["state"]
+                if i == 0:
+                    save_budget(a.budget, d)
+                    pause("during_settle")
+            save_budget(a.budget, d)
+            _, _, left = budget_totals(d)
     answers = {}
     for q in qs:
         avail = {m: v for m, v in by_q[q["name"]].items() if "unavailable" not in v}
@@ -327,12 +605,16 @@ def cmd_ask(a):
             "caller": a.caller, "ref": a.ref, "questions": [{"name": q["name"], "type": q["type"]} for q in qs],
             "voices": voice_rows, "answers": answers, "quorum": quorum, "credential": source if key else None,
             "outcome": None}
+    if a.budget:
+        line["budget"] = {"run": a.run, "left_usd": left}
     f = ledger_dir() / (datetime.now(timezone.utc).strftime("%Y%m") + ".jsonl")
     with ledger_lock(), open(f, "a", encoding="utf-8") as fh:          # DC-001.4: written before the output prints
         fh.write(json.dumps(line, sort_keys=True) + "\n")
     out = dict(line, ledger=str(f))
     del out["outcome"]
     print(json.dumps(out, indent=None if a.compact else 1))
+    if exceeded:
+        return 5
     return 0 if quorum != "unavailable" else 1
 
 
@@ -509,11 +791,17 @@ def main(argv=None):
     s.add_argument("--input", required=True); s.add_argument("--questions", required=True)
     s.add_argument("--voices"); s.add_argument("--timeout-ms", type=int, default=DECIDER_TIMEOUT_MS)
     s.add_argument("--compact", action="store_true")
+    s.add_argument("--budget"); s.add_argument("--run"); s.add_argument("--pricing")
+    s = sub.add_parser("budget"); s.add_argument("action", choices=["init", "show", "recover"])
+    s.add_argument("--budget", required=True); s.add_argument("--run", required=True)
+    s.add_argument("--limit-usd"); s.add_argument("--key-id")
     s = sub.add_parser("outcome"); s.add_argument("--line", required=True); s.add_argument("--result", required=True)
     s = sub.add_parser("score"); s.add_argument("--caller"); s.add_argument("--since")
     s = sub.add_parser("gate"); s.add_argument("--caller", required=True)
     a = p.parse_args(argv)
-    return {"ask": cmd_ask, "outcome": cmd_outcome, "score": cmd_score, "gate": cmd_gate}[a.cmd](a)
+    if a.cmd == "ask" and (a.budget is None) != (a.run is None):
+        p.error("--budget and --run go together")
+    return {"budget": cmd_budget, "ask": cmd_ask, "outcome": cmd_outcome, "score": cmd_score, "gate": cmd_gate}[a.cmd](a)
 
 
 if __name__ == "__main__":
