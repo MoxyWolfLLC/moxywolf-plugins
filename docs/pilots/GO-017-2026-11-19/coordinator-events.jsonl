@@ -1,0 +1,18 @@
+{"ts": "2026-11-19T23:04:49Z", "event": "init", "base": "60aa10e461b8abe2490ca22205450e0e1c253666", "budget": "12", "serial": false, "items": ["reader", "engine", "view"]}
+{"ts": "2026-11-19T23:04:49Z", "event": "dispatch", "id": "reader", "attempt": 1, "base": "60aa10e461b8abe2490ca22205450e0e1c253666", "branch": "swarm/reader-a1", "reserved": 3.0}
+{"ts": "2026-11-19T23:04:49Z", "event": "dispatch", "id": "engine", "attempt": 1, "base": "60aa10e461b8abe2490ca22205450e0e1c253666", "branch": "swarm/engine-a1", "reserved": 3.0}
+{"ts": "2026-11-19T23:04:49Z", "event": "dispatch", "id": "view", "attempt": 1, "base": "60aa10e461b8abe2490ca22205450e0e1c253666", "branch": "swarm/view-a1", "reserved": 3.0}
+{"ts": "2026-11-19T23:05:28Z", "event": "launched", "id": "reader", "attempt": 1}
+{"ts": "2026-11-19T23:05:28Z", "event": "launched", "id": "engine", "attempt": 1}
+{"ts": "2026-11-19T23:05:29Z", "event": "launched", "id": "view", "attempt": 1}
+{"ts": "2026-11-19T23:06:19Z", "event": "result", "id": "reader", "attempt": 1, "head": "f05e6554608b509ff3f5d3ad4c34cd8f508c16df", "files": 2, "tests": "passed"}
+{"ts": "2026-11-19T23:06:50Z", "event": "result", "id": "engine", "attempt": 1, "head": "5d141fd7ee61b117fea54411d030ea6eba0058b0", "files": 3, "tests": "passed"}
+{"ts": "2026-11-19T23:08:50Z", "event": "result", "id": "view", "attempt": 1, "head": "86d41dab8b322c95543bb6dabcbe0ac070091bf3", "files": 4, "tests": "passed"}
+{"ts": "2026-11-19T23:09:31Z", "event": "review", "id": "reader", "head": "f05e6554608b509ff3f5d3ad4c34cd8f508c16df", "outcome": "clean", "rounds": 1, "review_id": "coordinator-integration-check"}
+{"ts": "2026-11-19T23:09:31Z", "event": "merged", "id": "reader", "sha": "c566eaf7c50830961ae74a5f1b4ca70773e11e33"}
+{"ts": "2026-11-19T23:09:32Z", "event": "refreshed", "id": "engine", "head": "355b377293615a9bb84755d3ebd188c8b3e75298", "base": "c566eaf7c50830961ae74a5f1b4ca70773e11e33"}
+{"ts": "2026-11-19T23:09:32Z", "event": "review", "id": "engine", "head": "355b377293615a9bb84755d3ebd188c8b3e75298", "outcome": "clean", "rounds": 1, "review_id": "coordinator-integration-check"}
+{"ts": "2026-11-19T23:09:33Z", "event": "merged", "id": "engine", "sha": "68a1e59ff7ef27d9072c1b732b7a8787c414eed3"}
+{"ts": "2026-11-19T23:09:33Z", "event": "refreshed", "id": "view", "head": "e5460fa2c09a580f9ffbddb775d3a1b30ae3ce95", "base": "68a1e59ff7ef27d9072c1b732b7a8787c414eed3"}
+{"ts": "2026-11-19T23:09:33Z", "event": "review", "id": "view", "head": "e5460fa2c09a580f9ffbddb775d3a1b30ae3ce95", "outcome": "clean", "rounds": 1, "review_id": "coordinator-integration-check"}
+{"ts": "2026-11-19T23:09:34Z", "event": "merged", "id": "view", "sha": "73481f0a43181d59ba2b452c6e1310737400cd4c"}

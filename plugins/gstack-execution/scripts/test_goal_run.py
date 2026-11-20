@@ -621,6 +621,76 @@ class Runner(RunnerFixture):
         self.assertEqual(gr.load("g1")["outcome"], "stopped")
 
 
+
+class ParallelPlan(RunnerFixture):
+    """GO-017: a goal approved with DEPS.json hands dispatch to the swarm coordinator; goal_run still gates each merge
+    in dependency order. A goal without one (every other test here) stays serial."""
+    DEPS = {"version": 1, "max_workers": 3, "items": {
+        "1": {"id": "scaffold", "writes": ["helper.py"]},
+        "2": {"id": "done", "writes": ["goalmod.py"], "integrate_after": []},
+        "3": {"id": "polish", "writes": ["goalmod.py"], "integrate_after": ["done"]}}}
+
+    def setUp(self):
+        super().setUp()
+        self.commit("goal approved with a dependency plan", {"goals/g1/DEPS.json": json.dumps(self.DEPS)})
+        self.tree = self.git("rev-parse", "main:goals/g1")
+
+    def test_next_hands_every_unmerged_item_to_the_coordinator(self):
+        self.start()
+        ok, step = self.next()
+        self.assertTrue(ok)
+        self.assertEqual((step["step"], [i["n"] for i in step["items"]]), ("swarm", [1, 2, 3]))
+        self.assertTrue(step["swarm_run"].endswith("/g1/swarm"))
+        self.assertTrue(Path(step["goal_dir"], "DEPS.json").is_file())
+
+    def test_merges_follow_integration_order_not_plan_order(self):
+        self.start()
+        with self.assertRaisesRegex(gr.Refused, r"integrates after item\(s\) \[2\]"):
+            gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\np = 1\n"), 3)
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\n"), 2)       # item 2 before item 1: no dependency
+        self.assertEqual(gr.load("g1")["done"], [2])
+        gr.merged(self.repo, "g1", self.item("done = True\nsafe = True\np = 1\n"), 3)
+        self.assertEqual([i["n"] for i in self.next()[1]["items"]], [1])
+
+    def test_an_item_behind_an_unmerged_prerequisite_can_still_be_reported_failed(self):
+        self.start()
+        out = gr.failed("g1", 3, "blocked: its prerequisite done is blocked")
+        self.assertEqual(out["outcome"], "stopped")
+
+    def test_a_blocked_item_is_told_to_dorian_at_once_and_the_run_goes_on(self):
+        self.start()
+        gr.blocked("g1", 2, "rounds_exhausted after 3 rounds")
+        st = gr.load("g1")
+        self.assertEqual([(m["trigger"], m["kind"]) for m in st["messages"] if m["kind"] == "escalation"], [("review_cap", "escalation")])
+        ok, step = self.next()
+        self.assertEqual((ok, step["step"], st["outcome"]), (True, "swarm", None))
+        gr.merged(self.repo, "g1", self.item("done = False\nsafe = True\nh = 1\n"), 1)   # independent item 1 still merges
+
+    def test_blocked_is_refused_on_a_serial_run(self):
+        (self.repo / "goals" / "g1" / "DEPS.json").unlink()
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "serial")
+        self.tree = self.git("rev-parse", "main:goals/g1")
+        self.start()
+        with self.assertRaisesRegex(gr.Refused, "for a parallel run"):
+            gr.blocked("g1", 1, "x")
+
+    def test_a_successor_with_a_deps_file_is_refused(self):
+        for f in ("GOAL.md", "PLAN.md", "DEPS.json", "holdout.sha256"):
+            src = self.repo / "goals" / "g1" / f
+            self.commit("successor", {f"goals/g1--s1/{f}": src.read_text()})
+        self.tree = self.git("rev-parse", "main:goals/g1--s1")
+        with self.assertRaisesRegex(gr.Refused, "successor; its DEPS.json"):
+            gr.start(self.repo, "g1--s1", 7, "claude/claude-opus", self.verify(), {"contents": "write", "pull_requests": "write"},
+                     self.create, base="main", repo_name="o/r", environments=lambda: ["goal-holdout"])
+
+    def test_a_plan_whose_overlapping_writes_have_no_order_is_refused_at_start(self):
+        bad = dict(self.DEPS, items=dict(self.DEPS["items"], **{"3": {"id": "polish", "writes": ["goalmod.py"]}}))
+        self.commit("unordered", {"goals/g1/DEPS.json": json.dumps(bad)})
+        self.tree = self.git("rev-parse", "main:goals/g1")
+        with self.assertRaisesRegex(ValueError, "overlapping paths with no order"):
+            self.start()
+
+
 class MergedUsesTheContainer(RunnerFixture):
     def test_merged_runs_the_goal_tests_through_sandboxed(self):
         """GO-003.11: merged judges a head the way goal-tests does, not on the bare host."""

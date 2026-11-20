@@ -16,6 +16,9 @@
         (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded. --unsure
         is what the agent is least sure of in the item, for its digest (GO-006.1); --review names the
         item's review, whose blocking findings' files are compared with the previous item's
+  goal_run.py blocked <id> --item N --reason <text>
+        GO-017, a parallel run only: item N can't go on; Dorian is told at once (a review cap escalates as
+        review_cap) and independent items continue. failed ends the run once nothing else can proceed
   goal_run.py failed <id> --item N --reason <text>
         item N's build ended without a merge (rounds_exhausted, review_unavailable, ...): the run
         stops with that reason
@@ -220,6 +223,19 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
+    if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
+        if re.search(r"--s\d+$", goal_id):
+            # goal_successor.py holds an unowned successor folder to its root's brief, not to a DEPS.json, so one here
+            # was never approved: a successor runs serially
+            raise Refused(f"{goal_id} is a successor; its DEPS.json isn't covered by the root goal's approval. Remove it to run serially")
+        import swarm
+        plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
+        by_id = {i["id"]: i["n"] for i in plan["items"]}
+        before = {i["id"]: set(i["start_after"]) | set(i["integrate_after"]) for i in plan["items"]}
+        for a, b in plan["order"]:
+            before[b].add(a)
+        state["parallel"] = {str(i["n"]): {"id": i["id"], "integrate_after": sorted(by_id[x] for x in before[i["id"]])}
+                             for i in plan["items"]}
     state["delivery"] = initial_delivery(repo, checkout_repo(repo, repo_name), record, state, secs)    # GO-012.1, before any side effect
     gguard.open_ledger(d / "ledger.jsonl", goal_id, pr, builder)               # GO-005.4
     gguard.granted(d / "ledger.jsonl", "vcs.push", f"goal/{goal_id}", [])
@@ -385,6 +401,10 @@ def next_step(repo, goal_id, base="origin/main"):
     if not remaining or capped:
         failing = sorted(set(ids) - set(state["passing"]))
         return False, end(state, "exhausted", f"the plan ran out with goal tests still failing: {failing}")
+    if state.get("parallel"):                          # GO-017: the coordinator dispatches; goal_run still gates each merge
+        return True, {"step": "swarm", "items": remaining, "swarm_run": str(d / "swarm"), "goal_dir": str(d / "goal"),
+                      "base_branch": state["branch"], "max_rounds": state["max_rounds"], "ledger": str(d / "spend.jsonl"),
+                      "spend": totals}
     item = remaining[0]
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
                   "max_rounds": state["max_rounds"],
@@ -626,12 +646,20 @@ def bind_companion(goal_id, get, pr_number, review_id, repo_name=REPO):
     return {"companion": cid, "pr": p.get("number"), "head": head, "base": base, "review_id": review_id}
 
 
-def current_item(state, item):
+def current_item(state, item, merging=True):
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
     remaining = [i for i in state["items"] if i["n"] not in state["done"]]
     if not remaining:
         raise Refused("no item is in progress")
+    if state.get("parallel"):                          # GO-017: any item whose integration prerequisites have merged
+        entry = state["parallel"].get(str(item))
+        if entry is None or item not in [i["n"] for i in remaining]:
+            raise Refused(f"item {item} isn't an unmerged item of this plan")
+        waiting = [n for n in entry["integrate_after"] if n not in state["done"]]
+        if waiting and merging:                        # an item that can't go on may always be reported failed
+            raise Refused(f"item {item} integrates after item(s) {waiting}, not merged yet")
+        return [next(i for i in remaining if i["n"] == item)] + [i for i in remaining if i["n"] != item]
     if item != remaining[0]["n"]:
         raise Refused(f"item {item} isn't the item in progress; that's item {remaining[0]['n']}")
     return remaining
@@ -640,10 +668,23 @@ def current_item(state, item):
 def failed(goal_id, item, reason):
     """An item build that ended without a merge ends the run."""
     state = load(goal_id)
-    current_item(state, item)
+    current_item(state, item, merging=False)
     if "rounds_exhausted" in reason:
         escalate(state, "review_cap", f"Item {item} reached the review cap: {reason}")
     return end(state, "stopped", f"item {item} ended without a merge: {reason}")
+
+
+def blocked(goal_id, item, reason):
+    """GO-017: in a swarm, an item that can't go on is told to Dorian at once (a review cap escalates, as three blocking
+    rounds always have) while independent items continue; failed ends the run once nothing else can proceed."""
+    state = load(goal_id)
+    if not state.get("parallel"):
+        raise Refused("blocked is for a parallel run; a serial item that can't go on is failed")
+    current_item(state, item, merging=False)
+    escalate(state, "review_cap" if "rounds_exhausted" in reason or "review cap" in reason else "item_blocked",
+             f"Item {item} is blocked: {reason}. Independent items continue; its dependents wait.")
+    save(state)
+    return {"item": item, "blocked": reason}
 
 
 SANDBOXED = True   # GO-003.11; the unit tests set it False and test the container in test_goal_checks
@@ -1525,6 +1566,8 @@ def _main(argv, repo=gb.ROOT):
                 raise Refused("refused needs GITHUB_TOKEN: run it under agent_token.py exec --")
             print(json.dumps(refused(goal_id, int(opts["--pr"]), gb.github(token), opts.get("--repo", REPO))))
             return 0
+        if cmd == "blocked" and goal_id and set(opts) == {"--item", "--reason"}:
+            print(json.dumps(blocked(goal_id, int(opts["--item"]), opts["--reason"]))); return 0
         if cmd == "holdout-failed" and goal_id and set(opts) == {"--detail"}:
             print(json.dumps(holdout_failed(goal_id, opts["--detail"])))
             return 1
