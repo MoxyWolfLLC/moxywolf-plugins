@@ -113,7 +113,7 @@ class Swarm(unittest.TestCase):
         t2 = swarm.tick(self.run)
         st = swarm.status(self.run)["items"]
         self.assertEqual((st["x"]["status"], st["y"]["status"], st["z"]["status"]), ("blocked", "blocked", "drafted"))
-        self.assertEqual(st["y"]["why"], "a prerequisite is blocked")
+        self.assertEqual(st["y"]["why"], "a prerequisite is blocked (x)")
 
     # 4
     def test_overlapping_writes_without_an_order_are_refused_and_a_diff_outside_the_claim_is_rejected(self):
@@ -248,6 +248,80 @@ class Swarm(unittest.TestCase):
         self.assertEqual(swarm.merge_gate(self.run, "b", self.repo, "main"), [])
         with self.assertRaisesRegex(ValueError, "isn't built on"):
             swarm.refresh(self.run, "b", hb, self.repo, "main", "passed")
+
+    # review 20261119-153637 round 1
+    def test_r1_f1_character_class_globs_overlap(self):
+        self.assertTrue(swarm._glob_overlap("src/[ab].py", "src/[bc].py"))
+        self.assertTrue(swarm._glob_overlap("src/[ab].py", "src/b.py"))
+        self.assertFalse(swarm._glob_overlap("src/[ab].py", "src/c.py"))
+        self.assertFalse(swarm._glob_overlap("a/x.py", "a/y.py"))
+        self.plan([self.item("a", ["src/[ab].py"]), self.item("b", ["src/[bc].py"])])
+        with self.assertRaisesRegex(ValueError, "overlapping paths with no order"):
+            swarm.load_plan(self.goal)
+
+    def test_r1_f2_a_claim_asks_for_a_committed_head(self):
+        self.plan([self.item("a", ["a/**"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        self.assertEqual(c["return"][0], "head SHA committed on the claim's branch")
+        self.assertNotIn("patch", " ".join(c["return"]))
+
+    def test_r1_f3_only_failed_launches_count_toward_the_launch_limit(self):
+        self.plan([self.item("a", ["a/**"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        head, _ = self.finish(c, ["a/x"])
+        swarm.review(self.run, "a", head, "blocking")
+        c2 = swarm.tick(self.run)["dispatch"][0]
+        swarm.launch_failed(self.run, "a", c2["attempt"], "once")
+        st = swarm.status(self.run)["items"]["a"]
+        self.assertEqual((st["status"], st["attempts"]), ("pending", 2))
+        self.assertEqual(swarm.tick(self.run)["dispatch"][0]["attempt"], 3)
+
+    def test_r1_f4_f5_a_block_reaches_in_flight_dependents_and_frees_unlaunched_reservations(self):
+        self.plan([self.item("x", ["x/**"]), self.item("y", ["y/**"], integ=["x"]), self.item("z", ["z/**"])], max_workers=2)
+        swarm.init(self.run, self.goal, self.base, 2)
+        t = swarm.tick(self.run)
+        self.assertEqual([c["id"] for c in t["dispatch"]], ["x", "y"])
+        cy = t["dispatch"][1]
+        swarm.launched(self.run, "y", 1)
+        swarm.blocked(self.run, "x", "stopped")                      # x never launched: its $1 comes back
+        st = swarm.status(self.run)
+        self.assertEqual((st["items"]["x"]["status"], st["items"]["y"]["status"], st["reserved"]), ("blocked", "blocked", 1.0))
+        self.assertEqual([c["id"] for c in swarm.tick(self.run)["dispatch"]], ["z"])   # an unrelated item gets the freed money
+        r = swarm.result(self.run, "y", 1, self.work(cy, ["y/a"]), self.repo, "passed", cost=0.5)
+        self.assertFalse(r["accepted"])                              # y's worker reports, its spend settles, it stays blocked
+        st = swarm.status(self.run)
+        self.assertEqual((st["items"]["y"]["status"], st["spent"]), ("blocked", 0.5))
+        with self.assertRaises(ValueError):
+            swarm.launched(self.run, "x", 1)
+
+    def test_r1_f6_a_pinned_contract_renamed_away_is_a_change_to_it(self):
+        self.plan([dict(self.item("a", ["a/**"]), contracts=[{"path": "contract.json", "sha256": "0" * 64}])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        c = swarm.tick(self.run)["dispatch"][0]
+        swarm.launched(self.run, "a", 1)
+        wt = self.tmp / "wt-a-1"
+        git(self.repo, "worktree", "add", "-q", "-b", c["branch"], str(wt), c["base"])
+        (wt / "a").mkdir(); git(wt, "mv", "contract.json", "a/contract.json"); git(wt, "commit", "-qm", "move")
+        r = swarm.result(self.run, "a", 1, git(wt, "rev-parse", "HEAD"), self.repo, "passed")
+        self.assertFalse(r["accepted"]); self.assertIn("contract.json", r["why"])
+
+    def test_r1_f7_a_drafted_item_reports_a_stale_target_too(self):
+        self.plan([self.item("a", ["a/**"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        self.finish(swarm.tick(self.run)["dispatch"][0], ["a/x"])
+        (self.repo / "o.txt").write_text("m\n"); git(self.repo, "add", "."); git(self.repo, "commit", "-qm", "moved")
+        reasons = swarm.merge_gate(self.run, "a", self.repo, "main")
+        self.assertTrue(any("target moved" in r for r in reasons) and any("isn't built on the target" in r for r in reasons), reasons)
+
+    def test_r1_f8_the_review_cap_is_the_briefs(self):
+        self.plan([self.item("a", ["a/**"])])
+        (self.goal / "GOAL.md").write_text("# g\n\n## Max review rounds per item\n1\n")
+        with self.assertRaisesRegex(ValueError, "differs from the brief"):
+            swarm.init(self.run, self.goal, self.base, 10, review_cap=3)
+        swarm.init(self.run, self.goal, self.base, 10)
+        self.assertEqual(swarm.load(self.run)["review_cap"], 1)
 
 
 if __name__ == "__main__":

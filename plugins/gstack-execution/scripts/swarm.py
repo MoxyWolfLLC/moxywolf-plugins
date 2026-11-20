@@ -16,11 +16,14 @@ merge: the item is drafted and tested against its pinned contracts meanwhile. Tw
 path need an order between them (integrate_after, directly or through others, or an "order" pair).
 
 The coordinator is the only writer of <run>/swarm.json. Workers get a claim (item, attempt, pinned base, branch,
-writable paths, contracts, what to return) and return a patch or head SHA, test results and unresolved issues.
+writable paths, contracts, what to return) and return the head SHA they committed on the claim's branch, test results
+and unresolved issues.
 They don't dispatch workers, write run state, merge, deploy or see the holdout.
 
   swarm.py check <goal dir>                                   validate DEPS.json against PLAN.md
   swarm.py init <run> --goal <goal dir> --base <sha> --budget <usd> [--review-cap N]
+                                                              the cap is the brief's Max review rounds per item when
+                                                              the goal has a GOAL.md; --review-cap must then agree
   swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every eligible item up to max_workers
   swarm.py launched <run> <id> --attempt N                    the Agent call started
   swarm.py launch-failed <run> <id> --attempt N --reason R    it didn't; visible, retried by a later tick
@@ -62,13 +65,21 @@ def plan_numbers(plan_text):
     return [int(m.group(1)) for m in re.finditer(r"^(\d+)\.\s+\S", plan_text, re.M)]
 
 
+GLOB = re.compile(r"[*?\[]")
+
+
 def _glob_overlap(a, b):
-    # ponytail: literal-prefix test, so "src/**" and "src/x.py" overlap; two globs that only meet in the middle
-    # ("*.py" vs "a/*") read as overlapping too, which errs toward asking for an order, never toward a race
-    if a == b or fnmatch.fnmatch(a, b) or fnmatch.fnmatch(b, a):
-        return True
-    pa, pb = re.split(r"[*?\[]", a)[0], re.split(r"[*?\[]", b)[0]
-    return ("*" in a or "?" in a) and pb.startswith(pa) or ("*" in b or "?" in b) and pa.startswith(pb)
+    """Could two writable patterns name the same path? A literal against a pattern is exact; two patterns compare
+    their literal prefixes, so any glob syntax ([ab] included, review F1) errs toward asking for an order."""
+    # ponytail: two globs that only meet in the middle ("*.py" vs "a/*") read as overlapping, never as a race
+    ga, gb = bool(GLOB.search(a)), bool(GLOB.search(b))
+    if not ga and not gb:
+        return a == b
+    if ga != gb:
+        lit, pat = (b, a) if ga else (a, b)
+        return fnmatch.fnmatchcase(lit, pat)
+    pa, pb = GLOB.split(a)[0], GLOB.split(b)[0]
+    return pa.startswith(pb) or pb.startswith(pa)
 
 
 def load_plan(goal_dir):
@@ -175,8 +186,23 @@ def mutate(run, fn):
             fcntl.flock(fh, fcntl.LOCK_UN)
 
 
-def init(run, goal_dir, base, budget, review_cap=3):
+def goal_review_cap(goal_dir):
+    """The brief's Max review rounds per item, when the goal has a brief (review F8)."""
+    f = Path(goal_dir) / "GOAL.md"
+    if not f.is_file():
+        return None
+    m = re.search(r"^## Max review rounds per item\s*\n+\s*(\d+)", f.read_text(), re.M)
+    if not m:
+        raise ValueError(f"{f} has no Max review rounds per item")
+    return int(m.group(1))
+
+
+def init(run, goal_dir, base, budget, review_cap=None):
     plan = load_plan(goal_dir)
+    brief_cap = goal_review_cap(goal_dir)
+    if brief_cap is not None and review_cap is not None and review_cap != brief_cap:
+        raise ValueError(f"--review-cap {review_cap} differs from the brief's Max review rounds per item {brief_cap}")
+    review_cap = brief_cap if brief_cap is not None else (review_cap or 3)
     run = Path(run); run.mkdir(parents=True, exist_ok=True)
     if _paths(run)[0].exists():
         raise ValueError(f"{run} already has a swarm; resume it with tick")
@@ -205,6 +231,9 @@ def tick(run, halted=False, spend_stop=False):
     rest waits."""
     def go(s):
         out = {"dispatch": [], "running": [], "waiting": [], "stopped": None}
+        for k, v in list(s["items"].items()):             # an item blocked by any path blocks its dependents now
+            if v["status"] == "blocked":
+                _block(run, s, k, v["why"] or "blocked")
         if halted or spend_stop:
             out["stopped"] = "HALT" if halted else "spend stop"
         running = [k for k, v in s["items"].items() if v["status"] in RUNNING]
@@ -213,6 +242,8 @@ def tick(run, halted=False, spend_stop=False):
             if st["status"] in RUNNING:
                 out["running"].append({"id": i["id"], "status": st["status"], "attempt": st["attempts"]})
                 continue
+            if st["status"] == "blocked" and st.get("inflight"):
+                out["running"].append({"id": i["id"], "status": "blocked, worker still reporting", "attempt": st["inflight"]})
             if st["status"] in ("merged", "blocked", "drafted", "reviewed"):
                 if st["status"] != "merged":
                     why = st["why"] or ("integration waits for " + ", ".join(
@@ -220,10 +251,6 @@ def tick(run, halted=False, spend_stop=False):
                     out["waiting"].append({"id": i["id"], "status": st["status"], "why": why or "awaiting review or merge"})
                 continue
             blockers = [d for d in i["start_after"] if s["items"][d]["status"] != "merged"]
-            if any(s["items"][d]["status"] == "blocked" for d in _ancestors(_edges(s), i["id"])):
-                st.update(status="blocked", why="a prerequisite is blocked")
-                _event(run, "blocked", id=i["id"], why=st["why"])
-                out["waiting"].append({"id": i["id"], "status": "blocked", "why": st["why"]}); continue
             if blockers:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "start waits for " + ", ".join(blockers)}); continue
             if out["stopped"]:
@@ -233,12 +260,13 @@ def tick(run, halted=False, spend_stop=False):
             if i["estimate_usd"] > _remaining(s) + 1e-9:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": f"budget: ${_remaining(s):.2f} left, needs ${i['estimate_usd']:.2f}"}); continue
             st["attempts"] += 1
+            st["inflight"] = st["attempts"]
             key = f"{i['id']}#{st['attempts']}"
             s["reserved"][key] = i["estimate_usd"]       # reserved before the launch, released or settled after
             base = s["base"] if not i["start_after"] else s["integration_head"]
             claim = {"id": i["id"], "n": i["n"], "attempt": st["attempts"], "base": base,
                      "branch": f"swarm/{i['id']}-a{st['attempts']}", "writes": i["writes"], "contracts": i["contracts"],
-                     "return": ["head SHA or patch", "tests run and their result", "unresolved issues"],
+                     "return": ["head SHA committed on the claim's branch", "tests run and their result", "unresolved issues"],
                      "may_not": ["dispatch workers", "write run state", "merge", "deploy", "read the holdout"]}
             st.update(status="dispatched", why=None, claim=claim)
             running.append(i["id"])
@@ -256,13 +284,17 @@ def _edges(s):
 
 
 def _attempt(st, attempt, iid):
-    if st["status"] not in RUNNING or st["attempts"] != attempt:
+    """The attempt must be the one in flight. A worker that was blocked while running may still report, so its
+    reservation settles (review F5); its result is kept as evidence and the item stays blocked."""
+    if st.get("inflight") != attempt or st["status"] not in RUNNING + ("blocked",):
         raise ValueError(f"{iid} attempt {attempt} isn't in flight (status {st['status']}, attempt {st['attempts']})")
 
 
 def launched(run, iid, attempt):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
+        if st["status"] == "blocked":
+            raise ValueError(f"{iid} was blocked before its launch was recorded")
         st["status"] = "running"; st["started_at"] = now()
         _event(run, "launched", id=iid, attempt=attempt)
     mutate(run, go)
@@ -272,8 +304,13 @@ def launch_failed(run, iid, attempt, reason):
     def go(s):
         _, st = _item(s, iid); _attempt(st, attempt, iid)
         s["reserved"].pop(f"{iid}#{attempt}", None)      # nothing ran, nothing is charged
-        st.update(status="blocked" if st["attempts"] >= MAX_LAUNCHES else "pending",
-                  why=f"launch failed: {reason}")
+        st["inflight"] = None
+        st["launch_failures"] = st.get("launch_failures", 0) + 1   # review F3: its own count, not the attempt number
+        if st["status"] != "blocked":
+            if st["launch_failures"] >= MAX_LAUNCHES:
+                _block(run, s, iid, f"launch failed {st['launch_failures']} times: {reason}")
+            else:
+                st.update(status="pending", why=f"launch failed: {reason}")
         _event(run, "launch_failed", id=iid, attempt=attempt, reason=reason)
     mutate(run, go)
 
@@ -282,22 +319,34 @@ def git(repo, *a):
     return subprocess.run(["git", "-C", str(repo), *a], capture_output=True, text=True, check=True).stdout.strip()
 
 
+def _changed(repo, base, head):
+    """Every path the change touches, both sides of a rename (review F6): a pinned contract moved away is a change to it."""
+    return sorted({f for f in git(repo, "diff", "--name-only", "--no-renames", f"{base}..{head}").splitlines() if f})
+
+
 def result(run, iid, attempt, head, repo, tests, cost=None, unresolved=""):
     """Check the worker's actual diff against its assignment before anything else believes it."""
     def go(s):
         i, st = _item(s, iid); _attempt(st, attempt, iid)
         base = st["claim"]["base"]
-        files = [f for f in git(repo, "diff", "--name-only", f"{base}..{head}").splitlines() if f]
+        files = _changed(repo, base, head)
         outside = [f for f in files if not any(fnmatch.fnmatch(f, w) or f == w for w in i["writes"])]
         changed = [c["path"] for c in i["contracts"] if c["path"] in files]
         res = s["reserved"].pop(f"{iid}#{attempt}", 0.0)
         s["spent"] += float(cost) if cost is not None else res   # settle: the actual cost, else the reservation
-        st["finished_at"] = now()
+        st["finished_at"] = now(); st["inflight"] = None
+        if st["status"] == "blocked":                    # blocked while it ran: the spend settles, nothing advances
+            _event(run, "result_after_block", id=iid, attempt=attempt, head=head)
+            return {"accepted": False, "why": "the item was blocked while this attempt ran: " + (st["why"] or "")}
         if outside or changed or tests != "passed" or not files:
             why = ("wrote outside its paths: " + ", ".join(outside)) if outside else \
                   ("changed a pinned contract: " + ", ".join(changed)) if changed else \
                   ("tests " + tests) if tests != "passed" else "returned no change"
-            st.update(status="pending" if st["attempts"] < MAX_LAUNCHES and not outside and not changed else "blocked", why=why)
+            st["result_failures"] = st.get("result_failures", 0) + 1
+            if st["result_failures"] < MAX_LAUNCHES and not outside and not changed:
+                st.update(status="pending", why=why)
+            else:
+                _block(run, s, iid, why)
             _event(run, "result_rejected", id=iid, attempt=attempt, head=head, why=why)
             return {"accepted": False, "why": why}
         st.update(status="drafted", why=None, evidence={"head": head, "base": base, "files": files, "tests": tests,
@@ -317,7 +366,7 @@ def review(run, iid, head, outcome, review_id=None):
         if outcome == "clean":
             st.update(status="reviewed", review={"head": head, "id": review_id})
         elif st["review_rounds"] >= s["review_cap"]:
-            st.update(status="blocked", why=f"review cap {s['review_cap']} reached")
+            _block(run, s, iid, f"review cap {s['review_cap']} reached")
         else:
             st.update(status="pending", why=f"review round {st['review_rounds']} found blocking findings")
         _event(run, "review", id=iid, head=head, outcome=outcome, rounds=st["review_rounds"], review_id=review_id)
@@ -338,14 +387,14 @@ def refresh(run, iid, head, repo, target, tests):
             git(repo, "merge-base", "--is-ancestor", tip, head)
         except subprocess.CalledProcessError:
             raise ValueError(f"{head[:12]} isn't built on {target} at {tip[:12]}")
-        files = [f for f in git(repo, "diff", "--name-only", f"{tip}..{head}").splitlines() if f]
+        files = _changed(repo, tip, head)
         outside = [f for f in files if not any(fnmatch.fnmatch(f, w) or f == w for w in i["writes"])]
         changed = [c["path"] for c in i["contracts"] if c["path"] in files]
         if outside or changed or tests != "passed" or not files:
             why = ("refresh wrote outside its paths: " + ", ".join(outside)) if outside else \
                   ("refresh changed a pinned contract: " + ", ".join(changed)) if changed else \
                   ("refresh tests " + tests) if tests != "passed" else "refresh carries no change"
-            st.update(status="blocked", why=why)
+            _block(run, s, iid, why)
             _event(run, "refresh_rejected", id=iid, head=head, why=why)
             return {"accepted": False, "why": why}
         st.update(status="drafted", review=None, why=None,
@@ -357,10 +406,24 @@ def refresh(run, iid, head, repo, target, tests):
 
 def blocked(run, iid, reason):
     def go(s):
-        _, st = _item(s, iid)
-        st.update(status="blocked", why=reason)
-        _event(run, "blocked", id=iid, why=reason)
+        _item(s, iid)
+        _block(run, s, iid, reason)
     mutate(run, go)
+
+
+def _block(run, s, iid, reason):
+    """Block an item and, at once, every unmerged item that depends on it by any edge (review F4). A claim that never
+    launched gives its reservation back (F5); one that is running keeps it until its worker reports."""
+    edges = _edges(s)
+    hit = [iid] + [j for j in edges if iid in _ancestors(edges, j)]
+    for j in hit:
+        st = s["items"][j]
+        if st["status"] in ("merged", "blocked"):
+            continue
+        if st["status"] == "dispatched":
+            s["reserved"].pop(f"{j}#{st['attempts']}", None); st["inflight"] = None
+        st.update(status="blocked", why=reason if j == iid else f"a prerequisite is blocked ({iid})")
+        _event(run, "blocked", id=j, why=st["why"])
 
 
 def merge_gate(run, iid, repo, target, halted=False):
@@ -373,9 +436,9 @@ def merge_gate(run, iid, repo, target, halted=False):
         reasons.append("HALT")
     if st["status"] != "reviewed":
         reasons.append(f"status is {st['status']}, not reviewed")
-    else:
-        if st["review"]["head"] != st["evidence"]["head"]:
-            reasons.append("review head differs from the tested head")
+    elif st["review"]["head"] != st["evidence"]["head"]:
+        reasons.append("review head differs from the tested head")
+    if st.get("evidence"):                               # review F7: a drafted item's staleness is reported too
         tip = git(repo, "rev-parse", target)
         if tip != s["integration_head"]:
             reasons.append(f"target moved to {tip[:12]} since the coordinator's last merge {s['integration_head'][:12]}")
@@ -411,7 +474,7 @@ def main(argv):
     for f in ("--goal", "--base", "--budget", "--halt", "--reason", "--head", "--repo", "--tests", "--cost",
               "--unresolved", "--outcome", "--review-id", "--target", "--sha"):
         p.add_argument(f)
-    p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int, default=3)
+    p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int)
     p.add_argument("--spend-stop", action="store_true")
     a = p.parse_args(argv)
     try:
