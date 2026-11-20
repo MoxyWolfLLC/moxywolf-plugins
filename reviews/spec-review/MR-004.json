@@ -1,0 +1,87 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "MR-004",
+  "scope_sha256": "45c7dd6cca2649c3e7916574610f0237a51453b52cc1adbfdc4772c4e6eb8228",
+  "reviewed_at": "2026-11-20T03:36:21+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 5505,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 8298,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 8298,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 8298,
+      "cache_creation_input_tokens": 5545,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5545,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 15483,
+      "output_tokens": 2982,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1775,
+      "cache_read_input_tokens": 13843,
+      "cache_creation_input_tokens": 268,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 268,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 22141,
+    "write": 14111
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "MR-004.2"
+      ],
+      "question": "The criterion says a floor-role launch passes if it names a model \"at or above the floor model that the host allows\". It also says \"a floor model outside `MODEL_ROUTER_ALLOWED_MODELS`, is denied\". Suppose the allowed set excludes `opus` but includes `fable`, and a review launch names `fable`. Is it allowed, because `fable` ranks above the floor and is allowed? Or is it denied, because the floor model `opus` is outside the allowed set?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "MR-004.5",
+        "MR-004.2"
+      ],
+      "question": "MR-004.5 says an unclassified role with Jev unreachable \"returns the table's `floor` tier\". MR-004.2 uses \"floor\" for the required floor of review and security roles (`required_floor`, `FLOOR_MODEL`). Is the table's `floor` tier the same as the required-floor model, or a separate lowest tier? What `required_floor` value does that output carry, and which allowed-set check does it face?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "MR-004.2",
+        "MR-004.6"
+      ],
+      "question": "MR-004.6 says a `security:security` or review launch \"without an allowed model\" is refused by the host. MR-004.2 refuses unless the model is at or above the floor and allowed. Is a launch naming an allowed model below the floor, such as `sonnet`, expected to be refused in MR-004.6's host test? Does \"allowed model\" in MR-004.6 mean at or above the floor and allowed?"
+    }
+  ]
+}

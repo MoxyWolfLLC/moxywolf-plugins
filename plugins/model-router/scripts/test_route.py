@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -72,7 +73,9 @@ class Hooks(unittest.TestCase):
 
     def run_hook(self, cmd, payload, endpoint=None, **env):
         e = {k: v for k, v in os.environ.items() if k not in {"GSTACK_PEER_REVIEW_DIR", "JEV_ENDPOINT", "AI_GATEWAY_API_KEY", "GSTACK_AIGATEWAY_ENV"}}
-        e.update(GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=endpoint or self.endpoint, AI_GATEWAY_API_KEY="k-test"); e.update(env)
+        # MR-004: these MR-003 tests pin the rewrite, which is now opt-in; Mr004 below runs the default
+        e.update(GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=endpoint or self.endpoint, AI_GATEWAY_API_KEY="k-test",
+                 MODEL_ROUTER_REWRITE="1"); e.update(env)
         t = time.monotonic()
         r = subprocess.run([sys.executable, str(SCRIPT), cmd], input=json.dumps(payload), capture_output=True, text=True, env=e, cwd=str(self.root))
         r.seconds = time.monotonic() - t
@@ -88,7 +91,7 @@ class Hooks(unittest.TestCase):
         return plugin
 
     def run_plugin(self, plugin, cmd, payload):
-        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=self.endpoint, AI_GATEWAY_API_KEY="k-test")
+        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=self.endpoint, AI_GATEWAY_API_KEY="k-test", MODEL_ROUTER_REWRITE="1")
         return subprocess.run([sys.executable, str(plugin / "scripts" / "route.py"), cmd], input=json.dumps(payload), capture_output=True, text=True, env=e)
 
     def session_lines(self, sid):
@@ -252,9 +255,12 @@ class Hooks(unittest.TestCase):
 
     def test_a_review_subagent_is_never_moved_below_floor(self):
         Stub.answers = {"docs_only": 0.95}
+        # MR-004.2: even under the opt-in rewrite an unmodelled review launch is refused, never moved or run
         r = self.call("Agent", FIXTURE_CALL["review-subagent"][1])
-        self.assertEqual(self.updated(r)["model"], "opus")
-        self.assertEqual((self.ledger()[-1]["tier"], self.ledger()[-1]["decided_by"]), ("floor", "table"))
+        self.assertEqual(json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")
+        r = self.call("Agent", {**FIXTURE_CALL["review-subagent"][1], "model": "opus"})
+        self.assertEqual(r.stdout.strip(), "")
+        self.assertEqual((self.ledger()[-1]["tier"], self.ledger()[-1]["decided_by"]), ("floor", "caller (table advised opus)"))
 
     # ---- MR-003.8: Jev unreachable, forced failure ----
 
@@ -345,7 +351,7 @@ class Hooks(unittest.TestCase):
         self.assertEqual(self.updated(r)["model"], "sonnet")
         last = self.ledger()[-1]
         self.assertEqual((last["class"], last["department"], last["cos_run"], last["decided_by"]), ("department-subagent", "finance", "2026-10-14-margin", "jev"))
-        self.assertEqual((last["applied_model"], last["floor_rule"]), ("sonnet", False))
+        self.assertEqual((last["requested_model"], last["floor_rule"]), ("sonnet", False))
         # F12: a second session in the same project starts its own run; neither sees the other's
         self.cos_run("start", "2026-10-14-hiring", sid="s9")
         r = self.call("Agent", FIXTURE_CALL["department-subagent"][1])
@@ -381,15 +387,17 @@ class Hooks(unittest.TestCase):
         r = self.call("Agent", {**FIXTURE_CALL["department-subagent"][1], "model": "haiku"}, COS_RUN_ID="env-run")
         self.assertEqual(self.updated(r), None)
         last = self.ledger()[-1]
-        self.assertEqual((last["applied_model"], last["caller_model"], last["floor_rule"], last["cos_run"]), ("haiku", "haiku", False, "env-run"))
+        self.assertEqual((last["requested_model"], last["caller_model"], last["floor_rule"], last["cos_run"]), ("haiku", "haiku", False, "env-run"))
 
     def test_the_security_department_is_never_moved_below_floor(self):
         Stub.answers = {"docs_only": 0.95}
         r = self.call("Agent", {"subagent_type": "security:security", "prompt": "read the policy"})
-        self.assertEqual(self.updated(r)["model"], "opus")
+        self.assertEqual(json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"], "deny")   # MR-004.2
+        r = self.call("Agent", {"subagent_type": "security:security", "prompt": "read the policy", "model": "opus"})
+        self.assertEqual(r.stdout.strip(), "")
         last = self.ledger()[-1]
         self.assertEqual((last["department"], last["tier"], last["floor_locked_from"]), ("security", "floor", "light"))
-        self.assertEqual((last["applied_model"], last["floor_rule"]), ("opus", True))   # F5: the lock is a floor rule, written here
+        self.assertEqual((last["requested_model"], last["floor_rule"]), ("opus", True))   # F5: the lock is a floor rule, written here
 
     def aar(self, d, date):
         r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", date], capture_output=True, text=True)
@@ -498,6 +506,170 @@ class Hooks(unittest.TestCase):
         for ev, arg in (("SessionStart", "session-start"), ("PreToolUse", "pre-tool-use"), ("SessionEnd", "session-end")):
             cmd = h[ev][0]["hooks"][0]["command"]
             self.assertIn("scripts/route.py", cmd); self.assertIn(arg, cmd); self.assertTrue(cmd.endswith("exit 0"))
+
+
+class Mr004(Hooks):
+    """MR-004: the default never mutates a tool input; a required floor it can't guarantee is denied, not run below;
+    the ledger keeps recommended, requested and confirmed launch apart. Runs the hook as the host does, default env."""
+    def run_hook(self, cmd, payload, endpoint=None, **env):
+        return super().run_hook(cmd, payload, endpoint, **{"MODEL_ROUTER_REWRITE": "", **env})
+
+    def agent(self, subagent_type, **extra):
+        return self.call("Agent", {"subagent_type": subagent_type, "description": "d", "prompt": "p", **extra})
+
+    def test_default_records_a_recommendation_and_leaves_the_input_alone(self):
+        Stub.answers = {"docs_only": 0.9}
+        for t in ("Explore", "general-purpose", "finance:finance"):
+            r = self.agent(t)
+            self.assertEqual((r.returncode, r.stdout.strip()), (0, ""), t)   # no updatedInput, no decision: the call runs as sent
+        lines = [l for l in self.ledger() if l.get("tool") == "Agent"]
+        self.assertEqual([l["recommended_model"] for l in lines], ["haiku", "haiku", "haiku"])
+        for l in lines:
+            self.assertEqual((l["requested_model"], l["mutated"], l["launch"], l["routed"], l.get("inherited")), (None, False, "requested", False, True))
+            self.assertNotIn("applied_model", l)
+
+    def test_an_explicit_model_stands_and_is_the_requested_model(self):
+        r = self.agent("Explore", model="sonnet")
+        self.assertEqual(r.stdout.strip(), "")
+        l = self.ledger()[-1]
+        self.assertEqual((l["recommended_model"], l["requested_model"], l["mutated"]), ("haiku", "sonnet", False))
+
+    def test_a_required_floor_without_a_model_is_denied_with_the_model_to_use(self):
+        for t in ("code-review", "security:security"):
+            r = self.agent(t)
+            self.assertEqual(r.returncode, 0)
+            out = json.loads(r.stdout)["hookSpecificOutput"]
+            self.assertEqual(out["permissionDecision"], "deny", t)
+            self.assertNotIn("updatedInput", out)
+            self.assertIn('model: "opus"', out["permissionDecisionReason"])
+        lines = [l for l in self.ledger() if l.get("tool") == "Agent"]
+        self.assertEqual([l["launch"] for l in lines], ["refused_floor_unverified"] * 2)
+        r = self.agent("security:security", model="opus")             # the dispatcher's relaunch passes
+        self.assertEqual(r.stdout.strip(), "")
+
+    def test_rewrite_is_opt_in_only(self):
+        ex = {"subagent_type": "Explore", "description": "d", "prompt": "p"}
+        r = self.call("Agent", ex, MODEL_ROUTER_REWRITE="1")
+        self.assertEqual(self.updated(r)["model"], "haiku")
+        self.assertEqual((self.ledger()[-1]["mutated"], self.ledger()[-1]["routed"]), (True, True))
+        for v in ("", "0", "true", "yes"):
+            self.assertEqual(self.call("Agent", ex, MODEL_ROUTER_REWRITE=v).stdout.strip(), "", v)
+
+    def test_a_hook_line_is_not_a_launch_until_post_tool_use_confirms_it(self):
+        self.agent("Explore")
+        self.assertFalse([l for l in self.ledger() if l.get("event") == "launch"])
+        self.run_hook("post-tool-use", {"session_id": self.sid, "tool_name": "Agent", "tool_use_id": "t1", "tool_response": {"content": "ok"}})
+        self.run_hook("post-tool-use", {"session_id": self.sid, "tool_name": "Read", "tool_use_id": "t2", "tool_response": "x"})
+        launches = [l for l in self.ledger() if l.get("event") == "launch"]
+        self.assertEqual([(l["tool_use_id"], l["outcome"]) for l in launches], [("t1", "returned")])
+
+    def test_recommend_gives_the_dispatcher_an_allowed_model_before_launch(self):
+        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root), JEV_ENDPOINT=self.endpoint, AI_GATEWAY_API_KEY="k-test")
+        def rec(*a, **env):
+            r = subprocess.run([sys.executable, str(SCRIPT), "recommend", *a], capture_output=True, text=True, env={**e, **env})
+            return r.returncode, json.loads(r.stdout)
+        self.assertEqual(rec("--subagent-type", "Explore")[1]["model"], "haiku")
+        rc, out = rec("--subagent-type", "security:security")
+        self.assertEqual((rc, out["model"], out["required_floor"]), (0, "opus", True))
+        Stub.fail = True                                               # Jev down, unclassified: the dearer tier, never downward
+        self.assertEqual(rec("--subagent-type", "mystery")[1]["model"], "opus")
+        rc, out = rec("--subagent-type", "Explore", MODEL_ROUTER_ALLOWED_MODELS="opus,sonnet")
+        self.assertEqual(rc, 2); self.assertIn("doesn't allow", out["error"])
+
+    def test_an_unclassified_launch_with_jev_down_still_records_the_mr004_fields(self):   # review F1
+        r = self.call("Agent", {"subagent_type": "something:new", "prompt": "x"}, endpoint="http://127.0.0.1:9")
+        self.assertEqual(r.stdout.strip(), "")
+        l = self.ledger()[-1]
+        self.assertEqual((l["class"], l["recommended_model"], l["decided_by"], l["requested_model"], l["inherited"], l["mutated"], l["launch"]),
+                         ("unclassified", "opus", "default_floor", None, True, False, "requested"))
+
+    def test_aar_counts_a_requested_model_as_a_launch_only_when_confirmed(self):   # review F2
+        d = self.root / "aar"; d.mkdir()
+        day = "2026-11-19"
+        rows = [{"ts": f"{day}T10:00:00Z", "class": "department-subagent", "tool": "Agent", "routed": False, "department": "finance",
+                 "requested_model": "sonnet", "tool_use_id": t, "subagent_type": "finance:finance", "cos_run": "r1"} for t in ("ran", "never")]
+        rows.append({"ts": f"{day}T10:00:05Z", "event": "launch", "tool": "Agent", "tool_use_id": "ran", "outcome": "returned"})
+        (d / "20261119-s1.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", day], capture_output=True, text=True)
+        self.assertIn("1 department dispatches", r.stdout)
+        self.assertIn("1 Agent requests named a model but no launch line confirms they ran", r.stdout)
+        # round 2: another session's confirmation and an id-less one confirm nothing here
+        other = [{"ts": f"{day}T11:00:00Z", "class": "department-subagent", "tool": "Agent", "routed": False, "department": "pmo",
+                  "requested_model": "haiku", "tool_use_id": t, "subagent_type": "pmo:pmo"} for t in ("ran", None)]
+        (d / "20261119-s2.jsonl").write_text("\n".join(json.dumps(r) for r in other) + "\n")
+        with open(d / "20261119-s1.jsonl", "a") as f:
+            f.write(json.dumps({"ts": f"{day}T11:00:05Z", "event": "launch", "tool": "Agent", "tool_use_id": None, "outcome": "returned"}) + "\n")
+        r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", day], capture_output=True, text=True)
+        self.assertIn("1 department dispatches", r.stdout)
+        self.assertIn("3 Agent requests named a model but no launch line confirms they ran", r.stdout)
+        self.assertIn("4 calls across 2 session ledgers", r.stdout)   # unconfirmed requests are still calls
+
+    def test_a_required_floor_holds_for_an_explicit_model_too(self):   # MR-004.2, Dorian 2026-11-19
+        for t, m, ok in (("security:security", "haiku", False), ("code-review", "sonnet", False), ("security:security", "gpt-6", False),
+                         ("security:security", "opus", True), ("code-review", "fable", True), ("security:security", "claude-opus-5-5", True),
+                         ("finance:finance", "haiku", True), ("Explore", "haiku", True)):
+            for rewrite in ("", "1"):
+                r = self.call("Agent", {"subagent_type": t, "description": "d", "prompt": "p", "model": m}, MODEL_ROUTER_REWRITE=rewrite)
+                self.assertEqual(r.returncode, 0)
+                if ok:
+                    self.assertEqual(r.stdout.strip(), "", (t, m, rewrite))
+                    self.assertEqual(self.ledger()[-1]["requested_model"], m)
+                else:
+                    out = json.loads(r.stdout)["hookSpecificOutput"]
+                    self.assertEqual((out["permissionDecision"], "updatedInput" in out), ("deny", False), (t, m, rewrite))
+                    self.assertIn('model: "opus"', out["permissionDecisionReason"])
+                    l = self.ledger()[-1]
+                    self.assertEqual((l["launch"], l["requested_model"], l["caller_model"]), ("refused_floor_unverified", m, m))
+
+    def test_the_floor_holds_when_routing_is_off_the_table_is_invalid_the_ledger_cant_write_or_the_gate_fails(self):
+        """Dorian, 2026-11-19: enforcement is independent of routing and logging; a failure refuses, never lets through."""
+        def denied(r):
+            return r.returncode == 0 and json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+        sec = {"subagent_type": "security:security", "prompt": "p"}
+        rev = {"subagent_type": "code-review", "prompt": "p", "model": "sonnet"}
+        ok = {"subagent_type": "security:security", "prompt": "p", "model": "opus"}
+        plain = {"subagent_type": "general-purpose", "prompt": "p"}
+        # 1. invalid table: a plugin copy with no ontology, routing off for the session
+        plugin = self.plugin_copy("broken")
+        for sid in ("t1",):
+            self.run_plugin(plugin, "session-start", {"session_id": sid})
+            for tin in (sec, rev):
+                self.assertTrue(denied(self.run_plugin(plugin, "pre-tool-use", {"session_id": sid, "tool_name": "Agent", "tool_input": tin})), tin)
+            for tin in (ok, plain):
+                r = self.run_plugin(plugin, "pre-tool-use", {"session_id": sid, "tool_name": "Agent", "tool_input": tin})
+                self.assertEqual((r.returncode, r.stdout.strip()), (0, ""), tin)
+        # 2. routing off from earlier in the session, table since restored
+        (plugin / "references" / "call-ontology.json").write_text(ONTOLOGY.read_text())
+        self.assertTrue(denied(self.run_plugin(plugin, "pre-tool-use", {"session_id": "t1", "tool_name": "Agent", "tool_input": sec})))
+        self.assertEqual(self.run_plugin(plugin, "pre-tool-use", {"session_id": "t1", "tool_name": "Agent", "tool_input": plain}).stdout.strip(), "")
+        # 3. a ledger that can't be written: the session's file is a directory
+        day = datetime.now(timezone.utc).strftime("%Y%m%d")
+        led = self.root / "model-routing"; led.mkdir(exist_ok=True)
+        for f in led.glob(f"*-{self.sid}.jsonl"):
+            f.unlink()
+        (led / f"{day}-{self.sid}.jsonl").mkdir()
+        self.assertTrue(denied(self.call("Agent", sec)))
+        self.assertTrue(denied(self.call("Agent", rev)))
+        self.assertEqual(self.call("Agent", ok).stdout.strip(), "")
+        self.assertEqual(self.call("Agent", plain).stdout.strip(), "")
+        # 4. the gate itself raises: a floor role is refused, others are not
+        self.assertTrue(denied(self.call("Agent", sec, MODEL_ROUTER_FORCE_GATE_ERROR="1")))
+        self.assertEqual(self.call("Agent", plain, MODEL_ROUTER_FORCE_GATE_ERROR="1").stdout.strip(), "")
+        # 5. input that isn't JSON but names the Agent tool and a floor role
+        e = dict(os.environ, GSTACK_PEER_REVIEW_DIR=str(self.root))
+        r = subprocess.run([sys.executable, str(SCRIPT), "pre-tool-use"], input='{"tool_name": "Agent", "tool_input": {"subagent_type": "security:x"',
+                           capture_output=True, text=True, env=e)
+        self.assertTrue(denied(r))
+        # 6. a floor model the host doesn't allow can't satisfy the floor
+        self.assertTrue(denied(self.call("Agent", ok, MODEL_ROUTER_ALLOWED_MODELS="sonnet,haiku")))
+
+    def test_selftest_holds_the_gate_to_the_ontology(self):
+        r = subprocess.run([sys.executable, str(SCRIPT), "--selftest"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+
+for _n in [n for n in dir(Hooks) if n.startswith("test_") and n not in Mr004.__dict__]:
+    setattr(Mr004, _n, None)   # Mr004 reuses Hooks' stub and helpers, not its MR-003 (opt-in rewrite) tests
 
 
 if __name__ == "__main__":
