@@ -259,12 +259,58 @@ class Swarm(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "overlapping paths with no order"):
             swarm.load_plan(self.goal)
 
-    def test_r1_f2_a_claim_asks_for_a_committed_head(self):
+    def test_r2_f2_a_returned_patch_is_committed_at_the_pinned_base_and_checked_like_a_head(self):
         self.plan([self.item("a", ["a/**"])])
         swarm.init(self.run, self.goal, self.base, 10)
         c = swarm.tick(self.run)["dispatch"][0]
-        self.assertEqual(c["return"][0], "head SHA committed on the claim's branch")
-        self.assertNotIn("patch", " ".join(c["return"]))
+        self.assertIn("or a patch against the pinned base", c["return"][0])
+        swarm.launched(self.run, "a", 1)
+        scratch = self.tmp / "scratch"; git(self.repo, "worktree", "add", "-q", "--detach", str(scratch), c["base"])
+        (scratch / "a").mkdir(); (scratch / "a" / "p.txt").write_text("from a patch\n"); git(scratch, "add", "-A")
+        patch = self.tmp / "w.patch"; patch.write_text(git(scratch, "diff", "--cached") + "\n")
+        head = swarm.apply_patch(self.run, "a", 1, self.repo, patch)
+        self.assertEqual(git(self.repo, "rev-parse", f"{head}~1"), c["base"])
+        self.assertEqual(git(self.repo, "rev-parse", c["branch"]), head)
+        self.assertEqual(swarm.result(self.run, "a", 1, head, self.repo, "passed"), {"accepted": True, "files": ["a/p.txt"]})
+
+    def test_r2_f1_every_refusal_load_plan_makes(self):
+        cases = [
+            ({"1": {"id": "a", "writes": ["a/x"]}, "2": {"id": "b", "writes": ["b/x"]}}, 3, None, 1, "don't match PLAN.md"),
+            ({"1": {"id": "a", "writes": ["a/x"]}, "2": {"id": "a", "writes": ["b/x"]}}, 3, None, 2, "unique, lowercase"),
+            ({"1": {"id": "Bad_ID", "writes": ["a/x"]}}, 3, None, 1, "unique, lowercase"),
+            ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["a"]}}, 3, None, 1, "depends on itself"),
+            ({"1": {"id": "a", "writes": ["a/x"], "contracts": [{"path": "c.json"}]}}, 3, None, 1, "pinned as"),
+            ({"1": {"id": "a", "writes": ["a/x"]}}, 4, None, 1, "max_workers"),
+            ({"1": {"id": "a", "writes": ["a/x"]}}, 0, None, 1, "max_workers"),
+            ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["c"]}, "2": {"id": "b", "writes": ["b/x"], "integrate_after": ["a"]},
+              "3": {"id": "c", "writes": ["c/x"]}}, 3, [["b", "c"]], 3, "cycle"),   # start, integration and order edges together
+            ({"1": {"id": "a", "writes": ["/etc/x"]}}, 3, None, 1, "repository-relative"),
+        ]
+        for items, mw, order, n, msg in cases:
+            (self.goal / "PLAN.md").write_text("".join(f"{k}. item {k}\n   - works\n" for k in range(1, n + 1)))
+            (self.goal / "DEPS.json").write_text(json.dumps({"version": 1, "max_workers": mw, "order": order or [], "items": items}))
+            with self.assertRaisesRegex(ValueError, msg, msg=msg):
+                swarm.load_plan(self.goal)
+
+    def test_r2_f7_a_moved_target_is_reported_for_an_item_with_no_evidence(self):
+        self.plan([self.item("a", ["a/**"])])
+        swarm.init(self.run, self.goal, self.base, 10)
+        (self.repo / "o.txt").write_text("m\n"); git(self.repo, "add", "."); git(self.repo, "commit", "-qm", "moved")
+        self.assertTrue(any("target moved" in r for r in swarm.merge_gate(self.run, "a", self.repo, "main")))   # pending
+        swarm.tick(self.run)
+        self.assertTrue(any("target moved" in r for r in swarm.merge_gate(self.run, "a", self.repo, "main")))   # dispatched
+
+    def test_r2_f9_a_worker_blocked_while_running_keeps_its_slot(self):
+        self.plan([self.item("a", ["a/**"]), self.item("b", ["b/**"])], max_workers=1)
+        swarm.init(self.run, self.goal, self.base, 10)
+        ca = swarm.tick(self.run)["dispatch"][0]
+        swarm.launched(self.run, "a", 1)
+        swarm.blocked(self.run, "a", "stop")
+        t = swarm.tick(self.run)
+        self.assertEqual(t["dispatch"], [])
+        self.assertIn({"id": "b", "status": "pending", "why": "all workers busy"}, t["waiting"])
+        swarm.result(self.run, "a", 1, self.work(ca, ["a/x"]), self.repo, "passed", cost=1)   # it reports: the slot frees
+        self.assertEqual([c["id"] for c in swarm.tick(self.run)["dispatch"]], ["b"])
 
     def test_r1_f3_only_failed_launches_count_toward_the_launch_limit(self):
         self.plan([self.item("a", ["a/**"])])

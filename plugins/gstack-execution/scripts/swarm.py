@@ -27,6 +27,9 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
   swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every eligible item up to max_workers
   swarm.py launched <run> <id> --attempt N                    the Agent call started
   swarm.py launch-failed <run> <id> --attempt N --reason R    it didn't; visible, retried by a later tick
+  swarm.py apply-patch <run> <id> --attempt N --repo R --patch FILE
+                                                              a returned patch, committed on the claim's branch at its
+                                                              pinned base; prints the head to pass to result
   swarm.py result <run> <id> --attempt N --head SHA --repo R --tests passed|failed [--cost USD] [--unresolved T]
   swarm.py review <run> <id> --head SHA --outcome clean|blocking [--review-id ID]
   swarm.py refresh <run> <id> --head SHA --repo R --target <ref> --tests passed|failed
@@ -43,6 +46,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -236,7 +240,8 @@ def tick(run, halted=False, spend_stop=False):
                 _block(run, s, k, v["why"] or "blocked")
         if halted or spend_stop:
             out["stopped"] = "HALT" if halted else "spend stop"
-        running = [k for k, v in s["items"].items() if v["status"] in RUNNING]
+        # review F9: a worker blocked while it runs holds its slot until it reports
+        running = [k for k, v in s["items"].items() if v["status"] in RUNNING or (v["status"] == "blocked" and v.get("inflight"))]
         for i in s["plan"]["items"]:
             st = s["items"][i["id"]]
             if st["status"] in RUNNING:
@@ -266,7 +271,7 @@ def tick(run, halted=False, spend_stop=False):
             base = s["base"] if not i["start_after"] else s["integration_head"]
             claim = {"id": i["id"], "n": i["n"], "attempt": st["attempts"], "base": base,
                      "branch": f"swarm/{i['id']}-a{st['attempts']}", "writes": i["writes"], "contracts": i["contracts"],
-                     "return": ["head SHA committed on the claim's branch", "tests run and their result", "unresolved issues"],
+                     "return": ["head SHA committed on the claim's branch, or a patch against the pinned base", "tests run and their result", "unresolved issues"],
                      "may_not": ["dispatch workers", "write run state", "merge", "deploy", "read the holdout"]}
             st.update(status="dispatched", why=None, claim=claim)
             running.append(i["id"])
@@ -322,6 +327,23 @@ def git(repo, *a):
 def _changed(repo, base, head):
     """Every path the change touches, both sides of a rename (review F6): a pinned contract moved away is a change to it."""
     return sorted({f for f in git(repo, "diff", "--name-only", "--no-renames", f"{base}..{head}").splitlines() if f})
+
+
+def apply_patch(run, iid, attempt, repo, patch):
+    """A worker returned a patch, not a head: the coordinator applies it to the claim's branch at the pinned base in a
+    worktree of its own, commits it as the bot, and returns the head for result to check like any other."""
+    st = load(run)["items"][iid]
+    _attempt(st, attempt, iid)
+    claim = st["claim"]
+    wt = Path(tempfile.mkdtemp(prefix=f"swarm-{iid}-"))
+    try:
+        git(repo, "worktree", "add", "-q", "-B", claim["branch"], str(wt), claim["base"])
+        git(wt, "apply", "--index", "--whitespace=nowarn", str(Path(patch).resolve()))
+        git(wt, "-c", "user.name=moxywolf-agent[bot]", "-c", "user.email=331509232+moxywolf-agent[bot]@users.noreply.github.com",
+            "commit", "-q", "-m", f"{iid}: worker patch, attempt {attempt}")
+        return git(wt, "rev-parse", "HEAD")
+    finally:
+        subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(wt)], capture_output=True)
 
 
 def result(run, iid, attempt, head, repo, tests, cost=None, unresolved=""):
@@ -438,10 +460,10 @@ def merge_gate(run, iid, repo, target, halted=False):
         reasons.append(f"status is {st['status']}, not reviewed")
     elif st["review"]["head"] != st["evidence"]["head"]:
         reasons.append("review head differs from the tested head")
-    if st.get("evidence"):                               # review F7: a drafted item's staleness is reported too
-        tip = git(repo, "rev-parse", target)
-        if tip != s["integration_head"]:
-            reasons.append(f"target moved to {tip[:12]} since the coordinator's last merge {s['integration_head'][:12]}")
+    tip = git(repo, "rev-parse", target)                 # review F7: a moved target is reported for any item
+    if tip != s["integration_head"]:
+        reasons.append(f"target moved to {tip[:12]} since the coordinator's last merge {s['integration_head'][:12]}")
+    if st.get("evidence"):
         try:
             git(repo, "merge-base", "--is-ancestor", tip, st["evidence"]["head"])
         except subprocess.CalledProcessError:
@@ -471,7 +493,7 @@ def status(run):
 def main(argv):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("cmd"); p.add_argument("path"); p.add_argument("id", nargs="?")
-    for f in ("--goal", "--base", "--budget", "--halt", "--reason", "--head", "--repo", "--tests", "--cost",
+    for f in ("--patch", "--goal", "--base", "--budget", "--halt", "--reason", "--head", "--repo", "--tests", "--cost",
               "--unresolved", "--outcome", "--review-id", "--target", "--sha"):
         p.add_argument(f)
     p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int)
@@ -490,6 +512,8 @@ def main(argv):
             launched(a.path, a.id, a.attempt); return 0
         if a.cmd == "launch-failed":
             launch_failed(a.path, a.id, a.attempt, a.reason); return 0
+        if a.cmd == "apply-patch":
+            print(apply_patch(a.path, a.id, a.attempt, a.repo, a.patch)); return 0
         if a.cmd == "result":
             r = result(a.path, a.id, a.attempt, a.head, a.repo, a.tests, a.cost, a.unresolved or "")
             print(json.dumps(r)); return 0 if r["accepted"] else 1
