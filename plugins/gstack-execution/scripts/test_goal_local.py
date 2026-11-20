@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """GO-010: goal mode's local checks for a repository with no onboarding."""
+import json
 import os
 import subprocess
 import tempfile
@@ -108,6 +109,10 @@ class ReviewFixes(unittest.TestCase):
             import shutil
             shutil.copytree(site / "goals/vault-review-list-2", r / "goals/vault-review-list-2")
             shutil.copy(site / "DESIGN.md", r / "DESIGN.md")
+            # GO-023.8: a goal drafted now carries DEPS.json; this approved folder predates it, so the copy gets one
+            (r / "goals/vault-review-list-2/DEPS.json").write_text(json.dumps({"version": 1, "items": {
+                "1": {"id": "list", "writes": ["plugins/project-init/scripts/session_record.py", "plugins/project-init/tests/test_session_record.py"]},
+                "2": {"id": "name-list", "writes": ["plugins/project-init/commands/session-review.md"]}}}))
             self.assertEqual(gl.main(["brief", str(r), "vault-review-list-2"]), 0)
 
     def test_a_failed_check_still_reports_json(self):

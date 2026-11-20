@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""GO-017: the swarm coordinator against temporary repositories and controlled worker responses."""
+"""GO-017 and GO-023: the swarm coordinator against temporary repositories and controlled worker responses."""
+import contextlib
+import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,10 +12,12 @@ import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import swarm  # noqa: E402
+import goal_brief  # noqa: E402
 
 
 def git(repo, *a):
@@ -30,13 +35,18 @@ class Swarm(unittest.TestCase):
         self.base = git(self.repo, "rev-parse", "HEAD")
         self.goal = self.tmp / "goal"; self.goal.mkdir()
         self.run = self.tmp / "run"
+        env = mock.patch.dict(os.environ, {"GSTACK_GOAL_RUN_DIR": str(self.tmp / "runs"), "GITHUB_TOKEN": "t"})
+        env.start(); self.addCleanup(env.stop)
 
     def plan(self, items, order=(), max_workers=3, n=None):
+        """max_workers=None leaves the key out of DEPS.json (GO-023: no ceiling of the goal's own)."""
         n = n or len(items)
         (self.goal / "PLAN.md").write_text("".join(f"{k}. item {k}\n   - works\n" for k in range(1, n + 1)))
         if items is not None:
-            (self.goal / "DEPS.json").write_text(json.dumps({"version": 1, "max_workers": max_workers, "order": list(order),
-                                                             "items": {str(k + 1): v for k, v in enumerate(items)}}))
+            d = {"version": 1, "order": list(order), "items": {str(k + 1): v for k, v in enumerate(items)}}
+            if max_workers is not None:
+                d["max_workers"] = max_workers
+            (self.goal / "DEPS.json").write_text(json.dumps(d))
 
     def item(self, id, writes, start=(), integ=(), est=1.0):
         return {"id": id, "writes": list(writes), "start_after": list(start), "integrate_after": list(integ), "estimate_usd": est}
@@ -282,7 +292,7 @@ class Swarm(unittest.TestCase):
             ({"1": {"id": "Bad_ID", "writes": ["a/x"]}}, 3, None, 1, "unique, lowercase"),
             ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["a"]}}, 3, None, 1, "depends on itself"),
             ({"1": {"id": "a", "writes": ["a/x"], "contracts": [{"path": "c.json"}]}}, 3, None, 1, "pinned as"),
-            ({"1": {"id": "a", "writes": ["a/x"]}}, 4, None, 1, "max_workers"),
+            ({"1": {"id": "a", "writes": ["a/x"]}}, "3", None, 1, "max_workers"),   # GO-023: 4 is now legal
             ({"1": {"id": "a", "writes": ["a/x"]}}, 0, None, 1, "max_workers"),
             ({"1": {"id": "a", "writes": ["a/x"], "start_after": ["c"]}, "2": {"id": "b", "writes": ["b/x"], "integrate_after": ["a"]},
               "3": {"id": "c", "writes": ["c/x"]}}, 3, [["b", "c"]], 3, "cycle"),   # start, integration and order edges together
@@ -491,6 +501,363 @@ class Swarm(unittest.TestCase):
         swarm.launched(self.run, "a", 1)
         r = swarm.result(self.run, "a", 1, self.work(c, ["docs/r\u00e9sum\u00e9-1.md"]), self.repo, "passed")
         self.assertEqual(r, {"accepted": True, "files": ["docs/r\u00e9sum\u00e9-1.md"]})
+
+    # ---- GO-023: no fixed worker cap, host back-off, launch check, approved retest ----
+
+    def cli(self, *a):
+        """The pinned CLI, in this process so goal_brief.verify_review_approval can be stubbed. (rc, stdout)."""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = swarm.main([str(x) for x in a])
+        return rc, out.getvalue().strip()
+
+    def host_file(self, host="testhost"):
+        return Path(os.environ["GSTACK_GOAL_RUN_DIR"]) / "hosts" / f"{host}.json"
+
+    def set_host(self, limit, host="testhost"):
+        f = self.host_file(host); f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps({"limit": limit, "events": [], "approvals_used": []}))
+
+    def host(self, host="testhost"):
+        return json.loads(self.host_file(host).read_text())
+
+    def many(self, n, est=1.0, **kw):
+        self.plan([self.item(f"i{k}", [f"i{k}/**"], est=est) for k in range(1, n + 1)], **kw)
+
+    def init_host(self, budget, *extra, host="testhost", run=None):
+        return self.cli("init", run or self.run, "--goal", self.goal, "--base", self.base, "--budget", budget, "--host", host, *extra)
+
+    def check(self, iid, attempt, *extra):
+        rc, out = self.cli("launch-check", self.run, iid, "--attempt", attempt, *extra)
+        self.assertEqual(rc, 0, out)                                    # exits 0 either way
+        return out
+
+    def send(self, claim, run=None):
+        """launch-check passed, then launch-sent: the call is sent and unacknowledged until launched/launch-failed."""
+        run = run or self.run
+        rc, out = self.cli("launch-check", run, claim["id"], "--attempt", claim["attempt"])
+        self.assertEqual((rc, out), (0, "launch"))
+        self.assertEqual(self.cli("launch-sent", run, claim["id"], "--attempt", claim["attempt"])[0], 0)
+
+    def launch(self, claim, run=None):
+        self.send(claim, run)
+        swarm.launched(run or self.run, claim["id"], claim["attempt"])
+
+    def refused(self, claim):
+        self.assertEqual(self.cli("launch-failed", self.run, claim["id"], "--attempt", claim["attempt"],
+                                  "--reason", "host at capacity", "--host-refused")[0], 0)
+
+    def statuses(self):
+        return {k: v["status"] for k, v in swarm.status(self.run)["items"].items()}
+
+    # criterion 1
+    def test_go023_c1_max_workers_is_optional_and_has_no_upper_bound(self):
+        self.plan([self.item("a", ["a/**"])], max_workers=None)
+        self.assertIsNone(swarm.load_plan(self.goal)["max_workers"])
+        self.plan([self.item("a", ["a/**"])], max_workers=40)
+        self.assertEqual(swarm.load_plan(self.goal)["max_workers"], 40)
+        for bad in (0, "3"):
+            self.plan([self.item("a", ["a/**"])], max_workers=bad)
+            with self.assertRaisesRegex(ValueError, "max_workers", msg=bad):
+                swarm.load_plan(self.goal)
+        self.assertFalse(hasattr(swarm, "MAX_WORKERS"))
+
+    # criterion 2
+    def test_go023_c2_a_tick_claims_every_ready_item_up_to_the_smaller_ceiling(self):
+        self.many(40, max_workers=None)
+        swarm.init(self.run, self.goal, self.base, 100)
+        self.assertEqual(len(swarm.tick(self.run)["dispatch"]), 40)     # no ceilings: all 40 in one tick
+        self.many(40, max_workers=5)
+        swarm.init(self.tmp / "run5", self.goal, self.base, 100)
+        self.assertEqual(len(swarm.tick(self.tmp / "run5")["dispatch"]), 5)
+        self.many(40, max_workers=None)
+        self.set_host(12)
+        self.assertEqual(self.init_host(100, run=self.tmp / "run12")[0], 0)
+        self.assertEqual(len(swarm.tick(self.tmp / "run12")["dispatch"]), 12)
+
+    def test_go023_c2_overlapping_writes_are_not_claimed_in_the_same_tick(self):
+        self.plan([self.item("a", ["src/**"]), self.item("b", ["src/b.py"])], order=[["a", "b"]], max_workers=None)
+        swarm.init(self.run, self.goal, self.base, 10)
+        self.assertEqual([c["id"] for c in swarm.tick(self.run)["dispatch"]], ["a"])
+
+    # criterion 3
+    def test_go023_c3_a_host_refusal_at_the_15th_launch_returns_unlaunched_claims_uncharged(self):
+        self.many(30, max_workers=None)
+        self.assertEqual(self.init_host(100)[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(claims), 30)
+        for c in claims[:14]:
+            self.launch(c)
+        self.send(claims[14])
+        self.refused(claims[14])
+        self.assertEqual(self.host()["limit"], 14)
+        for c in claims[15:]:
+            self.assertTrue(self.check(c["id"], c["attempt"]).startswith("do not launch"))
+        st = self.statuses()
+        self.assertEqual(sorted(k for k, v in st.items() if v == "running"), sorted(c["id"] for c in claims[:14]))
+        self.assertTrue(all(st[c["id"]] == "pending" for c in claims[14:]))
+        s = swarm.status(self.run)
+        self.assertEqual((s["reserved"], s["spent"]), (14.0, 0))        # returned claims released, nothing charged
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])           # no slot until one frees
+        c0 = claims[0]
+        swarm.result(self.run, c0["id"], 1, self.work(c0, [f"{c0['id']}/x"]), self.repo, "passed")
+        nxt = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(nxt), 1)
+        self.assertEqual(self.check(nxt[0]["id"], nxt[0]["attempt"]), "launch")
+
+    def test_go023_c3_halt_after_a_tick_stops_every_claim_not_yet_launched(self):
+        self.many(5, max_workers=None)
+        self.assertEqual(self.init_host(10)[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        for c in claims[:2]:
+            self.launch(c)
+        halt = self.tmp / "HALT"; halt.write_text("stop\n")
+        for c in claims[2:]:
+            self.assertTrue(self.check(c["id"], c["attempt"], "--halt", halt).startswith("do not launch"))
+        st = self.statuses()
+        self.assertEqual([st[c["id"]] for c in claims], ["running", "running", "pending", "pending", "pending"])
+        self.assertEqual(swarm.status(self.run)["reserved"], 2.0)
+
+    def test_go023_c3_a_sent_unacknowledged_launch_holds_its_slot_through_halt_and_a_restart(self):
+        self.plan([self.item("a", ["a/**"]), self.item("b", ["b/**"]), self.item("c", ["c/**"])], max_workers=2)
+        self.assertEqual(self.init_host(10)[0], 0)
+        ca, cb = swarm.tick(self.run)["dispatch"]
+        self.send(ca)                                                     # sent; the host hasn't answered
+        halt = self.tmp / "HALT"; halt.write_text("stop\n")
+        self.assertTrue(self.check("b", 1, "--halt", halt).startswith("do not launch"))
+        self.check("a", 1, "--halt", halt)                                # a second check never releases it
+        s = swarm.status(self.run)
+        self.assertEqual((s["items"]["a"]["status"], s["items"]["b"]["status"], s["reserved"]), ("sent", "pending", 1.0))
+        halt.unlink()
+        r = subprocess.run([sys.executable, str(HERE / "swarm.py"), "tick", str(self.run)],   # a restarted coordinator
+                           capture_output=True, text=True, env=dict(os.environ))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        t = json.loads(r.stdout)
+        self.assertEqual([c["id"] for c in t["dispatch"]], ["b"])         # a keeps its slot: one left, not two
+        self.assertIn({"id": "c", "status": "pending", "why": "all workers busy"}, t["waiting"])
+        self.assertEqual(swarm.status(self.run)["reserved"], 2.0)
+        swarm.launched(self.run, "a", 1)                                  # the host's answer settles it
+        self.assertEqual((self.statuses()["a"], swarm.status(self.run)["reserved"]), ("running", 2.0))
+        self.send({"id": "b", "attempt": 2})
+        self.assertEqual(self.cli("launch-failed", self.run, "b", "--attempt", 2, "--reason", "boom")[0], 0)
+        self.assertEqual(swarm.status(self.run)["reserved"], 1.0)        # released only by the recorded failure
+
+    def test_go023_c3_the_new_limit_counts_launches_sent_and_not_yet_answered(self):
+        self.many(5, max_workers=None)
+        self.assertEqual(self.init_host(10)[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        for c in claims[:2]:
+            self.launch(c)
+        self.send(claims[2]); self.send(claims[3])                       # one message, two calls
+        self.refused(claims[2])                                           # the host refuses the first of them
+        self.assertEqual(self.host()["limit"], 3)                         # 2 launched + 1 sent, unanswered
+        self.assertTrue(self.check(claims[4]["id"], 1).startswith("do not launch"))   # unsent: back to pending
+        st = self.statuses()
+        self.assertEqual([st[c["id"]] for c in claims], ["running", "running", "pending", "sent", "pending"])
+        self.assertEqual(swarm.status(self.run)["reserved"], 3.0)        # the sent claim keeps its reservation
+        swarm.launched(self.run, claims[3]["id"], 1)
+        self.assertEqual(self.statuses()[claims[3]["id"]], "running")
+
+    def test_go023_c4_two_runs_refused_at_once_leave_the_lower_limit(self):
+        self.many(6, max_workers=None)
+        runs = {self.tmp / "ra": 5, self.tmp / "rb": 3}
+        last = {}
+        for run, n in runs.items():
+            self.assertEqual(self.init_host(100, run=run)[0], 0)
+            claims = swarm.tick(run)["dispatch"]
+            for c in claims[:n]:
+                self.launch(c, run)
+            self.send(claims[n], run); last[run] = claims[n]
+        procs = [subprocess.Popen([sys.executable, str(HERE / "swarm.py"), "launch-failed", str(run), c["id"], "--attempt", "1",
+                                   "--reason", "capacity", "--host-refused"], env=dict(os.environ)) for run, c in last.items()]
+        self.assertEqual([p.wait() for p in procs], [0, 0])
+        h = self.host()
+        self.assertEqual(h["limit"], 3)
+        self.assertEqual(sorted(e["running"] for e in h["events"] if e["kind"] == "refused"), [3, 5])   # neither write lost
+
+    # criterion 4
+    def test_go023_c4_a_refusal_at_30_running_sets_the_limit_and_waits_for_a_slot(self):
+        self.many(31, max_workers=None)
+        self.assertEqual(self.init_host(100)[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        for c in claims[:30]:
+            self.launch(c)
+        last = claims[30]
+        self.send(last)
+        self.refused(last)
+        h = self.host()
+        self.assertEqual(h["limit"], 30)
+        self.assertTrue(any(e["kind"] == "refused" and e["running"] == 30 for e in h["events"]), h["events"])
+        self.assertEqual(self.statuses()[last["id"]], "pending")
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])           # not claimed while 30 run
+        c0 = claims[0]
+        swarm.result(self.run, c0["id"], 1, self.work(c0, [f"{c0['id']}/x"]), self.repo, "passed")
+        again = swarm.tick(self.run)["dispatch"]
+        self.assertEqual([c["id"] for c in again], [last["id"]])          # claimed once one finishes
+        self.send(again[0])
+        self.refused(again[0])                                            # a second refusal, at 29 running
+        self.assertEqual(self.host()["limit"], 29)
+        self.assertEqual(self.statuses()[last["id"]], "pending")          # two refusals, not counted: not blocked
+
+    def test_go023_c4_a_refusal_at_a_limit_of_1_counts_toward_the_block(self):
+        self.many(2, max_workers=None)
+        self.set_host(1)
+        self.assertEqual(self.init_host(10)[0], 0)
+        c = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(c), 1)
+        self.send(c[0])
+        self.refused(c[0])
+        self.assertEqual((self.host()["limit"], self.statuses()[c[0]["id"]]), (1, "pending"))
+        c = swarm.tick(self.run)["dispatch"]
+        self.send(c[0])
+        self.refused(c[0])
+        self.assertEqual((self.host()["limit"], self.statuses()[c[0]["id"]]), (1, "blocked"))
+
+    # criterion 5
+    APPROVED = "Retest on host `testhost`: current limit 4 workers, retest ceiling 8 workers, dispatch budget $20.00 USD."
+
+    def approve(self, body=APPROVED, reviewer="dorianatmoxywolf", older_head=False):
+        """A fake GitHub for goal_brief.github: one pull request, one review, so the real approval check runs.
+        Yields the fake's factory mock (called only when something asks GitHub)."""
+        head = "f" * 40
+        review = {"id": 4242, "user": {"login": reviewer}, "state": "APPROVED", "commit_id": "e" * 40 if older_head else head}
+        def get(path):
+            if path == "repos/o/r/pulls/7":
+                return {"number": 7, "head": {"sha": head}, "body": body}
+            if path.startswith("repos/o/r/pulls/7/reviews"):
+                return [review]
+            return None
+        return mock.patch.object(goal_brief, "github", return_value=get)
+
+    def retest_run(self, budget=20, host="testhost", run=None, **kw):
+        return self.init_host(budget, "--retest", "--approval", "o/r#7", host=host, run=run)
+
+    def test_go023_c5_a_retest_with_no_refusal_raises_the_limit_and_records_the_review(self):
+        self.many(8, max_workers=None); self.set_host(4)
+        with self.approve() as gh:
+            self.assertEqual(self.retest_run()[0], 0)
+        self.assertTrue(gh.called)
+        self.assertIn("o/r#7@4242", self.host()["approvals_used"])
+        claims = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(claims), 8)                                  # min(2 x 4, 8 ready)
+        for c in claims:
+            self.launch(c)
+        for c in claims:
+            swarm.result(self.run, c["id"], 1, self.work(c, [f"{c['id']}/x"]), self.repo, "passed")
+        self.assertEqual(self.host()["limit"], 4)                         # not raised while the run is unfinished
+        for c in claims:                                                  # the run ends: every item merged
+            swarm.review(self.run, c["id"], swarm.load(self.run)["items"][c["id"]]["evidence"]["head"], "clean")
+            self.merge(c["id"])
+        swarm.tick(self.run)
+        h = self.host()
+        self.assertEqual(h["limit"], 8)                                   # the most that ran at once
+        self.assertTrue(any(e["kind"] == "retest" and "o/r#7" in json.dumps(e) for e in h["events"]), h["events"])
+
+    def test_go023_c5_a_retest_with_a_refusal_lowers_the_limit(self):
+        self.many(8, max_workers=None); self.set_host(4)
+        with self.approve():
+            self.assertEqual(self.retest_run()[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        for c in claims[:3]:
+            self.launch(c)
+        self.send(claims[3])
+        self.refused(claims[3])
+        self.assertEqual(self.host()["limit"], 3)
+
+    def test_go023_c5_a_retest_without_a_verified_approval_is_refused(self):
+        self.many(8, max_workers=None); self.set_host(4)
+        with self.approve() as gh:
+            self.assertNotEqual(self.init_host(20, "--retest")[0], 0)                 # no approval at all
+            self.assertFalse(gh.called)
+        for kw in ({"reviewer": "someone-else"}, {"older_head": True}):
+            with self.approve(**kw):
+                self.assertNotEqual(self.retest_run()[0], 0, kw)
+        for kw, body in (({"host": "otherhost"}, self.APPROVED),                    # another host
+                         ({}, self.APPROVED.replace("ceiling 8 workers", "ceiling 6 workers")),     # above the approved ceiling
+                         ({"budget": 30}, self.APPROVED)):                          # a larger budget
+            self.set_host(4, kw.get("host", "testhost"))
+            with self.approve(body=body):
+                self.assertNotEqual(self.retest_run(**kw)[0], 0, (kw, body))
+        self.assertFalse((self.run / "swarm.json").exists())
+        self.assertEqual((self.host()["limit"], self.host()["approvals_used"]), (4, []))
+
+    def test_go023_c5_an_approval_is_used_once(self):
+        self.many(8, max_workers=None); self.set_host(4)
+        with self.approve():
+            self.assertEqual(self.retest_run()[0], 0)
+            self.assertNotEqual(self.retest_run(run=self.tmp / "run2")[0], 0)
+        self.assertEqual(self.host()["approvals_used"], ["o/r#7@4242"])
+
+    def test_go023_c5_a_retest_whose_peak_is_below_the_limit_leaves_it(self):
+        self.many(3, max_workers=None); self.set_host(4)
+        with self.approve(body=self.APPROVED.replace("ceiling 8 workers", "ceiling 3 workers")):   # min(2 x 4, 3 ready)
+            self.assertEqual(self.retest_run()[0], 0)
+        for c in swarm.tick(self.run)["dispatch"]:
+            self.launch(c)
+            swarm.result(self.run, c["id"], 1, self.work(c, [f"{c['id']}/x"]), self.repo, "passed")
+        swarm.tick(self.run)
+        self.assertEqual(self.host()["limit"], 4)                         # max(current 4, peak 1)
+
+    def test_go023_c5_two_runs_presenting_one_approval_consume_it_once(self):
+        self.many(8, max_workers=None); self.set_host(4)
+        rcs = []
+        def go(run):
+            rcs.append(swarm.main(["init", str(run), "--goal", str(self.goal), "--base", self.base, "--budget", "20",
+                                   "--host", "testhost", "--retest", "--approval", "o/r#7"]))
+        with self.approve(), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            ts = [threading.Thread(target=go, args=(self.tmp / f"r{k}",)) for k in (1, 2)]
+            [t.start() for t in ts]; [t.join() for t in ts]
+        self.assertEqual(sorted(rc == 0 for rc in rcs), [False, True])
+        self.assertEqual(self.host()["approvals_used"], ["o/r#7@4242"])
+
+    def test_go023_c5_a_run_without_retest_leaves_the_limit(self):
+        self.many(6, max_workers=None); self.set_host(4)
+        self.assertEqual(self.init_host(20)[0], 0)
+        claims = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(claims), 4)
+        for c in claims:
+            self.launch(c)
+            swarm.result(self.run, c["id"], 1, self.work(c, [f"{c['id']}/x"]), self.repo, "passed")
+        for c in swarm.tick(self.run)["dispatch"]:
+            self.launch(c)
+            swarm.result(self.run, c["id"], 1, self.work(c, [f"{c['id']}/x"]), self.repo, "passed")
+        self.assertEqual(self.host()["limit"], 4)
+
+    # criterion 6
+    def test_go023_c6_a_blocked_lane_stops_only_its_own_chain(self):
+        items = [self.item(f"{ch}{k}", [f"{ch}/{k}/**"], start=[f"{ch}{k - 1}"] if k > 1 else [])
+                 for ch in "abc" for k in range(1, 11)]
+        self.plan(items, max_workers=None)
+        swarm.init(self.run, self.goal, self.base, 100)
+        swarm.blocked(self.run, "b4", "a worker kept failing")
+        for _ in range(40):
+            claims = swarm.tick(self.run)["dispatch"]
+            if not claims:
+                break
+            for c in claims:
+                head, r = self.finish(c, [f"{c['id'][0]}/{c['id'][1:]}/x"])
+                self.assertTrue(r["accepted"], r)
+                swarm.review(self.run, c["id"], head, "clean")
+                self.merge(c["id"])
+        st = self.statuses()
+        self.assertTrue(all(st[f"{ch}{k}"] == "merged" for ch in "ac" for k in range(1, 11)), st)
+        self.assertEqual([st[f"b{k}"] for k in range(1, 11)], ["merged"] * 3 + ["blocked"] * 7)
+
+    # criterion 8
+    def test_go023_c8_the_three_hard_cap_markers_keep_a_goal_out_of_the_swarm(self):
+        self.plan([self.item("a", ["a/**"])])
+        deps = json.loads((self.goal / "DEPS.json").read_text())
+        self.assertIsNone(swarm.is_hard_cap(self.goal, deps))
+        (self.goal / "GOAL.md").write_text("# g\n\n## Hard cap\n$40\n")
+        self.assertEqual(swarm.is_hard_cap(self.goal, deps), "## Hard cap")
+        (self.goal / "GOAL.md").write_text("# g\n\n## Spend cap\n$40, hard\n")
+        self.assertEqual(swarm.is_hard_cap(self.goal, deps), "Spend cap says hard")
+        with self.assertRaisesRegex(ValueError, "hard cap"):
+            swarm.refuse_hard_cap(self.goal, deps)
+        (self.goal / "GOAL.md").unlink()
+        self.assertEqual(swarm.is_hard_cap(self.goal, dict(deps, hard_dollar_cap=True)), "hard_dollar_cap")
+        with self.assertRaisesRegex(ValueError, "hard dollar cap"):
+            swarm.refuse_hard_cap(self.goal, dict(deps, hard_dollar_cap=True))
 
 
 if __name__ == "__main__":

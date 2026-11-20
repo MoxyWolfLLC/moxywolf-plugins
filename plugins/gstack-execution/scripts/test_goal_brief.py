@@ -1,4 +1,5 @@
 """GO-001 criterion 6, plus the round-1 review findings F1 to F8: goal_brief.py refuses what it says."""
+import json
 import subprocess
 import sys
 import tempfile
@@ -7,11 +8,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import goal_brief as gb  # noqa: E402
+import swarm  # noqa: E402
 
 DESIGN = "## Goal\nx\n## Items and acceptance criteria\n## Eleventh objective: goal mode\ny\n## Boundary tests\n## Amendments log\n"
 CO = ("/.github/ @d\n**/hooks/ @d\n/plugins/gstack-execution/scripts/peer_review.py @d\n"
       "/goals/ @d\n/goal-runs/ @d\n")
 PLAN = "1. Write the thing\n   - it exists\n2. Test the thing\n   - the test fails without it\n"
+PLAN3 = PLAN + "3. Document the thing\n   - the doc names it\n"
+DEPS = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]}, "2": {"id": "test", "writes": ["test_a.py"]}}}
+SERIAL = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
+                                  "2": {"id": "test", "writes": ["a.py"],
+                                        "start_after": [{"id": "write", "because": "the test imports a.py"}]}}}
+W1 = unittest.skipUnless(hasattr(swarm, "is_hard_cap"), "needs swarm.is_hard_cap and dict start_after (GO-023 swarm.py)")
 GOOD = {
     "Serves": "Eleventh objective: goal mode",
     "Outcome": "A review made in a cloud session can be read after the session ends.",
@@ -66,10 +74,12 @@ class Check(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def make(self, goal=None, plan=PLAN, holdout="a" * 64, tests=True):
+    def make(self, goal=None, plan=PLAN, holdout="a" * 64, tests=True, deps=DEPS):
         self.n += 1
         g = Path(self.tmp.name, f"g{self.n}")
         g.mkdir()
+        if deps is not None:
+            (g / "DEPS.json").write_text(deps if isinstance(deps, str) else json.dumps(deps))
         if goal is not False:
             (g / "GOAL.md").write_text(goal or brief())
         if plan is not None:
@@ -91,7 +101,7 @@ class Check(unittest.TestCase):
     def test_valid_folder_passes_and_reports_coverage(self):
         e, n = gb.check(self.make(), DESIGN, CO)
         self.assertEqual(e, [])
-        self.assertEqual(n, len(gb.FILES) + 1 + len(gb.SECTIONS))
+        self.assertEqual(n, len(gb.FILES) + 1 + len(gb.SECTIONS) + 1)   # + DEPS.json
 
     def test_examining_nothing_reports_zero(self):
         g = Path(self.tmp.name, "empty"); g.mkdir()
@@ -245,6 +255,202 @@ class Check(unittest.TestCase):
                 self.refused(self.make(brief(**{"Provider budgets": f"- openrouter: $3\n- {name}: $1"})),
                              f"{name} is a subscription CLI that reports no cost")
 
+    def cut_at(self, repo, merged_at):
+        if merged_at is None:
+            return ""
+        if merged_at <= 1000:   # same commit is not older than the cutoff
+            return gb._git(repo, "rev-parse", "HEAD")
+        subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
+                        "commit", "--allow-empty", "-qm", "GO-023"], check=True)
+        subprocess.run(["git", "-C", str(repo), "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        return gb._git(repo, "rev-parse", "HEAD")
+
+    def successor_in_repo(self, pred_deps, merged_at):
+        """A repo whose origin/main added goals/g1/ at time 1000, and goals/g1--s1/ drafted beside it with no DEPS.json."""
+        import os, shutil
+        from unittest import mock
+        repo = Path(self.tmp.name, f"repo{self.n}")
+        (repo / "goals" / "g1").mkdir(parents=True)
+        (repo / "goals" / "g1" / "GOAL.md").write_text(brief())
+        if pred_deps:
+            (repo / "goals" / "g1" / "DEPS.json").write_text(json.dumps(DEPS))
+        env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
+        for c in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "g1"],
+                  ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+            subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
+        shutil.move(str(self.make(deps=None)), repo / "goals" / "g1--s1")
+        with mock.patch.object(gb, "go023_merge", return_value=self.cut_at(repo, merged_at)):
+            return self.errs(repo / "goals" / "g1--s1")
+
+    LEGACY = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
+                                      "2": {"id": "test", "writes": ["a.py"], "start_after": ["write"]}}}
+
+    LEGACY3 = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
+                                       "2": {"id": "test", "writes": ["a.py"], "start_after": ["write"]},
+                                       "3": {"id": "docs", "writes": ["b.md"]}}}
+
+    def successor_copy(self, succ_deps, merged_at, pred=None, plan=None):
+        """origin/main brought goals/g1/ at time 1000 with a GO-017-style DEPS.json (string start_after); the
+        successor goals/g1--s1/ carries succ_deps as its DEPS.json text."""
+        import os, shutil
+        from unittest import mock
+        repo = Path(self.tmp.name, f"repo{self.n}")
+        (repo / "goals" / "g1").mkdir(parents=True)
+        (repo / "goals" / "g1" / "GOAL.md").write_text(brief())
+        legacy_text = json.dumps(pred or self.LEGACY)
+        (repo / "goals" / "g1" / "DEPS.json").write_text(legacy_text)
+        env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
+        for c in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "g1"],
+                  ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+            subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
+        s1 = self.make(deps=succ_deps if succ_deps is not None else legacy_text, **({"plan": plan} if plan else {}))
+        shutil.move(str(s1), repo / "goals" / "g1--s1")
+        with mock.patch.object(gb, "go023_merge", return_value=self.cut_at(repo, merged_at)):
+            return self.errs(repo / "goals" / "g1--s1")
+
+    @W1
+    def test_a_byte_for_byte_copy_of_a_pre_go023_deps_keeps_its_legacy_entries(self):
+        self.assertEqual(self.successor_copy(None, merged_at=2000), [])
+
+    @W1
+    def test_adding_an_item_keeps_an_unrelated_legacy_entry(self):
+        d = json.loads(json.dumps(self.LEGACY))
+        d["items"]["3"] = {"id": "docs", "writes": ["b.md"], "start_after": [{"id": "test", "because": "documents the tested a.py"}]}
+        self.assertEqual(self.successor_copy(json.dumps(d), merged_at=2000, plan=PLAN3), [])
+
+    @W1
+    def test_removing_an_item_keeps_an_unrelated_legacy_entry(self):
+        d = json.loads(json.dumps(self.LEGACY3)); del d["items"]["3"]
+        self.assertEqual(self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3), [])
+
+    @W1
+    def test_a_new_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY))
+        d["items"]["3"] = {"id": "docs", "writes": ["b.md"], "start_after": ["test"]}
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, plan=PLAN3)))
+
+    @W1
+    def test_a_retargeted_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY3))
+        d["items"]["2"]["start_after"] = ["docs"]
+        d["items"]["3"]["writes"] = ["c.md"]
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3, plan=PLAN3)))
+
+    @W1
+    def test_a_moved_bare_string_is_refused(self):
+        d = json.loads(json.dumps(self.LEGACY3))
+        d["items"]["2"]["start_after"] = [{"id": "write", "because": "the test imports a.py"}]
+        d["items"]["3"]["writes"] = ["a.py"]; d["items"]["3"]["start_after"] = ["write"]
+        self.assertTrue(any("because" in e for e in self.successor_copy(json.dumps(d), merged_at=2000, pred=self.LEGACY3, plan=PLAN3)))
+
+    @W1
+    def test_a_copy_of_a_post_go023_predecessor_gets_no_legacy_exemption(self):
+        self.assertTrue(any("because" in e for e in self.successor_copy(None, merged_at=500)))
+
+    def test_a_successor_of_a_pre_go023_goal_without_deps_is_exempt(self):
+        self.assertEqual(self.successor_in_repo(pred_deps=False, merged_at=2000), [])
+        self.assertEqual(self.successor_in_repo(pred_deps=False, merged_at=None), [])   # GO-023 not on main yet
+
+    def test_a_successor_of_a_post_go023_goal_without_deps_is_refused(self):
+        self.assertTrue(any("DEPS.json" in e for e in self.successor_in_repo(pred_deps=False, merged_at=500)))
+
+    def test_a_successor_whose_predecessor_had_deps_is_not_exempt(self):
+        self.assertTrue(any("DEPS.json" in e for e in self.successor_in_repo(pred_deps=True, merged_at=2000)))
+
+    @W1
+    def test_second_generation_carries_only_unchanged_legacy_ancestry(self):
+        import os, shutil
+
+        env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
+
+        for root_deps, s1_deps, s2_deps, reject, root_before in (
+            (self.LEGACY, self.LEGACY, self.LEGACY, False, True),
+            (None, None, None, False, True),
+            (self.LEGACY, SERIAL, self.LEGACY, True, True),
+            (SERIAL, self.LEGACY, self.LEGACY, True, True),
+            (self.LEGACY, self.LEGACY, self.LEGACY, True, False),
+            (self.LEGACY, None, None, True, True),
+            (None, None, None, True, False),
+        ):
+            with self.subTest(root_deps=root_deps, s1_deps=s1_deps, s2_deps=s2_deps, root_before=root_before):
+                repo = Path(self.tmp.name, f"history{self.n}")
+                repo.mkdir()
+
+                def git(*args):
+                    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
+
+                def commit(label):
+                    git("add", "-A")
+                    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", label)
+
+                def approved(name, deps):
+                    shutil.move(str(self.make(deps=deps)), repo / "goals" / name)
+                    commit(name)
+
+                git("init", "-q")
+                if root_before:
+                    approved("g1", root_deps)
+                marker = repo / "plugins/gstack-execution/scripts/goal_brief.py"
+                marker.parent.mkdir(parents=True)
+                marker.write_text("def deps_check(): pass\n")
+                commit("GO-023 introduced")
+                if not root_before:
+                    approved("g1", root_deps)
+                approved("g1--s1", s1_deps)
+                git("update-ref", "refs/remotes/origin/main", "HEAD")
+                s2 = self.make(deps=s2_deps)
+                shutil.move(str(s2), repo / "goals" / "g1--s2")
+                errors = self.errs(repo / "goals" / "g1--s2")
+                if reject:
+                    self.assertTrue(any("DEPS.json" in error for error in errors), errors)
+                else:
+                    self.assertEqual(errors, [])
+
+    def test_go023_merge_uses_requested_ref(self):
+        self.assertIsNone(gb.go023_merge(gb.ROOT, "refs/heads/no-such-branch-xyz"))
+
+    # GO-023.8: check runs only on a goal being drafted, so these rules bind new goals
+    def deps_errors(self, g):
+        return [e for e in self.errs(g) if "DEPS.json" in e or "start_after" in e]
+
+    def test_a_new_goal_without_deps_is_refused(self):
+        self.refused(self.make(deps=None), "DEPS.json")
+
+    def test_a_string_start_after_is_refused_for_a_new_goal(self):
+        d = json.loads(json.dumps(SERIAL)); d["items"]["2"]["start_after"] = ["write"]
+        self.refused(self.make(deps=d), "needs a non-empty 'because'")
+
+    def test_an_empty_because_is_refused(self):
+        d = json.loads(json.dumps(SERIAL)); d["items"]["2"]["start_after"] = [{"id": "write", "because": "  "}]
+        self.refused(self.make(deps=d), "needs a non-empty 'because'")
+
+    def test_deps_that_is_not_json_is_refused(self):
+        self.refused(self.make(deps="{"), "DEPS.json is not JSON")
+
+    def test_load_plan_refusals_are_reported(self):
+        d = json.loads(json.dumps(DEPS)); del d["items"]["2"]
+        self.refused(self.make(deps=d), "don't match PLAN.md items")
+
+    @W1
+    def test_a_fully_serial_plan_with_reasons_is_accepted(self):
+        self.assertEqual(self.errs(self.make(deps=SERIAL)), [])
+
+    @W1
+    def test_a_hard_cap_goal_needs_no_deps(self):
+        self.assertEqual(self.errs(self.make(goal=brief() + "\n## Hard cap\nyes\n", deps=None)), [])
+
+    @W1
+    def test_a_hard_dollar_cap_deps_is_read_for_order_only(self):
+        d = json.loads(json.dumps(SERIAL)); d["hard_dollar_cap"] = True
+        self.assertEqual(self.errs(self.make(deps=d)), [])
+        d["items"]["2"]["start_after"] = ["write"]
+        self.refused(self.make(deps=d), "needs a non-empty 'because'")
+
+    @W1
+    def test_a_spend_cap_that_says_hard_needs_no_deps(self):
+        # ponytail: check's own Spend cap format refuses "$5 hard", so only the DEPS rule is asserted here
+        self.assertEqual(self.deps_errors(self.make(goal=brief(**{"Spend cap": "$5 hard"}), deps=None)), [])
+
 
 class Baseline(unittest.TestCase):  # GO-002.2
     def setUp(self):
@@ -365,6 +571,31 @@ class Baseline(unittest.TestCase):  # GO-002.2
         e, n = self.main_is(False, False)
         self.assertEqual(n, 0)
         self.assertIn("baseline examined no goal tests", e)
+
+
+class ReviewApproval(unittest.TestCase):   # GO-023.5 retest approval
+    BODY = "Retest on host cowork-1: limit 12, ceiling 24, budget $10"
+    NEED = ["cowork-1", "limit 12", "ceiling 24", "$10"]
+
+    def go(self, reviews, body=BODY, need=NEED):
+        return gb.verify_review_approval("o/r", 7, need, get=fake([reviews], body=body))
+
+    def test_his_approval_at_the_head_naming_everything_passes(self):
+        self.assertEqual(self.go([review(rid=42)]), {"review_id": 42, "head": HEAD})
+
+    def test_each_refusal(self):
+        for reviews, body, msg in [([review(login="someone")], self.BODY, "no standing APPROVED"),
+                                   ([review(commit=OLD)], self.BODY, "not the head"),
+                                   ([review(), review(state="DISMISSED", rid=2)], self.BODY, "no standing APPROVED"),
+                                   ([review()], "Retest on host cowork-1: limit 12", "doesn't name")]:
+            with self.subTest(msg=msg), self.assertRaisesRegex(ValueError, msg):
+                self.go(reviews, body)
+
+    def test_without_a_stub_it_needs_a_token(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(ValueError, "GITHUB_TOKEN"):
+            gb.verify_review_approval("o/r", 7, self.NEED)
 
 
 class Main(unittest.TestCase):
