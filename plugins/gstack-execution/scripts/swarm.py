@@ -161,8 +161,18 @@ def load_plan(goal_dir):
     refuse_hard_cap(goal_dir, d)
     if not isinstance(d, dict) or not isinstance(d.get("items"), dict):
         raise ValueError("DEPS.json needs an items object keyed by PLAN.md item number")
+    match_plan(numbers, d)
+    return plan_from_deps(d)
+
+
+def match_plan(numbers, d):
+    """PLAN.md's item numbers against DEPS.json's keys: the one check load_plan and goal_successor share."""
     if sorted(int(k) for k in d["items"]) != sorted(numbers):
         raise ValueError(f"DEPS.json items {sorted(d['items'])} don't match PLAN.md items {numbers}")
+
+
+def plan_from_deps(d):
+    """A parsed DEPS.json's validated plan, without the PLAN.md match or the hard-cap refusal (goal_successor reuses it)."""
     items = []
     for k, v in sorted(d["items"].items(), key=lambda kv: int(kv[0])):
         items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": _start_ids(k, v.get("start_after", [])),
