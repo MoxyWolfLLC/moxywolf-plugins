@@ -2,26 +2,37 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "MR-004",
-  "scope_sha256": "8a848c67c1edcfbaca9b7577d3a6326f26f245233fc9179299575699b2887873",
-  "reviewed_at": "2026-11-20T01:25:06+00:00",
+  "scope_sha256": "45c7dd6cca2649c3e7916574610f0237a51453b52cc1adbfdc4772c4e6eb8228",
+  "reviewed_at": "2026-11-20T03:36:21+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 180,
+      "output_tokens": 5505,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7981,
+      "cache_creation_input_tokens": 8298,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7981,
+        "ephemeral_5m_input_tokens": 8298,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 9754,
-      "output_tokens": 2401,
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 8298,
+      "cache_creation_input_tokens": 5545,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 5545,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 15483,
+      "output_tokens": 2982,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -33,59 +44,44 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 4933,
-      "cache_read_input_tokens": 7981,
-      "cache_creation_input_tokens": 509,
+      "output_tokens": 1775,
+      "cache_read_input_tokens": 13843,
+      "cache_creation_input_tokens": 268,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 509,
+        "ephemeral_5m_input_tokens": 268,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 7981,
-    "write": 8490
+    "read": 22141,
+    "write": 14111
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "MR-004.2",
-        "MR-004.5"
+        "MR-004.2"
       ],
-      "question": "Does the hook's floor check in criterion 2 honor MODEL_ROUTER_ALLOWED_MODELS? If the allowed set excludes the floor model, recommend exits 2 (criterion 5) but the hook still denies unless the caller names that model. Which governs?"
+      "question": "The criterion says a floor-role launch passes if it names a model \"at or above the floor model that the host allows\". It also says \"a floor model outside `MODEL_ROUTER_ALLOWED_MODELS`, is denied\". Suppose the allowed set excludes `opus` but includes `fable`, and a review launch names `fable`. Is it allowed, because `fable` ranks above the floor and is allowed? Or is it denied, because the floor model `opus` is outside the allowed set?"
     },
     {
       "id": "A2",
       "requirements": [
-        "MR-004.3",
+        "MR-004.5",
         "MR-004.2"
       ],
-      "question": "Criterion 3 says the MR-003 and CS-007 tests run unchanged except for reading requested_model, but criterion 2 denies a below-floor explicit model in both modes. Do any MR-003 or CS-007 tests, or MR-001.7 and MR-003.8, use a below-floor explicit model or a call the hook must not block? If so, is that an allowed change to those tests?"
+      "question": "MR-004.5 says an unclassified role with Jev unreachable \"returns the table's `floor` tier\". MR-004.2 uses \"floor\" for the required floor of review and security roles (`required_floor`, `FLOOR_MODEL`). Is the table's `floor` tier the same as the required-floor model, or a separate lowest tier? What `required_floor` value does that output carry, and which allowed-set check does it face?"
     },
     {
       "id": "A3",
       "requirements": [
-        "MR-004.4",
-        "MR-004.7"
+        "MR-004.2",
+        "MR-004.6"
       ],
-      "question": "run_all_tests.py is a CODEOWNERS path, and criterion 4 splits the code-owned hooks.json into its own change. Is the run_all_tests.py edit in criterion 7 part of the MR-004 change, so Dorian's approving review is required to release it? Or does it ship separately like the hooks.json wiring?"
-    },
-    {
-      "id": "A4",
-      "requirements": [
-        "MR-004.5"
-      ],
-      "question": "Does \"the table's floor tier\" for an unclassified role with Jev unreachable mean the same as the required floor? What must a dispatcher do on exit 2: relaunch, fail, or fall back?"
-    },
-    {
-      "id": "A5",
-      "requirements": [
-        "MR-004.2"
-      ],
-      "question": "Is the review-subagent match a plain substring of subagent_type? How is a role that matches both review-subagent and the security department handled, such as security:security-review?"
+      "question": "MR-004.6 says a `security:security` or review launch \"without an allowed model\" is refused by the host. MR-004.2 refuses unless the model is at or above the floor and allowed. Is a launch naming an allowed model below the floor, such as `sonnet`, expected to be refused in MR-004.6's host test? Does \"allowed model\" in MR-004.6 mean at or above the floor and allowed?"
     }
   ]
 }
