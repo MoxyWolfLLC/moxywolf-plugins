@@ -2,19 +2,19 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "GO-023",
-  "scope_sha256": "7127bc2c37e9ca247becd01d8cf1f0a21359abce99fc8d902375af2f1a5196ec",
-  "reviewed_at": "2026-11-20T20:39:04+00:00",
+  "scope_sha256": "f40aa587e8e8a5326b0be307cf696361c1090ec5c19472e1c4273e5885b76572",
+  "reviewed_at": "2026-11-20T21:21:12+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 3506,
+      "output_tokens": 4831,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 6703,
+      "cache_creation_input_tokens": 6807,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 6703,
+        "ephemeral_5m_input_tokens": 6807,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
@@ -22,17 +22,17 @@
     {
       "input_tokens": 4,
       "output_tokens": 26,
-      "cache_read_input_tokens": 6703,
-      "cache_creation_input_tokens": 3546,
+      "cache_read_input_tokens": 6807,
+      "cache_creation_input_tokens": 4871,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 3546,
+        "ephemeral_5m_input_tokens": 4871,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 11889,
-      "output_tokens": 1824,
+      "input_tokens": 13318,
+      "output_tokens": 2061,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,82 +44,97 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1816,
-      "cache_read_input_tokens": 10249,
-      "cache_creation_input_tokens": 415,
+      "output_tokens": 2793,
+      "cache_read_input_tokens": 11678,
+      "cache_creation_input_tokens": 657,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 415,
+        "ephemeral_5m_input_tokens": 657,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 16952,
-    "write": 10664
+    "read": 18485,
+    "write": 12335
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "GO-023.2",
-        "Test the boundaries before adding item IDs"
+        "GO-023.3",
+        "GO-023.2"
       ],
-      "question": "Does GO-023's shared host-ceiling record and wider parallel dispatch count as barred 'graph work' (new task-graph capability) before the three boundary tests have run, or is it an ordinary item needing no waiver?"
+      "question": "Runs with a common hostname and run-storage root share one ceiling, but a refusal sets it to the count of running and sent workers in the refused run only. Should the count cover every run that shares the ceiling? Otherwise a run with few workers can lower the shared ceiling below real host capacity while other runs hold many workers."
     },
     {
       "id": "A2",
       "requirements": [
-        "GO-023.1"
+        "GO-023.3"
       ],
-      "question": "What does 'newly approved' cover? Is a goal approved before this version that already sets max_workers above 3 in its DEPS.json capped at 3, rejected, or widened?"
+      "question": "What is 'the existing two-failure stop'? Which failures does it count, is it per run or per host, and what does it do when it triggers? Is it the GO-017 behavior or something new?"
     },
     {
       "id": "A3",
       "requirements": [
         "GO-023.5"
       ],
-      "question": "Who is the 'Release Owner' who may approve a proof exception? Is it Dorian, the owner named elsewhere in the plan, or another role?"
+      "question": "Who is the 'Release Owner' who can approve a proof exception? Is it Dorian, the 'owner' in the coverage-exception rule, or someone else? Where must the exception be recorded, and when?"
     },
     {
       "id": "A4",
       "requirements": [
-        "GO-023.5",
-        "GO-023.3"
+        "GO-023.1"
       ],
-      "question": "If a learned shared host ceiling below 4 already exists, which the plan forbids clearing, how can the four-item proof show width above 3? Does it fail, need a proof exception, or run on a different hostname or run-storage root?"
+      "question": "What is a 'hard-cap goal', and how is one detected? A goal with a hard cap that also sets max_workers above 3 must be rejected or ignored, and the plan doesn't say which."
     },
     {
       "id": "A5",
       "requirements": [
-        "GO-023.2",
-        "GO-023.3"
+        "GO-023.2"
       ],
-      "question": "The count is per run but the ceiling is shared across runs on the same hostname and run-storage root. Should one run's count lower the host-wide ceiling when other runs have more workers running? Is a per-run count the intended basis for a shared limit?"
+      "question": "What does 'launch-sent requires the HALT path' mean? Is it a path that must be configured, a file that must exist, or a flag that must be passed? What happens when it is missing, and how does that differ from the HALT recheck just before the Agent call?"
     },
     {
       "id": "A6",
       "requirements": [
-        "GO-023.5",
-        "One release path, checked by code"
+        "GO-023 Links introduced",
+        "Test the boundaries before adding item IDs"
       ],
-      "question": "Where does 'before calling v1 deployed' sit among the item states planned, building, review, released and done? Is the installed-candidate proof a condition of released, of done, or a separate step outside the status vocabulary?"
+      "question": "Is the opted-in `sent` run-state value, or the hosts/<hostname>.json record, new vocabulary under 'Test the boundaries before adding item IDs'? If `sent` becomes an entry in vocabulary.json, does the barred-growth rule apply to GO-023?"
     },
     {
       "id": "A7",
       "requirements": [
-        "GO-023.5",
-        "GO-023.1"
+        "GO-023.1",
+        "A goal delegates item selection, not authority"
       ],
-      "question": "Is the 'separately bounded dispatch allowance' for the synthetic proof goal covered by the goal's existing approval and spend cap, or is it a separate approval? GO-023.1 says there is no approval change."
+      "question": "GO-023.1 limits opt-in to a 'newly approved' goal with 'no successor change'. A GO-011.9 successor inherits its root's approval and must match the root brief byte for byte except Scenarios, Goal tests and Pre-mortem. Can a successor run widened? Does it inherit the root's max_workers, and can it be widened when the root wasn't?"
     },
     {
       "id": "A8",
       "requirements": [
-        "GO-023.2"
+        "GO-023.5",
+        "One release path, checked by code"
       ],
-      "question": "A sent call with no host answer keeps its reservation across stops and restart and must not be resent. What eventually resolves it (timeout, manual release, or never), and does it hold its slot against the ceiling until then?"
+      "question": "Which status move does 'Before calling v1 deployed' gate: review to released, released to done, or neither? The plan doesn't say how the installed-candidate proof, or the Release Owner exception, relates to the code-checked release path."
+    },
+    {
+      "id": "A9",
+      "requirements": [
+        "GO-023.3",
+        "GO-023.1"
+      ],
+      "question": "A refusal in an opted-in run updates a ceiling shared by opted-in runs. Does that learned ceiling bind runs of width 1 to 3 on the same host, or only opted-in runs? GO-023.1 says widths 1 to 3 retain GO-017 behavior."
+    },
+    {
+      "id": "A10",
+      "requirements": [
+        "GO-023.5",
+        "GO-023.3"
+      ],
+      "question": "Does the installed-candidate proof require four concurrent workers? If the shared host ceiling is already below 4, the plan says never to raise it and not to clear any host limit. What counts as a passing proof in that case?"
     }
   ]
 }
