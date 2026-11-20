@@ -2,37 +2,26 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "MR-004",
-  "scope_sha256": "06d7955d14b69a0a11fe0dbd4c1cfde40d03e9c42c651cb67a00245baba343bf",
-  "reviewed_at": "2026-11-19T23:12:58+00:00",
+  "scope_sha256": "8a848c67c1edcfbaca9b7577d3a6326f26f245233fc9179299575699b2887873",
+  "reviewed_at": "2026-11-20T01:25:06+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 6014,
+      "output_tokens": 180,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 7571,
+      "cache_creation_input_tokens": 7981,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 7571,
+        "ephemeral_5m_input_tokens": 7981,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 4,
-      "output_tokens": 26,
-      "cache_read_input_tokens": 7571,
-      "cache_creation_input_tokens": 6054,
-      "cache_creation": {
-        "ephemeral_5m_input_tokens": 6054,
-        "ephemeral_1h_input_tokens": 0
-      },
-      "type": "message"
-    },
-    {
-      "input_tokens": 15265,
-      "output_tokens": 1436,
+      "input_tokens": 9754,
+      "output_tokens": 2401,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,53 +33,59 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1145,
-      "cache_read_input_tokens": 13625,
-      "cache_creation_input_tokens": 252,
+      "output_tokens": 4933,
+      "cache_read_input_tokens": 7981,
+      "cache_creation_input_tokens": 509,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 252,
+        "ephemeral_5m_input_tokens": 509,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 21196,
-    "write": 13877
+    "read": 7981,
+    "write": 8490
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "MR-004.1",
-        "MR-004.3"
+        "MR-004.2",
+        "MR-004.5"
       ],
-      "question": "Under MODEL_ROUTER_REWRITE=1, does requested_model hold the caller's value (null when no model was given, as MR-004.1 defines it) or the rewritten model? The MR-003 and CS-007 tests, which read requested_model, can only pass unchanged if it holds the rewritten model."
+      "question": "Does the hook's floor check in criterion 2 honor MODEL_ROUTER_ALLOWED_MODELS? If the allowed set excludes the floor model, recommend exits 2 (criterion 5) but the hook still denies unless the caller names that model. Which governs?"
     },
     {
       "id": "A2",
       "requirements": [
-        "MR-004.2",
-        "MR-004.5"
+        "MR-004.3",
+        "MR-004.2"
       ],
-      "question": "What does the hook do when a required floor's model is outside the allowed set? MR-004.2 requires a deny that names the floor model, and MR-004.5 makes recommend exit 2 for that case."
+      "question": "Criterion 3 says the MR-003 and CS-007 tests run unchanged except for reading requested_model, but criterion 2 denies a below-floor explicit model in both modes. Do any MR-003 or CS-007 tests, or MR-001.7 and MR-003.8, use a below-floor explicit model or a call the hook must not block? If so, is that an allowed change to those tests?"
     },
     {
       "id": "A3",
       "requirements": [
-        "MR-004.7",
-        "The pre-merge gate is GitHub's, sized to the stakes"
+        "MR-004.4",
+        "MR-004.7"
       ],
-      "question": "Does run_all_tests.py already run test_route.py, or must MR-004 edit it? An edit touches a CODEOWNERS path and so needs Dorian's approving review, which MR-004.7 doesn't acknowledge."
+      "question": "run_all_tests.py is a CODEOWNERS path, and criterion 4 splits the code-owned hooks.json into its own change. Is the run_all_tests.py edit in criterion 7 part of the MR-004 change, so Dorian's approving review is required to release it? Or does it ship separately like the hooks.json wiring?"
     },
     {
       "id": "A4",
       "requirements": [
-        "MR-004.2",
-        "MR-004.3"
+        "MR-004.5"
       ],
-      "question": "Under MODEL_ROUTER_REWRITE=1, is an explicit model below a required floor left alone (MR-004.2: a caller's explicit model stands, per MR-001.7) or rewritten to the floor (MR-004.3: MR-003.7's lock restored)?"
+      "question": "Does \"the table's floor tier\" for an unclassified role with Jev unreachable mean the same as the required floor? What must a dispatcher do on exit 2: relaunch, fail, or fall back?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "MR-004.2"
+      ],
+      "question": "Is the review-subagent match a plain substring of subagent_type? How is a role that matches both review-subagent and the security department handled, such as security:security-review?"
     }
   ]
 }
