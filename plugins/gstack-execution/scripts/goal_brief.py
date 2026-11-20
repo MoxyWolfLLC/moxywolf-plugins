@@ -337,6 +337,26 @@ def pre_go023_successor(goal_dir, ref="origin/main"):
     return cut is None or int(when) < cut
 
 
+def legacy_deps_copy(goal_dir, ref="origin/main"):
+    """GO-023.8 (spec review C1, 2026-11-20): legacy string start_after entries are allowed only when the successor's
+    whole DEPS.json is byte for byte the DEPS.json its predecessor had at the first-parent commit on main that brought
+    goals/<pred>/, and that commit came before GO-023 merged. Any changed copy follows the rules for new entries."""
+    import goal_successor as gsucc
+    pred = gsucc.predecessor(Path(goal_dir).name)
+    mine = Path(goal_dir) / "DEPS.json"
+    if pred is None or not mine.is_file():
+        return False
+    out = _git(goal_dir, "log", "--first-parent", "--reverse", "--format=%H %ct", ref, "--", f":/goals/{pred}/GOAL.md")
+    if not out:
+        return False
+    sha, when = out.splitlines()[0].split(" ", 1)
+    cut = go023_merged_at()
+    if cut is not None and int(when) >= cut:
+        return False
+    r = subprocess.run(["git", "-C", str(goal_dir), "show", f"{sha}:goals/{pred}/DEPS.json"], capture_output=True)
+    return r.returncode == 0 and r.stdout == mine.read_bytes()
+
+
 def deps_check(goal_dir, errors):
     """GO-023.8. `check` runs only when a goal is drafted (goal_new, goal_local brief), never on an approved goal,
     so these rules bind new goals and an approved goal keeps its DEPS.json, or its lack of one, as approved.
@@ -371,7 +391,8 @@ def deps_check(goal_dir, errors):
                           "only a hard-cap goal may leave it out")
         return 0
     shape = len(errors)
-    for k, v in deps["items"].items():
+    legacy = legacy_deps_copy(goal_dir)   # a verified byte-for-byte copy of a pre-GO-023 predecessor's DEPS.json
+    for k, v in ([] if legacy else deps["items"].items()):
         for sa in (v.get("start_after") or []) if isinstance(v, dict) else []:
             if not (isinstance(sa, dict) and isinstance(sa.get("because"), str) and sa["because"].strip()):
                 errors.append(f"DEPS.json item {k}: start_after {sa!r} needs a non-empty 'because' naming the file, "

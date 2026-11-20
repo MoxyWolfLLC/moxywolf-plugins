@@ -271,6 +271,41 @@ class Check(unittest.TestCase):
         with mock.patch.object(gb, "go023_merged_at", return_value=merged_at):
             return self.errs(repo / "goals" / "g1--s1")
 
+    LEGACY = {"version": 1, "items": {"1": {"id": "write", "writes": ["a.py"]},
+                                      "2": {"id": "test", "writes": ["a.py"], "start_after": ["write"]}}}
+
+    def successor_copy(self, succ_deps, merged_at):
+        """origin/main brought goals/g1/ at time 1000 with a GO-017-style DEPS.json (string start_after); the
+        successor goals/g1--s1/ carries succ_deps as its DEPS.json text."""
+        import os, shutil
+        from unittest import mock
+        repo = Path(self.tmp.name, f"repo{self.n}")
+        (repo / "goals" / "g1").mkdir(parents=True)
+        (repo / "goals" / "g1" / "GOAL.md").write_text(brief())
+        legacy_text = json.dumps(self.LEGACY)
+        (repo / "goals" / "g1" / "DEPS.json").write_text(legacy_text)
+        env = {**os.environ, "GIT_COMMITTER_DATE": "@1000 +0000", "GIT_AUTHOR_DATE": "@1000 +0000"}
+        for c in (["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "g1"],
+                  ["update-ref", "refs/remotes/origin/main", "HEAD"]):
+            subprocess.run(["git", "-C", str(repo), *c], check=True, env=env)
+        s1 = self.make(deps=succ_deps if succ_deps is not None else legacy_text)
+        shutil.move(str(s1), repo / "goals" / "g1--s1")
+        with mock.patch.object(gb, "go023_merged_at", return_value=merged_at):
+            return self.errs(repo / "goals" / "g1--s1")
+
+    @W1
+    def test_a_byte_for_byte_copy_of_a_pre_go023_deps_keeps_its_legacy_entries(self):
+        self.assertEqual(self.successor_copy(None, merged_at=2000), [])
+
+    @W1
+    def test_a_changed_copy_cannot_use_the_legacy_exemption(self):
+        changed = json.dumps({**self.LEGACY, "max_workers": 2})
+        self.assertTrue(any("because" in e for e in self.successor_copy(changed, merged_at=2000)))
+
+    @W1
+    def test_a_copy_of_a_post_go023_predecessor_gets_no_legacy_exemption(self):
+        self.assertTrue(any("because" in e for e in self.successor_copy(None, merged_at=500)))
+
     def test_a_successor_of_a_pre_go023_goal_without_deps_is_exempt(self):
         self.assertEqual(self.successor_in_repo(pred_deps=False, merged_at=2000), [])
         self.assertEqual(self.successor_in_repo(pred_deps=False, merged_at=None), [])   # GO-023 not on main yet
