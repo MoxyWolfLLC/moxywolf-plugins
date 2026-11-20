@@ -2,19 +2,19 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "GO-017",
-  "scope_sha256": "45def030754653867401021c5fc5acdc47bd8298ba381468019fb36f19ef004a",
-  "reviewed_at": "2026-11-19T23:35:05+00:00",
+  "scope_sha256": "d4163e70170b5eebe45e5831b1b973fc2629d4995419a880cab11ad240494617",
+  "reviewed_at": "2026-11-20T00:40:11+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 6759,
+      "output_tokens": 5677,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 8459,
+      "cache_creation_input_tokens": 8713,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 8459,
+        "ephemeral_5m_input_tokens": 8713,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
@@ -22,17 +22,17 @@
     {
       "input_tokens": 4,
       "output_tokens": 26,
-      "cache_read_input_tokens": 8459,
-      "cache_creation_input_tokens": 6799,
+      "cache_read_input_tokens": 8713,
+      "cache_creation_input_tokens": 5717,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 6799,
+        "ephemeral_5m_input_tokens": 5717,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 16898,
-      "output_tokens": 3420,
+      "input_tokens": 16070,
+      "output_tokens": 3199,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,19 +44,19 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 3430,
-      "cache_read_input_tokens": 15258,
-      "cache_creation_input_tokens": 687,
+      "output_tokens": 3088,
+      "cache_read_input_tokens": 14430,
+      "cache_creation_input_tokens": 623,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 687,
+        "ephemeral_5m_input_tokens": 623,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 23717,
-    "write": 15945
+    "read": 23143,
+    "write": 15053
   },
   "contradictions": [],
   "ambiguities": [
@@ -64,49 +64,27 @@
       "id": "A1",
       "requirements": [
         "GO-017.5",
-        "GO-017.6"
+        "GO-017.7",
+        "The agent merges on a clean review, not on words"
       ],
-      "question": "After `refresh` records a rebuilt head, is that the 'drafted head' that GO-017.5 accepts reviews for? What is 'the tested head' that merge-gate compares the reviewed head against, given that `refresh` checks only the claim and doesn't re-run tests?"
+      "question": "What is the per-item review cap when the goal has no GOAL.md, or when the brief's Max review rounds differs from 3? Criterion 7 and the constraint both say three blocking rounds reach Dorian, but criterion 5 ties the cap to the brief."
     },
     {
       "id": "A2",
       "requirements": [
-        "GO-017.2",
+        "GO-017.4",
         "GO-017.5"
       ],
-      "question": "Does a blocked `integrate_after` prerequisite stop dependents from being drafted (GO-017.5 'stops the item'; GO-017.2 'no ancestor is blocked'), or only from merging (the preamble says an integration dependency 'blocks only the merge')? Do 'ancestors' in GO-017.2 include integration and order edges?"
+      "question": "When `result` rejects a worker's head for failing tests or an empty change, is the item retried with a new attempt or blocked at once? Criterion 5 lists only a result outside the claim as blocking."
     },
     {
       "id": "A3",
       "requirements": [
         "GO-017.4",
-        "GO-017.5"
+        "GO-017.5",
+        "GO-017.6"
       ],
-      "question": "Which `result` rejections block an item? GO-017.5 names only 'a result outside the claim', while GO-017.4 also rejects contract changes, failing tests and empty changes. Do those block the item or allow a retry, and how many retries?"
-    },
-    {
-      "id": "A4",
-      "requirements": [
-        "Coverage is mandatory",
-        "GO-017.6",
-        "GO-017.7"
-      ],
-      "question": "For an item whose review coverage isn't `checked`, the owner records an exception and makes the merge, outside `goal_run.py may ... merge`. Does that merge satisfy merge-gate's 'target is still where the coordinator's last merge left it', is it recorded through `merged`, and must the owner's exception be re-recorded after every `refresh` caused by another item's merge?"
-    },
-    {
-      "id": "A5",
-      "requirements": [
-        "GO-017 Links introduced (parallel state field)",
-        "GO-017.7"
-      ],
-      "question": "The `parallel` state field stores only `integrate_after` per item, but `merged` must refuse items whose start, integration and order prerequisites haven't merged. Where do start_after and order come from at `merged` time: a flattened `integrate_after`, or a re-read of DEPS.json?"
-    },
-    {
-      "id": "A6",
-      "requirements": [
-        "GO-017.7"
-      ],
-      "question": "`next` returns the swarm step after 'escalations that wait for Dorian, exactly as before', but a `blocked` escalation (including reason `review_cap`) doesn't wait. Which escalation kinds still hold the swarm step, and is a `review_cap` escalation raised outside `blocked` still a waiting one?"
+      "question": "After `refresh` records a rebuilt head, does the evidence (tested head) move to it, and does it become the 'drafted head' that review accepts? Does `refresh` rerun tests? Without this, 'reviewed at the tested head' (criterion 6) cannot be decided for a refreshed item."
     }
   ]
 }
