@@ -369,28 +369,53 @@ def cmd_pre_tool_use(h):
         append(path, line); return 0
     recommended = table["tiers"][tier]
     line["recommended_model"] = recommended
+    required = c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS
     if tin.get("model"):                  # MR-001.7: a caller's explicit choice stands and is recorded
+        if required and not meets_floor(tin["model"], table["tiers"]["floor"]):
+            # MR-004.2 (Dorian, 2026-11-19): a required floor holds for every launch, an explicit model included
+            return deny(path, line, c, recommended, f"names model {tin['model']!r}, below or outside the floor",
+                        caller_model=tin["model"], requested_model=tin["model"])
         # MR-004: what the caller asked for is the requested model; a launch is confirmed only by post-tool-use
         line.update(caller_model=tin["model"], decided_by=f"caller ({decided_by} advised {recommended})",
-                    requested_model=tin["model"], floor_rule=False, mutated=False, launch="requested")
+                    requested_model=tin["model"], floor_rule=bool(required), mutated=False, launch="requested")
         append(path, line); return 0
-    required = c["class"] in FLOOR_LOCKED or line.get("department") in FLOOR_LOCKED_DEPARTMENTS
     if rewrite_opted_in():                # MR-004.3: the legacy rewrite, only where the operator opted in
         line.update(routed=True, requested_model=recommended, floor_rule=floor_rule, mutated=True, launch="requested")
         append(path, line)
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {**tin, "model": recommended}}}))
         return 0
     if required:                          # MR-004.2: a floor this hook can't guarantee is not dispatched
-        why = (f"model-router: {c['class']}{' (' + line['department'] + ')' if line.get('department') else ''} requires the "
-               f"floor model; relaunch this Agent call with model: \"{recommended}\". The hook does not rewrite inputs on this host.")
-        line.update(requested_model=None, floor_rule=True, mutated=False, launch="refused_floor_unverified")
-        append(path, line)
-        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                                 "permissionDecisionReason": why}}))
-        return 0
+        return deny(path, line, c, recommended, "names no model", requested_model=None)
     # MR-004.1: recommend, never mutate. The call runs on the host's own default (the session's model).
     line.update(requested_model=None, inherited=True, floor_rule=floor_rule, mutated=False, launch="requested")
     append(path, line)
+    return 0
+
+
+MODEL_RANK = {"haiku": 0, "sonnet": 1, "opus": 2, "fable": 3}   # the Agent tool's models, cheapest first
+
+
+def model_rank(name):
+    """The rank of an alias or a full id ('claude-opus-5-5' is opus); None for a model this table doesn't know."""
+    n = str(name).lower()
+    hits = [r for m, r in MODEL_RANK.items() if re.search(rf"(^|[-_/]){m}([-_.]|$)", n)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def meets_floor(model, floor):
+    """True only when the model is known and ranks at or above the floor; an unknown model can't be shown to meet it."""
+    r, f = model_rank(model), model_rank(floor)
+    return r is not None and f is not None and r >= f
+
+
+def deny(path, line, c, floor_model, problem, **fields):
+    who = f"{c['class']}{' (' + line['department'] + ')' if line.get('department') else ''}"
+    why = (f"model-router: {who} requires the floor model and this launch {problem}; relaunch this Agent call with "
+           f"model: \"{floor_model}\". The hook does not rewrite inputs on this host.")
+    line.update(floor_rule=True, mutated=False, launch="refused_floor_unverified", **fields)
+    append(path, line)
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                             "permissionDecisionReason": why}}))
     return 0
 
 

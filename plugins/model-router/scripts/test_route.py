@@ -598,6 +598,23 @@ class Mr004(Hooks):
         self.assertIn("3 Agent requests named a model but no launch line confirms they ran", r.stdout)
         self.assertIn("4 calls across 2 session ledgers", r.stdout)   # unconfirmed requests are still calls
 
+    def test_a_required_floor_holds_for_an_explicit_model_too(self):   # MR-004.2, Dorian 2026-11-19
+        for t, m, ok in (("security:security", "haiku", False), ("code-review", "sonnet", False), ("security:security", "gpt-6", False),
+                         ("security:security", "opus", True), ("code-review", "fable", True), ("security:security", "claude-opus-5-5", True),
+                         ("finance:finance", "haiku", True), ("Explore", "haiku", True)):
+            for rewrite in ("", "1"):
+                r = self.call("Agent", {"subagent_type": t, "description": "d", "prompt": "p", "model": m}, MODEL_ROUTER_REWRITE=rewrite)
+                self.assertEqual(r.returncode, 0)
+                if ok:
+                    self.assertEqual(r.stdout.strip(), "", (t, m, rewrite))
+                    self.assertEqual(self.ledger()[-1]["requested_model"], m)
+                else:
+                    out = json.loads(r.stdout)["hookSpecificOutput"]
+                    self.assertEqual((out["permissionDecision"], "updatedInput" in out), ("deny", False), (t, m, rewrite))
+                    self.assertIn('model: "opus"', out["permissionDecisionReason"])
+                    l = self.ledger()[-1]
+                    self.assertEqual((l["launch"], l["requested_model"], l["caller_model"]), ("refused_floor_unverified", m, m))
+
 
 for _n in [n for n in dir(Hooks) if n.startswith("test_") and n not in Mr004.__dict__]:
     setattr(Mr004, _n, None)   # Mr004 reuses Hooks' stub and helpers, not its MR-003 (opt-in rewrite) tests
