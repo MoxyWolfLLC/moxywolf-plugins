@@ -496,8 +496,9 @@ class Hooks(unittest.TestCase):
 
     def test_hooks_json_declares_the_three_events_running_route_py(self):
         h = json.loads((HERE.parent / "hooks" / "hooks.json").read_text())["hooks"]
-        self.assertEqual(set(h), {"SessionStart", "PreToolUse", "SessionEnd"})
-        for ev, arg in (("SessionStart", "session-start"), ("PreToolUse", "pre-tool-use"), ("SessionEnd", "session-end")):
+        self.assertEqual(set(h), {"SessionStart", "PreToolUse", "PostToolUse", "SessionEnd"})
+        self.assertEqual(h["PostToolUse"][0]["matcher"], "Agent")   # MR-004.4: only an Agent launch is confirmed
+        for ev, arg in (("SessionStart", "session-start"), ("PreToolUse", "pre-tool-use"), ("PostToolUse", "post-tool-use"), ("SessionEnd", "session-end")):
             cmd = h[ev][0]["hooks"][0]["command"]
             self.assertIn("scripts/route.py", cmd); self.assertIn(arg, cmd); self.assertTrue(cmd.endswith("exit 0"))
 

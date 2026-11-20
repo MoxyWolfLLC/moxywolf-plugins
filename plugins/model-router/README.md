@@ -18,7 +18,7 @@ From 0.3.0:
 - A role with a required floor (`review-subagent`, the security department) launched without a model is denied, with the model to relaunch on in the reason. `launch: refused_floor_unverified`. It is never run below its floor.
 - The dispatcher picks the model before launch: `python3 scripts/route.py recommend --subagent-type T [--description D] [--prompt-file F]` prints `{model, tier, class, decided_by, required_floor}` from the same table, Jev and locks, limited to the models the host's Agent tool allows (`opus`, `sonnet`, `haiku`, `fable`; `MODEL_ROUTER_ALLOWED_MODELS` overrides). An unclassified role with Jev down gets the floor, never a guess downward. Exit 2 when the tier's model isn't allowed.
 - The rewrite survives only as an opt-in for a host known to accept it: `MODEL_ROUTER_REWRITE=1`. Any other value, or none, is the non-mutating default.
-- A hook line is a request, not a launch. `route.py post-tool-use` writes `{event: launch, tool_use_id, outcome: returned}` when an Agent call ran and returned; that line, matched by `tool_use_id`, is the only confirmed launch. Wiring it into `hooks/hooks.json` is a separate, code-owned change.
+- A hook line is a request, not a launch. `route.py post-tool-use` writes `{event: launch, tool_use_id, outcome: returned}` when an Agent call ran and returned; that line, matched by `tool_use_id`, is the only confirmed launch. From 0.3.1 `hooks/hooks.json` runs it on `PostToolUse` for the Agent tool.
 
 ## The ontology
 
@@ -59,4 +59,4 @@ A launch of one of the ten department agents (`finance:finance`, `sales-departme
 
 ## Hooks
 
-`hooks/hooks.json` declares `SessionStart`, `PreToolUse` and `SessionEnd`, each running `scripts/route.py` (Python 3, stdlib only) and ending `exit 0`. `scripts/test_route.py` runs the hooks as subprocesses with the hook JSON on stdin, the way the host calls them, against a stub Jev.
+`hooks/hooks.json` declares `SessionStart`, `PreToolUse`, `PostToolUse` (Agent only, MR-004.4) and `SessionEnd`, each running `scripts/route.py` (Python 3, stdlib only) and ending `exit 0`. `scripts/test_route.py` runs the hooks as subprocesses with the hook JSON on stdin, the way the host calls them, against a stub Jev.
