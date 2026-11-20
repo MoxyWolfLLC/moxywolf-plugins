@@ -22,6 +22,7 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
 
   swarm.py check <goal dir>                                   validate DEPS.json against PLAN.md
   swarm.py init <run> --goal <goal dir> --base <sha> --budget <usd> [--review-cap N]
+                                                              --budget is a dispatch budget, not a spend cap
                                                               the cap is the brief's Max review rounds per item when
                                                               the goal has a GOAL.md; --review-cap must then agree
   swarm.py tick <run> [--halt <path>] [--spend-stop]          claims every eligible item up to max_workers
@@ -42,6 +43,7 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
 import argparse
 import fcntl
 import fnmatch
+import math
 import json
 import re
 import subprocess
@@ -63,6 +65,41 @@ DEFAULT_ESTIMATE = 1.0
 
 def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+TOP_KEYS = {"version", "max_workers", "items", "order"}
+ITEM_KEYS = {"id", "writes", "start_after", "integrate_after", "contracts", "estimate_usd"}
+
+
+def money(value, what, positive=False):
+    """A dollar amount the coordinator can do arithmetic on: a finite number, not negative, above zero where
+    `positive` (review 20261119-203612 F11: a negative estimate or a NaN cost turned every budget comparison off)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError(f"{what} must be a number of dollars")
+    try:
+        v = float(value)
+    except ValueError:
+        raise ValueError(f"{what} must be a number of dollars, not {value!r}")
+    if not math.isfinite(v) or v < 0 or (positive and v == 0):
+        raise ValueError(f"{what} must be a finite dollar amount {'above' if positive else 'at or above'} zero, not {value!r}")
+    return v
+
+
+def refuse_hard_cap(goal_dir, deps):
+    """Dorian, 2026-11-19: swarm workers are Agent-tool workers, and nothing can stop one from spending past its
+    reservation once launched, so the swarm's budget limits dispatch only. A goal that needs a hard dollar cap is
+    refused here rather than run on a promise the coordinator can't keep."""
+    if deps.get("hard_dollar_cap"):
+        raise ValueError("this goal requires a hard dollar cap; swarm workers can't be held to one, so it can't run as a swarm")
+    unknown = set(deps) - TOP_KEYS - {"hard_dollar_cap"}
+    unknown |= {f"items.{k}.{x}" for k, v in (deps.get("items") or {}).items() if isinstance(v, dict) for x in set(v) - ITEM_KEYS}
+    if unknown:
+        raise ValueError(f"DEPS.json has keys the coordinator doesn't read: {sorted(unknown)}")
+    brief = Path(goal_dir) / "GOAL.md"
+    if brief.is_file():
+        m = re.search(r"^## Spend cap\s*\n(.*?)(?=^## |\Z)", brief.read_text(), re.M | re.S)
+        if m and re.search(r"\bhard\b", m.group(1), re.I):
+            raise ValueError("the brief's Spend cap asks for a hard cap; swarm workers can't be held to one, so it can't run as a swarm")
 
 
 def plan_numbers(plan_text):
@@ -97,6 +134,7 @@ def load_plan(goal_dir):
                  for p, n in zip([None] + numbers, numbers)]
         return validate({"version": 1, "max_workers": 1, "serial": True, "items": items, "order": []})
     d = json.loads(f.read_text())
+    refuse_hard_cap(goal_dir, d)
     if not isinstance(d, dict) or not isinstance(d.get("items"), dict):
         raise ValueError("DEPS.json needs an items object keyed by PLAN.md item number")
     if sorted(int(k) for k in d["items"]) != sorted(numbers):
@@ -105,7 +143,7 @@ def load_plan(goal_dir):
     for k, v in sorted(d["items"].items(), key=lambda kv: int(kv[0])):
         items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": v.get("start_after", []),
                       "integrate_after": v.get("integrate_after", []), "contracts": v.get("contracts", []),
-                      "estimate_usd": float(v.get("estimate_usd", DEFAULT_ESTIMATE))})
+                      "estimate_usd": money(v.get("estimate_usd", DEFAULT_ESTIMATE), f"item {k} estimate_usd", positive=True)})
     return validate({"version": d.get("version"), "max_workers": d.get("max_workers", MAX_WORKERS), "serial": False,
                      "items": items, "order": d.get("order", [])})
 
@@ -210,7 +248,7 @@ def init(run, goal_dir, base, budget, review_cap=None):
     run = Path(run); run.mkdir(parents=True, exist_ok=True)
     if _paths(run)[0].exists():
         raise ValueError(f"{run} already has a swarm; resume it with tick")
-    s = {"plan": plan, "base": base, "integration_head": base, "budget": float(budget), "spent": 0.0,
+    s = {"plan": plan, "base": base, "integration_head": base, "budget": money(budget, "--budget", positive=True), "spent": 0.0,
          "reserved": {}, "review_cap": review_cap,
          "items": {i["id"]: {"status": "pending", "attempts": 0, "review_rounds": 0, "evidence": None, "why": None}
                    for i in plan["items"]}}
@@ -229,15 +267,17 @@ def _settle(run, s, iid, attempt, reserved, cost):
     """Settle one attempt's spend once. A reported dollar cost is charged as reported, overrun included; with none
     (a host that reports tokens, not dollars) the reservation is charged and the attempt is marked estimated, so the
     ledger never shows a dollar figure nobody measured."""
-    charged = float(cost) if cost is not None else reserved
+    # Dorian, 2026-11-19: an Agent-tool worker's cost can't be verified (the host reports tokens), so the full
+    # reservation stays charged; a reported figure can only add to it, never release part of it.
+    reported = money(cost, "--cost") if cost is not None else None
+    charged = max(reserved, reported) if reported is not None else reserved
     s["spent"] += charged
-    if cost is None:
-        s["estimated"] = s.get("estimated", 0) + 1
+    s["estimated"] = s.get("estimated", 0) + 1   # every settlement so far: no verified cost source exists
     if charged > reserved + 1e-9:
         _event(run, "overrun", id=iid, attempt=attempt, reserved=reserved, charged=charged)
     if s["spent"] > s["budget"] + 1e-9:
         _event(run, "over_budget", id=iid, attempt=attempt, spent=round(s["spent"], 4), budget=s["budget"])
-    _event(run, "settled", id=iid, attempt=attempt, reserved=reserved, charged=charged, estimated=cost is None)
+    _event(run, "settled", id=iid, attempt=attempt, reserved=reserved, reported=reported, charged=charged, verified=False)
 
 
 def _remaining(s):

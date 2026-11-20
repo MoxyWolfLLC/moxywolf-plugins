@@ -147,7 +147,7 @@ class Swarm(unittest.TestCase):
         self.assertEqual(swarm.status(self.run)["reserved"], 4.0)
         _, r = self.finish(first["dispatch"][0], ["a/x"], cost=1.5)
         s = swarm.status(self.run)
-        self.assertEqual((s["spent"], s["reserved"]), (1.5, 2.0))
+        self.assertEqual((s["spent"], s["reserved"]), (2.0, 2.0))   # an unverified $1.50 releases nothing of its $2
         with self.assertRaises(ValueError):                              # the same result can't be charged twice
             swarm.result(self.run, "a", 1, "HEAD", self.repo, "passed", 1.5)
 
@@ -165,7 +165,9 @@ class Swarm(unittest.TestCase):
         swarm.review(self.run, "a", swarm.load(self.run)["items"]["a"]["evidence"]["head"], "clean")
         self.assertIn("HALT", swarm.merge_gate(self.run, "a", self.repo, "main", halted=True))
         self.assertEqual(swarm.tick(self.run, spend_stop=True)["dispatch"], [])
-        self.assertEqual([c["id"] for c in swarm.tick(self.run)["dispatch"]], ["c"])   # a's unspent reservation freed
+        t = swarm.tick(self.run)                                         # a reported $1, but its $4 stays charged
+        self.assertEqual(t["dispatch"], [])
+        self.assertTrue(any(w["id"] == "c" and w["why"].startswith("budget") for w in t["waiting"]))
 
     # 7
     def test_stale_evidence_cannot_authorize_a_merge(self):
@@ -338,7 +340,7 @@ class Swarm(unittest.TestCase):
         r = swarm.result(self.run, "y", 1, self.work(cy, ["y/a"]), self.repo, "passed", cost=0.5)
         self.assertFalse(r["accepted"])                              # y's worker reports, its spend settles, it stays blocked
         st = swarm.status(self.run)
-        self.assertEqual((st["items"]["y"]["status"], st["spent"]), ("blocked", 0.5))
+        self.assertEqual((st["items"]["y"]["status"], st["spent"]), ("blocked", 1.0))   # its full reservation
         with self.assertRaises(ValueError):
             swarm.launched(self.run, "x", 1)
 
@@ -370,7 +372,7 @@ class Swarm(unittest.TestCase):
         self.assertEqual(swarm.load(self.run)["review_cap"], 1)
 
     # Dorian 2026-11-19: the dollar cap and HALT with workers already running
-    def test_the_dollar_cap_holds_dispatch_while_workers_run_and_records_an_overrun(self):
+    def test_the_dispatch_budget_holds_while_workers_run_and_records_an_overrun(self):
         self.plan([self.item("a", ["a/**"], est=2), self.item("b", ["b/**"], est=2), self.item("c", ["c/**"], est=2)])
         swarm.init(self.run, self.goal, self.base, 5)
         t = swarm.tick(self.run)
@@ -384,12 +386,12 @@ class Swarm(unittest.TestCase):
         self.assertEqual(swarm.tick(self.run)["dispatch"], [])               # spent + in flight past the cap: nothing new
         swarm.result(self.run, "b", 1, self.work(cb, ["b/x"]), self.repo, "passed")          # no dollar figure reported
         st = swarm.status(self.run)
-        self.assertEqual((st["spent"], st["reserved"], st["estimated_settlements"], st["over_budget"]), (6.0, 0, 1, True))   # charged at its estimate
+        self.assertEqual((st["spent"], st["reserved"], st["estimated_settlements"], st["over_budget"]), (6.0, 0, 2, True))   # charged at its estimate
         self.assertEqual(swarm.tick(self.run)["dispatch"], [])
         ev = [json.loads(l) for l in (self.run / "swarm-events.jsonl").read_text().splitlines()]
         self.assertEqual([(e["id"], e["charged"]) for e in ev if e["event"] == "overrun"], [("a", 4.0)])
         self.assertTrue(any(e["event"] == "over_budget" for e in ev))
-        self.assertEqual([e["estimated"] for e in ev if e["event"] == "settled"], [False, True])
+        self.assertEqual([(e["reported"], e["charged"], e["verified"]) for e in ev if e["event"] == "settled"], [(4.0, 4.0, False), (None, 2.0, False)])
 
     def test_halt_raised_after_launch_stops_dispatch_and_integration_through_the_cli(self):
         self.plan([self.item("a", ["a/**"]), self.item("b", ["b/**"], start=["a"])])
@@ -407,6 +409,54 @@ class Swarm(unittest.TestCase):
         self.assertEqual(r.returncode, 1); self.assertIn("HALT", json.loads(r.stdout))
         halt.unlink()
         self.assertEqual(cli("merge-gate", str(self.run), "a", "--repo", str(self.repo), "--target", "main", "--halt", str(halt)).returncode, 0)
+
+    # review 20261119-203612 F11 and Dorian 2026-11-19: dispatch budget, not a spend cap
+    def test_f11_money_values_must_be_finite_and_not_negative(self):
+        for est in (-2, 0, "nan", "inf", True, "two"):
+            self.plan([self.item("a", ["a/**"], est=est)])
+            with self.assertRaises(ValueError, msg=est):
+                swarm.load_plan(self.goal)
+        self.plan([self.item("a", ["a/**"], est=1), self.item("b", ["b/**"], est=1)], max_workers=3)
+        for budget in (0, -5, float("nan"), float("inf")):
+            with self.assertRaises(ValueError, msg=budget):
+                swarm.init(self.tmp / f"run-{budget}", self.goal, self.base, budget)
+        swarm.init(self.run, self.goal, self.base, 2)
+        ca, cb = swarm.tick(self.run)["dispatch"]
+        swarm.launched(self.run, "a", 1); swarm.launched(self.run, "b", 1)
+        for bad in ("nan", "-1", "inf"):
+            with self.assertRaises(ValueError, msg=bad):
+                swarm.result(self.run, "a", 1, self.work(ca, [f"a/{bad}"]) if bad == "nan" else "HEAD", self.repo, "passed", cost=bad)
+        st = swarm.status(self.run)
+        self.assertEqual((st["spent"], st["reserved"]), (0.0, 2.0))     # a refused result settles nothing
+
+    def test_two_workers_in_flight_keep_their_full_reservations_whatever_they_report(self):
+        self.plan([self.item("a", ["a/**"], est=3), self.item("b", ["b/**"], est=3), self.item("c", ["c/**"], est=3)])
+        swarm.init(self.run, self.goal, self.base, 7)
+        ca, cb = swarm.tick(self.run)["dispatch"]
+        swarm.launched(self.run, "a", 1); swarm.launched(self.run, "b", 1)
+        swarm.result(self.run, "a", 1, self.work(ca, ["a/x"]), self.repo, "passed", cost=0.10)
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])          # $3 + $3 of $7 still held: c can't fit
+        swarm.result(self.run, "b", 1, self.work(cb, ["b/x"]), self.repo, "passed")
+        st = swarm.status(self.run)
+        self.assertEqual((st["spent"], st["reserved"], st["over_budget"]), (6.0, 0, False))
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])
+
+    def test_a_goal_that_needs_a_hard_dollar_cap_is_refused(self):
+        self.plan([self.item("a", ["a/**"])])
+        d = json.loads((self.goal / "DEPS.json").read_text()); d["hard_dollar_cap"] = True
+        (self.goal / "DEPS.json").write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, "hard dollar cap"):
+            swarm.load_plan(self.goal)
+        d.pop("hard_dollar_cap"); d["spend_cap_usd"] = 5
+        (self.goal / "DEPS.json").write_text(json.dumps(d))
+        with self.assertRaisesRegex(ValueError, "keys the coordinator doesn't read"):
+            swarm.load_plan(self.goal)
+        d.pop("spend_cap_usd"); (self.goal / "DEPS.json").write_text(json.dumps(d))
+        (self.goal / "GOAL.md").write_text("# g\n\n## Spend cap\n$40, a hard cap\n\n## Max review rounds per item\n2\n")
+        with self.assertRaisesRegex(ValueError, "asks for a hard cap"):
+            swarm.load_plan(self.goal)
+        (self.goal / "GOAL.md").write_text("# g\n\n## Spend cap\n$40\n\n## Max review rounds per item\n2\n")
+        swarm.load_plan(self.goal)
 
 
 if __name__ == "__main__":
