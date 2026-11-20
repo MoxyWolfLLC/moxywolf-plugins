@@ -2,19 +2,19 @@
   "schema": "spec-review/3",
   "doc": "DESIGN.md",
   "item": "GO-017",
-  "scope_sha256": "d4163e70170b5eebe45e5831b1b973fc2629d4995419a880cab11ad240494617",
-  "reviewed_at": "2026-11-20T00:40:11+00:00",
+  "scope_sha256": "1fd99a564ae896c9d37ff04bdd3104f7bbe7e6c3b1d0418ec6539e7c2db4f7e7",
+  "reviewed_at": "2026-11-20T04:16:01+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 5677,
+      "output_tokens": 7996,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 8713,
+      "cache_creation_input_tokens": 9070,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 8713,
+        "ephemeral_5m_input_tokens": 9070,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
@@ -22,17 +22,17 @@
     {
       "input_tokens": 4,
       "output_tokens": 26,
-      "cache_read_input_tokens": 8713,
-      "cache_creation_input_tokens": 5717,
+      "cache_read_input_tokens": 9070,
+      "cache_creation_input_tokens": 8036,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 5717,
+        "ephemeral_5m_input_tokens": 8036,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 16070,
-      "output_tokens": 3199,
+      "input_tokens": 18746,
+      "output_tokens": 2435,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -44,47 +44,73 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 3088,
-      "cache_read_input_tokens": 14430,
-      "cache_creation_input_tokens": 623,
+      "output_tokens": 2573,
+      "cache_read_input_tokens": 17106,
+      "cache_creation_input_tokens": 427,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 623,
+        "ephemeral_5m_input_tokens": 427,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 23143,
-    "write": 15053
+    "read": 26176,
+    "write": 17533
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
+        "Constraints: The agent merges on a clean review, not on words",
         "GO-017.5",
-        "GO-017.7",
-        "The agent merges on a clean review, not on words"
+        "GO-017.7"
       ],
-      "question": "What is the per-item review cap when the goal has no GOAL.md, or when the brief's Max review rounds differs from 3? Criterion 7 and the constraint both say three blocking rounds reach Dorian, but criterion 5 ties the cap to the brief."
+      "question": "The constraint and GO-017.7 say three blocking rounds reach Dorian, but GO-017.5 sets the cap from the brief's Max review rounds per item. What is the cap, and when does the escalation fire, if the brief's value isn't three or there is no GOAL.md?"
     },
     {
       "id": "A2",
       "requirements": [
-        "GO-017.4",
+        "GO-017 intro (Not taken: any change to the review cap)",
+        "Constraints: Preserve cross-tool review, pinned commits, bounded review rounds, and recursion refusal",
         "GO-017.5"
       ],
-      "question": "When `result` rejects a worker's head for failing tests or an empty change, is the item retried with a new attempt or blocked at once? Criterion 5 lists only a result outside the claim as blocking."
+      "question": "Does counting rounds across attempts and refreshes, with only blocking rounds able to block, change review-cap semantics, including for serial goals? Do clean rounds count toward the cap, and are they bounded?"
     },
     {
       "id": "A3",
       "requirements": [
         "GO-017.4",
         "GO-017.5",
+        "GO-017.2"
+      ],
+      "question": "Does a result rejected for failing tests or an empty change block the item, allow a retry, or count as an attempt? GO-017.5 lists only a result outside the claim as blocking."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GO-017.5",
         "GO-017.6"
       ],
-      "question": "After `refresh` records a rebuilt head, does the evidence (tested head) move to it, and does it become the 'drafted head' that review accepts? Does `refresh` rerun tests? Without this, 'reviewed at the tested head' (criterion 6) cannot be decided for a refreshed item."
+      "question": "After `refresh` records a rebuilt head, is that head the 'drafted head' that `review` accepts and the 'tested head' that `merge-gate` checks?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "Constraints: Coverage is mandatory",
+        "GO-017.5",
+        "GO-017.6",
+        "GO-017.7"
+      ],
+      "question": "For a swarm item whose clean review has coverage not `checked` and an owner exception recorded at that head, does `merge-gate` count it as reviewed? How is the owner's merge, which `may ... merge` refuses and which moves the target outside the coordinator's own merges, recorded through `merged`? Does `refresh` void the exception?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "GO-017.3"
+      ],
+      "question": "Charging a tokens-only worker its reservation records a dollar figure nobody measured, flagged `estimated: true`. Does that satisfy 'no dollar figure is recorded that nobody measured'?"
     }
   ]
 }
