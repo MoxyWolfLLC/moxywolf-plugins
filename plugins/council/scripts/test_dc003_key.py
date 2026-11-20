@@ -223,6 +223,27 @@ class DC003Key(unittest.TestCase):
                 )
                 self.assert_refused(result, "budget_key_missing")
 
+    def test_rf4_init_empty_key_refuses_without_creating_budget(self):
+        for case, value in (("double_quotes", '\"\"'), ("single_quotes", "''"),
+                            ("spaces", "   ")):
+            with self.subTest(case=case):
+                self.key_file.write_text(f"AI_GATEWAY_API_KEY={value}\n")
+                self.budget = self.root / f"{case}.json"
+                result = self.run_dc(
+                    "budget", "init", "--budget", self.budget, "--run", RUN,
+                    "--limit-usd", "1", "--key-id", KEY_ID,
+                )
+                self.assert_refused(result, "budget_key_missing")
+                self.assertFalse(self.budget.exists(), "refused init created a budget")
+
+    def test_rf4_ask_empty_key_refuses_as_missing_and_sends_nothing(self):
+        self.init_budget()
+        for case, value in (("double_quotes", '\"\"'), ("single_quotes", "''"),
+                            ("spaces", "   ")):
+            with self.subTest(case=case):
+                self.key_file.write_text(f"AI_GATEWAY_API_KEY={value}\n")
+                self.assert_refused(self.budgeted_ask(), "budget_key_missing")
+
     def test_c2_changed_key_mismatches_the_init_hash_and_sends_nothing(self):
         self.init_budget()
         budget = json.loads(self.budget.read_text())

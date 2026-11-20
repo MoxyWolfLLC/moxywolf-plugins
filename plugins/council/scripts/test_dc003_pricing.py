@@ -227,6 +227,35 @@ class DC003Pricing(unittest.TestCase):
         }})
         self.assert_voice_refused(self.ask(), MODELS[1], "unbounded_fee:web_search")
 
+    def test_rf2_malformed_token_prices_refuse_only_the_affected_voice(self):
+        self.write_prices(overrides={MODELS[1]: {
+            "input": "0.000001", "output": "0",
+            "input_tiers": [{"cost": "0.0000001", "min": 0, "max": 272001}],
+        }})
+        output = self.ask()
+        self.assert_ceilings(output, dict.fromkeys(MODELS, 0.05))
+        for row in output["voices"]:
+            self.assertNotIn("unavailable", row)
+            self.assertEqual(row["answered"], 1)
+
+        for malformed in (
+            {"output": {}},
+            {"output": "-1"},
+            {"input_cache_write": "abc"},
+            {"input_tiers": [{"cost": "x"}]},
+            {"input_tiers": "notalist"},
+            {"regional": {"us": {"input": "bad"}}},
+        ):
+            with self.subTest(pricing=malformed):
+                self.server.posts.clear()
+                self.write_prices(overrides={MODELS[1]: {
+                    "input": "0.000001", "output": "0.000002", **malformed,
+                }})
+                output = self.ask()
+                rows = {row["model"]: row for row in output["voices"]}
+                self.assertEqual(rows[MODELS[1]].get("unavailable"), "no_price")
+                self.assert_voice_refused(output, MODELS[1], "no_price")
+
     def test_c4_unreadable_pricing_and_failed_models_endpoint_refuse_call(self):
         self.pricing.unlink()
         output = self.ask(expected_exit=4)

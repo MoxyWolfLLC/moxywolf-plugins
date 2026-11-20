@@ -159,6 +159,69 @@ class ReserveTests(unittest.TestCase):
             self.assertEqual(Decimal(str(result[field])), Decimal(expected), field)
         self.assertEqual(Decimal(str(self.state()["limit_usd"])), Decimal("0.05"))
 
+    def test_rf1_empty_budget_is_argument_error_and_sends_nothing(self):
+        process = self.start(
+            "ask", "--caller", "dc003_reserve", "--ref", "offline",
+            "--input", self.root / "input.txt", "--questions", self.root / "questions.json",
+            "--budget", "", "--run", "r1", "--pricing", self.pricing,
+            "--timeout-ms", "12000",
+        )
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(self.requests(), [], f"stdout={stdout}\nstderr={stderr}")
+        self.assertEqual(process.returncode, 2, f"stdout={stdout}\nstderr={stderr}")
+        self.assertIn("usage:", stderr)
+        self.assertIn("error:", stderr)
+        self.assertNotIn("Traceback", stderr)
+
+    def test_rf1_empty_run_is_argument_error_and_sends_nothing(self):
+        process = self.start(
+            "ask", "--caller", "dc003_reserve", "--ref", "offline",
+            "--input", self.root / "input.txt", "--questions", self.root / "questions.json",
+            "--budget", "b.json", "--run", "", "--pricing", self.pricing,
+            "--timeout-ms", "12000",
+        )
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(self.requests(), [], f"stdout={stdout}\nstderr={stderr}")
+        self.assertEqual(process.returncode, 2, f"stdout={stdout}\nstderr={stderr}")
+        self.assertIn("usage:", stderr)
+        self.assertIn("error:", stderr)
+        self.assertNotIn("Traceback", stderr)
+
+    def test_rf5_ask_missing_budget_directory_refuses_without_traceback(self):
+        process = self.start(
+            "ask", "--caller", "dc003_reserve", "--ref", "offline",
+            "--input", self.root / "input.txt", "--questions", self.root / "questions.json",
+            "--budget", self.root / "no-such-dir" / "run.json", "--run", "r1",
+            "--pricing", self.pricing, "--timeout-ms", "12000",
+        )
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(self.requests(), [])
+        self.assertNotIn("Traceback", stderr)
+        self.assertEqual(process.returncode, 4, f"stdout={stdout}\nstderr={stderr}")
+        self.assertEqual(json.loads(stdout)["refused"], "budget_unreadable")
+
+    def test_rf5_show_missing_budget_directory_refuses_without_traceback(self):
+        process = self.start(
+            "budget", "show", "--budget", self.root / "no-such-dir" / "run.json",
+            "--run", "r1",
+        )
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(self.requests(), [])
+        self.assertNotIn("Traceback", stderr)
+        self.assertEqual(process.returncode, 4, f"stdout={stdout}\nstderr={stderr}")
+        self.assertEqual(json.loads(stdout)["refused"], "budget_unreadable")
+
+    def test_rf5_recover_missing_budget_directory_refuses_without_traceback(self):
+        process = self.start(
+            "budget", "recover", "--budget", self.root / "no-such-dir" / "run.json",
+            "--run", "r1",
+        )
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(self.requests(), [])
+        self.assertNotIn("Traceback", stderr)
+        self.assertEqual(process.returncode, 4, f"stdout={stdout}\nstderr={stderr}")
+        self.assertEqual(json.loads(stdout)["refused"], "budget_unreadable")
+
     def test_c9_init_refuses_existing_file_without_changing_limit(self):
         self.init()
         before = self.budget.read_bytes()

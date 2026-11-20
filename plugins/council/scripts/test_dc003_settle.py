@@ -207,6 +207,66 @@ class DC003Settlement(unittest.TestCase):
     def test_c7_ceiling_exceeded_exits_5_and_prints_answers(self):
         self.check_settlement(0.075, "ceiling_exceeded")
 
+    def check_malformed_envelope_cost(self, cost):
+        class MalformedEnvelopeStub(SettlementStub):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                raw = json.dumps({
+                    "answers": 7,
+                    "provider_metadata": {
+                        "gateway": {"cost": self.server.costs[body["model"]]},
+                    },
+                }).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        self.server.RequestHandlerClass = MalformedEnvelopeStub
+        self.server.costs[VOICES[0]] = cost
+        init = self.run_dc(
+            "budget", "init", "--budget", str(self.budget), "--run", self.run_id,
+            "--limit-usd", "1", "--key-id", "offline-key-id",
+        )
+        self.assertEqual(init.returncode, 0, init.stdout + init.stderr)
+        result = self.run_dc(
+            "ask", "--caller", "dc003-test", "--ref", "malformed-envelope",
+            "--input", str(self.root / "input.txt"),
+            "--questions", str(self.root / "questions.json"),
+            "--voices", VOICES[0], "--budget", str(self.budget),
+            "--run", self.run_id, "--pricing", str(self.pricing),
+            "--timeout-ms", "500",
+        )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        output = json.loads(result.stdout)
+        lines = [json.loads(line)
+                 for path in (self.root / "reviews" / "decisions").glob("*.jsonl")
+                 for line in path.read_text().splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        reservations = json.loads(self.budget.read_text())["reservations"]
+        self.assertEqual(len(reservations), 1)
+        self.assertEqual(reservations[0]["voice"], VOICES[0])
+        self.assertEqual(reservations[0]["state"], "settled")
+        self.assertAlmostEqual(reservations[0]["settled_usd"], 0.012)
+        for source, record in (("stdout", output), ("ledger", lines[0])):
+            with self.subTest(source=source):
+                self.assertEqual(len(record["voices"]), 1)
+                row = record["voices"][0]
+                self.assertEqual(row["model"], VOICES[0])
+                self.assertEqual(row["status"], 200)
+                self.assertIn("unavailable", row)
+                self.assertEqual(row["budget_state"], "settled")
+                self.assertAlmostEqual(row["reserved_usd"], CEILING)
+                self.assertAlmostEqual(row["settled_usd"], 0.012)
+                self.assertEqual(json.dumps(row["cost"]), json.dumps(cost))
+
+    def test_rf3_malformed_envelope_preserves_decimal_string_cost(self):
+        self.check_malformed_envelope_cost("0.012")
+
+    def test_rf3_malformed_envelope_preserves_numeric_cost(self):
+        self.check_malformed_envelope_cost(0.012)
+
 
 if __name__ == "__main__":
     unittest.main()

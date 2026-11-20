@@ -306,8 +306,9 @@ def council_key():
     try:
         for raw in Path(f).read_text(encoding="utf-8").splitlines() if f else []:
             k, _, v = raw.strip().partition("=")
-            if k.replace("export ", "").strip() == "AI_GATEWAY_API_KEY" and v.strip():
-                return v.strip().strip("\"'")
+            v = v.strip().strip("\"'").strip()       # review F4: a quoted empty value is no key
+            if k.replace("export ", "").strip() == "AI_GATEWAY_API_KEY" and v:
+                return v
     except OSError:
         pass
     raise Refusal("budget_key_missing")
@@ -324,7 +325,10 @@ class budget_lock:
         self.path = Path(str(path) + ".lock")
 
     def __enter__(self):
-        self.fh = open(self.path, "a")
+        try:
+            self.fh = open(self.path, "a")
+        except OSError:
+            raise Refusal("budget_unreadable")      # review F5: e.g. a parent folder that doesn't exist
         fcntl.flock(self.fh, fcntl.LOCK_EX)
         return self
 
@@ -389,6 +393,20 @@ def pricing(path):
 def price_refusal(p):
     """None when the voice may be sent; else no_price or unbounded_fee:<name> (DC-003.3, .4)."""
     if not isinstance(p, dict) or known_cost(p.get("input")) is None:
+        return "no_price"
+
+    def valid(obj):                  # review F2: every token price must be a known cost, tiers included
+        for k, v in obj.items():
+            if k == "regional":
+                if not isinstance(v, dict) or not all(isinstance(r, dict) and valid(r) for r in v.values()):
+                    return False
+            elif k.endswith("_tiers"):
+                if not isinstance(v, list) or not all(isinstance(t, dict) and known_cost(t.get("cost")) is not None for t in v):
+                    return False
+            elif (k in ("input", "output") or k.startswith("input_")) and known_cost(v) is None:
+                return False
+        return True
+    if not valid(p):
         return "no_price"
 
     def fee(obj):
@@ -572,6 +590,8 @@ def cmd_ask(a):
         if r.get("error") and isinstance(r.get("status"), int) and r["status"] != 200:
             row["error"] = r["error"]
             row["unavailable"] = f"HTTP {r['status']}"
+        if a.budget and m not in refused and row["cost"] is None:
+            row["cost"] = gateway_cost(r)     # review F3: kept as received, whatever the answers looked like
         if m in refused:
             row["unavailable"], row["reserved_usd"], row["settled_usd"] = refused[m], 0, 0
         voice_rows.append(row)
@@ -799,8 +819,10 @@ def main(argv=None):
     s = sub.add_parser("score"); s.add_argument("--caller"); s.add_argument("--since")
     s = sub.add_parser("gate"); s.add_argument("--caller", required=True)
     a = p.parse_args(argv)
-    if a.cmd == "ask" and (a.budget is None) != (a.run is None):
-        p.error("--budget and --run go together")
+    if a.cmd == "ask" and (a.budget is not None or a.run is not None) and not (a.budget and a.run):
+        p.error("--budget and --run go together, and neither may be empty")   # review F1: fail closed
+    if a.cmd == "budget" and not (a.budget and a.run):
+        p.error("--budget and --run may not be empty")
     return {"budget": cmd_budget, "ask": cmd_ask, "outcome": cmd_outcome, "score": cmd_score, "gate": cmd_gate}[a.cmd](a)
 
 
