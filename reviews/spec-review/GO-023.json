@@ -1,0 +1,133 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GO-023",
+  "scope_sha256": "a23961f7a3e93e16b7d4c33655fc053a644df49d2cbe51fa18027affae90ff9f",
+  "reviewed_at": "2026-11-20T16:45:28+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 10624,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 10709,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 10709,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 10709,
+      "cache_creation_input_tokens": 10664,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 10664,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 23013,
+      "output_tokens": 3875,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2892,
+      "cache_read_input_tokens": 21373,
+      "cache_creation_input_tokens": 896,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 896,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 32082,
+    "write": 22269
+  },
+  "contradictions": [
+    {
+      "id": "C1",
+      "requirements": [
+        "GO-023.2",
+        "GO-023.3",
+        "GO-023.4"
+      ],
+      "scope": "item",
+      "scenario": "A retest run hits a host capacity refusal. GO-023.2 says the retest ceiling stops standing in for the host limit at the refusal. GO-023.3 says tick and launch-check use the retest ceiling while a verified retest is running. After the refusal the retest is still running, so the two give different effective ceilings. GO-023.4's lowered limit is either honored or overridden.",
+      "smallest_change": "In GO-023.3, say the approved retest ceiling is the effective ceiling only until the first host refusal in the run. After that, tick and launch-check use the lowered host limit, as GO-023.2 and GO-023.4 say."
+    }
+  ],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GO-023.8"
+      ],
+      "question": "Does goal_run.py start refuse every hard-cap goal, or only when no spend-checking runner is used? The text says both 'refuse all three markers' and 'unless the run uses a runner that checks the remaining spend'. Can a hard-cap goal run serially through goal_run.py with an enforcing runner?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GO-023.8",
+        "A goal delegates item selection, not authority"
+      ],
+      "question": "Is PLAN.md or DEPS.json part of the root brief that goal_successor.py holds byte for byte, apart from Scenarios, Goal tests and Pre-mortem? If it is, a successor's revised PLAN.md or DEPS.json cannot add or remove entries. Should DEPS.json be copied from the immediate predecessor or compared with the root?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GO-023.3",
+        "GO-023.4"
+      ],
+      "question": "In the 30-claims, refusal-at-15th test, are the claims sent in one message or one at a time? GO-023.4 says that when every claim in one message was sent, none is 'not yet launched'. The test expects claims 16 to 30 to be 'not yet launched' and returned to pending uncharged."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GO-023 Links introduced",
+        "GO-023.2",
+        "GO-023.4",
+        "GO-023.10"
+      ],
+      "question": "Is the 'number of workers running' that sets the new host limit counted for this run only, or for all runs on the host? The host record is shared by every run, but the counts in GO-023.2 are per run. Do coordinator-launched parallel agents under GO-023.10, which hold no worker slot but use host capacity, count toward it?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GO-023.5",
+        "GO-023.4",
+        "GO-023 Links introduced"
+      ],
+      "question": "How does a retest work on a host with no limit record? The approval must name a 'current limit <L>', and the ceiling is capped at twice the limit, but with no ceiling set no host limit exists."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "GO-023.8"
+      ],
+      "question": "A goal drafted before this item merged but approved after it is covered by neither 'approved before this item merged' (bullet 1) nor 'drafted after this item merged' (bullet 2). Does it need a DEPS.json, or may it run as a serial chain?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "GO-023.9",
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "The plan text has no Boundary tests section and no GO-017 record, so it cannot be decided from the plan that the three boundary tests have run. The constraint bars new metrics work, which includes a new measurement report, until they have. Is the swarm-scale report allowed?"
+    }
+  ]
+}
