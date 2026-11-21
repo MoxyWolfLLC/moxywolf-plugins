@@ -141,6 +141,9 @@ class Disposition(unittest.TestCase):
         sr.dispose(self.doc, "C1", BY, EVIDENCE, items=["FX-001"])
         ok, why = sr.check(self.doc, ["FX-001"])
         self.assertFalse(ok); self.assertTrue(why.startswith("spec_review_open"), why); self.assertIn("C2", why)
+        for s in (BY, EVIDENCE):   # review F5: the set-aside C1 is named on the failing path too
+            self.assertIn(s, why)
+        self.assertIn("C1 disproved by", why)
 
     def test_a_hand_set_resolved_still_clears_nothing(self):
         self.run_review([contradiction("C1"), contradiction("C2")])

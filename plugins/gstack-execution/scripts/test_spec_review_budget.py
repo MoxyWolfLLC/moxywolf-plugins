@@ -584,6 +584,72 @@ class Budget(unittest.TestCase):
                 self.assertEqual(code, 1, out)
                 self.assertEqual(path.read_bytes(), before, "a malformed ledger was rewritten")
 
+    # --- review round 1 (20261121-120115-7d501df-x319nzrh) ---
+
+    def test_malformed_reservation_rows_refuse_with_no_request(self):
+        row = {"id": "h", "scope": "FX-001", "doc": "DESIGN.md", "reserved_usd": 1.0, "actual_usd": None,
+               "state": "held", "reserved_at": "2026-11-21T00:00:00+00:00", "settled_at": None}
+        done = {**row, "state": "settled", "actual_usd": 1.0, "settled_at": "2026-11-21T00:01:00+00:00"}
+        bads = {"held without id": {k: v for k, v in row.items() if k != "id"},
+                "held without scope": {k: v for k, v in row.items() if k != "scope"},
+                "held without doc": {k: v for k, v in row.items() if k != "doc"},
+                "held without reserved_at": {k: v for k, v in row.items() if k != "reserved_at"},
+                "held with settled_at": {**row, "settled_at": "2026-11-21T00:01:00+00:00"},
+                "settled without settled_at": {**done, "settled_at": None}}
+        for name, bad in bads.items():
+            with self.subTest(case=name):
+                path = self.write_ledger({"schema": "spend-ledger/1", "stop_usd": self.r_low * 10, "spent_usd": 0,
+                                          "reservations": [bad]}, self.d / f"row-{name.replace(' ', '-')}.json")
+                before = path.read_bytes()
+                self.assertRefusedBeforeAnyRequest("budget_refused:", ledger=path)
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_an_incomplete_entry_keeps_its_known_charge(self):
+        self.init(self.r_low * 10)
+        partial = it(EX, inp=10 ** 10, out=1)
+        del partial["cache_read_input_tokens"]
+        self.use_net(Urlopen([pause([partial]), end([it(EX, inp=1, out=1)])]))   # pause: the advisor is consulted
+        with self.assertRaises(sr.Refused) as cm:
+            self.run_real()
+        self.assertTrue(str(cm.exception).startswith("budget_overrun:"), str(cm.exception))
+        row = self.settled_row()
+        known = RATES[EX]["input"] * 10 ** 10 + RATES[EX]["output"] + cost([it(EX, inp=1, out=1)])
+        self.assertGreaterEqual(row["actual_usd"], known * (1 - 1e-9), row)
+        self.assertGreater(row["actual_usd"], row["reserved_usd"])
+
+    def test_a_record_write_failure_still_settles_the_known_actual(self):
+        self.init(self.r_low * 10)
+        huge = [it(EX, inp=10 ** 10, out=10)]
+        tail = [it(EX, inp=1, out=1)]
+        self.use_net(Urlopen([pause(huge), end(tail)]))
+        sr.record_path(self.doc, "FX-001").with_suffix(".md").mkdir(parents=True)   # write_text fails
+        with self.assertRaises(OSError):
+            self.run_real()
+        row = self.settled_row()
+        self.assertAlmostEqual(row["actual_usd"], cost(huge + tail), places=6)
+        self.assertGreater(row["actual_usd"], row["reserved_usd"])
+        self.assertAlmostEqual(self.read()["spent_usd"], cost(huge + tail), places=6)
+
+    def test_budget_show_prints_the_prices_verified_date(self):
+        self.init(1)
+        with mock.patch.object(sr, "PRICES", Path(self.prices)):
+            code, out = self.main("budget", "show", "--ledger", self.ledger)
+        self.assertEqual(code, 0, out)
+        self.assertIn("2026-11-21", out)
+        prices_file(self.prices)
+        data = json.loads(Path(self.prices).read_text()); data["verified"] = "2020-01-01"
+        Path(self.prices).write_text(json.dumps(data))
+        with mock.patch.object(sr, "PRICES", Path(self.prices)):
+            code, out = self.main("budget", "show", "--ledger", self.ledger)
+        self.assertEqual(code, 0, out)   # a stale date is printed, never refused
+        self.assertIn("2020-01-01", out)
+
+    def test_worst_case_usd_docstring_names_its_sources_and_the_allowance(self):
+        doc = sr.worst_case_usd.__doc__
+        for s in ("https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool",
+                  "https://platform.claude.com/docs/en/about-claude/pricing", "allowance"):
+            self.assertIn(s, doc)
+
 
 if __name__ == "__main__":
     unittest.main()

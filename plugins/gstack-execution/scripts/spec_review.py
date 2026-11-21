@@ -231,12 +231,7 @@ def effective_scope(entry, item):
 
 PRICES = Path(__file__).resolve().with_name("spec_review_prices.json")
 RATE_KEYS = ("input", "output", "cache_read", "cache_write")
-# SR-003.3, frozen on Dorian's choice of 2026-11-21 ("Tight formula + allowance"). Sources:
-# https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool (a request's server loop
-# runs at most 10 iterations, each re-sending the growing conversation; executor input is billed per
-# iteration; the advisor reads the full transcript) and
-# https://platform.claude.com/docs/en/about-claude/pricing (rates). F_E and F_A are an ASSUMED
-# allowance for framing the docs don't size; an actual above the reservation is recorded in full.
+# SR-003.3, frozen on Dorian's choice of 2026-11-21 ("Tight formula + allowance"); see worst_case_usd.
 N_ITER, O_TOK, A_CALLS, M_TOK, K_TOK, M_REMIND, F_E, F_A = 10, 20000, 3, 4096, 4160, 200, 10000, 10000
 R_REQ = 1 + MAX_RESUMES + 1   # the first request, six resumptions, one reminder
 
@@ -268,7 +263,15 @@ def _rates(prices, model):
 
 
 def worst_case_usd(body_bytes, executor, advisor, prices):
-    """SR-003.3: the most one scope can be charged, b = the first request body's UTF-8 bytes."""
+    """SR-003.3: the most one scope can be charged, b = the first request body's UTF-8 bytes.
+
+    Sources: https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool (a request's
+    server loop runs at most 10 iterations, each re-sending the growing conversation; executor input is
+    billed per iteration; the advisor reads the full transcript) and
+    https://platform.claude.com/docs/en/about-claude/pricing (rates). Every input token is priced at the
+    higher of its model's input and cache-write rate. F_E and F_A are an ASSUMED allowance for the
+    executor's and the advisor's framing, which the docs don't size; an actual above the reservation is
+    recorded in full (SR-003.4)."""
     e, a, b = _rates(prices, executor), _rates(prices, advisor), body_bytes
     e_in = (N_ITER * R_REQ * (b + F_E + M_REMIND) + N_ITER * O_TOK * R_REQ * (R_REQ + 1) // 2
             + N_ITER * R_REQ * A_CALLS * K_TOK)
@@ -288,8 +291,12 @@ def _valid_ledger(db, path):
             or not _finite(db.get("stop_usd")) or not _finite(db.get("spent_usd"))):
         raise Refused(f"budget_refused: {path} is not a well-formed spend ledger (stop_usd, spent_usd, reservations)")
     for r in rows:
-        ok = isinstance(r, dict) and r.get("state") in ("held", "settled") and _finite(r.get("reserved_usd"))
-        ok = ok and (r.get("actual_usd") is None if r.get("state") == "held" else _finite(r.get("actual_usd")))
+        ok = (isinstance(r, dict) and r.get("state") in ("held", "settled") and _finite(r.get("reserved_usd"))
+              and all(isinstance(r.get(k), str) and r[k] for k in ("id", "scope", "doc", "reserved_at")))
+        if ok and r["state"] == "held":
+            ok = r.get("actual_usd") is None and r.get("settled_at") is None
+        elif ok:
+            ok = _finite(r.get("actual_usd")) and isinstance(r.get("settled_at"), str) and bool(r["settled_at"])
         if not ok:
             raise Refused(f"budget_refused: {path} has a malformed reservation row {r!r:.120}")
     return db
@@ -310,14 +317,15 @@ def read_ledger(ledger=None):
     path = ledger_path(ledger)
     if not path.exists():
         raise Refused(f"budget_refused: no spend ledger at {path}; a person creates one with `budget init`")
-    with open(str(path) + ".lock", "a") as lk:
-        fcntl.flock(lk, fcntl.LOCK_EX)
-        try:
-            return _valid_ledger(json.loads(path.read_text()), path)
-        except json.JSONDecodeError as e:
-            raise Refused(f"budget_refused: {path} is not JSON: {e}")
-        finally:
-            fcntl.flock(lk, fcntl.LOCK_UN)
+    class Read(Exception):   # leaves locked() before its write: a read never rewrites the ledger
+        pass
+    try:
+        with _locked()(path) as db:
+            raise Read(_valid_ledger(db, path))
+    except Read as r:
+        return r.args[0]
+    except json.JSONDecodeError as e:
+        raise Refused(f"budget_refused: {path} is not JSON: {e}")
 
 
 def budget_init(stop_usd, ledger=None):
@@ -345,6 +353,11 @@ def budget_show(ledger=None):
     held = _held(db)
     print(f"stop_usd {db['stop_usd']:.6f}\nspent_usd {db['spent_usd']:.6f}\nheld_usd {held:.6f}\n"
           f"remaining_usd {max(0.0, db['stop_usd'] - db['spent_usd'] - held):.6f}")
+    try:   # SR-003.5: a stale date is shown, not refused; Dorian decides when to re-verify
+        verified = json.loads(Path(PRICES).read_text()).get("verified")
+    except (OSError, json.JSONDecodeError, AttributeError) as e:
+        verified = f"unknown ({e})"
+    print(f"prices_verified {verified} ({PRICES})")
     for r in db["reservations"]:
         if r["state"] == "held":
             print(f"held {r.get('id')} {r.get('scope')} {r.get('doc')} {r['reserved_usd']:.6f} since {r.get('reserved_at')}")
@@ -384,12 +397,15 @@ def charged(responses, prices):
             model = e.get("model") or (ADVISOR if e.get("type") == "advisor_message" else EXECUTOR)
             toks = [e.get(k) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens",
                                        "cache_creation_input_tokens")]
-            if model not in prices or not all(isinstance(x, int) and x >= 0 for x in toks):
+            if model not in prices:
                 certain = False
                 continue
             r = prices[model]
-            total += (toks[0] * r["input"] + toks[1] * r["output"] + toks[2] * r["cache_read"]
-                      + toks[3] * r["cache_write"])
+            for x, k in zip(toks, RATE_KEYS):   # a missing class is uncertain; the known ones still count
+                if isinstance(x, int) and not isinstance(x, bool) and x >= 0:
+                    total += x * r[k]
+                else:
+                    certain = False
     return total, certain
 
 
@@ -506,6 +522,31 @@ def malformed(f):
     return None
 
 
+def _review_scope(doc, name, sent, transport, constraints):
+    """One scope's review and record; returns its contradiction count."""
+    reply, iterations, calls, cache = review(sent, transport)
+    if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
+        raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
+    f = findings(reply)
+    rec = {"schema": "spec-review/3", "review_id": uuid.uuid4().hex, "doc": doc.name, "item": None if name == "all" or constraints else name,
+           "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
+           "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
+           "cache": cache if isinstance(cache, dict) else None,
+           "contradictions": f["contradictions"], "ambiguities": f["ambiguities"]}
+    if not isinstance(cache, dict):
+        rec["cache_reason"] = cache
+    rp = record_path(doc, name)
+    rp.parent.mkdir(parents=True, exist_ok=True)
+    rp.write_text(json.dumps(rec, indent=2) + "\n")
+    rp.with_suffix(".md").write_text(f"# Spec review: {doc.name} {name}\n\n_{rec['reviewed_at']} · "
+                                     f"{EXECUTOR} with {ADVISOR} advisor ({calls} calls)_\n\n{reply}\n")
+    n = len(f["contradictions"])
+    print(f"spec_review {name}: {n} contradiction(s), {len(f['ambiguities'])} ambiguit(ies); "
+          f"advisor called {calls}x; wrote {rp}")
+    return n
+
+
 def cmd_run(doc, items=None, post=post, constraints=False, ledger=None):
     """One review per item (SR-001.1), one for the whole file, or one for the constraints alone
     (SR-002.1). Exit 2 if any record has a contradiction."""
@@ -525,38 +566,12 @@ def cmd_run(doc, items=None, post=post, constraints=False, ledger=None):
             raise Refused(f"budget_refused: no spend ledger at {ledger_path(ledger)}; a person creates one with `budget init`")
     for name, sent in scopes:
         meter = Metered(post, ledger, name, doc.name, prices) if metered else None
-        try:
-            reply, iterations, calls, cache = review(sent, meter or post)
+        try:   # SR-003.4: whatever ends the scope, including a failed record write, settles it once
+            n = _review_scope(doc, name, sent, meter or post, constraints)
         except BaseException:
             if meter:
                 meter.settle()
             raise
-        if calls < 1 and meter:
-            meter.settle()
-        if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
-            raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
-        try:
-            f = findings(reply)
-        except Refused:
-            if meter:
-                meter.settle()
-            raise
-        rec = {"schema": "spec-review/3", "review_id": uuid.uuid4().hex, "doc": doc.name, "item": None if name == "all" or constraints else name,
-               "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
-               "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-               "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
-               "cache": cache if isinstance(cache, dict) else None,
-               "contradictions": f["contradictions"], "ambiguities": f["ambiguities"]}
-        if not isinstance(cache, dict):
-            rec["cache_reason"] = cache
-        rp = record_path(doc, name)
-        rp.parent.mkdir(parents=True, exist_ok=True)
-        rp.write_text(json.dumps(rec, indent=2) + "\n")
-        rp.with_suffix(".md").write_text(f"# Spec review: {doc.name} {name}\n\n_{rec['reviewed_at']} · "
-                                         f"{EXECUTOR} with {ADVISOR} advisor ({calls} calls)_\n\n{reply}\n")
-        n = len(f["contradictions"])
-        print(f"spec_review {name}: {n} contradiction(s), {len(f['ambiguities'])} ambiguit(ies); "
-              f"advisor called {calls}x; wrote {rp}")
         worst = max(worst, 2 if n else 0)
         if meter and meter.settle():   # the record is written; the next scope never starts
             raise Refused(f"budget_overrun: {name} cost {meter.rid_settled:.6f} USD, above its reservation; "
@@ -577,7 +592,8 @@ def check(doc, items=None, constraints=False):
 
     def no(reason):   # review F1: a failing check still lists the constraints findings it set aside
         return False, reason + (f"; also {len(noted)} contradiction(s) among the constraints, not blocking under the "
-                                "clean constraints record:" + "".join(noted) if noted else "")
+                                "clean constraints record:" + "".join(noted) if noted else "") + (
+            f"; {len(cleared)} contradiction(s) set aside by disposition (SR-003):" + "".join(cleared) if cleared else "")
 
     for item in (items or [None]):
         hint = f"run `spec_review.py run {doc}{' --constraints' if constraints else ' --items ' + item if item else ''}`"
