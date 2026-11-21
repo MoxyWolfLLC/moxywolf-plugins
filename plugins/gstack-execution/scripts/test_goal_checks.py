@@ -539,6 +539,31 @@ class Sandbox(unittest.TestCase):
         with self.assertRaises(SystemExit):
             gc.pnpm_projects(t)
 
+    def test_a_candidates_own_playwright_fetches_its_browsers_and_the_sandbox_uses_them(self):
+        """#339: the image ships one Playwright's browsers; a candidate locked to another version gets its own,
+        fetched by its playwright-core in the networked install container, and the sandbox points at them."""
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        (t / "package.json").write_text("{}"); (t / "package-lock.json").write_text("{}")
+        calls = []
+        def fake(cmd, **k):
+            calls.append(cmd)
+            if "ci" in cmd:   # the npm install leaves playwright-core behind, as a real one would
+                deps = Path(cmd[cmd.index("-v") + 1].split(":")[0])
+                (deps / "node_modules" / "playwright-core").mkdir(parents=True)
+                (deps / "node_modules" / "playwright-core" / "cli.js").write_text("")
+            if "install" in cmd and "chromium-headless-shell" in cmd:
+                deps = Path(cmd[cmd.index("-v") + 1].split(":")[0])
+                (deps / gc.BROWSERS_DIR).mkdir()
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        deps = gc.install_deps(t, run=fake)
+        self.addCleanup(shutil.rmtree, deps, True)
+        fetch = [c for c in calls if "chromium-headless-shell" in c]
+        self.assertEqual(len(fetch), 1)
+        self.assertIn(f"PLAYWRIGHT_BROWSERS_PATH=/deps/{gc.BROWSERS_DIR}", fetch[0])
+        cmd = gc.sandbox_cmd(t, t, "g1", deps)
+        self.assertIn(f"PLAYWRIGHT_BROWSERS_PATH=/deps/{gc.BROWSERS_DIR}", cmd)
+        self.assertNotIn(f"PLAYWRIGHT_BROWSERS_PATH=/deps/{gc.BROWSERS_DIR}", gc.sandbox_cmd(t, t, "g1", None))
+
     def test_the_pnpm_install_container_gets_its_manifests_only(self):
         t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
         (t / "web").mkdir()
