@@ -230,6 +230,22 @@ def test_neither_command_writes_bytecode_beside_the_ledger_it_imports():
     assert not list(root.rglob("__pycache__")) and not list(root.rglob("*.pyc"))
 
 
+def test_a_saved_case_that_fails_the_capture_rules_is_skipped_not_run_and_never_aborts_the_report():
+    d = scratch()
+    muts = {"L-kind": {"check": {"kind": "unsupported", "path": "view.txt"}}, "L-nopath": {"check": {"kind": "same_bytes"}},
+            "L-nosha": {"retire_when": {"kind": "sha256_is", "path": "view.txt"}},
+            "L-badclass": {"class": "nonsense"}, "L-baddate": {"revalidate_by": "someday"}}
+    for fid in ("L-ok", *muts):
+        assert capture(d, fid)[0] == 0, fid
+    for fid, change in muts.items():
+        c = json.loads(case_file(d, fid).read_text())
+        case_file(d, fid).write_text(json.dumps(dict(c, **change)))
+    rep = preflight(d)
+    skipped = {s["id"]: s["reason"] for s in rep["skipped"]}
+    assert set(skipped) == set(muts) and all(r.startswith("invalid_case") for r in skipped.values()), skipped
+    assert [l["id"] for l in rep["loaded"]] == ["L-ok"] and rep["loaded"][0]["check"]["equal"] is True, rep
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in tests:

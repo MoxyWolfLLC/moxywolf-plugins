@@ -88,6 +88,11 @@ def build_case(f):
     missing = [k for k in CASE_FIELDS if not case[k]]
     if missing:
         raise Refused(f"{f.get('id')}: replay case is missing {', '.join(missing)}")
+    return validate_case(case)
+
+
+def validate_case(case):
+    """The one shape check for a replay case: capture runs it on a new case, preflight on every saved one."""
     if not re.fullmatch(r"[A-Za-z0-9._-]+", str(case["pattern_id"])):
         raise Refused(f"pattern id {case['pattern_id']!r} must be letters, digits, '.', '_' or '-'")
     if case["class"] not in CLASSES:
@@ -151,8 +156,15 @@ def preflight(lessons, cases, root, old=None, claims=None, today=None):
         try:
             case = json.loads((Path(cases).parent / r["target"]).read_text())
             reason = None
-            if case.get("disposition") != "verified":
+            if not isinstance(case, dict) or case.get("disposition") != "verified":
                 reason = "unverified"
+            else:
+                try:
+                    validate_case(case)
+                except (Refused, KeyError, TypeError, AttributeError) as e:
+                    reason = f"invalid_case: {e}"
+            if reason:
+                pass
             elif day(case["revalidate_by"], "revalidate_by") < today:
                 reason = "stale"
             elif retired(case["retire_when"], root):
