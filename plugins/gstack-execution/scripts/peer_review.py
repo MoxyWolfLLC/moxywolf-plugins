@@ -1796,6 +1796,13 @@ def headroom_argv(tool):
     return [flag, str(cfg["max_output"])] if flag else []
 
 
+def codex_argv(root, schema, last, prompt, ephemeral=False):
+    """The one Codex command line: the review transport and review_run.py's lanes both build it here (GR-001.5)."""
+    return (["codex", "exec", "-C", str(root), "-m", REVIEWERS["codex"]["model"], "-c", "model_reasoning_effort=high",
+             "--sandbox", "read-only", "--skip-git-repo-check"] + (["--ephemeral"] if ephemeral else []) +
+            ["--output-schema", str(schema), "--output-last-message", str(last)] + headroom_argv("codex") + [prompt])
+
+
 LAST_REVIEWER_USAGE = "not_reported"   # XE-012: set by run_reviewer, read by the round that called it
 LAST_REVIEWER_ADVISOR = None   # ME-003: set by run_reviewer for the claude CLI, read by the round that called it
 ADVISOR_OFF_VARS = ("DISABLE_TELEMETRY", "CLAUDE_CODE_DISABLE_ADVISOR_TOOL")
@@ -2050,9 +2057,7 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
             raise ReviewError("model_below_floor", f"GSTACK_CODEX_MODEL={REVIEWERS['codex']['model']}; floor is {REVIEWERS['codex']['floor_name']}")
         schema = root / "schema.json"; last = root / "last.txt"
         schema.write_text(json.dumps(output_schema))
-        cmd = ["codex", "exec", "-C", str(root), "-m", REVIEWERS["codex"]["model"], "-c", "model_reasoning_effort=high",
-               "--sandbox", "read-only", "--skip-git-repo-check",
-               "--output-schema", str(schema), "--output-last-message", str(last)] + headroom_argv("codex") + [prompt]
+        cmd = codex_argv(root, schema, last, prompt)
         def parse(r):
             m = re.search(r"^model:\s*(\S+)", r.stderr + r.stdout, re.M)  # codex echoes the resolved model in its header
             return (last.read_text() if last.exists() else r.stdout), (m.group(1) if m else None)
