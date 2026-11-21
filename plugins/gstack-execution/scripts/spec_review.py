@@ -401,8 +401,10 @@ def charged(responses, prices):
             if not isinstance(e, dict):   # malformed: uncertain, and the known charges still count
                 certain = False
                 continue
-            model = e.get("model") or (ADVISOR if e.get("type") == "advisor_message" else EXECUTOR)
-            if not isinstance(model, str):
+            model = e.get("model")   # review F5: only an omitted model takes the default
+            if model is None:
+                model = ADVISOR if e.get("type") == "advisor_message" else EXECUTOR
+            if not isinstance(model, str) or not model:
                 certain = False
                 continue
             toks = [e.get(k) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens",

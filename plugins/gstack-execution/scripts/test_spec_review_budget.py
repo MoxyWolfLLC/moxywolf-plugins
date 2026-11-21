@@ -637,6 +637,19 @@ class Budget(unittest.TestCase):
                 self.assertEqual(row["state"], "settled", row)
                 self.assertGreaterEqual(row["actual_usd"], cost(huge) * (1 - 1e-9), row)
 
+    def test_an_empty_or_false_model_is_uncertain_not_the_default(self):
+        # review 20261121-123916-73c8e6b F5: only an omitted model falls back to the executor/advisor
+        for bad in ([], "", 0, False):
+            with self.subTest(model=bad):
+                ledger = self.d / f"fm-{bad!r}.json"
+                self.init(self.r_low * 10, ledger=ledger)
+                small = [it(EX, inp=1)]
+                self.use_net(Urlopen([pause(small), end([{**it(EX, inp=1), "model": bad}])]))
+                self.run_real(ledger=ledger)
+                (row,) = json.loads(ledger.read_text())["reservations"]
+                self.assertEqual(row["state"], "settled", row)
+                self.assertGreaterEqual(row["actual_usd"], row["reserved_usd"], row)
+
     def test_a_record_write_failure_still_settles_the_known_actual(self):
         self.init(self.r_low * 10)
         huge = [it(EX, inp=10 ** 10, out=10)]
