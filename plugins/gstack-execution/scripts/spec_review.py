@@ -284,6 +284,9 @@ def ledger_path(ledger=None):
     return Path(ledger or os.environ.get("GSTACK_SPEND_LEDGER") or Path.home() / ".gstack" / "spend-ledger.json")
 
 
+ROW_KEYS = {"id", "scope", "doc", "reserved_usd", "actual_usd", "state", "reserved_at", "settled_at"}
+
+
 def _valid_ledger(db, path):
     """A well-formed spend-ledger/1 or Refused; every number finite and non-negative (SR-003.1)."""
     rows = db.get("reservations") if isinstance(db, dict) else None
@@ -291,7 +294,7 @@ def _valid_ledger(db, path):
             or not _finite(db.get("stop_usd")) or not _finite(db.get("spent_usd"))):
         raise Refused(f"budget_refused: {path} is not a well-formed spend ledger (stop_usd, spent_usd, reservations)")
     for r in rows:
-        ok = (isinstance(r, dict) and r.get("state") in ("held", "settled") and _finite(r.get("reserved_usd"))
+        ok = (isinstance(r, dict) and set(r) >= ROW_KEYS and r["state"] in ("held", "settled") and _finite(r["reserved_usd"])
               and all(isinstance(r.get(k), str) and r[k] for k in ("id", "scope", "doc", "reserved_at")))
         if ok and r["state"] == "held":
             ok = r.get("actual_usd") is None and r.get("settled_at") is None

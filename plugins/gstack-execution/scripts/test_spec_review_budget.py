@@ -595,6 +595,8 @@ class Budget(unittest.TestCase):
                 "held without doc": {k: v for k, v in row.items() if k != "doc"},
                 "held without reserved_at": {k: v for k, v in row.items() if k != "reserved_at"},
                 "held with settled_at": {**row, "settled_at": "2026-11-21T00:01:00+00:00"},
+                "held without actual_usd": {k: v for k, v in row.items() if k != "actual_usd"},
+                "held without settled_at": {k: v for k, v in row.items() if k != "settled_at"},
                 "settled without settled_at": {**done, "settled_at": None}}
         for name, bad in bads.items():
             with self.subTest(case=name):
