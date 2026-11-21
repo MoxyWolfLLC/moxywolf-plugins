@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import review_reconcile as rr  # noqa: E402
+import review_run  # noqa: E402  (GR-001: the real findings validator and report writer)
 
 H1, H2 = "a" * 64, "b" * 64
 
@@ -28,7 +29,7 @@ class Base(unittest.TestCase):
     def lane(self, name, rows):
         d = self.root / "run" / name
         d.mkdir(parents=True, exist_ok=True)
-        (d / "findings.json").write_text(json.dumps(rows))
+        (d / "findings.json").write_text(json.dumps({"findings": rows}))   # GR-001's shape
 
     def file(self, name, obj):
         p = self.root / name
@@ -72,6 +73,31 @@ class Dedupe(Base):
         (d / "findings.json").write_text("{not json")
         with self.assertRaises(rr.Refused):
             rr.read_findings(self.run_dir())
+
+
+class Gr001Shape(Base):
+    def test_reads_the_findings_file_gr001_defines_and_gr001_accepts_it(self):
+        row = dict(zip(review_run.FIELDS, ("F1", "L", "c", "a.py:1", "behavior_gap", [H1], "fix")))
+        self.lane("a", [row])
+        self.assertIsNone(review_run.validate_findings(self.root / "run" / "a" / "findings.json"))
+        self.assertEqual(rr.read_findings(self.run_dir()), [row])
+
+    def test_agrees_with_gr001_validator_on_good_and_bad_files(self):
+        good = f("F1", "L", "a.py:1", "behavior_gap", [H1])
+        bodies = [{"findings": [good]}, [good], {"findings": [{**good, "extra": 1}]}, {"findings": [{**good, "claim": ""}]},
+                  {"findings": [{**good, "cited_clause": "no line"}]}, {"findings": [{**good, "evidence": ["nope"]}]},
+                  {"findings": [{**good, "class": "nitpick"}]}, {"findings": "x"}, {"findings": []}]
+        for body in bodies:
+            d = self.root / "run" / "a"
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "findings.json").write_text(json.dumps(body))
+            theirs = review_run.validate_findings(d / "findings.json")
+            try:
+                rr.read_findings(self.run_dir())
+                ours = None
+            except rr.Refused:
+                ours = "refused"
+            self.assertEqual(ours is None, theirs is None, body)
 
 
 class Score(Base):
@@ -119,9 +145,8 @@ class Score(Base):
     def test_unmatched_blocker_is_false_blocker_unmatched_entry_is_miss(self):
         key = self.key([self.entry("K1", "behavior_gap", [H1]), self.entry("K2", "false_premise", [H2])])
         self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [H1]),
-                        f("A2", "codex", "z.py:3", "false_premise", ["nope"]),
-                        f("A3", "codex", "w.py:4", "wording_defect", ["nope"]),
-                        f("A4", "codex", "v.py:5", "behavior_gap", ["nope"], fix="")])
+                        f("A2", "codex", "z.py:3", "false_premise", ["n.py:9"]),
+                        f("A3", "codex", "w.py:4", "wording_defect", ["n.py:9"])])   # GR-001 refuses an empty smallest_fix, so no real file holds a blocker that asks for no change
         r = self.score(key)
         self.assertEqual(r["counts"], {"matches": 1, "repeats": 0, "misses": 1, "false_blockers": 1})
         self.assertEqual(r["false_blockers"], ["A2"])
@@ -143,10 +168,27 @@ def report(width, seconds, misses=0, blockers=0, dorian=0, manifest="m", budget=
     return {"counts": {"matches": 3, "repeats": 0, "misses": misses, "false_blockers": blockers},
             "manifest_sha256": manifest,
             "meta": {"width": width, "budget": budget, "deadline_seconds": deadline, "decision": decision, "decision_sound": sound,
-                     "decisions_to_dorian": dorian, "draft_to_decision_seconds": seconds}}
+                     "decisions_to_dorian": dorian, "draft_to_decision_s": seconds}}
 
 
 class Compare(unittest.TestCase):
+    def test_reads_draft_to_decision_from_gr001s_real_report(self):
+        def ev(kind, t):
+            return {"event": kind, "job": "-", "mono": t}
+        def run(width, seconds):
+            r = report(width, 0)
+            r["meta"]["draft_to_decision_s"] = review_run.compute_report([ev("admit", 0), ev("disposition", seconds)])["draft_to_decision_s"]
+            return r
+        ok, clause = rr.compare(run(3, 600), run(5, 400))
+        self.assertTrue(ok, clause)
+        ok, clause = rr.compare(run(3, 400), run(5, 600))
+        self.assertFalse(ok)
+        self.assertIn("draft-to-decision", clause)
+        none = report(5, 0)
+        none["meta"]["draft_to_decision_s"] = review_run.compute_report([ev("admit", 0)])["draft_to_decision_s"]   # no decision recorded
+        with self.assertRaises(rr.Refused):
+            rr.compare(report(3, 600), none)
+
     def test_faster_with_no_new_misses_passes(self):
         ok, _ = rr.compare(report(3, 600), report(5, 400))
         self.assertTrue(ok)

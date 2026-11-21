@@ -7,13 +7,12 @@ Commands
                                              match findings to a pre-labeled key, one to one
   compare <report> <report>                  apply AC2's stated rule; prints pass or fail and the clause
 
-A run's findings are every `findings.json` under <run_dir> (one JSON list per lane, revision and
-attempt, in GR-001.5's schema). Nothing here reads a model: matching is set containment on strings.
+A run's findings are every `findings.json` under <run_dir> (one `{"findings": [...]}` object per lane,
+revision and attempt, checked by GR-001's `review_run.validate_findings`). Nothing here reads a model: matching is set containment on strings.
 
 exit 0 ok (compare: pass), 2 compare fail, 1 refused.
 
-ponytail: the findings filename and list shape are this item's reading of GR-001.5, which doesn't
-name them; GR-001's lane runner must write `findings.json` as a list, or this reader changes.
+GR-001's `report` supplies `draft_to_decision_s`; `compare` reads it from the report's meta.
 """
 import argparse
 import hashlib
@@ -21,8 +20,10 @@ import json
 import sys
 from pathlib import Path
 
-FIELDS = ("finding_id", "lane", "claim", "cited_clause", "class", "evidence", "smallest_fix")
-CLASSES = ("false_premise", "wording_defect", "behavior_gap", "unresolved_decision")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import review_run  # noqa: E402  (GR-001: the findings schema and its validator have one home)
+
+FIELDS, CLASSES = review_run.FIELDS, review_run.CLASSES
 BLOCKING = ("behavior_gap", "false_premise")
 
 
@@ -39,24 +40,21 @@ def dump(obj):
 
 
 def read_findings(run_dir):
+    """Every findings.json under a run, in GR-001's shape {"findings": [...]}, checked by GR-001's own validator."""
     out = []
     for f in sorted(Path(run_dir).rglob("findings.json")):
         try:
-            rows = json.loads(f.read_text())
-        except ValueError as e:
-            raise Refused(f"{f}: not JSON ({e})")
-        if not isinstance(rows, list):
-            raise Refused(f"{f}: a findings file is a JSON list")
-        for r in rows:
-            missing = [k for k in FIELDS if not isinstance(r, dict) or k not in r]
-            if missing:
-                raise Refused(f"{f}: finding missing {', '.join(missing)}")
-            if r["class"] not in CLASSES:
-                raise Refused(f"{f}: finding {r['finding_id']} has class {r['class']!r}, "
+            rows = json.loads(f.read_text()).get("findings")
+        except (ValueError, AttributeError):
+            rows = None   # not JSON, or not an object: validate_findings names which
+        for r in rows if isinstance(rows, list) else []:
+            if isinstance(r, dict) and r.get("class") not in CLASSES and "class" in r:
+                raise Refused(f"{f}: finding {r.get('finding_id')} has class {r['class']!r}, "
                               f"outside {', '.join(CLASSES)}")
-            if not isinstance(r["evidence"], list):
-                raise Refused(f"{f}: finding {r['finding_id']} evidence is not a list")
-            out.append(r)
+        bad = review_run.validate_findings(f)
+        if bad:
+            raise Refused(f"{f}: {bad}")
+        out.extend(rows)
     return out
 
 
@@ -114,9 +112,11 @@ def compare(a, b):
     for r in (a, b):
         m = r.get("meta", {})
         for k in ("width", "budget", "deadline_seconds", "decision", "decision_sound",
-                  "decisions_to_dorian", "draft_to_decision_seconds"):
+                  "decisions_to_dorian", "draft_to_decision_s"):
             if k not in m:
                 raise Refused(f"report lacks meta.{k}")
+        if m["draft_to_decision_s"] is None:   # GR-001's report gives None when no disposition was recorded
+            raise Refused("meta.draft_to_decision_s is null: the run recorded no decision")
         if m["decision_sound"] is not True:
             # soundness is judged upstream (GR-001's acceptance check sets it); this module only requires it
             raise Refused("meta.decision_sound is not true: an unverified decision is not comparable")
@@ -131,7 +131,7 @@ def compare(a, b):
     nm, wm = narrow["meta"], wide["meta"]
     if wm["decision"] != nm["decision"]:
         return False, "same sound decision: the runs reached different decisions"
-    if not wm["draft_to_decision_seconds"] < nm["draft_to_decision_seconds"]:
+    if not wm["draft_to_decision_s"] < nm["draft_to_decision_s"]:
         return False, "draft-to-decision time: the wider run is not smaller"
     for k in ("misses", "false_blockers"):
         if wide["counts"][k] > narrow["counts"][k]:
