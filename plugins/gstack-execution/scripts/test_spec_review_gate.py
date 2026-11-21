@@ -86,6 +86,19 @@ class Gate(unittest.TestCase):
         sr.seed_clean(doc, ["FX-002"])
         r = self.opened(["FX-002", "FX-001"]); self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_a_plan_whose_only_contradiction_is_disposed_opens_until_the_plan_changes(self):
+        """SR-003.9 Gate: a disposition bound to the PLAN's record lets open through; a PLAN edit lapses it."""
+        (self.repo / ".git" / "info" / "exclude").write_text("reviews/\ngoals/\n")
+        plan = self.repo / "goals" / "g1" / "PLAN.md"; plan.parent.mkdir(parents=True); plan.write_text("1. one\n")
+        conflict = {"contradictions": [{"id": "C1", "requirements": ["1", "Constraints"],
+                                        "scenario": "two commits differ", "smallest_change": "drop it"}], "ambiguities": []}
+        sr.cmd_run(plan, post=sr.stub_post(conflict))
+        self.refused(["g1/1"], "spec_review_open")
+        sr.dispose(plan, "C1", "Dorian C", 'Dorian: "C1 is disproved"')
+        r = self.opened(["g1/1"]); self.assertEqual(r.returncode, 0, r.stderr)
+        plan.write_text("1. one, revised\n")
+        self.refused(["g1/1"], "spec_review_stale")
+
 
 if __name__ == "__main__":
     unittest.main()
