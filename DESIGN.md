@@ -2802,7 +2802,7 @@ Open ruling: proposal section 5 allows no Council call until M7's maximum is "ve
 
 ### GR-001 — A review run has one ledger that holds its limits, a manifest that fixes its jobs, and a runner that starts, times and stops its lanes
 
-**Status:** building. Declared 2026-11-20; approved by version hash `b5481cefdbf23ce33b70bc64212cefd3068184acb7e4255451fb696bfa697175` (PR #362); built on branch `build/GR-001-run-ledger`.
+**Status:** done. Declared 2026-11-20; approved by version hash `b5481cefdbf23ce33b70bc64212cefd3068184acb7e4255451fb696bfa697175` (PR #362). Merged to `main` in `a21c514` (PR #365, head `b87fdd2`) on 20 November 2026 by `dorianatmoxywolf` under his own login. Review `20261120-205918-deb7ba7-6n98jik8` (Codex, 3 rounds) ended `rounds_exhausted` with F7 open (the Codex lane has no outer write boundary and relies on Codex's own read-only sandbox); Dorian approved with F7 open, which is not a recorded ruling.
 
 GR-001 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
 
@@ -2834,7 +2834,7 @@ Not in this item: the pilot run itself, any paid call, the reconcile and scoring
 
 ### GR-002 — Findings from many lanes are deduplicated, classified and scored one to one against a pre-labeled key, and two runs are compared by the stated rule
 
-**Status:** building. Declared 2026-11-20, approved by Dorian by version hash (PR #362). Depends on GR-001's findings schema.
+**Status:** done. Declared 2026-11-20, approved by Dorian by version hash (PR #362). Depends on GR-001's findings schema. Merged to `main` in `ad9ec52` (PR #363, head `7eb09a8`) on 20 November 2026. GitHub records the merge under `dorianatmoxywolf`'s login; Claude ran it through the GitHub connector on his words ("You may release #363 without a coverage report and merge it"), so the release carries his coverage exception and was not recorded by `record-release`. Review `20261120-224131-d0f6813-zw9fkxkr` (Codex, `no_blocking_findings`, 7/7 criteria) passed at `d0f6813`; the merged head `7eb09a8` is a merge of `main` that GitHub shows with no file changes, and no fresh review was run at it.
 
 GR-002 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
 
@@ -2861,7 +2861,7 @@ Not in this item: the pilot's real keys for cases 1 and 2, which are the two fin
 
 ### GR-003 — A closed finding becomes a lesson in the mistake ledger's own format, and a preflight loads only the lessons that still hold and checks them first
 
-**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash.
+**Status:** done. Declared 2026-11-20; approved by version hash `f159e260112b8102fbbd6e82416c622d0adfe1a850226c7a3c73d76f6b692d7a` (PR #362). Merged to `main` in `ceed9c1` (PR #364, head `0d0a594`) on 20 November 2026 by `dorianatmoxywolf` under his own login.
 
 **Links introduced:** two. Each lesson row's `target` names its replay-case file, and that file names the sha256 of the evidence it rests on. A preflight report names the lessons it loaded, the ones it skipped and why.
 
@@ -2933,6 +2933,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-20 (night): GR-001, GR-002 and GR-003 marked done: `ceed9c1` (#364), `a21c514` (#365), `ad9ec52` (#363). Two accepted-unfixed review items on GR-003 (evidence `[]` accepted, an unreadable file aborts preflight) and GR-001's open F7 are follow-ups. The pilot run itself is not started; its Council gate stays closed until a build passes `--council-gate-ruling`.
 - 2026-11-20 (evening): GR-001 and GR-002 exempt from *Test the boundaries before adding item IDs* on Dorian's ruling ("Wave the constraint"), after SR-001 found one contradiction in each (GR-001.7's `report`, GR-002.3's scored report: metrics work before the boundary tests). GR-003 had two internal contradictions, fixed in `775b9ad` (its report goes to standard output; the verified disposition lives in the replay-case file), and none against the constraint. The ruling opens no other item.
 - 2026-11-20: Eighteenth objective opened with GR-001 (run ledger, job manifest and lane runner), GR-002 (reconcile and score) and GR-003 (lessons and preflight), drafted on Dorian C's ask from the approved parallel-goal-review proposal (sha256 `62ca16f0…`) and `pilot-plan-v1.md`; pending his approval by hash. Placement under `plugins/gstack-execution/scripts/` is his ruling of 2026-11-20. His ruling on whether DC-003's bounded reservation counts as M7 "verified" is not given, so a Council dispatch is refused by default (GR-001.2) and AC1's Council dispute is unrun until it is.
 - 2026-11-20: DC-003 marked done: merged as `97ba0c8` (PR #360, head `a6c308d`), recorded `agent_merge_autonomous` on review `20261120-161648-b606565-l42fq_cv` (`fixes_verified`, coverage covered), after the earlier review `20261120-150642-02f9eaa-vkxwb_e4` (`fixes_verified`). The review records are filed under `peer-reviews/` in the Projects repo.
