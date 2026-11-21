@@ -1,0 +1,132 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GR-002",
+  "scope_sha256": "2e7fc8b7dd4d2bab80fb592e978f3522d0997fef3bfd5cd64fd4825de31c59f3",
+  "reviewed_at": "2026-11-21T03:51:56+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3411,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7395,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7395,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7395,
+      "cache_creation_input_tokens": 3451,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3451,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12486,
+      "output_tokens": 1546,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1838,
+      "cache_read_input_tokens": 10846,
+      "cache_creation_input_tokens": 428,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 428,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 18241,
+    "write": 11274
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GR-002 AC4",
+        "GR-002 AC2"
+      ],
+      "question": "AC4 says it applies AC2's stated rule, but AC2 is the key-matching rule and states no comparison rule. Which text is the compare rule: AC4's own clause list, or a rule in GR-001 or the proposal that AC4 should cite?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GR-002 AC4",
+        "GR-002 AC3"
+      ],
+      "question": "AC4 compares budget, deadline, draft-to-decision time and decisions sent to Dorian. The AC3 report lists only match, repeat, miss and false-blocker counts and the two sha256 values. Where do the other fields come from: the report, or the manifest? How does the report stay byte-identical for the same inputs if it carries them?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GR-002 AC4"
+      ],
+      "question": "What makes a decision 'sound', and how does the script decide that both runs reached the same sound decision?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GR-002 AC4"
+      ],
+      "question": "The output says pass or fail, but reports with different manifests or limits are 'refused, not scored'. Is a refusal a fail, or a separate outcome with its own exit status and output?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GR-002 AC3",
+        "GR-002 AC2"
+      ],
+      "question": "How does a deterministic script that reads no model decide that a finding 'asks for a change' when counting false blockers?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "GR-002 AC2",
+        "GR-002 Links introduced"
+      ],
+      "question": "The Links paragraph says the key's condition makes a finding match. AC2 matches only on evidence_required, and the condition is prose that a no-model matcher can't evaluate. Is class part of the match, and what role does condition play?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "GR-002 AC3"
+      ],
+      "question": "When one finding satisfies several key entries, or several findings satisfy one entry, what deterministic assignment rule gives the one-to-one result?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "GR-002 AC5"
+      ],
+      "question": "When council_gate is closed, is the open finding recorded in the next recheck packet or in the packet for Dorian, and what condition selects which?"
+    },
+    {
+      "id": "A9",
+      "requirements": [
+        "GR-002 AC5",
+        "The approval ledger is attention, not containment"
+      ],
+      "question": "Is GR-001's dispatch ledger the approval ledger? AC5 has it gate the Council call, which would conflict with 'No item may claim the ledger stops anything'. If it is a different ledger, the plan should say so. If it is the same one, AC5 must stop treating it as a gate."
+    }
+  ]
+}

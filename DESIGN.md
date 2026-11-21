@@ -2804,6 +2804,8 @@ Open ruling: proposal section 5 allows no Council call until M7's maximum is "ve
 
 **Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash.
 
+GR-001 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
+
 **Links introduced:** three. A ledger names its run id and the sha256 of every manifest run under it. A manifest names the sha256 of the draft, the evidence, the prompts, the lesson state and the scoring key it holds. A lane's output directory names the run id, lane, revision and attempt. Nothing is stored in a repository; every file lives under the folder the caller names.
 
 Today nothing bounds a multi-lane review: `peer_review.py` runs one reviewer at a time, `swarm.py` is a build runner capped at 3, and a lane that hangs has no deadline that stops it.
@@ -2833,6 +2835,8 @@ Not in this item: the pilot run itself, any paid call, the reconcile and scoring
 ### GR-002 — Findings from many lanes are deduplicated, classified and scored one to one against a pre-labeled key, and two runs are compared by the stated rule
 
 **Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash. Depends on GR-001's findings schema.
+
+GR-002 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
 
 **Links introduced:** two. A scoring key names each expected finding by id, class, the condition that makes a finding match it, and the evidence a matching finding must carry. A report names the sha256 of the key and of the manifest it scored.
 
@@ -2929,6 +2933,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-20 (evening): GR-001 and GR-002 exempt from *Test the boundaries before adding item IDs* on Dorian's ruling ("Wave the constraint"), after SR-001 found one contradiction in each (GR-001.7's `report`, GR-002.3's scored report: metrics work before the boundary tests). GR-003 had two internal contradictions, fixed in `775b9ad` (its report goes to standard output; the verified disposition lives in the replay-case file), and none against the constraint. The ruling opens no other item.
 - 2026-11-20: Eighteenth objective opened with GR-001 (run ledger, job manifest and lane runner), GR-002 (reconcile and score) and GR-003 (lessons and preflight), drafted on Dorian C's ask from the approved parallel-goal-review proposal (sha256 `62ca16f0…`) and `pilot-plan-v1.md`; pending his approval by hash. Placement under `plugins/gstack-execution/scripts/` is his ruling of 2026-11-20. His ruling on whether DC-003's bounded reservation counts as M7 "verified" is not given, so a Council dispatch is refused by default (GR-001.2) and AC1's Council dispute is unrun until it is.
 - 2026-11-20: DC-003 v4 on Dorian's approval ("Approve", sha256 fbe8c754…): wording only, after its spec review found C1 (a `kept_unknown` entry is counted at its ceiling and unverified, not a ceiling that held) and C2 (a budget file covers its own run; the key's Vercel budget caps all runs on that key together), and answers to A1-A6 (only known charges set the next ceiling; settled charges include `kept_unknown` at its ceiling; `--key-id` is required; `limit_usd` no higher than the key's Vercel budget; the reasons are output fields, not vocabulary).
 - 2026-11-20: DC-003 declared on Dorian's approval ("Approve", item v3 sha256 838ff1a3…), implementing B1 of the approved parallel-goal-review proposal (proposal-v4.md, sha256 62ca16f0…): "Add a maximum-charge reservation to `decider_council.py` as a build item." Its cap follows his ruling the same day, "Gateway key + local check", after Vercel's budget docs showed gateway budgets are a soft cap and no document bounds a decision call's billed tokens: a dedicated gateway key with a $1 budget that never resets, bound to the run, plus a local check before each call. Bounded, not guaranteed. Codex challenged the draft in two rounds of five parallel lanes (13 findings, then 3); the last three fixes were not rechecked.
