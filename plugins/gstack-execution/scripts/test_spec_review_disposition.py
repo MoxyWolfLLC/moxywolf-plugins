@@ -145,6 +145,25 @@ class Disposition(unittest.TestCase):
             self.assertIn(s, why)
         self.assertIn("C1 disproved by", why)
 
+    def test_check_matches_dispositions_against_the_bytes_it_validated(self):
+        # review 20261121-123916-73c8e6b F2: a record replaced between check's read and the hash
+        # must not lend its disposition to the record check judged
+        self.run_review([contradiction("C1")])
+        a = self.rec.read_bytes()
+        self.run_review([contradiction("C1"), contradiction("C2")])
+        b = self.rec.read_bytes()
+        sr.dispose(self.doc, "C1", BY, EVIDENCE, items=["FX-001"])   # bound to record B
+        self.rec.write_bytes(a)
+        real = sr.malformed
+
+        def swap(rec):
+            self.rec.write_bytes(b)
+            return real(rec)
+        with mock.patch.object(sr, "malformed", swap):
+            ok, why = sr.check(self.doc, ["FX-001"])
+        self.assertFalse(ok, why)
+        self.assertIn("C1", why)
+
     def test_a_hand_set_resolved_still_clears_nothing(self):
         self.run_review([contradiction("C1"), contradiction("C2")])
         rec = json.loads(self.rec.read_text())

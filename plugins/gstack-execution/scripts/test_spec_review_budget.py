@@ -619,6 +619,24 @@ class Budget(unittest.TestCase):
         self.assertGreaterEqual(row["actual_usd"], known * (1 - 1e-9), row)
         self.assertGreater(row["actual_usd"], row["reserved_usd"])
 
+    def test_malformed_usage_keeps_an_earlier_known_overrun(self):
+        # review 20261121-123916-73c8e6b F1: a null iteration, a non-object usage or a non-string
+        # model must not abort settlement or drop charges already known
+        huge = [it(EX, inp=10 ** 10, out=10)]
+        for name, last in (("null iteration", {**end(), "usage": {"iterations": [None]}}),
+                           ("usage not an object", {**end(), "usage": "lots"}),
+                           ("iterations not a list", {**end(), "usage": {"iterations": "x"}}),
+                           ("model not a string", end([{**it(EX, inp=1, out=1), "model": ["x"]}]))):
+            with self.subTest(case=name):
+                ledger = self.d / f"m-{name.replace(' ', '-')}.json"
+                self.init(self.r_low * 10, ledger=ledger)
+                self.use_net(Urlopen([pause(huge), last]))
+                with self.assertRaises(Exception):   # review() itself may refuse the response; settlement must hold
+                    self.run_real(ledger=ledger)
+                (row,) = json.loads(ledger.read_text())["reservations"]
+                self.assertEqual(row["state"], "settled", row)
+                self.assertGreaterEqual(row["actual_usd"], cost(huge) * (1 - 1e-9), row)
+
     def test_a_record_write_failure_still_settles_the_known_actual(self):
         self.init(self.r_low * 10)
         huge = [it(EX, inp=10 ** 10, out=10)]

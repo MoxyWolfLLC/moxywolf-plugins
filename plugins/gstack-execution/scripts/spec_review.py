@@ -392,12 +392,19 @@ def charged(responses, prices):
     An entry without a model is the executor's; an advisor entry without one is the advisor's."""
     total, certain = 0.0, True
     for resp in responses:
-        its = (resp.get("usage") or {}).get("iterations") if isinstance(resp, dict) else None
+        use = resp.get("usage") if isinstance(resp, dict) else None
+        its = use.get("iterations") if isinstance(use, dict) else None
         if not isinstance(its, list) or not its:
             certain = False
             continue
         for e in its:
+            if not isinstance(e, dict):   # malformed: uncertain, and the known charges still count
+                certain = False
+                continue
             model = e.get("model") or (ADVISOR if e.get("type") == "advisor_message" else EXECUTOR)
+            if not isinstance(model, str):
+                certain = False
+                continue
             toks = [e.get(k) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens",
                                        "cache_creation_input_tokens")]
             if model not in prices:
@@ -607,7 +614,8 @@ def check(doc, items=None, constraints=False):
         rp = record_path(doc, name)
         if not rp.exists():
             return no(f"spec_review_missing: no {rp.relative_to(doc.parent)} beside {doc.name}; {hint}")
-        rec = json.loads(rp.read_text())
+        raw = rp.read_bytes()   # review F2: judged, validated and matched against one read
+        rec = json.loads(raw)
         if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
             return no(f"spec_review_stale: {rp.name} reviewed a different {name} in {doc.name}; {hint}")
         if malformed(rec):
@@ -615,7 +623,7 @@ def check(doc, items=None, constraints=False):
         if (rec.get("advisor_calls") or 0) < 1:
             return no(f"spec_review_missing: {rp.name} records no advisor call; {hint}")
         open_ = rec.get("contradictions") or []
-        gone = disposed(rp, rec)   # SR-003.7: only entries naming this record file as it is now
+        gone = disposed(rp, rec, hashlib.sha256(raw).hexdigest())   # SR-003.7: only entries naming this record file as it is now
         if gone:
             open_ = [c for c in open_ if c.get("id") not in gone]
             cleared += [f"\n  {name} {cid} disproved by {d['by']}: {d['evidence']}" for cid, d in gone.items()]
@@ -655,13 +663,12 @@ def _entries(path):
     return data.get("dispositions", []) if isinstance(data, dict) else data
 
 
-def disposed(rp, rec):
-    """{id: entry} for contradictions a `disproved` entry names against this record file's sha256.
+def disposed(rp, rec, sha):
+    """{id: entry} for contradictions a `disproved` entry names against `sha`, the record bytes the caller read.
     An id the record holds more than once is never set aside."""
     path = dispositions_path(rp)
     if not path.exists():
         return {}
-    sha = hashlib.sha256(rp.read_bytes()).hexdigest()
     ids = [c.get("id") for c in rec.get("contradictions") or []]
     return {e["id"]: e for e in _entries(path)
             if e.get("record_sha256") == sha and e.get("disposition") == "disproved"
