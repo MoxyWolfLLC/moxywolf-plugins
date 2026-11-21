@@ -3,6 +3,7 @@
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -25,14 +26,31 @@ prev=""; last=""
 for a; do [ "$prev" = "--output-last-message" ] && last="$a"; prev="$a"; done
 case "$p" in
   *SLEEP*) sleep 30;;
+  *TERMRESIST*) trap '' TERM; sleep 30;;
   *BAD*) echo 'not json' > "$last";;
   *) echo '{FINDING}' > "$last";;
 esac
 """
 CLAUDE = f"""#!/bin/sh
+printf '%s\\n' "$@" > argv.txt
+pwd > cwd.txt
 env > env.txt
-case "$2" in *BAD*) echo 'nope';; *) echo '{FINDING}';; esac
+p=$(cat)
+echo "$p" > stdin.txt
+case "$p" in *BAD*) echo 'nope';; *) echo '{FINDING}';; esac
 """
+PASSTHROUGH = "#!/bin/sh\nshift 3\nexec \"$@\"\n"   # a wrapper that enforces no time limit: the runner's own kill must do the work
+
+
+def bind(ledger, run, folder, prompts, **flags):
+    """init + a manifest that fixes these prompt files (GR-001.4: dispatch refuses any other)."""
+    d = Path(folder) / "in"
+    d.mkdir(exist_ok=True)
+    for n in ("draft", "ev", "ls", "key"):
+        (d / n).write_text(n)
+    rr.init(ledger, run, **flags)
+    return rr.manifest(ledger, run, Path(folder) / f"manifest-{run}.json", draft=d / "draft", evidence=[d / "ev"], prompts=list(prompts),
+                       lessons=d / "ls", key=d / "key", width=1)
 
 
 def stub(dirpath, name, body):
@@ -54,6 +72,13 @@ class Base(unittest.TestCase):
         self.addCleanup(p.stop)
         self.prompt = self.tmp / "prompt.txt"
         self.prompt.write_text("review it")
+        self.slow, self.bad, self.stubborn = (self.tmp / n for n in ("slow.txt", "bad.txt", "stubborn.txt"))
+        self.slow.write_text("SLEEP")
+        self.bad.write_text("BAD")
+        self.stubborn.write_text("TERMRESIST")
+
+    def mk(self, run="r1", **flags):
+        return bind(self.ledger, run, self.tmp, [self.prompt, self.slow, self.bad, self.stubborn], **flags)
 
     def run_state(self, run="r1"):
         return json.loads(self.ledger.read_text())["runs"][run]
@@ -73,8 +98,8 @@ class Limits(Base):
         for counter, flags, before, refused in cases:
             run = f"r-{counter}"
             rr.init(self.ledger, run, **flags)
-            for phase, tool, rnd, usd in before:
-                rr.reserve(self.ledger, run, phase, "L", tool, rnd, usd)
+            for n, (phase, tool, rnd, usd) in enumerate(before):
+                rr.reserve(self.ledger, run, phase, f"L{n}", tool, rnd, usd)
             used_before = json.dumps(self.run_state(run)["used"])
             phase, tool, rnd, usd = refused
             with self.assertRaises(rr.Refused) as cm:
@@ -97,7 +122,7 @@ class Limits(Base):
         self.assertEqual(cm.exception.counter, "deadline")
 
     def test_refusal_launches_nothing(self):
-        rr.init(self.ledger, "r1", codex_calls=1)
+        self.mk("r1", codex_calls=1)
         out = self.tmp / "out"
         self.assertEqual(rr.dispatch(self.ledger, "r1", out, "A", "codex", self.prompt), ("ok", None))
         with self.assertRaises(rr.Refused):
@@ -110,6 +135,28 @@ class Limits(Base):
         self.assertIn("codex-calls", str(cm.exception))
         rr.init(self.ledger, "r1", codex_calls=5, dollars=0.5)
         self.assertEqual(self.run_state()["limits"]["codex_calls"], 5)
+        for bad in (float("nan"), float("inf"), -1):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                rr.init(self.ledger, f"x{bad}", dollars=bad)
+
+    def test_dollars_refuse_nan_negative_and_an_exhausted_budget(self):
+        rr.init(self.ledger, "r1")
+        for bad in (float("nan"), float("inf"), -0.5):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                rr.reserve(self.ledger, "r1", "fanout", "A", "claude", usd=bad)
+        self.assertEqual(self.run_state()["used"]["dollars"], 0.0)
+        rr.reserve(self.ledger, "r1", "fanout", "B", "claude", usd=1.0)
+        with self.assertRaises(rr.Refused) as cm:                # exactly spent: a free call is refused too
+            rr.reserve(self.ledger, "r1", "fanout", "C", "claude", usd=0)
+        self.assertEqual(cm.exception.counter, "dollars")
+
+    def test_the_same_lane_revision_and_attempt_cannot_be_reserved_twice(self):
+        rr.init(self.ledger, "r1")
+        rr.reserve(self.ledger, "r1", "fanout", "A", "claude")
+        with self.assertRaises(rr.Refused) as cm:
+            rr.reserve(self.ledger, "r1", "fanout", "A", "claude")
+        self.assertEqual(cm.exception.counter, "duplicate_attempt")
+        rr.reserve(self.ledger, "r1", "fanout", "A", "claude", attempt=2)   # a retry is a new attempt
 
     def test_init_on_an_existing_id_refuses_and_resume_keeps_counters(self):
         rr.init(self.ledger, "r1")
@@ -182,9 +229,41 @@ class Manifest(Base):
         self.assertIn("not the same manifest", str(cm.exception))
 
 
+class ManifestBinding(Base):
+    def refused(self, **kw):
+        with self.assertRaises(rr.Refused) as cm:
+            rr.dispatch(self.ledger, "r1", self.tmp / "out", kw.pop("lane", "A"), "claude", kw.pop("prompt", self.prompt), **kw)
+        return cm.exception.counter
+
+    def test_dispatch_without_a_manifest_is_refused_and_launches_nothing(self):
+        rr.init(self.ledger, "r1")
+        self.assertEqual(self.refused(), "manifest_missing")
+        self.assertFalse((self.tmp / "out").exists())
+        self.assertEqual(self.run_state()["used"]["codex_calls"], 0)
+
+    def test_a_prompt_file_the_manifest_did_not_fix_is_refused(self):
+        self.mk()
+        other = self.tmp / "other.txt"
+        other.write_text("a different prompt")
+        self.assertEqual(self.refused(prompt=other), "prompt_not_in_manifest")
+        self.assertEqual(self.events("refused")[-1]["counter"], "prompt_not_in_manifest")
+
+    def test_a_manifest_input_changed_after_it_was_written_is_refused(self):
+        self.mk()
+        self.prompt.write_text("review it, but differently")
+        self.assertEqual(self.refused(), "not_the_same_manifest")
+        self.assertEqual(self.refused(prompt=self.slow, lane="B"), "not_the_same_manifest")   # any recorded file counts
+        self.assertFalse((self.tmp / "out").exists())
+
+    def test_a_rewritten_manifest_file_is_refused(self):
+        self.mk()
+        (self.tmp / "manifest-r1.json").write_text("{}")
+        self.assertEqual(self.refused(), "not_the_same_manifest")
+
+
 class Lanes(Base):
     def test_codex_command_comes_from_peer_reviews_builder(self):
-        rr.init(self.ledger, "r1")
+        self.mk()
         out = self.tmp / "out"
         self.assertEqual(rr.dispatch(self.ledger, "r1", out, "A", "codex", self.prompt), ("ok", None))
         lane = out / "r1" / "A" / "rev1" / "attempt1"
@@ -197,7 +276,7 @@ class Lanes(Base):
         self.assertNotIn("--ephemeral", peer_review.codex_argv("r", "s", "l", "p"))
 
     def test_one_directory_per_lane_revision_and_attempt(self):
-        rr.init(self.ledger, "r1")
+        self.mk()
         out = self.tmp / "out"
         rr.dispatch(self.ledger, "r1", out, "A", "claude", self.prompt)
         rr.dispatch(self.ledger, "r1", out, "A", "claude", self.prompt, revision=2, attempt=1, phase="recheck", rnd="x")
@@ -206,11 +285,9 @@ class Lanes(Base):
         self.assertEqual(dirs, ["r1/A/rev1/attempt1/findings.json", "r1/A/rev2/attempt1/findings.json", "r1/A/rev2/attempt2/findings.json"])
 
     def test_a_malformed_findings_file_fails_its_lane(self):
-        rr.init(self.ledger, "r1")
-        bad = self.tmp / "bad.txt"
-        bad.write_text("BAD")
+        self.mk()
         for tool in ("codex", "claude"):
-            status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", f"L-{tool}", tool, bad, rnd="1")
+            status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", f"L-{tool}", tool, self.bad, rnd="1")
             self.assertEqual(status, "failed", tool)
             self.assertEqual(self.run_state()["lanes"][f"L-{tool}/r1/a1"]["status"], "failed")
         self.assertIn("unparseable", reason)
@@ -224,10 +301,49 @@ class Lanes(Base):
         f.write_text(FINDING)
         self.assertIsNone(rr.validate_findings(f))
 
+    def test_findings_with_wrong_types_or_malformed_citations_are_refused_whole(self):
+        good = json.loads(FINDING)["findings"][0]
+        f = self.tmp / "f.json"
+        for field, value in (("finding_id", None), ("claim", 17), ("smallest_fix", ""), ("cited_clause", None), ("cited_clause", "no line number"),
+                             ("evidence", [42]), ("evidence", ["not a citation"]), ("evidence", "a:1"), ("extra", "x")):
+            f.write_text(json.dumps({"findings": [good, {**good, field: value}]}))
+            self.assertIsNotNone(rr.validate_findings(f), f"{field}={value!r}")
+        f.write_text(json.dumps({"findings": [{**good, "cited_clause": "f" * 64, "evidence": ["f" * 64, "a/b.py:12"]}]}))
+        self.assertIsNone(rr.validate_findings(f))
+
+    def test_a_relative_out_root_is_resolved_and_an_escaping_name_is_refused(self):
+        self.mk()
+        here = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, here)
+        self.assertEqual(rr.dispatch(self.ledger, "r1", "out", "A", "codex", self.prompt), ("ok", None))
+        lane = (self.tmp / "out" / "r1" / "A" / "rev1" / "attempt1").resolve()
+        argv = (lane / "argv.txt").read_text().split("\n")
+        self.assertEqual(argv[argv.index("-C") + 1], str(lane))
+        self.assertTrue(all(Path(a).is_absolute() for a in (argv[argv.index("--output-schema") + 1], argv[argv.index("--output-last-message") + 1])))
+        for lane_name in ("../escape", "/abs", "a/b", ".hidden", ""):
+            with self.assertRaises(ValueError, msg=lane_name):
+                rr.dispatch(self.ledger, "r1", "out", lane_name, "codex", self.prompt)
+        self.assertEqual(self.run_state()["used"]["codex_calls"], 1)
+
+    def test_a_claude_lane_has_no_write_tools_its_prompt_on_stdin_and_scratch_inside_its_directory(self):
+        self.mk()
+        out = self.tmp / "out"
+        self.assertEqual(rr.dispatch(self.ledger, "r1", out, "B", "claude", self.prompt), ("ok", None))
+        lane = (out / "r1" / "B" / "rev1" / "attempt1").resolve()
+        argv = (lane / "argv.txt").read_text().split("\n")[:-1]
+        self.assertEqual(argv[:3], ["-p", "--disallowedTools", rr.CLAUDE_DENY])
+        for tool in ("Bash", "Edit", "Write", "NotebookEdit"):
+            self.assertIn(tool, rr.CLAUDE_DENY)
+        self.assertNotIn("review it", argv)
+        self.assertEqual((lane / "stdin.txt").read_text().strip(), "review it")
+        self.assertEqual(Path((lane / "cwd.txt").read_text().strip()).resolve(), lane)
+        self.assertIn(f"TMPDIR={lane / 'tmp'}", (lane / "env.txt").read_text())
+
     def test_no_api_key_reaches_a_lane(self):
         self.assertFalse([k for k in rr.lane_env() if k.endswith("_API_KEY")])
         self.assertEqual(os.environ["OPENAI_API_KEY"], "sk-test-not-real")
-        rr.init(self.ledger, "r1")
+        self.mk()
         out = self.tmp / "out"
         rr.dispatch(self.ledger, "r1", out, "A", "codex", self.prompt)
         rr.dispatch(self.ledger, "r1", out, "B", "claude", self.prompt)
@@ -258,7 +374,7 @@ class Events(unittest.TestCase):
         prompt = d / "p"
         prompt.write_text("go")
         with mock.patch.dict(os.environ, {"PATH": f"{d}:{os.environ['PATH']}"}):
-            rr.init(d / "l.json", "r1")
+            bind(d / "l.json", "r1", d, [prompt])
             rr.dispatch(d / "l.json", "r1", d / "out", "A", "claude", prompt)
         evs = json.loads((d / "l.json").read_text())["runs"]["r1"]["events"]
         start = next(e for e in evs if e["event"] == "start")
@@ -270,34 +386,54 @@ class Events(unittest.TestCase):
 
 
 class Deadline(Base):
+    def lane_dir(self, out, lane="A"):
+        return out / "r1" / lane / "rev1" / "attempt1"
+
+    def assert_pid_gone(self, out, lane="A"):
+        pid = int((self.lane_dir(out, lane) / "pid.txt").read_text())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
     def test_a_sleeping_stub_is_killed_and_its_pid_is_gone(self):
-        rr.init(self.ledger, "r1", deadline_minutes=0.05)  # 3 seconds
-        slow = self.tmp / "slow.txt"
-        slow.write_text("SLEEP")
+        self.mk(deadline_minutes=0.05)  # 3 seconds
         out = self.tmp / "out"
-        status, reason = rr.dispatch(self.ledger, "r1", out, "A", "codex", slow)
+        status, reason = rr.dispatch(self.ledger, "r1", out, "A", "codex", self.slow)
         self.assertEqual((status, reason), ("failed", "deadline_killed"))
         ev = self.events("deadline_killed")[0]
         self.assertTrue(ev["confirmed_gone"])
-        pid = int((out / "r1" / "A" / "rev1" / "attempt1" / "pid.txt").read_text())
-        with self.assertRaises(ProcessLookupError):
-            os.kill(pid, 0)
+        self.assert_pid_gone(out)
         self.assertFalse(rr._alive(ev["pgid"]))
 
-    def test_without_the_timeout_wrapper_the_runner_kills_the_process_group_itself(self):
-        rr.init(self.ledger, "r1", deadline_minutes=0.05)
-        slow = self.tmp / "slow.txt"
-        slow.write_text("SLEEP")
-        out = self.tmp / "out"
-        with mock.patch.object(rr.shutil, "which", lambda name: None):
-            status, reason = rr.dispatch(self.ledger, "r1", out, "A", "codex", slow)
+    def test_no_timeout_executable_means_no_launch(self):
+        self.mk()
+        with mock.patch.object(rr.shutil, "which", lambda name: None), self.assertRaises(ValueError) as cm:
+            rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "codex", self.prompt)
+        self.assertIn("timeout", str(cm.exception))
+        self.assertFalse((self.tmp / "out").exists())
+        self.assertEqual(self.run_state()["used"]["codex_calls"], 0)
+
+    def test_a_term_resistant_worker_is_killed_by_the_runner_when_the_wrapper_enforces_nothing(self):
+        self.mk(deadline_minutes=0.05)
+        fake = self.tmp / "bin" / "passthrough-timeout"
+        stub(self.tmp / "bin", "passthrough-timeout", PASSTHROUGH)
+        real = rr.shutil.which
+        with mock.patch.object(rr.shutil, "which", lambda name: str(fake) if name == "timeout" else real(name)):
+            status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "codex", self.stubborn)
         self.assertEqual((status, reason), ("failed", "deadline_killed"))
-        pid = int((out / "r1" / "A" / "rev1" / "attempt1" / "pid.txt").read_text())
-        with self.assertRaises(ProcessLookupError):
-            os.kill(pid, 0)
+        self.assertTrue(self.events("deadline_killed")[0]["confirmed_gone"])
+        self.assert_pid_gone(self.tmp / "out")
+
+    def test_a_deadline_that_passes_before_launch_starts_nothing(self):
+        self.mk()
+        out = self.tmp / "out"
+        with mock.patch.object(rr, "_time_left", lambda ledger, run: 0):
+            status, reason = rr.dispatch(self.ledger, "r1", out, "A", "codex", self.prompt)
+        self.assertEqual((status, reason), ("failed", "deadline_before_launch"))
+        self.assertFalse((self.lane_dir(out) / "argv.txt").exists())
+        self.assertFalse(self.events("start"))
 
     def test_a_pid_still_present_is_exit_unconfirmed_and_fails_the_run(self):
-        rr.init(self.ledger, "r1")
+        self.mk()
         with mock.patch.object(rr, "_alive", lambda pgid: True):
             status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "claude", self.prompt)
         self.assertEqual((status, reason), ("failed", "exit_unconfirmed"))
@@ -306,6 +442,17 @@ class Deadline(Base):
         with self.assertRaises(rr.Refused) as cm:
             rr.reserve(self.ledger, "r1", "fanout", "B", "claude")
         self.assertEqual(cm.exception.counter, "run_failed")
+
+    def test_a_process_table_that_cannot_be_read_is_not_a_confirmation(self):
+        broken = subprocess.CompletedProcess(["ps"], 1, "", "ps: failure")
+        with mock.patch.object(rr.subprocess, "run", lambda *a, **k: broken):
+            self.assertIsNone(rr._alive(99999))
+        self.mk()
+        with mock.patch.object(rr, "_alive", lambda pgid: None):
+            status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "claude", self.prompt)
+        self.assertEqual((status, reason), ("failed", "exit_unconfirmed"))
+        self.assertEqual(self.run_state()["status"], "failed")
+        self.assertFalse(self.events("exit_unconfirmed")[0]["confirmed_gone"])
 
 
 class Cli(Base):
