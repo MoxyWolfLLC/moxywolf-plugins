@@ -2834,7 +2834,7 @@ Not in this item: the pilot run itself, any paid call, the reconcile and scoring
 
 ### GR-002 — Findings from many lanes are deduplicated, classified and scored one to one against a pre-labeled key, and two runs are compared by the stated rule
 
-**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash. Depends on GR-001's findings schema.
+**Status:** building. Declared 2026-11-20, approved by Dorian by version hash (PR #362). Depends on GR-001's findings schema.
 
 GR-002 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
 
