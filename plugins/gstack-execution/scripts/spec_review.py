@@ -26,7 +26,12 @@ Commands
   --selftest                  stubbed transport; no network.
 
 The record is the evidence, not the exit code: `check` recomputes the scope, never reads a verdict.
-A contradiction clears only by revising the doc and re-running; the record has no `resolved` flag.
+A contradiction clears only by revising the doc and re-running, or by a disposition (SR-003): the record
+has no `resolved` flag.
+
+  dispose <doc> [--items A | --constraints] --id C1 --by <name> --evidence "<text>"
+                              SR-003.6: record that a contradiction is disproved, bound to the record
+                              file as it is now. Recorded only on Dorian's words, quoted into --evidence.
 """
 import argparse
 import hashlib
@@ -36,6 +41,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -305,7 +311,7 @@ def cmd_run(doc, items=None, post=post, constraints=False):
         if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
             raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
         f = findings(reply)
-        rec = {"schema": "spec-review/3", "doc": doc.name, "item": None if name == "all" or constraints else name,
+        rec = {"schema": "spec-review/3", "review_id": uuid.uuid4().hex, "doc": doc.name, "item": None if name == "all" or constraints else name,
                "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
                "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                "executor": EXECUTOR, "advisor": ADVISOR, "advisor_calls": calls, "usage": iterations,
@@ -334,7 +340,7 @@ def check(doc, items=None, constraints=False):
         return False, f"spec_review_missing: {doc} does not exist"
     if constraints and items:
         return False, "spec_review_missing: --constraints takes no --items"
-    text, names, asks, noted = doc.read_text(), [], [], []
+    text, names, asks, noted, cleared = doc.read_text(), [], [], [], []
 
     def no(reason):   # review F1: a failing check still lists the constraints findings it set aside
         return False, reason + (f"; also {len(noted)} contradiction(s) among the constraints, not blocking under the "
@@ -357,6 +363,10 @@ def check(doc, items=None, constraints=False):
         if (rec.get("advisor_calls") or 0) < 1:
             return no(f"spec_review_missing: {rp.name} records no advisor call; {hint}")
         open_ = rec.get("contradictions") or []
+        gone = disposed(rp, rec)   # SR-003.7: only entries naming this record file as it is now
+        if gone:
+            open_ = [c for c in open_ if c.get("id") not in gone]
+            cleared += [f"\n  {name} {cid} disproved by {d['by']}: {d['evidence']}" for cid, d in gone.items()]
         # SR-002.4/.5: an item's constraints-scoped contradictions don't fail it while the constraints
         # record is clean; with that record missing, stale or open they block as before
         among = [] if constraints else [c for c in open_ if effective_scope(c, item) == "constraints"]
@@ -377,7 +387,79 @@ def check(doc, items=None, constraints=False):
     tail = f"; {len(asks)} open ambiguit{'y' if len(asks) == 1 else 'ies'}, not blocking:" + "".join(asks) if asks else ""
     if noted:
         tail += f"; {len(noted)} contradiction(s) among the constraints, not blocking under the clean constraints record:" + "".join(noted)
+    if cleared:
+        tail += f"; {len(cleared)} contradiction(s) set aside by disposition (SR-003):" + "".join(cleared)
     return True, f"spec_review_ok: {', '.join(names)} in {doc.name} match their records, no open contradictions{tail}"
+
+
+def dispositions_path(rp):
+    return rp.with_name(rp.stem + ".dispositions.json")
+
+
+def _entries(path):
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text())
+    return data.get("dispositions", []) if isinstance(data, dict) else data
+
+
+def disposed(rp, rec):
+    """{id: entry} for contradictions a `disproved` entry names against this record file's sha256.
+    An id the record holds more than once is never set aside."""
+    path = dispositions_path(rp)
+    if not path.exists():
+        return {}
+    sha = hashlib.sha256(rp.read_bytes()).hexdigest()
+    ids = [c.get("id") for c in rec.get("contradictions") or []]
+    return {e["id"]: e for e in _entries(path)
+            if e.get("record_sha256") == sha and e.get("disposition") == "disproved"
+            and ids.count(e.get("id")) == 1 and e.get("by") and e.get("evidence")}
+
+
+def dispose(doc, cid, by, evidence, items=None, constraints=False, disposition="disproved"):
+    """SR-003.6: append one `disproved` entry beside the record; refuse, writing nothing, otherwise."""
+    doc = Path(doc)
+    if disposition != "disproved":
+        raise Refused(f"disposition must be disproved, not {disposition!r}")
+    if not (by or "").strip() or not (evidence or "").strip():
+        raise Refused("dispose needs a non-empty --by and --evidence (Dorian's words, quoted)")
+    if constraints and items:
+        raise Refused("--constraints takes no --items")
+    if items and len(items) != 1:
+        raise Refused("dispose takes one item")
+    if not doc.exists():
+        raise Refused(f"{doc} does not exist")
+    text = doc.read_text()
+    name, sent = scope_constraints(text) if constraints else scope(text, items[0] if items else None)
+    rp = record_path(doc, name)
+    if not rp.exists():
+        raise Refused(f"spec_review_missing: no {rp.name} beside {doc.name}")
+    raw = rp.read_bytes()
+    try:
+        rec = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise Refused(f"{rp.name} is not JSON: {e}")
+    if malformed(rec):
+        raise Refused(f"{rp.name} is malformed ({malformed(rec)})")
+    if rec.get("scope_sha256") != hashlib.sha256(sent.encode()).hexdigest():
+        raise Refused(f"spec_review_stale: {rp.name} reviewed a different {name}; re-run before disposing")
+    if (rec.get("advisor_calls") or 0) < 1:
+        raise Refused(f"{rp.name} records no advisor call")
+    n = [c.get("id") for c in rec["contradictions"]].count(cid)
+    if n != 1:
+        raise Refused(f"{rp.name} holds {cid} {n} times; a disposition names exactly one contradiction")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from review_run import locked   # the one flock + atomic-replace helper (SR-003.6)
+    entry = {"id": cid, "record_sha256": hashlib.sha256(raw).hexdigest(), "disposition": "disproved",
+             "by": by.strip(), "evidence": evidence.strip(),
+             "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with locked(dispositions_path(rp)) as db:
+        if hashlib.sha256(rp.read_bytes()).hexdigest() != entry["record_sha256"]:
+            raise Refused(f"{rp.name} changed while disposing; re-run dispose")
+        db.pop("runs", None)   # locked() seeds an empty review_run ledger; this file holds dispositions only
+        db.setdefault("dispositions", []).append(entry)
+    print(f"spec_review {name}: {cid} disproved by {entry['by']}; wrote {dispositions_path(rp)}")
+    return entry
 
 
 def stub_post(body_json, advise=True):
@@ -715,6 +797,14 @@ def main(argv=None):
         sp.add_argument("doc")
         sp.add_argument("--items", type=lambda s: [x.strip() for x in s.split(",") if x.strip()])
         sp.add_argument("--constraints", action="store_true")
+    sp = sub.add_parser("dispose")
+    sp.add_argument("doc")
+    sp.add_argument("--items", type=lambda s: [x.strip() for x in s.split(",") if x.strip()])
+    sp.add_argument("--constraints", action="store_true")
+    sp.add_argument("--id", required=True)
+    sp.add_argument("--by", required=True)
+    sp.add_argument("--evidence", required=True)
+    sp.add_argument("--disposition", default="disproved")
     a = p.parse_args(argv)
     if a.selftest:
         return selftest()
@@ -723,6 +813,9 @@ def main(argv=None):
             raise Refused("--constraints reviews the constraints alone; it takes no --items")
         if a.cmd == "run":
             return cmd_run(a.doc, a.items, constraints=a.constraints)
+        if a.cmd == "dispose":
+            dispose(a.doc, a.id, a.by, a.evidence, a.items, a.constraints, a.disposition)
+            return 0
         if a.cmd == "check":
             ok, reason = check(a.doc, a.items, constraints=a.constraints)
             print(reason)
