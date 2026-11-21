@@ -2884,7 +2884,7 @@ Not in this item: promotion of a lesson into a skill or a preflight check (a dif
 
 ### GR-004 — A scored report names a manifest by what fixes the run's jobs, so a width-3 report and a width-5 report of one manifest compare
 
-**Status:** declared 2026-11-21, pending Dorian's approval by version hash. Dorian approved the fix on 2026-11-21 ("approve GR-004"). Found before any paid run, when the pilot's rehearsal on stub files scored one manifest at width 3 and width 5: the two reports carried different `manifest_sha256` values and `compare` refused them, so AC2 could never pass. This amends GR-002.3 and GR-002.4 in place and adds no new score, report or metric, so *Test the boundaries before adding item IDs* does not bar it (an amendment that fixes what a test finds is allowed there). Depends on GR-001 (`manifest` and `_core`).
+**Status:** planned. Declared 2026-11-21, pending Dorian's approval by version hash. Dorian approved the fix on 2026-11-21 ("approve GR-004"). Found before any paid run, when the pilot's rehearsal on stub files scored one manifest at width 3 and width 5: the two reports carried different `manifest_sha256` values and `compare` refused them, so AC2 could never pass. This amends GR-002.3 and GR-002.4 in place and adds no new score, report or metric, so *Test the boundaries before adding item IDs* does not bar it (an amendment that fixes what a test finds is allowed there). Depends on GR-001 (`manifest` and `_core`).
 
 **Links introduced:** one. A report's `manifest_sha256` is now the manifest's `core_sha256` in GR-001's ledger (the hash of the manifest's fields with `width` removed), read from the manifest file by `review_reconcile.py score`.
 
