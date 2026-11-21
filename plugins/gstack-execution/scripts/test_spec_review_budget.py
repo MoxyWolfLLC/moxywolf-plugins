@@ -639,7 +639,7 @@ class Budget(unittest.TestCase):
 
     def test_an_empty_or_false_model_is_uncertain_not_the_default(self):
         # review 20261121-123916-73c8e6b F5: only an omitted model falls back to the executor/advisor
-        for bad in ([], "", 0, False):
+        for bad in ([], "", 0, False, None):   # None: an explicit null, not an omitted key
             with self.subTest(model=bad):
                 ledger = self.d / f"fm-{bad!r}.json"
                 self.init(self.r_low * 10, ledger=ledger)

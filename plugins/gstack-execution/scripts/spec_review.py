@@ -401,9 +401,8 @@ def charged(responses, prices):
             if not isinstance(e, dict):   # malformed: uncertain, and the known charges still count
                 certain = False
                 continue
-            model = e.get("model")   # review F5: only an omitted model takes the default
-            if model is None:
-                model = ADVISOR if e.get("type") == "advisor_message" else EXECUTOR
+            # review F5: only an omitted key takes the default; an explicit null or false value is uncertain
+            model = e["model"] if "model" in e else (ADVISOR if e.get("type") == "advisor_message" else EXECUTOR)
             if not isinstance(model, str) or not model:
                 certain = False
                 continue
