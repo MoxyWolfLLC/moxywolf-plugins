@@ -650,6 +650,28 @@ class Budget(unittest.TestCase):
                 self.assertEqual(row["state"], "settled", row)
                 self.assertGreaterEqual(row["actual_usd"], row["reserved_usd"], row)
 
+    def test_an_injected_transport_with_a_ledger_takes_in_memory_rates(self):
+        # review 20261121-133549-e24ce26 F1: an injected transport needs no prices file, ledger or not
+        self.init(self.r_low * 3)
+        first, second = [it(EX, inp=10, out=2)], [it(EX, inp=5, out=1)]
+        script, sent = [pause(first), end(second)], []
+
+        def injected(body):
+            sent.append(body)
+            return script[len(sent) - 1]
+        with mock.patch.object(sr, "load_prices", side_effect=AssertionError("read the prices file")), \
+                contextlib.redirect_stdout(io.StringIO()):
+            sr.cmd_run(self.doc, ["FX-001"], post=injected, ledger=str(self.ledger), prices=RATES)
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(len(self.net.calls), 0)
+        row = self.settled_row()
+        self.assertAlmostEqual(row["actual_usd"], cost(first + second), places=12)
+        with mock.patch.object(sr, "load_prices", side_effect=sr.Refused("budget_refused: prices file read")), \
+                self.assertRaises(sr.Refused) as cm:   # the real transport always reads the file
+            sr.cmd_run(self.doc, ["FX-001"], ledger=str(self.ledger), prices=RATES)
+        self.assertIn("prices file read", str(cm.exception))
+        self.assertEqual(len(self.net.calls), 0)
+
     def test_a_record_write_failure_still_settles_the_known_actual(self):
         self.init(self.r_low * 10)
         huge = [it(EX, inp=10 ** 10, out=10)]

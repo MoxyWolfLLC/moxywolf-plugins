@@ -558,7 +558,7 @@ def _review_scope(doc, name, sent, transport, constraints):
     return n
 
 
-def cmd_run(doc, items=None, post=post, constraints=False, ledger=None):
+def cmd_run(doc, items=None, post=post, constraints=False, ledger=None, prices=None):
     """One review per item (SR-001.1), one for the whole file, or one for the constraints alone
     (SR-002.1). Exit 2 if any record has a contradiction."""
     doc = Path(doc)
@@ -570,7 +570,8 @@ def cmd_run(doc, items=None, post=post, constraints=False, ledger=None):
     worst = 0
     real = post is globals()["post"]   # SR-003.2: the real transport always spends against a ledger
     metered = real or ledger is not None
-    prices = load_prices() if metered else None
+    # SR-003.5: the real transport reads the prices file; an injected one may bring its rates in memory
+    prices = (load_prices() if real or prices is None else prices) if metered else None
     if metered:   # an unlisted model or a missing ledger refuses before any request
         _rates(prices, EXECUTOR), _rates(prices, ADVISOR)
         if not ledger_path(ledger).exists():
