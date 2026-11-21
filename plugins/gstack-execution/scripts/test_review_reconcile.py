@@ -102,6 +102,20 @@ class Score(Base):
                         f("A2", "codex", "y.py:2", "behavior_gap", [H1])])
         self.assertEqual(self.score(key)["counts"], {"matches": 1, "repeats": 1, "misses": 0, "false_blockers": 0})
 
+    def test_evidence_does_not_pool_across_findings(self):
+        key = self.key([self.entry("K1", "behavior_gap", [H1, "x.py:1"])])
+        self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [H1])])
+        self.lane("b", [f("B1", "claude", "x.py:1", "behavior_gap", ["x.py:1"])])
+        r = self.score(key)
+        self.assertEqual(r["counts"], {"matches": 0, "repeats": 0, "misses": 1, "false_blockers": 2})
+
+    def test_same_clause_class_and_evidence_across_lanes_is_a_repeat(self):
+        key = self.key([self.entry("K1", "behavior_gap", [H1])])
+        self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [H1])])
+        self.lane("b", [f("B1", "claude", "x.py:1", "behavior_gap", [H1])])
+        r = self.score(key)
+        self.assertEqual(r["counts"], {"matches": 1, "repeats": 1, "misses": 0, "false_blockers": 0})
+
     def test_unmatched_blocker_is_false_blocker_unmatched_entry_is_miss(self):
         key = self.key([self.entry("K1", "behavior_gap", [H1]), self.entry("K2", "false_premise", [H2])])
         self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [H1]),
@@ -125,10 +139,10 @@ class Score(Base):
         self.assertEqual(r["manifest_sha256"], rr.sha(man))
 
 
-def report(width, seconds, misses=0, blockers=0, dorian=0, manifest="m", budget=1, deadline=5400, decision="ok"):
+def report(width, seconds, misses=0, blockers=0, dorian=0, manifest="m", budget=1, deadline=5400, decision="ok", sound=True):
     return {"counts": {"matches": 3, "repeats": 0, "misses": misses, "false_blockers": blockers},
             "manifest_sha256": manifest,
-            "meta": {"width": width, "budget": budget, "deadline_seconds": deadline, "decision": decision,
+            "meta": {"width": width, "budget": budget, "deadline_seconds": deadline, "decision": decision, "decision_sound": sound,
                      "decisions_to_dorian": dorian, "draft_to_decision_seconds": seconds}}
 
 
@@ -143,6 +157,15 @@ class Compare(unittest.TestCase):
             ok, clause = rr.compare(report(3, 600), report(5, 400, **kw))
             self.assertFalse(ok, kw)
             self.assertIn(word, clause)
+
+    def test_unverified_or_missing_soundness_refused(self):
+        for bad in (False, None, "yes"):
+            with self.assertRaises(rr.Refused):
+                rr.compare(report(3, 600), report(5, 400, sound=bad))
+        r = report(5, 400)
+        del r["meta"]["decision_sound"]
+        with self.assertRaises(rr.Refused):
+            rr.compare(report(3, 600), r)
 
     def test_not_faster_fails(self):
         ok, clause = rr.compare(report(3, 600), report(5, 600))

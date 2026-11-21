@@ -90,17 +90,17 @@ def score(run_dir, key_path, manifest_path, meta=None):
             if k not in e:
                 raise Refused(f"key entry missing {k}: {e}")
     taken, matches, repeats, false_blockers = {}, [], [], []
-    for g in dedupe(run_dir)["merged"]:
-        ev = set(g["evidence"])
-        fits = [e["key_id"] for e in key if e["class"] == g["class"] and set(e["evidence_required"]) <= ev]
+    # each finding is scored on its own evidence: evidence never pools across findings or lanes
+    for r in sorted(read_findings(run_dir), key=lambda r: (str(r["finding_id"]), str(r["lane"]))):
+        ev, fid = set(r["evidence"]), r["finding_id"]
+        fits = [e["key_id"] for e in key if e["class"] == r["class"] and set(e["evidence_required"]) <= ev]
         free = [k for k in fits if k not in taken]
-        fid = g["finding_ids"][0]
         if free:
             taken[free[0]] = fid
             matches.append({"key_id": free[0], "finding_id": fid})
         elif fits:
             repeats.append({"key_id": fits[0], "finding_id": fid})
-        elif g["class"] in BLOCKING and g["asks_change"]:
+        elif r["class"] in BLOCKING and str(r["smallest_fix"]).strip():
             false_blockers.append(fid)
     misses = [e["key_id"] for e in key if e["key_id"] not in taken]
     return {"counts": {"matches": len(matches), "repeats": len(repeats), "misses": len(misses),
@@ -113,10 +113,13 @@ def compare(a, b):
     """AC2's rule and nothing else. Returns (passed, clause); refuses what isn't comparable."""
     for r in (a, b):
         m = r.get("meta", {})
-        for k in ("width", "budget", "deadline_seconds", "decision", "decisions_to_dorian",
-                  "draft_to_decision_seconds"):
+        for k in ("width", "budget", "deadline_seconds", "decision", "decision_sound",
+                  "decisions_to_dorian", "draft_to_decision_seconds"):
             if k not in m:
                 raise Refused(f"report lacks meta.{k}")
+        if m["decision_sound"] is not True:
+            # soundness is judged upstream (GR-001's acceptance check sets it); this module only requires it
+            raise Refused("meta.decision_sound is not true: an unverified decision is not comparable")
     if a["manifest_sha256"] != b["manifest_sha256"]:
         raise Refused("not the same manifest: reports carry different manifest sha256 values")
     for k in ("budget", "deadline_seconds"):
