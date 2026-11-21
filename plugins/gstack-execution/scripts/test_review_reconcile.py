@@ -108,7 +108,7 @@ class Score(Base):
         return {"key_id": kid, "class": cls, "condition": "words", "evidence_required": req}
 
     def score(self, key):
-        return rr.score(self.run_dir(), key, self.file("manifest.json", "{}"))
+        return rr.score(self.run_dir(), key, self.file("manifest.json", {"width": 3}))
 
     def test_clause_and_class_alone_do_not_match(self):
         self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [])])
@@ -155,13 +155,13 @@ class Score(Base):
     def test_same_inputs_same_bytes_and_hashes_recorded(self):
         key = self.key([self.entry("K1", "behavior_gap", [H1])])
         self.lane("a", [f("A1", "codex", "x.py:1", "behavior_gap", [H1])])
-        man = self.file("manifest.json", "{}")
+        man = self.file("manifest.json", {"draft_sha256": "d", "width": 3})
         a = rr.dump(rr.score(self.run_dir(), key, man))
         b = rr.dump(rr.score(self.run_dir(), key, man))
         self.assertEqual(a, b)
         r = json.loads(a)
         self.assertEqual(r["key_sha256"], rr.sha(key))
-        self.assertEqual(r["manifest_sha256"], rr.sha(man))
+        self.assertEqual(r["manifest_sha256"], review_run.core_sha({"draft_sha256": "d"}))
 
 
 def report(width, seconds, misses=0, blockers=0, dorian=0, manifest="m", budget=1, deadline=5400, decision="ok", sound=True):
@@ -169,6 +169,50 @@ def report(width, seconds, misses=0, blockers=0, dorian=0, manifest="m", budget=
             "manifest_sha256": manifest,
             "meta": {"width": width, "budget": budget, "deadline_seconds": deadline, "decision": decision, "decision_sound": sound,
                      "decisions_to_dorian": dorian, "draft_to_decision_s": seconds}}
+
+
+class ManifestCore(Base):
+    """GR-004: real manifests from review_run.manifest, not hand-written JSON."""
+    def manifest(self, run, width, draft_text="draft"):
+        d = self.root / "in"; d.mkdir(exist_ok=True)
+        files = {n: d / n for n in ("draft", "ev", "prompt", "lessons", "key")}
+        for n, f in files.items():
+            f.write_text(draft_text if n == "draft" else n)
+        ledger = str(self.root / f"ledger-{run}.json")
+        review_run.init(ledger, run)
+        out = self.root / f"manifest-{run}.json"
+        review_run.manifest(ledger, run, str(out), str(files["draft"]), [str(files["ev"])], [str(files["prompt"])],
+                            str(files["lessons"]), str(files["key"]), width)
+        return str(out)
+
+    def score(self, man):
+        key = self.file("key.json", [{"key_id": "K1", "class": "behavior_gap", "condition": "w", "evidence_required": ["x.py:1"]}])
+        return rr.score(self.run_dir(), key, man)
+
+    def test_one_manifest_at_two_widths_gives_one_hash_and_compare_reaches_its_rule(self):
+        m3, m5 = self.manifest("r3", 3), self.manifest("r5", 5)
+        self.assertNotEqual(rr.sha(m3), rr.sha(m5))                 # the file bytes differ: that was the defect
+        a, b = self.score(m3), self.score(m5)
+        self.assertEqual(a["manifest_sha256"], b["manifest_sha256"])
+        meta = lambda w, s: {"width": w, "budget": 1, "deadline_seconds": 5400, "decision": "ok", "decision_sound": True,
+                             "decisions_to_dorian": 0, "draft_to_decision_s": s}
+        ok, clause = rr.compare({**a, "meta": meta(3, 100)}, {**b, "meta": meta(5, 60)})
+        self.assertTrue(ok, clause)
+
+    def test_a_changed_input_gives_a_different_hash_and_compare_refuses(self):
+        a = self.score(self.manifest("r3", 3))
+        b_man = self.manifest("r4", 5, draft_text="a different draft")
+        b = self.score(b_man)
+        self.assertNotEqual(a["manifest_sha256"], b["manifest_sha256"])
+        meta = {"width": 3, "budget": 1, "deadline_seconds": 5400, "decision": "ok", "decision_sound": True,
+                "decisions_to_dorian": 0, "draft_to_decision_s": 100}
+        with self.assertRaises(rr.Refused):
+            rr.compare({**a, "meta": meta}, {**b, "meta": {**meta, "width": 5}})
+
+    def test_a_non_manifest_is_refused(self):
+        for bad in ("not json", {"draft_sha256": "d"}, ["width"]):
+            with self.assertRaises(rr.Refused):
+                self.score(self.file("bad.json", bad))
 
 
 class Compare(unittest.TestCase):

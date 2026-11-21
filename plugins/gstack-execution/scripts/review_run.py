@@ -225,7 +225,12 @@ def _core(files):
     core = {"draft_sha256": sha(files["draft"]), "evidence_sha256": sorted(sha(f) for f in files["evidence"]),
             "prompts_sha256": sorted(sha(f) for f in files["prompts"]), "lesson_state_sha256": sha(files["lessons"]),
             "scoring_key_sha256": sha(files["key"])}
-    return core, hashlib.sha256(json.dumps(core, sort_keys=True).encode()).hexdigest()
+    return core, core_sha(core)
+
+
+def core_sha(core):
+    """sha256 of a manifest's hashed fields, width excluded (GR-004: one rule, read by GR-001's `manifest` and GR-002's `score`)."""
+    return hashlib.sha256(json.dumps(core, sort_keys=True).encode()).hexdigest()
 
 
 def manifest(ledger, run, out, draft, evidence, prompts, lessons, key, width):

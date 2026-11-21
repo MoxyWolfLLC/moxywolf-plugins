@@ -35,6 +35,17 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def manifest_core_sha(path):
+    """The manifest's core hash (GR-004): the file read, `width` removed, hashed by GR-001's own rule, so one manifest at two widths names one value."""
+    try:
+        m = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as e:
+        raise Refused(f"manifest {path} is not readable JSON: {e}")
+    if not isinstance(m, dict) or "width" not in m:
+        raise Refused(f"manifest {path} is not a manifest object with a width")
+    return review_run.core_sha({k: v for k, v in m.items() if k != "width"})
+
+
 def dump(obj):
     return json.dumps(obj, indent=2, sort_keys=True) + "\n"
 
@@ -104,7 +115,7 @@ def score(run_dir, key_path, manifest_path, meta=None):
     return {"counts": {"matches": len(matches), "repeats": len(repeats), "misses": len(misses),
                        "false_blockers": len(false_blockers)},
             "matches": matches, "repeats": repeats, "misses": misses, "false_blockers": false_blockers,
-            "key_sha256": sha(key_path), "manifest_sha256": sha(manifest_path), "meta": meta or {}}
+            "key_sha256": sha(key_path), "manifest_sha256": manifest_core_sha(manifest_path), "meta": meta or {}}
 
 
 def compare(a, b):
