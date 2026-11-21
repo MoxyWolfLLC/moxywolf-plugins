@@ -29,12 +29,17 @@ The record is the evidence, not the exit code: `check` recomputes the scope, nev
 A contradiction clears only by revising the doc and re-running, or by a disposition (SR-003): the record
 has no `resolved` flag.
 
+  budget init --stop-usd N [--ledger P] | budget show [--ledger P]
+                              SR-003.1: the spend ledger every real run reserves against
+                              (GSTACK_SPEND_LEDGER, default ~/.gstack/spend-ledger.json).
   dispose <doc> [--items A | --constraints] --id C1 --by <name> --evidence "<text>"
                               SR-003.6: record that a contradiction is disproved, bound to the record
                               file as it is now. Recorded only on Dorian's words, quoted into --evidence.
 """
 import argparse
+import fcntl
 import hashlib
+import math
 import json
 import os
 import re
@@ -222,6 +227,211 @@ def effective_scope(entry, item):
     return "item" if any(named.search(str(r)) for r in entry.get("requirements") or ()) else "constraints"
 
 
+# ---------- SR-003: spend ledger, prices and the worst-case bound ----------
+
+PRICES = Path(__file__).resolve().with_name("spec_review_prices.json")
+RATE_KEYS = ("input", "output", "cache_read", "cache_write")
+# SR-003.3, frozen on Dorian's choice of 2026-11-21 ("Tight formula + allowance"). Sources:
+# https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool (a request's server loop
+# runs at most 10 iterations, each re-sending the growing conversation; executor input is billed per
+# iteration; the advisor reads the full transcript) and
+# https://platform.claude.com/docs/en/about-claude/pricing (rates). F_E and F_A are an ASSUMED
+# allowance for framing the docs don't size; an actual above the reservation is recorded in full.
+N_ITER, O_TOK, A_CALLS, M_TOK, K_TOK, M_REMIND, F_E, F_A = 10, 20000, 3, 4096, 4160, 200, 10000, 10000
+R_REQ = 1 + MAX_RESUMES + 1   # the first request, six resumptions, one reminder
+
+
+def _finite(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) and x >= 0
+
+
+def load_prices(path=None):
+    """{model: {input, output, cache_read, cache_write}} in USD per token (SR-003.5)."""
+    path = Path(path or PRICES)
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        raise Refused(f"budget_refused: prices file {path} unreadable: {e}")
+    models = data.get("models") if isinstance(data, dict) else None
+    if data.get("schema") != "spec-review-prices/1" or not isinstance(models, dict):
+        raise Refused(f"budget_refused: {path} is not a spec-review-prices/1 file")
+    for m, r in models.items():
+        if not isinstance(r, dict) or not all(_finite(r.get(k)) for k in RATE_KEYS):
+            raise Refused(f"budget_refused: {path} has a missing or invalid rate for {m}")
+    return models
+
+
+def _rates(prices, model):
+    if model not in prices:
+        raise Refused(f"budget_refused: {model} is not in the prices file; no request sent")
+    return prices[model]
+
+
+def worst_case_usd(body_bytes, executor, advisor, prices):
+    """SR-003.3: the most one scope can be charged, b = the first request body's UTF-8 bytes."""
+    e, a, b = _rates(prices, executor), _rates(prices, advisor), body_bytes
+    e_in = (N_ITER * R_REQ * (b + F_E + M_REMIND) + N_ITER * O_TOK * R_REQ * (R_REQ + 1) // 2
+            + N_ITER * R_REQ * A_CALLS * K_TOK)
+    a_in = A_CALLS * (F_A + b + F_E + M_REMIND + R_REQ * O_TOK + A_CALLS * K_TOK)
+    return (max(e["input"], e["cache_write"]) * e_in + e["output"] * R_REQ * O_TOK
+            + max(a["input"], a["cache_write"]) * a_in + a["output"] * A_CALLS * M_TOK)
+
+
+def ledger_path(ledger=None):
+    return Path(ledger or os.environ.get("GSTACK_SPEND_LEDGER") or Path.home() / ".gstack" / "spend-ledger.json")
+
+
+def _valid_ledger(db, path):
+    """A well-formed spend-ledger/1 or Refused; every number finite and non-negative (SR-003.1)."""
+    rows = db.get("reservations") if isinstance(db, dict) else None
+    if (not isinstance(db, dict) or db.get("schema") != "spend-ledger/1" or not isinstance(rows, list)
+            or not _finite(db.get("stop_usd")) or not _finite(db.get("spent_usd"))):
+        raise Refused(f"budget_refused: {path} is not a well-formed spend ledger (stop_usd, spent_usd, reservations)")
+    for r in rows:
+        ok = isinstance(r, dict) and r.get("state") in ("held", "settled") and _finite(r.get("reserved_usd"))
+        ok = ok and (r.get("actual_usd") is None if r.get("state") == "held" else _finite(r.get("actual_usd")))
+        if not ok:
+            raise Refused(f"budget_refused: {path} has a malformed reservation row {r!r:.120}")
+    return db
+
+
+def _held(db):
+    return sum(r["reserved_usd"] for r in db["reservations"] if r["state"] == "held")
+
+
+def _locked():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from review_run import locked   # the one flock + atomic-replace helper (SR-003.1)
+    return locked
+
+
+def read_ledger(ledger=None):
+    """Read under the ledger's lock, never writing (budget show)."""
+    path = ledger_path(ledger)
+    if not path.exists():
+        raise Refused(f"budget_refused: no spend ledger at {path}; a person creates one with `budget init`")
+    with open(str(path) + ".lock", "a") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        try:
+            return _valid_ledger(json.loads(path.read_text()), path)
+        except json.JSONDecodeError as e:
+            raise Refused(f"budget_refused: {path} is not JSON: {e}")
+        finally:
+            fcntl.flock(lk, fcntl.LOCK_UN)
+
+
+def budget_init(stop_usd, ledger=None):
+    path = ledger_path(ledger)
+    try:
+        stop = float(stop_usd)
+    except (TypeError, ValueError):
+        raise Refused(f"--stop-usd {stop_usd!r} is not a number")
+    if not _finite(stop):
+        raise Refused(f"--stop-usd must be finite and non-negative, not {stop_usd}")
+    if path.exists():
+        raise Refused(f"{path} already exists; budget init never replaces a ledger")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _locked()(path) as db:
+        if db.get("schema"):   # created by another process between the check and the lock
+            raise Refused(f"{path} already exists; budget init never replaces a ledger")
+        db.clear()
+        db.update({"schema": "spend-ledger/1", "stop_usd": stop if stop != int(stop) else int(stop),
+                   "spent_usd": 0, "reservations": []})
+    print(f"spend ledger {path}: stop_usd {stop}")
+
+
+def budget_show(ledger=None):
+    db = read_ledger(ledger)
+    held = _held(db)
+    print(f"stop_usd {db['stop_usd']:.6f}\nspent_usd {db['spent_usd']:.6f}\nheld_usd {held:.6f}\n"
+          f"remaining_usd {max(0.0, db['stop_usd'] - db['spent_usd'] - held):.6f}")
+    for r in db["reservations"]:
+        if r["state"] == "held":
+            print(f"held {r.get('id')} {r.get('scope')} {r.get('doc')} {r['reserved_usd']:.6f} since {r.get('reserved_at')}")
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def reserve(ledger, scope_name, doc_name, amount):
+    """Hold `amount` or raise budget_refused, writing nothing (SR-003.2)."""
+    path = ledger_path(ledger)
+    if not path.exists():
+        raise Refused(f"budget_refused: no spend ledger at {path}; a person creates one with `budget init`")
+    rid = uuid.uuid4().hex
+    with _locked()(path) as db:
+        _valid_ledger(db, path)
+        held = _held(db)
+        if db["spent_usd"] + held + amount > db["stop_usd"]:
+            raise Refused(f"budget_refused: stop_usd {db['stop_usd']:.6f}, spent_usd {db['spent_usd']:.6f}, "
+                          f"held_usd {held:.6f}, reservation {amount:.6f}; no request sent")
+        db["reservations"].append({"id": rid, "scope": scope_name, "doc": doc_name, "reserved_usd": amount,
+                                   "actual_usd": None, "state": "held", "reserved_at": _now(), "settled_at": None})
+    return rid
+
+
+def charged(responses, prices):
+    """(known USD, certain) from every response's usage.iterations, each entry at its own model's rates.
+    An entry without a model is the executor's; an advisor entry without one is the advisor's."""
+    total, certain = 0.0, True
+    for resp in responses:
+        its = (resp.get("usage") or {}).get("iterations") if isinstance(resp, dict) else None
+        if not isinstance(its, list) or not its:
+            certain = False
+            continue
+        for e in its:
+            model = e.get("model") or (ADVISOR if e.get("type") == "advisor_message" else EXECUTOR)
+            toks = [e.get(k) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens",
+                                       "cache_creation_input_tokens")]
+            if model not in prices or not all(isinstance(x, int) and x >= 0 for x in toks):
+                certain = False
+                continue
+            r = prices[model]
+            total += (toks[0] * r["input"] + toks[1] * r["output"] + toks[2] * r["cache_read"]
+                      + toks[3] * r["cache_write"])
+    return total, certain
+
+
+class Metered:
+    """The real transport behind a reservation: reserves the scope's worst case before the first request,
+    remembers every response, and marks the scope uncertain if any request fails mid-flight."""
+
+    def __init__(self, transport, ledger, scope_name, doc_name, prices):
+        self.transport, self.ledger, self.scope, self.doc, self.prices = transport, ledger, scope_name, doc_name, prices
+        self.rid, self.responses, self.certain = None, [], True
+
+    def __call__(self, body):
+        if self.rid is None:
+            self.rid = reserve(self.ledger, self.scope, self.doc,
+                               worst_case_usd(len(json.dumps(body).encode()), EXECUTOR, ADVISOR, self.prices))
+        try:
+            resp = self.transport(body)
+        except BaseException:
+            self.certain = False
+            raise
+        self.responses.append(resp)
+        return resp
+
+    def settle(self):
+        """Settle once; True when the actual exceeded the reservation (SR-003.4)."""
+        if self.rid is None:
+            return False
+        known, certain = charged(self.responses, self.prices)
+        actual = known if (certain and self.certain) else None
+        path = ledger_path(self.ledger)
+        with _locked()(path) as db:
+            row = next(r for r in db["reservations"] if r["id"] == self.rid)
+            reserved = row["reserved_usd"]
+            value = actual if actual is not None else max(reserved, known)
+            if row["state"] == "held":
+                row.update(actual_usd=value, state="settled", settled_at=_now())
+                db["spent_usd"] = db["spent_usd"] + value
+        self.rid_settled = value
+        return value > reserved
+
+
+
 def record_path(doc, name):
     return Path(doc).parent / "reviews" / "spec-review" / f"{name}.json"
 
@@ -296,7 +506,7 @@ def malformed(f):
     return None
 
 
-def cmd_run(doc, items=None, post=post, constraints=False):
+def cmd_run(doc, items=None, post=post, constraints=False, ledger=None):
     """One review per item (SR-001.1), one for the whole file, or one for the constraints alone
     (SR-002.1). Exit 2 if any record has a contradiction."""
     doc = Path(doc)
@@ -306,11 +516,31 @@ def cmd_run(doc, items=None, post=post, constraints=False):
     # refuses an unknown item before any request
     scopes = [scope_constraints(text)] if constraints else [scope(text, i) for i in (items or [None])]
     worst = 0
+    real = post is globals()["post"]   # SR-003.2: the real transport always spends against a ledger
+    metered = real or ledger is not None
+    prices = load_prices() if metered else None
+    if metered:   # an unlisted model or a missing ledger refuses before any request
+        _rates(prices, EXECUTOR), _rates(prices, ADVISOR)
+        if not ledger_path(ledger).exists():
+            raise Refused(f"budget_refused: no spend ledger at {ledger_path(ledger)}; a person creates one with `budget init`")
     for name, sent in scopes:
-        reply, iterations, calls, cache = review(sent, post)
+        meter = Metered(post, ledger, name, doc.name, prices) if metered else None
+        try:
+            reply, iterations, calls, cache = review(sent, meter or post)
+        except BaseException:
+            if meter:
+                meter.settle()
+            raise
+        if calls < 1 and meter:
+            meter.settle()
         if calls < 1:   # SR-001.2: "Fable reviewed this" stays true
             raise Refused(f"{name}: the executor finished without consulting the advisor, after a reminder; no record written, re-run")
-        f = findings(reply)
+        try:
+            f = findings(reply)
+        except Refused:
+            if meter:
+                meter.settle()
+            raise
         rec = {"schema": "spec-review/3", "review_id": uuid.uuid4().hex, "doc": doc.name, "item": None if name == "all" or constraints else name,
                "scope_sha256": hashlib.sha256(sent.encode()).hexdigest(),
                "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -328,6 +558,9 @@ def cmd_run(doc, items=None, post=post, constraints=False):
         print(f"spec_review {name}: {n} contradiction(s), {len(f['ambiguities'])} ambiguit(ies); "
               f"advisor called {calls}x; wrote {rp}")
         worst = max(worst, 2 if n else 0)
+        if meter and meter.settle():   # the record is written; the next scope never starts
+            raise Refused(f"budget_overrun: {name} cost {meter.rid_settled:.6f} USD, above its reservation; "
+                          f"recorded in {ledger_path(ledger)}; no further scope runs")
     return worst
 
 
@@ -797,6 +1030,12 @@ def main(argv=None):
         sp.add_argument("doc")
         sp.add_argument("--items", type=lambda s: [x.strip() for x in s.split(",") if x.strip()])
         sp.add_argument("--constraints", action="store_true")
+        if c == "run":
+            sp.add_argument("--ledger")
+    bp = sub.add_parser("budget")
+    bp.add_argument("action", choices=("init", "show"))
+    bp.add_argument("--stop-usd")
+    bp.add_argument("--ledger")
     sp = sub.add_parser("dispose")
     sp.add_argument("doc")
     sp.add_argument("--items", type=lambda s: [x.strip() for x in s.split(",") if x.strip()])
@@ -805,6 +1044,11 @@ def main(argv=None):
     sp.add_argument("--by", required=True)
     sp.add_argument("--evidence", required=True)
     sp.add_argument("--disposition", default="disproved")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    for i in range(len(argv) - 1):   # `--stop-usd -1` must reach budget_init's refusal, not argparse's
+        if argv[i] == "--stop-usd":
+            argv[i:i + 2] = [f"--stop-usd={argv[i + 1]}"]
+            break
     a = p.parse_args(argv)
     if a.selftest:
         return selftest()
@@ -812,7 +1056,15 @@ def main(argv=None):
         if getattr(a, "constraints", False) and getattr(a, "items", None):   # review F2: no subcommand has neither
             raise Refused("--constraints reviews the constraints alone; it takes no --items")
         if a.cmd == "run":
-            return cmd_run(a.doc, a.items, constraints=a.constraints)
+            return cmd_run(a.doc, a.items, constraints=a.constraints, ledger=a.ledger)
+        if a.cmd == "budget":
+            if a.action == "init":
+                if a.stop_usd is None:
+                    raise Refused("budget init needs --stop-usd")
+                budget_init(a.stop_usd, a.ledger)
+            else:
+                budget_show(a.ledger)
+            return 0
         if a.cmd == "dispose":
             dispose(a.doc, a.id, a.by, a.evidence, a.items, a.constraints, a.disposition)
             return 0
