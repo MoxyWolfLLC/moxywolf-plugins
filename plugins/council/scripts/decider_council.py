@@ -292,7 +292,12 @@ def known_cost(v):
     if isinstance(v, bool):
         return None
     if isinstance(v, (int, float)):
-        f = float(v)
+        if v < 0:
+            return None
+        try:
+            f = float(v)
+        except OverflowError:         # review 20261120-161648 F1: a 400-digit JSON integer is no known cost
+            return None
     elif isinstance(v, str) and _DECIMAL.match(v.strip()):
         f = float(v.strip())
     else:

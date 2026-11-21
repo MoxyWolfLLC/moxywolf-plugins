@@ -301,6 +301,29 @@ class DC003Settlement(unittest.TestCase):
                 self.wfile.write(raw)
         return MalformedEnvelopeStub
 
+    def test_rr1_oversized_integer_cost_is_unknown_not_a_crash(self):
+        # review 20261120-161648 F1: float() of a 401-digit JSON integer overflows; it must be kept_unknown
+        for cost in (-(10 ** 400), 10 ** 400):
+            with self.subTest(sign="negative" if cost < 0 else "positive"):
+                self.server.costs[VOICES[0]] = cost
+                self.server.RequestHandlerClass = self._malformed_stub()
+                self.budget.unlink(missing_ok=True)
+                init = self.run_dc("budget", "init", "--budget", str(self.budget), "--run", self.run_id,
+                                   "--limit-usd", "1", "--key-id", "offline-key-id")
+                self.assertEqual(init.returncode, 0, init.stdout + init.stderr)
+                args = ("ask", "--caller", "dc003-test", "--ref", "rr1", "--input", str(self.root / "input.txt"),
+                        "--questions", str(self.root / "questions.json"), "--voices", VOICES[0],
+                        "--budget", str(self.budget), "--run", self.run_id, "--pricing", str(self.pricing), "--timeout-ms", "500")
+                first = self.run_dc(*args)          # the response carries the oversized cost
+                self.assertEqual(first.returncode, 1, first.stdout + first.stderr)
+                self.assertNotIn("Traceback", first.stderr)
+                row = json.loads(first.stdout)["voices"][0]
+                self.assertEqual(row["budget_state"], "kept_unknown")
+                self.assertEqual(row["cost"], cost)
+                second = self.run_dc(*args)         # now the ledger history carries it too
+                self.assertNotIn("Traceback", second.stderr)
+                self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
