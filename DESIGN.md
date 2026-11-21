@@ -2790,6 +2790,94 @@ The store root is `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/council-c
 
 Not in this item: the optimizer, which reads only cases `status` counts as eligible; a ledger-head checkpoint in git (DR-140 open question 6); any OpenControls audience.
 
+## Eighteenth objective: Parallel goal review pilot
+
+Opened 2026-11-20 on Dorian C's ask ("Then plan the parallel-review pilot from proposal-v4.md"), from the approved proposal `GitHub/Projects/MW Plugins/06 – Engineering/parallel-goal-review/proposal-v4.md` (sha256 `62ca16f0…`) and the plan in `pilot-plan-v1.md` of the same folder, section 2. The proposal has Claude and Codex draft and challenge a goal's plan in parallel read-only lanes, reconcile what they find, learn from closed findings, and run one small pilot against five acceptance checks (AC1 to AC5). Of its missing pieces, M7 is built (DC-003, merged `97ba0c8`). This objective declares the three build items the acceptance checks need: GR-001 (M3 and M1, and AC2's peak measure and AC5), GR-002 (M2, and AC1, AC2's counts and AC3) and GR-003 (M6 and M4, and AC4). Each is a script and its test under `plugins/gstack-execution/scripts/`, next to `peer_review.py` and `swarm.py`, reusing their Codex transport (Dorian's placement ruling, 2026-11-20; a new plugin would cost a marketplace entry and a README for a pilot).
+
+This objective changes no gate, `CODEOWNERS` path, live goal, GO-023 or PR #357. It adds no paid call to any existing command. Nothing here runs the pilot: the pilot is a separate run, after the three items merge, at a ceiling Dorian approves (plan section 3: at most 3 paid run ids and 30 Codex calls, and 2 Council disputes in total).
+
+Deferred, because no acceptance check needs them: M5 (the Mermaid renderer), the Codex API-key backup, a binding Council majority, and any change to the gates above.
+
+Open ruling: proposal section 5 allows no Council call until M7's maximum is "verified". DC-003 is built and says "bounded, not guaranteed" (Vercel's budget is a soft cap). Whether that counts as "verified" is Dorian's ruling and is not given. The items below are written so every criterion passes either way; the only thing the ruling changes is whether AC1's Council dispute runs in the pilot (GR-001.2, GR-002.5).
+
+### GR-001 — A review run has one ledger that holds its limits, a manifest that fixes its jobs, and a runner that starts, times and stops its lanes
+
+**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash.
+
+**Links introduced:** three. A ledger names its run id and the sha256 of every manifest run under it. A manifest names the sha256 of the draft, the evidence, the prompts, the lesson state and the scoring key it holds. A lane's output directory names the run id, lane, revision and attempt. Nothing is stored in a repository; every file lives under the folder the caller names.
+
+Today nothing bounds a multi-lane review: `peer_review.py` runs one reviewer at a time, `swarm.py` is a build runner capped at 3, and a lane that hangs has no deadline that stops it.
+
+**Acceptance criteria**
+
+1. `review_run.py init --run <id> --ledger <file>` creates the ledger with these limits: 1 full fan-out and at most 2 rechecks, 10 Codex calls, 2 Council disputes, $1.00, and one 90-minute deadline counted from `init`. A flag may lower a limit; one that raises a limit is refused and names it. `init` on an id the file already holds refuses. `resume` reads the same counters, so a revised draft, a new draft hash or a restart gets no fresh allowance.
+2. Every dispatch records its reservation in the ledger before the process starts, and `review_run.py dispatch` refuses, naming the spent counter, when the fan-out, recheck, Codex-call, dispute, dollar or time counter is spent. A refusal launches nothing and is itself a ledger event. Council disputes are dispatched only while the ledger's `council_gate` is `open`. It starts `closed` and `open` is set only by `--council-gate-ruling <reference>`, which must name Dorian's recorded ruling that DC-003's bounded reservation satisfies proposal section 5. This item builds no ruling in. Until it is given, a Council dispatch is refused on every run, and the pilot's AC1 Council dispute stays unrun and is amended (GR-002.5).
+3. A call's timeout is the smaller of its ceiling (900 seconds for a Codex call) and the time left on the run. With no time left, the dispatch is refused.
+4. A job manifest is a JSON file holding the draft's sha256, the evidence files, the prompts, the lesson state, the scoring key's sha256 and a `width`. `review_run.py manifest` writes it once and records its own sha256 in the ledger. A second run under the same manifest may differ only in `width`; a run whose manifest differs in any other field is refused as "not the same manifest", so AC2's two runs are comparable.
+5. Lanes are `codex exec --sandbox read-only --ephemeral` and `claude -p` subprocesses, each started under `timeout`. The Codex command is built by the same function `peer_review.py` uses for its Codex transport, not a copy of it. Each lane, revision and attempt writes to its own output directory, and a lane writes nowhere else. Lane output is one findings file in this schema: `finding_id`, `lane`, `claim`, `cited_clause` (`file:line` or a sha256), `class`, `evidence` (a list of sha256 values and `file:line` strings) and `smallest_fix`. A file that doesn't parse, or has a field missing or a `class` outside `false_premise`, `wording_defect`, `behavior_gap` and `unresolved_decision`, marks that lane `failed` in the ledger; it is not repaired or partly read.
+6. No code path in the runner reads an API key for Codex or passes one to a lane's environment: the lane environment is built from an allowlist that names no `*_API_KEY` variable, and a test asserts it with a key set in the caller's environment. The API-key backup stays off (proposal section 5, with no per-run dollar ceiling stated).
+7. Each job writes a `start` and a `finish` event with a monotonic timestamp and its admitted time. `review_run.py report` computes, from those events alone: the peak (the most admitted jobs whose start-to-finish spans overlap; a queued or unrelated process never counts), review wait (the sum of time jobs sat admitted but not started), and draft-to-decision time (first dispatch to the final disposition timestamp). A `ps` sample list given with `--ps` is printed only as corroboration, with the line "sampling can miss a short peak".
+8. At the deadline the runner stops every running worker by process group, then confirms from the process table that each pid is gone and records `deadline_killed` with the confirmation. A worker whose pid is still present is reported `exit_unconfirmed` and the run is marked failed, not complete. The test uses a stub worker that sleeps past a short deadline and makes no paid call.
+9. **Tests** in `plugins/gstack-execution/scripts/test_review_run.py`, on temporary folders and stub workers (shell scripts standing in for `codex` and `claude`), with no network and no paid call:
+   - limits: each limit refuses its own dispatch, a flag can't raise a limit, `init` on an existing id refuses, `resume` keeps the counters, a refusal launches nothing;
+   - council gate: closed by default, a dispute refused while closed, opened only with a reference, and the reference is recorded in the ledger;
+   - timeout: min(ceiling, time left), and refusal at zero;
+   - manifest: written once, its sha256 in the ledger, a width-only change accepted, any other change refused;
+   - lanes: the Codex command comes from `peer_review.py`'s builder, one output directory per lane, revision and attempt, a malformed findings file fails its lane, no `*_API_KEY` reaches a lane;
+   - events: peak, review wait and draft-to-decision time on a hand-built event list with a known answer, including a queued job that must not count;
+   - deadline: a sleeping stub is killed and its pid is gone from the process table.
+10. `gstack-execution` moves up one version in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `test_review_run.py` and `run_all_tests.py` are green at the head.
+
+Not in this item: the pilot run itself, any paid call, the reconcile and scoring (GR-002), lessons (GR-003), the Mermaid renderer, a binding Council majority, and any change to `swarm.py`, `peer_review.py`'s behavior or a gate.
+
+### GR-002 — Findings from many lanes are deduplicated, classified and scored one to one against a pre-labeled key, and two runs are compared by the stated rule
+
+**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash. Depends on GR-001's findings schema.
+
+**Links introduced:** two. A scoring key names each expected finding by id, class, the condition that makes a finding match it, and the evidence a matching finding must carry. A report names the sha256 of the key and of the manifest it scored.
+
+The consolidated diff and the decision log stay the coordinator session's work; this item writes no code that edits a draft.
+
+**Acceptance criteria**
+
+1. `review_reconcile.py dedupe` reads the findings files under a run and merges findings that cite the same clause with the same class, keeping the lanes that reported each. Two findings on one clause with different classes stay separate and are listed under "split by class". A finding whose `class` is outside the four in GR-001.5 is refused and named.
+2. A scoring key is a JSON file of entries, each with `key_id`, `class`, `condition` (the claim or failure condition it expects, in words) and `evidence_required` (a list of sha256 values and `file:line` strings). A finding matches an entry only when its `evidence` holds every item of that entry's `evidence_required`. A matching cited clause and class alone don't match. The match is deterministic: it reads no model.
+3. `review_reconcile.py score` matches findings to key entries one to one. A second finding that would match an already matched entry is a repeat. A blocker (a finding whose class is `behavior_gap` or `false_premise` and that asks for a change) that matches no entry is a false blocker. An entry no finding matched is a miss. The report holds the counts of matches, repeats, misses and false blockers, the sha256 of the key and the sha256 of the manifest, and is the same bytes for the same inputs.
+4. `review_reconcile.py compare <report> <report>` applies AC2's stated rule and nothing else: the wider run passes only if both reports carry the same manifest sha256 and the same budget and deadline, both reach the same sound decision, the wider run's draft-to-decision time (from GR-001.7) is smaller, and it has no more misses, no more false blockers and no more decisions sent to Dorian than the narrower. A comparison of reports with different manifests or limits is refused, not scored. The output says pass or fail and which clause decided it; it gives no judgment.
+5. The step that sends one disputed finding to Council is a function that calls `decider_council.py ask` only when GR-001's ledger accepts the dispatch, and its tests run it against a stub. With `council_gate` closed, `review_reconcile.py` leaves the finding open and records it in the next recheck packet or in the packet for Dorian, as proposal section 3 says. The pilot's AC1 Council dispute therefore runs only after Dorian rules that DC-003's bounded reservation counts as M7 "verified". That ruling is not given. Without it, AC1's dispute stays unrun and AC1 is amended.
+6. **Tests** in `plugins/gstack-execution/scripts/test_review_reconcile.py`, on temporary folders with synthetic findings and a synthetic key, no network and no paid call:
+   - dedupe: same clause and class merge; same clause with different classes stay split; an unknown class is refused;
+   - match: cited clause and class alone don't match; all of `evidence_required` matches; a finding missing one item doesn't;
+   - one to one: a second equivalent finding is a repeat; an unmatched blocker is a false blocker; an unmatched entry is a miss; the same inputs give the same bytes;
+   - compare: a faster run with no new misses passes; a faster run with one new miss, or one new false blocker, or one more decision for Dorian fails; different manifests or limits are refused;
+   - council: a closed gate leaves the finding open and records it in the packet; the stubbed `ask` is called only after the ledger accepts the dispatch.
+7. `gstack-execution` moves up one version in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `test_review_reconcile.py` and `run_all_tests.py` are green at the head.
+
+Not in this item: the pilot's real keys for cases 1 and 2, which are the two findings in `GO-023.json` (`~/Developer/gstack-reviews/go023-f63ef5f-spec-review-20261120/`, outside the mounted folders, not read for this item); case 3's key, built from S9's two sha256 values as the proposal pins them, which are stated in a handoff and not recomputed here; the scratch regression AC3 needs for case 2; the consolidated diff and decision log; any model-based match.
+
+### GR-003 — A closed finding becomes a lesson in the mistake ledger's own format, and a preflight loads only the lessons that still hold and checks them first
+
+**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash.
+
+**Links introduced:** two. Each lesson row's `target` names its replay-case file, and that file names the sha256 of the evidence it rests on. A preflight report names the lessons it loaded, the ones it skipped and why.
+
+**Acceptance criteria**
+
+1. `review_lessons.py capture` appends to `review-lessons.md`, which uses the eight columns of `mistake_ledger.py` exactly (`id`, `date`, `what`, `caught_by`, `evidence`, `disposition`, `target`, `repeats`), so `python3 plugins/project-init/scripts/mistake_ledger.py review-lessons.md` validates it unchanged. Every lesson row has disposition `evaluation_case` and a `target` naming its replay-case file. A recurrence uses the `repeats` column, and a repeat's own rules are `mistake_ledger.py`'s, not a copy of them.
+2. A replay-case file holds the pattern id, the class (`false_premise`, `wording_defect` or `behavior_gap`), the evidence sha256 values, the smallest replayable check, a revalidate-by date and a retire condition. `capture` refuses a case missing any of them.
+3. `capture` takes only a finding that closed with verified evidence, and records the verified disposition. A verified false alarm is kept. An unresolved objection, and a consensus with no evidence, are refused and named.
+4. `review_lessons.py preflight` loads a lesson only when its revalidate-by date is not past, its retire condition is not met, its evidence sha256 values still match, and it was captured as verified. Each lesson it skips is listed with the reason. It runs each loaded lesson's deterministic check first and attaches the results and the same pinned evidence for every lane.
+5. Before a finding may say that a carried object's text changed, `preflight` computes the sha256 of that object at both heads. Equal hashes rebut only that claim. A claim about resulting behavior (the same bytes with a changed called function) still goes to review, and the report says so.
+6. `capture` and `preflight` write only the lesson file and its replay-case folder. Neither writes any skill, preflight configuration, gate, holdout or the `council_cases.py` store. A proposed change to a skill stays a diff in a pull request; a test asserts that, run on a fresh draft, no file outside the lesson file, its replay folder and the report changed.
+7. **Tests** in `plugins/gstack-execution/scripts/test_review_lessons.py`, on temporary folders with synthetic lessons and a scratch copy of the lesson file, no network and no paid call:
+   - format: `mistake_ledger.py` validates a captured file unchanged, a repeat carries `repeats`, and a repeat marked `one_off` fails as `mistake_ledger.py` already says;
+   - capture: a closed verified finding is kept, a verified false alarm is kept, an unresolved objection and a consensus with no evidence are refused, a replay case missing a field is refused;
+   - preflight: a stale, retired, evidence-changed or unverified lesson is skipped with its reason; a seeded repeat of a false premise whose two objects have equal sha256 is caught; two look-alikes pass to review, one with a real view change and one with identical bytes and a changed called function;
+   - writes: nothing outside the lesson file, its replay folder and the report changes.
+8. `gstack-execution` moves up one version in `plugin.json`, its marketplace entry and its README version history, and the top-level marketplace version moves (CI-002). In CI, `test_review_lessons.py` and `run_all_tests.py` are green at the head.
+
+Not in this item: promotion of a lesson into a skill or a preflight check (a diff in its own pull request, under exact-diff approval); the production vault lesson store, since the pilot uses a scratch copy outside every repository; any use of `council_cases.py` or its consent rules; the Mermaid renderer.
+
 ## Boundary tests
 
 Declared 2026-09-29 on Dorian's review of this document: *“The doc is now better at naming failure modes than at enforcing its own release boundary.”* Reordered the same day on two further reviews. These three run in order, before any new vocabulary, metrics or graph item (narrowed 2026-11-11; see *Constraints*). Each one records its findings in `docs/evidence/boundary-<letter>-<date>.md`. A finding that needs a fix becomes an amendment to the item named, not a new item.
@@ -2841,6 +2929,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-20: Eighteenth objective opened with GR-001 (run ledger, job manifest and lane runner), GR-002 (reconcile and score) and GR-003 (lessons and preflight), drafted on Dorian C's ask from the approved parallel-goal-review proposal (sha256 `62ca16f0…`) and `pilot-plan-v1.md`; pending his approval by hash. Placement under `plugins/gstack-execution/scripts/` is his ruling of 2026-11-20. His ruling on whether DC-003's bounded reservation counts as M7 "verified" is not given, so a Council dispatch is refused by default (GR-001.2) and AC1's Council dispute is unrun until it is.
 - 2026-11-20: DC-003 v4 on Dorian's approval ("Approve", sha256 fbe8c754…): wording only, after its spec review found C1 (a `kept_unknown` entry is counted at its ceiling and unverified, not a ceiling that held) and C2 (a budget file covers its own run; the key's Vercel budget caps all runs on that key together), and answers to A1-A6 (only known charges set the next ceiling; settled charges include `kept_unknown` at its ceiling; `--key-id` is required; `limit_usd` no higher than the key's Vercel budget; the reasons are output fields, not vocabulary).
 - 2026-11-20: DC-003 declared on Dorian's approval ("Approve", item v3 sha256 838ff1a3…), implementing B1 of the approved parallel-goal-review proposal (proposal-v4.md, sha256 62ca16f0…): "Add a maximum-charge reservation to `decider_council.py` as a build item." Its cap follows his ruling the same day, "Gateway key + local check", after Vercel's budget docs showed gateway budgets are a soft cap and no document bounds a decision call's billed tokens: a dedicated gateway key with a $1 budget that never resets, bound to the run, plus a local check before each call. Bounded, not guaranteed. Codex challenged the draft in two rounds of five parallel lanes (13 findings, then 3); the last three fixes were not rechecked.
 - 2026-11-15: XE-044 declared on Dorian's approval ("Approve both"): the coverage scorer reads four-letter item ids, amending XE-037.2, after prfaq PIPE-002's release refused `coverage was not checked` in the wide lane.
