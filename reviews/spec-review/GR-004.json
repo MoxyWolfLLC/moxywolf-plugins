@@ -1,0 +1,95 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GR-004",
+  "scope_sha256": "6924b89196d6c4a4d21cc280722657f7313520af889ed58539807c5dd3880eb3",
+  "reviewed_at": "2026-11-21T17:54:34+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3263,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6585,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6585,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6585,
+      "cache_creation_input_tokens": 3303,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3303,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11528,
+      "output_tokens": 1836,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1002,
+      "cache_read_input_tokens": 9888,
+      "cache_creation_input_tokens": 280,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 280,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 16473,
+    "write": 10168
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GR-004 AC1",
+        "GR-004 Not in this item"
+      ],
+      "question": "Does GR-001 already expose a callable function for the core hash that `score` can call? If it is private or missing, the item has to change GR-001, which 'Not in this item' excludes. Which of the two holds?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GR-004 AC1",
+        "GR-004 AC2"
+      ],
+      "question": "Does a manifest contain any other width-dependent fields, such as per-width job lists? If so, removing only `width` would not give equal hashes at widths 3 and 5. Must the core exclude them too?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GR-004",
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "Is changing the scored report's `manifest_sha256` barred 'metrics work' (a new measurement report or score), or an unrestricted other item that needs no waiver?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GR-004 Not in this item"
+      ],
+      "question": "In 'the pilot run, which stays blocked on this item for AC2 only', does AC2 mean GR-004's AC2 or the pilot's own AC2?"
+    }
+  ]
+}
