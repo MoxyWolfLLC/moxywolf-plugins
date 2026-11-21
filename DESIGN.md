@@ -2802,7 +2802,7 @@ Open ruling: proposal section 5 allows no Council call until M7's maximum is "ve
 
 ### GR-001 — A review run has one ledger that holds its limits, a manifest that fixes its jobs, and a runner that starts, times and stops its lanes
 
-**Status:** planned. Declared 2026-11-20, awaiting Dorian's approval of this item's version hash.
+**Status:** building. Declared 2026-11-20; approved by version hash `b5481cefdbf23ce33b70bc64212cefd3068184acb7e4255451fb696bfa697175` (PR #362); built on branch `build/GR-001-run-ledger`.
 
 GR-001 is exempt from *Test the boundaries before adding item IDs*, by Dorian's ruling on 2026-11-20 ("Wave the constraint", covering GR-001 and GR-002 only; GR-003 needed none).
 
