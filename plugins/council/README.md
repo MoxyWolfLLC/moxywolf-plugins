@@ -187,6 +187,8 @@ The store is found on the workspace or Google Drive mount, or given with `--stor
 
 ## Version History
 
+- **0.15.0**: DC-003. `decider_council.py ask --budget <file> --run <id>` checks a run's budget before each call and spends only through a dedicated, capped AI Gateway key bound to the run; `budget init|show|recover` manage the file. Bounded, not guaranteed: Vercel's budget is a soft cap. Tests: `scripts/test_dc003_*.py`.
+
 - **0.14.0**: CC-002. Opt-in, redacted Council replay cases in the vault by project: `council_cases.py` with the publish gate, approved audience, single writer, retention, `verify` and readiness `status`. `/deliberate` asks for a rating and then, only when allowed, whether to save a case. `/council-stats cases` reports readiness. Test: `scripts/test_council_cases.py`.
 
 - **0.13.1**: CC-001. `/council-optimize` is disabled by DR-140: it stops before any step with every flag, including `--dry-run`, and prints why. `/council-stats optimization` shows `optimizer: disabled (DR-140)`. The legacy loop's references carry a disabled line. It stays off until the case store (CC-002) and a new optimizer item exist.
