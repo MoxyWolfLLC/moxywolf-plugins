@@ -61,7 +61,7 @@ def stub(dirpath, name, body):
 
 class Base(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="review-run-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="review-run-")).resolve()   # macOS /tmp is a symlink; the runner resolves paths
         self.ledger = self.tmp / "ledger.json"
         bins = self.tmp / "bin"
         bins.mkdir()
