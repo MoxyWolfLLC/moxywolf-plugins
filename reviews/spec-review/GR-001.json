@@ -1,0 +1,117 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GR-001",
+  "scope_sha256": "b5481cefdbf23ce33b70bc64212cefd3068184acb7e4255451fb696bfa697175",
+  "reviewed_at": "2026-11-21T03:52:19+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2979,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7988,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7988,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12560,
+      "output_tokens": 3246,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 3426,
+      "cache_read_input_tokens": 7988,
+      "cache_creation_input_tokens": 4134,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4134,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 7988,
+    "write": 12122
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GR-001.4",
+        "GR-001.1"
+      ],
+      "question": "How is 'the same manifest' decided when width is part of the manifest and its sha256, each ledger holds only its own manifest hash, and one fan-out per ledger forces the two comparable runs into separate ledgers? What does a run's manifest get compared against, and by which fields?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GR-001.1",
+        "GR-001.7"
+      ],
+      "question": "Which clock backs the 90-minute deadline and remaining time across resume or restart, given that event timestamps are monotonic and not comparable across a restart or reboot?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GR-001.7"
+      ],
+      "question": "What event supplies the 'final disposition timestamp' for draft-to-decision time, given the report uses only start/finish events and reconcile is out of scope (GR-002)?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GR-001.5",
+        "Not in this item"
+      ],
+      "question": "May this item extract or alter the Codex command builder in peer_review.py (and add --sandbox read-only --ephemeral) without that counting as a change to peer_review.py's behavior?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GR-001.3",
+        "GR-001.5"
+      ],
+      "question": "What is the timeout ceiling for claude -p lanes, since only the 900-second Codex ceiling is stated?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "GR-001.2",
+        "GR-001.1"
+      ],
+      "question": "Which command (init, resume, dispatch) accepts --council-gate-ruling, and how is it decided that the reference 'names Dorian's recorded ruling'?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "GR-001.1",
+        "GR-001.2",
+        "GR-001.4"
+      ],
+      "question": "When width exceeds the remaining Codex-call allowance, is the fan-out refused whole or partly dispatched, and how do attempts count against the fan-out and recheck counters?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "GR-001.1",
+        "GR-001.6"
+      ],
+      "question": "What cost source feeds the $1.00 dollar counter when the Codex API-key backup is off and the tests make no paid call?"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "schema": "spec-review/3",
+  "doc": "DESIGN.md",
+  "item": "GR-003",
+  "scope_sha256": "f159e260112b8102fbbd6e82416c622d0adfe1a850226c7a3c73d76f6b692d7a",
+  "reviewed_at": "2026-11-21T02:03:01+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2425,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7193,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7193,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11211,
+      "output_tokens": 1891,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1335,
+      "cache_read_input_tokens": 7193,
+      "cache_creation_input_tokens": 3048,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3048,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 7193,
+    "write": 10241
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GR-003 Links introduced",
+        "GR-003.2",
+        "Test the boundaries before adding item IDs"
+      ],
+      "question": "Do the two introduced links and the new class values count as graph or vocabulary work barred until the boundary tests are recorded, or as fields on the item's own record, which are exempt?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GR-003.4",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
+      ],
+      "question": "Can the pinned evidence that preflight attaches for every lane be derived from session transcripts? If so, does the publish gate apply before it is attached?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GR-003.8",
+        "The pre-merge gate is GitHub's, sized to the stakes"
+      ],
+      "question": "Does registering test_review_lessons.py require editing run_all_tests.py, a CODEOWNERS path, so that the item needs Dorian's approving review rather than merging autonomously?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GR-003.2",
+        "GR-003.4"
+      ],
+      "question": "How is a replay case's retire condition evaluated by a script, so that preflight can decide whether it is met?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GR-003.2",
+        "GR-003.3"
+      ],
+      "question": "Which of the three classes does a verified false alarm take, or does it need another class?"
+    }
+  ]
+}
