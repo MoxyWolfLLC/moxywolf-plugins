@@ -8,7 +8,7 @@ A lesson is one row in `review-lessons.md`, which uses the eight columns of mist
             Keep a finding that closed with verified evidence (closure `verified` or `verified_false_alarm`).
             An unresolved objection and a consensus are refused and named. Writes the lesson file and one
             replay-case file in DIR, and nothing else.
-  preflight --lessons FILE --cases DIR --root DIR [--old DIR] [--claims FILE] [--today YYYY-MM-DD]
+  preflight --lessons FILE --cases DIR --root DIR --old DIR [--claims FILE] [--today YYYY-MM-DD]
             Load each lesson that is not stale, not retired, still matches its evidence sha256 values and
             is recorded verified; list each skipped lesson with its reason; run each loaded lesson's check
             first. Prints one JSON report to standard output and writes no file.
@@ -42,10 +42,11 @@ CASE_FIELDS = ("pattern_id", "class", "evidence", "check", "revalidate_by", "ret
 
 
 class Refused(Exception):
-    pass
+    sys.dont_write_bytecode = True  # importing the ledger must not write a __pycache__ beside it
 
 
 def ledger():
+    sys.dont_write_bytecode = True  # importing the ledger must not write a __pycache__ beside it
     spec = importlib.util.spec_from_file_location("mistake_ledger", LEDGER)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
@@ -62,6 +63,11 @@ def day(s, what):
         return date.fromisoformat(s)
     except (TypeError, ValueError):
         raise Refused(f"{what} {s!r} is not an ISO date")
+
+
+def rel(p):
+    """A non-empty relative path that stays inside its root."""
+    return isinstance(p, str) and bool(p) and not Path(p).is_absolute() and ".." not in Path(p).parts
 
 
 def cell(s):
@@ -90,6 +96,15 @@ def build_case(f):
             isinstance(e, dict) and e.get("path") and SHA.fullmatch(str(e.get("sha256"))) for e in case["evidence"]):
         raise Refused(f"{case['pattern_id']}: evidence must be a list of {{path, sha256}} with a 64-hex sha256")
     day(case["revalidate_by"], "revalidate_by")
+    pid = case["pattern_id"]
+    chk, rule = case["check"], case["retire_when"]
+    if not isinstance(chk, dict) or chk.get("kind") != "same_bytes" or not rel(chk.get("path")):
+        raise Refused(f"{pid}: check must be {{\"kind\":\"same_bytes\",\"path\":<relative path>}}")
+    if not isinstance(rule, dict) or not rel(rule.get("path")) or rule.get("kind") not in ("path_absent", "sha256_is") or (
+            rule["kind"] == "sha256_is" and not SHA.fullmatch(str(rule.get("sha256")))):
+        raise Refused(f"{pid}: retire_when must be path_absent or sha256_is with a relative path (sha256_is also a 64-hex sha256)")
+    if not all(rel(e["path"]) for e in case["evidence"]):
+        raise Refused(f"{pid}: evidence paths must be relative and stay inside the tree")
     return case
 
 
@@ -128,6 +143,8 @@ def retired(rule, root):
 def preflight(lessons, cases, root, old=None, claims=None, today=None):
     L = ledger()
     today = day(today, "--today") if today else date.today()
+    if not old:
+        raise Refused("preflight needs --old: a same_bytes check and a text_changed claim compare two heads")
     rows = [r for r in L.parse(Path(lessons).read_text()) if r.get("disposition") == "evaluation_case"]
     loaded, skipped, pinned = [], [], {}
     for r in rows:
@@ -142,20 +159,22 @@ def preflight(lessons, cases, root, old=None, claims=None, today=None):
                 reason = "retired"
             elif any(sha_of(Path(root) / e["path"]) != e["sha256"] for e in case["evidence"]):
                 reason = "evidence_changed"
-        except (OSError, ValueError, KeyError, Refused) as e:
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, Refused) as e:
             case, reason = None, f"unreadable: {e}"
         if reason:
             skipped.append({"id": r["id"], "reason": reason})
             continue
-        c, result = case["check"], None
-        if c.get("kind") == "same_bytes" and old:
-            a, b = sha_of(Path(old) / c["path"]), sha_of(Path(root) / c["path"])
-            result = {"kind": "same_bytes", "path": c["path"], "old_sha256": a, "new_sha256": b, "equal": a == b}
+        c = case["check"]
+        a, b = sha_of(Path(old) / c["path"]), sha_of(Path(root) / c["path"])
+        if a is None or b is None:
+            skipped.append({"id": r["id"], "reason": f"check_unhashable: {c['path']} is absent in {'--old' if a is None else '--root'}"})
+            continue
+        result = {"kind": "same_bytes", "path": c["path"], "old_sha256": a, "new_sha256": b, "equal": a == b}
         loaded.append({"id": r["id"], "class": case["class"], "check": result})
         pinned.update({e["path"]: e["sha256"] for e in case["evidence"]})
     out = []
     for cl in json.loads(Path(claims).read_text()) if claims else []:
-        a, b = (sha_of(Path(old) / cl["path"]) if old else None), sha_of(Path(root) / cl["path"])
+        a, b = sha_of(Path(old) / cl["path"]), sha_of(Path(root) / cl["path"])
         if cl["kind"] == "text_changed" and a is not None and a == b:
             out.append({"id": cl["id"], "status": "rebutted", "why": "equal sha256 at both heads", "sha256": a})
         elif cl["kind"] == "text_changed":
@@ -176,7 +195,7 @@ def main(argv=None):
     p = sub.add_parser("preflight")
     for a in ("--lessons", "--cases", "--root"):
         p.add_argument(a, required=True)
-    p.add_argument("--old"); p.add_argument("--claims"); p.add_argument("--today")
+    p.add_argument("--old", required=True); p.add_argument("--claims"); p.add_argument("--today")
     a = ap.parse_args(argv)
     try:
         if a.cmd == "capture":

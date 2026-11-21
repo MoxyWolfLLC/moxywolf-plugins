@@ -136,13 +136,12 @@ def test_a_replay_case_missing_a_field_is_refused():
 def test_a_stale_retired_evidence_changed_or_unverified_lesson_is_skipped_with_its_reason():
     d = scratch()
     for fid, kw in (("L-ok", {}), ("L-stale", {"revalidate_by": "2026-11-19"}),
-                    ("L-retired", {"retire_when": {"kind": "path_absent", "path": "view.txt"}}),
+                    ("L-retired", {"retire_when": {"kind": "path_absent", "path": "never-there.txt"}}),
                     ("L-moved", {"evidence": [{"path": "evidence.txt", "sha256": sh(b"other\n")}]}),
                     ("L-unver", {})):
         assert capture(d, fid, **kw)[0] == 0, fid
     c = json.loads(case_file(d, "L-unver").read_text())
     case_file(d, "L-unver").write_text(json.dumps(dict(c, disposition="unverified")))
-    (d / "new" / "view.txt").unlink()  # L-retired retires on view.txt being absent; the others do not read it
     rep = preflight(d)
     skipped = {s["id"]: s["reason"] for s in rep["skipped"]}
     assert skipped == {"L-stale": "stale", "L-retired": "retired", "L-moved": "evidence_changed", "L-unver": "unverified"}, skipped
@@ -184,6 +183,51 @@ def test_capture_writes_only_the_lesson_file_and_its_cases_folder_and_preflight_
                      "--root", d / "new", "--old", d / "old", "--today", TODAY)
     assert rc == 0 and json.loads(out)["loaded"], out
     assert snap(d) == mid
+
+
+def test_a_check_or_retire_rule_that_could_not_run_is_refused_at_capture():
+    bad = [{"check": {"kind": "unsupported", "path": "view.txt"}}, {"check": {"kind": "same_bytes"}},
+           {"check": {"kind": "same_bytes", "path": "../view.txt"}},
+           {"retire_when": {"kind": "sha256_is", "path": "view.txt"}},
+           {"retire_when": {"kind": "path_absent"}}, {"retire_when": {"kind": "nope", "path": "view.txt"}},
+           {"evidence": [{"path": "/etc/passwd", "sha256": sh(b"x")}]}]
+    for kw in bad:
+        d = scratch()
+        before = snap(d)
+        rc, _, err = capture(d, **kw)
+        assert rc == 1 and err.strip(), (kw, err)
+        assert snap(d) == before, kw
+
+
+def test_preflight_without_old_is_refused_and_an_absent_checked_file_is_never_reported_equal():
+    d = scratch()
+    assert capture(d)[0] == 0
+    args = ["preflight", "--lessons", lesson_file(d), "--cases", d / "lessons" / "cases", "--root", d / "new", "--today", TODAY]
+    rc, out, err = run(LESSONS, *args)
+    assert rc != 0 and not out.strip(), (rc, out, err)
+    (d / "old" / "view.txt").unlink()
+    (d / "new" / "view.txt").unlink()
+    rep = preflight(d, [{"id": "F-gone", "kind": "text_changed", "path": "view.txt"}])
+    assert rep["loaded"] == [] and rep["skipped"][0]["reason"].startswith("check_unhashable"), rep
+    assert rep["claims"][0]["status"] == "to_review", rep["claims"]
+
+
+def test_neither_command_writes_bytecode_beside_the_ledger_it_imports():
+    root = Path(tempfile.mkdtemp())
+    for rel in ("plugins/gstack-execution/scripts/review_lessons.py", "plugins/project-init/scripts/mistake_ledger.py",
+                "plugins/gstack-execution/skills/gstack-execution/references/vocabulary.json"):
+        src = HERE.parents[1] / Path(rel).relative_to("plugins")
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(src.read_bytes())
+    d = scratch()
+    env = {k: v for k, v in __import__("os").environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+    script = root / "plugins/gstack-execution/scripts/review_lessons.py"
+    for a in (["capture", "--lessons", lesson_file(d), "--cases", d / "lessons" / "cases", "--finding", finding(d), "--date", TODAY],
+              ["preflight", "--lessons", lesson_file(d), "--cases", d / "lessons" / "cases", "--root", d / "new",
+               "--old", d / "old", "--today", TODAY]):
+        r = subprocess.run([sys.executable, str(script), *map(str, a)], capture_output=True, text=True, env=env)
+        assert r.returncode == 0, r.stderr
+    assert not list(root.rglob("__pycache__")) and not list(root.rglob("*.pyc"))
 
 
 if __name__ == "__main__":
