@@ -6,6 +6,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -37,6 +38,7 @@ pwd > cwd.txt
 env > env.txt
 p=$(cat)
 echo "$p" > stdin.txt
+case "$p" in WRITE\\ *) echo leaked > "${{p#WRITE }}";; esac
 case "$p" in *BAD*) echo 'nope';; *) echo '{FINDING}';; esac
 """
 PASSTHROUGH = "#!/bin/sh\nshift 3\nexec \"$@\"\n"   # a wrapper that enforces no time limit: the runner's own kill must do the work
@@ -60,7 +62,14 @@ def stub(dirpath, name, body):
 
 
 class Base(unittest.TestCase):
+    fake_confinement = True      # the Confinement class turns this off and runs the real wrapper
+
     def setUp(self):
+        if self.fake_confinement:
+            for name, value in (("confinement_available", lambda: True), ("_confine_argv", lambda out: [])):
+                p = mock.patch.object(rr, name, value)
+                p.start()
+                self.addCleanup(p.stop)
         self.tmp = Path(tempfile.mkdtemp(prefix="review-run-")).resolve()   # macOS /tmp is a symlink; the runner resolves paths
         self.ledger = self.tmp / "ledger.json"
         bins = self.tmp / "bin"
@@ -76,9 +85,12 @@ class Base(unittest.TestCase):
         self.slow.write_text("SLEEP")
         self.bad.write_text("BAD")
         self.stubborn.write_text("TERMRESIST")
+        self.outside = Path(tempfile.mkdtemp(prefix="review-run-outside-")).resolve()
+        self.writer = self.tmp / "write.txt"
+        self.writer.write_text(f"WRITE {self.outside / 'leak.txt'}")
 
     def mk(self, run="r1", **flags):
-        return bind(self.ledger, run, self.tmp, [self.prompt, self.slow, self.bad, self.stubborn], **flags)
+        return bind(self.ledger, run, self.tmp, [self.prompt, self.slow, self.bad, self.stubborn, self.writer], **flags)
 
     def run_state(self, run="r1"):
         return json.loads(self.ledger.read_text())["runs"][run]
@@ -368,12 +380,21 @@ class Events(unittest.TestCase):
         self.assertEqual(r["draft_to_decision_s"], 10)
         self.assertIsNone(rr.compute_report(events[:-1])["draft_to_decision_s"])
 
+    def test_a_job_admitted_and_never_launched_counts_in_neither_peak_nor_wait(self):
+        def ev(kind, job, t, **kw):
+            return {"event": kind, "job": job, "mono": t, **kw}
+        events = [ev("admit", "A", 0), ev("admit", "N", 0), ev("start", "A", 1, admitted=0), ev("start", "N", 1, admitted=0),
+                  ev("finish", "N", 1, admitted=0, launched=False), ev("finish", "A", 4, admitted=0, launched=True)]
+        r = rr.compute_report(events)
+        self.assertEqual((r["peak"], r["review_wait_s"]), (1, 1))
+
     def test_dispatch_writes_start_and_finish_with_admitted_time(self):
         d = Path(tempfile.mkdtemp(prefix="review-run-ev-"))
         stub(d, "claude", CLAUDE)
         prompt = d / "p"
         prompt.write_text("go")
-        with mock.patch.dict(os.environ, {"PATH": f"{d}:{os.environ['PATH']}"}):
+        with mock.patch.dict(os.environ, {"PATH": f"{d}:{os.environ['PATH']}"}), mock.patch.object(rr, "confinement_available", lambda: True), \
+                mock.patch.object(rr, "_confine_argv", lambda out: []):
             bind(d / "l.json", "r1", d, [prompt])
             rr.dispatch(d / "l.json", "r1", d / "out", "A", "claude", prompt)
         evs = json.loads((d / "l.json").read_text())["runs"]["r1"]["events"]
@@ -412,25 +433,36 @@ class Deadline(Base):
         self.assertFalse((self.tmp / "out").exists())
         self.assertEqual(self.run_state()["used"]["codex_calls"], 0)
 
-    def test_a_term_resistant_worker_is_killed_by_the_runner_when_the_wrapper_enforces_nothing(self):
+    def test_a_term_resistant_worker_is_killed_at_the_deadline_when_the_wrapper_enforces_nothing(self):
         self.mk(deadline_minutes=0.05)
         fake = self.tmp / "bin" / "passthrough-timeout"
         stub(self.tmp / "bin", "passthrough-timeout", PASSTHROUGH)
         real = rr.shutil.which
         with mock.patch.object(rr.shutil, "which", lambda name: str(fake) if name == "timeout" else real(name)):
             status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "codex", self.stubborn)
+            returned = rr.wall()
         self.assertEqual((status, reason), ("failed", "deadline_killed"))
+        deadline_at = self.run_state()["deadline_at"]
+        self.assertGreaterEqual(returned, deadline_at - 1.0)
+        self.assertLess(returned - deadline_at, 1.0)            # stopped at the deadline, with no grace period on top
         self.assertTrue(self.events("deadline_killed")[0]["confirmed_gone"])
         self.assert_pid_gone(self.tmp / "out")
 
-    def test_a_deadline_that_passes_before_launch_starts_nothing(self):
-        self.mk()
+    def test_a_deadline_that_passes_while_the_start_event_waits_for_the_ledger_starts_nothing(self):
+        self.mk(deadline_minutes=0.02)   # 1.2 seconds
         out = self.tmp / "out"
-        with mock.patch.object(rr, "_time_left", lambda ledger, run: 0):
+        real = rr._event
+
+        def slow_start(ledger, run, **ev):
+            if ev["event"] == "start":
+                time.sleep(1.5)          # a contended ledger lock
+            return real(ledger, run, **ev)
+        with mock.patch.object(rr, "_event", slow_start):
             status, reason = rr.dispatch(self.ledger, "r1", out, "A", "codex", self.prompt)
         self.assertEqual((status, reason), ("failed", "deadline_before_launch"))
         self.assertFalse((self.lane_dir(out) / "argv.txt").exists())
-        self.assertFalse(self.events("start"))
+        self.assertIs(self.events("finish")[0]["launched"], False)
+        self.assertEqual(rr.compute_report(self.run_state()["events"])["peak"], 0)
 
     def test_a_pid_still_present_is_exit_unconfirmed_and_fails_the_run(self):
         self.mk()
@@ -453,6 +485,59 @@ class Deadline(Base):
         self.assertEqual((status, reason), ("failed", "exit_unconfirmed"))
         self.assertEqual(self.run_state()["status"], "failed")
         self.assertFalse(self.events("exit_unconfirmed")[0]["confirmed_gone"])
+
+
+class PromptBytes(Base):
+    def swap(self, name):
+        """Replace the prompt file right after the manifest check passed, before the worker is built or launched."""
+        real = getattr(rr, name)
+
+        def wrapped(*a, **kw):
+            result = real(*a, **kw)
+            if name == "reserve" or kw.get("event") == "start":
+                self.prompt.write_text("a prompt the manifest never saw")
+            return result
+        return mock.patch.object(rr, name, wrapped)
+
+    def test_the_bytes_checked_against_the_manifest_are_the_bytes_delivered(self):
+        self.mk()
+        for tool, lane, phase in (("codex", "A", "fanout"), ("claude", "B", "recheck")):
+            for hook in ("reserve", "_event"):
+                self.prompt.write_text("review it")
+                with self.swap(hook):
+                    status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", f"{lane}-{hook.strip('_')}", tool, self.prompt, phase=phase, rnd="1")
+                self.assertEqual((status, reason), ("ok", None), (tool, hook))
+                d = self.tmp / "out" / "r1" / f"{lane}-{hook.strip('_')}" / "rev1" / "attempt1"
+                self.assertEqual((d / "prompt.txt").read_text(), "review it")
+                delivered = (d / "argv.txt").read_text().split("\n")[-2] if tool == "codex" else (d / "stdin.txt").read_text().strip()
+                self.assertEqual(delivered, "review it", (tool, hook))
+        self.prompt.write_text("review it")
+
+
+class Confinement(Base):
+    fake_confinement = False
+
+    def test_a_claude_lane_cannot_write_outside_its_directory_or_is_refused_where_no_wrapper_works(self):
+        self.mk()
+        leak = self.outside / "leak.txt"
+        if rr.confinement_available():
+            status, reason = rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "claude", self.writer)
+            self.assertEqual((status, reason), ("ok", None))            # the stub carried on after its write was refused
+            self.assertFalse(leak.exists(), "the wrapper let a worker write outside its directory")
+            self.assertTrue((self.tmp / "out" / "r1" / "A" / "rev1" / "attempt1" / "argv.txt").exists())   # and could write inside it
+        else:
+            with self.assertRaises(ValueError) as cm:
+                rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "claude", self.writer)
+            self.assertIn("confinement", str(cm.exception))
+            self.assertEqual(self.run_state()["used"]["codex_calls"], 0)
+            self.assertFalse((self.tmp / "out").exists())
+
+    def test_no_confinement_means_no_claude_launch(self):
+        self.mk()
+        with mock.patch.object(rr, "confinement_available", lambda: False), self.assertRaises(ValueError):
+            rr.dispatch(self.ledger, "r1", self.tmp / "out", "A", "claude", self.prompt)
+        self.assertFalse((self.tmp / "out").exists())
+        self.assertEqual(rr.dispatch(self.ledger, "r1", self.tmp / "out", "C", "codex", self.prompt), ("ok", None))   # Codex confines itself
 
 
 class Cli(Base):

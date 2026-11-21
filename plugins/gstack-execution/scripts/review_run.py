@@ -18,13 +18,16 @@ Exit codes: 0 ok, 1 refused (the spent counter is named), 3 a lane failed.
 ponytail: one JSON ledger file under flock, no daemon; a lane is one subprocess, concurrency is the caller
 starting several `dispatch` processes. Lanes write one findings file, never anything else.
 
-Write boundary (GR-001.5), as far as this runner enforces it: a lane starts with its own directory as cwd and
-TMPDIR, under `timeout`, in its own process group; a Codex lane is `--sandbox read-only --ephemeral`; a claude lane
-has Bash, Edit, MultiEdit, Write and NotebookEdit denied and gets its prompt on stdin, and the runner (not the
-worker) writes its findings file from stdout. There is no operating-system confinement of a worker that ignores its
-own tool limits, and HOME and CODEX_HOME stay in the environment because the CLIs keep their sign-in there.
-Dispatch is bound to the run's manifest: it refuses (counter manifest_missing, not_the_same_manifest or
-prompt_not_in_manifest) when the manifest, any file it recorded, or the prompt file differs from what was hashed.
+Write boundary (GR-001.5): a lane starts with its own directory as cwd and TMPDIR, under `timeout`, in its own
+process group. A Codex lane is `--sandbox read-only --ephemeral`, Codex's own sandbox (an outer sandbox would stop it
+applying that one). A claude lane is wrapped in macOS sandbox-exec or bubblewrap so that neither it nor a child can write
+outside its directory, has Bash, Edit, MultiEdit, Write and NotebookEdit denied, and gets its prompt on stdin; the runner
+writes its findings file from stdout. Where neither wrapper works on the host, a claude lane is refused, never started
+unconfined. HOME and CODEX_HOME stay in the environment because the CLIs keep their sign-in there; a claude lane cannot
+write its own state under HOME. Not verified here: a real `claude -p` run under the wrapper (that is a paid call).
+Dispatch reads the prompt once and binds those bytes to the run's manifest: it refuses (manifest_missing,
+not_the_same_manifest, prompt_not_in_manifest) when the manifest, a file it recorded, or the prompt differs from what was
+hashed. The deadline is the ledger's absolute time; it is measured again after the start event and a worker is killed at it.
 """
 import argparse
 import contextlib
@@ -38,6 +41,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -139,15 +143,16 @@ def counters(r):
             "dollars": [round(u["dollars"], 6), lim["dollars"]], "deadline_left_s": round(r["deadline_at"] - wall(), 3)}
 
 
-def _bound(r, prompt_file):
-    """GR-001.4: the jobs run are the jobs the manifest fixed. The name of what differs, or None."""
+def _bound(r, prompt_sha):
+    """GR-001.4: the jobs run are the jobs the manifest fixed. The name of what differs, or None.
+    prompt_sha: the sha256 of the prompt bytes the worker will be handed (read once, by dispatch)."""
     m = r.get("manifest")
     if not m:
         return "manifest_missing"
     try:
         if sha(m["path"]) != m["sha256"] or _core(m["files"])[1] != m["core_sha256"]:
             return "not_the_same_manifest"
-        if sha(prompt_file) not in _core(m["files"])[0]["prompts_sha256"]:
+        if prompt_sha not in _core(m["files"])[0]["prompts_sha256"]:
             return "prompt_not_in_manifest"
     except OSError:
         return "not_the_same_manifest"
@@ -183,7 +188,7 @@ def _spent(r, phase, tool, rnd, usd, key=None, bind=None):
 
 def reserve(ledger, run, phase, lane, tool="codex", rnd="1", usd=0.0, revision=1, attempt=1, bind=None):
     """Record the reservation before anything starts. A refusal is a ledger event and raises Refused(counter).
-    bind: the prompt file a launch will read; given, it must be one the run's manifest fixed."""
+    bind: the sha256 of the prompt a launch will deliver; given, the run's manifest must have fixed it."""
     _num(usd, "usd")
     key = f"{lane}/r{revision}/a{attempt}"
     err, out = None, None
@@ -202,7 +207,8 @@ def reserve(ledger, run, phase, lane, tool="codex", rnd="1", usd=0.0, revision=1
             t = mono()
             r["events"].append({"event": "admit", "job": key, "phase": phase, "tool": tool, "round": rnd, "usd": usd, "mono": t})
             left = r["deadline_at"] - wall()
-            out = {"job": key, "admitted": t, "timeout": min(CEILING, left), "deadline_bound": left < CEILING}
+            out = {"job": key, "admitted": t, "timeout": min(CEILING, left), "deadline_bound": left < CEILING,
+                   "deadline_at": r["deadline_at"]}
     if err:
         raise Refused(err)
     return out
@@ -285,9 +291,32 @@ def _alive(pgid):
     return True
 
 
-def _time_left(ledger, run):
-    with locked(ledger) as db:
-        return _run(db, run)["deadline_at"] - wall()
+def _confine_argv(out):
+    """argv prefix that lets a worker write only under `out` (and the terminal devices), or None when this host has
+    neither macOS sandbox-exec nor bubblewrap."""
+    out = str(out)
+    if sys.platform == "darwin" and shutil.which("sandbox-exec"):
+        profile = ('(version 1)(allow default)(deny file-write*)(allow file-write* (subpath "%s") (literal "/dev/null") '
+                   '(literal "/dev/tty") (literal "/dev/dtracehelper") (regex #"^/dev/(fd|pts|ttys)[^/]*"))' % out.replace('"', ""))
+        return ["sandbox-exec", "-p", profile]
+    if shutil.which("bwrap"):
+        return ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--bind", out, out, "--die-with-parent"]
+    return None
+
+
+def confinement_available():
+    """True only when the confinement above actually stops an outside write and allows an inside one, on this host, now."""
+    with tempfile.TemporaryDirectory() as inside, tempfile.TemporaryDirectory() as outside:
+        inside, outside = os.path.realpath(inside), os.path.realpath(outside)
+        pre = _confine_argv(inside)
+        if not pre:
+            return False
+        try:
+            ok = subprocess.run(pre + ["sh", "-c", f"echo x > '{inside}/in'"], capture_output=True, timeout=20).returncode == 0
+            subprocess.run(pre + ["sh", "-c", f"echo x > '{outside}/out'"], capture_output=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return ok and Path(inside, "in").exists() and not Path(outside, "out").exists()
 
 
 def _event(ledger, run, **ev):
@@ -295,8 +324,8 @@ def _event(ledger, run, **ev):
         _run(db, run)["events"].append({**ev, "mono": mono()})
 
 
-def _finish(ledger, run, key, admitted, status, reason, out):
-    _event(ledger, run, event="finish", job=key, admitted=admitted, lane_status=status, reason=reason)
+def _finish(ledger, run, key, admitted, status, reason, out, launched=True):
+    _event(ledger, run, event="finish", job=key, admitted=admitted, lane_status=status, reason=reason, launched=launched)
     with locked(ledger) as db:
         _run(db, run)["lanes"][key] = {"status": status, "reason": reason, "out": str(out)}
     return status, reason
@@ -312,43 +341,48 @@ def dispatch(ledger, run, out_root, lane, tool, prompt_file, phase="fanout", rnd
     wrap = shutil.which("timeout") or shutil.which("gtimeout")
     if not wrap:
         raise ValueError("no timeout executable on PATH; a lane is never started without one (GR-001.5)")
-    prompt_file = Path(prompt_file).resolve()
-    resv = reserve(ledger, run, phase, lane, tool, rnd, usd, revision, attempt, bind=prompt_file)
+    if tool == "claude" and not confinement_available():
+        raise ValueError("no working write confinement (macOS sandbox-exec or bwrap) on this host; a claude lane is never started without one")
+    prompt_bytes = Path(prompt_file).read_bytes()          # read once: these exact bytes are checked and delivered
+    resv = reserve(ledger, run, phase, lane, tool, rnd, usd, revision, attempt, bind=hashlib.sha256(prompt_bytes).hexdigest())
     key = resv["job"]
     root = Path(out_root).resolve()
     out = root / run / lane / f"rev{revision}" / f"attempt{attempt}"
     try:
         out.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
-        return _finish(ledger, run, key, resv["admitted"], "failed", "output directory already exists", out)
+        return _finish(ledger, run, key, resv["admitted"], "failed", "output directory already exists", out, launched=False)
     if root not in out.resolve().parents:
-        return _finish(ledger, run, key, resv["admitted"], "failed", "output directory escapes the output root", out)
+        return _finish(ledger, run, key, resv["admitted"], "failed", "output directory escapes the output root", out, launched=False)
     (out / "tmp").mkdir()
-    findings, prompt = out / "findings.json", prompt_file.read_text()
+    (out / "prompt.txt").write_bytes(prompt_bytes)
+    findings = out / "findings.json"
     stdin = subprocess.DEVNULL
     if tool == "codex":
         schema = out / "schema.json"
         schema.write_text(json.dumps(SCHEMA))
-        cmd = peer_review.codex_argv(out, schema, findings, prompt, ephemeral=True)
+        cmd = peer_review.codex_argv(out, schema, findings, prompt_bytes.decode(), ephemeral=True)   # Codex confines itself: --sandbox read-only
     else:
-        cmd = ["claude", "-p", "--disallowedTools", CLAUDE_DENY]    # the prompt goes in on stdin
-        stdin = open(prompt_file)
-    left = _time_left(ledger, run)                                    # the deadline again, just before launch
-    deadline_at = wall() + left
-    secs = min(CEILING, left)
-    if secs <= 0:
-        return _finish(ledger, run, key, resv["admitted"], "failed", "deadline_before_launch", out)
+        cmd = _confine_argv(out) + ["claude", "-p", "--disallowedTools", CLAUDE_DENY]    # the prompt goes in on stdin
+        stdin = open(out / "prompt.txt", "rb")
     _event(ledger, run, event="start", job=key, admitted=resv["admitted"])
+    secs = min(CEILING, resv["deadline_at"] - wall())                  # measured last: nothing blocking sits between this and the launch
+    if secs <= 0:
+        if stdin is not subprocess.DEVNULL:
+            stdin.close()
+        return _finish(ledger, run, key, resv["admitted"], "failed", "deadline_before_launch", out, launched=False)
+    deadline_at = resv["deadline_at"]
     status, reason, expired = "ok", None, False
     with open(out / "stdout.txt", "w") as so, open(out / "stderr.txt", "w") as se:
         try:
+            end = mono() + secs
             p = subprocess.Popen([wrap, "-s", "KILL", f"{secs:.2f}"] + cmd, cwd=out, env=lane_env(out / "tmp"), stdin=stdin,
                                  stdout=so, stderr=se, start_new_session=True)
         except OSError as e:
             p, status, reason = None, "failed", f"could not start: {e}"
         if p:
             try:
-                rc = p.wait(timeout=secs + 2)
+                rc = p.wait(timeout=max(0.0, end - mono()))
             except subprocess.TimeoutExpired:
                 rc, expired = 124, True
             expired = expired or rc in (124, 137, -9)
@@ -382,7 +416,8 @@ def dispatch(ledger, run, out_root, lane, tool, prompt_file, phase="fanout", rnd
 
 def compute_report(events):
     """Peak, review wait and draft-to-decision time, from the start/finish/admit/disposition events alone."""
-    starts = {e["job"]: e for e in events if e["event"] == "start"}
+    skipped = {e["job"] for e in events if e["event"] == "finish" and e.get("launched") is False}   # admitted, never started
+    starts = {e["job"]: e for e in events if e["event"] == "start" and e["job"] not in skipped}
     ends = {e["job"]: e for e in events if e["event"] == "finish"}
     spans = [(starts[j]["mono"], ends[j]["mono"]) for j in starts if j in ends]
     marks = sorted([(a, 1) for a, _ in spans] + [(b, 0) for _, b in spans])  # an end sorts before a start at a tie
