@@ -40,10 +40,15 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
   swarm.py merge-gate <run> <id> --repo R --target <ref>      exit 0 only when this item may merge now
   swarm.py merged <run> <id> --sha SHA
   swarm.py status <run>
+  swarm.py viewer-start <run>                                 optional: start the agent-flow viewer (Mac only, 127.0.0.1)
+  swarm.py viewer-stop <run>                                  stop it; neither command writes swarm.json or the event log
 """
 import argparse
 import fcntl
 import os
+import platform
+import shutil
+import signal
 import socket
 import fnmatch
 import math
@@ -673,6 +678,95 @@ def status(run):
                       for k, v in s["items"].items()}}
 
 
+# The optional agent viewer (swarm-agent-view): agent-flow-app, pinned. Mac only, and the viewer binds 127.0.0.1 by default;
+# no host option is passed. Its first start adds its own hooks to the user's ~/.claude/settings.json (it does that, never this
+# file). A missing viewer never stops the swarm: both commands exit 0 when it is unavailable. Only <run>/viewer.pid is written.
+VIEWER_PACKAGE = "agent-flow-app@0.9.6"
+
+
+def _viewer_stamp(pid):
+    """The process start time (ps lstart): a reused pid has a different one."""
+    try:   # Linux: field 22 of /proc/<pid>/stat is the start tick, no ps needed (the comm field may hold spaces)
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        pass
+    for ps in ("/bin/ps", "/usr/bin/ps"):   # absolute: the run's PATH may not have it
+        try:
+            r = subprocess.run([ps, "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True)
+        except OSError:
+            continue
+        return " ".join(r.stdout.split()) if r.returncode == 0 else ""
+    return ""
+
+
+def _viewer_record(run):
+    """(pid, port) of the viewer this run started and that still runs, else None. A pid whose start time
+    changed was reused by another process, and is not ours to signal."""
+    try:
+        pid, port, stamp = (Path(run) / "viewer.pid").read_text().strip().split(" ", 2)
+        pid, port = int(pid), int(port)
+    except (OSError, ValueError):
+        return None
+    return (pid, port) if stamp and _viewer_stamp(pid) == stamp else None
+
+
+def viewer_start(run):
+    if not Path(run).is_dir():
+        raise ValueError(f"no run folder {run}")
+    host = os.environ.get("SWARM_VIEWER_PLATFORM") or platform.system()
+    npx = shutil.which("npx")
+    why = "this host is not a Mac" if host != "Darwin" else None if npx else "npx was not found"
+    record = _viewer_record(run)
+    if not why and record:
+        print(f"viewer: http://127.0.0.1:{record[1]}"); return 0
+    if not why:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]
+        try:
+            proc = subprocess.Popen([npx, "--yes", VIEWER_PACKAGE, "--no-open", "--port", str(port)],
+                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                    start_new_session=True)
+        except OSError as e:
+            why = f"it could not start: {e}"
+        else:
+            try:
+                (Path(run) / "viewer.pid").write_text(f"{proc.pid} {port} {_viewer_stamp(proc.pid)}\n")
+            except OSError as e:   # an untracked viewer could never be stopped: end it, report unavailable
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except OSError:
+                    proc.terminate()
+                why = f"its pid record could not be written: {e}"
+            else:
+                print(f"viewer: http://127.0.0.1:{port}"); return 0
+    print(f"viewer: unavailable ({why}); the swarm is unaffected", file=sys.stderr)
+    return 0
+
+
+def viewer_stop(run):
+    if not Path(run).is_dir():
+        raise ValueError(f"no run folder {run}")
+    record = _viewer_record(run)
+    if not record:
+        try:
+            (Path(run) / "viewer.pid").unlink(missing_ok=True)
+        except OSError:
+            pass
+        print("viewer: not running"); return 0
+    try:   # its own process group (start_new_session), so npx's child goes with it; never a group that isn't the viewer's
+        if os.getpgid(record[0]) == record[0]:
+            os.killpg(record[0], signal.SIGTERM)
+        else:
+            os.kill(record[0], signal.SIGTERM)
+    except OSError:
+        print("viewer: not running"); return 0
+    try:
+        (Path(run) / "viewer.pid").unlink(missing_ok=True)
+    except OSError:   # the viewer is stopped; a record that stays is stale and its start time no longer matches
+        pass
+    print("viewer: stopped"); return 0
+
+
 def main(argv):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("cmd"); p.add_argument("path"); p.add_argument("id", nargs="?")
@@ -689,6 +783,10 @@ def main(argv):
                                                         "items": [i["id"] for i in plan["items"]]})); return 0
         if a.cmd == "init":
             init(a.path, a.goal, a.base, a.budget, a.review_cap); print("ok"); return 0
+        if a.cmd == "viewer-start":
+            return viewer_start(a.path)
+        if a.cmd == "viewer-stop":
+            return viewer_stop(a.path)
         halted = bool(a.halt) and Path(a.halt).exists()
         if a.cmd == "tick":
             print(json.dumps(tick(a.path, halted, a.spend_stop), indent=1)); return 0
