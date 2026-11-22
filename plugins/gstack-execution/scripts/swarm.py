@@ -796,8 +796,8 @@ def main(argv):
     if (known is not None and known.cmd in viewer_cmds) or (known is None and any(t in viewer_cmds for t in argv)):
         if not (known is not None and not extra and argv == [known.cmd, known.path]):
             print(usage, file=sys.stderr); return 2
-    if known is None and ("-h" in argv or "--help" in argv):
-        p.print_help(); return 0
+    if (known is not None and known.help) or (known is None and ("-h" in argv or "--help" in argv)):
+        p.print_help(); return 0   # help never reaches a handler, whatever else is on the line
     a = p.parse_args(argv)
     try:
         if a.cmd == "check":

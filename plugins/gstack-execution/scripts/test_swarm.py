@@ -669,5 +669,13 @@ class Viewer(unittest.TestCase):
         self.assertNotIn("usage: swarm.py viewer-start", err.getvalue())
 
 
+    def test_help_on_a_complete_mutating_command_changes_no_state(self):
+        import io, contextlib
+        tmp = Path(tempfile.mkdtemp(prefix="help-"))
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            rc = swarm.main(["blocked", str(tmp), "x", "--reason", "r", "--help"])
+        self.assertEqual((rc, list(tmp.iterdir())), (0, []))
+
+
 if __name__ == "__main__":
     unittest.main()
