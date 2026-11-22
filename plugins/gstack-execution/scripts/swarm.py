@@ -729,8 +729,16 @@ def viewer_start(run):
         except OSError as e:
             why = f"it could not start: {e}"
         else:
-            (Path(run) / "viewer.pid").write_text(f"{proc.pid} {port} {_viewer_stamp(proc.pid)}\n")
-            print(f"viewer: http://127.0.0.1:{port}"); return 0
+            try:
+                (Path(run) / "viewer.pid").write_text(f"{proc.pid} {port} {_viewer_stamp(proc.pid)}\n")
+            except OSError as e:   # an untracked viewer could never be stopped: end it, report unavailable
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except OSError:
+                    proc.terminate()
+                why = f"its pid record could not be written: {e}"
+            else:
+                print(f"viewer: http://127.0.0.1:{port}"); return 0
     print(f"viewer: unavailable ({why}); the swarm is unaffected", file=sys.stderr)
     return 0
 
@@ -739,8 +747,11 @@ def viewer_stop(run):
     if not Path(run).is_dir():
         raise ValueError(f"no run folder {run}")
     record = _viewer_record(run)
-    (Path(run) / "viewer.pid").unlink(missing_ok=True)
     if not record:
+        try:
+            (Path(run) / "viewer.pid").unlink(missing_ok=True)
+        except OSError:
+            pass
         print("viewer: not running"); return 0
     try:   # its own process group (start_new_session), so npx's child goes with it; never a group that isn't the viewer's
         if os.getpgid(record[0]) == record[0]:
@@ -749,6 +760,10 @@ def viewer_stop(run):
             os.kill(record[0], signal.SIGTERM)
     except OSError:
         print("viewer: not running"); return 0
+    try:
+        (Path(run) / "viewer.pid").unlink(missing_ok=True)
+    except OSError:   # the viewer is stopped; a record that stays is stale and its start time no longer matches
+        pass
     print("viewer: stopped"); return 0
 
 

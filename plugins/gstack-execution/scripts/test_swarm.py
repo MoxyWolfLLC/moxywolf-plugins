@@ -588,5 +588,26 @@ class Swarm(unittest.TestCase):
         self.assertEqual(r, {"accepted": True, "files": ["docs/r\u00e9sum\u00e9-1.md"]})
 
 
+class Viewer(unittest.TestCase):
+    """swarm-agent-view: a record that cannot be written must not leak a detached viewer."""
+    def test_unwritable_pid_record_ends_the_viewer_and_reports_unavailable(self):
+        import os, io, contextlib
+        tmp = Path(tempfile.mkdtemp(prefix="viewer-"))
+        (tmp / "viewer.pid").mkdir()   # write_text on a directory raises OSError
+        fake = tmp / "bin"; fake.mkdir()
+        (fake / "npx").write_text("#!/bin/sh\nexec sleep 30\n"); (fake / "npx").chmod(0o755)
+        env = {"PATH": str(fake), "SWARM_VIEWER_PLATFORM": "Darwin"}
+        old = dict(os.environ); os.environ.clear(); os.environ.update(env)
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                rc = swarm.viewer_start(str(tmp))
+        finally:
+            os.environ.clear(); os.environ.update(old)
+        self.assertEqual(rc, 0)
+        self.assertIn("viewer: unavailable", err.getvalue())
+        self.assertIn("swarm is unaffected", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
