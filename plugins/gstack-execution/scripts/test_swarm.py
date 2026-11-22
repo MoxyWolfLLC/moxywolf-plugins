@@ -588,5 +588,94 @@ class Swarm(unittest.TestCase):
         self.assertEqual(r, {"accepted": True, "files": ["docs/r\u00e9sum\u00e9-1.md"]})
 
 
+class Viewer(unittest.TestCase):
+    """swarm-agent-view: a record that cannot be written must not leak a detached viewer."""
+    def test_unwritable_pid_record_ends_the_viewer_and_reports_unavailable(self):
+        import os, io, contextlib
+        tmp = Path(tempfile.mkdtemp(prefix="viewer-"))
+        (tmp / "viewer.pid").mkdir()   # write_text on a directory raises OSError
+        fake = tmp / "bin"; fake.mkdir()
+        (fake / "npx").write_text("#!/bin/sh\nexec /bin/sleep 30\n"); (fake / "npx").chmod(0o755)
+        env = {"PATH": str(fake), "SWARM_VIEWER_PLATFORM": "Darwin"}
+        old = dict(os.environ); os.environ.clear(); os.environ.update(env)
+        err = io.StringIO()
+        started, real_popen = [], swarm.subprocess.Popen
+        def spy(*a, **k):
+            started.append(real_popen(*a, **k)); return started[-1]
+        swarm.subprocess.Popen = spy
+        try:
+            with contextlib.redirect_stderr(err):
+                rc = swarm.viewer_start(str(tmp))
+        finally:
+            swarm.subprocess.Popen = real_popen
+            os.environ.clear(); os.environ.update(old)
+        self.assertEqual(rc, 0)
+        self.assertIn("viewer: unavailable", err.getvalue())
+        self.assertIn("swarm is unaffected", err.getvalue())
+        import time
+        pid = started[0].pid   # the fake viewer did start; it must now be gone
+        for _ in range(50):
+            if not swarm._viewer_stamp(pid):
+                break
+            time.sleep(0.1)
+        self.assertEqual(swarm._viewer_stamp(pid), "")
+
+    def test_unavailable_host_returns_before_any_running_viewer_check(self):
+        import os, io, contextlib
+        tmp = Path(tempfile.mkdtemp(prefix="viewer-"))
+        old_env, old_rec = dict(os.environ), swarm._viewer_record
+        os.environ["SWARM_VIEWER_PLATFORM"] = "Linux"
+        def boom(run): raise AssertionError("running-viewer check ran on an unavailable host")
+        swarm._viewer_record = boom
+        err, out = io.StringIO(), io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                rc = swarm.viewer_start(str(tmp))
+        finally:
+            swarm._viewer_record = old_rec; os.environ.clear(); os.environ.update(old_env)
+        self.assertEqual((rc, out.getvalue()), (0, ""))
+        self.assertTrue(err.getvalue().startswith("viewer: unavailable"))
+
+    def test_viewer_names_as_ordinary_arguments_reach_their_own_commands(self):
+        import io, contextlib
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            try:
+                swarm.main(["check", "viewer-start"])
+            except BaseException:
+                pass
+        self.assertNotIn("usage: swarm.py viewer-start", err.getvalue())
+
+
+    def test_viewer_command_rejects_options_in_any_position(self):
+        import io, contextlib
+        for argv in (["--halt", "x", "viewer-start", "r"], ["viewer-stop", "r", "--halt", "x"],
+                     ["--spend-stop", "viewer-start", "r"], ["viewer-start"], ["viewer-stop", "a", "b"],
+                     ["--help", "viewer-start", "r"], ["--spend-st", "viewer-stop", "r"], ["viewer-start", "r", "--he"]):
+            err, out = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                rc = swarm.main(argv)
+            self.assertEqual((rc, out.getvalue()), (2, ""), argv)
+            self.assertIn("usage: swarm.py viewer-start|viewer-stop", err.getvalue())
+
+    def test_other_commands_with_options_before_a_viewer_named_item_still_dispatch(self):
+        import io, contextlib
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            try:
+                swarm.main(["--reason", "failure", "blocked", "run", "viewer-start"])
+            except BaseException:
+                pass
+        self.assertNotIn("usage: swarm.py viewer-start", err.getvalue())
+
+
+    def test_help_on_a_complete_mutating_command_changes_no_state(self):
+        import io, contextlib
+        tmp = Path(tempfile.mkdtemp(prefix="help-"))
+        with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+            rc = swarm.main(["blocked", str(tmp), "x", "--reason", "r", "--help"])
+        self.assertEqual((rc, list(tmp.iterdir())), (0, []))
+
+
 if __name__ == "__main__":
     unittest.main()
