@@ -647,5 +647,26 @@ class Viewer(unittest.TestCase):
         self.assertNotIn("usage: swarm.py viewer-start", err.getvalue())
 
 
+    def test_viewer_command_rejects_options_in_any_position(self):
+        import io, contextlib
+        for argv in (["--halt", "x", "viewer-start", "r"], ["viewer-stop", "r", "--halt", "x"],
+                     ["--spend-stop", "viewer-start", "r"], ["viewer-start"], ["viewer-stop", "a", "b"]):
+            err, out = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+                rc = swarm.main(argv)
+            self.assertEqual((rc, out.getvalue()), (2, ""), argv)
+            self.assertIn("usage: swarm.py viewer-start|viewer-stop", err.getvalue())
+
+    def test_other_commands_with_options_before_a_viewer_named_item_still_dispatch(self):
+        import io, contextlib
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            try:
+                swarm.main(["--reason", "failure", "blocked", "run", "viewer-start"])
+            except BaseException:
+                pass
+        self.assertNotIn("usage: swarm.py viewer-start", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

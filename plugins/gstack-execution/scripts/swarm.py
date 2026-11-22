@@ -774,7 +774,14 @@ def viewer_stop(run):
 
 def main(argv):
     viewer_cmds = ("viewer-start", "viewer-stop")
-    if argv and argv[0] in viewer_cmds and not (len(argv) == 2 and not argv[1].startswith("-")):
+    flags = ("--spend-stop", "--host-refused")   # the only options that take no value
+    cmd, k = None, 0
+    while k < len(argv):   # the invoked command is the first token that is not an option or an option's value
+        if argv[k].startswith("-"):
+            k += 1 if argv[k] in flags or "=" in argv[k] else 2
+        else:
+            cmd = argv[k]; break
+    if cmd in viewer_cmds and not (len(argv) == 2 and argv[0] == cmd and not argv[1].startswith("-")):
         print("usage: swarm.py viewer-start|viewer-stop <run>   (one argument, no options)", file=sys.stderr)
         return 2
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
