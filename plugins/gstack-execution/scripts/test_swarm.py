@@ -650,7 +650,8 @@ class Viewer(unittest.TestCase):
     def test_viewer_command_rejects_options_in_any_position(self):
         import io, contextlib
         for argv in (["--halt", "x", "viewer-start", "r"], ["viewer-stop", "r", "--halt", "x"],
-                     ["--spend-stop", "viewer-start", "r"], ["viewer-start"], ["viewer-stop", "a", "b"]):
+                     ["--spend-stop", "viewer-start", "r"], ["viewer-start"], ["viewer-stop", "a", "b"],
+                     ["--help", "viewer-start", "r"], ["--spend-st", "viewer-stop", "r"], ["viewer-start", "r", "--he"]):
             err, out = io.StringIO(), io.StringIO()
             with contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
                 rc = swarm.main(argv)

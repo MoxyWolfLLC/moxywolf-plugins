@@ -774,17 +774,7 @@ def viewer_stop(run):
 
 def main(argv):
     viewer_cmds = ("viewer-start", "viewer-stop")
-    flags = ("--spend-stop", "--host-refused")   # the only options that take no value
-    cmd, k = None, 0
-    while k < len(argv):   # the invoked command is the first token that is not an option or an option's value
-        if argv[k].startswith("-"):
-            k += 1 if argv[k] in flags or "=" in argv[k] else 2
-        else:
-            cmd = argv[k]; break
-    if cmd in viewer_cmds and not (len(argv) == 2 and argv[0] == cmd and not argv[1].startswith("-")):
-        print("usage: swarm.py viewer-start|viewer-stop <run>   (one argument, no options)", file=sys.stderr)
-        return 2
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False)
     p.add_argument("cmd"); p.add_argument("path"); p.add_argument("id", nargs="?")
     for f in ("--patch", "--goal", "--base", "--budget", "--halt", "--reason", "--head", "--repo", "--tests", "--cost",
               "--unresolved", "--outcome", "--review-id", "--target", "--sha"):
@@ -792,6 +782,22 @@ def main(argv):
     p.add_argument("--attempt", type=int); p.add_argument("--review-cap", type=int)
     p.add_argument("--spend-stop", action="store_true")
     p.add_argument("--host-refused", action="store_true")
+    # the parser itself says which command is invoked (abbreviations and option values included);
+    # a viewer command then takes exactly its run folder and no option, in any position
+    usage = "usage: swarm.py viewer-start|viewer-stop <run>   (one argument, no options)"
+    p.add_argument("-h", "--help", action="store_true")
+    real_error = p.error
+    p.error = lambda m: (_ for _ in ()).throw(ValueError(m))
+    try:
+        known, extra = p.parse_known_args(argv)
+    except ValueError:
+        known, extra = None, []
+    p.error = real_error
+    if (known is not None and known.cmd in viewer_cmds) or (known is None and any(t in viewer_cmds for t in argv)):
+        if not (known is not None and not extra and argv == [known.cmd, known.path]):
+            print(usage, file=sys.stderr); return 2
+    if known is None and ("-h" in argv or "--help" in argv):
+        p.print_help(); return 0
     a = p.parse_args(argv)
     try:
         if a.cmd == "check":
