@@ -1,0 +1,97 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "d769204368874c578966a475046c1227",
+  "doc": "DESIGN.md",
+  "item": "GO-024",
+  "scope_sha256": "0f0d6b7f6be0ff2a863f956e9c1047f01920dd2f2d2a206dff628a110c7e238c",
+  "reviewed_at": "2026-11-22T02:39:30+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3631,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7415,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7415,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7415,
+      "cache_creation_input_tokens": 3671,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3671,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12726,
+      "output_tokens": 2099,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 3722,
+      "cache_read_input_tokens": 11086,
+      "cache_creation_input_tokens": 593,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 593,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 18501,
+    "write": 11679
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GO-024 criterion 6"
+      ],
+      "question": "Is the 5 USD Spend cap still to be decided when Dorian reviews the brief (\"his call at approval\"), or did his 2026-11-21 approval already fix it? Does \"real cost uncapped inside that Spend cap\" mean the cap bounds dispatch only, with spend allowed past it for calls already sent? The plan should say which approval governs and what the brief may change."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GO-024 criterion 6",
+        "One release path, checked by code"
+      ],
+      "question": "Criterion 6 says the item goes \"review to done on a recorded merge\". The constraint's path is review \u2192 released \u2192 done, and review \u2192 done applies only until `released` joins the vocabulary with B-a's first fix. Is `released` in the vocabulary when this item merges? If it is, does the item go to `released` first or straight to `done`?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GO-024 criterion 2",
+        "GO-024 criterion 6"
+      ],
+      "question": "Criterion 2 says no line of `swarm.py` changes. Criterion 6 says `swarm.py` logs any overrun above the reservation. Does that logging already exist in `swarm.py` today? If it doesn't, the item has to change `swarm.py` or drop the claim."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GO-024 Links introduced",
+        "GO-024 criterion 6",
+        "GO-024 criterion 7"
+      ],
+      "question": "\"No code identifier, state field or file is introduced\" sits beside a new decision record and the proof goal's `goals/<id>/` brief and run folder. Does \"file\" mean only code or repository files? If so, the decision record and the proof goal's files are outside it. The plan should say so."
+    }
+  ]
+}
