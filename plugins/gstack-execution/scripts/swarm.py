@@ -718,10 +718,13 @@ def viewer_start(run):
     host = os.environ.get("SWARM_VIEWER_PLATFORM") or platform.system()
     npx = shutil.which("npx")
     why = "this host is not a Mac" if host != "Darwin" else None if npx else "npx was not found"
+    if why:   # unavailable: answer before any running-viewer check
+        print(f"viewer: unavailable ({why}); the swarm is unaffected", file=sys.stderr)
+        return 0
     record = _viewer_record(run)
-    if not why and record:
+    if record:
         print(f"viewer: http://127.0.0.1:{record[1]}"); return 0
-    if not why:
+    if True:
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]
         try:
@@ -770,8 +773,9 @@ def viewer_stop(run):
 
 
 def main(argv):
-    if any(a in ("viewer-start", "viewer-stop") for a in argv) and not (
-            len(argv) == 2 and argv[0] in ("viewer-start", "viewer-stop") and not argv[1].startswith("-")):
+    viewer_cmds = ("viewer-start", "viewer-stop")
+    if argv and (argv[0] in viewer_cmds or (argv[0].startswith("-") and any(a in viewer_cmds for a in argv))) and not (
+            len(argv) == 2 and argv[0] in viewer_cmds and not argv[1].startswith("-")):
         print("usage: swarm.py viewer-start|viewer-stop <run>   (one argument, no options)", file=sys.stderr)
         return 2
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
