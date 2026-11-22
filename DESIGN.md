@@ -2377,7 +2377,7 @@ goal_run built one item at a time: `next` returned `remaining[0]` and `merged` r
 
 ### GO-024 — Recommend up to 30 parallel workers; the default stays 3
 
-**Status:** declared 2026-11-21 on Dorian's instruction ("PERMANENTLY CHANGE the `swarm.py` coordinator from DR-142 so that it fans out up to 30 workers") and his answers of 2026-11-21 16:51 PT ("1 - yes", "4 - I approve the proof-run spend"). `swarm.py` already admits any explicit `max_workers` (GO-023 criterion 1), so this item changes guidance, one test and a decision record, not the constant. It does not make 30 the default.
+**Status:** building. Declared 2026-11-21 on Dorian's instruction ("PERMANENTLY CHANGE the `swarm.py` coordinator from DR-142 so that it fans out up to 30 workers") and his answers of 2026-11-21 16:51 PT ("1 - yes", "4 - I approve the proof-run spend"). `swarm.py` already admits any explicit `max_workers` (GO-023 criterion 1), so this item changes guidance, one test and a decision record, not the constant. It does not make 30 the default.
 
 **Links introduced:** a new decision record in the vault that supersedes only DR-142's wording on three concurrent workers (its number is the next free one when it is written). No code identifier, state field or file is introduced.
 
