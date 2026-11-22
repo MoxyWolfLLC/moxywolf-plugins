@@ -774,8 +774,7 @@ def viewer_stop(run):
 
 def main(argv):
     viewer_cmds = ("viewer-start", "viewer-stop")
-    if argv and (argv[0] in viewer_cmds or (argv[0].startswith("-") and any(a in viewer_cmds for a in argv))) and not (
-            len(argv) == 2 and argv[0] in viewer_cmds and not argv[1].startswith("-")):
+    if argv and argv[0] in viewer_cmds and not (len(argv) == 2 and not argv[1].startswith("-")):
         print("usage: swarm.py viewer-start|viewer-stop <run>   (one argument, no options)", file=sys.stderr)
         return 2
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
