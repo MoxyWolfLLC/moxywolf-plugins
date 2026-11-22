@@ -2377,7 +2377,7 @@ goal_run built one item at a time: `next` returned `remaining[0]` and `merged` r
 
 ### GO-024 — Recommend up to 30 parallel workers; the default stays 3
 
-**Status:** building. Declared 2026-11-21 on Dorian's instruction ("PERMANENTLY CHANGE the `swarm.py` coordinator from DR-142 so that it fans out up to 30 workers") and his answers of 2026-11-21 16:51 PT ("1 - yes", "4 - I approve the proof-run spend"). `swarm.py` already admits any explicit `max_workers` (GO-023 criterion 1), so this item changes guidance, one test and a decision record, not the constant. It does not make 30 the default.
+**Status:** done. Merged to `main` in `f24b431` (PR #370, head `9e3874f`) on 21 November 2026 by `moxywolf-agent[bot]` under DR-113 (Dorian's standing authorization of 2026-09-30), after Codex review `20261121-185316-2b89e4c-kq3uhqjm` (round 2 clean) and green CI; `record-release` returned `agent_merge_autonomous`. The proof run in criterion 6 is a follow-up and is not yet run. Declared 2026-11-21 on Dorian's instruction ("PERMANENTLY CHANGE the `swarm.py` coordinator from DR-142 so that it fans out up to 30 workers") and his answers of 2026-11-21 16:51 PT ("1 - yes", "4 - I approve the proof-run spend"). `swarm.py` already admits any explicit `max_workers` (GO-023 criterion 1), so this item changes guidance, one test and a decision record, not the constant. It does not make 30 the default.
 
 **Links introduced:** a new decision record in the vault that supersedes only DR-142's wording on three concurrent workers (its number is the next free one when it is written). No code identifier, state field or file is introduced.
 
