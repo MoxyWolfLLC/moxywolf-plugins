@@ -123,6 +123,23 @@ class Swarm(unittest.TestCase):
             swarm.main(["init", str(self.run), "--goal", str(self.goal), "--retest"])
         self.assertEqual(exc.exception.code, 2)
 
+    def test_v1_width_30_holds_at_a_recorded_host_limit_of_20(self):
+        """GO-024: an approved width of 30 never starts a 21st worker while 20 are active on a host that recorded 20."""
+        self.plan([self.item(f"i{i}", [f"{i}.py"]) for i in range(30)], max_workers=30)
+        record = swarm.host_file(self.run)
+        record.parent.mkdir(parents=True)
+        record.write_text(json.dumps({"limit": 20}))
+        swarm.init(self.run, self.goal, self.base, 30)
+        claims = swarm.tick(self.run)["dispatch"]
+        self.assertEqual(len(claims), 20)
+        for c in claims:
+            self.assertEqual(swarm.launch_sent(self.run, c["id"], c["attempt"]), "launch")
+            swarm.launched(self.run, c["id"], c["attempt"])
+        self.assertEqual(swarm.tick(self.run)["dispatch"], [])
+        states = [v["status"] for v in swarm.load(self.run)["items"].values()]
+        self.assertEqual((states.count("running"), states.count("pending")), (20, 10))
+        self.assertEqual(swarm.host_limit(record), 20)
+
     def test_v1_four_results_still_need_review_and_ordered_integration(self):
         self.plan([self.item(f"i{i}", [f"{i}.py"], integ=["i0"] if i == 1 else [])
                    for i in range(4)], max_workers=4)
