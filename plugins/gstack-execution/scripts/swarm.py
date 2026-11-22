@@ -684,20 +684,30 @@ def status(run):
 VIEWER_PACKAGE = "agent-flow-app@0.9.6"
 
 
+def _viewer_stamp(pid):
+    """The process start time (ps lstart): a reused pid has a different one."""
+    try:   # Linux: field 22 of /proc/<pid>/stat is the start tick, no ps needed (the comm field may hold spaces)
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        pass
+    for ps in ("/bin/ps", "/usr/bin/ps"):   # absolute: the run's PATH may not have it
+        try:
+            r = subprocess.run([ps, "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True)
+        except OSError:
+            continue
+        return " ".join(r.stdout.split()) if r.returncode == 0 else ""
+    return ""
+
+
 def _viewer_record(run):
+    """(pid, port) of the viewer this run started and that still runs, else None. A pid whose start time
+    changed was reused by another process, and is not ours to signal."""
     try:
-        pid, port = (Path(run) / "viewer.pid").read_text().split()
-        return int(pid), int(port)
+        pid, port, stamp = (Path(run) / "viewer.pid").read_text().strip().split(" ", 2)
+        pid, port = int(pid), int(port)
     except (OSError, ValueError):
         return None
-
-
-def _viewer_alive(pid):
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
+    return (pid, port) if stamp and _viewer_stamp(pid) == stamp else None
 
 
 def viewer_start(run):
@@ -707,7 +717,7 @@ def viewer_start(run):
     npx = shutil.which("npx")
     why = "this host is not a Mac" if host != "Darwin" else None if npx else "npx was not found"
     record = _viewer_record(run)
-    if not why and record and _viewer_alive(record[0]):
+    if not why and record:
         print(f"viewer: http://127.0.0.1:{record[1]}"); return 0
     if not why:
         with socket.socket() as s:
@@ -719,7 +729,7 @@ def viewer_start(run):
         except OSError as e:
             why = f"it could not start: {e}"
         else:
-            (Path(run) / "viewer.pid").write_text(f"{proc.pid} {port}\n")
+            (Path(run) / "viewer.pid").write_text(f"{proc.pid} {port} {_viewer_stamp(proc.pid)}\n")
             print(f"viewer: http://127.0.0.1:{port}"); return 0
     print(f"viewer: unavailable ({why}); the swarm is unaffected", file=sys.stderr)
     return 0
@@ -730,7 +740,7 @@ def viewer_stop(run):
         raise ValueError(f"no run folder {run}")
     record = _viewer_record(run)
     (Path(run) / "viewer.pid").unlink(missing_ok=True)
-    if not record or not _viewer_alive(record[0]):
+    if not record:
         print("viewer: not running"); return 0
     try:   # its own process group (start_new_session), so npx's child goes with it; never a group that isn't the viewer's
         if os.getpgid(record[0]) == record[0]:
