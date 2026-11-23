@@ -333,7 +333,7 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 ### XE-046 — The verification block arrives once at session start, and again after compaction
 
-**Status:** building. Declared 2026-11-23 on Dorian's approval ("I approve both A and B drafts"). Observed the same day in a cloud session: the block arrived from the UserPromptSubmit fallback on the first prompt, then again from SessionStart when the late-registered hook fired. The prompt path checks the session's marker; the SessionStart path never does, so in a cloud session the context carries the 4.3 KB block twice. The host's `source` field on SessionStart is `startup`, `resume`, `clear`, `compact` or `fork` (Claude Code hooks reference, read 2026-11-23); `route.py` already reads it.
+**Status:** done. Declared 2026-11-23 on Dorian's approval ("I approve both A and B drafts"). Built with MR-005 on `build/XE-046-MR-005-delivery-and-route-gate` (design `21eb7cb`, build `64f91cf`). Review `20261123-120703-64f91cf-whirqph5` (codex, gpt-6-astra) round 1 `no_blocking_findings`, 10/10 met; lane `wide`. PR #406 merged as `2d38fd6`, recorded `agent_merge_autonomous`. **Merged without Dorian's approving review although `**/hooks/` is a `CODEOWNERS` path:** the agent relied on GitHub to hold it, and the ruleset (`require_code_owner_review` with `required_approving_review_count: 0`) did not. Reported to him the same day. The block first arrived in a cloud session from the UserPromptSubmit fallback and then again from the late SessionStart.
 
 **Links introduced:** none new. The SessionStart path reads the marker the prompt path already writes (`<marker dir>/<session id>.injected`) and the host's `source` field. A reader assumes the marker means this session's context still holds the block. That holds only on `startup`: compaction, `/clear`, resume and fork can each leave a context without it, so on those sources the marker is not read.
 
@@ -347,7 +347,7 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 ### XE-047 — A test that pretends no reviewer is installed hides the API credential too
 
-**Status:** building. Declared 2026-11-23 on Dorian's approval ("Approve XE-047"). Found while building XE-046: on the Mac, with `GSTACK_OPENROUTER_ENV` set as every review-host env file sets it, `run_all_tests.py` reported 129 of 131 passed. `test_reviewer_routing.py` and `peer_review.py --selftest` failed, and both passed with the variable unset. `installed()` counts an `openrouter` reviewer as available whenever its credential resolves, while the test helper `_on_path` and the selftest's unavailable-tool step only hide CLIs from `PATH`. Reproduced the same day in a Linux workspace with a temporary key file.
+**Status:** done. Declared 2026-11-23 on Dorian's approval ("Approve XE-047"). Built with MR-006 on `build/XE-047-MR-006-test-env-and-ledger-home`. Review `20261123-131247-d1551f6-eslv9u_6` (codex, gpt-6-astra): round 1 at `d1551f6` two blockers on MR-006 (F1, F2), round 2 at `aa489be` `fixes_verified`, 13/13 met. PR #407 merged as `11d6f7a`, recorded `agent_merge_autonomous`; no `CODEOWNERS` paths. With `GSTACK_OPENROUTER_ENV` set, the Mac's full run went from 129/131 to 132/132. Found while building XE-046.
 
 **Links introduced:** none.
 
@@ -356,6 +356,18 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 3. `test_reviewer_routing.py` gains a case that sets `GSTACK_OPENROUTER_ENV` to a temporary key file, then asserts that `choose_reviewer("claude")` inside `_on_path()` still raises `review_unavailable`, and that `peer_review.py --selftest`, run as a subprocess with that variable set, exits 0.
 4. No runtime behaviour changes: `installed()`, `choose_reviewer` and `openrouter_key` are untouched.
 5. gstack-execution moves a minor version with its marketplace entry, and the top-level marketplace version moves (CI-002), by text replace, once with MR-006 when the two ship in one pull request. `run_all_tests.py`, unedited, reports no failures on the Mac with `GSTACK_OPENROUTER_ENV` set.
+
+### XE-048 — The test runner keeps the real history folder out of every suite
+
+**Status:** building. Declared 2026-11-23 on Dorian's approval ("yes, fix the leak"). Found the same day, after MR-006 merged: a local `run_all_tests.py` run with `GSTACK_HISTORY_DIR` set wrote two fixture ledgers, `model-selection/example-project.jsonl` and `o-r.jsonl`, into the real history folder. `test_goal_run.py` and `test_goal_delivery.py` point `GSTACK_PEER_REVIEW_DIR` at a temporary folder for isolation, and MR-006 makes `GSTACK_HISTORY_DIR` win over it. CI doesn't set the variable, so CI couldn't see it. The two files were moved out and the real ledgers checked: no fixture lines in them.
+
+**Links introduced:** none.
+
+1. `run_all_tests.py` starts every suite and selftest with `GSTACK_HISTORY_DIR` removed from its environment. Nothing else in the environment changes.
+2. `run_all_tests.py --selftest` gains a case: with `GSTACK_HISTORY_DIR` set in the runner's own environment, a suite that exits 3 when it sees the variable passes.
+3. A suite run on its own, outside the runner, is not covered. Its module either drops the variable at import, as the four MR-006 test modules do, or is run with it unset. The runner's docstring says so.
+4. `run_all_tests.py` is a `CODEOWNERS` path, so this waits for Dorian's approving review before it merges.
+5. gstack-execution moves a minor version with its marketplace entry, and the top-level marketplace version moves (CI-002). A full `run_all_tests.py` run on the Mac, with `GSTACK_HISTORY_DIR` naming the real history folder, reports no failures, and a recursive file listing of that folder taken before and after the run is the same.
 
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
@@ -2113,7 +2125,7 @@ On 2026-11-19 two harmless Agent calls without a `model` failed on the Cowork cl
 
 ### MR-005 — The route gate counts cheaper-tier recommendations, not every line (amends MR-001.6)
 
-**Status:** building. Declared 2026-11-23 on Dorian's approval ("I approve both A and B drafts"), with the 0.30 `cross_file` bar kept as it is ("keep the .30 bar"). Found by reading the gate against Jev Engineering's selective-error rule (an error rate is read over the cases actually handled the cheaper way, and is undefined over none). `routeAllowed` counted every shadow line toward the 20 but computed `agreement` over standard and light recommendations only. Run on `main` at `b410acf`: 20 `floor` lines plus one cleared `standard` line gave `ok: true` with agreement 1 over 1. Of the ledgers readable that day (38 lines), 37 recommended `floor`; `OpenControls-AI-cki` holds exactly 20 shadow lines with no cheaper recommendation, one cleared one away from opening.
+**Status:** done. Declared 2026-11-23 on Dorian's approval ("I approve both A and B drafts"), with the 0.30 `cross_file` bar kept ("keep the .30 bar"). Shipped with XE-046 in PR #406 (`2d38fd6`), same review and release. Found by reading the gate against Jev Engineering's selective-error rule: on `b410acf`, 20 `floor` lines plus one cleared `standard` line opened the gate at agreement 1 over 1.
 
 **Links introduced:** none new. The refusal record gains `cheap_recommended`, the count the gate now compares with 20. `lines` keeps its meaning (shadow lines scored), so a reader of an older refusal reads the same quantity under the same name.
 
@@ -2125,7 +2137,7 @@ On 2026-11-19 two harmless Agent calls without a `model` failed on the Cowork cl
 
 ### MR-006 — The cumulative ledgers have one home, `GSTACK_HISTORY_DIR`
 
-**Status:** building. Declared 2026-11-23 on Dorian's approval ("New history dir"). Three ledgers are meant to accumulate across items: `model-selection/` (MR-001's route gate), `decisions/` (DC-001's council gate) and `model-routing/` (MR-003's ledger and CS-007's claim checks). All three resolve under `GSTACK_PEER_REVIEW_DIR`, and every review-host env file points that at the item's own folder, so each item starts an empty ledger. Of the 38 model-selection lines readable on 2026-11-23, no file held more than 20, spread over five folders. A gate that reads one of those files reads part of its history.
+**Status:** done. Declared 2026-11-23 on Dorian's approval ("New history dir"). Shipped with XE-047 in PR #407 (`11d6f7a`), same review; its `record-release` line was the first written into the history folder by the merged code. Criterion 7, the hand merge: 29 source files on the Mac (14 model-selection, 14 decisions, 1 model-routing) went into `GitHub/Projects/MW Plugins/06 – Engineering/peer-reviews` as 107 model-selection lines in 6 files (deduplicated by `review_id`), 200 decision lines in 2 files (by `id`) and 1 model-routing file, then unioned with lines only the Projects remote held (Projects `9fe0c79`). The count first given here, 38 lines with no file over 20, was what the Cowork VM could read; the Mac held 107, and `MoxyWolfLLC-workforce-automation` alone had 50. Of the 107, 5 recommended `standard` or `light`. The merged precedence leaked test fixtures into the history folder during a local full run; XE-048 fixes it.
 
 **Links introduced:** one path link. `GSTACK_HISTORY_DIR` names the directory that holds `model-selection/`, `decisions/` and `model-routing/`. Dorian set it to `GitHub/Projects/MW Plugins/06 – Engineering/peer-reviews`, which the Projects repository tracks. A reader assumes a ledger there holds every line for its key. That holds only while every writer resolves the same directory, which is why the gates refuse without it (criterion 3). The refusal record gains one field of its own, `history: "unset"`.
 
@@ -3348,3 +3360,4 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-23: MR-005 added on the same approval, amending MR-001.6: the route gate's 20 counts standard and light recommendations, not every shadow line. The 0.30 `cross_file` bar stays ("keep the .30 bar").
 - 2026-11-23: XE-047 added on Dorian's approval ("Approve XE-047"): a test that pretends no reviewer is installed hides `GSTACK_OPENROUTER_ENV` too.
 - 2026-11-23: MR-006 added on Dorian's choice ("New history dir"): the model-selection, decisions and model-routing ledgers resolve under `GSTACK_HISTORY_DIR`, and the route and council gates refuse without it (as `insufficient_history`, no new vocabulary, after the spec review's C1).
+- 2026-11-23: XE-048 added on Dorian's approval ("yes, fix the leak"): `run_all_tests.py` drops `GSTACK_HISTORY_DIR` from every suite's environment, because MR-006's precedence let a local run write test fixtures into the real history folder. XE-046, MR-005, XE-047 and MR-006 marked done; XE-046's status records that it merged without Dorian's `CODEOWNERS` approval.

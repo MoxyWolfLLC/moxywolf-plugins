@@ -176,6 +176,7 @@ Optional versioned context now complements the existing executable workflows. No
 
 ## Version history
 
+- **0.117.0**: XE-048. `run_all_tests.py` starts every suite without `GSTACK_HISTORY_DIR`, so a test that isolates itself with a temporary review folder can't write fixtures into the real history folder.
 - **0.116.0**: XE-047 and MR-006. Tests that pretend no reviewer is installed also hide `GSTACK_OPENROUTER_ENV`. The model-selection ledger resolves under `GSTACK_HISTORY_DIR` when set, `route` and `quorum` refuse with `insufficient_history` and `history: "unset"` without it, and `review_host.sh` carries the variable.
 - **0.115.0**: XE-046 and MR-005. The verification hook skips its block on a fresh `startup` when the session already has it, and re-sends it after compaction. The route gate counts standard and light recommendations toward its 20.
 - **0.114.0**: GO-025. `/gstack-viewer [stop] [<goal-id>]` starts or stops the swarm's agent-flow viewer without the caller knowing the run folder. `swarm.py goal-run [<id>]` prints the swarm folder of the one goal running a swarm, or of a named goal (ended or not); several running or none is refused, naming the ids, and it writes nothing. It runs from the installed plugin; `goal_run.py` is unchanged.

@@ -1,0 +1,64 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "7029df7613924b759c0215b03d4079c2",
+  "doc": "DESIGN.md",
+  "item": "XE-048",
+  "scope_sha256": "3b35fc850429a3af1772ff6abddc4c9bb49fdc53ffa52e085f964228d1e9e51a",
+  "reviewed_at": "2026-11-23T22:01:05+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 1785,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6157,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6157,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6157,
+      "cache_creation_input_tokens": 1825,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 1825,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 9622,
+      "output_tokens": 1441,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 431,
+      "cache_read_input_tokens": 7982,
+      "cache_creation_input_tokens": 159,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 159,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 14139,
+    "write": 8141
+  },
+  "contradictions": [],
+  "ambiguities": []
+}
