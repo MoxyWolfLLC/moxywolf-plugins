@@ -23,6 +23,7 @@ PLUGIN = HERE.parent
 sys.path.insert(0, str(HERE))
 import peer_review as pr  # noqa: E402
 import spec_review as sr  # noqa: E402
+os.environ.pop("GSTACK_HISTORY_DIR", None)   # MR-006: tests never write into the real history folder
 
 DESIGN = """# Fixture
 
@@ -126,7 +127,9 @@ class Selector(unittest.TestCase):
     def run_select(self, *args, answers=None, **env):
         Stub.answers = answers or {}
         e = {k: v for k, v in os.environ.items() if k not in {"AI_GATEWAY_API_KEY", "GSTACK_AIGATEWAY_ENV", "JEV_ENDPOINT", "GSTACK_MODEL_ROUTING"}}
-        e.update(AI_GATEWAY_API_KEY="k-env", JEV_ENDPOINT=self.endpoint, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), **env)
+        e.update(AI_GATEWAY_API_KEY="k-env", JEV_ENDPOINT=self.endpoint, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"),
+                 GSTACK_HISTORY_DIR=str(self.root / "reviews"))     # MR-006: the gates read the one ledger
+        e.update(env)
         r = subprocess.run(["node", str(SCRIPT), *args], capture_output=True, text=True, env=e, cwd=str(HERE))
         return r, json.loads(self.pfile.read_text()).get("model_selection")
 
@@ -441,6 +444,33 @@ class Selector(unittest.TestCase):
         self.assertEqual((r.returncode, ms["mode"], ms["route_refused"]["reason"]), (5, "shadow", "insufficient_history"), r.stderr)
         self.assertEqual((ms["route_refused"]["lines"], ms["route_refused"]["cheap_recommended"], ms["route_refused"]["agreement"]), (21, 1, 1), r.stderr)
         self.assertIn("1 of them standard or light", r.stderr)
+
+    def test_history_dir_is_the_one_ledger_and_the_gates_refuse_without_it(self):
+        # MR-006.1: the ledger under GSTACK_HISTORY_DIR wins over the review root's
+        hist = self.root / "hist"
+        f = hist / "model-selection" / "fixture-org-fixture-repo.jsonl"; f.parent.mkdir(parents=True)
+        f.write_text(self._lines(20, 18))
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING="route", GSTACK_HISTORY_DIR=str(hist))
+        self.assertEqual((r.returncode, ms["mode"]), (0, "route"), r.stderr)
+        # MR-006.3: unset, both gates refuse, even with a full ledger under the review root
+        self.ledger().write_text(self._lines(20, 18))
+        for mode, key in (("route", "route_refused"), ("quorum", "quorum_refused")):
+            r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING=mode, GSTACK_HISTORY_DIR="")
+            self.assertEqual((r.returncode, ms["mode"], ms[key]["reason"], ms[key]["history"]), (5, "shadow", "insufficient_history", "unset"), (mode, r.stderr))
+            self.assertIn("history unset", r.stderr)
+        # MR-006.1: record-release's resolver, the writer side of the same ledger
+        saved = pr.REVIEW_DIR, os.environ.get("GSTACK_HISTORY_DIR")
+        pr.REVIEW_DIR = self.root / "reviews"
+        try:
+            os.environ["GSTACK_HISTORY_DIR"] = str(hist)
+            self.assertEqual(pr.history_root(), hist)
+            del os.environ["GSTACK_HISTORY_DIR"]
+            self.assertEqual(pr.history_root(), self.root / "reviews")
+        finally:
+            pr.REVIEW_DIR = saved[0]
+            os.environ.pop("GSTACK_HISTORY_DIR", None)
+            if saved[1] is not None:
+                os.environ["GSTACK_HISTORY_DIR"] = saved[1]
 
     # ---- MR-001.7: an override wins, is recorded, and may not go below light ----
 

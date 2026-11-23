@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """XE-005: a reviewer is independent by what differs, not by its name. Stdlib only."""
-import os, shutil, tempfile
+import contextlib, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 from unittest import mock
 
 import peer_review as pr
 
 
+@contextlib.contextmanager
 def _on_path(*tools):
-    """Pretend exactly these CLIs are installed."""
-    return mock.patch.object(pr.shutil, "which", lambda t: f"/usr/bin/{t}" if t in tools else None)
+    """Pretend exactly these CLIs are installed, and no API reviewer's credential resolves (XE-047)."""
+    with mock.patch.object(pr.shutil, "which", lambda t: f"/usr/bin/{t}" if t in tools else None), \
+            mock.patch.dict(os.environ):
+        os.environ.pop("GSTACK_OPENROUTER_ENV", None)
+        yield
 
 
 def test_a_claude_builder_is_never_reviewed_by_a_claude_family_tool():
@@ -103,6 +107,25 @@ def test_validate_reports_truncation_through_the_real_entry_point():
             raise AssertionError(f"{body[:30]!r} should have raised")
         except pr.ReviewError as e:
             assert e.outcome == want, f"{body[:30]!r} -> {e.outcome}, wanted {want}"
+
+
+def test_no_reviewer_holds_with_an_openrouter_credential_set():
+    """XE-047: the review-host env files set GSTACK_OPENROUTER_ENV, and an api reviewer counts as
+    installed once its key resolves. Pretending nothing is installed must hide that too."""
+    with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ):
+        key = Path(d) / "openrouter.env"
+        key.write_text("OPENROUTER_API_KEY=sk-or-test\n")
+        os.environ["GSTACK_OPENROUTER_ENV"] = str(key)
+        with _on_path():
+            try:
+                pr.choose_reviewer("claude")
+                raise AssertionError("must not find a reviewer with nothing installed")
+            except pr.ReviewError as e:
+                assert e.outcome == "review_unavailable", e.outcome
+        env = {**os.environ, "GSTACK_PEER_REVIEW_DIR": str(Path(d) / "reviews")}
+        out = subprocess.run([sys.executable, str(Path(pr.__file__)), "--selftest"],
+                             capture_output=True, text=True, env=env, timeout=600)
+        assert out.returncode == 0, out.stdout[-800:] + out.stderr[-800:]
 
 
 if __name__ == "__main__":

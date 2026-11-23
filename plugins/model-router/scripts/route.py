@@ -158,6 +158,9 @@ def classify(table, tool, tool_input):
 # ---- ledger ----
 
 def ledger_dir():
+    hist = os.environ.get("GSTACK_HISTORY_DIR")        # MR-006: the cumulative ledger's one home, when set
+    if hist:
+        return Path(hist) / "model-routing", "env GSTACK_HISTORY_DIR"
     root = os.environ.get("GSTACK_PEER_REVIEW_DIR")
     if root:
         return Path(root) / "model-routing", "env GSTACK_PEER_REVIEW_DIR"

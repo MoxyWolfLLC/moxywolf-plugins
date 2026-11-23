@@ -347,7 +347,7 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 ### XE-047 — A test that pretends no reviewer is installed hides the API credential too
 
-**Status:** planned. Declared 2026-11-23 on Dorian's approval ("Approve XE-047"). Found while building XE-046: on the Mac, with `GSTACK_OPENROUTER_ENV` set as every review-host env file sets it, `run_all_tests.py` reported 129 of 131 passed. `test_reviewer_routing.py` and `peer_review.py --selftest` failed, and both passed with the variable unset. `installed()` counts an `openrouter` reviewer as available whenever its credential resolves, while the test helper `_on_path` and the selftest's unavailable-tool step only hide CLIs from `PATH`. Reproduced the same day in a Linux workspace with a temporary key file.
+**Status:** building. Declared 2026-11-23 on Dorian's approval ("Approve XE-047"). Found while building XE-046: on the Mac, with `GSTACK_OPENROUTER_ENV` set as every review-host env file sets it, `run_all_tests.py` reported 129 of 131 passed. `test_reviewer_routing.py` and `peer_review.py --selftest` failed, and both passed with the variable unset. `installed()` counts an `openrouter` reviewer as available whenever its credential resolves, while the test helper `_on_path` and the selftest's unavailable-tool step only hide CLIs from `PATH`. Reproduced the same day in a Linux workspace with a temporary key file.
 
 **Links introduced:** none.
 
@@ -2125,7 +2125,7 @@ On 2026-11-19 two harmless Agent calls without a `model` failed on the Cowork cl
 
 ### MR-006 — The cumulative ledgers have one home, `GSTACK_HISTORY_DIR`
 
-**Status:** planned. Declared 2026-11-23 on Dorian's approval ("New history dir"). Three ledgers are meant to accumulate across items: `model-selection/` (MR-001's route gate), `decisions/` (DC-001's council gate) and `model-routing/` (MR-003's ledger and CS-007's claim checks). All three resolve under `GSTACK_PEER_REVIEW_DIR`, and every review-host env file points that at the item's own folder, so each item starts an empty ledger. Of the 38 model-selection lines readable on 2026-11-23, no file held more than 20, spread over five folders. A gate that reads one of those files reads part of its history.
+**Status:** building. Declared 2026-11-23 on Dorian's approval ("New history dir"). Three ledgers are meant to accumulate across items: `model-selection/` (MR-001's route gate), `decisions/` (DC-001's council gate) and `model-routing/` (MR-003's ledger and CS-007's claim checks). All three resolve under `GSTACK_PEER_REVIEW_DIR`, and every review-host env file points that at the item's own folder, so each item starts an empty ledger. Of the 38 model-selection lines readable on 2026-11-23, no file held more than 20, spread over five folders. A gate that reads one of those files reads part of its history.
 
 **Links introduced:** one path link. `GSTACK_HISTORY_DIR` names the directory that holds `model-selection/`, `decisions/` and `model-routing/`. Dorian set it to `GitHub/Projects/MW Plugins/06 – Engineering/peer-reviews`, which the Projects repository tracks. A reader assumes a ledger there holds every line for its key. That holds only while every writer resolves the same directory, which is why the gates refuse without it (criterion 3). The refusal record gains one field of its own, `history: "unset"`.
 

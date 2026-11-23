@@ -14,6 +14,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import os
+os.environ.pop("GSTACK_HISTORY_DIR", None)   # MR-006: tests never write into the real history folder
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/claim_check.py"
 SALES = """1. Answer. Offer the 30% discount. Halden's buyer said on 2026-10-06 that budget closes this month.
@@ -59,6 +61,14 @@ class Ledger(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp(prefix="cs007-"))
         self.env = {**os.environ, "GSTACK_PEER_REVIEW_DIR": str(self.root)}
         self.ledger = self.root / "model-routing" / "claim-checks.jsonl"
+
+    def test_history_dir_wins_over_the_review_root(self):
+        # MR-006.1: the claim-check ledger sits beside model-routing under GSTACK_HISTORY_DIR when it is set
+        hist = self.root / "hist"
+        rc, out = check(SALES_LINE, "--department", "sales-department", "--cos-run", "r-hist", env={**self.env, "GSTACK_HISTORY_DIR": str(hist)})
+        self.assertEqual(rc, 0, out)
+        self.assertTrue((hist / "model-routing" / "claim-checks.jsonl").is_file())
+        self.assertFalse(self.ledger.exists())
 
     def lines(self):
         return [json.loads(l) for l in self.ledger.read_text().splitlines() if l.strip()]

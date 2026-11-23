@@ -84,7 +84,8 @@ def gateway_key():
 
 
 def ledger_dir():
-    root = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    # MR-006: GSTACK_HISTORY_DIR first, so the ledger accumulates across items
+    root = os.environ.get("GSTACK_HISTORY_DIR") or os.environ.get("GSTACK_PEER_REVIEW_DIR")
     d = Path(root) / "decisions" if root else Path.home() / ".gstack" / "decisions"
     d.mkdir(parents=True, exist_ok=True)
     return d
@@ -805,6 +806,10 @@ def gate_status(caller, lines=None):
 
 
 def cmd_gate(a):
+    if not os.environ.get("GSTACK_HISTORY_DIR"):     # MR-006.3: a gate reads the one ledger or none
+        print(json.dumps({"ok": False, "reason": "insufficient_history", "history": "unset", "lines": 0, "needs_lines": GATE_MIN_LINES,
+                          "why": "GSTACK_HISTORY_DIR is not set; the gate reads only the ledger under it"}))
+        return 1
     g = gate_status(a.caller)
     print(json.dumps(g))
     return 0 if g["ok"] else 1

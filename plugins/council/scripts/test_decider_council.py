@@ -12,6 +12,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+os.environ.pop("GSTACK_HISTORY_DIR", None)   # MR-006: tests never write into the real history folder
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "decider_council.py"
@@ -94,7 +95,9 @@ class DeciderCouncil(unittest.TestCase):
 
     def run_dc(self, *args, **env):
         e = {k: v for k, v in os.environ.items() if k not in {"AI_GATEWAY_API_KEY", "GSTACK_AIGATEWAY_ENV", "JEV_ENDPOINT", "GSTACK_DECIDERS"}}
-        e.update(AI_GATEWAY_API_KEY="k-test", JEV_ENDPOINT=self.endpoint, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"), **env)
+        e.update(AI_GATEWAY_API_KEY="k-test", JEV_ENDPOINT=self.endpoint, GSTACK_PEER_REVIEW_DIR=str(self.root / "reviews"),
+                 GSTACK_HISTORY_DIR=str(self.root / "reviews"))     # MR-006: the gate reads the one ledger
+        e.update(env)
         return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=e)
 
     def ask(self, **env):
@@ -353,6 +356,20 @@ class DeciderCouncil(unittest.TestCase):
         self.reset(); self.write_fixture(n=20, cleared=20, voices_up=1)
         r = self.run_dc("gate", "--caller", "model_select"); g = json.loads(r.stdout)
         self.assertEqual((g["ok"], g["lines"]), (False, 0), r.stdout)
+
+    def test_history_dir_holds_the_ledger_and_the_gate_refuses_without_it(self):
+        # MR-006.1: with GSTACK_HISTORY_DIR set, the line goes there and not under the review root
+        hist = self.root / "hist"
+        self.ask(GSTACK_HISTORY_DIR=str(hist))
+        self.assertEqual(len(list((hist / "decisions").glob("*.jsonl"))), 1)
+        self.assertEqual(list((self.root / "reviews" / "decisions").glob("*.jsonl")), [])
+        # unset: the review root, as before
+        self.ask(GSTACK_HISTORY_DIR="")
+        self.assertEqual(len(list((self.root / "reviews" / "decisions").glob("*.jsonl"))), 1)
+        # MR-006.3: the gate refuses without it, even over a ledger that would pass
+        self.reset(); self.write_fixture(n=20, cleared=11)
+        r = self.run_dc("gate", "--caller", "model_select", GSTACK_HISTORY_DIR=""); g = json.loads(r.stdout)
+        self.assertEqual((r.returncode, g["ok"], g["reason"], g["history"]), (1, False, "insufficient_history", "unset"), r.stdout)
 
     def reset(self):
         for f in (self.root / "reviews" / "decisions").glob("*.jsonl"):

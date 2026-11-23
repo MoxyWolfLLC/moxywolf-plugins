@@ -216,8 +216,13 @@ export function reviewRoot(env = process.env) {
   return env.GSTACK_PEER_REVIEW_DIR;
 }
 
+// MR-006: the cumulative ledgers live under GSTACK_HISTORY_DIR when it is set, so they accumulate across items.
+export function historyRoot(env = process.env) {
+  return env.GSTACK_HISTORY_DIR || reviewRoot(env);
+}
+
 export function ledgerPath(repoPath, env = process.env) {
-  return path.join(reviewRoot(env), 'model-selection', repoId(repoPath) + '.jsonl');
+  return path.join(historyRoot(env), 'model-selection', repoId(repoPath) + '.jsonl');
 }
 
 export function readLedger(file) {
@@ -330,7 +335,13 @@ async function recommend(packetPath, designPath) {
   // MR-001.6: route only on a scored history. Checked before the model is asked, so a refusal costs nothing.
   // DC-001.6: quorum only once the council's gate passes for this caller; otherwise the table reads Jev.
   let mode = wanted, route_refused = null, quorum_refused = null;
-  if (wanted === 'route') {
+  if ((wanted === 'route' || wanted === 'quorum') && !env.GSTACK_HISTORY_DIR) {
+    // MR-006.3: a gate that can't name the one ledger it should read has not examined its history
+    mode = 'shadow';
+    const refusal = { reason: 'insufficient_history', history: 'unset', why: 'GSTACK_HISTORY_DIR is not set; the gate reads only the ledger under it' };
+    if (wanted === 'route') route_refused = refusal; else quorum_refused = refusal;
+    console.error(`${wanted} refused: insufficient_history (history unset: GSTACK_HISTORY_DIR is not set). Running in shadow mode.`);
+  } else if (wanted === 'route') {
     const file = ledgerPath(packet.repos[0].path);
     const gate = routeAllowed(scoreLines(readLedger(file)));
     if (!gate.ok) {
