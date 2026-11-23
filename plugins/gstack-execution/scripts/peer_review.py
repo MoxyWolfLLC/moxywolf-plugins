@@ -395,6 +395,13 @@ def load_packet(path, allow_unchanged=False):
     return packet
 
 
+def history_root():
+    """MR-006: the cumulative ledgers (model-selection here) have one home, GSTACK_HISTORY_DIR, when it is
+    set; else they stay under the review root, as before."""
+    h = os.environ.get("GSTACK_HISTORY_DIR")
+    return Path(h) if h else review_root()
+
+
 def review_root():
     """EV-009: a review whose record goes to an undeclared directory has no record.
 
@@ -3927,7 +3934,7 @@ def model_selection_line(d, state, packet, name, pr_number, decision):
             "routing": ms.get("routing") or "advice",     # MR-001.6 as amended: advice or launched
             "outcome": {"rounds_used": state.get("rounds_used", 0), "blocking_findings": blocking,
                         "unknowns_raised": unknowns, "release_outcome": decision["outcome"]}}
-    f = review_root() / "model-selection" / f"{name.replace('/', '-')}.jsonl"
+    f = history_root() / "model-selection" / f"{name.replace('/', '-')}.jsonl"
     f.parent.mkdir(parents=True, exist_ok=True)
     with open(f, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(line, sort_keys=True) + "\n")
@@ -4000,8 +4007,12 @@ def selftest():
     for tool in ("git", "sh"):
         os.symlink(shutil.which(tool), binroot / tool)
     os.environ["PATH"] = str(binroot)
+    # XE-047: an API reviewer is installed when its credential resolves, so hide it for this step too
+    saved_key = os.environ.pop("GSTACK_OPENROUTER_ENV", None)
     rid = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=3, timeout=30))["review_id"]
     assert cmd_round(ns(review_id=rid, head=[])) == "review_unavailable"
+    if saved_key is not None:
+        os.environ["GSTACK_OPENROUTER_ENV"] = saved_key
     assert not list(Path(tempfile.gettempdir()).glob("gstack-peer-*")) or True  # teardown best-effort
 
     # malformed output

@@ -12,6 +12,7 @@ import time
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+os.environ.pop("GSTACK_HISTORY_DIR", None)   # MR-006: tests never write into the real history folder
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "route.py"
@@ -403,6 +404,23 @@ class Hooks(unittest.TestCase):
         r = subprocess.run([sys.executable, str(SCRIPT), "aar", "--dir", str(d), "--date", date], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         return r.stdout
+
+    def test_history_dir_holds_the_routing_ledger_and_aar_reads_model_selection_beside_it(self):
+        # MR-006.1: GSTACK_HISTORY_DIR wins, and the first line names it as the source
+        hist = self.root / "hist"
+        r = self.run_hook("session-start", {"session_id": self.sid, "hook_event_name": "SessionStart", "source": "startup"}, GSTACK_HISTORY_DIR=str(hist))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = sorted((hist / "model-routing").glob("*.jsonl"))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(json.loads(files[0].read_text().splitlines()[0])["ledger_source"], "env GSTACK_HISTORY_DIR")
+        self.assertFalse((self.root / "model-routing").exists())
+        # MR-006.2: aar finds model-selection beside model-routing under the same root
+        sel = hist / "model-selection" / "fixture.jsonl"; sel.parent.mkdir(parents=True)
+        sel.write_text(json.dumps({"recorded_at": "2026-11-23T20:00:00Z", "declared_tier": "floor", "override": None,
+                                   "recommendation": {"tier": "floor", "rule": "cross_file", "mode": "shadow"},
+                                   "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "agent_merge_autonomous"}}) + "\n")
+        out = self.aar(hist / "model-routing", "2026-11-23")
+        self.assertIn("1 model-selection lines", out)
 
     def test_aar_on_an_empty_day_reads_zero_and_decides_none(self):
         empty = self.root / "empty"; empty.mkdir()

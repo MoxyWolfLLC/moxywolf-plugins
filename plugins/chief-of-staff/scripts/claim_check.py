@@ -216,7 +216,7 @@ def ledger_line(a, out):
     route.py aar reads. One line per run; written only when both --department and --cos-run are given."""
     import os
     from datetime import datetime, timezone
-    root = os.environ.get("GSTACK_PEER_REVIEW_DIR")
+    root = os.environ.get("GSTACK_HISTORY_DIR") or os.environ.get("GSTACK_PEER_REVIEW_DIR")   # MR-006
     d = Path(root) / "model-routing" if root else Path.home() / ".gstack" / "model-routing"
     d.mkdir(parents=True, exist_ok=True)
     line = {"ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "cos_run": a.cos_run, "department": a.department,

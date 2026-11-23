@@ -1,0 +1,104 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "f513243a6b044770a2d17e73b9966975",
+  "doc": "DESIGN.md",
+  "item": "MR-006",
+  "scope_sha256": "ab144474cf5dda8186a4493553ce83610a807e9e2527e0b2220876c0de1209d0",
+  "reviewed_at": "2026-11-23T20:42:11+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 9386,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6977,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6977,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6977,
+      "cache_creation_input_tokens": 9426,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9426,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 18043,
+      "output_tokens": 2066,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2222,
+      "cache_read_input_tokens": 16403,
+      "cache_creation_input_tokens": 611,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 611,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 23380,
+    "write": 17014
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "MR-006.1",
+        "MR-006.6",
+        "MR-006.3"
+      ],
+      "question": "When GSTACK_HISTORY_DIR is unset, do the route/quorum gates in model_select.mjs and decider_council.py use the old location (MR-006.1 and MR-006.6, 'with it unset the old location is used' for each of the five resolvers), or do they refuse without resolving or reading any ledger (MR-006.3, 'no gate reads it')? Is the fallback test meant to cover only shadow mode and non-gate paths?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "MR-006.3"
+      ],
+      "question": "What does 'refuses ... when GSTACK_HISTORY_DIR is unset and runs in shadow' mean: refuse only in route and quorum modes with shadow still running, or something else? Which entry points of model_select.mjs and decider_council.py count as 'writers' that never refuse?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "MR-006.2",
+        "MR-006.1"
+      ],
+      "question": "With the variable unset, must route.py aar still find model-selection/ beside model-routing/, given that each resolver falls back to its own old location? 'Both now sit under the same root' holds only when the variable is set."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "MR-006.7",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
+      ],
+      "question": "Are the decision, model-selection or model-routing lines merged into the Projects-tracked history directory built from session files? If they are, does the publish gate (gitleaks, owner confirmation, manifest) apply to the manual merge in MR-006.7?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "MR-006.8"
+      ],
+      "question": "XE-047 and CI-002 are not stated in the plan. Must MR-006 and XE-047 share one pull request, and what governs the single top-level marketplace version bump if they don't?"
+    }
+  ]
+}

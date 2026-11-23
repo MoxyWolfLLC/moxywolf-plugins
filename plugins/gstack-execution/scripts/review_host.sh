@@ -87,7 +87,11 @@ ENVF="$WORK/.review-env"
   echo "export GEMINI_API_KEY='$GEMINI_API_KEY'"
   echo "export GSTACK_PEER_REVIEW_DIR=\"$WORK/peer-reviews\""
   echo "export GSTACK_REVIEWER=gemini"
+  # MR-006.4: the cumulative ledgers need one home across items
+  # %q: the env file is shell source, so the path is escaped, not interpolated (review F2)
+  if [ -n "${GSTACK_HISTORY_DIR:-}" ]; then printf 'export GSTACK_HISTORY_DIR=%q\n' "$GSTACK_HISTORY_DIR"; fi
 } > "$ENVF"
+[ -n "${GSTACK_HISTORY_DIR:-}" ] || say "GSTACK_HISTORY_DIR is unset: the route and council gates will refuse with insufficient_history, history unset (MR-006)"
 
 cat <<EOF
 

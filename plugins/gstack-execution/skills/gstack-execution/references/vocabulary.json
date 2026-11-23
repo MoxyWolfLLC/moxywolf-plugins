@@ -680,7 +680,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",
       "skos:prefLabel": "insufficient_history",
-      "skos:definition": "route mode was refused because the model-selection ledger holds fewer than 20 scored standard or light recommendations or agreement below 0.90, both printed with the refusal; the run fell back to shadow (MR-001.6, MR-005)"
+      "skos:definition": "route mode was refused because the model-selection ledger holds fewer than 20 scored standard or light recommendations or agreement below 0.90, both printed with the refusal, or because GSTACK_HISTORY_DIR is unset so no ledger is named (history: unset; also the decider council's gate); the run fell back to shadow (MR-001.6, MR-005, MR-006)"
     },
     {
       "id": "override_below_floor",
