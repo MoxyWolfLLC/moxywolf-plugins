@@ -1,0 +1,80 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "9ed2f720a74e4f7db4dede309a9743c9",
+  "doc": "DESIGN.md",
+  "item": "XE-046",
+  "scope_sha256": "6dfa16249cdfbb4d3b8ef1b1ad2b82db6b0f4bd28e841839214d335758ab6331",
+  "reviewed_at": "2026-11-23T19:26:37+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2968,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6512,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6512,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6512,
+      "cache_creation_input_tokens": 3008,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3008,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11160,
+      "output_tokens": 1715,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 667,
+      "cache_read_input_tokens": 9520,
+      "cache_creation_input_tokens": 188,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 188,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 16032,
+    "write": 9708
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-046 criterion 5"
+      ],
+      "question": "When XE-046 ships together with MR-005, does gstack-execution get one minor bump or two? The plan also doesn't say what MR-005 and CI-002 require."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-046 criterion 3",
+        "XE-046 criterion 4"
+      ],
+      "question": "Criterion 3 says the SubagentStart path doesn't change. Criterion 4 requires that a subagent emits whether or not a marker exists. Does the SubagentStart path already ignore the marker, so the test only asserts existing behavior? Or does it need a change that criterion 3 forbids?"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "e825931bdae748b0a5585bd6d0440793",
+  "doc": "DESIGN.md",
+  "item": "MR-005",
+  "scope_sha256": "8d94222a2c27e45c2572e12eac2495cd1b2d74ee3d766bef3212d7d73f18c36f",
+  "reviewed_at": "2026-11-23T19:27:38+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 4837,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 6382,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 6382,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6382,
+      "cache_creation_input_tokens": 4877,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4877,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12899,
+      "output_tokens": 1767,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1272,
+      "cache_read_input_tokens": 11259,
+      "cache_creation_input_tokens": 437,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 437,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 17641,
+    "write": 11696
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "MR-005.1"
+      ],
+      "question": "In 'share of those lines that cleared', does 'those lines' mean only the cheaper-tier lines counted by cheap_recommended, or all scored lines as MR-001.5 may define it? The two readings give different agreement values on mixed-tier histories, and the MR-005.3 tests pass under either."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "MR-005.5"
+      ],
+      "question": "The version bump is tied to XE-046.5 and CI-002, which the plan doesn't state. What is the version rule if MR-005 ships in a separate pull request from XE-046?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "MR-005 Links introduced",
+        "MR-005.2"
+      ],
+      "question": "The intro says lines keeps its meaning so older refusals read the same under the same name. MR-005.2 changes what needs_lines is compared with, from lines to cheap_recommended. Does a reader of an older refusal read needs_lines against lines or against cheap_recommended?"
+    }
+  ]
+}
