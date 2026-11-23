@@ -2390,6 +2390,18 @@ goal_run built one item at a time: `next` returned `remaining[0]` and `merged` r
 7. No gate, `CODEOWNERS` path, live goal or other item changes, apart from the proof goal's own brief and run folder under criterion 6.
 
 
+### GO-025 — `/gstack-viewer` opens the agent viewer for the goal that's running
+
+**Status:** planned. Declared 2026-11-22 on Dorian's instruction ("It should run the current goal is using. Build it.") and approved the same day. Goal `swarm-agent-view--s2` shipped the viewer as `swarm.py viewer-start <run>` and `viewer-stop <run>` (gstack-execution 0.113.0), but its allowed paths held no `commands/` file, so there was no slash command and the caller had to know the run folder.
+
+**Links introduced:** none stored. `goal_run.py swarm-run` reads two links `goal_run.py` already writes: a goal's swarm run is `GSTACK_GOAL_RUN_DIR/<id>/swarm` (the `swarm_run` path `next` returns), and a goal is running when its `state.json` has no `outcome` (the test `start` uses). It writes nothing.
+
+1. `goal_run.py swarm-run [<id>]` prints one path, the swarm run folder of the goal to view, and exits 0. With `<id>`, it's `GSTACK_GOAL_RUN_DIR/<id>/swarm`, refused (exit 1, named) when that run has no `state.json` or no `swarm/` folder. Without `<id>`, it's the one goal under `GSTACK_GOAL_RUN_DIR` whose `state.json` has no `outcome` and whose `swarm/` folder exists. None: exit 1, "no goal is running a swarm". More than one: exit 1, naming each id; it never picks. A named goal may have ended: its `swarm/` folder can still be viewed or stopped, which is how a viewer left running after its goal ended is stopped. `GSTACK_GOAL_RUN_DIR` unset: exit 1, named, with or without `<id>`, the refusal `run_dir` already gives. It writes nothing.
+2. `commands/gstack-viewer.md`: `/gstack-viewer [stop] [<goal-id>]` runs `goal_run.py swarm-run`, then `swarm.py viewer-start` (or `viewer-stop`) on that path, and relays swarm.py's output as written: the address to open, `viewer: unavailable` or `viewer: not running`. A refusal from `swarm-run` is relayed as written. With several running goals it then asks which and re-runs with the chosen id as `<goal-id>`. With none running, it says a viewer left from an ended goal is stopped by naming that goal. It says once that it works only where the viewer does (a Mac with `npx`), so a cloud session gets `unavailable`.
+3. `swarm.py` and `hooks/hooks.json` don't change.
+4. `test_goal_run.py` gets cases: one running swarm goal is found; an ended goal and a running serial goal (no `swarm/` folder) are passed over; two running are refused naming both; none is refused; a named id with no `swarm/` folder is refused; `GSTACK_GOAL_RUN_DIR` unset is refused; no file under the run folder changes.
+5. gstack-execution moves to 0.114.0 with its marketplace entry, and the top-level marketplace version moves (CI-002), by text replace.
+
 ## Twelfth objective: the Chief of Staff
 
 Opened 2026-10-06. That morning the marketplace took in eight department agents from headcount (`cbrock84/headcount` at `98d1c17`, MIT): finance, people, it-operations, security, pmo, operations, corporate-strategy and customer-experience. Each one is good inside its own remit. None of them knows the others exist, and nobody owns routing an ask between them, running them on a schedule or keeping track of what they decided. Dorian asked for a Chief of Staff to do that job, built to three outside sources: Anthropic’s Claude Managed Agents article, the Agent SDK cookbook’s Chief of Staff agent, and AI Maker’s “AI Chief of Staff setup” post (all read 2026-10-06).
@@ -3277,3 +3289,4 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-17: CC-002's store location amended on Dorian's choice ("Mounts only"): the workspace or Google Drive mount, or `--store`; no `drive_rest.py` writer. Criterion 6's Drive evidence recorded ("Record and build").
 - 2026-11-17: CC-002.4 states that the source-identity match ignores who or which device staged the case (spec review C1).
 - 2026-11-17: CC-002's ledger lines carry the source key, and CC-002.4's match reads it from the ledger, so it holds after deletion (spec review C1, second run).
+- 2026-11-22: GO-025 added under goal mode on Dorian's instruction ("It should run the current goal is using. Build it."): `/gstack-viewer` and `goal_run.py swarm-run` find the swarm run of the goal that's running.
