@@ -2392,7 +2392,7 @@ goal_run built one item at a time: `next` returned `remaining[0]` and `merged` r
 
 ### GO-025 — `/gstack-viewer` opens the agent viewer for the goal that's running
 
-**Status:** planned. Declared 2026-11-22 on Dorian's instruction ("It should run the current goal is using. Build it.") and approved the same day. Goal `swarm-agent-view--s2` shipped the viewer as `swarm.py viewer-start <run>` and `viewer-stop <run>` (gstack-execution 0.113.0), but its allowed paths held no `commands/` file, so there was no slash command and the caller had to know the run folder.
+**Status:** building. Declared 2026-11-22 on Dorian's instruction ("It should run the current goal is using. Build it.") and approved the same day. Goal `swarm-agent-view--s2` shipped the viewer as `swarm.py viewer-start <run>` and `viewer-stop <run>` (gstack-execution 0.113.0), but its allowed paths held no `commands/` file, so there was no slash command and the caller had to know the run folder.
 
 **Links introduced:** none stored. `goal_run.py swarm-run` reads two links `goal_run.py` already writes: a goal's swarm run is `GSTACK_GOAL_RUN_DIR/<id>/swarm` (the `swarm_run` path `next` returns), and a goal is running when its `state.json` has no `outcome` (the test `start` uses). It writes nothing.
 

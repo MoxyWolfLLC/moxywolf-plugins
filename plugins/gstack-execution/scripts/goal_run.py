@@ -73,6 +73,9 @@
         goal merge is recorded (GO-012.2); resume then merges, records and synchronizes it
   goal_run.py record <id>
         prints the run record, goal-runs/<id>/RESULT.md
+  goal_run.py swarm-run [<id>]
+        prints the swarm run folder to view (GO-025): the named goal's, or the one goal running a swarm;
+        several running or none is refused. Writes nothing.
 
 Run it from a checkout of the repository it governs; an installed plugin copy has no main,
 CODEOWNERS or goal folder to read and refuses. State lives in GSTACK_GOAL_RUN_DIR/<id>/ (a durable folder, like the review records): state.json,
@@ -133,13 +136,18 @@ def checkout_repo(repo, repo_name):
 Refused = gguard.Refused
 
 
-def run_dir(goal_id):
+def run_root():
     root = os.environ.get("GSTACK_GOAL_RUN_DIR")
     if not root:
         raise Refused("set GSTACK_GOAL_RUN_DIR to a durable folder (the vault), not the session's home")
+    return Path(root)
+
+
+def run_dir(goal_id):
+    root = run_root()
     if not ge.GOAL_ID.match(goal_id):
         raise Refused(f"goal id must be lowercase letters, digits and hyphens, got: {goal_id}")
-    return Path(root, goal_id)
+    return root / goal_id
 
 
 def load(goal_id):
@@ -147,6 +155,35 @@ def load(goal_id):
     if not f.is_file():
         raise Refused(f"no run of {goal_id}; start it first")
     return json.loads(f.read_text())
+
+
+def swarm_run(goal_id=None):
+    """GO-025: the swarm run folder to view. A named goal may have ended; unnamed, it's the one running swarm goal.
+    Reads state.json and folders only; writes nothing."""
+    if goal_id:
+        d = run_dir(goal_id)
+        if not (d / "state.json").is_file():
+            raise Refused(f"no run of {goal_id} under {d.parent}")
+        if not (d / "swarm").is_dir():
+            raise Refused(f"{goal_id}'s run has no swarm folder; it isn't a parallel goal")
+        return d / "swarm"
+    running = []
+    for f in sorted(run_root().glob("*/state.json")):
+        if not (f.parent / "swarm").is_dir():
+            continue                                   # a serial goal has nothing to view
+        try:
+            st = json.loads(f.read_text())
+        except (OSError, ValueError) as e:
+            raise Refused(f"can't read {f}: {e}")
+        if not isinstance(st, dict):
+            raise Refused(f"can't read {f}: not a JSON object")
+        if st.get("outcome") is None:                  # the running test start uses
+            running.append(f.parent)
+    if not running:
+        raise Refused("no goal is running a swarm; name the goal to view or stop an ended goal's viewer")
+    if len(running) > 1:
+        raise Refused("several goals are running a swarm, name one: " + ", ".join(d.name for d in running))
+    return running[0] / "swarm"
 
 
 def save(state):
@@ -1445,7 +1482,7 @@ def main(argv, repo=gb.ROOT):
     if rc == 2 and argv[:1] == ["may"]:
         return rc                                     # GO-013 review F3: a usage error reads and delivers nothing
     goal_id = (argv + [None, None])[1]
-    if goal_id and argv[0] not in ("record",) and ge.GOAL_ID.match(goal_id or "") and os.environ.get("GSTACK_GOAL_RUN_DIR"):
+    if goal_id and argv[0] not in ("record", "swarm-run") and ge.GOAL_ID.match(goal_id or "") and os.environ.get("GSTACK_GOAL_RUN_DIR"):
         msgs = outbox(goal_id)
         if msgs:                                      # GO-006: relay each one to Dorian
             print(json.dumps({"messages": [{k: m[k] for k in ("n", "kind", "trigger", "waits", "text")} for m in msgs]}))
@@ -1586,6 +1623,9 @@ def _main(argv, repo=gb.ROOT):
                 raise Refused("complete needs GITHUB_TOKEN: run it under agent_token.py exec --")
             print(json.dumps(complete(goal_id, int(opts["--pr"]), opts["--merge"], gb.github(token),
                                       opts.get("--repo", REPO))))
+            return 0
+        if cmd == "swarm-run" and len(argv) <= 2:
+            print(swarm_run(goal_id))
             return 0
         if cmd == "record" and goal_id and not opts:
             print(record(goal_id), end="")
