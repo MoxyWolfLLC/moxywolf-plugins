@@ -431,6 +431,17 @@ class Selector(unittest.TestCase):
         self.assertIn("standard 20 items, 18 cleared", r.stdout)
         self.assertIn("agreement 0.9 over 20", r.stdout)
 
+    def test_route_gate_counts_cheaper_tier_recommendations_not_every_line(self):
+        # MR-005: twenty floor lines and one cleared standard line read agreement 1 over 1; that is one case, not twenty
+        floor = json.dumps({"review_id": "f", "recommendation": {"tier": "floor", "rule": "cross_file", "mode": "shadow"},
+                            "declared_tier": "floor", "override": None,
+                            "outcome": {"rounds_used": 1, "blocking_findings": 0, "unknowns_raised": 0, "release_outcome": "agent_merge_autonomous"}}) + "\n"
+        self.ledger().write_text(floor * 20 + self._lines(1, 1))
+        r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING="route")
+        self.assertEqual((r.returncode, ms["mode"], ms["route_refused"]["reason"]), (5, "shadow", "insufficient_history"), r.stderr)
+        self.assertEqual((ms["route_refused"]["lines"], ms["route_refused"]["cheap_recommended"], ms["route_refused"]["agreement"]), (21, 1, 1), r.stderr)
+        self.assertIn("1 of them standard or light", r.stderr)
+
     # ---- MR-001.7: an override wins, is recorded, and may not go below light ----
 
     # ---- DC-001.7: the selector calls the council; shadow reads Jev, quorum reads the majority, a tie is the dearer tier ----

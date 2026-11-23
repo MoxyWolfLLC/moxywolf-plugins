@@ -645,7 +645,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "term",
       "skos:prefLabel": "route",
-      "skos:definition": "model selection mode in which the recommended tier is the tier the build is told to run on; refused with insufficient_history until the ledger holds at least 20 scored lines at agreement 0.90 (MR-001.6)"
+      "skos:definition": "model selection mode in which the recommended tier is the tier the build is told to run on; refused with insufficient_history until the ledger holds at least 20 scored standard or light recommendations at agreement 0.90 (MR-001.6, MR-005)"
     },
     {
       "id": "model_selection_missing",
@@ -680,7 +680,7 @@
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "review_outcome",
       "skos:prefLabel": "insufficient_history",
-      "skos:definition": "route mode was refused because the model-selection ledger holds fewer than 20 scored lines or agreement below 0.90, both printed with the refusal; the run fell back to shadow (MR-001.6)"
+      "skos:definition": "route mode was refused because the model-selection ledger holds fewer than 20 scored standard or light recommendations or agreement below 0.90, both printed with the refusal; the run fell back to shadow (MR-001.6, MR-005)"
     },
     {
       "id": "override_below_floor",

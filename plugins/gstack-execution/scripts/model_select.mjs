@@ -252,8 +252,10 @@ export function scoreLines(lines) {
 }
 
 export function routeAllowed(summary) {
-  const ok = summary.scored >= ROUTE_MIN_LINES && summary.agreement >= ROUTE_MIN_AGREEMENT;
-  return { ok, lines: summary.scored, agreement: Number(summary.agreement.toFixed(3)), needs_lines: ROUTE_MIN_LINES, needs_agreement: ROUTE_MIN_AGREEMENT };
+  // MR-005: the 20 counts the lines agreement is read over (standard and light), not every shadow line,
+  // so one cleared cheaper line among twenty floor lines can't open route mode at agreement 1 over 1.
+  const ok = summary.cheap_recommended >= ROUTE_MIN_LINES && summary.agreement >= ROUTE_MIN_AGREEMENT;
+  return { ok, lines: summary.scored, cheap_recommended: summary.cheap_recommended, agreement: Number(summary.agreement.toFixed(3)), needs_lines: ROUTE_MIN_LINES, needs_agreement: ROUTE_MIN_AGREEMENT };
 }
 
 // MR-001.4: a review that never reached record-release has no line. The score names how many such
@@ -334,7 +336,7 @@ async function recommend(packetPath, designPath) {
     if (!gate.ok) {
       mode = 'shadow';
       route_refused = { reason: 'insufficient_history', ...gate, ledger: file };
-      console.error(`route refused: insufficient_history (${gate.lines} scored lines, agreement ${gate.agreement}; needs ${gate.needs_lines} at ${gate.needs_agreement}). Running in shadow mode.`);
+      console.error(`route refused: insufficient_history (${gate.lines} scored lines, ${gate.cheap_recommended} of them standard or light, agreement ${gate.agreement}; needs ${gate.needs_lines} standard or light at ${gate.needs_agreement}). Running in shadow mode.`);
     }
   } else if (wanted === 'quorum') {
     const gate = councilGate(env);

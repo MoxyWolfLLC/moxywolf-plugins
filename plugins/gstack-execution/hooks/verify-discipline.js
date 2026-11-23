@@ -19,7 +19,8 @@
 //
 // "Once" is enforced with a marker file keyed on the session id, so a session
 // that DID get the block at start never gets it twice, and the prompt path
-// never repeats it on every turn.
+// never repeats it on every turn. SessionStart reads the marker only on a fresh
+// `startup` (XE-046); after compaction or a clear the block is sent again.
 //
 // Output contract (matching ponytail's, which is the working reference):
 //   native Claude SessionStart / UserPromptSubmit — raw stdout is the context
@@ -140,10 +141,12 @@ if (EVENT === 'SubagentStart') {
 
 readStdin((raw) => {
   let sessionId = '';
+  let source = '';
   try {
     // Strip a UTF-8 BOM some shells prepend when piping (breaks JSON.parse)
     const data = JSON.parse(raw.replace(/^\uFEFF/, ''));
     sessionId = typeof data.session_id === 'string' ? data.session_id : '';
+    source = typeof data.source === 'string' ? data.source : '';
   } catch {
     // no payload — SessionStart still emits; the prompt path stays silent
   }
@@ -157,7 +160,11 @@ readStdin((raw) => {
     process.exit(0);
   }
 
-  // SessionStart
+  // SessionStart. XE-046: in a cloud session the prompt fallback can deliver the
+  // block before the late-registered SessionStart fires, so a fresh start with a
+  // marker already has it. Every other source (compact, clear, resume, fork, none)
+  // may have lost it, so those deliver regardless: a duplicate beats no rules.
+  if (sessionId && source === 'startup' && alreadyInjected(sessionId)) process.exit(0);
   emit(context);
   if (sessionId) markInjected(sessionId);
   process.exit(0);
