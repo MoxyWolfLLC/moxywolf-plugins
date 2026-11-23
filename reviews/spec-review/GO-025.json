@@ -1,28 +1,39 @@
 {
   "schema": "spec-review/3",
-  "review_id": "9c9b60c9a6814fd68f414d6595278387",
+  "review_id": "b7604acac49d4de1bc3a6ffacd6bc305",
   "doc": "DESIGN.md",
   "item": "GO-025",
-  "scope_sha256": "4b4e4d55c7e0adddf2fcd7ef12632df624deaf399a90ca363bcbbd962cd15259",
-  "reviewed_at": "2026-11-23T00:17:56+00:00",
+  "scope_sha256": "74f0764f7a72fc1c587c95e0a010d98ff8c0ca94c2192f0336a45e9afca71480",
+  "reviewed_at": "2026-11-23T04:12:48+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 2039,
+      "output_tokens": 3506,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 6694,
+      "cache_creation_input_tokens": 6781,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 6694,
+        "ephemeral_5m_input_tokens": 6781,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 10326,
-      "output_tokens": 1985,
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6781,
+      "cache_creation_input_tokens": 3546,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3546,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11967,
+      "output_tokens": 2296,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -34,65 +45,20 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 1197,
-      "cache_read_input_tokens": 6694,
-      "cache_creation_input_tokens": 2641,
+      "output_tokens": 259,
+      "cache_read_input_tokens": 10327,
+      "cache_creation_input_tokens": 281,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 2641,
+        "ephemeral_5m_input_tokens": 281,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 6694,
-    "write": 9335
+    "read": 17108,
+    "write": 10608
   },
   "contradictions": [],
-  "ambiguities": [
-    {
-      "id": "A1",
-      "requirements": [
-        "GO-025.1"
-      ],
-      "question": "Does 'no `outcome`' mean the key is absent, or also null or empty? What does swarm-run do when `state.json` is unreadable or malformed?"
-    },
-    {
-      "id": "A2",
-      "requirements": [
-        "GO-025.2",
-        "GO-025.3"
-      ],
-      "question": "Does `swarm.py` already provide `viewer-start` and `viewer-stop` with the outputs GO-025.2 relays (the address, `viewer: unavailable`, `viewer: not running`)? It cannot change under GO-025.3, so the plan has to say."
-    },
-    {
-      "id": "A3",
-      "requirements": [
-        "GO-025.1",
-        "GO-025.2"
-      ],
-      "question": "'Running' is defined as no `outcome` in Links introduced and as no `outcome` plus an existing `swarm/` folder in GO-025.1. Which definition do 'several running goals' and 'none running' in GO-025.2 use? A running serial goal without `swarm/` could count in one reading and not the other."
-    },
-    {
-      "id": "A4",
-      "requirements": [
-        "GO-025.2"
-      ],
-      "question": "Is a first argument of `stop` always the verb, or could it be a goal id? What does `stop` with no id do when the only leftover viewer belongs to an ended goal?"
-    },
-    {
-      "id": "A5",
-      "requirements": [
-        "GO-025.5"
-      ],
-      "question": "What value does the top-level marketplace version move to? The plan gives only 0.114.0 for gstack-execution."
-    },
-    {
-      "id": "A6",
-      "requirements": [
-        "GO-025.5"
-      ],
-      "question": "Does 'by text replace' mean editing the version strings directly instead of using `version_bump.py`, or is it a description of what `version_bump.py` does?"
-    }
-  ]
+  "ambiguities": []
 }

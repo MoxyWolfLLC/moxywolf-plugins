@@ -42,6 +42,8 @@ They don't dispatch workers, write run state, merge, deploy or see the holdout.
   swarm.py status <run>
   swarm.py viewer-start <run>                                 optional: start the agent-flow viewer (Mac only, 127.0.0.1)
   swarm.py viewer-stop <run>                                  stop it; neither command writes swarm.json or the event log
+  swarm.py goal-run [<goal id>]                               the swarm run to view (GO-025): the named goal's, or the one goal
+                                                              under GSTACK_GOAL_RUN_DIR running a swarm; writes nothing
 """
 import argparse
 import fcntl
@@ -774,7 +776,50 @@ def viewer_stop(run):
     print("viewer: stopped"); return 0
 
 
+def goal_run(goal_id=None):
+    """GO-025: the swarm run folder to view, read from GSTACK_GOAL_RUN_DIR alone, so the installed plugin can run it
+    (goal_run.py needs its checkout). A named goal may have ended; unnamed, it's the one goal whose state.json has no
+    outcome and that has a swarm/ folder. Several or none is refused, never picked. Reads only."""
+    root = os.environ.get("GSTACK_GOAL_RUN_DIR")
+    if not root:
+        raise ValueError("set GSTACK_GOAL_RUN_DIR to the folder goal runs live in")
+    root = Path(root)
+    if goal_id is not None:
+        if goal_id in ("", ".", "..") or Path(goal_id).name != goal_id:
+            raise ValueError(f"not a goal id: {goal_id!r}")
+        d = root / goal_id
+        if not (d / "state.json").is_file():
+            raise ValueError(f"no run of {goal_id} under {root}")
+        if not (d / "swarm").is_dir():
+            raise ValueError(f"{goal_id}'s run has no swarm folder; it isn't a parallel goal")
+        return d / "swarm"
+    running = []
+    for f in sorted(root.glob("*/state.json")):
+        if not (f.parent / "swarm").is_dir():
+            continue                                   # a serial goal has nothing to view
+        try:
+            st = json.loads(f.read_text())
+        except (OSError, ValueError) as e:
+            raise ValueError(f"can't read {f}: {e}")
+        if not isinstance(st, dict):
+            raise ValueError(f"can't read {f}: not a JSON object")
+        if st.get("outcome") is None:                  # goal_run.py's own test of a run in progress
+            running.append(f.parent)
+    if not running:
+        raise ValueError("no goal is running a swarm; name the goal to view or stop an ended goal's viewer")
+    if len(running) > 1:
+        raise ValueError("several goals are running a swarm, name one: " + ", ".join(d.name for d in running))
+    return running[0] / "swarm"
+
+
 def main(argv):
+    if argv[:1] == ["goal-run"]:                       # GO-025: its own grammar, one optional id, no options
+        if len(argv) > 2 or any(t.startswith("-") for t in argv[1:]):
+            print("usage: swarm.py goal-run [<goal id>]", file=sys.stderr); return 2
+        try:
+            print(goal_run(argv[1] if len(argv) == 2 else None)); return 0
+        except ValueError as e:
+            print(f"swarm: goal-run refused: {e}", file=sys.stderr); return 1
     viewer_cmds = ("viewer-start", "viewer-stop")
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False)
     p.add_argument("cmd"); p.add_argument("path"); p.add_argument("id", nargs="?")
