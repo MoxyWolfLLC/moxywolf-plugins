@@ -187,6 +187,7 @@ The store is found on the workspace or Google Drive mount, or given with `--stor
 
 ## Version History
 
+- **0.16.0**: MR-006. The decisions ledger resolves under `GSTACK_HISTORY_DIR` when set, and `gate` refuses with `insufficient_history` and `history: "unset"` without it.
 - **0.15.0**: DC-003. `decider_council.py ask --budget <file> --run <id>` checks a run's budget before each call and spends only through a dedicated, capped AI Gateway key bound to the run; `budget init|show|recover` manage the file. Bounded, not guaranteed: Vercel's budget is a soft cap. Tests: `scripts/test_dc003_*.py`.
 
 - **0.14.0**: CC-002. Opt-in, redacted Council replay cases in the vault by project: `council_cases.py` with the publish gate, approved audience, single writer, retention, `verify` and readiness `status`. `/deliberate` asks for a rating and then, only when allowed, whether to save a case. `/council-stats cases` reports readiness. Test: `scripts/test_council_cases.py`.
