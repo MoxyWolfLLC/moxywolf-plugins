@@ -458,6 +458,16 @@ class Selector(unittest.TestCase):
             r, ms = self.run_select("recommend", str(self.pfile), str(self.design), answers={}, GSTACK_MODEL_ROUTING=mode, GSTACK_HISTORY_DIR="")
             self.assertEqual((r.returncode, ms["mode"], ms[key]["reason"], ms[key]["history"]), (5, "shadow", "insufficient_history", "unset"), (mode, r.stderr))
             self.assertIn("history unset", r.stderr)
+        # MR-006.1 (review F1): the selector's own fallback. Unset, `score` reads the review root's ledger;
+        # set to an empty history folder, it reads that folder and nothing under the review root
+        r, _ = self.run_select("score", "--repo", str(self.d), GSTACK_HISTORY_DIR="")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(str(self.ledger()), r.stdout + r.stderr)
+        self.assertIn("standard 20 items, 18 cleared", r.stdout)
+        empty = self.root / "empty-hist"; empty.mkdir()
+        r, _ = self.run_select("score", "--repo", str(self.d), GSTACK_HISTORY_DIR=str(empty))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("standard 0 items", r.stdout)
         # MR-006.1: record-release's resolver, the writer side of the same ledger
         saved = pr.REVIEW_DIR, os.environ.get("GSTACK_HISTORY_DIR")
         pr.REVIEW_DIR = self.root / "reviews"
