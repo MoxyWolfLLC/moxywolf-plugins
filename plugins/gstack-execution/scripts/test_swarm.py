@@ -698,5 +698,123 @@ class Viewer(unittest.TestCase):
         self.assertTrue(err.getvalue().startswith("viewer: unavailable"))
 
 
+
+class GoalRun(unittest.TestCase):
+    """GO-025: swarm.py goal-run finds the swarm run of the goal that's running, writing nothing."""
+    def setUp(self):
+        import os
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name, "runs")
+        self.root.mkdir()
+        (self.root / "hosts").mkdir()                  # swarm.py's host records sit beside the runs
+        self.saved = os.environ.get("GSTACK_GOAL_RUN_DIR")
+        os.environ["GSTACK_GOAL_RUN_DIR"] = str(self.root)
+
+    def tearDown(self):
+        import os
+        os.environ.pop("GSTACK_GOAL_RUN_DIR", None) if self.saved is None else os.environ.__setitem__("GSTACK_GOAL_RUN_DIR", self.saved)
+        self.tmp.cleanup()
+
+    def goal(self, gid, outcome=None, swarm_dir=True):
+        d = self.root / gid
+        d.mkdir()
+        st = {"goal": gid, "messages": []}
+        if outcome:
+            st["outcome"] = outcome
+        (d / "state.json").write_text(json.dumps(st))
+        if swarm_dir:
+            (d / "swarm").mkdir()
+            (d / "swarm" / "swarm.json").write_text("{}")
+
+    def snapshot(self):
+        return {str(f): (f.read_bytes(), f.stat().st_mtime_ns) for f in self.root.rglob("*") if f.is_file()}
+
+    def run_main(self, *argv):
+        import contextlib
+        import io
+        out, err = io.StringIO(), io.StringIO()
+        before = self.snapshot()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = swarm.main(["goal-run", *argv])
+        self.assertEqual(before, self.snapshot(), "goal-run changed a file under the run folder")
+        return rc, out.getvalue().strip(), err.getvalue().strip()
+
+    def test_the_one_running_swarm_goal_is_found(self):
+        self.goal("live")
+        self.goal("ended", outcome="complete")
+        self.goal("serial", swarm_dir=False)
+        self.assertEqual(self.run_main(), (0, str(self.root / "live" / "swarm"), ""))
+
+    def test_two_running_are_refused_naming_both(self):
+        self.goal("alpha")
+        self.goal("beta")
+        rc, out, err = self.run_main()
+        self.assertEqual((rc, out), (1, ""))
+        self.assertIn("alpha", err)
+        self.assertIn("beta", err)
+
+    def test_none_running_is_refused(self):
+        self.goal("ended", outcome="stopped")
+        self.goal("serial", swarm_dir=False)
+        rc, out, err = self.run_main()
+        self.assertEqual((rc, out), (1, ""))
+        self.assertIn("no goal is running a swarm", err)
+
+    def test_a_named_goal_may_have_ended_and_must_have_a_swarm_folder(self):
+        self.goal("ended", outcome="complete")
+        self.goal("serial", swarm_dir=False)
+        self.assertEqual(self.run_main("ended"), (0, str(self.root / "ended" / "swarm"), ""))
+        for gid, why in (("serial", "no swarm folder"), ("missing", "no run of missing"), ("..", "not a goal id"),
+                         ("a/b", "not a goal id")):
+            rc, out, err = self.run_main(gid)
+            self.assertEqual((rc, out), (1, ""), gid)
+            self.assertIn(why, err)
+
+    def test_an_unreadable_state_is_refused_not_skipped(self):
+        self.goal("live")
+        (self.root / "broken" / "swarm").mkdir(parents=True)
+        (self.root / "broken" / "state.json").write_text("{not json")
+        rc, out, err = self.run_main()
+        self.assertEqual((rc, out), (1, ""))
+        self.assertIn("broken", err)
+
+    def test_run_dir_unset_is_refused_with_or_without_an_id(self):
+        import os
+        os.environ.pop("GSTACK_GOAL_RUN_DIR")
+        for argv in ((), ("live",)):
+            rc, out, err = self.run_main(*argv)
+            self.assertEqual((rc, out), (1, ""))
+            self.assertIn("GSTACK_GOAL_RUN_DIR", err)
+
+    def test_usage_errors_exit_2(self):
+        for argv in (("a", "b"), ("--x",)):
+            self.assertEqual(self.run_main(*argv)[0], 2)
+
+    def test_the_viewer_command_frontmatter_is_quoted(self):
+        """Review F1 (second review): a colon or a leading [ in a plain YAML scalar breaks the command's metadata.
+        Stdlib only: each value must be one double-quoted string, which YAML and JSON read the same way."""
+        head = (Path(__file__).resolve().parents[1] / "commands" / "gstack-viewer.md").read_text().split("---")[1]
+        fields = dict(l.split(": ", 1) for l in head.strip().splitlines())
+        self.assertEqual(set(fields), {"description", "allowed-tools", "argument-hint"})
+        self.assertEqual(json.loads(fields["argument-hint"]), "[stop] [<goal-id>]")
+        self.assertIn("GO-025", json.loads(fields["description"]))
+
+    def test_an_installed_plugin_copy_runs_it(self):
+        """Review F1: /gstack-viewer runs ${CLAUDE_PLUGIN_ROOT}/scripts/swarm.py from an installed copy, with no
+        repository (no .github/) around it."""
+        import os
+        import shutil
+        self.goal("live")
+        plugin = Path(self.tmp.name, "installed", "cache", "gstack-execution")
+        shutil.copytree(Path(__file__).resolve().parents[1], plugin,
+                        ignore=shutil.ignore_patterns("node_modules", "__pycache__"))
+        self.assertFalse(any((p / ".github").exists() for p in plugin.parents))
+        before = self.snapshot()
+        r = subprocess.run([sys.executable, str(plugin / "scripts" / "swarm.py"), "goal-run"], capture_output=True,
+                           text=True, cwd=self.tmp.name, env={**os.environ, "GSTACK_GOAL_RUN_DIR": str(self.root)},
+                           timeout=60)
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, str(self.root / "live" / "swarm")), r.stderr)
+        self.assertEqual(before, self.snapshot())
+
 if __name__ == "__main__":
     unittest.main()
