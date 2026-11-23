@@ -1,0 +1,88 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "a8a79a6319c04ad2a4c5d6183b72b562",
+  "doc": "DESIGN.md",
+  "item": "XE-047",
+  "scope_sha256": "f836571d9354e1a353ee4d251158f53df5d7ce24333d0b9b18cc3cf065f2b35f",
+  "reviewed_at": "2026-11-23T20:40:26+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2423,
+      "cache_read_input_tokens": 6241,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 6241,
+      "cache_creation_input_tokens": 2463,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 2463,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 10344,
+      "output_tokens": 1939,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1118,
+      "cache_read_input_tokens": 8704,
+      "cache_creation_input_tokens": 455,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 455,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 21186,
+    "write": 2918
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-047 criterion 2",
+        "XE-047 criterion 4"
+      ],
+      "question": "Criterion 4 says no runtime behaviour changes and names only installed(), choose_reviewer and openrouter_key as untouched. Criterion 2 changes peer_review.py --selftest, which is runtime code in peer_review.py. Does a selftest edit count as a runtime behaviour change, and is the list in criterion 4 exhaustive?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-047 criterion 5",
+        "XE-047 criterion 4"
+      ],
+      "question": "Criterion 4 says there are no runtime behaviour changes, but criterion 5 requires a minor version bump. Is a minor bump intended for a test-only and selftest-only change, or should it be a patch bump?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "XE-047 criterion 5"
+      ],
+      "question": "The clause 'once with MR-006 when the two ship in one pull request' depends on MR-006, which the plan doesn't define. What does MR-006 require, and does it also bump the versions? If both bump them in one pull request, is the result one minor bump or two?"
+    }
+  ]
+}

@@ -345,6 +345,18 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 **What's not taken.** Loading rules by condition (Jev Engineering's conditional AGENTS.md idea): the block is about 1,100 tokens per copy and every check applies to every task, so there's nothing to load conditionally yet. The ponytail block showed the same duplicate; ponytail's hook isn't in this repository.
 
+### XE-047 — A test that pretends no reviewer is installed hides the API credential too
+
+**Status:** planned. Declared 2026-11-23 on Dorian's approval ("Approve XE-047"). Found while building XE-046: on the Mac, with `GSTACK_OPENROUTER_ENV` set as every review-host env file sets it, `run_all_tests.py` reported 129 of 131 passed. `test_reviewer_routing.py` and `peer_review.py --selftest` failed, and both passed with the variable unset. `installed()` counts an `openrouter` reviewer as available whenever its credential resolves, while the test helper `_on_path` and the selftest's unavailable-tool step only hide CLIs from `PATH`. Reproduced the same day in a Linux workspace with a temporary key file.
+
+**Links introduced:** none.
+
+1. `test_reviewer_routing.py`'s `_on_path` removes `GSTACK_OPENROUTER_ENV` from the environment for as long as it is active, as well as faking `shutil.which`, and restores the environment when it exits.
+2. `peer_review.py --selftest`'s unavailable-tool step removes `GSTACK_OPENROUTER_ENV` for that step and restores it afterwards, so the selftest's later steps see the environment they saw before.
+3. `test_reviewer_routing.py` gains a case that sets `GSTACK_OPENROUTER_ENV` to a temporary key file, then asserts that `choose_reviewer("claude")` inside `_on_path()` still raises `review_unavailable`, and that `peer_review.py --selftest`, run as a subprocess with that variable set, exits 0.
+4. No runtime behaviour changes: `installed()`, `choose_reviewer` and `openrouter_key` are untouched.
+5. gstack-execution moves a minor version with its marketplace entry, and the top-level marketplace version moves (CI-002), by text replace, once with MR-006 when the two ship in one pull request. `run_all_tests.py`, unedited, reports no failures on the Mac with `GSTACK_OPENROUTER_ENV` set.
+
 ### GO-016 — Goal-loop fixes folded in from the 2026-10-30 handoff
 
 **Status:** done. Built on `build/GA-011-goal-branch-lane`, PR #277 (opened as `moxywolf-agent`). Review `20261102-095221-2b1bda4-is7ze86r` (codex, gpt): round 1 seven blockers and round 2 two, all fixed, round 3 `fixes_verified`; the branch then had to be brought up to date with main (strict required checks), so a fresh review `20261102-105211-bb07c3f-9dxl5nid` (codex) ran at the new head: round 1 three blockers, round 2 one, all fixed, round 3 `fixes_verified`, 32/32 criteria met, at `f2be1a2`. Release handoff lane `wide`, `lane_in_force` `wide`, links verified, coverage covered. Dorian approved #277 on GitHub at `f2be1a2` (the CODEOWNERS paths `goal_guard.py` and `goal_checks.py`) and instructed the merge ("PR #277 is approved. Merge #277"); merged as `f4d34b3`, `record-release` recorded `agent_merge_on_instruction`. gstack-execution 0.98.0, marketplace 1.158.0. Not yet exercised in a live goal. Folded in at Dorian's instruction 2026-11-02 ("Fold the extras in").
@@ -2111,6 +2123,21 @@ On 2026-11-19 two harmless Agent calls without a `model` failed on the Cowork cl
 4. MR-001.6, the `gstack-build` command, the peer-review contract and the two `vocabulary.json` definitions (`route`, `insufficient_history`) say 20 standard or light recommendations.
 5. Versions move once with XE-046 when the two ship in one pull request, as XE-046.5 says (CI-002). `run_all_tests.py` names `test_model_select.py` among the suites it ran and reports no failures.
 
+### MR-006 — The cumulative ledgers have one home, `GSTACK_HISTORY_DIR`
+
+**Status:** planned. Declared 2026-11-23 on Dorian's approval ("New history dir"). Three ledgers are meant to accumulate across items: `model-selection/` (MR-001's route gate), `decisions/` (DC-001's council gate) and `model-routing/` (MR-003's ledger and CS-007's claim checks). All three resolve under `GSTACK_PEER_REVIEW_DIR`, and every review-host env file points that at the item's own folder, so each item starts an empty ledger. Of the 38 model-selection lines readable on 2026-11-23, no file held more than 20, spread over five folders. A gate that reads one of those files reads part of its history.
+
+**Links introduced:** one path link. `GSTACK_HISTORY_DIR` names the directory that holds `model-selection/`, `decisions/` and `model-routing/`. Dorian set it to `GitHub/Projects/MW Plugins/06 – Engineering/peer-reviews`, which the Projects repository tracks. A reader assumes a ledger there holds every line for its key. That holds only while every writer resolves the same directory, which is why the gates refuse without it (criterion 3). The refusal record gains one field of its own, `history: "unset"`.
+
+1. Every reader and writer of the three ledgers resolves its directory as `GSTACK_HISTORY_DIR` when it is set, else what it resolves today: `model_select.mjs` (`ledgerPath`), `peer_review.py` (`record-release`'s model-selection line), `decider_council.py` (`ledger_dir`), `route.py` (`ledger_dir`, which names its source on the ledger's first line as it does now) and `claim_check.py`. Review records, failure ledgers and goldfish records stay under `GSTACK_PEER_REVIEW_DIR`.
+2. `route.py aar` still finds `model-selection/` beside `model-routing/`, because both now sit under the same root.
+3. The two gates refuse without it. `model_select.mjs` in `route` or `quorum` mode refuses with `insufficient_history` and `history: "unset"` when `GSTACK_HISTORY_DIR` is unset and runs in shadow, and `decider_council.py gate` exits non-zero with the same reason and field. No new refusal reason is added (*Test the boundaries before adding item IDs*): with no ledger named there is no history to read. A gate that can't name the one ledger it should read has not examined its history (EV-001). Writers never refuse: a hook never blocks (MR-003), and a line written to today's location is still a line. `route.py` and `route.py aar` never refuse either. A line written to an old location while the variable is unset stays there; it isn't merged later, and no gate reads it.
+4. `review_host.sh` writes `export GSTACK_HISTORY_DIR=...` into the env file it prepares when the caller has it set, and prints that it is unset otherwise.
+5. The existing `insufficient_history` definition in `vocabulary.json` names this case too (an edit, not a new entry). The `gstack-build` command, the peer-review contract, and the council and model-router READMEs name the variable and what lives under it.
+6. Tests cover, for each of the five resolvers: `GSTACK_HISTORY_DIR` wins over `GSTACK_PEER_REVIEW_DIR`; with it unset the old location is used; `model_select.mjs` in `route` and `quorum` mode and `decider_council.py gate` refuse with `insufficient_history` and `history: "unset"` when it is unset; `aar` reads model-selection lines written under the history directory.
+7. The existing lines are merged once into the history directory by hand, not by code: model-selection lines deduplicated by `review_id`, decision lines by their line id, model-routing files copied by name. The status line records the counts from that run and the folders read.
+8. gstack-execution, council, model-router and chief-of-staff (whose `claim_check.py` changes under criterion 1) each move a minor version with their marketplace entries. The top-level marketplace version moves once for the pull request that carries MR-006 and XE-047 (CI-002). `run_all_tests.py` names the new tests and reports no failures.
+
 ### XE-039 — The off-repo check also catches a criterion that names a file outside the repos
 
 **Status:** planned. Declared on Dorian's approval, 2026-10-24.
@@ -3319,3 +3346,5 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 - 2026-11-22: GO-025 amended on Dorian's approval ("Approve the move") after review `20261122-194434-43bd54b-9m_1bpfh` F1: the lookup is `swarm.py goal-run`, not `goal_run.py swarm-run`, because `goal_run.py` and its imports refuse to run outside the moxywolf-plugins checkout and `/gstack-viewer` runs the installed plugin. Criterion 3 now lets `swarm.py` gain that one command; criterion 4's tests move to `test_swarm.py` with an installed-copy case.
 - 2026-11-23: XE-046 added on Dorian's approval ("I approve both A and B drafts"): SessionStart skips the verification block on `startup` when the session's marker exists, and still delivers it on every other source.
 - 2026-11-23: MR-005 added on the same approval, amending MR-001.6: the route gate's 20 counts standard and light recommendations, not every shadow line. The 0.30 `cross_file` bar stays ("keep the .30 bar").
+- 2026-11-23: XE-047 added on Dorian's approval ("Approve XE-047"): a test that pretends no reviewer is installed hides `GSTACK_OPENROUTER_ENV` too.
+- 2026-11-23: MR-006 added on Dorian's choice ("New history dir"): the model-selection, decisions and model-routing ledgers resolve under `GSTACK_HISTORY_DIR`, and the route and council gates refuse without it (as `insufficient_history`, no new vocabulary, after the spec review's C1).
