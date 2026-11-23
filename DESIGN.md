@@ -359,7 +359,7 @@ Not in this item: binding a bundle citation back to the real file and line. Add 
 
 ### XE-048 — The test runner keeps the real history folder out of every suite
 
-**Status:** planned. Declared 2026-11-23 on Dorian's approval ("yes, fix the leak"). Found the same day, after MR-006 merged: a local `run_all_tests.py` run with `GSTACK_HISTORY_DIR` set wrote two fixture ledgers, `model-selection/example-project.jsonl` and `o-r.jsonl`, into the real history folder. `test_goal_run.py` and `test_goal_delivery.py` point `GSTACK_PEER_REVIEW_DIR` at a temporary folder for isolation, and MR-006 makes `GSTACK_HISTORY_DIR` win over it. CI doesn't set the variable, so CI couldn't see it. The two files were moved out and the real ledgers checked: no fixture lines in them.
+**Status:** building. Declared 2026-11-23 on Dorian's approval ("yes, fix the leak"). Found the same day, after MR-006 merged: a local `run_all_tests.py` run with `GSTACK_HISTORY_DIR` set wrote two fixture ledgers, `model-selection/example-project.jsonl` and `o-r.jsonl`, into the real history folder. `test_goal_run.py` and `test_goal_delivery.py` point `GSTACK_PEER_REVIEW_DIR` at a temporary folder for isolation, and MR-006 makes `GSTACK_HISTORY_DIR` win over it. CI doesn't set the variable, so CI couldn't see it. The two files were moved out and the real ledgers checked: no fixture lines in them.
 
 **Links introduced:** none.
 

@@ -8,8 +8,14 @@ and ran, and fails when it finds none.
 ponytail: discovery is a glob for test_*.py plus a grep for --selftest entry points. No pytest, no
 config, no plugins -- the suites are stdlib-only and self-running by design. Each runs with cwd set
 to its own directory, because they import sibling modules by name.
+
+XE-048: each suite runs without GSTACK_HISTORY_DIR. A suite that isolates itself with a temporary
+GSTACK_PEER_REVIEW_DIR would otherwise write its fixtures into the real history folder, because the
+history folder wins (MR-006). A suite run on its own, outside this runner, isn't covered: drop the
+variable at import, as the MR-006 test modules do, or run it with the variable unset.
 """
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,7 +43,8 @@ def discover(root):
 
 
 def run(path, args, root):
-    r = subprocess.run([sys.executable, path.name] + args, cwd=str(path.parent),
+    env = {k: v for k, v in os.environ.items() if k != "GSTACK_HISTORY_DIR"}   # XE-048: never the real history
+    r = subprocess.run([sys.executable, path.name] + args, cwd=str(path.parent), env=env,
                        capture_output=True, text=True, timeout=TIMEOUT)
     return r.returncode, (r.stdout + r.stderr)
 
@@ -109,6 +116,19 @@ def _selftest():
         nested.mkdir(parents=True)
         (nested / "test_inner.py").write_text("print('fine')\n")
         assert nested / "test_inner.py" in discover(empty)[0], "only the top-level goals/ folder is left out"
+
+        # XE-048: a suite never sees the real history folder, even when the runner's environment names it
+        (empty / "test_history.py").write_text("import os, sys; sys.exit(3 if 'GSTACK_HISTORY_DIR' in os.environ else 0)\n")
+        saved = os.environ.get("GSTACK_HISTORY_DIR")
+        os.environ["GSTACK_HISTORY_DIR"] = str(empty / "real-history")
+        try:
+            assert main(["--root", str(empty)]) == 0, "a suite must not see GSTACK_HISTORY_DIR"
+        finally:
+            if saved is None:
+                os.environ.pop("GSTACK_HISTORY_DIR", None)
+            else:
+                os.environ["GSTACK_HISTORY_DIR"] = saved
+        assert not (empty / "real-history").exists()
 
         s, st = discover(ROOT)
         assert s and st, f"the real repository must discover checks, got {len(s)}/{len(st)}"
