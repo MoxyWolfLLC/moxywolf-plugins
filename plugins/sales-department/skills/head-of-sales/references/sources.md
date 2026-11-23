@@ -30,6 +30,22 @@ Origin: `DESIGN.md` (item CS-004, twelfth objective) and `CHARTER.md` at the rep
 
 **Authoritative for:** This department's remit and its lines with the other departments, the expanded return contract, and the Release Owner Gate. Where this skill and the design item disagree, the design item is right and this skill has drifted.
 
+## Bounded-delegation charter for sends
+
+Dorian Cougias · internal
+
+Origin: `~/workspace/reevo-reverse-engineering/bounded-delegation-charter.md`. Source date: 2026-11-07 (draft; bounds in §2 awaiting Dorian's confirmation, daily cap proposed at 50/day and unconfirmed). Retrieved 2026-11-07.
+
+**Authoritative for:** The bounds inside which the SDR operation's sends and CRM writes do not need a per-item approval: one offer, approved copy only, named approved lists only, email via SalesForge only, a daily cap, no pricing, discounts, commitments, contracts, timelines, or availability/version claims unless Dorian approved the exact wording, and every STOP honored immediately. It also states the kill switch, the review-table rule, the daily report, and the credit watch. Outside those bounds, the Release Owner Gate stands as written.
+
+## Ideal Customer Profile — OpenControls.ai
+
+MoxyWolf LLC · internal
+
+Origin: the Obsidian vault, `Projects/OpenControls/12-MARCOM/ICP — OpenControls.ai.md` (shared drive, "MoxyWolf Vault"). Source date: 2026-11-07. Retrieved 2026-11-07.
+
+**Authoritative for:** Who the SDR operation writes to: compliance and security leaders at organizations under CMMC, FedRAMP, ISO audit, PCI, or a cloud security audit. The personas, the buying signals, and the disqualifiers the review tables are checked against.
+
 ---
 
 Maintained here, by hand. If a source is wrong, out of date or missing, fix this file and move the plugin's version.

@@ -8,7 +8,7 @@ The package is named `sales-department`, not `sales`, so it doesn't shadow the i
 
 ## Agent
 
-`agents/sales-department.md` is the department agent. It loads `sales-department:head-of-sales` first, checks the dispatch, loads the installed specialist the request needs, stays inside the remit, and returns nine labelled fields. It analyzes and drafts. It doesn't send, publish, spend, release, delete, change permissions or write to a customer system.
+`agents/sales-department.md` is the department agent. It loads `sales-department:head-of-sales` first, checks the dispatch, loads the installed specialist the request needs, stays inside the remit, and returns nine labelled fields. It analyzes and drafts, and it runs the SDR operation inside the bounded delegation recorded in the charter: prospecting, review tables, sequences, reply triage, suppression, credit watch, daily reporting, and CRM upkeep. It doesn't send, publish, spend, release, delete, change permissions or write to a customer system outside those bounds.
 
 ## Skill
 
@@ -37,5 +37,6 @@ Dorian Cougias is the Release Owner Gate. This is an instruction-level gate, not
 
 ## Version History
 
+- 0.2.0 (2026-11-07): SDR expansion. The department runs the SDR operation inside the bounded-delegation charter: prospecting, review tables, sequences, reply triage, suppression, credit watch, daily reporting, CRM upkeep. Dorian stays the Release Owner Gate; sends inside the charter's bounds, with a reviewed table and the daily report, no longer need a per-item approval. The daily cap is proposed at 50/day and unconfirmed at this version.
 - 0.1.1 (2026-10-24): SM-008. The gate log is at `GitHub/Projects/_gate-log/`, and a recorded row is committed, pushed and pulled back to reach the team.
 - 0.1.0 (2026-10-07): CS-004. The department agent, the head skill and its sources, and `GOVERNANCE.md`.
