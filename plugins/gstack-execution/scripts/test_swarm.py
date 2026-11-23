@@ -790,6 +790,15 @@ class GoalRun(unittest.TestCase):
         for argv in (("a", "b"), ("--x",)):
             self.assertEqual(self.run_main(*argv)[0], 2)
 
+    def test_the_viewer_command_frontmatter_is_quoted(self):
+        """Review F1 (second review): a colon or a leading [ in a plain YAML scalar breaks the command's metadata.
+        Stdlib only: each value must be one double-quoted string, which YAML and JSON read the same way."""
+        head = (Path(__file__).resolve().parents[1] / "commands" / "gstack-viewer.md").read_text().split("---")[1]
+        fields = dict(l.split(": ", 1) for l in head.strip().splitlines())
+        self.assertEqual(set(fields), {"description", "allowed-tools", "argument-hint"})
+        self.assertEqual(json.loads(fields["argument-hint"]), "[stop] [<goal-id>]")
+        self.assertIn("GO-025", json.loads(fields["description"]))
+
     def test_an_installed_plugin_copy_runs_it(self):
         """Review F1: /gstack-viewer runs ${CLAUDE_PLUGIN_ROOT}/scripts/swarm.py from an installed copy, with no
         repository (no .github/) around it."""

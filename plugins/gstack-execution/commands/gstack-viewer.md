@@ -1,7 +1,7 @@
 ---
-description: Open or close the agent-flow viewer for the goal swarm that's running (GO-025): finds the run, starts swarm.py's viewer and gives you the address
+description: "Open or close the agent-flow viewer for the goal swarm that's running (GO-025): finds the run, starts swarm.py's viewer and gives you the address"
 allowed-tools: Bash
-argument-hint: [stop] [<goal-id>]
+argument-hint: "[stop] [<goal-id>]"
 ---
 
 Shows the swarm's agents live in the agent-flow viewer (`swarm.py viewer-start`, gstack-execution 0.113.0). It works only where the viewer does: a Mac with `npx`, from Claude Code or a desktop session on that Mac. From a cloud session `swarm.py` answers `viewer: unavailable`; say so once and stop.
