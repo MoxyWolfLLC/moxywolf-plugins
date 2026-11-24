@@ -1,0 +1,95 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "b8eee6349af141e4b56d618929cfe25b",
+  "doc": "DESIGN.md",
+  "item": "GO-026",
+  "scope_sha256": "44e36604af2d4c7a839a1dd28dd552c669b5b7ed59e99e187f9a9a3c9afef64f",
+  "reviewed_at": "2026-11-24T00:00:55+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 2417,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7196,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7196,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 11206,
+      "output_tokens": 2227,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1240,
+      "cache_read_input_tokens": 7196,
+      "cache_creation_input_tokens": 3079,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3079,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 7196,
+    "write": 10275
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GO-026.1",
+        "GO-026.2"
+      ],
+      "question": "AGENT_FLOW_PORT is read at install time; which port does `status` probe when the variable is unset or differs from the installed plist's port (read from the plist, or from the current environment)?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GO-026.1",
+        "GO-026.6"
+      ],
+      "question": "Does the plist launch `npx` through a login shell, or set PATH itself to npx's folder? Criterion 6 tests PATH in the plist while criterion 1 says npx comes from a login shell."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GO-026.3",
+        "GO-026.1",
+        "GO-026.4"
+      ],
+      "question": "How is binding to 127.0.0.1 only guaranteed? The plist command line has no host flag, and criterion 4 pins only the package string, not the arguments swarm.py passes."
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GO-026.1",
+        "GO-026.3",
+        "GO-026.5"
+      ],
+      "question": "What port does a goal's own viewer (GO-025) use, and can it clash with the always-on default 61469 or an AGENT_FLOW_PORT override?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GO-026.7"
+      ],
+      "question": "CI-002 is cited for the version moves but is not defined in the plan text, so whether 'the top-level marketplace version moves' satisfies it cannot be decided."
+    }
+  ]
+}
