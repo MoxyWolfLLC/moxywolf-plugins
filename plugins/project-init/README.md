@@ -8,13 +8,14 @@ This plugin handles three phases of a MoxyWolf Cowork project:
 
 ### `/init-project` — first-time setup
 
-When you start a new Cowork project, run `/init-project` to scaffold the Project Instructions. It assumes these MoxyWolf roots are mounted in Cowork → Folders (Taskade only for a personal Taskade project; team rules live in `GitHub/Projects/_shared-memory/`):
+When you start a new Cowork project, run `/init-project` to scaffold the Project Instructions. It assumes these two MoxyWolf roots are mounted in Cowork → Folders (team rules live in `GitHub/Projects/_shared-memory/`):
 
-1. **MoxyWolf Vault**
-2. **GitHub**
-3. **Taskade**
+1. **MoxyWolf Vault** (`Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`)
+2. **GitHub** (`Shared drives/GitHub`)
 
-It asks for your project name, then opens the **native Finder picker** so you can select the active Taskade subfolder and each active GitHub repo (no typing folder names). Then it generates tailored Project Instructions following the canonical MoxyWolf template.
+Project files store each root by that tail. `scripts/drive_roots.py` finds the absolute path on whichever Mac you're on, because Google Drive names the account folder differently from Mac to Mac (SM-012).
+
+It asks for your project name and whether the project is org-shared (`GitHub/Projects/<NAME>/`) or vault-only, then opens the **native Finder picker** so you can select each active GitHub repo (no typing folder names). Then it generates tailored Project Instructions following the canonical MoxyWolf template.
 
 The filled-in instructions are saved to the project's `00 – Project Hub/cowork-project-instructions.md` for future reference and displayed in chat for you to paste into Cowork → Settings → Project Instructions.
 
@@ -23,8 +24,8 @@ The filled-in instructions are saved to the project's `00 – Project Hub/cowork
 When you open a new Cowork session on an already-configured project, run `/session-start [project-name]`. It:
 
 - Resolves which project (uses the argument or lists candidates)
-- Reads the saved `cowork-project-instructions.md` to learn the active Taskade subfolder and GitHub repo(s)
-- Ensures the roots the project needs are mounted for this session (Vault and GitHub always, Taskade only for a Taskade-based project) — on-computer via `mcp__cowork__request_cowork_directory`, in the cloud by detecting mounts with `mcp__remote-devices__get_device_info` and prompting the user to **Add folder** for any missing root
+- Reads the saved `cowork-project-instructions.md` to learn the workspace and GitHub repo(s)
+- Ensures the two roots are mounted for this session. It resolves their absolute paths on this Mac with `scripts/drive_roots.py` (skipping `@gtempaccount.com` folders), then requests any missing one: on-computer via `mcp__cowork__request_cowork_directory`, in the cloud in one `device_request_folder_access` call
 - **Reads `cowork-session-handoff.md`** (written by the previous session's `/session-end`) and surfaces its "What landed", "Open work", and "Suggested opening line" at the top of the briefing
 - Surfaces a focused briefing: handoff state, kanban P0/P1 tasks, recent decisions, open GitHub PRs and issues
 - Asks what you want to focus on first, with options pulled from the handoff first (then kanban)
@@ -73,20 +74,19 @@ Checks one repository against the seven things goal mode needs in its own `main`
 
 A filled-in Project Instructions document covering:
 
-- **Mounted roots** — MoxyWolf Vault and GitHub for every project, plus Taskade for a personal Taskade project
-- **Project Setup** — declares the active Taskade subfolder and active GitHub repo subfolder(s) for *this* project
-- **Three-directory model** — Taskade subfolder (read/write), MoxyWolf Vault (read for shared knowledge), GitHub repo(s) (read-only)
+- **Mounted roots** — MoxyWolf Vault and GitHub, by tail, for every project
+- **Project Setup** — declares the workspace and active GitHub repo subfolder(s) for *this* project
+- **Directory model** — the workspace (read/write), MoxyWolf Vault (read for shared knowledge), GitHub repo(s)
 - **File-write override** — prevents the project-name/project-name nesting bug Cowork sometimes produces
 - **Numbered-folder routing** — PRDs go to `02 – Product Strategy`, sprint specs to `04 – Backlog & Sprints`, papers to `11 – Project Knowledge/Papers/`, and so on
-- **Publication artifacts override** — content-creation skills (editorial-forge, blog-content-ecosystem, etc.) that scaffold elsewhere must move publishable artifacts to Taskade before completion
+- **Publication artifacts override** — content-creation skills (editorial-forge, blog-content-ecosystem, etc.) that scaffold elsewhere must move publishable artifacts into the project's workspace before completion
 - **Voice for literature rule** — read the Dorian voice profile (`MoxyWolf Vault/_Shared Knowledge/Brand and Voice/dorian-cougias.md`) before drafting prose
 - **Behavioral rules** — no time estimates in weeks, MoxyWolf is a small team not a solo founder, never fabricate names
 
 ## Requirements
 
 - The MoxyWolf Vault must contain the canonical template at `_Templates/Cowork Project Instructions Template.md`. If it's missing, the skill stops and asks you to recreate it from a known-good project.
-- The MoxyWolf Vault and GitHub roots (plus Taskade for a personal Taskade project) should be mounted in Cowork → Folders. If any are missing the skill still generates the instructions, but flags the missing mount.
-- The active Taskade subfolder must exist (or you can have the skill create it during setup).
+- The MoxyWolf Vault and GitHub roots should be mounted in Cowork → Folders. If either is missing the skill still generates the instructions, but flags the missing mount.
 
 ## Why shared knowledge routes to the vault
 
@@ -96,6 +96,7 @@ If a specific project genuinely needs a different routing for its own knowledge,
 
 ## Version history
 
+- **0.48.0**: SM-012. Each Mac finds its own Drive roots. Project files store the two roots by tail (`Shared drives/GitHub`, `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`), and the new `scripts/drive_roots.py` resolves the absolute paths on the Mac it runs on: it skips `@gtempaccount.com` accounts, keeps the account holding both, prefers the one with the team-rules INDEX, and says `ambiguous` or `not_found` rather than guess. Taskade is retired: `/init-project`, `/session-start`, `/session-end` and `/refresh-project-instructions` have two roots and two workspace types (org-shared, vault-only), and `/refresh-project-instructions` rewrites an old absolute root to its tail. Test: `tests/test_drive_roots.py`.
 - **0.47.0**: ST-003. `/session-end` runs the `asd-ste100` skill over the handoff's Open work and Procedural reminders (STE-flavored) and over new or edited rule files (Strict), never over Dorian's words. Advisory only; the Step 8 report ends with one `asd-ste100:` summary line.
 - **0.46.1**: SM-011 criterion 9. `/session-start` Step 3b, `/session-end`'s handoff push and `/init-project`'s scaffold push run git on the Mac itself through Desktop Commander's `start_process`. `device_bash` is a Linux VM with the folders mounted and no GitHub login: git there fails with `could not read Username` and leaves `.git/index.lock` behind. It's used for git only when Desktop Commander isn't present.
 - **0.46.0**: SM-011. `/session-start` never drops a briefing section. Reads follow a fixed order (Desktop Commander, the mounted root, the GitHub connector on `MoxyWolfLLC/Projects`, the claude.ai Project copy, the Google Drive connector) and never wait on a folder mount, so a refused or unanswered folder prompt changes which source reads a file, not whether the section runs. Jira and pull requests and issues never depend on a mount. A section that can't be read shows `unavailable: <reason>` with the sources tried. A task passed as the argument is briefed first and offered as the first focus option. Test: `tests/test_briefing_never_skipped.py`.

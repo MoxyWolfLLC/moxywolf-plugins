@@ -38,19 +38,19 @@ If the user wants an explicit dated archive in addition to the canonical file, t
 
 If the user passed a project name with the slash command (e.g. `/session-end Nexus`), use it directly. Otherwise, in order:
 
-a. Check the currently-mounted folders. If exactly one project folder is mounted (e.g. `GitHub/Projects/MW Plugins` or `Taskade/Nexus`), assume that's the project. Confirm via a single AskUserQuestion before proceeding.
+a. Check the currently-mounted folders. If exactly one project folder is mounted (e.g. `GitHub/Projects/MW Plugins`), assume that's the project. Confirm via a single AskUserQuestion before proceeding.
 
-b. If none is obviously mounted, scan `GitHub/Projects/` (org-shared; skip `Directory Template`), `Taskade/` and `MoxyWolf Vault/Projects/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Sort by recency of modification of the saved instructions file. Present the top ~6 candidates via AskUserQuestion.
+b. If none is obviously mounted, scan `GitHub/Projects/` (org-shared; skip `Directory Template`) and `MoxyWolf Vault/Projects/` for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Sort by recency of modification of the saved instructions file. Present the top ~6 candidates via AskUserQuestion.
 
 c. If the user passes a name that doesn't match any folder, list available project folders and ask them to pick (don't create new ones — that's `/init-project`'s job).
 
 ### Step 2: Read the saved Project Instructions (for context)
 
-Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, `Taskade/[PROJECT_NAME]` for a personal one, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Org-shared projects are never stored in Taskade. Every handoff path below uses the same `[WORKSPACE]`.
+Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Every handoff path below uses the same `[WORKSPACE]`.
 
 This gives you:
 
-- The active Taskade subfolder name
+- The workspace (org-shared or vault-only)
 - The list of active GitHub repo(s)
 - Any project-specific overrides
 
@@ -114,12 +114,11 @@ A short quoted paragraph the user can paste into a fresh Cowork chat as the firs
 **Always end this paragraph with a final sentence pointing to the full handoff file's path**, so next-Cowork knows where to read the full detail rather than working from the opening-line alone. Use the path relative to the mounted Cowork roots:
 
 - Org-shared project: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
-- Taskade-based project: `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
 - Vault-only project: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`
 
 The pointer sentence should be formatted exactly as: *"The full handoff is at `[WORKSPACE]/00 – Project Hub/cowork-session-handoff.md`."* (backticks around the path). This wording is what `/session-start` looks for — keep it predictable.
 
-Example: *"Picking up after the multi-axis classifier landed. Two commits to push (Bloom's importer + term-def backfill), then run the term-def backfill, then we can spec variant morphology. The full handoff is at `Taskade/Nexus/00 – Project Hub/cowork-session-handoff.md`."*
+Example: *"Picking up after the multi-axis classifier landed. Two commits to push (Bloom's importer + term-def backfill), then run the term-def backfill, then we can spec variant morphology. The full handoff is at `GitHub/Projects/Nexus/00 – Project Hub/cowork-session-handoff.md`."*
 
 ### Step 3.5: Capture the handoff author and (optional) baton-pass target
 
@@ -260,20 +259,20 @@ Description:
 
 ## Suggested opening line
 
-> *"[one- to three-sentence orientation paragraph]. The full handoff is at `Taskade/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`."*
+> *"[one- to three-sentence orientation paragraph]. The full handoff is at `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`."*
 ```
 
-(For org-shared projects, substitute `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`; for vault-only projects, `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.)
+(For vault-only projects, substitute `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.)
 
 ### Step 5: Write the handoff file
 
 Use the `Write` tool to write the composed document to:
 
 ```
-[project's Taskade subfolder]/00 – Project Hub/cowork-session-handoff.md
+[WORKSPACE]/00 – Project Hub/cowork-session-handoff.md
 ```
 
-For org-shared projects: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`. For vault-only projects: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.
+For org-shared projects that's `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`. For vault-only projects: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-session-handoff.md`.
 
 **Org-shared projects: commit and push the handoff.** It lives in the `MoxyWolfLLC/Projects` repo, so teammates only see it once it's pushed. Stage that project's folder only (`git add "[PROJECT_NAME]/"`, never `git add -A` at the repo root, since other projects share the repo), commit, push as the `moxywolf-agent` GitHub App (`agent_token.py exec`, GA-005), verify with `git ls-remote`, then pull back so the local clone matches. Run git on the Mac itself, through Desktop Commander's `start_process` (session-start Step 3b): `device_bash` is a Linux VM with no GitHub login. If the push is rejected because a teammate pushed first, `git pull --ff-only` can't help: pull with rebase only when the rebase touches nothing but this project's folder; otherwise stop and report. Report the handoff commit's hash in the end-of-session summary.
 
@@ -284,7 +283,7 @@ Always overwrite. Drive versioning preserves the previous version. Don't ask the
 If the user passed `--archive` (e.g. `/session-end Nexus --archive`), also write a copy to:
 
 ```
-[project's Taskade subfolder]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
+[WORKSPACE]/00 – Project Hub/Session Handoffs/handoff-YYYY-MM-DD-HHMM.md
 ```
 
 Create the `Session Handoffs/` subfolder if it doesn't exist. Use the user's local time for the filename timestamp.
@@ -419,7 +418,7 @@ Write four files into the claude.ai Project attached to this session, with the P
 - `<WORKSPACE>/00 – Project Hub/cowork-session-handoff.md`
 - `GitHub/Projects/_shared-memory/INDEX.md`
 
-`<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, `Taskade/<SUBFOLDER>` for a personal one, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
+`<WORKSPACE>` is `GitHub/Projects/<PROJECT_NAME>` for an org-shared project, or `MoxyWolf Vault/Projects/<PROJECT_NAME>` for a vault-only one. Pass `local_path` for a file in the session workspace (stage it from the computer first if that's where it lives), otherwise `content`. A file that doesn't exist is skipped and named. With no Project attached (no Projects tool in the session), write nothing and report `not mirrored: no Project attached`. The copies are one-way: never write a Project copy back to disk, because disk wins whenever both are readable.
 
 ### Step 7c: Sweep the loop's scratch (SS-001)
 
@@ -498,7 +497,7 @@ Keep it factual. Dorian can open the file in Obsidian to review the full handoff
 - **Existing `cowork-session-handoff.md` from a previous session.** Overwrite. Drive versioning preserves the prior version. The canonical file is meant to reflect "the most recent handoff," not an append-only log.
 - **Session had no extractable handoff content.** This happens — quick clarifications, casual chat, no work shipped. Say so honestly: "This session didn't produce work that needs a handoff. Nothing to write." Don't manufacture content.
 - **Conversation referenced multiple projects.** Pick the dominant one and write the handoff there. If genuinely cross-project (rare), ask the user which project's handoff this should be. Don't write multiple handoffs from one session-end run.
-- **Mounting issues — project's Taskade subfolder isn't currently available.** Works online or offline: detect availability via `mcp__remote-devices__get_device_info` → `connectedFolders` when present, else probe the path by listing it. To get it mounted, auto-mount first: **online**, if `mcp__remote-devices__device_request_folder_access` is present, proactively request the exact absolute path (batch with any other missing roots in one call for a single approval dialog) — this is the default action, not a fallback; **on-computer**, call `mcp__cowork__request_cowork_directory` with the explicit path if present. Only fall back to asking the user to add the path manually (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add) if the relevant tool is unavailable or the user declines — then wait for the system-reminder / re-probe, then write. Don't hard-depend on any one mount tool.
+- **Mounting issues — the project's workspace root isn't currently available.** Works online or offline: detect availability via `mcp__remote-devices__get_device_info` → `connectedFolders` when present, else probe the path by listing it. To get it mounted, auto-mount first: **online**, if `mcp__remote-devices__device_request_folder_access` is present, proactively request the root's absolute path, resolved on this Mac by `drive_roots.py` as in session-start's *Standard mounted roots* (batch with any other missing roots in one call for a single approval dialog) — this is the default action, not a fallback; **on-computer**, call `mcp__cowork__request_cowork_directory` with the explicit path if present. Only fall back to asking the user to add the root manually, naming its tail (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add) if the relevant tool is unavailable or the user declines — then wait for the system-reminder / re-probe, then write. Don't hard-depend on any one mount tool.
 - **User pasted an `/obsidian-update` mid-session, then runs `/session-end`.** Fine. `/session-end` invokes `/obsidian-update` again at Step 7. The second run is idempotent on already-captured content — it'll find less to extract since the mid-session run already wrote the bulk of it. No deduplication needed; obsidian-update handles "I've already seen this" itself.
 - **`/obsidian-update` skill unavailable in this Cowork install.** Skip Step 7 with a one-line warning in the final report ("Vault update skipped: obsidian-update skill not available"). Don't abort — the handoff (Step 5) is the load-bearing artifact.
 - **No writable GitHub repos listed in project instructions.** Skip Step 5c entirely — don't ask the user to nominate a repo. Project instructions are the source of truth for repo posture.

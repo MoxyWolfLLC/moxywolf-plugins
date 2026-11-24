@@ -1,11 +1,11 @@
 ---
 name: session-start
-description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the roots the project needs (MoxyWolf Vault and GitHub, plus Taskade only for a Taskade-based project), reads the project's saved Project Instructions, and surfaces a briefing — project-scoped tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
+description: This skill should be used when the user says "start a session for [project]", "resume [project]", "load [project] context", "/session-start", "open [project] in Cowork", "pick up where I left off on [project]", or any request to begin or resume work on an existing MoxyWolf project. It assumes the project has already been initialized via /init-project (i.e. has a saved cowork-project-instructions.md in its `00 – Project Hub/`). It mounts the two roots every project needs (MoxyWolf Vault and GitHub, found on each Mac by `drive_roots.py`), reads the project's saved Project Instructions, and surfaces a briefing — project-scoped tasks, recent decisions, open PRs/issues — so the session can pick up immediately.
 ---
 
 # Session Start
 
-Start or resume a Cowork session for an existing MoxyWolf project. Mount the roots this project needs (MoxyWolf Vault and GitHub always, Taskade only for a Taskade-based project) for this session, read the project's saved Project Instructions to learn its workspace (org-shared `GitHub/Projects`, a Taskade subfolder, or the vault) and GitHub repo(s), bring an org-shared project's local clones up to date, then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
+Start or resume a Cowork session for an existing MoxyWolf project. Mount the two roots (MoxyWolf Vault and GitHub) for this session, read the project's saved Project Instructions to learn its workspace (org-shared `GitHub/Projects`, or the vault) and GitHub repo(s), bring an org-shared project's local clones up to date, then surface a focused briefing — project-scoped P0/P1 tasks, recent decisions, open GitHub PRs and issues — so the user can dive straight into work.
 
 ## When to use
 
@@ -22,13 +22,18 @@ The skill assumes the project has already been initialized via `/init-project` a
 
 ## Standard mounted roots
 
-Every MoxyWolf Cowork project needs the first two roots. The third is needed only by a personal project whose workspace is a Taskade folder (SM-007):
+Every MoxyWolf Cowork project needs two roots, and no other (SM-012). Each is stored as a **tail**, the part under the Google Drive account folder that's the same on every Mac:
 
-1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. **GitHub** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub`
-3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade` (Taskade-based projects only)
+1. **MoxyWolf Vault**: `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
+2. **GitHub**: `Shared drives/GitHub`
 
-The skill mounts the MoxyWolf Vault and GitHub every time, and Taskade only when Step 2 resolves a Taskade workspace. Team-shared rules live in `GitHub/Projects/_shared-memory/`, so an org-shared or vault-only project never needs the Taskade root; don't request it for one.
+**Never request a root by a hardcoded absolute path.** Google Drive for Desktop names the account folder differently from Mac to Mac (`GoogleDrive-<email>`, `GoogleDrive-<email>-<account number>`, under a macOS username that may differ), and Cowork folder grants are per Mac. Resolve the absolute paths on the Mac you're on, every session:
+
+- Run `python3 "<project-init>/scripts/drive_roots.py"` on the Mac through Desktop Commander's `start_process`, where `<project-init>` is this plugin's installed folder. It lists `~/Library/CloudStorage/GoogleDrive-*`, skips any folder whose name ends `@gtempaccount.com`, keeps the folders that hold both tails, and, when more than one is left, keeps the one with `GitHub/Projects/_shared-memory/INDEX.md`. It prints JSON: `{"status": "ok", "github": "<abs>", "vault": "<abs>"}`, or `ambiguous` with `candidates`, or `not_found` with `reason`.
+- `ok`: use `github` and `vault` as the absolute roots for every step below.
+- `ambiguous`: list the candidates and ask the user once with `AskUserQuestion`, then use the one they pick.
+- `not_found`: say Google Drive isn't signed in on this Mac, or the shared drives haven't synced, and name the account to check. Keep going: the briefing still runs through the Reader order (SM-011).
+- No Desktop Commander: ask the user to **Add folder** for the two roots, naming each tail, and take the absolute paths from `connectedFolders` once they're added.
 
 ## Folder access — works online (cloud) or offline (on-computer)
 
@@ -36,16 +41,16 @@ Cowork runs either **online** (in the cloud — the `mcp__remote-devices__*` bri
 
 **Step A — detect which roots are available (mode-agnostic).** For each standard root, decide available vs missing using the first method that works:
 
-1. If `mcp__remote-devices__get_device_info` is present (online), call it — `connectedFolders` is the authoritative mounted-path list; match each root by exact-path / prefix.
+1. If `mcp__remote-devices__get_device_info` is present (online), call it — `connectedFolders` is the authoritative mounted-path list; match each resolved root by exact path or prefix. A connected folder that ends with a root's tail is that root, even before `drive_roots.py` has run.
 2. Otherwise (offline), **probe the path directly** — list the root with whatever filesystem tool is available (`ls`/Read on-computer, `mcp__remote-devices__device_list_dir` online). A successful listing = available; an error/empty = missing.
 
 The probe in (2) is the universal fallback: it never depends on a mount tool existing, so it works in either mode even if tool names change.
 
 **Step B — get a missing root mounted (auto-mount first, ask only as fallback).**
 
-- **Online (cloud): auto-mount is the default action, not a fallback.** If `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root in **one call** — pass each missing root's exact absolute path together, so the user gets a single approval dialog covering all of them rather than one prompt per root. The folder-access request *is* the mount; there is no separate "wait for the user to add it themselves" step to try first. After the call returns, re-run Step A to confirm what got granted.
+- **Online (cloud): auto-mount is the default action, not a fallback.** If `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root in **one call** — pass each missing root's resolved absolute path (from `drive_roots.py`) together, so the user gets a single approval dialog covering all of them rather than one prompt per root. The folder-access request *is* the mount; there is no separate "wait for the user to add it themselves" step to try first. After the call returns, re-run Step A to confirm what got granted.
 - **On-computer: unchanged.** If `mcp__cowork__request_cowork_directory` is present, call it with the explicit `path` to mount/grant the root (no-op if already mounted). This remains the on-computer picker/mount path.
-- **Fallback only.** Fall back to asking the user manually — in one line, the exact path — **only** when: the remote-devices bridge is unavailable (no connected device, or the tool isn't present) on cloud, or `request_cowork_directory` isn't present on-computer, or the user declined the request/approval. The manual ask is: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
+- **Fallback only.** Fall back to asking the user manually — in one line, each root's tail — **only** when: the remote-devices bridge is unavailable (no connected device, or the tool isn't present) on cloud, or `request_cowork_directory` isn't present on-computer, or the user declined the request/approval. The manual ask is: **online**, the **Add folder** button in the Claude desktop app; **offline**, **Cowork → Folders → Add**. Then pause. A system-reminder announces newly connected folders (online) or re-probe the path (offline), then re-run Step A to confirm before continuing.
 - If the user doesn't add it, or the request is refused or times out, mark it "not mounted" and keep going. Don't wait on the answer: reads go through the **Reader order** below, so a missing mount changes which source reads a file, never whether a briefing section runs (SM-011).
 
 **Step C — Reader order (SM-011).** Read every project file in this order, moving to the next source when one fails. Don't stop at the first failure, and don't wait on a mount:
@@ -78,14 +83,13 @@ This skill **never shows a project picker.** It resolves the project on its own 
 2. **Auto-detect from the launch directory.** Inspect the user's selected folder path from the session environment and parse it for a project segment:
    - `.../GitHub/Projects/<NAME>/...` where `<NAME>` is not `Directory Template` → project is `<NAME>` (org-shared)
    - `.../MoxyWolf Vault/Projects/<NAME>/...` → project is `<NAME>`
-   - `.../Taskade/<NAME>/...` where `<NAME>` is not `_Shared Files` → project is `<NAME>`
    - `.../GitHub/<REPO>/...` → look up which project's `cowork-project-instructions.md` lists `<REPO>` as an active GitHub repo; if exactly one match, use it.
 
    If a project is detected, announce it in the briefing as: *"Detected project from launch directory: **<NAME>**."* and skip to Step 2. This is the expected path — Dorian's normal workflow is to launch Cowork from inside a project folder, so auto-detection should succeed most of the time.
 
-3. **Fall back to auto-selecting the most recently active project** when neither (1) nor (2) produces a project (e.g. the user launched from the vault root, the Taskade root, or the GitHub root). Do **not** ask the user which project — pick it automatically:
+3. **Fall back to auto-selecting the most recently active project** when neither (1) nor (2) produces a project (e.g. the user launched from the vault root or the GitHub root). Do **not** ask the user which project — pick it automatically:
 
-   a. Scan `GitHub/Projects/` (org-shared projects), `Taskade/` (personal projects, only when the Taskade root is already mounted; never request it just to scan) and `MoxyWolf Vault/Projects/` (vault-only projects) for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Skip `GitHub/Projects/Directory Template/`.
+   a. Scan `GitHub/Projects/` (org-shared projects) and `MoxyWolf Vault/Projects/` (vault-only projects) for subfolders that contain `00 – Project Hub/cowork-project-instructions.md`. Skip `GitHub/Projects/Directory Template/`.
 
    b. Rank the candidates by recency of activity: the most recent `cowork-session-handoff.md` (`session_ended` timestamp) wins; for projects with no handoff, fall back to the modification time of the saved instructions file. The single most-recently-active project is the resolved project.
 
@@ -93,12 +97,11 @@ This skill **never shows a project picker.** It resolves the project on its own 
 
 ### Step 2: Read the saved Project Instructions
 
-Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is the folder Step 1 resolved: `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, `Taskade/[PROJECT_NAME]` for a personal one, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Every later step that reads the handoff, `04 – Backlog & Sprints/` or DRs uses the same `[WORKSPACE]`. Org-shared projects never live in Taskade, so don't look for one there.
+Read `[WORKSPACE]/00 – Project Hub/cowork-project-instructions.md`, where `[WORKSPACE]` is the folder Step 1 resolved: `GitHub/Projects/[PROJECT_NAME]` for an org-shared project, or `MoxyWolf Vault/Projects/[PROJECT_NAME]` for a vault-only one. Every later step that reads the handoff, `04 – Backlog & Sprints/` or DRs uses the same `[WORKSPACE]`.
 
 Parse to extract:
 
-- The workspace type: **org-shared** when the project resolved under `GitHub/Projects/` (or its *Project Setup* has a `Workspace:` line naming `GitHub/Projects`), otherwise Taskade or vault-only
-- The active Taskade subfolder name (or `none` for org-shared and vault-only projects)
+- The workspace type: **org-shared** when the project resolved under `GitHub/Projects/` (or its *Project Setup* has a `Workspace:` line naming `GitHub/Projects`), otherwise vault-only
 - The list of active GitHub repos (subfolder names + descriptions) — there may be 0, 1, or many
 - The **Jira label(s)** — the `Jira label(s):` bullet in the *Project Setup* block: the exact label or labels this project's issues carry on the team Jira board (MOXY), or `none`. Record whether it is present, `none`, or absent — Step 4b uses it to scope the board query, as written. Also record the `Kanban project tag(s):` value for display only. A label is never derived from the `#project/` tag or from any name: MOXY carries both `moxywolf-plugins` and `project-moxywolf-crm`, so no mapping rule is right for every project (SM-002).
 - Any `## Project-Specific Overrides` block at the bottom
@@ -109,16 +112,16 @@ If the file doesn't exist, abort with: *"No saved Project Instructions found for
 
 Follow the **Folder access — works online (cloud) or offline (on-computer)** convention above; it's mode-agnostic, so the same procedure runs either way.
 
-The required roots are the MoxyWolf Vault and GitHub, plus Taskade when Step 2 found a Taskade workspace. For an org-shared or vault-only project, don't detect or request Taskade; record it as "not needed".
+The required roots are the MoxyWolf Vault and GitHub, resolved for this Mac by `drive_roots.py` (see *Standard mounted roots*). There is no third root.
 
 1. **Detect (Step A).** For each required root, decide available vs missing — `get_device_info` → `connectedFolders` when that tool is present (online), else probe the path directly by listing it (offline). Don't assume the mode; use whichever detector is available.
-2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's exact absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
+2. **Get missing roots mounted (Step B) — auto-mount first.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every missing root's resolved absolute path in **one call** (single approval dialog for all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `mcp__cowork__request_cowork_directory` is present, mount each missing root with it (explicit `path`, parallel calls so approval prompts surface together, no-op if already mounted). **Fallback only** — if neither tool is present, or the user declines the request/approval: list the still-missing roots and ask the user, in one line, to add each root, naming its tail (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then wait for the system-reminder (online) or re-probe (offline) and re-run detection.
 
 Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unmounted, note it and continue. A missing mount never drops a section: Step 4 reads through the Reader order (Step C), and the team-shared `GitHub/Projects/_shared-memory/INDEX.md` comes from Desktop Commander, the GitHub connector or the Project copy.
 
 ### Step 3b: Bring local clones up to date
 
-**Every project type fast-forwards `GitHub/Projects`**, because the team-shared rules live there (SM-007): run the steps below on that clone alone for a Taskade or vault-only project, before Step 4f reads the INDEX. A clone that can't be fast-forwarded is reported and read as it is. **Org-shared projects also update every listed repo.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
+**Every project type fast-forwards `GitHub/Projects`**, because the team-shared rules live there (SM-007): run the steps below on that clone alone for a vault-only project, before Step 4f reads the INDEX. A clone that can't be fast-forwarded is reported and read as it is. **Org-shared projects also update every listed repo.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
 
 The clones to update are `GitHub/Projects` (the workspace repo, always) plus every active GitHub repo listed in the instructions. For each, on the user's Mac itself: Desktop Commander's `start_process` (`zsh -lc`, at the clone's absolute path) online, plain bash on-computer. **Don't run git in `device_bash`.** It's a Linux VM with the folders mounted, not the Mac, and it has no GitHub login, so a fetch or pull there fails with `could not read Username` and a commit there strands `.git/index.lock` (SM-011, 2026-11-10). Use `device_bash` for git only when Desktop Commander isn't present, and report an authentication failure there as `skipped: no GitHub login in device_bash`, not as a problem with the clone:
 
@@ -247,10 +250,9 @@ Output a structured briefing in chat. The session handoff (if found) is the most
 **Mounted folders**
 - MoxyWolf Vault — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
 - GitHub — [already mounted | newly mounted (auto-requested) | newly mounted (user added)]
-- Taskade — [already mounted | newly mounted (auto-requested) | newly mounted (user added) | not needed (org-shared or vault-only project)]
 
 **Active subfolders**
-- [GitHub/Projects/[PROJECT_NAME] (org-shared) | Taskade/[active-taskade-subfolder] | MoxyWolf Vault/Projects/[PROJECT_NAME]]
+- [GitHub/Projects/[PROJECT_NAME] (org-shared) | MoxyWolf Vault/Projects/[PROJECT_NAME]]
 
 [Org-shared projects only:]
 **Clones** (Step 3b)
@@ -349,7 +351,7 @@ If no handoff was found, options pull from the project-scoped task board only:
 
 ## Output
 
-- Required roots confirmed mounted (Vault and GitHub; Taskade only for a Taskade-based project, otherwise reported as not needed) (or, for any missing, the user prompted to Add folder / approve the mount per the Folder access convention)
+- Required roots confirmed mounted (Vault and GitHub, at the paths `drive_roots.py` resolved for this Mac) (or, for any missing, the user prompted to Add folder / approve the mount per the Folder access convention)
 - A structured briefing in chat covering the project's current state
 - A focus question to start the work
 
@@ -367,10 +369,10 @@ If no handoff was found, options pull from the project-scoped task board only:
 - **Jira label declared as `none`.** The project has no kanban presence. Surface zero kanban items with a one-line note; the project's `04 – Backlog & Sprints/` folder and the handoff carry the task state instead.
 - **Project's `04 – Backlog & Sprints/` folder is empty or missing.** Normal — many projects track granular tasks only in the kanban. Note "no project backlog files" and rely on the project-filtered kanban.
 - **Project name passed with slash command doesn't match any folder.** Don't show a picker. Fall back to Step 1 method 3 — auto-select the most recently active project — and note the unmatched argument in the briefing so the user can correct it by naming a project explicitly.
-- **Org-shared project (workspace in `GitHub/Projects`).** Read everything from `GitHub/Projects/[PROJECT_NAME]/`; there's no Taskade folder for it, and a missing one isn't an error. Run Step 3b before reading anything.
+- **Org-shared project (workspace in `GitHub/Projects`).** Read everything from `GitHub/Projects/[PROJECT_NAME]/`. Run Step 3b before reading anything.
 - **A clone can't fast-forward** (dirty, ahead, diverged, detached, no upstream, fetch failed). Leave it exactly as it is, show `skipped: <reason>` in the Clones line, and read from it as it stands. Tell the user what git reported; don't fix it unasked.
-- **Vault-only project (no Taskade subfolder).** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path. Skip Taskade-subfolder references in the briefing.
-- **Project Instructions file is malformed (can't parse the active Taskade subfolder or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
+- **Vault-only project.** Read the Project Instructions from `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md` instead. Look for the handoff and the `04 – Backlog & Sprints/` folder at the same vault path.
+- **Project Instructions file is malformed (can't parse the workspace or GitHub repo list).** Surface the parse failure to the user and ask them to either edit the file by hand or rerun `/init-project`. Don't proceed with a guessed config.
 - **Verification discipline reports `NOT LOADED`.** Surface it and carry on — it is a heads-up, not a gate. But do not quietly drop the line on later sessions if it stays absent: a warning that decays into silence is how the original problem returns. The checks themselves live in `gstack-execution`'s `skills/gstack-execution/references/verification-checks.md`; if the hook cannot be made to fire, read that file directly rather than working without them.
 - **OpenRouter key probe returns `placeholder` or `missing`.** Surface the warning in the Shared services line but do not block the session — most projects don't use OpenRouter on every task. If the user invokes anything that touches Council, research-pipeline, or product-orchestrator later, those skills do their own preflight check (`python3 plugins/council/scripts/openrouter_key.py --where`) and will halt with an actionable error then. The session-start briefing is a heads-up, not a gate.
 - **OpenRouter key probe returns `resolved` but a council/research-pipeline/product-orchestrator skill still errors out later in the session.** The probe only verifies the file exists at the canonical path with a valid-looking value. It doesn't verify the key is actually accepted by OpenRouter (no network call — that would slow down session-start and cost tokens). If the resolved key gets rejected by OpenRouter (rotated, revoked), the user should ask Dorian to update `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/openrouter.env` per DR-010.
@@ -381,6 +383,6 @@ If no handoff was found, options pull from the project-scoped task board only:
 - The briefing is intentionally short. Detailed exploration is a follow-up task within the session.
 - The skill reads but does not write, with one exception: Step 3b fast-forwards the local `GitHub/Projects` clone for every project type, because the team rules live there (SM-007), and an org-shared project's listed repos as well, and only when that can't touch local work. It does not modify the kanban, the project instructions, the session handoff, or any decision records. End-of-session writing is `/session-end`'s job (project-scoped handoff) and `/obsidian-update`'s job (cross-project knowledge to vault).
 - The team board is Jira project **MOXY** — a single board shared by every project (the vault `KANBAN_VIEW.md` was retired 2026-07-16). session-start only ever surfaces MOXY issues positively labeled with the resolved project's declared Jira label — an unlabeled issue, or one labeled for a different project, is never shown. See Step 4b.
-- The standard roots are constants. Don't ask the user to confirm which roots to mount — always the MoxyWolf Vault and GitHub, plus Taskade only when the workspace is a Taskade folder.
+- The standard roots are constants by tail, never by absolute path. Don't ask the user to confirm which roots to mount — always the MoxyWolf Vault and GitHub, resolved on this Mac by `drive_roots.py`.
 - The skill never shows a project picker. When the launch directory names a project (or an explicit argument is given) it uses that; otherwise it auto-resumes the most recently active project and announces the choice. The user switches projects by naming a different one — see Step 1. The only question the skill asks is Step 6's "what to focus on first", scoped to the resolved project.
 - The handoff file path is fixed: `[project]/00 – Project Hub/cowork-session-handoff.md`. Don't fall back to other filenames (`continuation-prompt-*.md`, etc.) — those are free-form, written before this contract existed, and not parseable. If the user wants those surfaced too, they can ask explicitly.

@@ -3,9 +3,8 @@ name: project-init
 description: >
   Scaffolds Project Instructions for a project that does not have them yet. Use it for "set up a
   new project", "init a new project", "new Cowork project", "start a new project", or
-  /init-project. It assumes the MoxyWolf Vault and GitHub roots are mounted (plus Taskade for a
-  personal Taskade project), then asks where the project lives (org-shared projects live in GitHub/Projects,
-  never Taskade; personal projects in Taskade; or vault-only), gathers the active GitHub repo folders and
+  /init-project. It assumes the MoxyWolf Vault and GitHub roots are mounted, then asks where the
+  project lives (org-shared in GitHub/Projects, or vault-only), gathers the active GitHub repo folders and
   writes tailored instructions following the MoxyWolf template, with shared-knowledge writes
   routed to the vault. The full instructions are saved on disk as the single source of truth, and
   a thin loader stub goes in Cowork's settings field so the embedded copy cannot drift. If the
@@ -18,10 +17,10 @@ description: >
 
 ## When this skill applies
 
-This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the MoxyWolf Vault and GitHub roots are mounted in Cowork (plus Taskade only for a personal Taskade project), then interactively gathers the project's workspace (org-shared projects live in `GitHub/Projects/<NAME>/`, never in Taskade; personal projects in a Taskade subfolder; or vault-only) and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
+This skill should be used when the user says "set up a new project", "init a new project", "new Cowork project", "start a new project", "set up project", "/init-project", or any request to scaffold Project Instructions for a project that does NOT already have them. It assumes the MoxyWolf Vault and GitHub roots are mounted in Cowork, then interactively gathers the project's workspace (org-shared projects live in `GitHub/Projects/<NAME>/`, or vault-only) and active GitHub repo subfolder(s), and produces tailored Project Instructions following the MoxyWolf template, with shared-knowledge writes routed to the MoxyWolf Vault for end-of-session obsidian-updates. Saves the full instructions on disk as the single source of truth and emits a thin loader stub for Cowork's settings field (the stub points at the on-disk file, so the embedded copy never drifts). Before doing anything else it checks whether the resolved project already has a saved cowork-project-instructions.md — if it does, it stops and redirects to /refresh-project-instructions instead of asking "which project" and re-scaffolding, since re-running this skill on an already-initialized project would silently overwrite the on-disk file (including any hand-written Project-Specific Overrides). For "update/refresh/fix this project's instructions" on an already-set-up project, use /refresh-project-instructions directly, not this skill.
 
 
-Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the MoxyWolf Vault and GitHub roots, and a personal (Taskade) project also mounts Taskade; the the Project Instructions just declare *where* the project's workspace lives and *which* subfolder of GitHub is the active repo.
+Generate tailored Project Instructions for a new Cowork project. The MoxyWolf convention is that every Cowork project mounts the MoxyWolf Vault and GitHub roots, and nothing else; the Project Instructions just declare *where* the project's workspace lives and *which* subfolder of GitHub is the active repo.
 
 ## Project workspace types
 
@@ -29,11 +28,10 @@ Every project has exactly one workspace folder, written below as `[WORKSPACE]`. 
 
 | Type | `[WORKSPACE]` | Who it's for |
 |---|---|---|
-| **Org-shared** | `GitHub/Projects/[PROJECT_NAME]` | Projects shared with the organization. They live in the `MoxyWolfLLC/Projects` repo (local clone `GitHub/Projects`), scaffolded from `GitHub/Projects/Directory Template/`. **They never get stored in Taskade.** MW Plugins is the reference instance. |
-| **Personal (Taskade)** | `Taskade/[TASKADE_SUBFOLDER]` | Projects that aren't shared with the organization. |
+| **Org-shared** | `GitHub/Projects/[PROJECT_NAME]` | Projects shared with the organization. They live in the `MoxyWolfLLC/Projects` repo (local clone `GitHub/Projects`), scaffolded from `GitHub/Projects/Directory Template/`. MW Plugins is the reference instance. |
 | **Vault-only** | `MoxyWolf Vault/Projects/[PROJECT_NAME]` | No workspace folder outside the vault. |
 
-Only a personal (Taskade) project needs the Taskade root. Team-shared memory lives in `GitHub/Projects/_shared-memory/` (SM-007), so org-shared and vault-only projects mount the MoxyWolf Vault and GitHub only. Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
+There are two workspace types and two roots (SM-012). Team-shared memory lives in `GitHub/Projects/_shared-memory/` (SM-007). Read the MoxyWolf template, gather per-project specifics through AskUserQuestion, substitute placeholders, save the full filled instructions to the project's Project Hub folder (the single source of truth), and display a thin **loader stub** for the user to paste into Cowork's settings — the stub points at the on-disk file rather than duplicating it, so the embedded copy can never drift out of sync with the source.
 
 ## When to use
 
@@ -53,8 +51,8 @@ The one case this skill legitimately handles for an existing project is the user
 
 **Run this before asking anything, including the project name.** The failure mode this prevents: running `/init-project` again on an already-initialized project silently overwrites its on-disk `cowork-project-instructions.md` — including any hand-written `## Project-Specific Overrides` — with a freshly-generated file, and along the way asks "which project are we initializing" even when the answer (e.g. "Team Plugins") is already sitting in the current session's mounted context. Never let Step 3's write execute without this guard having run first.
 
-1. **Resolve the current project from context — the same way `/session-start` does — before asking the user anything.** Check, in order: (a) an explicit project name if the user already stated one this turn, (b) the launch directory / currently mounted project folder for this Cowork session (a mounted path matching `.../GitHub/Projects/<NAME>/...` (where `<NAME>` isn't `Directory Template`), `.../Taskade/<NAME>/...` or `.../MoxyWolf Vault/Projects/<NAME>/...` resolves to project `<NAME>`), (c) otherwise, no project resolves yet — that's fine, skip to step 4.
-2. **If a project resolved in step 1, check whether it already has saved instructions:** does `<NAME>/00 – Project Hub/cowork-project-instructions.md` exist under any of the three workspace roots: `GitHub/Projects/`, `Taskade/`, or `MoxyWolf Vault/Projects/`?
+1. **Resolve the current project from context — the same way `/session-start` does — before asking the user anything.** Check, in order: (a) an explicit project name if the user already stated one this turn, (b) the launch directory / currently mounted project folder for this Cowork session (a mounted path matching `.../GitHub/Projects/<NAME>/...` (where `<NAME>` isn't `Directory Template`) or `.../MoxyWolf Vault/Projects/<NAME>/...` resolves to project `<NAME>`), (c) otherwise, no project resolves yet — that's fine, skip to step 4.
+2. **If a project resolved in step 1, check whether it already has saved instructions:** does `<NAME>/00 – Project Hub/cowork-project-instructions.md` exist under either workspace root: `GitHub/Projects/` or `MoxyWolf Vault/Projects/`?
 3. **If it exists: stop.** Do not proceed to "Inputs to collect" or ask "which project are we initializing" — the project name is already known (`<NAME>`), and re-running this skill would overwrite the very file that answers that question. Tell the user, in one line, that `<NAME>` already has saved Project Instructions. Then ask via AskUserQuestion:
    - **`Run /refresh-project-instructions instead`** (default/recommended) — the surgical, non-destructive path that applies pending team-wide fixes without touching anything else. If chosen, hand off to that command's procedure directly.
    - **`Show me the current file`** — read and display it; don't modify anything.
@@ -64,11 +62,12 @@ The one case this skill legitimately handles for an existing project is the user
 
 ## Standard mounted roots
 
-Every MoxyWolf Cowork project needs the first two roots mounted in Cowork → Folders; the third only for a personal (Taskade) project. The skill does not ask about them — they're constants:
+Every MoxyWolf Cowork project needs two roots, stored by **tail**, never by absolute path (SM-012). The skill does not ask about them — they're constants:
 
-1. **MoxyWolf Vault** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
-2. **GitHub** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/GitHub`
-3. **Taskade** — `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/Taskade` (personal Taskade projects only)
+1. **MoxyWolf Vault**: `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`
+2. **GitHub**: `Shared drives/GitHub`
+
+The absolute path differs from Mac to Mac, because Google Drive for Desktop names the account folder differently on each one. Resolve it on the Mac you're on with `python3 "<project-init>/scripts/drive_roots.py"` through Desktop Commander, exactly as `/session-start` does (see its *Standard mounted roots*), and use the `github` and `vault` paths it prints. Write only the tails into the project's files.
 
 If the user mentions that one of these isn't mounted yet, auto-mount it before proceeding — see **Folder access** below; don't just remind them to add it manually.
 
@@ -78,7 +77,7 @@ Cowork runs either **online** (cloud) or **offline** (on the user's computer), a
 
 - **Pick a subfolder.** If `mcp__cowork__request_cowork_directory` is present, open the native picker by calling it with **no `path` argument**; take the basename of the resolved path. If it isn't present, enumerate the relevant root's immediate subfolders (`mcp__remote-devices__device_list_dir` online, or `ls` on the path offline) and present them via `AskUserQuestion` chips — the user clicks a folder, never types — with a free-text "Other" fallback.
 - **Detect what's available** (mode-agnostic): `mcp__remote-devices__get_device_info` → `connectedFolders` when present (online), else probe the path directly by listing it (offline). A successful listing = available; an error = missing.
-- **Get a missing root mounted — auto-mount first, ask only as fallback.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root's exact absolute path in **one call** (single approval dialog covering all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `request_cowork_directory` is present, call it with the explicit `path`. **Fallback only** — if neither tool is present, or the user declines the request/approval: ask the user to add the exact path (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then re-detect.
+- **Get a missing root mounted — auto-mount first, ask only as fallback.** **Online:** if `mcp__remote-devices__device_request_folder_access` is present, proactively request every currently-missing root's resolved absolute path (from `drive_roots.py`) in **one call** (single approval dialog covering all of them) — this is the default action, not something to try only after asking the user. **On-computer:** if `request_cowork_directory` is present, call it with the explicit `path`. **Fallback only** — if neither tool is present, or the user declines the request/approval: ask the user to add each root, naming its tail (**online:** the desktop app's **Add folder** button; **offline:** Cowork → Folders → Add), then re-detect.
 
 Nothing here requires `request_cowork_directory` or `device_request_folder_access` specifically — each is used when present, with the manual-ask path as the last resort, so the skill runs online or offline.
 
@@ -98,18 +97,13 @@ Only reached if **Step 0** found no already-initialized project in context. Ask 
 
 Ask via AskUserQuestion: *"Is this project shared with the organization?"* Options:
    - **`Org-shared: GitHub/Projects`** (default). Workspace is `GitHub/Projects/[PROJECT_NAME]`.
-   - **`Personal: Taskade`**. Workspace is a Taskade subfolder, picked in 2b.
    - **`Vault-only`**. Workspace is `MoxyWolf Vault/Projects/[PROJECT_NAME]`.
 
-Store the answer as `[WORKSPACE_TYPE]` (`org-shared`, `taskade` or `vault-only`) and the path as `[WORKSPACE]`. Set `[TASKADE_SUBFOLDER]` to `none` for org-shared and vault-only projects. **An org-shared project never gets a Taskade folder**, not even an empty one.
+Store the answer as `[WORKSPACE_TYPE]` (`org-shared` or `vault-only`) and the path as `[WORKSPACE]`.
 
 a. **Org-shared.** Pull the Projects clone first (`git -C GitHub/Projects pull --ff-only`; if it's dirty or diverged, stop and tell the user instead of touching it). If `GitHub/Projects/[PROJECT_NAME]/` already exists, use it as is. Otherwise copy the template without overwriting anything: `cp -Rn "GitHub/Projects/Directory Template/" "GitHub/Projects/[PROJECT_NAME]/"`. Nothing is committed yet; Step 3 commits the scaffold together with the instructions. Confirm back: "Got it, workspace `GitHub/Projects/[PROJECT_NAME]` (org-shared)."
 
-b. **Personal (Taskade).** Do **not** ask the user to type the folder name. Identify the subfolder using the **Folder access** convention. *If `mcp__cowork__request_cowork_directory` is present*: call it with **no `path` argument** so the native picker opens; tell the user — just before the call — to navigate into `MoxyWolf Shared Files/Taskade/` and pick the project's subfolder. *Otherwise*: call `mcp__remote-devices__device_list_dir` on the `Taskade/` root (or `ls` it offline) and present its subfolders via `AskUserQuestion` chips for the user to pick. Either way, take the basename of the chosen path as `[TASKADE_SUBFOLDER]` and confirm back: "Got it — using `Taskade/<basename>`."
-
-c. (Taskade only.) If the picker is dismissed / the chip menu is declined or returns nothing, fall back to AskUserQuestion with a free-text "type the folder name" option, and surface the issue in the final output. The full path is always `Taskade/[TASKADE_SUBFOLDER]`.
-
-d. **Vault-only.** Nothing to pick. The workspace is `MoxyWolf Vault/Projects/[PROJECT_NAME]`.
+b. **Vault-only.** Nothing to pick. The workspace is `MoxyWolf Vault/Projects/[PROJECT_NAME]`.
 
 ### 3. GitHub repo count
 
@@ -151,7 +145,7 @@ If the user can't answer a question or wants to defer, accept "skip" and proceed
 
 Read the template from:
 
-`/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault/_Templates/Cowork Project Instructions Template.md`
+`<vault>/_Templates/Cowork Project Instructions Template.md`, where `<vault>` is the MoxyWolf Vault root `drive_roots.py` resolved
 
 If the template file is missing, stop and tell the user — the template is the source of truth for project instruction structure. Suggest they recreate it from a known-good project (Nexus has a working instantiation in its Project Hub).
 
@@ -162,7 +156,7 @@ The template starts with template-meta-instructions ("Copy everything below...")
 Replace placeholders with the user's answers:
 
 - Every `[PROJECT_NAME]` → the project name from Step 1
-- Every `[TASKADE_SUBFOLDER]` → the active Taskade subfolder from Step 2
+- Any placeholder the template still has for a personal-workspace subfolder → `none`, and drop that workspace type's lines; it is retired (SM-012)
 - The `[REPO_SUBFOLDER]` placeholder and the section 3 ("GitHub/[REPO_SUBFOLDER]") block:
   - **0 repos:** in *Project Setup*, replace the `Active GitHub repo:` line with `**Active GitHub repo:** none`. Remove the entire section 3 block (heading and body). Leave the *Mounted Roots* section unchanged — the GitHub root stays mounted as a constant even if this project doesn't use a repo, since other Cowork sessions on the same machine will.
   - **1 repo:** substitute the `[REPO_SUBFOLDER]` placeholder with the single repo subfolder name in both *Project Setup* and section 3. If you have a one-line description, append it after the path in section 3.
@@ -174,12 +168,12 @@ Replace placeholders with the user's answers:
 - The `[JIRA_LABEL]` placeholder in the *Project Setup* block's `Jira label(s):` line: the label(s) exactly as confirmed, each in backticks and comma-separated, or `none`. Never derive it from `[KANBAN_SLUG]`.
 
 **Org-shared projects** (`[WORKSPACE_TYPE]` = `org-shared`):
-- Replace section 1's heading and body, and the *File Write Path — MANDATORY OVERRIDE* section, to point at `GitHub/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`. Say plainly in section 1 that this project is org-shared and none of its files go in Taskade.
-- In *Project Setup*, write `**Active Taskade subfolder:** none` and add `` **Workspace:** org-shared, `GitHub/Projects/[PROJECT_NAME]` (repo `MoxyWolfLLC/Projects`) ``.
+- Replace section 1's heading and body, and the *File Write Path — MANDATORY OVERRIDE* section, to point at `GitHub/Projects/[PROJECT_NAME]/`. Say plainly in section 1 that this project is org-shared.
+- In *Project Setup*, add `` **Workspace:** org-shared, `GitHub/Projects/[PROJECT_NAME]` (repo `MoxyWolfLLC/Projects`) ``.
 - Add `GitHub/Projects` to the active repo list with the description "project workspace repo (org-shared)", READ/WRITE like any other listed repo, so the commit & push workflow covers the workspace too.
-- Drop the Taskade root from *Mounted Roots* and say "the two root paths above" in the auto-mount sentence: an org-shared project never needs Taskade, because team-shared memory lives in `GitHub/Projects/_shared-memory/`.
+- *Mounted Roots* lists exactly the two roots, each by its tail (`Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`, `Shared drives/GitHub`), and says the absolute path is resolved on each Mac by `drive_roots.py`. Drop any other root the template lists, and any absolute `/Users/...` path.
 
-If the project is vault-only, replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/` instead of `Taskade/[TASKADE_SUBFOLDER]/`, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
+If the project is vault-only, replace section 1's heading and body to point at `MoxyWolf Vault/Projects/[PROJECT_NAME]/`, write *Mounted Roots* by tail as above, and update the *File Write Path — MANDATORY OVERRIDE* section to reference the vault path. Note that the numbered subfolder structure may not exist in the vault project folder; flag this for the user to create manually if they want it.
 
 ### Step 3: Save the filled instructions
 
@@ -188,7 +182,6 @@ If the project is vault-only, replace section 1's heading and body to point at `
 Write the result to the project's Project Hub:
 
 - Org-shared project: `GitHub/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md`
-- Taskade-based project: `Taskade/[TASKADE_SUBFOLDER]/00 – Project Hub/cowork-project-instructions.md`
 - Vault-only project: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00 – Project Hub/cowork-project-instructions.md`
 
 If the `00 – Project Hub` folder doesn't exist, create it first via bash. Add a frontmatter block at the top of the saved file:
@@ -205,7 +198,7 @@ template_source: _Templates/Cowork Project Instructions Template.md
 
 The frontmatter is for the saved file only.
 
-Also write `[WORKSPACE]/00 – Project Hub/project-surfaces.json` (vault-only: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00-Hub/project-surfaces.json`), following MW Plugins' file as the reference shape. Set `workspace.type` to `github` (org-shared), `taskade` or `vault`, and `workspace.path` to `[WORKSPACE]`. For org-shared projects, list `GitHub/Projects` under `repositories` with role `project workspace repo`.
+Also write `[WORKSPACE]/00 – Project Hub/project-surfaces.json` (vault-only: `MoxyWolf Vault/Projects/[PROJECT_NAME]/00-Hub/project-surfaces.json`), following MW Plugins' file as the reference shape. Set `workspace.type` to `github` (org-shared) or `vault`, and `workspace.path` to `[WORKSPACE]`. For org-shared projects, list `GitHub/Projects` under `repositories` with role `project workspace repo`.
 
 **Org-shared projects are committed and pushed.** The workspace only reaches the organization once it's on `MoxyWolfLLC/Projects`. After both files are written, commit the new `GitHub/Projects/[PROJECT_NAME]/` folder (scaffold, instructions and surfaces file) as one commit, push it with the same mechanics the template's *Commit & push workflow* uses (the `moxywolf-agent` GitHub App, `agent_token.py exec`, GA-005), verify the push landed (`git ls-remote`), then pull back so the local clone matches the remote. Run git on the Mac itself, through Desktop Commander's `start_process` (session-start Step 3b): `device_bash` is a Linux VM with no GitHub login. Stage only that project's folder, never `git add -A` at the repo root: other projects share this repo.
 
@@ -217,7 +210,7 @@ Also write `[WORKSPACE]/00 – Project Hub/project-surfaces.json` (vault-only: `
 
 `MoxyWolf Vault/_Shared Knowledge/Agents and Plugins/project-instructions-loader-stub.md`
 
-Use section 1 (Taskade-based projects), section 2 (vault-only projects) or section 2b (org-shared projects in `GitHub/Projects`). Substitute `<PROJECT_NAME>` and `<SUBFOLDER>` with this project's values; everything else is constant. Sourcing the skeleton from the vault means a change to the stub format (or a new team-wide rule) is a vault edit + a `/refresh-project-instructions` run per project — never a plugin update. If the spec file is missing, stop and tell the user rather than inventing a skeleton; that file is authoritative.
+Use section 2 (vault-only projects) or section 2b (org-shared projects in `GitHub/Projects`). Substitute `<PROJECT_NAME>` with this project's value, and write the roots by tail; everything else is constant. Sourcing the skeleton from the vault means a change to the stub format (or a new team-wide rule) is a vault edit + a `/refresh-project-instructions` run per project — never a plugin update. If the spec file is missing, stop and tell the user rather than inventing a skeleton; that file is authoritative.
 
 ### Step 4: Display the loader stub for copy-paste
 
@@ -235,7 +228,7 @@ If the user has not yet mounted every root this project needs in this Cowork pro
 - Org-shared projects: the commit hash pushed to `MoxyWolfLLC/Projects`, verified on the remote
 - The thin **loader stub** displayed in chat as a code block (this is what gets pasted into Cowork settings)
 - Computer-link to the saved full file
-- A reminder to mount any root this project needs that's missing (MoxyWolf Vault and GitHub always; Taskade only for a personal Taskade project) — on-computer via Cowork → Folders, in the cloud via the desktop app's **Add folder** button
+- A reminder to mount any root this project needs that's missing (MoxyWolf Vault and GitHub) — on-computer via Cowork → Folders, in the cloud via the desktop app's **Add folder** button
 - Concise note about anything that was deferred or skipped during input gathering
 
 ## Routing of shared knowledge
@@ -248,8 +241,7 @@ If the user explicitly asks to override this routing for a specific project, sav
 
 - **Org-shared project folder already exists in `GitHub/Projects/`** but has no saved instructions. Use it; `cp -Rn` only fills in missing template folders and never overwrites.
 - **`GitHub/Projects` clone is dirty or behind and can't fast-forward.** Stop before scaffolding and report what git said. Never stash, reset or force anything in a shared repo.
-- **The user asks for an org-shared project in Taskade.** Don't. Org-shared projects live in `GitHub/Projects`; say so in one line and offer the personal (Taskade) type if the project isn't actually shared.
-- **Active Taskade subfolder doesn't exist yet.** Normally impossible because the user picks an existing folder via the native Finder picker. Only happens in the free-text fallback path; in that case ask the user whether to create the folder (with the standard numbered subfolder structure) or whether they'll create it manually. Don't proceed with saving until the folder exists.
+- **The user asks for a personal workspace outside `GitHub/Projects` or the vault.** That type is retired (SM-012). Say so in one line and offer org-shared or vault-only.
 - **GitHub repo subfolder doesn't exist locally.** Normally impossible via the picker. Only happens via the "Type a custom name" fallback — accept the name and flag it in the output. The user may be planning to clone the repo. Don't block on it.
 - **User dismisses the Finder picker (on-computer) or declines the chip menu (cloud).** Treat as "skip" — fall back to the AskUserQuestion free-text path for that one input and continue.
 - **One of the roots this project needs isn't mounted.** Generate the instructions anyway, and surface the missing mount as an action item at the end of the chat reply.
@@ -259,7 +251,6 @@ If the user explicitly asks to override this routing for a specific project, sav
 
 ## Notes
 
-- The plugin reads from the vault but writes to the project's workspace folder (`GitHub/Projects`, Taskade, or vault Projects), never to the vault's `_Templates/` directory itself.
+- The plugin reads from the vault but writes to the project's workspace folder (`GitHub/Projects` or vault Projects), never to the vault's `_Templates/` directory itself.
 - When the project name has spaces or special casing (e.g., "Frontier Founder"), preserve that casing in the output. Use kebab-case only for filenames if needed.
-- The Active Taskade subfolder name often matches the project name but doesn't have to — preserve whatever capitalization the actual folder uses.
 - The displayed code block can be long. That's expected — the user is going to paste it whole.
