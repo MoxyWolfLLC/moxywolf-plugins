@@ -15,8 +15,8 @@ The digest is small, opinionated, and human-readable. It is not a code dump.
 
 Use the same resolution rules as `obsidian-update` and `session-start`:
 
-1. `${VAULT}` — first directory under `/sessions/*/mnt/` containing `CLAUDE.md` with MoxyWolf Vault markers, or fall through to `/sessions/*/mnt/*MoxyWolf Vault/`, or to the Google Drive REST helper. Standard path on the user's Mac is `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`.
-2. `${GH_ROOT}` — `~/Library/CloudStorage/GoogleDrive-<you>@moxywolf.com/Shared drives/GitHub/` on the Mac (the MoxyWolf Google shared drive). In sandboxed Cowork sessions, the `GitHub` root is mounted under `/sessions/*/mnt/GitHub/`.
+1. `${VAULT}` — first directory under `/sessions/*/mnt/` containing `CLAUDE.md` with MoxyWolf Vault markers, or fall through to `/sessions/*/mnt/*MoxyWolf Vault/`, or to the Google Drive REST helper. On the user's Mac, take the `vault` path `python3 <project-init>/scripts/drive_roots.py` (project-init's resolver, run on the Mac through Desktop Commander; it prints the `vault` and `github` paths for that Mac, skipping `@gtempaccount.com` accounts); never a hardcoded `/Users/...` path, because Google Drive names the account folder differently on each Mac (SM-012).
+2. `${GH_ROOT}` — the `github` path `drive_roots.py` prints, on the Mac (the MoxyWolf Google shared drive, tail `Shared drives/GitHub`). In sandboxed Cowork sessions, the `GitHub` root is mounted under `/sessions/*/mnt/GitHub/`.
 
 Ensure `${VAULT}/_Shared Knowledge/Code Patterns/` exists; create it if missing. Read `${VAULT}/CLAUDE.md` once so the digest's frontmatter and tags conform to the vault's conventions.
 
@@ -27,7 +27,7 @@ Ensure `${VAULT}/_Shared Knowledge/Code Patterns/` exists; create it if missing.
 | Invocation | Repo set |
 |---|---|
 | `/code-learn <name>` | `${GH_ROOT}/<name>` only. If the folder doesn't exist, abort with the path checked. |
-| `/code-learn --project <slug>` | Read `Taskade/<project>/00 – Project Hub/cowork-project-instructions.md` (or the vault mirror), parse the GitHub repos list, learn from each. |
+| `/code-learn --project <slug>` | Read `GitHub/Projects/<project>/00 – Project Hub/cowork-project-instructions.md` (or the vault mirror), parse the GitHub repos list, learn from each. |
 | `/code-learn --all` | Every immediate subdirectory of `${GH_ROOT}` that contains a `.git` directory. Warn if more than 5 repos. |
 | `/code-learn` (no args) | Auto-detect from the launch directory: if launched from `${GH_ROOT}/<repo>/...` use that one repo; else fall back to the most recently active project (same rule `/session-start` uses) and learn from its repos. |
 

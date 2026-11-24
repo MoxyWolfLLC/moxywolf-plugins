@@ -123,7 +123,7 @@ Treat the target as a real research question. Use `research-pipeline:discover-li
 
 Read our current practice for the target and score it honestly against Tiers 1-3:
 
-- **Artifacts** — the relevant Taskade `12 – MARCOM` folder (mind the dash: Team Plugins uses `12 – MARCOM` en-dash; other projects vary — `ls` first), the product's own project folder, and vault brand/voice.
+- **Artifacts** — the relevant `GitHub/Projects/<project>/12 – MARCOM` folder (mind the dash: MW Plugins uses `12 – MARCOM` en-dash; other projects vary — `ls` first), the product's own project folder, and vault brand/voice.
 - **Live signal** — pull the metric that matters via GA4 (`analytics:google-analytics`), PostHog (431506), Ahrefs, Postiz, or `moxywolf-crm`/Clarify, scoped to the target. Don't assert performance without a number.
 - For each best practice, mark: **doing it**, **doing it partially**, **not doing it**, or **doing the opposite**. The "probably doing it wrong" premise means: don't grade on a curve.
 
@@ -146,7 +146,7 @@ Deliver the file with `SendUserFile`. If the target is a recurring surface the u
 
 After the brief, invoke the highest-value **installed** skills from the "Run these next" list to produce starter deliverables in the same pass — e.g. for a lifecycle-email target, run `growth-engineer-skills:email-sequence` (or the onboarding/nurture/win-back variants) against the benchmarked gaps; for SEO, run `searchfit-seo:seo-audit`.
 
-Guardrails: confirm before running more than ~2 heavy skills or anything that writes outside Taskade/sends anything; run read-only/generative skills freely; never let auto-run send outreach, post socially, or push code without the human gate those skills already enforce. Collect each sub-skill's output into the target folder and reference it from the brief.
+Guardrails: confirm before running more than ~2 heavy skills or anything that writes outside the project's `GitHub/Projects` folder or sends anything; run read-only/generative skills freely; never let auto-run send outreach, post socially, or push code without the human gate those skills already enforce. Collect each sub-skill's output into the target folder and reference it from the brief.
 
 ## Edge cases
 

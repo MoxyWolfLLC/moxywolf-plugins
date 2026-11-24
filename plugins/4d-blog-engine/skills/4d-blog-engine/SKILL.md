@@ -158,7 +158,7 @@ piece (`blog-publish`, `blog-social`, `blog-status`) — they read `target` and
 
 This is the hub-and-spoke entry point. Every blog post is a **spoke** on exactly
 one **pillar** — the engine makes that non-optional. The model is generalized
-from `Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
+from `GitHub/Projects/MW Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
 
 **1. Target.** Load the publishing-target registry by globbing
 `${CLAUDE_PLUGIN_ROOT}/targets/*.md` (see `targets/README.md` for the schema).

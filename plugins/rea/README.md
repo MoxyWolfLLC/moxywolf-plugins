@@ -36,7 +36,7 @@ Two ideas, re-expressed in our words, no code copied, declared in `DESIGN.md`:
 - **EV-010.** Every result that can carry target-derived text is marked untrusted on the wire, default on, and the agent reports an embedded instruction instead of following it.
 - **EV-011.** An unknown is a revisioned record naming the authority that can close it, refused on a stale revision, closed only by evidence of matching authority.
 
-Not taken: the reconstruction obligation ledger (needs typed manifests and verifier authority levels this loop doesn't have) and the tool-shape table (a note for the next `mcp-builder` edit). Fit note: `Taskade/Team Plugins/06 – Engineering/rea-fit-2026-10-13.md`.
+Not taken: the reconstruction obligation ledger (needs typed manifests and verifier authority levels this loop doesn't have) and the tool-shape table (a note for the next `mcp-builder` edit). Fit note: `GitHub/Projects/MW Plugins/06 – Engineering/rea-fit-2026-10-13.md`.
 
 ## Attribution
 

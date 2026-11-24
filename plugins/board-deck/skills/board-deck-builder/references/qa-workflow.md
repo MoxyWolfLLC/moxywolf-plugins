@@ -63,7 +63,7 @@ Open the PPTX in PowerPoint or Google Slides and verify:
 
 1. **Financials (Slide 4)**: Cross-reference every number against LivePlan
 2. **GA4 metrics (Slides 5-7)**: Cross-reference session counts, percentages against GA4 reports
-3. **Sprint data (Slide 8)**: Cross-reference task counts and velocity against Taskade
+3. **Sprint data (Slide 8)**: Cross-reference issue counts and velocity against Jira MOXY (the same JQL the data collection ran)
 4. **Risk register (Slide 9)**: Confirm all active risks are listed, no stale risks remain
 
 ### Text Overflow

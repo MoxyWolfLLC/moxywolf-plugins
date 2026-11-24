@@ -35,7 +35,7 @@ Before any DESIGN.md or E2E write/commit, create `build/<item-id>-<slug>` from u
 
 ## Step 1: The design document
 
-`DESIGN.md` at the repo root is canonical; `<workspace>/06 – Engineering/DESIGN-<repo>.md` is a mirror, rewritten on every doc commit, where `<workspace>` is the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one). Template: `references/design-doc-template.md`.
+`DESIGN.md` at the repo root is canonical; `<workspace>/06 – Engineering/DESIGN-<repo>.md` is a mirror, rewritten on every doc commit, where `<workspace>` is the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `MoxyWolf Vault/Projects/<name>` for a vault-only one). Template: `references/design-doc-template.md`.
 
 - **Missing:** do not write code. Run `/gstack-design-doc` (drafts the document, publishes it as an editable artifact, and on **Mark approved** writes it to the repo and the workspace mirror, commits on the Step 0 feature branch, pushes, pulls back). For anything larger than one item, run `/gstack-plan-review` on the draft first. Then continue.
 - **Present:** read it in full. Match `$ARGUMENTS` to an item by ID or by meaning.

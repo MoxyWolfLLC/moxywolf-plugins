@@ -1,7 +1,7 @@
 {
   "name": "board-deck",
-  "version": "0.3.2",
-  "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Taskade, and GitHub (all-branch commit velocity) data",
+  "version": "0.4.0",
+  "description": "Generate MoxyWolf monthly board deck from LivePlan, GA4, Jira MOXY sprint data, and GitHub (all-branch commit velocity) data",
   "author": {
     "name": "MoxyWolf LLC"
   },

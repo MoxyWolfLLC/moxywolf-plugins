@@ -31,4 +31,4 @@ Two profiles to make, on the Mac, with its own onboarding rather than by hand: `
 
 ## Attribution
 
-diagram-design is MIT, Copyright Cathryn Lavery. No diagram-design code is in this repository. Fit note: `Taskade/Team Plugins/06 – Engineering/diagram-and-advisor-fit-2026-10-13.md`.
+diagram-design is MIT, Copyright Cathryn Lavery. No diagram-design code is in this repository. Fit note: `GitHub/Projects/MW Plugins/06 – Engineering/diagram-and-advisor-fit-2026-10-13.md`.

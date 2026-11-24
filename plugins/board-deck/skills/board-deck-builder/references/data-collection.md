@@ -81,29 +81,29 @@ GA4 provides sessions, channel breakdown, engagement rates, and key events per p
 - Highlight strong growth with `{ "highlight": true, "highlightColor": "green" }`
 - Use `muted: true` for metrics that need input or are unavailable
 
-## Source 3: Taskade (Sprint & Task Data)
+## Source 3: Jira MOXY (Sprint & Task Data)
 
-Taskade provides sprint progress, story points, task status, and velocity.
+Jira project **MOXY** is the single task board for every MoxyWolf project (since 2026-07-16). It provides sprint progress, task status, story points where the board records them, and velocity.
 
 ### Steps
 
-1. Open Taskade workspace
-2. Navigate to the current sprint board
-3. Collect task counts by status:
+1. Query the open sprint through the Atlassian connector: `searchJiraIssuesUsingJql` with `project = MOXY AND sprint in openSprints()`. Add `AND labels = <label>` to scope to one product, using the label its project instructions declare (`Jira label(s):`), never one derived from a name. If the board has no open sprint, query the reporting month instead (`project = MOXY AND updated >= <month start> AND updated < <next month start>`) and title slide 8 by the month, not a sprint.
+2. Collect issues by status category:
 
 | Status | JSON Path |
 |--------|-----------|
-| Done tasks | `sprint.doneTasks` (array of task name strings) |
-| In Progress tasks | `sprint.inProgress` (array with priority/points) |
-| To Do tasks | `sprint.toDo` (array with priority/points) |
-| Blocked tasks | Count for `sprint.kpis` |
-| Bugs | Count + status for `sprint.kpis` |
+| Done issues | `sprint.doneTasks` (array of issue summaries) |
+| In Progress issues | `sprint.inProgress` (array with priority/points) |
+| To Do issues | `sprint.toDo` (array with priority/points) |
+| Blocked issues | Count for `sprint.kpis` |
+| Bugs (issue type Bug) | Count + status for `sprint.kpis` |
 
-4. Calculate velocity:
-   - Sum story points of Done tasks
-   - Divide by total sprint story points
+3. Calculate velocity:
+   - If the issues carry story points, sum the points of Done issues and divide by the sprint's total points
+   - If they don't, use issue counts instead, and say so in the label
    - Record as decimal: `sprint.velocityPct` (e.g., `0.528`)
-   - Format label: `sprint.velocityLabel` (e.g., `"52.8%  (28/53 story points)"`)
+   - Format label: `sprint.velocityLabel` (e.g., `"52.8%  (28/53 story points)"` or `"52.8%  (19/36 issues, no story points)"`)
+4. If the connector can't be reached, set `sprint.velocityLabel` to `"unavailable"` with the reason and mark the slide `muted: true`. Never fill sprint numbers from memory.
 
 5. Map sprint metadata:
    - `sprint.title`: Sprint name (e.g., "Sprint Command: STIGViewer Go-Live")
@@ -186,11 +186,11 @@ only the default branch drastically undercounts actual development velocity.
 
 6. **Enrich product OKR dev sections** with GitHub data:
    - **STIGViewer**: add commit velocity to `stigviewerOKRs.kr2Dev.items` (e.g., `"GitHub: 85 commits across 4 branches"`)
-   - Update `portfolio[0].devStatus` (STIGViewer) to include commit count alongside Taskade tasks
+   - Update `portfolio[0].devStatus` (STIGViewer) to include commit count alongside Jira issues
    - **SAMS**: add commit velocity to `samsOKRs.devItems` (e.g., `"GitHub: 47 commits across 6 branches"`)
-   - Update `portfolio[2].devStatus` (SAMS) to include commit count alongside Taskade tasks
+   - Update `portfolio[2].devStatus` (SAMS) to include commit count alongside Jira issues
    - For any product with a GitHub repo, the `devStatus` field should reflect both
-     Taskade task progress AND GitHub commit velocity
+     Jira issue progress AND GitHub commit velocity
 
 ### Formatting Rules
 

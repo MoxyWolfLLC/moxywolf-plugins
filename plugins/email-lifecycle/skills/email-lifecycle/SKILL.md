@@ -73,7 +73,7 @@ limit 15;
 Run it against Supabase project `lmhfgsaznbwnnfldpxgc` via the Supabase MCP `execute_sql`. If that project isn't reachable, note the degradation and fall back to the curated `coreyhaines31/marketingskills` items named in the matrix.
 
 ### 3. Benchmark (needs target product)
-Read the product's current state for this stage — its email code (transactional templates, trigger hooks), its Taskade `12 – MARCOM` / `08 – Go-to-Market` artifacts, and live signal (PostHog, Clarify, Resend). Mark each best practice: doing it / partial / not doing it / doing the opposite. Grade honestly. If the product's repo/folder isn't mounted, say so and benchmark on whatever is available, flagging "instrument/connect to measure."
+Read the product's current state for this stage — its email code (transactional templates, trigger hooks), its `GitHub/Projects/<project>` `12 – MARCOM` / `08 – Go-to-Market` artifacts, and live signal (PostHog, Clarify, Resend). Mark each best practice: doing it / partial / not doing it / doing the opposite. Grade honestly. If the product's repo/folder isn't mounted, say so and benchmark on whatever is available, flagging "instrument/connect to measure."
 
 ### 4. Recommendations
 Prioritized, most-costly-gap first, aligned to the reference runtime. No wall-clock estimates — complexity/dependencies only. Name the owner where it's a code surface (transactional = engineering, spec/PR).

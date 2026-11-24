@@ -8,9 +8,9 @@ downstream (canonical URLs, JSON-LD entities, frontmatter, hero style, the
 linking map) is driven by the chosen descriptor.
 
 This is the registry the unified-blog-plugin PRD describes
-(`Taskade/Team Plugins/02 – Product Strategy/Research & Discovery/PRD-unified-blog-plugin-hub-spoke-2026-06-14.md`).
+(`GitHub/Projects/MW Plugins/02 – Product Strategy/Research & Discovery/PRD-unified-blog-plugin-hub-spoke-2026-06-14.md`).
 The hub-and-spoke methodology every target follows is generalized from
-`Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
+`GitHub/Projects/MW Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
 
 ## Descriptor schema
 

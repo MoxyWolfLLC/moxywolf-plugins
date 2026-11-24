@@ -40,7 +40,7 @@ SEO/AEO.
 ## What already exists (the methodology reference)
 
 STIGViewer is where the hub-and-spoke methodology was first built — see
-`Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
+`GitHub/Projects/MW Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md`.
 Already shipped:
 
 - **The hub page** `stigviewer.com/methodology` (`apps/web/app/(public)/methodology/`),

@@ -29,7 +29,7 @@ Generate an Excalidraw diagram from a natural-language description and write it 
 6. **Route the file** per the skill's *Routing* table:
    - `--scope Projects/<project>` → `MoxyWolf Vault/Projects/<project>/06-Engineering/diagrams/<name>.excalidraw.md`
    - `--shared` or default → `MoxyWolf Vault/_Shared Knowledge/Diagrams/<name>.excalidraw.md`
-   - Vault path resolves from `$MW_VAULT_PATH` if set, else the canonical Google Drive mount.
+   - Vault path resolves from `$MW_VAULT_PATH` if set, else the path project-init's `drive_roots.py` resolves on the Mac in use.
 
 7. **Confirm path with the user** before writing. If a file exists at the target path, ask before overwriting.
 

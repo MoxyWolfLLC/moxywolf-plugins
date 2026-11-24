@@ -1,7 +1,7 @@
 ---
 read_when: "STEP 1.5 creates a NEW pillar, or /blog-pillar creates/edits one. Copy this template into the target's linking_map_dir as <pillar-slug>.md and fill it."
 status: template
-based_on: "Taskade/Team Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md (the Multi-Lensatic Methodology linking map — the reference exemplar)."
+based_on: "GitHub/Projects/MW Plugins/11 - Project Knowledge/methodology-hub-and-spoke-linking-map-2026-06-14.md (the Multi-Lensatic Methodology linking map — the reference exemplar)."
 ---
 
 # Linking map (cluster manifest) — template
