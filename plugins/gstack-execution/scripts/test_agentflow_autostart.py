@@ -23,7 +23,18 @@ class Autostart(unittest.TestCase):
         self.bin = self.tmp / "bin"; self.bin.mkdir()
         self.calls = self.tmp / "launchctl.log"
         self.fake("npx", "exit 0")
-        self.fake("launchctl", f'echo "$*" >> "{self.calls}"; [ "$1" = print ] && echo "	state = running"; exit 0')
+        # print answers only while loaded: after a bootstrap that no later bootout undid, as launchd does
+        self.fake("launchctl", f'''echo "$*" >> "{self.calls}"
+if [ "$1" = print ]; then
+  case $(grep -E "^boot(strap|out)" "{self.calls}" | tail -n 1) in
+    bootstrap*) printf "\\tstate = running\\n\\tpid = 100\\n"; exit 0;;
+    *) exit 113;;
+  esac
+fi
+exit 0''')
+        # the agent (pid 100) starts the viewer (pid 101) once loaded; 999 is someone else's process
+        self.fake("lsof", f'grep -E "^boot(strap|out)" "{self.calls}" 2>/dev/null | tail -n 1 | grep -q bootstrap && echo 101; exit 0')
+        self.fake("ps", 'for a; do last=$a; done; case $last in 101) echo 100;; *) echo 1;; esac')
         # the fake viewer answers only once the agent is loaded, as the real one does
         self.fake("curl", f'grep -q bootstrap "{self.calls}" 2>/dev/null || exit 7; echo "<html><title>Agent Flow</title></html>"')
         self.fake("uname", 'echo Darwin')
@@ -80,21 +91,28 @@ class Autostart(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("not answering", r.stderr)
 
-    def test_a_port_already_answering_is_refused_before_loading(self):
-        """Second review round 2 F1: another viewer already holding the port is not taken for ours."""
-        self.fake("curl", "echo '<html><title>Agent Flow</title></html>'")
+    def test_a_port_already_held_is_refused_before_loading(self):
+        """Second review round 2 and 3 F1: a viewer already holding the port, quick to answer or not, is not ours."""
+        self.fake("lsof", "echo 999")
         r = self.run_script("install")
         self.assertEqual(r.returncode, 1)
         self.assertIn("in use by another process", r.stderr)
         self.assertNotIn("bootstrap", self.calls.read_text() if self.calls.exists() else "")
+
+    def test_an_answer_from_a_process_the_agent_did_not_start_is_not_success(self):
+        """Second review round 3 F1: a listener outside the agent's process tree never counts."""
+        self.fake("lsof", f'grep -q bootstrap "{self.calls}" 2>/dev/null && echo 999; exit 0')
+        self.fake("curl", "echo '<html><title>Agent Flow</title></html>'")
+        r = self.run_script("install")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not answering", r.stderr)
 
     def test_no_probe_once_the_deadline_has_passed(self):
         """Review round 2 F1: with no time left the script never calls curl, so it can't pass -m 0 (no limit)."""
         self.fake("curl", f'echo "$*" >> "{self.tmp}/curl.log"; exit 7')
         r = self.run_script("install", AGENT_FLOW_WAIT="0")
         self.assertEqual(r.returncode, 1)
-        probes = (self.tmp / "curl.log").read_text().splitlines()
-        self.assertTrue(probes and all("-m 1 " in p for p in probes), probes)   # only the free-port check ran
+        self.assertFalse((self.tmp / "curl.log").exists())
 
     def test_status_probes_the_installed_port(self):
         """Review F3: status reads the port from the plist, not from this call's environment."""
@@ -102,6 +120,26 @@ class Autostart(unittest.TestCase):
         self.fake("curl", f'echo "$*" >> "{self.tmp}/curl.log"; exit 0')
         self.assertEqual(self.run_script("status").returncode, 0)
         self.assertIn("127.0.0.1:61999", (self.tmp / "curl.log").read_text())
+
+    def test_a_lingering_agent_is_waited_for_before_loading(self):
+        """Found on Dorian's Mac: bootout returns before the old service is gone, and bootstrap then fails (5)."""
+        self.run_script("install")
+        # the old agent is still listed for two more prints after its bootout, then goes
+        n = self.tmp / "lingers"; n.write_text("2")
+        self.fake("launchctl", f'''echo "$*" >> "{self.calls}"
+if [ "$1" = print ]; then
+  left=$(cat "{n}"); if [ "$left" -gt 0 ]; then echo $((left - 1)) > "{n}"; exit 0; fi
+  case $(grep -E "^boot(strap|out)" "{self.calls}" | tail -n 1) in
+    bootstrap*) printf "\\tpid = 100\\n"; exit 0;; *) exit 113;;
+  esac
+fi
+exit 0''')
+        r = self.run_script("install")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        log = self.calls.read_text().splitlines()
+        last_out = max(i for i, l in enumerate(log) if l.startswith("bootout"))
+        last_in = max(i for i, l in enumerate(log) if l.startswith("bootstrap"))
+        self.assertGreaterEqual(sum(l.startswith("print") for l in log[last_out:last_in]), 3)
 
     def test_uninstall_removes_the_plist(self):
         self.run_script("install")
@@ -111,6 +149,7 @@ class Autostart(unittest.TestCase):
         self.assertIn("bootout gui/", self.calls.read_text())
 
     def test_status_reports(self):
+        self.run_script("install")
         r = self.run_script("status")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("state = running", r.stdout)
