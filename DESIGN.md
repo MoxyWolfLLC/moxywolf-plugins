@@ -1433,7 +1433,7 @@ Two sessions on 2026-11-10 skipped the Jira, decision-record and open-issue sect
 
 ### SM-012 — Each Mac finds its own Drive roots, and project-init has two roots, not three
 
-**Status:** building. Approved by Dorian on 2026-11-24 ("Approve SM-012"), after he asked to see the path that would be set. Taskade's retirement is his statement the same day: "There will be no Taskade anymore. Its now Projects within GitHub." The gtempaccount rule is his too: "This should be ignored: GoogleDrive-dorianc%moxywolf.com@gtempaccount.com".
+**Status:** done on merge of #412. Approved by Dorian on 2026-11-24 ("Approve SM-012"), after he asked to see the path that would be set. Taskade's retirement is his statement the same day: "There will be no Taskade anymore. Its now Projects within GitHub." The gtempaccount rule is his too: "This should be ignored: GoogleDrive-dorianc%moxywolf.com@gtempaccount.com".
 
 **Links introduced:** the Drive-root link. Project files store each root as a tail (`Shared drives/GitHub`, `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`), and `drive_roots.py` assumes Drive for Desktop mounts every account at `~/Library/CloudStorage/GoogleDrive-*`. If Google moves that folder, the lookup finds nothing and says so; it never falls back to a guessed path.
 
