@@ -58,6 +58,13 @@ cat > "$PLIST" <<EOF
 EOF
 if command -v plutil >/dev/null; then plutil -lint "$PLIST" >/dev/null; fi
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+# the port must be free once our own agent is gone, or a later answer could come from someone else's process
+n=0
+while curl -s -m 1 -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; do
+  n=$((n + 1))
+  [ "$n" -lt 5 ] || { echo "agent-flow: port $PORT is in use by another process; stop it or set AGENT_FLOW_PORT" >&2; exit 1; }
+  sleep 1
+done
 launchctl bootstrap "$DOMAIN" "$PLIST"
 END=$((SECONDS + WAIT))   # a deadline on elapsed time, so a stalled answer can't stretch the wait
 while :; do

@@ -24,7 +24,8 @@ class Autostart(unittest.TestCase):
         self.calls = self.tmp / "launchctl.log"
         self.fake("npx", "exit 0")
         self.fake("launchctl", f'echo "$*" >> "{self.calls}"; [ "$1" = print ] && echo "	state = running"; exit 0')
-        self.fake("curl", "echo '<html><title>Agent Flow</title></html>'")
+        # the fake viewer answers only once the agent is loaded, as the real one does
+        self.fake("curl", f'grep -q bootstrap "{self.calls}" 2>/dev/null || exit 7; echo "<html><title>Agent Flow</title></html>"')
         self.fake("uname", 'echo Darwin')
         self.plist = self.home / "Library/LaunchAgents/com.moxywolf.agent-flow.plist"
 
@@ -74,17 +75,26 @@ class Autostart(unittest.TestCase):
 
     def test_another_service_on_the_port_is_not_the_viewer(self):
         """Second review F1: a 200 from something else on the port is not success."""
-        self.fake("curl", "echo '<html><title>Something else</title></html>'")
+        self.fake("curl", f'grep -q bootstrap "{self.calls}" 2>/dev/null || exit 7; echo "<html><title>Something else</title></html>"')
         r = self.run_script("install")
         self.assertEqual(r.returncode, 1)
         self.assertIn("not answering", r.stderr)
+
+    def test_a_port_already_answering_is_refused_before_loading(self):
+        """Second review round 2 F1: another viewer already holding the port is not taken for ours."""
+        self.fake("curl", "echo '<html><title>Agent Flow</title></html>'")
+        r = self.run_script("install")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("in use by another process", r.stderr)
+        self.assertNotIn("bootstrap", self.calls.read_text() if self.calls.exists() else "")
 
     def test_no_probe_once_the_deadline_has_passed(self):
         """Review round 2 F1: with no time left the script never calls curl, so it can't pass -m 0 (no limit)."""
         self.fake("curl", f'echo "$*" >> "{self.tmp}/curl.log"; exit 7')
         r = self.run_script("install", AGENT_FLOW_WAIT="0")
         self.assertEqual(r.returncode, 1)
-        self.assertFalse((self.tmp / "curl.log").exists())
+        probes = (self.tmp / "curl.log").read_text().splitlines()
+        self.assertTrue(probes and all("-m 1 " in p for p in probes), probes)   # only the free-port check ran
 
     def test_status_probes_the_installed_port(self):
         """Review F3: status reads the port from the plist, not from this call's environment."""
