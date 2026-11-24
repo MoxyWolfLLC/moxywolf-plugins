@@ -1450,6 +1450,23 @@ Opened 2026-11-24. Dorian moves between Macs and the roots go missing. Every pro
 
 Not covered: Taskade in seven other plugins (23 mentions), and the hardcoded `/Users/doriancougias` paths in vault-code-learn and excalidraw-vault. Each is a follow-up build.
 
+### SM-013 — No plugin names Taskade, and no plugin hardcodes a Drive path
+
+**Status:** building. Approved by Dorian on 2026-11-24 ("Approve, plus /Users paths"), after he asked to "get rid of Taskade on the other seven plugins". Scoping found eleven.
+
+**Links introduced:** board-deck's sprint-source link. board-deck reads sprint data from Jira project MOXY through the Atlassian connector (`searchJiraIssuesUsingJql`), so a renamed tool, or a board that stops using sprints, leaves slide 8 saying "unavailable". vault-code-learn and excalidraw-vault resolve the vault root with project-init's `drive_roots.py`, so they assume project-init is installed, and fall back to the mounted folder when it isn't.
+
+Taskade is retired (Dorian, 2026-11-24). SM-012 took it out of project-init; this takes it out of every other plugin, and takes the last hardcoded `/Users/doriancougias` Drive paths out with it.
+
+1. Outside changelog and version-history text, no file under `plugins/` names Taskade. Homes: board-deck (README, GOVERNANCE, command, skill, `data-collection.md`, `qa-workflow.md`), marcom-audit, gstack-execution (`gstack-build.md`, `gstack-design-doc.md`, `design-doc-template.md`), chief-of-staff, vault-code-learn, email-lifecycle, 4d-blog-engine (README, SKILL, `linking-map-template.md`, targets), diagram-design, rea, marketing-department and sales-department.
+2. A path into a Taskade project folder points at its `GitHub/Projects` home: Team Plugins to MW Plugins, STIGViewer to STIGViewer, Frontier Founder to FrontierFounder. Each target file exists today.
+3. board-deck's sprint source is Jira MOXY: open-sprint issues by status, story points where the field is set, otherwise counts by issue, and the deck says which. Slide 8's QA check cross-references Jira.
+4. gstack-design-doc's state key `taskadePath` becomes `workspacePath`.
+5. `test_session_record.py`'s fixture folder `taskade` gets a neutral name.
+6. vault-code-learn and excalidraw-vault name no `/Users/doriancougias` path. They resolve the vault root on the Mac in use with project-init's `drive_roots.py`, and fall back to the mounted folder when it can't run.
+7. A test scans every tracked file under `plugins/` for Taskade and for an absolute `/Users/<name>/Library/CloudStorage/GoogleDrive-` path, exempting `plugin.json` changelog clauses, README Version History sections and the test files that name them on purpose. It fails when it examines nothing, and a positive control shows each check catches its string.
+8. Each changed plugin gets a version bump with a README Version History line where it has one, and its marketplace entry and the top-level marketplace version move (CI-002). `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -3148,6 +3165,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-24: SM-013 added on Dorian's approval ("Approve, plus /Users paths"): no plugin names Taskade or hardcodes a `/Users` Drive path; board-deck reads sprints from Jira MOXY.
 - 2026-11-24: SM-012 added on Dorian's approval ("Approve SM-012"): each Mac resolves its Drive roots with `drive_roots.py` (skipping `@gtempaccount.com`), project files store root tails, and project-init drops the Taskade root. Amends SM-007.2 and SM-007.5.
 - 2026-11-21: GO-024 declared (draft, awaiting Dorian's approval): the recommended swarm width moves from 20 to 30 and the default stays 3. `swarm.py` is unchanged, because GO-023 already admits any explicit width. It adds one host-ceiling test, a new vault decision record that supersedes only DR-142's three-worker wording, and a proof run of 30 workers. Source: Dorian's instruction and answers of 2026-11-21; Codex reviewed the route and its four changes are folded in.
 - 2026-11-21: SR-003 declared on Dorian's approval of the plan ("I approve the plan", 10:47 AM PT; `GitHub/Projects/CKI/06 – Engineering/gate-fix-plan-2026-11-21/PLAN.md`): a pre-call spend reservation and evidence-backed dispositions in `spec_review.py`. Amends SR-001.4 and SR-002.2 to name the disposition. Its first spec review is authorized as an unbudgeted paid run ("I authorize all runs to unblock gate 0", 10:45 AM PT). Dorian's choices the same day: the bound is the tight formula with a framing allowance (SR-003.3), and the disposition half is built before the budget half.
