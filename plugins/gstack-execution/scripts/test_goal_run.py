@@ -156,10 +156,14 @@ class RunnerFixture(unittest.TestCase):
         self.branches.append((ref, sha))
         self.git("branch", ref, sha)
 
-    def start(self, builder="claude/claude-opus", granted=None, **kw):
-        return gr.start(self.repo, "g1", 7, builder, kw.get("verify") or self.verify(),
-                        granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main",
-                        repo_name=kw.get("repo_name", "o/r"), environments=kw.get("environments", lambda: ["goal-holdout"]))
+    def start(self, builder="claude/claude-opus", granted=None, checked=True, **kw):
+        state = gr.start(self.repo, "g1", 7, builder, kw.get("verify") or self.verify(),
+                         granted or {"contents": "write", "pull_requests": "write"}, self.create, base="main",
+                         repo_name=kw.get("repo_name", "o/r"), environments=kw.get("environments", lambda: ["goal-holdout"]))
+        if checked:                                    # XE-049.16: every brief clear, unless a test is about the check
+            state["brief_checks"] = {str(i["n"]): {"entries": []} for i in state["items"]}
+            gr.save(state)
+        return state
 
     def item(self, goalmod, msg="item"):
         self.git("switch", "-q", "goal/g1")

@@ -1,39 +1,28 @@
 {
   "schema": "spec-review/3",
-  "review_id": "693129cf67754894a96ef099b28823ee",
+  "review_id": "19385cd3136b4e1ba4f162c5bcda3bcc",
   "doc": "DESIGN.md",
   "item": "XE-049",
-  "scope_sha256": "8663b627073bdc48984e170419fe8d0500dd403a7087a53b08dd784423392adb",
-  "reviewed_at": "2026-11-24T06:26:24+00:00",
+  "scope_sha256": "d2d53454483c84b15440a4f9014ce04d486c3ce4c15869c8ddbb7ab40787341f",
+  "reviewed_at": "2026-11-24T07:13:29+00:00",
   "executor": "claude-sonnet-5-5",
   "advisor": "claude-fable-5-2",
   "advisor_calls": 1,
   "usage": [
     {
       "input_tokens": 4,
-      "output_tokens": 8997,
+      "output_tokens": 10564,
       "cache_read_input_tokens": 0,
-      "cache_creation_input_tokens": 9389,
+      "cache_creation_input_tokens": 10564,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 9389,
+        "ephemeral_5m_input_tokens": 10564,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     },
     {
-      "input_tokens": 4,
-      "output_tokens": 26,
-      "cache_read_input_tokens": 9389,
-      "cache_creation_input_tokens": 9037,
-      "cache_creation": {
-        "ephemeral_5m_input_tokens": 9037,
-        "ephemeral_1h_input_tokens": 0
-      },
-      "type": "message"
-    },
-    {
-      "input_tokens": 20066,
-      "output_tokens": 2993,
+      "input_tokens": 22721,
+      "output_tokens": 3086,
       "cache_read_input_tokens": 0,
       "cache_creation_input_tokens": 0,
       "cache_creation": {
@@ -45,111 +34,109 @@
     },
     {
       "input_tokens": 2,
-      "output_tokens": 2994,
-      "cache_read_input_tokens": 18426,
-      "cache_creation_input_tokens": 870,
+      "output_tokens": 3973,
+      "cache_read_input_tokens": 10564,
+      "cache_creation_input_tokens": 11794,
       "cache_creation": {
-        "ephemeral_5m_input_tokens": 870,
+        "ephemeral_5m_input_tokens": 11794,
         "ephemeral_1h_input_tokens": 0
       },
       "type": "message"
     }
   ],
   "cache": {
-    "read": 27815,
-    "write": 19296
+    "read": 10564,
+    "write": 22358
   },
   "contradictions": [],
   "ambiguities": [
     {
       "id": "A1",
       "requirements": [
-        "XE-049.11",
-        "XE-049.7"
+        "XE-049.4",
+        "XE-049.5"
       ],
-      "question": "What is the 'light-lane delta' of a sync: the whole diff between pre-sync and post-sync heads (which includes the sibling's non-light code) or only the sync's own changes? How are sibling Amendments lines, never light under criterion 7, treated given the overlap test ignores them?"
+      "question": "A goal item's done line must name the goal's pull request number, but items commit to goal/<id> before that pull request exists. Is the pull request opened first, or are done lines written at finalize?"
     },
     {
       "id": "A2",
       "requirements": [
-        "XE-049.11",
-        "XE-049.1",
-        "Preserve cross-tool review, pinned commits, bounded review rounds, and recursion refusal"
+        "XE-049.4",
+        "XE-049.10"
       ],
-      "question": "Post-sync fix-verification rounds do not count against --max-rounds. What bounds how many such rounds a pull request can need while siblings keep merging?"
+      "question": "Every item edits DESIGN.md for its done line, and width requires no overlapping writes. Does criterion 11's DESIGN.md and version exemption apply to the DEPS.json writes used for goal width?"
     },
     {
       "id": "A3",
       "requirements": [
         "XE-049.7",
-        "The approval ledger is attention, not containment"
+        "XE-049.11"
       ],
-      "question": "What is the 'check ledger' that stands in for review? Is it the approval ledger, and if so does substituting it for review claim that a ledger stops something?"
+      "question": "An Amendments line is never light, yet sibling items each add one. Does the light-lane review carry-over ever apply, or does every sync need a fix-verification round?"
     },
     {
       "id": "A4",
       "requirements": [
-        "XE-049.4",
-        "XE-049.5"
+        "XE-049.11",
+        "The pre-merge gate"
       ],
-      "question": "When and how is a goal item's 'done on merge of #<pr>' line written, given the goal's PR number is unknown while items commit straight to goal/<id> and the line must be the last commit before review?"
+      "question": "Does Dorian's approving review at the head for a CODEOWNERS change carry across a light-lane sync delta, or must it be renewed at the new head?"
     },
     {
       "id": "A5",
       "requirements": [
-        "XE-049.10",
-        "XE-049.11",
-        "Test the boundaries before adding item IDs",
-        "Goal"
+        "XE-049.1",
+        "XE-049.11"
       ],
-      "question": "Do the DEPS.json-derived swarm width and the parallel per-item builders count as barred 'graph work', or as parallel execution introduced before governance is complete? Have the three boundary tests run, and does XE-049's waiver (two words and one status form) cover this?"
+      "question": "A regression is defined by the fix's diff, but a sync round is limited to the sync delta, which has no fix diff. What defines a standing blocker in a sync round?"
     },
     {
       "id": "A6",
       "requirements": [
-        "XE-049.7",
-        "Preserve cross-tool review, pinned commits, bounded review rounds, and recursion refusal"
+        "XE-049.6",
+        "A goal delegates item selection"
       ],
-      "question": "Does 'Preserve cross-tool review' permit a lane with no cross-vendor review? XE-049.9's amendment list does not name this bullet."
+      "question": "Does goal_successor.py refuse every successor, or only one started without Dorian's word? Do the successor-folder provisions elsewhere remain live?"
     },
     {
       "id": "A7",
       "requirements": [
-        "XE-049.11",
-        "XE-049.1"
+        "XE-049.16",
+        "XE-049.11"
       ],
-      "question": "In a post-sync fix-verification round, what is 'the fix's diff' for the regression test, and are blockers in code merged in from main demoted as new_in_verification?"
+      "question": "XE-049.16 routes Dorian-only entries into the question that criterion 11's batch already asks, but XE-049.11 states no such question. Where does the entry go?"
     },
     {
       "id": "A8",
       "requirements": [
-        "XE-049.7"
+        "XE-049.16"
       ],
-      "question": "Existing test_*.py files are light, and green tests stand in for review. Can a light change edit the tests that gate it, and if so what keeps the stand-in meaningful?"
+      "question": "Where does a post-approval brief change by the coordinator live if goals/<id>/ cannot be edited? Is a post-approval escalation a separate stop, given that it 'never becomes a separate stop'?"
     },
     {
       "id": "A9",
       "requirements": [
-        "XE-049.10",
-        "XE-049.15"
+        "XE-049.17",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
       ],
-      "question": "Does 'capped at 10' bind a brief's max_workers or only the default width? Tests only cover the default."
+      "question": "Is a later same-account, same-family builder inside the executing principal, so reading the transcript-derived answer before the publish gate is allowed?"
     },
     {
       "id": "A10",
       "requirements": [
-        "XE-049.4",
-        "XE-049.7"
+        "XE-049.7",
+        "The approval ledger is attention, not containment"
       ],
-      "question": "For a light change with no review, what does 'the last commit before review' mean, and is the done on merge line still required on its merged head?"
+      "question": "What is the 'check ledger' that stands in for review? Is it the approval ledger, which no item may claim stops anything?"
     },
     {
       "id": "A11",
       "requirements": [
-        "XE-049.2",
-        "XE-049.4"
+        "XE-049.5",
+        "XE-049.13",
+        "XE-049.18"
       ],
-      "question": "After a fix commit following round 1, the done-line commit is no longer the last before review. Must the line be re-set or re-verified at the fixed head?"
+      "question": "The run record with holdout and spend outcomes is committed before the whole-goal review, but the review and later model calls spend afterwards. Which spend and holdout outcomes does the committed record hold?"
     }
   ]
 }

@@ -365,6 +365,15 @@ def _remaining(s):
     return s["budget"] - s["spent"] - sum(s["reserved"].values())
 
 
+def _brief_checks(run):
+    """XE-049.16: the goal run's brief checks, from the state goal_run.py keeps beside the swarm folder; None for a
+    swarm with no goal run around it, or one started before XE-049.16."""
+    try:
+        return json.loads((Path(run).parent / "state.json").read_text()).get("brief_checks")
+    except (OSError, ValueError):
+        return None
+
+
 def tick(run, halted=False, spend_stop=False):
     """Claim every eligible item up to max_workers. Never claims an item that is already claimed, so a restarted
     coordinator that ticks again dispatches nothing twice. Returns what to launch, what's running, and why the
@@ -378,6 +387,7 @@ def tick(run, halted=False, spend_stop=False):
             out["stopped"] = "HALT" if halted else "spend stop"
         ceiling = _ceiling(s)
         writes = {i["id"]: i["writes"] for i in s["plan"]["items"]}
+        checks = _brief_checks(run)
         if s.get("host_file") and out["stopped"]:
             _release_unsent(run, s, 0, out["stopped"])
         # review F9: a worker blocked while it runs holds its slot until it reports
@@ -395,6 +405,9 @@ def tick(run, halted=False, spend_stop=False):
                         d for d in i["integrate_after"] if s["items"][d]["status"] != "merged") if st["status"] != "blocked" else "")
                     out["waiting"].append({"id": i["id"], "status": st["status"], "why": why or "awaiting review or merge"})
                 continue
+            c = None if checks is None else checks.get(str(i["n"]))
+            if checks is not None and (c is None or any(e["settlement"] != "settled" for e in c["entries"])):
+                out["waiting"].append({"id": i["id"], "status": st["status"], "why": "brief check not settled (XE-049.16)"}); continue
             blockers = [d for d in i["start_after"] if s["items"][d]["status"] != "merged"]
             if blockers:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "start waits for " + ", ".join(blockers)}); continue

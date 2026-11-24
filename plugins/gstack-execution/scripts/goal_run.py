@@ -18,6 +18,15 @@
         (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded. --unsure
         is what the agent is least sure of in the item, for its digest (GO-006.1); --review names the
         item's review, whose blocking findings' files are compared with the previous item's
+  goal_run.py brief-check <id> --item N --brief <file>
+        XE-049.16: a fresh model reads item N's builder brief (brief_check.py) and its entries are kept in run state;
+        `next` won't hand out item N (or a swarm with it) until every entry is settled
+  goal_run.py settle <id> --item N --entry B<k> --as settled|needs_dorian --how <text>
+        the coordinator settles one entry: `settled` with the change it made to the builder's brief (or Dorian's
+        words), `needs_dorian` with the question only he can answer (it reaches him; the item waits)
+  goal_run.py why <id> --failure <text> --answer <text> [--item N] [--family <answering agent's family>]
+        XE-049.17: the failing agent's answer to "why did you make that choice?", with the failure it quotes; it
+        goes into the run record, to Dorian, and into the brief of any later attempt at the item
   goal_run.py blocked <id> --item N --reason <text>
         GO-017, a parallel run only: item N can't go on; Dorian is told at once (a review cap escalates as
         review_cap) and independent items continue. failed ends the run once nothing else can proceed
@@ -229,7 +238,8 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "items": [{"n": i + 1, "title": t, "criteria": c} for i, (t, c) in enumerate(plan_items((goal / "PLAN.md").read_text()))],
              "max_items": int(secs["Max items"]), "max_rounds": int(secs["Max review rounds per item"]),
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
-             "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
+             "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": [],
+             "brief_checks": {}, "whys": []}
     if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
         import swarm
         plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
@@ -405,18 +415,101 @@ def next_step(repo, goal_id, base="origin/main"):
     if not remaining or capped:
         failing = sorted(set(ids) - set(state["passing"]))
         return False, end(state, "exhausted", f"the plan ran out with goal tests still failing: {failing}")
+    gate = brief_gate(state, remaining if state.get("parallel") else remaining[:1])
+    if gate:
+        return gate
     if state.get("parallel"):                          # GO-017: the coordinator dispatches; goal_run still gates each merge
-        return True, {"step": "swarm", "items": remaining, "swarm_run": str(d / "swarm"), "goal_dir": str(d / "goal"),
+        return True, {"step": "swarm", "whys": whys_by_item(state), "items": remaining, "swarm_run": str(d / "swarm"), "goal_dir": str(d / "goal"),
                       "base_branch": state["branch"], "max_rounds": state["max_rounds"], "ledger": str(d / "spend.jsonl"),
                       "spend": totals}
     item = remaining[0]
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
                   "commit_to": state["branch"],        # XE-049.5: straight onto the goal branch, no item pull request
+                  "whys": whys_by_item(state).get(str(item["n"]), []),   # XE-049.17: what earlier attempts said
                   "max_rounds": state["max_rounds"],
                   # MR-001.6: a launched builder reads the routing mode here; the tier itself comes from
                   # model_select.mjs once the item's packet exists
                   "model_routing": "route" if os.environ.get("GSTACK_MODEL_ROUTING") == "route" else "shadow",
                   "ledger": str(d / "spend.jsonl"), "spend": totals}
+
+
+def brief_gate(state, items):
+    """XE-049.16: None when every given item's brief check is settled; otherwise the step that settles it. A run
+    started before XE-049.16 has no brief_checks and isn't gated."""
+    bc = state.get("brief_checks")
+    if bc is None:
+        return None
+    unchecked = [i["n"] for i in items if str(i["n"]) not in bc]
+    if unchecked:
+        return True, {"step": "brief_check", "items": unchecked}
+    pending = {i["n"]: [e for e in bc[str(i["n"])]["entries"] if e["settlement"] != "settled"] for i in items}
+    opened = {n: [e for e in es if e["settlement"] == "open"] for n, es in pending.items()}
+    if any(opened.values()):
+        return True, {"step": "settle", "entries": {str(n): es for n, es in opened.items() if es}}
+    if any(pending.values()):                          # only Dorian can answer these; the items wait
+        return None, {"waiting_on_brief": {str(n): es for n, es in pending.items() if es}}
+    return None
+
+
+def _plan_item(state, item):
+    if item not in [i["n"] for i in state["items"]] or item in state["done"]:
+        raise Refused(f"item {item} isn't an unmerged item of this plan")
+
+
+def brief_check(goal_id, item, brief, call=None):
+    import brief_check as bcheck
+    state = load(goal_id)
+    if state["outcome"]:
+        raise Refused(f"the run already ended: {state['outcome']}")
+    _plan_item(state, item)
+    try:
+        entries = bcheck.check(brief, call)
+    except bcheck.Refused as e:
+        raise Refused(f"brief check: {e}")
+    state.setdefault("brief_checks", {})[str(item)] = {"entries": entries}
+    save(state)
+    return {"item": item, "entries": entries}
+
+
+def settle(goal_id, item, entry, how_settled, how):
+    state = load(goal_id)
+    if how_settled not in ("settled", "needs_dorian") or not how.strip():
+        raise Refused("--as is settled or needs_dorian, and --how says the change made or the question for Dorian")
+    e = next((x for x in state.get("brief_checks", {}).get(str(item), {}).get("entries", []) if x["id"] == entry), None)
+    if e is None:
+        raise Refused(f"item {item} has no brief-check entry {entry}")
+    e.update(settlement=how_settled, how=how)
+    if how_settled == "needs_dorian":                 # GO-006: after approval, only Dorian can settle it; the item waits
+        escalate(state, "brief", f"Item {item}'s builder can't launch until you answer. Its brief says "
+                                 f"\u201c{e['quote']}\u201d: {how}")
+    save(state)
+    return {"item": item, "entry": e}
+
+
+def why(goal_id, failure, answer, item=None, family=None):
+    """XE-049.17: kept even after the run ended, since a failed holdout or review ends it first. The answer is
+    transcript-derived: it stays in this owner-only run state. Only this command's output (for the proposal to
+    Dorian) carries its text; the escalation, the run record and later briefs name where it is."""
+    state = load(goal_id)
+    if not failure.strip() or not answer.strip():
+        raise Refused("--failure and --answer are both required")
+    whys = state.setdefault("whys", [])
+    at = f"{run_dir(goal_id) / 'state.json'} whys[{len(whys)}]"
+    whys.append({"item": item, "failure": failure, "answer": answer, "at": at, "family": family or state["builder"].split("/")[0]})
+    escalate(state, "why", f"{'Item ' + str(item) if item else 'The goal'} failed: {failure}\n"
+                           f"The agent's answer to why is in the run state, {at}")
+    save(state)
+    return whys[-1]
+
+
+def whys_by_item(state):
+    """For a later attempt's brief: the failure and where its answer is, never the answer's text."""
+    out = {}
+    for w in state.get("whys", []):
+        # only a builder of this family, on this machine and account, may open it (XE-049.17)
+        out.setdefault(str(w["item"]), []).append({"failure": w["failure"], "answer_at": w["at"],
+                                                   "readable_by_family": w.get("family")})
+    return out
 
 
 BRANCH_RE = re.compile(r"^(?!/|.*(?:\.\.|//|@\{|\.lock$|/$|\.$)|\.|.*/\.)[A-Za-z0-9._/-]+$")
@@ -1059,6 +1152,12 @@ def record(goal_id):
             lines.append(f"   - commits: {', '.join(x[:12] for x in c['commits']) or 'none'}")
             lines += [f"   - vote: {v['model']} ({v['role']}): {v['choice']} - {v.get('reason', '')}" for v in c["votes"]]
             lines += [f"   - dissent: {x}" for x in c["dissent"]]
+    if state.get("brief_checks"):                      # XE-049.16
+        lines += ["", "## Brief checks", ""]
+        for n, c in sorted(state["brief_checks"].items(), key=lambda kv: int(kv[0])):
+            lines.append(f"- item {n}: " + (f"{len(c['entries'])} entries" if c["entries"] else "clear"))
+            lines += [f"  - {e['id']} {e['kind']}: \u201c{e['quote']}\u201d: {e['settlement']}" + (f", {e['how']}" if e["how"] else "")
+                      for e in c["entries"]]
     if state.get("messages"):
         lines += ["", "## Digests and escalations", ""]
         for m in state["messages"]:
@@ -1571,6 +1670,16 @@ def _main(argv, repo=gb.ROOT):
             if not token:
                 raise Refused("refused needs GITHUB_TOKEN: run it under agent_token.py exec --")
             print(json.dumps(refused(goal_id, int(opts["--pr"]), gb.github(token), opts.get("--repo", REPO))))
+            return 0
+        if cmd == "brief-check" and goal_id and set(opts) == {"--item", "--brief"}:
+            print(json.dumps(brief_check(goal_id, int(opts["--item"]), Path(opts["--brief"]).read_text()), indent=1))
+            return 0
+        if cmd == "settle" and goal_id and set(opts) == {"--item", "--entry", "--as", "--how"}:
+            print(json.dumps(settle(goal_id, int(opts["--item"]), opts["--entry"], opts["--as"], opts["--how"])))
+            return 0
+        if cmd == "why" and goal_id and {"--failure", "--answer"} <= set(opts) <= {"--failure", "--answer", "--item", "--family"}:
+            print(json.dumps(why(goal_id, opts["--failure"], opts["--answer"],
+                                 int(opts["--item"]) if "--item" in opts else None, opts.get("--family"))))
             return 0
         if cmd == "blocked" and goal_id and set(opts) == {"--item", "--reason"}:
             print(json.dumps(blocked(goal_id, int(opts["--item"]), opts["--reason"]))); return 0

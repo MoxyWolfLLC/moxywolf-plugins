@@ -785,6 +785,9 @@ def lane_instruction(lane_record, target="main"):
     return text
 
 
+SYNC_ROUNDS = 3   # XE-049.11: sync-delta rounds a branch may take outside --max-rounds
+
+
 def synced_light(path, reviewed, new):
     """XE-049.11: a branch that merged main in after its review keeps that review when the merge moved
     its head only by a light delta: every path the merge commit changed from BOTH its parents (the
@@ -3452,9 +3455,15 @@ def cmd_round(a):
         refuse_ledger_behind(_sent_repos(packet["repos"], updates), named)
     if os.environ.get(RECURSION_ENV):
         sys.exit("refused: this is a reviewer session; peer review does not recurse")
-    if state["outcome"] not in {"opened", "blocking_findings"}:
+    sync = bool(getattr(a, "sync", False))
+    if sync:   # XE-049.11: a sibling merged and main came in by more than a light delta
+        if state["outcome"] not in {"no_blocking_findings", "fixes_verified"}:
+            raise ReviewError("review_closed", "a sync round follows a clean review only")
+        if state.get("sync_rounds", 0) >= SYNC_ROUNDS:
+            sys.exit(f"sync rounds exhausted ({SYNC_ROUNDS}); ask Dorian: fix, merge as it stands, or stop (XE-049.2)")
+    elif state["outcome"] not in {"opened", "blocking_findings"}:
         raise ReviewError("review_closed", "open a new review after a terminal outcome")
-    if state["rounds_used"] >= state["max_rounds"]:
+    elif state["rounds_used"] >= state["max_rounds"]:
         sys.exit(f"rounds exhausted ({state['max_rounds']}); outcome stays {state['outcome']}")
     round_no = state["rounds_used"] + 1
     named_ledger_runs = [e["run_id"] for e in apply_ledger_runs(packet, getattr(a, "ledger_run", None) or [])
@@ -3649,7 +3658,7 @@ def cmd_round(a):
         record["unmet_acceptance"] = [row["criterion"] for row in out["acceptance"] if not row["met"]]
         if not blockers and not out["regressions_from_fixes"] and not record["unmet_acceptance"]:  # XE-029.3
             outcome = "no_blocking_findings" if round_no == 1 else "fixes_verified"
-        elif round_no >= state["max_rounds"]:
+        elif round_no >= state["max_rounds"] or sync:   # a sync round that blocks goes to Dorian (XE-049.11)
             outcome = "rounds_exhausted"
             record["escalation"] = [{"id": f["id"], "what": f["what"], "reviewer_evidence": f["evidence"],
                                      "builder_disposition": dispositions.get(f["id"], "none")} for f in blockers]
@@ -3673,6 +3682,8 @@ def cmd_round(a):
     else:
         state.update(rounds_used=round_no, outcome=outcome, adjudicated_round=round_no)
         state["heads"].append([r["head"] for r in packet["repos"]])
+        if sync:
+            state["sync_rounds"] = state.get("sync_rounds", 0) + 1   # outside max_rounds, at most SYNC_ROUNDS
     save(d, "state.json", state, "gate_output")   # packet.json keeps the bytes open wrote
     print(json.dumps({k: record[k] for k in record if k not in ("raw",)}, indent=2))
     return outcome
@@ -4300,6 +4311,22 @@ def selftest():
     os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{clean}'"
     assert cmd_round(ns(review_id=rid, head=[f"{repo}={head2}"])) == "fixes_verified"
     st = load(REVIEW_DIR / rid, "state.json"); assert st["rounds_used"] == 2 and st["heads"][-1] == [head2]
+    # XE-049.11: after a clean review, sync rounds run outside max_rounds, three at most, and one that blocks escalates
+    os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = "echo '" + clean.replace('[{"id": "F1", "resolved": true, "evidence": "a.py:2"}]', "[]") + "'"
+    for n in range(SYNC_ROUNDS):
+        (repo / "a.py").write_text(f"def f(x):\n    return x + 1  # sync {n}\n"); sh("commit", "-qam", f"sync {n}")
+        assert cmd_round(ns(review_id=rid, head=[f"{repo}={sh('rev-parse', 'HEAD')}"], sync=True)) == "fixes_verified"
+    try:
+        cmd_round(ns(review_id=rid, head=[], sync=True)); assert False
+    except SystemExit as e:
+        assert "sync rounds exhausted" in str(e)
+    os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{blocking}'"
+    rid2 = cmd_open(ns(builder="claude", packet=str(pfile), max_rounds=2, timeout=30))["review_id"]
+    try:
+        cmd_round(ns(review_id=rid2, head=[], sync=True)); assert False
+    except ReviewError as e:
+        assert e.outcome == "review_closed"
+    os.environ["GSTACK_PEER_REVIEW_FAKE_CMD"] = f"echo '{clean}'"
     # XE-029.2-3: an unmet criterion with no blocking finding blocks; it is neither malformed nor clean
     unmet = json.dumps({"verdict": "blocking_findings", "acceptance": [{"criterion": "f(1) == 2", "met": False, "evidence": "not shown"}],
                         "findings": [], "blocker_resolutions": []})
@@ -4333,6 +4360,7 @@ def main():
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
     r.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
+    r.add_argument("--sync", action="store_true", help="XE-049.11: re-check a clean review after main merged in")
     dp = sub.add_parser("disposition"); dp.add_argument("review_id"); dp.add_argument("items", nargs="+")
     di = sub.add_parser("dispatch"); di.add_argument("review_id"); di.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     di.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")

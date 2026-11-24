@@ -10,6 +10,11 @@ them (GO-002, GO-003.3):
                                   only its hash entering the folder; the source is never printed
   goal_new.py read <goal dir>     the plain-English reading, by the gemini family through OpenRouter,
                                   printed as the goal pull request's `## Plain-English reading` section
+  goal_new.py brief-check <goal dir> [--dorian <json file>]
+                                  XE-049.16, at draft time: each PLAN.md item's brief goes to brief_check.py and
+                                  the entries print; with --dorian (a JSON list of {item, quote, question} only
+                                  Dorian can answer) they're written into GOAL.md's `## Questions for Dorian`,
+                                  so they reach him inside the brief he approves
   goal_new.py successor ...       refused: GO-011.9's successors are retired (XE-049.6); a failed goal's
                                   next goal is drafted with Dorian and approved like any goal
 
@@ -254,7 +259,39 @@ The brief:
     return 0
 
 
+QUESTIONS = "## Questions for Dorian"
+
+
+def cmd_brief_check(goal_dir, dorian=None, call=None):
+    import brief_check
+    import goal_run
+    g = Path(goal_dir)
+    if dorian is not None:
+        if not isinstance(dorian, list) or not all(isinstance(q, dict) and {"item", "quote", "question"} <= set(q) for q in dorian):
+            raise Refused("--dorian is a JSON list of {item, quote, question}")
+        text = (g / "GOAL.md").read_text()
+        text = re.sub(rf"\n{re.escape(QUESTIONS)}\n.*?(?=\n## |\Z)", "", text, flags=re.S).rstrip("\n")
+        lines = [f"- Item {q['item']}, \u201c{q['quote']}\u201d: {q['question']}" for q in dorian]
+        (g / "GOAL.md").write_text(text + f"\n\n{QUESTIONS}\n\n" + "\n".join(lines) + "\n")
+        return {"questions": len(lines)}
+    out = {}
+    for n, (title, criteria) in enumerate(goal_run.plan_items((g / "PLAN.md").read_text()), 1):
+        brief = f"{title}\n\nAcceptance criteria:\n" + "\n".join(f"- {c}" for c in criteria)
+        try:
+            out[str(n)] = brief_check.check(brief, call)
+        except brief_check.Refused as e:
+            raise Refused(f"item {n}: {e}")
+    return out
+
+
 def main(argv):
+    if argv[:1] == ["brief-check"] and len(argv) in (2, 4) and (len(argv) == 2 or argv[2] == "--dorian"):
+        try:
+            print(json.dumps(cmd_brief_check(argv[1], json.loads(Path(argv[3]).read_text()) if len(argv) == 4 else None), indent=1))
+            return 0
+        except Refused as e:
+            print(f"REFUSED: {e}")
+            return 1
     if argv[:1] == ["successor"]:
         print("successor goals are retired (XE-049.6): draft the next goal with Dorian and open it for his approval",
               file=sys.stderr)
