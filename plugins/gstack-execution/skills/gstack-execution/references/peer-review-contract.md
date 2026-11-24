@@ -63,6 +63,8 @@ A review round requires `data_use`; absent or denied permission yields `data_use
 }
 ```
 
+For a Claude-built change on a MoxyWolf repository, `allowed_tools` is `["codex", "openrouter-gpt", "gemini", "openrouter-gemini"]` by default (Dorian, 2026-11-23, XE-049.19): when Codex can't run (out of credits, not installed) or a reviewer can't be sent the whole surface, the round moves down that order to the next reviewer of another family the grant allows, records each one passed over in the round's `fallbacks`, and marks the review a fallback. `openrouter-gemini` takes a surface of up to 1,600,000 characters; `openrouter-gpt` and other API reviewers take 400,000. A reviewer forced with `GSTACK_REVIEWER` is never swapped.
+
 This object is part of the full packet above. Only declare permissions already granted; unclear permission stops dispatch. Graph execution additionally checks output roots and proof command allowlists under the [task graph contract](task-graph-contract.md). Shared snapshot creation refuses symlinks escaping the repository snapshot.
 
 ### Refused before dispatch

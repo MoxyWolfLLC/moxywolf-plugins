@@ -230,5 +230,68 @@ class ReviewLanes(unittest.TestCase):
         self.assertLess(took, 5.5)   # two three-second lanes run one after the other would take 6
 
 
+class ReviewerFallback(unittest.TestCase):
+    """XE-049.19: codex -> openrouter-gpt -> gemini -> openrouter-gemini, each needing the data_use grant."""
+    def packet(self, tools):
+        return {"release_owner": "o", "data_use": {"owner": "o", "classification": "internal", "allow_repository": True, "allow_history": True,
+                             "allowed_tools": tools, "allowed_commands": [], "output_roots": []}}
+
+    def call(self, fails):
+        ran = []
+        def call(tool):
+            ran.append(tool)
+            if tool in fails:
+                raise pr.ReviewError(fails[tool], f"{tool} failed")
+            return "ok"
+        return call, ran
+
+    def setUp(self):
+        self.forced = os.environ.pop("GSTACK_REVIEWER", None)
+
+    def tearDown(self):
+        if self.forced is not None:
+            os.environ["GSTACK_REVIEWER"] = self.forced
+
+    def test_codex_out_of_credits_goes_to_openrouter_gpt(self):
+        call, ran = self.call({"codex": "review_unavailable"})
+        tool, fb, out, tried = pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt", "openrouter-gemini"]), "codex", False, call)
+        self.assertEqual((tool, fb, out, ran), ("openrouter-gpt", True, "ok", ["codex", "openrouter-gpt"]))
+        self.assertEqual(tried[0]["to"], "openrouter-gpt")
+
+    def test_a_surface_too_big_for_gpt_goes_to_gemini(self):
+        call, ran = self.call({"codex": "review_unavailable", "openrouter-gpt": "unusable", "gemini": "review_unavailable"})
+        tool, fb, out, tried = pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt", "gemini", "openrouter-gemini"]), "codex", False, call)
+        self.assertEqual(tool, "openrouter-gemini")
+        self.assertEqual(ran, ["codex", "openrouter-gpt", "gemini", "openrouter-gemini"])
+
+    def test_a_tool_the_grant_leaves_out_is_skipped(self):
+        call, ran = self.call({"codex": "review_unavailable"})
+        tool, *_ = pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gemini"]), "codex", False, call)
+        self.assertEqual((tool, ran), ("openrouter-gemini", ["codex", "openrouter-gemini"]))
+
+    def test_nothing_left_raises_and_other_failures_never_fall_back(self):
+        call, _ = self.call({"codex": "review_unavailable"})
+        with self.assertRaises(pr.ReviewError):
+            pr.run_with_fallback("claude", self.packet(["codex"]), "codex", False, call)
+        call, ran = self.call({"codex": "timeout"})
+        with self.assertRaises(pr.ReviewError):
+            pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt"]), "codex", False, call)
+        self.assertEqual(ran, ["codex"])
+
+    def test_a_forced_reviewer_is_never_swapped(self):
+        os.environ["GSTACK_REVIEWER"] = "codex"
+        try:
+            call, ran = self.call({"codex": "review_unavailable"})
+            with self.assertRaises(pr.ReviewError):
+                pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt"]), "codex", False, call)
+            self.assertEqual(ran, ["codex"])
+        finally:
+            del os.environ["GSTACK_REVIEWER"]
+
+    def test_gemini_gets_the_larger_surface_cap(self):
+        self.assertGreater(pr.REVIEWERS["openrouter-gemini"]["surface_cap"], 800_000)
+        self.assertEqual(pr.REVIEWERS["openrouter-gpt"]["surface_cap"], pr.API_SURFACE_CAP)
+
+
 if __name__ == "__main__":
     unittest.main()

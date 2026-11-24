@@ -68,12 +68,13 @@ REVIEWERS = {
     # `sends` is criterion 5: what this reviewer is given, recorded per round, because it cannot
     # open anything for itself.
     "openrouter-gpt": {"family": "gpt", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
-               "model": os.environ.get("GSTACK_OPENROUTER_GPT_MODEL", "openai/gpt-6-astra"),
+               "model": os.environ.get("GSTACK_OPENROUTER_GPT_MODEL", "openai/gpt-6-astra"), "surface_cap": 400_000,
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher",
                "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md", "UNKNOWNS.md", "evidence"]},
     "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
+               "surface_cap": 1_600_000,   # XE-049.19: a long-context model takes a surface GPT's cap refuses
                "floor": r"^gemini-([3-9]|\d{2,})\b",
                "floor_name": "Gemini 3 or higher",
                "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md", "UNKNOWNS.md", "evidence"]},
@@ -1969,7 +1970,38 @@ def reviewer_usage(tool, stdout, stderr):
 
 
 OPENROUTER_URL = os.environ.get("GSTACK_OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
-API_SURFACE_CAP = 400_000          # characters of surface sent to an api reviewer
+API_SURFACE_CAP = 400_000          # characters of surface sent to an api reviewer without its own surface_cap
+# XE-049.19 (Dorian, 2026-11-23: "default to openrouter if codex is unavailable", "Then route to gemini",
+# "If openrouter doesn't work"): the reviewers tried, in order, when the one before can't run or can't
+# be sent the surface. Each still needs the packet's data_use grant and a family other than the builder's.
+FALLBACK_CHAIN = ["codex", "openrouter-gpt", "gemini", "openrouter-gemini"]
+
+
+def run_with_fallback(builder, packet, reviewer, is_fallback, call):
+    """(reviewer, is_fallback, result, tried). Runs call(reviewer); on review_unavailable or unusable,
+    moves down FALLBACK_CHAIN to the next permitted reviewer of another family. A reviewer forced
+    with GSTACK_REVIEWER is never swapped: that's a choice, not an availability."""
+    tried = []
+    while True:
+        try:
+            return reviewer, is_fallback, call(reviewer), tried
+        except ReviewError as e:
+            if e.outcome not in {"review_unavailable", "unusable"} or os.environ.get("GSTACK_REVIEWER"):
+                raise
+            later = FALLBACK_CHAIN[FALLBACK_CHAIN.index(reviewer) + 1:] if reviewer in FALLBACK_CHAIN else []
+            nxt = None
+            for t in later:
+                if t in REVIEWERS and family(t) != family(builder):
+                    try:
+                        data_permission(packet, tool=t)
+                    except ValueError:
+                        continue
+                    nxt = t
+                    break
+            if nxt is None:
+                raise
+            tried.append({"from": reviewer, "to": nxt, "outcome": e.outcome, "why": e.detail[-300:]})
+            reviewer, is_fallback = nxt, True
 HUNKS_THRESHOLD = 40_000           # XE-035.2: a changed file larger than this can go as its diff hunks instead of whole
 LAST_SENT_SURFACE = None           # XE-013.6: set by run_openrouter, read by the round that called it
 
@@ -2010,6 +2042,7 @@ def surface_as_text(tool, root, named=()):
     CHANGE.diff until it fits, and if that isn't enough the surface is `unusable`, not thinner.
     """
     sends, named = REVIEWERS[tool]["sends"], set(named)
+    API_SURFACE_CAP = REVIEWERS[tool].get("surface_cap", globals()["API_SURFACE_CAP"])   # XE-049.19
     bodies = {rel: (root / rel).read_text(errors="replace")
               for rel in sorted(str(q.relative_to(root)) for q in root.rglob("*") if q.is_file())
               if rel in sends or rel.split("/")[0] in sends or rel in named}
@@ -3573,20 +3606,33 @@ def cmd_round(a):
             _age_atimes(surf)
             before = _atime_map(surf) if read_tracking_probe(surf) else None
         groups = lane_groups(packet)   # XE-049.13: a whole-goal review runs as parallel lanes
+        global LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR
         if groups:
-            global LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR
-            raw, record["model"], LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR, record["lanes"] = \
-                run_review_lanes(reviewer, prompt, surf, state["timeout"], surf_stats["criterion_files"],
-                                 groups, packet, prior, dispositions)
+            def call(tool):
+                return run_review_lanes(tool, prompt, surf, state["timeout"], surf_stats["criterion_files"],
+                                        groups, packet, prior, dispositions)
+        else:
+            def call(tool):
+                try:
+                    return run_reviewer(tool, prompt, surf, state["timeout"], named=surf_stats["criterion_files"])
+                finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
+                    if tool == "claude":
+                        record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
+        reviewer, is_fallback, result, tried = run_with_fallback(state["builder"], packet, reviewer, is_fallback, call)
+        if tried:   # XE-049.19: the record and state name the reviewer that ran, and every one passed over
+            record["fallbacks"] = tried
+            record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = reviewer, family(reviewer), True
+            state["reviewer"], state["reviewer_family"], state["reviewer_is_fallback"] = reviewer, family(reviewer), True
+            record["max_output"] = REVIEWERS[reviewer]["max_output"]
+            record["transport"] = REVIEWERS[reviewer]["transport"]
+            record["max_output_enforced"] = headroom_enforced(reviewer)
+            api = record["transport"] != "cli"
+        if groups:
+            raw, record["model"], LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR, record["lanes"] = result
             if reviewer == "claude":
                 record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
         else:
-            try:
-                raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
-                                                    named=surf_stats["criterion_files"])
-            finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
-                if reviewer == "claude":
-                    record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
+            raw, record["model"] = result
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
