@@ -100,6 +100,15 @@ class SyncFromMain(unittest.TestCase):
         r.sh("checkout", "-q", "item"); r.sh("merge", "-q", "--no-edit", "main")
         self.assertTrue(pr.synced_light(str(r.d), reviewed, r.sh("rev-parse", "HEAD")))
 
+    def test_a_test_file_the_sibling_adds_is_not_light(self):
+        """Review F3: a test_*.py the merge commit itself adds (neither parent has it) is "A", not light."""
+        r = Repo()
+        r.sh("checkout", "-q", "-b", "item"); reviewed = r.commit("item", {"a.py": "def f(x):\n    return x + 1\n"})
+        r.sh("checkout", "-q", "main"); r.commit("sibling", {"b.py": "y = 1\n"})
+        r.sh("checkout", "-q", "item"); r.sh("merge", "-q", "--no-commit", "--no-ff", "main")
+        r.write({"test_new.py": "assert 2\n"}); r.sh("add", "test_new.py"); r.sh("commit", "-q", "--no-edit")
+        self.assertFalse(pr.synced_light(str(r.d), reviewed, r.sh("rev-parse", "HEAD")))
+
     def test_a_hand_edit_in_the_merge_needs_a_round(self):
         r, reviewed, _ = self.merged({"a.py": "def f(x):\n    return x + 1\n"}, {"b.py": "y = 1\n"})
         new = r.commit("amend", {"a.py": "def f(x):\n    return x + 2\n"})
@@ -200,6 +209,13 @@ class ReviewLanes(unittest.TestCase):
         self.assertEqual(m["regressions_from_fixes"], ["F2"])
         self.assertEqual(m["verdict"], "blocking_findings")
         self.assertEqual(m["acceptance"], a["acceptance"])   # lane 1 judges acceptance
+
+    def test_lane_copies_are_removed(self):
+        """Review F2: each focus lane's copy of the surface is gone once the lanes return."""
+        import glob
+        before = set(glob.glob(os.path.join(tempfile.gettempdir(), "gstack-lane*")))
+        self.test_lanes_run_at_once_and_one_review_comes_back()
+        self.assertEqual(set(glob.glob(os.path.join(tempfile.gettempdir(), "gstack-lane*"))) - before, set())
 
     def test_lanes_run_at_once_and_one_review_comes_back(self):
         r = Repo(); h = r.commit("x", {"a.py": "z = 2\n", "b.py": "y = 1\n"})

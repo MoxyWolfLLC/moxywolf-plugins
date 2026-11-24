@@ -806,8 +806,11 @@ def synced_light(path, reviewed, new):
     spec = (lane_table({"path": path, "head": new})[0].get("lanes") or {}).get("light") or table["lanes"].get("light")
     repo = {"path": path, "base": reviewed, "head": new}
     owned = _owned_globs(repo)
-    both = set(git(path, "diff", "--name-only", reviewed, new).split("\n")) & set(git(path, "diff", "--name-only", parents[1], new).split("\n"))
-    return all(_light_path(repo, f, "M", spec, owned) for f in both if f)
+    def changes(a):   # review F3: the real status, so a test file the merge adds is "A", not light
+        rows = (line.split("\t") for line in git(path, "diff", "--name-status", a, new).split("\n") if line)
+        return {r[-1]: r[0][0] for r in rows}
+    mine, theirs = changes(reviewed), changes(parents[1])
+    return all(_light_path(repo, f, mine[f], spec, owned) for f in mine.keys() & theirs.keys())
 
 
 def ledger_status_now(repos):
@@ -2320,16 +2323,21 @@ def run_review_lanes(reviewer, prompt, surf, timeout, named, groups, packet, pri
     then validated again by the round as one review. Returns (raw, model, usage, sent, advisor, lanes)."""
     from concurrent.futures import ProcessPoolExecutor
     import multiprocessing
-    roots = [surf]
-    for k in range(len(groups)):
-        copy = Path(tempfile.mkdtemp(prefix=f"gstack-lane{k + 2}-")) / "surface"
-        shutil.copytree(surf, copy, symlinks=True)
-        roots.append(copy)
-    prompts = [prompt] + [lane_prompt(prompt, k + 2, len(groups) + 1, g) for k, g in enumerate(groups)]
-    with ProcessPoolExecutor(max_workers=len(roots), mp_context=multiprocessing.get_context("spawn")) as pool:
-        futures = [pool.submit(_lane_call, reviewer, pr_, str(root), timeout, named, _SELFTEST)
-                   for pr_, root in zip(prompts, roots)]
-        results = [f.result() for f in futures]
+    roots, temps = [surf], []
+    try:
+        for k in range(len(groups)):
+            temps.append(Path(tempfile.mkdtemp(prefix=f"gstack-lane{k + 2}-")))
+            copy = temps[-1] / "surface"
+            shutil.copytree(surf, copy, symlinks=True)
+            roots.append(copy)
+        prompts = [prompt] + [lane_prompt(prompt, k + 2, len(groups) + 1, g) for k, g in enumerate(groups)]
+        with ProcessPoolExecutor(max_workers=len(roots), mp_context=multiprocessing.get_context("spawn")) as pool:
+            futures = [pool.submit(_lane_call, reviewer, pr_, str(root), timeout, named, _SELFTEST)
+                       for pr_, root in zip(prompts, roots)]
+            results = [f.result() for f in futures]
+    finally:   # review F2: a lane's copy of the surface goes when the lanes are done, pass or fail
+        for t in temps:
+            shutil.rmtree(t, ignore_errors=True)
     outs = [validate(raw, packet, prior, dispositions) for raw, *_ in results]
     lanes = [{"lane": i + 1, "files": None if i == 0 else groups[i - 1], "model": m, "usage": u,
               "findings": len(o["findings"])} for i, ((_, m, u, _s, _a), o) in enumerate(zip(results, outs))]
