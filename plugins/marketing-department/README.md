@@ -37,6 +37,6 @@ Dorian Cougias is the Release Owner Gate. This is an instruction-level gate, not
 
 ## Version History
 
-- **0.1.2**: SM-013: Taskade is retired; paths that pointed into Taskade now point at the project's GitHub/Projects folder.
+- 0.1.2 (2026-11-24): SM-013: Taskade is retired; paths that pointed into Taskade now point at the project's GitHub/Projects folder.
 - 0.1.1 (2026-10-24): SM-008. The gate log is at `GitHub/Projects/_gate-log/`, and a recorded row is committed, pushed and pulled back to reach the team.
 - 0.1.0 (2026-10-07): CS-004. The department agent, the head skill and its sources, and `GOVERNANCE.md`.
