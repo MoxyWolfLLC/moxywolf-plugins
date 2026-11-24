@@ -72,7 +72,7 @@ REVIEWERS = {
                "floor": r"^gpt-([6-9]|\d{2,})\b",
                "floor_name": "Astra (gpt-6) or higher",
                "sends": ["CHANGE.diff", "ROUND.diff", "changed", "callers", "PROVENANCE.json", "SURFACE.md", "UNKNOWNS.md", "evidence"]},
-    "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 16000, "max_output_flag": None,
+    "openrouter-gemini": {"family": "gemini", "transport": "openrouter", "max_output": 64000, "max_output_flag": None,
                "model": os.environ.get("GSTACK_OPENROUTER_GEMINI_MODEL", "google/gemini-3.1-pro-preview"),
                "surface_cap": 1_600_000,   # XE-049.19: a long-context model takes a surface GPT's cap refuses
                "floor": r"^gemini-([3-9]|\d{2,})\b",
@@ -1986,6 +1986,7 @@ def run_with_fallback(builder, packet, reviewer, is_fallback, call):
         try:
             return reviewer, is_fallback, call(reviewer), tried
         except ReviewError as e:
+            e.tried, e.reviewer = tried, reviewer   # the round records who ran and who was passed over, whatever happens
             if e.outcome not in {"review_unavailable", "unusable"} or os.environ.get("GSTACK_REVIEWER"):
                 raise
             later = FALLBACK_CHAIN[FALLBACK_CHAIN.index(reviewer) + 1:] if reviewer in FALLBACK_CHAIN else []
@@ -1999,7 +2000,6 @@ def run_with_fallback(builder, packet, reviewer, is_fallback, call):
                     nxt = t
                     break
             if nxt is None:
-                e.tried = tried   # the round records who was passed over even when no one could run
                 raise
             tried.append({"from": reviewer, "to": nxt, "outcome": e.outcome, "why": e.detail[-300:]})
             reviewer, is_fallback = nxt, True
@@ -3713,8 +3713,9 @@ def cmd_round(a):
             outcome = "blocking_findings"
     except ReviewError as e:
         outcome, record["error"] = e.outcome, e.detail
-        if getattr(e, "tried", None):   # XE-049.19
+        if getattr(e, "tried", None):   # XE-049.19: who was passed over, and who was running when it stopped
             record["fallbacks"] = e.tried
+            record["reviewer"], record["reviewer_family"], record["reviewer_is_fallback"] = e.reviewer, family(e.reviewer), True
     finally:
         teardown(packet["repos"], root)
     record["outcome"] = outcome
