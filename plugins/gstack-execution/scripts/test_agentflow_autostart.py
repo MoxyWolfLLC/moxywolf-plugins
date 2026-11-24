@@ -24,7 +24,7 @@ class Autostart(unittest.TestCase):
         self.calls = self.tmp / "launchctl.log"
         self.fake("npx", "exit 0")
         self.fake("launchctl", f'echo "$*" >> "{self.calls}"; [ "$1" = print ] && echo "	state = running"; exit 0')
-        self.fake("curl", 'exit 0')
+        self.fake("curl", "echo '<html><title>Agent Flow</title></html>'")
         self.fake("uname", 'echo Darwin')
         self.plist = self.home / "Library/LaunchAgents/com.moxywolf.agent-flow.plist"
 
@@ -71,6 +71,13 @@ class Autostart(unittest.TestCase):
         r = self.run_script("install")
         self.assertEqual(r.returncode, 1)
         self.assertLess(time.monotonic() - start, 10)
+
+    def test_another_service_on_the_port_is_not_the_viewer(self):
+        """Second review F1: a 200 from something else on the port is not success."""
+        self.fake("curl", "echo '<html><title>Something else</title></html>'")
+        r = self.run_script("install")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("not answering", r.stderr)
 
     def test_no_probe_once_the_deadline_has_passed(self):
         """Review round 2 F1: with no time left the script never calls curl, so it can't pass -m 0 (no limit)."""
