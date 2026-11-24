@@ -1431,6 +1431,25 @@ Two sessions on 2026-11-10 skipped the Jira, decision-record and open-issue sect
 8. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
 9. Git runs on the Mac itself, through Desktop Commander's `start_process`, in `/session-start` Step 3b, `/session-end`'s handoff push and `/init-project`'s scaffold push. `device_bash` is a Linux VM with the folders mounted and no GitHub login, so git there fails to authenticate and strands `.git/index.lock`; it's used for git only when Desktop Commander isn't present, and an authentication failure there is reported as such. The criterion 6 test checks all three skills say so.
 
+### SM-012 — Each Mac finds its own Drive roots, and project-init has two roots, not three
+
+**Status:** building. Approved by Dorian on 2026-11-24 ("Approve SM-012"), after he asked to see the path that would be set. Taskade's retirement is his statement the same day: "There will be no Taskade anymore. Its now Projects within GitHub." The gtempaccount rule is his too: "This should be ignored: GoogleDrive-dorianc%moxywolf.com@gtempaccount.com".
+
+**Links introduced:** the Drive-root link. Project files store each root as a tail (`Shared drives/GitHub`, `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`), and `drive_roots.py` assumes Drive for Desktop mounts every account at `~/Library/CloudStorage/GoogleDrive-*`. If Google moves that folder, the lookup finds nothing and says so; it never falls back to a guessed path.
+
+Opened 2026-11-24. Dorian moves between Macs and the roots go missing. Every project instruction and the project-init skills ask Cowork for one absolute path, `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/...`. Drive for Desktop doesn't name that folder the same way on every Mac: on dorians-macbook-pro-2 it sits beside `GoogleDrive-dorianc%moxywolf.com@gtempaccount.com`, and Drive's own preferences name mount points with the account number appended. Folder grants are per Mac, so nothing carries over. Amends SM-007.2 and SM-007.5: there is no Taskade root any more.
+
+1. `project-init`'s session-start, session-end, init-project and refresh-project-instructions, skills and commands, name the roots by tail, never by an absolute `/Users/.../GoogleDrive-...` path.
+2. A new stdlib `project-init/scripts/drive_roots.py`, run on the Mac through Desktop Commander, lists `~/Library/CloudStorage/GoogleDrive-*`, skips any name ending `@gtempaccount.com`, and keeps the folders that hold both tails. If more than one is left, it keeps the one with `GitHub/Projects/_shared-memory/INDEX.md`. If that still leaves more than one, it returns `ambiguous` with the list. If none is left, it returns `not_found` with the reason. It prints JSON.
+3. session-start requests the resolved absolute paths in one `device_request_folder_access` call. `ambiguous` asks Dorian once. `not_found` says Drive isn't signed in or hasn't synced, and the briefing still runs (SM-011). Without Desktop Commander it asks for **Add folder**, naming the tails.
+4. Two roots only. No Taskade root and no Taskade-based project type; every project that isn't vault-only is `GitHub/Projects/<NAME>`. Vault-only projects are unchanged.
+5. MW Plugins' `cowork-project-instructions.md` and `project-surfaces.json` store the tails, changed by hand in the Projects repo. Other projects change on their next `/refresh-project-instructions`.
+6. Tests: a fake `CloudStorage` holding a plain folder, a gtempaccount folder and a suffixed copy without the INDEX picks the plain one; a gtempaccount folder that does hold `Shared drives` is still skipped; two folders with the INDEX give `ambiguous`; none gives `not_found`. A text test checks that none of criterion 1's files names an absolute GoogleDrive path or Taskade, and fails when it examines no files (EV-001).
+7. project-init moves from 0.47.0 to 0.48.0 with a README Version History line, and its marketplace entry and the top-level marketplace version move (CI-002).
+8. `scripts/run_all_tests.py` reports a nonzero count of what it examined, with no failures. After the merge, this document is mirrored to `GitHub/Projects/MW Plugins/06 – Engineering/DESIGN-moxywolf-plugins.md`.
+
+Not covered: Taskade in seven other plugins (23 mentions), and the hardcoded `/Users/doriancougias` paths in vault-code-learn and excalidraw-vault. Each is a follow-up build.
+
 ## Sixth objective: trust boundaries
 
 Opened 2026-09-20. The fourth objective asks what the loop's memory costs. This one asks where its records come from.
@@ -3129,6 +3148,7 @@ Test stale approvals, incomplete acceptance, dropped blockers, failed branches, 
 
 ## Amendments log
 
+- 2026-11-24: SM-012 added on Dorian's approval ("Approve SM-012"): each Mac resolves its Drive roots with `drive_roots.py` (skipping `@gtempaccount.com`), project files store root tails, and project-init drops the Taskade root. Amends SM-007.2 and SM-007.5.
 - 2026-11-21: GO-024 declared (draft, awaiting Dorian's approval): the recommended swarm width moves from 20 to 30 and the default stays 3. `swarm.py` is unchanged, because GO-023 already admits any explicit width. It adds one host-ceiling test, a new vault decision record that supersedes only DR-142's three-worker wording, and a proof run of 30 workers. Source: Dorian's instruction and answers of 2026-11-21; Codex reviewed the route and its four changes are folded in.
 - 2026-11-21: SR-003 declared on Dorian's approval of the plan ("I approve the plan", 10:47 AM PT; `GitHub/Projects/CKI/06 – Engineering/gate-fix-plan-2026-11-21/PLAN.md`): a pre-call spend reservation and evidence-backed dispositions in `spec_review.py`. Amends SR-001.4 and SR-002.2 to name the disposition. Its first spec review is authorized as an unbudgeted paid run ("I authorize all runs to unblock gate 0", 10:45 AM PT). Dorian's choices the same day: the bound is the tight formula with a framing allowance (SR-003.3), and the disposition half is built before the budget half.
 - 2026-11-21: GR-004 declared on Dorian's approval of the fix ("approve GR-004"): `review_reconcile.py score` hashes the manifest without `width`, so reports of one manifest at two widths compare (found by the pilot rehearsal before any paid run). Pending his approval by version hash.
