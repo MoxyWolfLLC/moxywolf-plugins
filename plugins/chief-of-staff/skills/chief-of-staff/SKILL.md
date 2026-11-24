@@ -58,7 +58,7 @@ Dorian set this on 2026-10-06. When an action isn't listed, treat it as the next
 
 | Level | What it covers |
 |---|---|
-| **Autonomous**, do it and report | Reading Jira MOXY, session handoffs, calendar, mail, Drive and the vault. Dispatching any department for analysis. Filing or commenting on Jira MOXY tickets, using the label the project declares. Writing deliverables into a Taskade project's numbered folders. |
+| **Autonomous**, do it and report | Reading Jira MOXY, session handoffs, calendar, mail, Drive and the vault. Dispatching any department for analysis. Filing or commenting on Jira MOXY tickets, using the label the project declares. Writing deliverables into a project's numbered folders under `GitHub/Projects/<project>`. |
 | **Proposes**, show it and wait for yes | Edits to the vault's shared knowledge. Changes to a ticket someone else owns. Anything that needs code, which goes to `/gstack-build`. |
 | **Escalates**, stop and write a decision memo | Anything that leaves MoxyWolf: email, Slack, posts, invites to other people. Any spend: credits, purchases, subscriptions. Two departments disagreeing. A blocking finding from security. |
 
@@ -161,7 +161,7 @@ When the memo is about departments that disagree, two more rules hold:
 
 ## The decision log
 
-Every `/cos` run appends one entry to `<workspace>/00 – Project Hub/chief-of-staff-log.md`, where `<workspace>` is the attached project's `workspace.path` from its `project-surfaces.json` (`GitHub/Projects/<project>` for an org-shared project, `Taskade/<project>` for a personal one). With no project attached, it goes to `GitHub/Projects/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md`; MoxyWolf LLC moved there from Taskade on 2026-10-23, and the old Taskade folder is frozen. On a cloud run with no computer linked, read and write the file in `MoxyWolfLLC/Projects` through the GitHub connector. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
+Every `/cos` run appends one entry to `<workspace>/00 – Project Hub/chief-of-staff-log.md`, where `<workspace>` is the attached project's `workspace.path` from its `project-surfaces.json` (`GitHub/Projects/<project>` for an org-shared project, `MoxyWolf Vault/Projects/<project>` for a vault-only one). With no project attached, it goes to `GitHub/Projects/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md` On a cloud run with no computer linked, read and write the file in `MoxyWolfLLC/Projects` through the GitHub connector. Create the file if it's missing. The entry is written on every exit. The outcome is one of three words: done, proposed or escalated. A stop for a missing context card and a result still incomplete after one send-back are both escalated, because both need Dorian, and the reason goes in brackets after the word.
 
 ```
 ## <YYYY-MM-DD> <short ask>

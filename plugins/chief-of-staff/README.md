@@ -32,6 +32,7 @@ Built to Anthropic's Claude Managed Agents article, the Claude Agent SDK cookboo
 
 ## Version History
 
+- 0.5.1 (2026-11-24): SM-013: Taskade is retired; paths that pointed into Taskade now point at the project's GitHub/Projects folder.
 - 0.5.0 (2026-11-23): MR-006. `claim_check.py` writes `claim-checks.jsonl` under `$GSTACK_HISTORY_DIR/model-routing/` when that variable is set, beside the model-routing ledger `route.py aar` reads.
 - 0.4.0 (2026-11-17): ST-003. A dispatch's success criteria are rewritten with the `asd-ste100` skill's Strict mode before sending; the ask stays in Dorian's words and nothing going back to him is rewritten. The decision log entry gains one `asd-ste100:` line.
 - 0.3.1 (2026-10-23): the decision log lives in the attached project's workspace (`workspace.path` in `project-surfaces.json`), defaulting to `GitHub/Projects/MoxyWolf LLC/00 – Project Hub/chief-of-staff-log.md` now that MoxyWolf LLC is org-shared; a cloud run reaches it through the GitHub connector.

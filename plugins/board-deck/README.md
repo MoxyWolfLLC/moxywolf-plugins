@@ -1,12 +1,12 @@
 # Board Deck Plugin
 
-Generate the MoxyWolf monthly 10-slide board deck from LivePlan, GA4, and Taskade data.
+Generate the MoxyWolf monthly 10-slide board deck from LivePlan, GA4, Jira MOXY and GitHub data.
 
 ## What It Does
 
 This plugin automates the monthly board reporting workflow:
 
-1. Collects financial data (LivePlan), analytics (GA4), and sprint data (Taskade)
+1. Collects financial data (LivePlan), analytics (GA4), and sprint data (Jira MOXY)
 2. Assembles everything into a structured JSON data file
 3. Generates a branded 10-slide PPTX deck using PptxGenJS
 4. QA verifies the output with visual inspection
@@ -44,7 +44,7 @@ Or ask Claude to "build the board deck" or "generate the monthly board report."
 ## Requirements
 
 - Node.js (for PptxGenJS)
-- Access to LivePlan, GA4, and Taskade for data collection
+- Access to LivePlan, GA4, and Jira (the Atlassian connector) for data collection
 - LibreOffice (optional, for QA image extraction)
 
 ## Composio fallback

@@ -142,5 +142,68 @@ class TaskadePaths(unittest.TestCase):
         self.assertIn("DESIGN.md:5:", " ".join(hits))
 
 
+# SM-013: no file under plugins/ names Taskade, or an absolute Drive path, outside the records of what was.
+PLUGIN_SELF = SELF | {"plugins/project-init/tests/test_drive_roots.py", "plugins/project-init/tests/test_github_root.py"}
+ABS_DRIVE = re.compile(r"/Users/[^/`\s]+/Library/CloudStorage/GoogleDrive-")
+
+
+def current_lines(rel, text):
+    """Lines subject to SM-013: plugin.json minus its changelog clauses, a README minus its Version History."""
+    if rel.endswith("plugin.json"):
+        return scannable_lines(rel, text)
+    if rel.endswith("README.md"):
+        out, history = [], False
+        for n, line in enumerate(text.splitlines(), 1):
+            if line.startswith("## "):
+                history = line.lower().startswith("## version history")
+            if not history:
+                out.append((n, line))
+        return out
+    return list(enumerate(text.splitlines(), 1))
+
+
+def sm013_hits(rel, line):
+    found = []
+    if "taskade" in line.lower():
+        found.append("Taskade")
+    if ABS_DRIVE.search(line):
+        found.append("absolute Drive path")
+    return found
+
+
+def scan_plugins(root):
+    out = subprocess.run(["git", "ls-files", "-z", "plugins"], cwd=root, capture_output=True, check=True).stdout
+    examined, hits = 0, []
+    for rel in (r.decode("utf-8") for r in out.split(b"\0") if r):
+        if rel in PLUGIN_SELF:
+            continue
+        p = root / rel
+        if not p.is_file():
+            continue
+        text = text_of(p)
+        if text is None:
+            continue
+        examined += 1
+        for n, line in current_lines(rel, text):
+            hits += [f"{rel}:{n}: {h}" for h in sm013_hits(rel, line)]
+    return examined, hits
+
+
+class NoTaskadeInPlugins(unittest.TestCase):
+    def test_no_plugin_names_taskade_or_an_absolute_drive_path(self):
+        examined, hits = scan_plugins(ROOT)
+        print(f"examined {examined} plugin files, {len(hits)} Taskade or absolute Drive path references")
+        self.assertGreater(examined, 0, "examined nothing")
+        self.assertEqual(hits, [])
+
+    def test_the_check_catches_each_string_and_spares_history(self):
+        self.assertEqual(sm013_hits("x.md", "sprint data (Taskade)"), ["Taskade"])
+        self.assertEqual(sm013_hits("x.md", "`/Users/someone/Library/CloudStorage/GoogleDrive-a@b.com/Shared drives/GitHub`"),
+                         ["absolute Drive path"])
+        self.assertEqual(sm013_hits("x.md", "`Shared drives/GitHub`"), [])
+        readme = "# x\n## Usage\nuse Taskade\n## Version history\n- 0.1.0: Taskade era\n## Notes\nok\n"
+        self.assertEqual([n for n, l in current_lines("plugins/x/README.md", readme) if sm013_hits("", l)], [3])
+
+
 if __name__ == "__main__":
     unittest.main()

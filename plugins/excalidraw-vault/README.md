@@ -66,7 +66,7 @@ See [`skills/excalidraw-vault-core/SKILL.md`](skills/excalidraw-vault-core/SKILL
 | `--scope Projects/<project>` | `Projects/<project>/06-Engineering/diagrams/<name>.excalidraw.md` |
 | `/excalidraw-here` | Sibling to the source note (or its `diagrams/` subfolder) |
 
-Vault root resolves from `$MW_VAULT_PATH` if set, otherwise the canonical Google Drive mount.
+Vault root resolves from `$MW_VAULT_PATH` if set, otherwise the path project-init's `drive_roots.py` resolves on the Mac in use (never a hardcoded `/Users/...` path).
 
 ## Requirements
 

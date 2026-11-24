@@ -13,7 +13,7 @@ Raw slash-command arguments: `$ARGUMENTS`
 Two directories are required:
 
 - **Repo** (canonical `DESIGN.md`): `--repo`, else the project's declared GitHub repo in `cowork-project-instructions.md`, else `Shared drives/GitHub/<repo>` (the GitHub root on the MoxyWolf Google shared drive).
-- **Project workspace folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--workspace`, else the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `Taskade/<name>` for a personal one).
+- **Project workspace folder** (mirror at `06 – Engineering/DESIGN-<repo>.md`): `--workspace`, else the project's workspace from its instructions (`workspace.path` in `project-surfaces.json`: `GitHub/Projects/<name>` for an org-shared project, `MoxyWolf Vault/Projects/<name>` for a vault-only one).
 
 Check both against `get_device_info().connectedFolders` (or, on-computer, by probing the paths). For any that is not mounted, request it with `device_request_folder_access` in one call. If the request is unavailable or declined, ask the user for the directories with AskUserQuestion (free text is fine) and re-check. Do not proceed with only one of the two; the mirror is part of the contract.
 
@@ -38,7 +38,7 @@ Before the editor is published, run `/gstack-plan-review critics=2 target=design
 
 ## Step 4: Publish the editor
 
-Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","taskadePath" (the workspace folder; the key keeps its old name),"markdown","approved":false,"savedAt":null,"review":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
+Fill `references/design-doc-editor.html`: `{{TITLE}}` → `<repo> Design Doc`; `{{STATE_JSON}}` → `{"repo","repoPath","workspacePath" (the project's workspace folder),"markdown","approved":false,"savedAt":null,"review":<design_review.py status JSON, or null>}` as JSON with `<` escaped as `<`. Publish it with the Artifact tool, `capabilities: {"artifact": {}}`, favicon `📐`, label `Initial draft` (or `Refresh <date>`). Reuse the same file path (or pass the existing artifact's `url`) when refreshing so the URL stays stable.
 
 Tell the user in one sentence what the page is and that **Mark approved** is what triggers the write. Then stop this turn.
 

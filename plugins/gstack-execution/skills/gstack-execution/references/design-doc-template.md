@@ -1,6 +1,6 @@
 # Design: <repo name>
 
-_Canonical copy: `DESIGN.md` at the repo root. Mirror: `<workspace>/06 – Engineering/DESIGN-<repo>.md`, where `<workspace>` is the project's workspace from its instructions (`GitHub/Projects/<name>` org-shared, `Taskade/<name>` personal). Every change to this file is its own commit (`design: …`) and lands before the code it governs._
+_Canonical copy: `DESIGN.md` at the repo root. Mirror: `<workspace>/06 – Engineering/DESIGN-<repo>.md`, where `<workspace>` is the project's workspace from its instructions (`GitHub/Projects/<name>` org-shared, `MoxyWolf Vault/Projects/<name>` vault-only). Every change to this file is its own commit (`design: …`) and lands before the code it governs._
 
 ## Goal
 

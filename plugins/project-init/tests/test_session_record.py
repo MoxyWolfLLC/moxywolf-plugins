@@ -500,7 +500,7 @@ class PublishBase(Base):
         super().setUp()
         if not shutil.which("gitleaks"):
             self.fail("gitleaks is not installed; the scanner tests must run, not skip")
-        self.dest = self.tmp / "taskade" / "records"
+        self.dest = self.tmp / "published" / "records"
 
     def captured(self, *lines):
         self.write(user("work"), *lines, asst("done"))

@@ -129,7 +129,7 @@ For Medium and Complex, after generating the JSON, mentally walk the layout: do 
 | `--scope Projects/<project>` | `Projects/<project>/06-Engineering/diagrams/<name>.excalidraw.md` |
 | `/excalidraw-here` (sibling to source note) | Same folder as source note, or `<source-folder>/diagrams/<name>.excalidraw.md` if `diagrams/` exists or is preferred |
 
-Vault root resolves from `$MW_VAULT_PATH` if set, otherwise the canonical mount: `/Users/doriancougias/Library/CloudStorage/GoogleDrive-dorianc@moxywolf.com/Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`.
+Vault root resolves from `$MW_VAULT_PATH` if set, otherwise the `vault` path `python3 <project-init>/scripts/drive_roots.py` (project-init's resolver, run on the Mac through Desktop Commander; it prints the `vault` and `github` paths for that Mac, skipping `@gtempaccount.com` accounts), otherwise the mounted folder whose path ends `Shared drives/MoxyWolf Shared Files/MoxyWolf Vault`. Never a hardcoded `/Users/...` path: Google Drive names the account folder differently on each Mac (SM-012).
 
 Filenames are kebab-case with a `.excalidraw.md` extension. Examples: `uber-brain-architecture.excalidraw.md`, `dr-routing-flow.excalidraw.md`.
 

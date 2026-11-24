@@ -21,7 +21,7 @@ Collect data from these sources (use Claude in Chrome for web-facing UIs, native
 
 1. **LivePlan** — Cash position, monthly burn, P&L, balance sheet, revenue
 2. **GA4** — TOF sessions by product, channel breakdown, engagement rates
-3. **Taskade** — Sprint tasks by status, story points, velocity
+3. **Jira MOXY** (Atlassian connector) — Open-sprint issues by status, story points where set, velocity
 4. **GitHub** (native GitHub MCP + REST) — All-branch commit velocity for **STIGViewer**
    (`MoxyWolfLLC/stigviewer`) and **SAMS** (`MoxyWolfLLC/SAMS`). Use the native GitHub MCP's
    `list_branches` to enumerate every branch in each repo, then call the GitHub REST API

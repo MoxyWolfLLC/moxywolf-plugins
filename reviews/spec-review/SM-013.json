@@ -1,0 +1,114 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "f6fa3d9b919c47e1b3d35b7066bf7c2e",
+  "doc": "DESIGN.md",
+  "item": "SM-013",
+  "scope_sha256": "ff794557bac1b27eeab1ce748446da736bbcf91f293759cb0a59ab5c188df714",
+  "reviewed_at": "2026-11-24T17:34:54+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3756,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7621,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7621,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 12970,
+      "output_tokens": 2119,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 2407,
+      "cache_read_input_tokens": 7621,
+      "cache_creation_input_tokens": 4417,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4417,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 7621,
+    "write": 12038
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "SM-013.1",
+        "SM-013.7"
+      ],
+      "question": "SM-013.1 exempts all 'changelog and version-history text' and says 'no file', while SM-013.7 exempts only plugin.json changelog clauses, README Version History sections and test files that name the strings on purpose. Which exemption set is authoritative, for example for a CHANGELOG.md or a version history in GOVERNANCE.md or SKILL.md?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "SM-013.6",
+        "SM-013.7"
+      ],
+      "question": "SM-013.6 bars any /Users/doriancougias path, but SM-013.7 scans only /Users/<name>/Library/CloudStorage/GoogleDrive- paths. Must the test also catch non-Drive /Users/doriancougias paths?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "SM-013.6",
+        "SM-013.7"
+      ],
+      "question": "What is 'the mounted folder' fallback, and how is it named without an absolute /Users/<name>/Library/CloudStorage/GoogleDrive- path? Is the trigger 'drive_roots.py can't run' (SM-013.6) or 'project-init isn't installed' (Links introduced)?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "SM-013.3"
+      ],
+      "question": "When only some issues in the open sprint have story points, does the deck report points, counts, or a mix, and is the choice made per sprint or per issue?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "SM-013.2",
+        "SM-013.7"
+      ],
+      "question": "Are the GitHub/Projects targets written as absolute or relative paths, and where and how is 'each target file exists today' checked? An absolute path would collide with the SM-013.7 scan."
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "SM-013.8"
+      ],
+      "question": "Does 'run_all_tests.py reports a nonzero count of what it examined' require editing scripts/run_all_tests.py, which is a CODEOWNERS path that needs Dorian's approving review, or can the count come from the new test?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "SM-013.8"
+      ],
+      "question": "Is the post-merge mirror of this document a condition a script checks? Which status move, if any, does it gate: done, or an item-closing step?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "SM-013.4"
+      ],
+      "question": "How is existing persisted state that still carries taskadePath handled: migrated, read as a fallback, or ignored? A fallback would keep the old key's name in a file that SM-013.7 scans."
+    }
+  ]
+}
