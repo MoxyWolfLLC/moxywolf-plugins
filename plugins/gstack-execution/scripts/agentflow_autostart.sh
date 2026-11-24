@@ -60,12 +60,13 @@ if command -v plutil >/dev/null; then plutil -lint "$PLIST" >/dev/null; fi
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
 END=$((SECONDS + WAIT))   # a deadline on elapsed time, so a stalled answer can't stretch the wait
-while [ "$SECONDS" -lt "$END" ]; do
-  LEFT=$((END - SECONDS))
+while :; do
+  LEFT=$((END - SECONDS))   # one clock read decides both whether to probe and the probe's limit
+  [ "$LEFT" -gt 0 ] || break   # never curl -m 0: that means no limit at all
   if curl -s -m "$LEFT" -o /dev/null "http://127.0.0.1:$PORT/"; then
     echo "agent-flow: running at http://127.0.0.1:$PORT (starts at every login)"; exit 0
   fi
-  [ "$SECONDS" -lt "$END" ] && sleep 1
+  sleep 1
 done
 echo "agent-flow: loaded but not answering on port $PORT after ${WAIT}s; see $LOG" >&2
 exit 1

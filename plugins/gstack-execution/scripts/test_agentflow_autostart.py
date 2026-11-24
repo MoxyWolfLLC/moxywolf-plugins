@@ -72,6 +72,13 @@ class Autostart(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertLess(time.monotonic() - start, 10)
 
+    def test_no_probe_once_the_deadline_has_passed(self):
+        """Review round 2 F1: with no time left the script never calls curl, so it can't pass -m 0 (no limit)."""
+        self.fake("curl", f'echo "$*" >> "{self.tmp}/curl.log"; exit 7')
+        r = self.run_script("install", AGENT_FLOW_WAIT="0")
+        self.assertEqual(r.returncode, 1)
+        self.assertFalse((self.tmp / "curl.log").exists())
+
     def test_status_probes_the_installed_port(self):
         """Review F3: status reads the port from the plist, not from this call's environment."""
         self.run_script("install", AGENT_FLOW_PORT="61999")
