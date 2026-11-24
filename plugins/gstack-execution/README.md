@@ -30,7 +30,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `/gstack-design-doc` | Create or refresh `DESIGN.md` as an editable artifact; approval writes it to the repo and the project workspace mirror, commits, pushes, pulls back | Artifact + Git |
 | `/gstack-build` | The coding loop: design doc gate → build one item → push + verify + pull back → cross-tool review until clean → human release handoff → record merge before done | Git + `codex`/`claude` CLI |
 | `/gstack-goal-new` | Draft a goal (GO-007): brief and plan by the agent, goal tests and holdout by the gpt family, the plain-English reading by the gemini family; opens the goal pull request for Dorian's approval | Git + `codex` CLI + OpenRouter |
-| `/gstack-viewer` | Opens or closes the agent-flow viewer for the goal swarm that's running (GO-025): `swarm.py goal-run` finds the run, `swarm.py viewer-start` gives the address. Mac with `npx` only | Bash |
+| `/gstack-viewer` | Opens or closes the agent-flow viewer for the goal swarm that's running (GO-025): `swarm.py goal-run` finds the run, `swarm.py viewer-start` gives the address. `always-on`, `always-off` and `always-status` install, remove or check an always-on viewer for every local session on this Mac (GO-026). Mac with `npx` only | Bash |
 | `/gstack-goal` | Run an approved goal (GO-003): each plan item through `/gstack-build` onto `goal/<id>`, then one goal pull request into `main` | Git + the other tool's CLI for the reviews |
 | `/gstack-review` | Structural code review with two-pass checklist | Git + Grep |
 | `/gstack-plan-review` | Pre-code plan-hardening loop over PLAN.md (real Codex or fresh-context Claude critic) | Git + Grep + `codex` CLI (optional) |
@@ -63,6 +63,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `endform_workflow.py` | The E2E gate and its preflight: proves the gate *can* run before anything is pushed |
 | `repo_gates.py` | Reads and configures branch protection; reports which checks actually gate a merge |
 | `governance.py` | Capability grants that name what they permit rather than who may act |
+| `agentflow_autostart.sh` | `install`, `uninstall` or `status` for a LaunchAgent that starts the agent-flow viewer at login on 127.0.0.1:61469 (or `AGENT_FLOW_PORT`), watching every Claude Code session under `$HOME` (GO-026). It shows local sessions only, never cloud ones, and any account on the same Mac can reach 127.0.0.1. Rerun `install` after a Node upgrade |
 | `measure.py` | Records what each gstack run cost (builder tokens from the session transcript, counted once per message; reviewer tokens as each CLI reports them) as an Obsidian note, and scores XE-012's predictions per vocabulary version. `release` calls it when `GSTACK_MEASURE_DIR` is set |
 | `vocab_check.py` | Checks that DESIGN.md's item statuses and the contracts use the vocabulary in `references/vocabulary.json`, the one home for every outcome, status and round shape the dispatcher enforces |
 
@@ -176,6 +177,7 @@ Optional versioned context now complements the existing executable workflows. No
 
 ## Version history
 
+- **0.118.0**: GO-026. `agentflow_autostart.sh` and `/gstack-viewer always-on|always-off|always-status` install an always-on agent-flow viewer per Mac as a LaunchAgent, for local Claude Code sessions only.
 - **0.117.0**: XE-048. `run_all_tests.py` starts every suite without `GSTACK_HISTORY_DIR`, so a test that isolates itself with a temporary review folder can't write fixtures into the real history folder.
 - **0.116.0**: XE-047 and MR-006. Tests that pretend no reviewer is installed also hide `GSTACK_OPENROUTER_ENV`. The model-selection ledger resolves under `GSTACK_HISTORY_DIR` when set, `route` and `quorum` refuse with `insufficient_history` and `history: "unset"` without it, and `review_host.sh` carries the variable.
 - **0.115.0**: XE-046 and MR-005. The verification hook skips its block on a fresh `startup` when the session already has it, and re-sends it after compaction. The route gate counts standard and light recommendations toward its 20.

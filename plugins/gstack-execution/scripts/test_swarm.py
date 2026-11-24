@@ -796,7 +796,7 @@ class GoalRun(unittest.TestCase):
         head = (Path(__file__).resolve().parents[1] / "commands" / "gstack-viewer.md").read_text().split("---")[1]
         fields = dict(l.split(": ", 1) for l in head.strip().splitlines())
         self.assertEqual(set(fields), {"description", "allowed-tools", "argument-hint"})
-        self.assertEqual(json.loads(fields["argument-hint"]), "[stop] [<goal-id>]")
+        self.assertEqual(json.loads(fields["argument-hint"]), "[stop] [<goal-id>] | always-on | always-off | always-status")
         self.assertIn("GO-025", json.loads(fields["description"]))
 
     def test_an_installed_plugin_copy_runs_it(self):
