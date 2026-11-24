@@ -248,6 +248,9 @@ class Selector(unittest.TestCase):
     def test_record_release_appends_a_ledger_line_with_the_outcome(self):
         saved = pr.REVIEW_DIR, pr.github_get
         pr.REVIEW_DIR = self.root / "reviews"
+        saved_done = pr.done_lines_missing   # XE-049.4: the fixture repo commits no DESIGN.md; not what this test reads
+        pr.done_lines_missing = lambda *a: []
+        self.addCleanup(setattr, pr, "done_lines_missing", saved_done)
         try:
             d = pr.REVIEW_DIR / "20260101-000000-abcdef0-fixture"; d.mkdir(parents=True)
             # a council line this recommendation came from (DC-001.7): record-release fills its outcome too

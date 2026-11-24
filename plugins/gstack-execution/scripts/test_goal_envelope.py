@@ -48,7 +48,7 @@ class Envelope(unittest.TestCase):
         self.commit("item 2", {"docs/notes.md": "n\n"})
         self.assertEqual(self.check(), ([], 2))
 
-    def test_the_goal_never_moves_the_top_level_marketplace_version(self):  # GO-004.1
+    def test_the_top_level_version_moves_only_above_mains(self):  # GO-004.1 as amended by XE-049.5
         mk = lambda top, alpha: '{"version": "%s", "plugins": [{"name": "a", "version": "%s"}]}\n' % (top, alpha)
         self.git("switch", "-q", "main")
         self.write("goals/g1/GOAL.md", BRIEF.replace("`src/**`", "`src/**`\n- `.claude-plugin/marketplace.json`"))
@@ -60,9 +60,44 @@ class Envelope(unittest.TestCase):
         self.commit("main moves the top line", {"src/a.py": "a = 2\n", ".claude-plugin/marketplace.json": mk("1.1.0", "0.1.0")})
         self.git("switch", "-q", "goal/g1")
         self.assertEqual(self.check()[0], [])                     # main's move isn't the goal's change
-        self.commit("item: the top line too", {".claude-plugin/marketplace.json": mk("1.2.0", "0.2.0")})
+        self.commit("item: the top line, not above main's", {".claude-plugin/marketplace.json": mk("1.1.0", "0.2.0")})
         e, _ = self.check()
-        self.assertTrue(any("top-level version (1.0.0 -> 1.2.0)" in x for x in e), e)
+        self.assertTrue(any("top-level version to 1.1.0, not above main's 1.1.0" in x for x in e), e)
+        self.commit("the top line above main's", {".claude-plugin/marketplace.json": mk("1.2.0", "0.2.0")})
+        self.assertEqual(self.check()[0], [])
+
+    def test_the_finalize_commit_may_bump_the_top_level_version(self):  # XE-049.5: outside Allowed paths, never judged
+        mk = lambda top, alpha: '{"version": "%s", "plugins": [{"name": "a", "version": "%s"}]}\n' % (top, alpha)
+        self.git("switch", "-q", "main")
+        self.commit("main", {".claude-plugin/marketplace.json": mk("1.0.0", "0.1.0")})
+        self.git("switch", "-q", "goal/g1"); self.git("merge", "-q", "main")
+        self.commit("item", {"src/b": "b\n"})
+        self.commit("finalize", {"goal-runs/g1/RESULT.md": "r\n", "goal-runs/g1/holdout.py": "h\n",
+                                 ".claude-plugin/marketplace.json": mk("1.1.0", "0.1.0")})
+        self.assertEqual(self.check(), ([], 2))
+        self.commit("an entry too", {".claude-plugin/marketplace.json": mk("1.2.0", "0.9.0")})   # not composed: judged
+        e, _ = self.check()
+        self.assertTrue(any(".claude-plugin/marketplace.json, outside Allowed paths" in x for x in e), e)
+
+    def test_a_sync_resolving_the_top_level_version_above_mains_is_not_a_goal_edit(self):  # XE-049.5
+        mk = lambda top, a, b: '{"version": "%s", "plugins": [{"name": "a", "version": "%s"}, {"name": "b", "version": "%s"}]}\n' % (top, a, b)
+        self.git("switch", "-q", "main")
+        self.write("goals/g1/GOAL.md", BRIEF.replace("`src/**`", "`src/**`\n- `.claude-plugin/marketplace.json`"))
+        self.commit("main", {".claude-plugin/marketplace.json": mk("1.0.0", "0.1.0", "0.1.0")})
+        self.git("switch", "-q", "goal/g1"); self.git("merge", "-q", "main")
+        self.commit("item a", {".claude-plugin/marketplace.json": mk("1.0.0", "0.2.0", "0.1.0")})
+        self.commit("finalize", {"goal-runs/g1/RESULT.md": "r\n", ".claude-plugin/marketplace.json": mk("1.1.0", "0.2.0", "0.1.0")})
+        self.git("switch", "-q", "main")
+        self.commit("main ships b", {".claude-plugin/marketplace.json": mk("1.1.0", "0.1.0", "0.2.0")})
+        self.git("switch", "-q", "goal/g1")
+        subprocess.run(["git", "-C", str(self.repo), "merge", "-q", "--no-ff", "--no-commit", "main"], capture_output=True)
+        self.write(".claude-plugin/marketplace.json", mk("1.2.0", "0.2.0", "0.2.0"))      # entries from each side, top above main's
+        self.git("add", "-A"); self.git("commit", "-q", "-m", "Sync main into goal/g1")
+        self.assertEqual(self.check()[0], [])
+        self.write(".claude-plugin/marketplace.json", mk("1.0.5", "0.2.0", "0.2.0"))      # below main's after the sync
+        self.commit("drop the bump")
+        e, _ = self.check()
+        self.assertTrue(any("not above main's 1.1.0" in x for x in e), e)
 
     def test_a_file_outside_allowed_paths_is_named(self):
         sha = self.commit("item", {"lib/x": "x\n"})

@@ -73,7 +73,7 @@ class Swarm(unittest.TestCase):
         deps.write_text(json.dumps(d))
         default = self.tmp / "default"
         swarm.init(default, self.goal, self.base, 41)
-        self.assertEqual(len(swarm.tick(default)["dispatch"]), 3)
+        self.assertEqual(len(swarm.tick(default)["dispatch"]), 10)   # XE-049.10: as wide as can start, capped at 10
         for invalid in (0, True, "4"):
             with self.subTest(invalid=invalid):
                 d["max_workers"] = invalid
@@ -140,7 +140,21 @@ class Swarm(unittest.TestCase):
         self.assertEqual((states.count("running"), states.count("pending")), (20, 10))
         self.assertEqual(swarm.host_limit(record), 20)
 
-    def test_v1_four_results_still_need_review_and_ordered_integration(self):
+    def test_xe049_10_the_default_width_is_what_can_start_together(self):
+        two = [self.item("a", ["a/**"]), self.item("b", ["b/**"], start=["a"]), self.item("c", ["c/**"])]
+        self.plan(two); d = json.loads((self.goal / "DEPS.json").read_text()); d.pop("max_workers")
+        (self.goal / "DEPS.json").write_text(json.dumps(d))
+        self.assertEqual(swarm.load_plan(self.goal)["max_workers"], 2)             # b waits to start on a
+        shared = [self.item("a", ["x/**"]), self.item("b", ["x/y.py"], integ=["a"])]
+        (self.goal / "DEPS.json").write_text(json.dumps({"version": 1, "order": [], "items": {"1": shared[0], "2": shared[1]}}))
+        (self.goal / "PLAN.md").write_text("1. item 1\n   - works\n2. item 2\n   - works\n")
+        self.assertEqual(swarm.load_plan(self.goal)["max_workers"], 1)             # overlapping writes count once
+        (self.goal / "GOAL.md").write_text("## Hard cap\n")
+        self.plan([self.item(f"i{i}", [f"{i}.py"]) for i in range(5)]); d = json.loads((self.goal / "DEPS.json").read_text())
+        d.pop("max_workers"); (self.goal / "DEPS.json").write_text(json.dumps(d))
+        self.assertEqual(swarm.load_plan(self.goal)["max_workers"], 3)             # a hard-capped goal stays at three
+
+    def test_v1_four_results_integrate_in_order_with_no_item_review(self):  # XE-049.5
         self.plan([self.item(f"i{i}", [f"{i}.py"], integ=["i0"] if i == 1 else [])
                    for i in range(4)], max_workers=4)
         swarm.init(self.run, self.goal, self.base, 4)
@@ -151,8 +165,6 @@ class Swarm(unittest.TestCase):
         for i, c in enumerate(claims):
             head, result = self.finish(c, [f"{i}.py"])
             self.assertTrue(result["accepted"])
-            self.assertNotEqual(swarm.merge_gate(self.run, c["id"], self.repo, "main"), [])
-            swarm.review(self.run, c["id"], head, "clean")
         self.assertIn("integration waits for i0", swarm.merge_gate(self.run, "i1", self.repo, "main"))
         self.assertEqual(swarm.merge_gate(self.run, "i0", self.repo, "main"), [])
         self.assertEqual(swarm.status(self.run)["spent"], 4)
@@ -339,10 +351,8 @@ class Swarm(unittest.TestCase):
         wt = self.tmp / "wt-b-1"
         git(wt, "rebase", "-q", "main"); nb = git(wt, "rev-parse", "HEAD")
         self.assertEqual(swarm.refresh(self.run, "b", nb, self.repo, "main", "passed")["accepted"], True)
-        self.assertIn("status is drafted, not reviewed", swarm.merge_gate(self.run, "b", self.repo, "main"))
         self.assertEqual(swarm.status(self.run)["items"]["b"]["review_rounds"], 1)  # the earlier round still counts
-        swarm.review(self.run, "b", nb, "clean")
-        self.assertEqual(swarm.merge_gate(self.run, "b", self.repo, "main"), [])
+        self.assertEqual(swarm.merge_gate(self.run, "b", self.repo, "main"), [])    # XE-049.5: refreshed and tested is enough
         with self.assertRaisesRegex(ValueError, "isn't built on"):
             swarm.refresh(self.run, "b", hb, self.repo, "main", "passed")
 

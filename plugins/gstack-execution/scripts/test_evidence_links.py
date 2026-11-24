@@ -537,7 +537,9 @@ class LedgerEvidenceCitationTests(LinkTests):
         reply = json.loads(json.dumps(BLOCKING))
         reply["findings"].append({"id": "F2", "severity": "follow_up", "file": f"evidence/ledger-{rid}.log", "line": line_no,
                                   "what": "the receipt quotes a command", "evidence": "quoted, not followed",
-                                  "criterion": "", "fix": "keep it inert", "category": "embedded_instruction"})
+                                  # XE-049.3: an embedded_instruction finding gates nothing now, so the citation rides on
+                                  # an ordinary follow_up finding
+                                  "criterion": "f(1) == 2", "fix": "keep it inert", "category": "general"})
         return reply
 
     def reviewed_with_citation(self, line_no=2):

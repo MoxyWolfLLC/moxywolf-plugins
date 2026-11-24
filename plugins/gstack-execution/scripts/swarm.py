@@ -5,7 +5,7 @@ A goal's PLAN.md stays as goal_brief.py checks it. A parallel plan adds goals/<i
 and frozen with the goal; without one the plan is serial (each item starts after the one before), exactly the
 one-item loop goal_run.py has always run.
 
-DEPS.json: {"version": 1, "max_workers": positive integer (default 3),
+DEPS.json: {"version": 1, "max_workers": positive integer (default: how many items can start together, at most 10, XE-049.10),
             "items": {"<plan item n>": {"id": "page", "writes": ["assets/x.html", "tests/test_x.py"],
                                         "start_after": [], "integrate_after": ["cli"],
                                         "contracts": [{"path": "assets/gate.js", "sha256": "..."}],
@@ -66,7 +66,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from task_graph import write   # the graph's atomic write, reused
 
-DEFAULT_WORKERS = 3
+DEFAULT_WORKERS = 3        # GO-023: a width above this takes the launch-sent path
+WIDTH_CAP = 10             # XE-049.10: the derived default never exceeds this; an explicit max_workers may
 MAX_LAUNCHES = 2           # a launch that failed twice is blocked, not retried forever
 ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 RUNNING = ("dispatched", "sent", "running")
@@ -158,8 +159,22 @@ def load_plan(goal_dir):
         items.append({"n": int(k), "id": v.get("id"), "writes": v.get("writes") or [], "start_after": v.get("start_after", []),
                       "integrate_after": v.get("integrate_after", []), "contracts": v.get("contracts", []),
                       "estimate_usd": money(v.get("estimate_usd", DEFAULT_ESTIMATE), f"item {k} estimate_usd", positive=True)})
-    return validate({"version": d.get("version"), "max_workers": d.get("max_workers", DEFAULT_WORKERS), "serial": False,
+    if width is None:                                  # XE-049.10: as wide as the items that can start together
+        width = start_width(items)
+        if brief.is_file() and re.search(r"^## Hard cap\s*$", brief.read_text(), re.M):
+            width = min(width, DEFAULT_WORKERS)
+    return validate({"version": d.get("version"), "max_workers": width, "serial": False,
                      "items": items, "order": d.get("order", [])})
+
+
+def start_width(items):
+    """Items that can be dispatched together at the start: no start_after, and no write overlapping one already
+    counted. At least 1, at most WIDTH_CAP. ponytail: greedy in plan order, not the largest such set."""
+    chosen = []
+    for i in items:
+        if not i["start_after"] and not any(_glob_overlap(a, b) for c in chosen for a in c["writes"] for b in i["writes"]):
+            chosen.append(i)
+    return max(1, min(len(chosen), WIDTH_CAP))
 
 
 def validate(plan):
@@ -350,6 +365,15 @@ def _remaining(s):
     return s["budget"] - s["spent"] - sum(s["reserved"].values())
 
 
+def _brief_checks(run):
+    """XE-049.16: the goal run's brief checks, from the state goal_run.py keeps beside the swarm folder; None for a
+    swarm with no goal run around it, or one started before XE-049.16."""
+    try:
+        return json.loads((Path(run).parent / "state.json").read_text()).get("brief_checks")
+    except (OSError, ValueError):
+        return None
+
+
 def tick(run, halted=False, spend_stop=False):
     """Claim every eligible item up to max_workers. Never claims an item that is already claimed, so a restarted
     coordinator that ticks again dispatches nothing twice. Returns what to launch, what's running, and why the
@@ -363,6 +387,7 @@ def tick(run, halted=False, spend_stop=False):
             out["stopped"] = "HALT" if halted else "spend stop"
         ceiling = _ceiling(s)
         writes = {i["id"]: i["writes"] for i in s["plan"]["items"]}
+        checks = _brief_checks(run)
         if s.get("host_file") and out["stopped"]:
             _release_unsent(run, s, 0, out["stopped"])
         # review F9: a worker blocked while it runs holds its slot until it reports
@@ -380,6 +405,9 @@ def tick(run, halted=False, spend_stop=False):
                         d for d in i["integrate_after"] if s["items"][d]["status"] != "merged") if st["status"] != "blocked" else "")
                     out["waiting"].append({"id": i["id"], "status": st["status"], "why": why or "awaiting review or merge"})
                 continue
+            c = None if checks is None else checks.get(str(i["n"]))
+            if checks is not None and (c is None or any(e["settlement"] != "settled" for e in c["entries"])):
+                out["waiting"].append({"id": i["id"], "status": st["status"], "why": "brief check not settled (XE-049.16)"}); continue
             blockers = [d for d in i["start_after"] if s["items"][d]["status"] != "merged"]
             if blockers:
                 out["waiting"].append({"id": i["id"], "status": st["status"], "why": "start waits for " + ", ".join(blockers)}); continue
@@ -645,9 +673,12 @@ def merge_gate(run, iid, repo, target, halted=False):
     reasons = []
     if halted:
         reasons.append("HALT")
-    if st["status"] != "reviewed":
-        reasons.append(f"status is {st['status']}, not reviewed")
-    elif st["review"]["head"] != st["evidence"]["head"]:
+    # XE-049.5: no per-item review; a drafted item whose tests passed may integrate, and the whole-goal review gates main
+    if st["status"] not in ("drafted", "reviewed"):
+        reasons.append(f"status is {st['status']}, not drafted or reviewed")
+    elif (st["evidence"] or {}).get("tests") != "passed":
+        reasons.append("its tests didn't pass at the drafted head")
+    elif st["status"] == "reviewed" and st["review"]["head"] != st["evidence"]["head"]:
         reasons.append("review head differs from the tested head")
     tip = git(repo, "rev-parse", target)                 # review F7: a moved target is reported for any item
     if tip != s["integration_head"]:
@@ -664,8 +695,8 @@ def merge_gate(run, iid, repo, target, halted=False):
 def merged(run, iid, sha):
     def go(s):
         _, st = _item(s, iid)
-        if st["status"] != "reviewed":
-            raise ValueError(f"{iid} isn't reviewed")
+        if st["status"] not in ("drafted", "reviewed"):
+            raise ValueError(f"{iid} isn't drafted or reviewed")
         st.update(status="merged", merged=sha); s["integration_head"] = sha
         _event(run, "merged", id=iid, sha=sha)
     mutate(run, go)

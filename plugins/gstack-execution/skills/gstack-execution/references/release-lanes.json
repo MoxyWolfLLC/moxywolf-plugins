@@ -32,6 +32,24 @@
         "renames_tracked_file",
         "many_callers"
       ]
+    },
+    "light": {
+      "paths": [
+        "**/README.md",
+        "**/CHANGELOG.md",
+        "docs/**"
+      ],
+      "existing_paths": [
+        "**/test_*.py"
+      ],
+      "version_only": [
+        "**/.claude-plugin/plugin.json",
+        "**/.claude-plugin/marketplace.json"
+      ],
+      "status_only": [
+        "DESIGN.md"
+      ],
+      "note": "XE-049.7: every changed path must match one of these, as the key says (existing_paths: modified, not added; version_only: only version fields change; status_only: only item **Status:** lines change; an Amendments-log line never). Never a CODEOWNERS path, .github/ or a hooks/ directory. No cross-vendor review: tests green and the check ledger clear, and the agent merges."
     }
   },
   "wide_callers": 5

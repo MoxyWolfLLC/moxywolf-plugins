@@ -13,8 +13,12 @@ XE-048: each suite runs without GSTACK_HISTORY_DIR. A suite that isolates itself
 GSTACK_PEER_REVIEW_DIR would otherwise write its fixtures into the real history folder, because the
 history folder wins (MR-006). A suite run on its own, outside this runner, isn't covered: drop the
 variable at import, as the MR-006 test modules do, or run it with the variable unset.
+
+XE-049.12: --jobs N runs checks at once (default: CPU count, at most 8). Results print in the serial
+order, each whole, so the report and the exit code don't depend on N; --jobs 1 is the serial run.
 """
 import argparse
+import concurrent.futures
 import os
 import subprocess
 import sys
@@ -53,7 +57,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--root", default=str(ROOT))
     ap.add_argument("--list", action="store_true", help="show what would run, run nothing")
+    ap.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 8),
+                    help="checks run at once (default: CPU count, at most 8); 1 is serial")
     a = ap.parse_args(argv)
+    if a.jobs < 1:
+        ap.error("--jobs must be at least 1")
     root = Path(a.root).resolve()
 
     suites, selftests = discover(root)
@@ -74,13 +82,18 @@ def main(argv=None):
         return 1
 
     print()
-    failed = []
-    for p, args in jobs:
-        label = f"{p.relative_to(root)}{' --selftest' if args else ''}"
+    def attempt(job):
+        p, args = job
         try:
-            rc, out = run(p, args, root)
+            return run(p, args, root)
         except subprocess.TimeoutExpired:
-            rc, out = 124, f"timed out after {TIMEOUT}s"
+            return 124, f"timed out after {TIMEOUT}s"
+
+    failed = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=a.jobs) as pool:
+        results = list(pool.map(attempt, jobs))   # ponytail: report after all finish; map keeps serial order
+    for (p, args), (rc, out) in zip(jobs, results):
+        label = f"{p.relative_to(root)}{' --selftest' if args else ''}"
         if rc == 0:
             print(f"PASS  {label}")
         else:
@@ -123,6 +136,27 @@ def _selftest():
         os.environ["GSTACK_HISTORY_DIR"] = str(empty / "real-history")
         try:
             assert main(["--root", str(empty)]) == 0, "a suite must not see GSTACK_HISTORY_DIR"
+        finally:
+            if saved is None:
+                os.environ.pop("GSTACK_HISTORY_DIR", None)
+            else:
+                os.environ["GSTACK_HISTORY_DIR"] = saved
+        assert not (empty / "real-history").exists()
+
+        # XE-049.12: the parallel report is the serial report, byte for byte, and a failure still fails
+        import contextlib, io
+        (empty / "test_bad.py").write_text("import sys; print('broken'); sys.exit(3)\n")
+        reports = []
+        for n in ("1", "4"):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                assert main(["--root", str(empty), "--jobs", n]) == 1, f"a failing suite must fail --jobs {n}"
+            reports.append(buf.getvalue())
+        assert reports[0] == reports[1], "--jobs 4 must report exactly what --jobs 1 reports"
+        (empty / "test_bad.py").unlink()
+        os.environ["GSTACK_HISTORY_DIR"] = str(empty / "real-history")
+        try:
+            assert main(["--root", str(empty), "--jobs", "4"]) == 0, "--jobs must keep XE-048's rule"
         finally:
             if saved is None:
                 os.environ.pop("GSTACK_HISTORY_DIR", None)

@@ -467,7 +467,8 @@ def test_close_all_refuses_anything_but_a_human_observation_and_a_redeclared_que
         # round 2 meets the criterion: q1 auto-closes; round 3 declares q1 again: it reopens under the same id
         h2 = L.fix(); L.replies.append(json.dumps({**json.loads(_reply(2)), "verdict": "blocking_findings",
             "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}, {"criterion": "f(None) is handled", "met": True, "evidence": "a.py:3"}],
-            "findings": [{"id": "F2", "severity": "blocking", "file": "a.py", "line": 1, "what": "another defect", "evidence": "a.py:1", "criterion": "f(1) == 2", "fix": "x"}],
+            # XE-049.1: on a line the fix changed, so it still blocks in a fix-verification round
+            "findings": [{"id": "F2", "severity": "blocking", "file": "a.py", "line": 2, "what": "another defect", "evidence": "a.py:2", "criterion": "f(1) == 2", "fix": "x"}],
             "blocker_resolutions": [{"id": "F1", "resolved": True, "evidence": "a.py:3"}], "unknowns": []}))
         assert L.round(h2) == "blocking_findings"
         uid = [u for u in L.ledger().values() if u["question"] == "q1"][0]["id"]
@@ -477,7 +478,7 @@ def test_close_all_refuses_anything_but_a_human_observation_and_a_redeclared_que
         (L.d / "b.txt").write_text("b\n"); sh("add", "."); sh("commit", "-qm", "fix 2"); h3 = sh("rev-parse", "HEAD")
         L.replies.append(json.dumps({"verdict": "no_blocking_findings",
             "acceptance": [{"criterion": "f(1) == 2", "met": True, "evidence": "a.py:2"}, {"criterion": "f(None) is handled", "met": True, "evidence": "a.py:3"}],
-            "findings": [], "blocker_resolutions": [{"id": "F2", "resolved": True, "evidence": "a.py:1"}],
+            "findings": [], "blocker_resolutions": [{"id": "F2", "resolved": True, "evidence": "a.py:2"}],
             "unknowns": [{"question": "q1", "needs": "repository", "criterion": "f(None) is handled"}]}))
         assert L.round(h3) == "fixes_verified"
         u = L.ledger()[uid]

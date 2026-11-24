@@ -10,12 +10,13 @@ them (GO-002, GO-003.3):
                                   only its hash entering the folder; the source is never printed
   goal_new.py read <goal dir>     the plain-English reading, by the gemini family through OpenRouter,
                                   printed as the goal pull request's `## Plain-English reading` section
-  goal_new.py successor <goal dir> --why <text>
-                                  GO-011.9: starts the successor of a goal that failed its holdout or its
-                                  whole-goal review, as goals/<root>--s1 (then --s2) beside it: GOAL.md
-                                  copied whole with one `Succeeds <goal>: <why>` paragraph after its
-                                  Outcome, PLAN.md copied for the agent to revise. The tests, holdout and
-                                  reading are then drafted as for any goal.
+  goal_new.py brief-check <goal dir> [--dorian <json file>]
+                                  XE-049.16, at draft time: each PLAN.md item's brief goes to brief_check.py and
+                                  the entries print; with --dorian (a JSON list of {item, quote, question} only
+                                  Dorian can answer) they're written into GOAL.md's `## Questions for Dorian`,
+                                  so they reach him inside the brief he approves
+  goal_new.py successor ...       refused: GO-011.9's successors are retired (XE-049.6); a failed goal's
+                                  next goal is drafted with Dorian and approved like any goal
 
 Each refuses (exit 1) rather than write a partial folder. `goal_brief.py check` and `baseline` still
 decide whether the folder is a goal; nothing here replaces them.
@@ -258,49 +259,43 @@ The brief:
     return 0
 
 
-def cmd_successor(goal_dir, why):
-    """GO-011.9. Only the parts goal_successor.compare lets change are left to change: the Outcome keeps the
-    predecessor's text and gains one paragraph; every other section is copied and revised, if at all, only where
-    goal_successor.MUTABLE names it."""
+QUESTIONS = "## Questions for Dorian"
+
+
+def cmd_brief_check(goal_dir, dorian=None, call=None):
+    import brief_check
     import goal_run
-    import goal_successor as gsucc
-    src = Path(goal_dir).resolve()
-    nxt = goal_run.next_goal(src.name)
-    if nxt is None:
-        print(f"{src.name} is a second successor; the chain stops at --s2 and the next goal needs Dorian's approval",
-              file=sys.stderr)
-        return 1
-    if "\n" in why.strip() or not why.strip():
-        print("--why is one paragraph: what failed and what the successor does about it", file=sys.stderr)
-        return 1
-    dst = src.parent / nxt
-    if dst.exists():
-        print(f"{dst} already exists", file=sys.stderr)
-        return 1
-    text = (src / "GOAL.md").read_text()
-    pre, secs = gsucc.spans(text)
-    out = []
-    for h, b in secs:
-        if re.match(r"^##\s+Outcome\s*$", h):
-            core = b.rstrip("\n")
-            b = f"{core}\n\nSucceeds {src.name}: {why.strip()}" + b[len(core):]
-        out.append(f"{h}\n{b}")
-    new = pre + "".join(out)
-    problems = gsucc.compare(text, new, src.name)
-    if problems:
-        print("; ".join(problems), file=sys.stderr)
-        return 1
-    dst.mkdir()
-    (dst / "GOAL.md").write_text(new)
-    (dst / "PLAN.md").write_text((src / "PLAN.md").read_text())
-    print(json.dumps({"successor": nxt, "dir": str(dst), "next": "revise PLAN.md (and Scenarios, Goal tests, Pre-mortem "
-                      "if the failure calls for it), then tests, holdout, read, goal_brief.py check and baseline"}))
-    return 0
+    g = Path(goal_dir)
+    if dorian is not None:
+        if not isinstance(dorian, list) or not all(isinstance(q, dict) and {"item", "quote", "question"} <= set(q) for q in dorian):
+            raise Refused("--dorian is a JSON list of {item, quote, question}")
+        text = (g / "GOAL.md").read_text()
+        text = re.sub(rf"\n{re.escape(QUESTIONS)}\n.*?(?=\n## |\Z)", "", text, flags=re.S).rstrip("\n")
+        lines = [f"- Item {q['item']}, \u201c{q['quote']}\u201d: {q['question']}" for q in dorian]
+        (g / "GOAL.md").write_text(text + f"\n\n{QUESTIONS}\n\n" + "\n".join(lines) + "\n")
+        return {"questions": len(lines)}
+    out = {}
+    for n, (title, criteria) in enumerate(goal_run.plan_items((g / "PLAN.md").read_text()), 1):
+        brief = f"{title}\n\nAcceptance criteria:\n" + "\n".join(f"- {c}" for c in criteria)
+        try:
+            out[str(n)] = brief_check.check(brief, call)
+        except brief_check.Refused as e:
+            raise Refused(f"item {n}: {e}")
+    return out
 
 
 def main(argv):
-    if len(argv) == 4 and argv[0] == "successor" and argv[2] == "--why":
-        return cmd_successor(argv[1], argv[3])
+    if argv[:1] == ["brief-check"] and len(argv) in (2, 4) and (len(argv) == 2 or argv[2] == "--dorian"):
+        try:
+            print(json.dumps(cmd_brief_check(argv[1], json.loads(Path(argv[3]).read_text()) if len(argv) == 4 else None), indent=1))
+            return 0
+        except Refused as e:
+            print(f"REFUSED: {e}")
+            return 1
+    if argv[:1] == ["successor"]:
+        print("successor goals are retired (XE-049.6): draft the next goal with Dorian and open it for his approval",
+              file=sys.stderr)
+        return 1
     if len(argv) != 2 or argv[0] not in ("tests", "holdout", "read"):
         print(__doc__, file=sys.stderr)
         return 2

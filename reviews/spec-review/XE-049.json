@@ -1,0 +1,140 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "041021f50fa4429daa2eab86bc2c8587",
+  "doc": "DESIGN.md",
+  "item": "XE-049",
+  "scope_sha256": "2b54cef2e406c1e81a947abe942e867cc0eb0a7befb1223e3735f434f60e1efa",
+  "reviewed_at": "2026-11-24T07:37:59+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 13270,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 11161,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 11161,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 26024,
+      "output_tokens": 3535,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 7044,
+      "cache_read_input_tokens": 11161,
+      "cache_creation_input_tokens": 14358,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 14358,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 11161,
+    "write": 25519
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "XE-049.6"
+      ],
+      "question": "Does goal_successor.py refuse every successor start, or only a start without Dorian's word? Does a successor started with his word still pass through it?"
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "XE-049.4",
+        "XE-049.5"
+      ],
+      "question": "A goal item's done line must name the goal's pull request into main, but items commit to goal/<id> before that PR exists. When is the PR number known and written, and does that commit count as the 'last commit before review'?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "XE-049.4",
+        "XE-049.7"
+      ],
+      "question": "A light-lane change has no review. Is the done-line commit still required to be 'the last commit before review', and what does record-release check for a light change that carries a done line?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "XE-049.5",
+        "XE-049.2",
+        "XE-049.18"
+      ],
+      "question": "The run record is committed before the whole-goal review and holds holdout and spend outcomes, but review calls, fix rounds and brief_check calls come after. Is the holdout re-run, and is the record recommitted, when a fix round changes the head? What spend does the committed outcome cover?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "XE-049.10"
+      ],
+      "question": "Does the cap of 10 bind a brief's own max_workers, or may a brief set a value above 10 ('any other max_workers')?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "XE-049.11",
+        "XE-049.7"
+      ],
+      "question": "The overlap test ignores Amendments lines, but a sibling's Amendments line makes a sync delta non-light. Does a sync delta that contains only another item's Amendments line need a fix-verification round and count toward the three-sync limit?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "XE-049.13",
+        "Coverage is mandatory"
+      ],
+      "question": "A whole-goal review runs several lanes. How do the per-lane coverage statuses combine into the one coverage status the release gate reads? Is fallback chosen per lane or per round?"
+    },
+    {
+      "id": "A8",
+      "requirements": [
+        "XE-049.16",
+        "XE-049.11"
+      ],
+      "question": "XE-049.16 refers to 'the one question criterion 11's batch already asks', but XE-049.11 describes no such question. Which question is meant?"
+    },
+    {
+      "id": "A9",
+      "requirements": [
+        "XE-049.17",
+        "Transcript-derived data isn't readable outside the executing principal until the publish gate succeeds"
+      ],
+      "question": "Is a later builder on the same machine, account and model family inside the 'executing principal'? When a whole-goal review blocks a multi-worker change, which agent is asked 'why did you make that choice?'"
+    },
+    {
+      "id": "A10",
+      "requirements": [
+        "XE-049.19"
+      ],
+      "question": "What surface cap applies to the Gemini CLI reviewer? 'Other API reviewers keep 400,000' does not clearly cover a CLI reviewer."
+    },
+    {
+      "id": "A11",
+      "requirements": [
+        "XE-049.16",
+        "XE-049.19"
+      ],
+      "question": "Which model family and data_use grant govern the 'fresh model' that brief_check.py sends builder briefs to?"
+    }
+  ]
+}
