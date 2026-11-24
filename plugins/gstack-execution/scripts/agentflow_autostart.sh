@@ -24,8 +24,11 @@ if [ "$CMD" = uninstall ]; then
   exit 0
 fi
 if [ "$CMD" = status ]; then
+  # the installed plist's port wins: a later status needn't repeat AGENT_FLOW_PORT
+  INSTALLED=$(sed -n 's|.*<string>--port</string><string>\([0-9]*\)</string>.*|\1|p' "$PLIST" 2>/dev/null || true)
+  PORT=${INSTALLED:-$PORT}
   launchctl print "$DOMAIN/$LABEL" 2>/dev/null | grep -E '^[[:space:]]*(state|pid) =' || echo "agent-flow: not loaded"
-  curl -s -o /dev/null -w "agent-flow: http://127.0.0.1:$PORT answers %{http_code}\n" "http://127.0.0.1:$PORT/" || echo "agent-flow: http://127.0.0.1:$PORT not answering"
+  curl -s -m 5 -o /dev/null -w "agent-flow: http://127.0.0.1:$PORT answers %{http_code}\n" "http://127.0.0.1:$PORT/" || echo "agent-flow: http://127.0.0.1:$PORT not answering"
   exit 0
 fi
 
@@ -56,12 +59,13 @@ EOF
 if command -v plutil >/dev/null; then plutil -lint "$PLIST" >/dev/null; fi
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
-i=0
-while [ "$i" -lt "$WAIT" ]; do
-  if curl -s -o /dev/null "http://127.0.0.1:$PORT/"; then
+END=$((SECONDS + WAIT))   # a deadline on elapsed time, so a stalled answer can't stretch the wait
+while [ "$SECONDS" -lt "$END" ]; do
+  LEFT=$((END - SECONDS))
+  if curl -s -m "$LEFT" -o /dev/null "http://127.0.0.1:$PORT/"; then
     echo "agent-flow: running at http://127.0.0.1:$PORT (starts at every login)"; exit 0
   fi
-  i=$((i + 1)); sleep 1
+  [ "$SECONDS" -lt "$END" ] && sleep 1
 done
 echo "agent-flow: loaded but not answering on port $PORT after ${WAIT}s; see $LOG" >&2
 exit 1

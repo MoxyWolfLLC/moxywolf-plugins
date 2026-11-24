@@ -63,7 +63,7 @@ An item is declared in `DESIGN.md` before it is built. Several items form one ch
 | `endform_workflow.py` | The E2E gate and its preflight: proves the gate *can* run before anything is pushed |
 | `repo_gates.py` | Reads and configures branch protection; reports which checks actually gate a merge |
 | `governance.py` | Capability grants that name what they permit rather than who may act |
-| `agentflow_autostart.sh` | `install`, `uninstall` or `status` for a LaunchAgent that starts the agent-flow viewer at login on 127.0.0.1:61469 (or `AGENT_FLOW_PORT`), watching every Claude Code session under `$HOME` (GO-026). It shows local sessions only, never cloud ones, and any account on the same Mac can reach 127.0.0.1. Rerun `install` after a Node upgrade |
+| `agentflow_autostart.sh` | `install`, `uninstall` or `status` for a LaunchAgent that starts the agent-flow viewer at login on 127.0.0.1:61469 (or `AGENT_FLOW_PORT`), watching every Claude Code session under `$HOME` (GO-026). It shows local sessions only, never cloud ones, and any account on the same Mac can reach 127.0.0.1, so install it only on a Mac where that is acceptable. Rerun `install` after a Node upgrade |
 | `measure.py` | Records what each gstack run cost (builder tokens from the session transcript, counted once per message; reviewer tokens as each CLI reports them) as an Obsidian note, and scores XE-012's predictions per vocabulary version. `release` calls it when `GSTACK_MEASURE_DIR` is set |
 | `vocab_check.py` | Checks that DESIGN.md's item statuses and the contracts use the vocabulary in `references/vocabulary.json`, the one home for every outcome, status and round shape the dispatcher enforces |
 

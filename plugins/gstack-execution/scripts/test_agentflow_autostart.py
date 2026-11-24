@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -62,6 +63,21 @@ class Autostart(unittest.TestCase):
         r = self.run_script("install")
         self.assertEqual(r.returncode, 1)
         self.assertIn("agent-flow.log", r.stderr)
+
+    def test_a_stalled_answer_cannot_stretch_the_wait(self):
+        """Review F1: each probe carries -m with the time left, so a listener that never answers ends the wait."""
+        self.fake("curl", 'while [ $# -gt 0 ]; do [ "$1" = -m ] && { sleep "$2"; exit 28; }; shift; done; sleep 60')
+        start = time.monotonic()
+        r = self.run_script("install")
+        self.assertEqual(r.returncode, 1)
+        self.assertLess(time.monotonic() - start, 10)
+
+    def test_status_probes_the_installed_port(self):
+        """Review F3: status reads the port from the plist, not from this call's environment."""
+        self.run_script("install", AGENT_FLOW_PORT="61999")
+        self.fake("curl", f'echo "$*" >> "{self.tmp}/curl.log"; exit 0')
+        self.assertEqual(self.run_script("status").returncode, 0)
+        self.assertIn("127.0.0.1:61999", (self.tmp / "curl.log").read_text())
 
     def test_uninstall_removes_the_plist(self):
         self.run_script("install")
