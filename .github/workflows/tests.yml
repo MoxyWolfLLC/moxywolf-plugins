@@ -82,4 +82,4 @@ jobs:
         run: python3 plugins/gstack-execution/scripts/run_all_tests.py --selftest
 
       - name: Run every check in the repository
-        run: python3 plugins/gstack-execution/scripts/run_all_tests.py
+        run: python3 plugins/gstack-execution/scripts/run_all_tests.py --jobs 4

@@ -15,7 +15,10 @@ from main aren't the goal's changes. A merge commit's changes are those that dif
 parent (a resolution) plus any change a parent brought that the merge didn't keep (a discarded
 main change), so neither hides in a merge. Allowed paths are globs; a changed path is always
 literal. The one CODEOWNERS file a goal may write is its run record, goal-runs/<id>/RESULT.md,
-and only in a commit that changes nothing else (GO-003.7).
+and only in a commit that changes nothing else (GO-003.7) but the holdout and the marketplace's
+top-level version. XE-049.5: the top-level version moves on the goal branch, above main's, and a
+marketplace.json that only composes its parents' fields plus that version is never judged a change
+outside the envelope (the finalize bump, a sync's resolution).
 """
 import json
 import re
@@ -91,6 +94,49 @@ def goal_commits(repo, base, head):
 MARKETPLACE = ".claude-plugin/marketplace.json"
 
 
+def vtuple(v):
+    return tuple(int(x) for x in re.findall(r"\d+", str(v or "0")))
+
+
+def set_top(text, version):
+    """marketplace.json's text with its top-level version set; the top-level key precedes plugins."""
+    out = re.sub(r'"version":\s*"[^"]*"', f'"version": "{version}"', text, count=1)
+    if json.loads(out).get("version") != version:
+        raise SystemExit(f"{MARKETPLACE}'s first version key isn't its top-level one; not editing it")
+    return out
+
+
+def bump(*versions):
+    """The next minor version above every one given."""
+    a, b = (max(vtuple(v) for v in versions) + (0, 0))[:2]
+    return f"{a}.{b + 1}.0"
+
+
+def marketplace_at(repo, ref):
+    return json.loads(at(repo, ref, MARKETPLACE) or "{}")
+
+
+def composed(repo, sha, parents):
+    """XE-049.5: marketplace.json at sha takes every field and plugin entry from one of its parents, and
+    its top-level version is above every parent's. That's a finalize bump or a sync's resolution, not a
+    goal edit; check() holds the head's top-level version above main's. ponytail: plugins matched by
+    name; a renamed plugin isn't composed and is judged."""
+    head, ps = marketplace_at(repo, sha), [marketplace_at(repo, p) for p in parents]
+    if not ps or vtuple(head.get("version")) <= max(vtuple(p.get("version")) for p in ps):
+        return False
+    by_name = lambda m: {e.get("name"): e for e in m.get("plugins") or []}
+    for k, v in head.items():
+        if k == "plugins":
+            hs, es = by_name(head), [by_name(p) for p in ps]
+            if any(not any(e.get(n) == x for e in es) for n, x in hs.items()):
+                return False                                   # an entry no parent has: a goal edit
+            if set.intersection(*(set(e) for e in es)) - set(hs):
+                return False                                   # an entry every parent has, dropped
+        elif k != "version" and not any(p.get(k) == v for p in ps):
+            return False
+    return True
+
+
 def check(repo, goal_id, head, base="origin/main"):
     """(errors, examined commits). Fails closed when the goal isn't on main."""
     if not GOAL_ID.match(goal_id):
@@ -108,12 +154,15 @@ def check(repo, goal_id, head, base="origin/main"):
     rs, record = rules(codeowners), f"goal-runs/{goal_id}/RESULT.md"
     commits = goal_commits(repo, base, head)
     if any(MARKETPLACE in files for _, files in commits):
-        top = lambda ref: (json.loads(at(repo, ref, MARKETPLACE) or "{}") or {}).get("version")
+        top = lambda ref: marketplace_at(repo, ref).get("version")
         fork = git(repo, "merge-base", base, head).strip()
-        if top(head) != top(fork):        # main moved since the fork is main's change, not the goal's
-            errors.append(f"the goal changes {MARKETPLACE}'s top-level version ({top(fork)} -> {top(head)}); it moves "
-                          f"only in the release bump after the goal merges, since main moves the same line (GO-004.1)")
+        if top(head) != top(fork) and vtuple(top(head)) <= vtuple(top(base)):   # XE-049.5: it may move, above main's
+            errors.append(f"the goal moves {MARKETPLACE}'s top-level version to {top(head)}, not above main's "
+                          f"{top(base)}; finalize bumps it above main's and a sync bumps it again (XE-049.5)")
     for sha, files in commits:
+        parents = git(repo, "rev-list", "--parents", "-n", "1", sha).split()[1:]
+        if MARKETPLACE in files and composed(repo, sha, parents):
+            files = [f for f in files if f != MARKETPLACE]            # a finalize bump or a sync's resolution
         if record in files and set(files) <= {record, f"goal-runs/{goal_id}/holdout.py"}:
             continue                                       # the finalize commit (GO-003.7, GO-002.8)
         for f in files:

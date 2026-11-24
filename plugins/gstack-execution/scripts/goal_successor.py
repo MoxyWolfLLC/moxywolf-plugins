@@ -1,4 +1,11 @@
-"""GO-011.9: a successor goal approves itself when it keeps its predecessor's brief word for word.
+"""GO-011.9, retired by XE-049.6 (Dorian, 2026-11-23, "Approve XE-049"): no successor goal starts without his word.
+
+Every successor folder a change adds is now refused, so `goals/*--s1/` and `goals/*--s2/`, which CODEOWNERS leaves
+unowned, can't reach main past the required `tests` check; a failed goal's next goal is an owned folder he approves.
+Folders already on main aren't in any range and aren't touched. The comparison below is kept so the refusal message
+can still say what a folder would have been held to. What follows is the GO-011.9 text it replaced:
+
+A successor goal approved itself when it kept its predecessor's brief word for word.
 
 A goal that fails its holdout or its whole-goal review is followed by `goals/<root>--s1/`, then
 `goals/<root>--s2/`. CODEOWNERS leaves those two folder names unowned, so Dorian's review isn't asked;
@@ -111,6 +118,7 @@ def check(base, head):
                       and UNOWNED.search(p.split("/")[1])})
     problems = []
     for f in folders:
+        problems.append(f"goals/{f}/: successor goals are retired (XE-049.6); the next goal is one Dorian approves")
         pred = predecessor(f)
         if pred is None:   # unowned by CODEOWNERS but not a successor id: refused, never skipped (review F1)
             problems.append(f"goals/{f}/: not a successor id (`<lowercase-id>--s1` or `--s2`), yet CODEOWNERS leaves it unowned")

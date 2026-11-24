@@ -1,4 +1,5 @@
-"""GO-011.9: goal_successor.py check, run against real git ranges in a throwaway repository."""
+"""GO-011.9, retired by XE-049.6: goal_successor.py check, run against real git ranges in a throwaway repository.
+Every added successor folder is now refused; the other cases still say what it would also have been held to."""
 import os
 import subprocess
 import sys
@@ -34,11 +35,11 @@ def commit(d, g, files, msg="c"):
     return g("rev-parse", "HEAD")
 
 
-def test_a_successor_that_keeps_the_brief_passes():
+def test_even_a_successor_that_keeps_the_brief_is_refused():   # XE-049.6: successors are retired (was: it passed)
     d, g, base = repo()
     head = commit(d, g, {"goals/g--s1/GOAL.md": NEXT, "goals/g--s1/PLAN.md": "1. new plan\n"})
     rc, out = run(d, base, head)
-    assert rc == 0 and "examined 1 successor" in out, out
+    assert rc == 1 and "examined 1 successor" in out and "retired (XE-049.6)" in out, out
 
 
 def test_a_range_without_successors_passes_and_says_so():
@@ -87,7 +88,7 @@ def test_the_second_successor_compares_with_the_first_and_a_third_matches_nothin
     # the Outcome must start with --s1's Outcome, which already carries its Succeeds paragraph
     s2 = commit(d, g, {"goals/g--s2/GOAL.md": s2_text})
     rc, out = run(d, s1, s2)
-    assert rc == 0, out
+    assert rc == 1 and "retired" in out and "differs" not in out, out   # XE-049.6: refused, though it matches --s1
     s3 = commit(d, g, {"goals/g--s3/GOAL.md": s2_text})
     rc, out = run(d, s2, s3)
     assert rc == 0 and "examined 0 successor" in out, out   # --s3 is owned: Dorian's review holds it, not this check

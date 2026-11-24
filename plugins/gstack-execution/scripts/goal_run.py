@@ -6,12 +6,14 @@
         verifies the goal (GO-001.3), refuses a builder from the family that drafted or read the
         goal tests and a token with a secrets permission (GO-003.3), opens goal/<id> from main
   goal_run.py next <id>
-        exit 0 with the next PLAN.md item (JSON) to build through /gstack-build into goal/<id>, or
+        exit 0 with the next PLAN.md item (JSON) to build and commit straight onto goal/<id> (XE-049.5: no pull
+        request and no review per item; the whole-goal review gates the goal pull request), or
         with {"step": "finish"} when every goal test passes; exit 3 while a judgment call waits for
         Dorian; exit 1 with the outcome when the run has ended (stopped or exhausted). Checks, in order: HALT on main (GO-004.3), the goal folder
         unchanged on main (GO-002.5), the spend ledger (GO-004.2), Max items.
   goal_run.py merged <id> --item N --head <sha> --unsure <text> [--review <review-id>]
-        after item N's pull request merged into goal/<id> as <sha>: runs the goal tests at that head
+        after item N's commits were pushed to goal/<id>, now at <sha> (XE-049.5): refuses a head that doesn't
+        descend from the last recorded one, runs the goal tests at that head
         and stops the run on a failing invariant or an outcome test that passed and now fails
         (GO-003.4). N must be the item `next` issued and <sha> a head not already recorded. --unsure
         is what the agent is least sure of in the item, for its digest (GO-006.1); --review names the
@@ -30,11 +32,16 @@
   goal_run.py answer <id> --call N --choice <option> --words <Dorian's words>
         Dorian's answer to a call that's his; until then `next` exits 3 and the run waits
   goal_run.py finalize <id> [--repo owner/name]
-        every goal test passes: commits the run record, goal-runs/<id>/RESULT.md, alone on a branch
-        from goal/<id> and opens its pull request into goal/<id> (GO-003.7)
+        every goal test passes: commits the run record, goal-runs/<id>/RESULT.md, the approved holdout
+        and, when the brief's Release companion is marketplace, the marketplace's top-level version
+        bumped above main's, as one commit straight onto goal/<id> (GO-003.7, XE-049.5); no pull request
   goal_run.py propose <id> [--repo owner/name]
-        the finalize pull request merged: opens the goal pull request from goal/<id> into main, which
-        the goal checks, the holdout, a fresh cross-vendor review and Dorian's approval gate
+        after finalize: opens the goal pull request from goal/<id> into main, which the goal checks,
+        the holdout and a fresh cross-vendor review gate
+  goal_run.py sync <id>
+        main moved while the goal pull request is open: merges main into goal/<id> on the finalized head,
+        bumps the top-level version again above main's when it moves on the goal branch, pushes, and
+        rebinds the goal pull request through resync (GO-004.1 as amended by XE-049.5)
   goal_run.py may <id> --action <class> --resource <r> [--head <sha> --review <review-id> --pr <n>] [--repo owner/name]
         before every push, pull request, merge or outside call the agent makes in a run (GO-005.4, .5):
         exit 0 if the goal ledger grants it (an item merge: into goal/<id>, after a clean review at
@@ -54,8 +61,8 @@
         envelope (GO-006.2), quoting GitHub's own check output, not the agent's words, into the run
         record; the run holds until Dorian acknowledges it
   goal_run.py holdout-failed <id> --detail <text>
-        goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2),
-        naming the successor goal that follows (GO-011.9)
+        goal-holdout failed on the goal pull request: escalates and ends the run (GO-003.6, GO-006.2); the
+        next goal is Dorian's (XE-049.6 retired GO-011.9's successors)
   goal_run.py review-failed <id> --review <review id> --detail <text>
         the whole-goal review blocked after finalize, where no fix can land: ends the run the same way
   goal_run.py ack <id> --escalation N --words <Dorian's words>
@@ -67,10 +74,7 @@
   goal_run.py complete <id> --pr N --merge <sha> [--repo owner/name]
         records the goal merge once GitHub shows the goal pull request from goal/<id> merged into main
         as <sha> at the finalized head (GO-003.8); with a delivery record the run stays open and
-        `resume` ends it once the release record, the companion and the checkouts are observed (GO-012.4)
-  goal_run.py companion <id> --pr N --review <review id> [--repo owner/name]
-        binds the declared release companion from GitHub's pull request and the review record, after the
-        goal merge is recorded (GO-012.2); resume then merges, records and synchronizes it
+        `resume` ends it once the release record and the checkouts are observed (GO-012.4)
   goal_run.py record <id>
         prints the run record, goal-runs/<id>/RESULT.md
 
@@ -190,6 +194,9 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
             ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/heads/{b}:refs/remotes/{base}")
         except SystemExit as e:
             raise Refused(f"can't fetch {b} to check what the run would set off: {e}")
+    import goal_successor as gsucc
+    if gsucc.SUCCESSOR.match(goal_id):                 # XE-049.6: no successor starts without Dorian's word
+        raise Refused(f"{goal_id} is a successor goal; successors are retired (XE-049.6), the next goal is one Dorian approves")
     record, errors = verify(goal_id, pr, repo_name)
     if errors:
         raise Refused("verify refused the goal: " + "; ".join(errors))
@@ -224,10 +231,6 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
              "tests": gb.goal_tests(secs["Goal tests"], []), "done": [], "passing": [], "results": [],
              "outcome": None, "reason": None, "merge": None, "calls": [], "triggers": triggers, "spent": []}
     if (goal / "DEPS.json").is_file():                 # GO-017: an approved dependency plan runs in parallel
-        if re.search(r"--s\d+$", goal_id):
-            # goal_successor.py holds an unowned successor folder to its root's brief, not to a DEPS.json, so one here
-            # was never approved: a successor runs serially
-            raise Refused(f"{goal_id} is a successor; its DEPS.json isn't covered by the root goal's approval. Remove it to run serially")
         import swarm
         plan = swarm.load_plan(goal)                   # refuses a cycle, a missing prerequisite or an unordered overlap
         by_id = {i["id"]: i["n"] for i in plan["items"]}
@@ -247,8 +250,8 @@ def start(repo, goal_id, pr, builder, verify, granted, create_branch, base="orig
 
 def initial_delivery(repo, repo_name, record, state, secs):
     """GO-012.1: the delivery record, written by the run that will use it, from the approval `start`
-    already verified. One change, `final` (goal/<id> into main), plus the release companion when the
-    brief declares one under `## Release companion` (`marketplace`, or `none`); `## Required checkouts`
+    already verified. One change, `final` (goal/<id> into main); a brief's `## Release companion`
+    (`marketplace`, or `none`) now only says whether finalize bumps the top-level version (XE-049.5); `## Required checkouts`
     lists one checkout per line as `name path host branch`. Plan items are not repeated here: the run
     keeps them in items, done and results. Each later phase binds its own fact into `final`
     (GO-012.2): propose the finalized head and pull request, may-merge-main the review id, resume the
@@ -261,8 +264,9 @@ def initial_delivery(repo, repo_name, record, state, secs):
     if companion not in ("none", "marketplace"):
         raise Refused(f"Release companion is {companion!r}; it is `marketplace` or `none`")
     changes = {"final": change("main", final=True)}
-    if companion != "none":
-        changes[companion] = change("main")
+    # XE-049.5: the marketplace companion is the top-level version bump, and finalize makes it on the goal
+    # branch, so no companion change follows the goal pull request
+    state["top_level_bump"] = companion == "marketplace"
     checkouts = []
     for line in (secs.get("Required checkouts") or "").splitlines():
         parts = line.strip().lstrip("-").split()
@@ -278,7 +282,7 @@ def initial_delivery(repo, repo_name, record, state, secs):
                          "head": state.get("approval_head", record["head"]),
                          "owner": gb.OWNER},
             "max_review_rounds": state["max_rounds"], "active_seconds": 0, "source_bindings": [],
-            "changes": changes, "release_companion": companion if companion != "none" else None,
+            "changes": changes, "release_companion": None,
             "required_checkouts": checkouts}
 
 
@@ -407,6 +411,7 @@ def next_step(repo, goal_id, base="origin/main"):
                       "spend": totals}
     item = remaining[0]
     return True, {"step": "build", "item": item, "base_branch": state["branch"], "branch_from": f"origin/{state['branch']}",
+                  "commit_to": state["branch"],        # XE-049.5: straight onto the goal branch, no item pull request
                   "max_rounds": state["max_rounds"],
                   # MR-001.6: a launched builder reads the routing mode here; the tier itself comes from
                   # model_select.mjs once the item's packet exists
@@ -508,28 +513,9 @@ def act(repo, goal_id, klass, resource, environments, base="origin/main", head=N
             raise Refused(f"a sync's head is one empty commit on main's tip {tip[:12]}; {head[:12]} isn't")
         gguard.sync_allowed(state["branch"], resource, head, checks, pr, changed)
         return {"allowed": klass, "resource": resource, "by": "GO-004.1 sync"}
-    if klass == "merge" and resource == state["branch"] and pr and pr.get("number") == state.get("finalize_pr"):
-        if head is None or checks is None:
-            raise Refused("the finalize merge names its head and the checks at that head")
-        gguard.finalize_merge_allowed(state["branch"], head, state["results"][-1]["head"],
-                                      [f for f in ge.git(repo, "diff", "--name-only", state["results"][-1]["head"], head).split() if f],
-                                      ge.git(repo, "rev-list", "--parents", "-n", "1", head).split()[1:],
-                                      {f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)}, checks, pr)
-        return {"allowed": klass, "resource": resource, "by": "GO-003.7 finalize"}
     if klass == "merge" and resource == "main" and state.get("final_pr"):
         if head is None or review is None or checks is None or pr is None:
             raise Refused("a merge into main names its pull request, its head, its review and the checks at that head")
-        companion = companion_change(state)
-        if companion and companion.get("pr") is not None and pr.get("number") == companion["pr"]:
-            # GO-012.2 (review F3): the declared companion's own pull request, after the goal merge is
-            # recorded, under DR-113's conditions for a reviewed pull request; not the goal gate
-            if not state.get("merge"):
-                raise Refused("the companion merges after the goal merge is recorded")
-            if head != companion.get("head") or review.get("review_id") != companion.get("review_id"):
-                raise Refused(f"the companion is bound at {str(companion.get('head'))[:12]} with review {companion.get('review_id')}, "
-                              f"not {str(head)[:12]} with {review.get('review_id')}")
-            gguard.reviewed_merge_allowed("main", head, review, checks, pr)
-            return {"allowed": klass, "resource": resource, "by": "GO-012.2 companion"}
         gguard.final_merge_allowed(release_relation(repo, goal_id, state, review, head, pr), review, checks, pr, comments)
         bind_final(state, review_id=review.get("review_id"))     # GO-012.2: the review that allowed the merge
         return {"allowed": klass, "resource": resource, "by": "GO-011.2"}
@@ -561,6 +547,8 @@ def final_review_scope(repo, goal_id, state, review, head, pr):
     problems = []
     if not want <= set(packet.get("items") or []):
         problems.append(f"the review's packet doesn't name every item of {goal_id} ({sorted(want - set(packet.get('items') or []))} missing)")
+    if state.get("review_lanes") is not None and packet.get("review_lanes") != state["review_lanes"]:   # XE-049.13
+        problems.append(f"the review's packet sets review_lanes {packet.get('review_lanes')}, not {state['review_lanes']} as propose computed")
     repos = packet.get("repos") or []
     meet = subprocess.run(["git", "-C", str(repo), "merge-base", str(pr.get("base")), head], capture_output=True, text=True).stdout.strip()
     if len(repos) != 1 or not meet or repos[0].get("review_base", repos[0].get("base")) != meet:   # review F8
@@ -602,48 +590,6 @@ def bind_final(state, unbind=(), **facts):
         final.update({k: v for k, v in facts.items() if v is not None})
         final.update({k: None for k in unbind})
         save(state)
-
-
-def companion_change(state):
-    """The declared release companion's change in the delivery record, or None."""
-    delivery = state.get("delivery") or {}
-    cid = delivery.get("release_companion")
-    return (delivery.get("changes") or {}).get(cid) if cid else None
-
-
-def bind_companion(goal_id, get, pr_number, review_id, repo_name=REPO):
-    """GO-012.2 (review F3): the declared release companion is bound from GitHub's pull request and
-    the review record, never from a declaration: the pull request targets main from the recorded goal
-    merge onward, the review is clean at the pull request's head and of this checkout, and the goal
-    merge is already recorded (the companion follows it). Writes head, base, pr and review_id into
-    the companion change."""
-    state = load(goal_id)
-    delivery = state.get("delivery") or {}
-    cid = delivery.get("release_companion")
-    if not cid or cid not in (delivery.get("changes") or {}):
-        raise Refused(f"{goal_id} declares no release companion")
-    if not state.get("merge"):
-        raise Refused("the companion follows the goal merge; run complete first")
-    ch = delivery["changes"][cid]
-    p = get(f"repos/{repo_name}/pulls/{int(pr_number)}")
-    if not p or (p.get("base") or {}).get("ref") != "main":
-        raise Refused(f"pull request #{pr_number} isn't a pull request into main")
-    head, base = (p.get("head") or {}).get("sha"), (p.get("base") or {}).get("sha")
-    review, _ = _review_record(review_id)
-    last = (review.get("heads") or [[]])[-1]
-    pk = review.get("packet") or {}
-    repos = pk.get("repos") or []
-    problems = [m for ok, m in [
-        (review.get("outcome") in {"no_blocking_findings", "fixes_verified"}, f"review {review_id} ended {review.get('outcome')}, not clean"),
-        (head in last, f"review {review_id} passed at {', '.join(h[:12] for h in last) or 'nothing'}, not the pull request's head {str(head)[:12]}"),
-        (len(repos) == 1 and Path(repos[0].get("path", "")).resolve() == Path(ch.get("path") or ".").resolve(),
-         f"review {review_id} is not of {ch.get('path')}"),
-    ] if not ok]
-    if problems:
-        raise Refused("; ".join(problems))
-    ch.update(head=head, base=base, pr=p.get("number"), review_id=review_id)
-    save(state)
-    return {"companion": cid, "pr": p.get("number"), "head": head, "base": base, "review_id": review_id}
 
 
 def current_item(state, item, merging=True):
@@ -696,6 +642,12 @@ def merged(repo, goal_id, head, item, unsure="", review_files=()):
     remaining = current_item(state, item)
     if head in {r["head"] for r in state["results"]}:
         raise Refused(f"{head[:12]} was already recorded; one merge advances one item")
+    # XE-049.5: items land on goal/<id> with no pull request, so the head must build on the last recorded one.
+    # ponytail: the envelope is checked once, by goal-envelope on the goal pull request into main, not per item;
+    # run goal_envelope.py check here if a goal ever wastes items before that check stops it
+    prev = state["results"][-1]["head"] if state["results"] else state["main_at_start"]
+    if subprocess.run(["git", "-C", str(repo), "merge-base", "--is-ancestor", prev, head], capture_output=True).returncode:
+        raise Refused(f"{head[:12]} doesn't descend from {prev[:12]}, the goal branch's last recorded head")
     goal = run_dir(goal_id) / "goal"
     wt = tempfile.mkdtemp(prefix="goal-head-")
     ge.git(repo, "worktree", "add", "--detach", wt, head)
@@ -771,55 +723,73 @@ def holdout_source(goal_id):
     return src
 
 
-def finalize(repo, goal_id, post, repo_name=REPO, *, environments, base="origin/main"):
-    """Commit RESULT.md and the approved holdout on goal-finalize/<id> from goal/<id>'s head and open its pull request."""
+def record_files(goal_id, state):
+    """What the finalize commit may change: the run record, the holdout and, when the top-level version
+    moves on the goal branch, the marketplace (XE-049.5)."""
+    files = [f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)]
+    return files + [ge.MARKETPLACE] if state.get("top_level_bump") else files
+
+
+def finalize(repo, goal_id, post=None, repo_name=REPO, *, environments, base="origin/main"):
+    """XE-049.5: commit RESULT.md, the approved holdout and the top-level version bump straight onto
+    goal/<id>, on the head where the goal tests passed. No pull request: the holdout never enters a
+    review surface because the whole-goal review is pinned to the tested head (GO-002.8)."""
     state = finishing(goal_id)
-    if state.get("finalize_pr"):
-        raise Refused(f"the finalize pull request is already #{state['finalize_pr']}")
-    branch, path = f"goal-finalize/{goal_id}", f"goal-runs/{goal_id}/RESULT.md"
-    ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/heads/{state['branch']}:refs/remotes/origin/{state['branch']}")
-    head = ge.git(repo, "rev-parse", f"origin/{state['branch']}").strip()
+    if state.get("finalized_head"):
+        raise Refused(f"already finalized at {state['finalized_head'][:12]}")
+    branch, path = state["branch"], f"goal-runs/{goal_id}/RESULT.md"
+    ge.git(repo, "fetch", "--no-tags", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
+    head = ge.git(repo, "rev-parse", f"origin/{branch}").strip()
     if head != state["results"][-1]["head"]:
-        raise Refused(f"{state['branch']} is at {head[:12]}, not {state['results'][-1]['head'][:12]} where the goal tests passed")
+        raise Refused(f"{branch} is at {head[:12]}, not {state['results'][-1]['head'][:12]} where the goal tests passed")
     hold = holdout_source(goal_id)
     act(repo, goal_id, "vcs.push", branch, environments, base)
-    act(repo, goal_id, "pr.open", f"{state['branch']}<-{branch}", environments, base)
     wt = tempfile.mkdtemp(prefix="goal-finalize-")
-    ge.git(repo, "worktree", "add", "-b", branch, wt, head)
+    ge.git(repo, "worktree", "add", "--detach", wt, head)
     try:
         Path(wt, path).parent.mkdir(parents=True, exist_ok=True)
         Path(wt, path).write_text(record(goal_id))
         Path(wt, holdout_path(goal_id)).write_text(hold)
-        ge.git(wt, "add", path, holdout_path(goal_id))
-        ge.git(wt, "commit", "-q", "-m", f"Run record and holdout for goal {goal_id}")
-        ge.git(wt, "push", "origin", f"HEAD:refs/heads/{branch}")
+        if state.get("top_level_bump"):
+            m = Path(wt, ge.MARKETPLACE)
+            top = lambda t: json.loads(t).get("version")
+            m.write_text(ge.set_top(m.read_text(), ge.bump(top(m.read_text()), top(ge.at(repo, base, ge.MARKETPLACE) or "{}"))))
+        ge.git(wt, "add", *record_files(goal_id, state))
+        ge.git(wt, "commit", "-q", "-m", f"Run record, holdout and release version for goal {goal_id}")
+        final = ge.git(wt, "rev-parse", "HEAD").strip()
+        ge.git(wt, "push", "origin", f"{final}:refs/heads/{branch}")
     finally:
         subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
-    pr = post(f"repos/{repo_name}/pulls", {"title": f"Run record for goal {goal_id}", "head": branch, "base": state["branch"],
-                                           "body": f"The finalize pull request (GO-003.7): only `{path}` and the "
-                                                   f"approved holdout `{holdout_path(goal_id)}` (GO-002.8) change."})
-    state["finalize_pr"] = pr["number"]
+    state = load(goal_id)
+    state["finalized_head"] = final
     save(state)
-    return {"finalize_pr": pr["number"], "branch": branch}
+    return {"finalized_head": final, "branch": branch}
+
+
+def review_lanes(repo, goal_id, state, base):
+    """XE-049.13: the whole-goal review's parallel lanes, min(10, files the goal changes, max(2, its worker
+    width)). peer_review.py runs the review in lanes when the packet's review_lanes is 2 or more."""
+    import swarm
+    width = swarm.load_plan(run_dir(goal_id) / "goal")["max_workers"]
+    files = [f for f in ge.git(repo, "diff", "--name-only", f"{base}...{state['results'][-1]['head']}").split("\n") if f]
+    return min(10, len(files), max(2, width))
 
 
 def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="origin/main"):
-    """Open the goal pull request into main once the finalize pull request has merged into goal/<id>."""
+    """Open the goal pull request into main once finalize has committed the run record onto goal/<id>."""
     state = finishing(goal_id)
-    if not state.get("finalize_pr"):
+    if not state.get("finalized_head"):
         raise Refused("finalize first: the goal pull request carries the run record")
     if state.get("final_pr"):
         raise Refused(f"the goal pull request is already #{state['final_pr']}")
-    f = get(f"repos/{repo_name}/pulls/{state['finalize_pr']}")
-    if not (f.get("merged") is True and f["base"]["ref"] == state["branch"] and f.get("merge_commit_sha")):
-        raise Refused(f"finalize pull request #{state['finalize_pr']} hasn't merged into {state['branch']}")
-    tested, final = state["results"][-1]["head"], f["merge_commit_sha"]
+    tested, final = state["results"][-1]["head"], state["finalized_head"]
     files = [x["filename"] for x in (get(f"repos/{repo_name}/compare/{tested}...{final}") or {}).get("files", [])]
-    if sorted(files) != sorted([f"goal-runs/{goal_id}/RESULT.md", holdout_path(goal_id)]):
-        raise Refused(f"between the tested head and {final[:12]}, {state['branch']} changed {files}, not only the run record")
+    if sorted(files) != sorted(record_files(goal_id, state)):
+        raise Refused(f"between the tested head and {final[:12]}, {state['branch']} changed {files}, not only {record_files(goal_id, state)}")
+    lanes = review_lanes(repo, goal_id, state, base)
     act(repo, goal_id, "pr.open", f"main<-{state['branch']}", environments, base)
     state = load(goal_id)
-    state["finalized_head"] = final
+    state["review_lanes"] = lanes
     pr = post(f"repos/{repo_name}/pulls", {
         "title": f"Goal {goal_id}", "head": state["branch"], "base": "main",
         "body": record(goal_id) + "\nThis pull request reaches main only with goal-envelope, goal-tests and goal-holdout "
@@ -827,7 +797,7 @@ def propose(goal_id, get, post, repo_name=REPO, *, repo, environments, base="ori
     state["final_pr"] = pr["number"]
     save(state)
     bind_final(state, head=final, pr=pr["number"], base=ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip())   # GO-012.2: main as the PR opened
-    return {"final_pr": pr["number"]}
+    return {"final_pr": pr["number"], "review_lanes": lanes}
 
 
 def from_main(repo, commit, base):
@@ -868,6 +838,50 @@ def resync(repo, goal_id, head, base="origin/main"):
     # at the old head is unbound, because GO-011.2 needs a fresh review of the new head without its holdout
     bind_final(state, head=head, base=ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip(), review_id=None, unbind=("review_id",))
     return {"finalized_head": head}
+
+
+def sync(repo, goal_id, environments, base="origin/main"):
+    """GO-004.1 as amended by XE-049.5: merge main into goal/<id> on the finalized head. When the top-level
+    version moves on the goal branch, the marketplace is merged with that line held at main's and then
+    bumped again above main's, so it never conflicts; any other conflict refuses. Pushes the merge
+    straight onto goal/<id> and rebinds the goal pull request through resync."""
+    state = finishing(goal_id)
+    if not (state.get("final_pr") and state.get("finalized_head")):
+        raise Refused("sync applies only after propose")
+    branch, ours = state["branch"], state["finalized_head"]
+    act(repo, goal_id, "vcs.push", branch, environments, base)
+    theirs = ge.git(repo, "rev-parse", f"{base}^{{commit}}").strip()
+    wt = tempfile.mkdtemp(prefix="goal-sync-")
+    ge.git(repo, "worktree", "add", "--detach", wt, ours)
+    try:
+        r = subprocess.run(["git", "-C", wt, "merge", "--no-ff", "--no-commit", theirs], capture_output=True, text=True)
+        conflicts = [f for f in ge.git(wt, "diff", "--name-only", "--diff-filter=U").split("\n") if f]
+        if r.returncode and set(conflicts) - {ge.MARKETPLACE}:
+            raise Refused(f"merging main into {branch} conflicts in {conflicts}; that's a fix for Dorian, not a sync")
+        if state.get("top_level_bump"):
+            fork = ge.git(repo, "merge-base", ours, theirs).strip()
+            at = lambda ref: ge.at(repo, ref, ge.MARKETPLACE) or "{}"
+            main_top = json.loads(at(theirs)).get("version")
+            parts = []
+            for ref in (ours, fork, theirs):       # hold the top-level line at main's so only plugin entries merge
+                f = Path(tempfile.mkstemp(prefix="mkt-")[1])
+                f.write_text(ge.set_top(at(ref), main_top))
+                parts.append(str(f))
+            m = subprocess.run(["git", "merge-file", "-p", *parts], capture_output=True, text=True)
+            for f in parts:
+                Path(f).unlink()
+            if m.returncode:
+                raise Refused(f"main and {branch} change the same plugin entry in {ge.MARKETPLACE}; that's a fix for Dorian")
+            Path(wt, ge.MARKETPLACE).write_text(ge.set_top(m.stdout, ge.bump(main_top, json.loads(at(ours)).get("version"))))
+            ge.git(wt, "add", ge.MARKETPLACE)
+        elif conflicts:
+            raise Refused(f"merging main into {branch} conflicts in {conflicts}")
+        ge.git(wt, "commit", "-q", "--no-edit", "-m", f"Sync main into {branch}")
+        head = ge.git(wt, "rev-parse", "HEAD").strip()
+        ge.git(wt, "push", "origin", f"{head}:refs/heads/{branch}")
+    finally:
+        subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", wt], capture_output=True)
+    return resync(repo, goal_id, head, base)
 
 
 def open_call(repo, goal_id, question, options, proposed_by, framed_by, head, base="origin/main"):
@@ -953,32 +967,22 @@ def holdout_failed(goal_id, detail):
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
-    nxt = next_goal(goal_id)
-    escalate(state, "holdout", f"goal-holdout failed, {gb.holdout_reading(detail)}: {detail}. Next: "
-             + (f"{nxt}, drafted with /gstack-goal-new --successor {goal_id} (GO-011.9), no approval needed"
-                if nxt else "the successor chain is at its cap (--s2); the next goal needs Dorian's approval"))
+    escalate(state, "holdout", f"goal-holdout failed, {gb.holdout_reading(detail)}: {detail}. {NEXT_IS_DORIANS}")
     return end(state, "stopped", f"goal-holdout failed: {detail}")
 
 
-def next_goal(goal_id):
-    """GO-011.9: the goal that follows one that failed. `<root>--s1`, then `--s2`; past that, None (Dorian's)."""
-    import goal_successor as gsucc
-    m = gsucc.SUCCESSOR.match(goal_id)
-    if m is None:
-        return f"{goal_id}--s1"
-    return f"{m['root']}--s2" if m["n"] == "1" else None
+# XE-049.6: GO-011.9's successors are retired; a failed goal ends and the next goal is one Dorian approves
+NEXT_IS_DORIANS = ("The run has ended. Next: report what failed to Dorian with a proposal; a new goal "
+                   "starts only on his approval (XE-049.6), never as a successor")
 
 
 def review_failed(goal_id, review_id, detail):
     """GO-011.9: the whole-goal review blocked after finalize, where no code fix can land (the goal tests and the
-    holdout passed at a head the fix would move). The run ends like a failed holdout, and the successor follows."""
+    holdout passed at a head the fix would move). The run ends like a failed holdout and goes to Dorian (XE-049.6)."""
     state = load(goal_id)
     if state["outcome"]:
         raise Refused(f"the run already ended: {state['outcome']}")
-    nxt = next_goal(goal_id)
-    escalate(state, "review", f"the whole-goal review {review_id} blocked: {detail}. Next: "
-             + (f"{nxt}, drafted with /gstack-goal-new --successor {goal_id} (GO-011.9), no approval needed"
-                if nxt else "the successor chain is at its cap (--s2); the next goal needs Dorian's approval"))
+    escalate(state, "review", f"the whole-goal review {review_id} blocked: {detail}. {NEXT_IS_DORIANS}")
     return end(state, "stopped", f"whole-goal review {review_id} blocked: {detail}")
 
 
@@ -998,7 +1002,7 @@ def complete(goal_id, pr, merge_sha, get, repo_name=REPO):
         raise Refused(f"the run already ended: {state['outcome']}")
     if not ids or not set(ids) <= set(state["passing"]):
         raise Refused("complete needs every goal test passing at the last merged head")
-    if not (state.get("finalize_pr") and state.get("final_pr") and state.get("finalized_head")):
+    if not (state.get("final_pr") and state.get("finalized_head")):
         raise Refused("complete needs the finish: finalize, then propose, then the goal pull request's merge")
     p = get(f"repos/{repo_name}/pulls/{pr}")
     final = ((state.get("delivery") or {}).get("changes") or {}).get("final") or {}
@@ -1476,12 +1480,6 @@ def _main(argv, repo=gb.ROOT):
                   environments=environments_of(get, name))
             print(json.dumps({"started": goal_id}))
             return 0
-        if cmd == "companion" and goal_id and {"--pr", "--review"} <= set(opts) <= {"--pr", "--review", "--repo"}:
-            token = os.environ.get("GITHUB_TOKEN")
-            if not token:
-                raise Refused("companion needs GITHUB_TOKEN to read the pull request: run it under agent_token.py exec --")
-            print(json.dumps(bind_companion(goal_id, gb.github(token), int(opts["--pr"]), opts["--review"], opts.get("--repo", REPO))))
-            return 0
         if cmd == "resume" and goal_id and set(opts) <= {"--repo"}:
             token = os.environ.get("GITHUB_TOKEN")
             if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":
@@ -1512,6 +1510,14 @@ def _main(argv, repo=gb.ROOT):
         if cmd == "failed" and goal_id and set(opts) == {"--item", "--reason"}:
             print(json.dumps(failed(goal_id, int(opts["--item"]), opts["--reason"])))
             return 1
+        if cmd == "sync" and goal_id and not opts:
+            token = os.environ.get("GITHUB_TOKEN")
+            if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":
+                raise Refused("sync needs a goal-run token: run it under agent_token.py exec --goal-run --")
+            envs = environments_of(gb.github(token), REPO)
+            ge.git(repo, "fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
+            print(json.dumps(sync(repo, goal_id, envs)))
+            return 0
         if cmd in ("finalize", "propose") and goal_id and set(opts) <= {"--repo"}:
             token = os.environ.get("GITHUB_TOKEN")
             if not token or os.environ.get("GSTACK_GOAL_RUN_TOKEN") != "1":

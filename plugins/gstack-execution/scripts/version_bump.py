@@ -97,10 +97,10 @@ GOAL_MERGE = re.compile(r"^Merge pull request #\d+ from [\w.-]+/goal/[a-z0-9-]+$
 
 
 def goal_range(root, h, goal=None):
-    """GO-004.1: a range in goal mode, where the top-level version doesn't move. A pull request into or
-    out of goal/<id>, a push to one, or a push to main that is a goal's merge. The goal branch and main
-    would otherwise both move one line and every sync would conflict; the release bump after the merge
-    moves it instead. Read from the Actions environment, or given as goal=True."""
+    """GO-004.1: a range in goal mode, where an item leaves the top-level version alone. A pull request into or
+    out of goal/<id>, a push to one, or a push to main that is a goal's merge. goal_run.py finalize bumps
+    it once on the goal branch and goal_run.py sync bumps it again above main's (XE-049.5), so no item
+    moves it. Read from the Actions environment, or given as goal=True."""
     if goal is not None:
         return goal
     env = os.environ
@@ -159,7 +159,7 @@ def run(root, base, head="HEAD", goal=None):
                "detail": "no plugin changed in this range; no top-level bump required"}
     elif goal:
         top = {"status": PASS, "base": top_was, "head": top_now,
-               "detail": "goal mode: the top-level version moves in the release bump after the goal merges (GO-004.1)"}
+               "detail": "goal mode: finalize bumps the top-level version on the goal branch, above main's (XE-049.5)"}
     elif top_was == top_now:
         top = {"status": FAIL, "base": top_was, "head": top_now,
                "detail": f"{len(plugins)} plugin(s) changed and the top-level version stayed at "
@@ -367,7 +367,7 @@ def _selftest_cases():
         assert len(r["base"]) == 40 and len(r["head"]) == 40, r
 
     # 10. GO-004.1: goal mode. A sync into a goal branch carries main's commits, already checked on main;
-    #     an item into it moves its plugin and leaves the top-level line to the release bump.
+    #     an item into it moves its plugin and leaves the top-level line to finalize (XE-049.5).
     with tempfile.TemporaryDirectory() as d:
         fixture(d, plugins=(("alpha", "0.1.0"), ("beta", "0.1.0")))
         git(d, "update-ref", "refs/remotes/origin/main", "main")
@@ -376,7 +376,7 @@ def _selftest_cases():
         write(d, f"plugins/alpha/{MANIFEST}", {"name": "alpha", "version": "0.2.0"})
         commit(d, "item")
         item = run(d, "main", "HEAD", goal=True)
-        assert verdict(item) == PASS and "release bump" in item["top_level"]["detail"], item
+        assert verdict(item) == PASS and "finalize bumps" in item["top_level"]["detail"], item
         assert verdict(run(d, "main", "HEAD", goal=False)) == FAIL          # outside goal mode the line must move
         git(d, "switch", "-q", "main")
         (Path(d) / "plugins/beta/code.py").write_text("y = 2\n")

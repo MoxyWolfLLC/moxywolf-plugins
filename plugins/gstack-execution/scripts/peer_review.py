@@ -607,7 +607,7 @@ def caller_files(repos, changed, cap, exclude=()):
 # can influence, so nothing a reviewer returns can move the lane.
 import fnmatch
 
-LANES = ("contained", "wide", "closed")            # least to most restrictive
+LANES = ("light", "contained", "wide", "closed")   # least to most restrictive (light: XE-049.7)
 LANE_TABLE_DEFAULT = Path(__file__).resolve().parents[1] / "skills" / "gstack-execution" / "references" / "release-lanes.json"
 LANE_TABLE_REPO = ".gstack/release-lanes.json"
 WIDE_CALLERS = 5
@@ -632,10 +632,55 @@ def _lane_matches(path, globs):
     return any(fnmatch.fnmatch(path, g) or fnmatch.fnmatch("/" + path, g) for g in globs)
 
 
+def _owned_globs(repo):
+    """The CODEOWNERS patterns that name an owner, at the reviewed head, as globs. A path one of these
+    matches is never light (XE-049.7). ponytail: an unowning line (no owner) is ignored, so a path it
+    frees still reads as owned; that only ever keeps a change out of `light`."""
+    try:
+        text = git(repo["path"], "show", f"{repo['head']}:.github/CODEOWNERS")
+    except Exception:
+        return []
+    globs = []
+    for line in text.splitlines():
+        parts = line.split("#", 1)[0].split()
+        if len(parts) >= 2:
+            pat = parts[0].lstrip("/")
+            globs.append(pat + "**" if pat.endswith("/") else pat)
+    return globs
+
+
+def _changed_lines(repo, path):
+    """The +/- lines of one file's diff, base..head, without the headers."""
+    raw = git(repo["path"], "diff", "-U0", f"{repo['base']}..{repo['head']}", "--", path)
+    return [l for l in raw.splitlines() if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+
+
+def _status_only(repo, path):
+    """XE-049.7: every changed line of DESIGN.md is an item `**Status:**` line. An Amendments-log line,
+    or any other line, is never light."""
+    return all(l[1:].startswith("**Status:**") for l in _changed_lines(repo, path))
+
+
+def _light_path(repo, path, status, spec, owned):
+    """XE-049.7: whether one changed path is allowed in the `light` lane. Never a CODEOWNERS path,
+    anything under .github/, or a hooks/ directory, whatever else it matches."""
+    if _lane_matches(path, owned) or _lane_matches(path, (".github/**", "**/hooks/**", "hooks/**")):
+        return False
+    if _lane_matches(path, spec.get("paths") or ()):
+        return True
+    if _lane_matches(path, spec.get("existing_paths") or ()):
+        return status.startswith("M")
+    if _lane_matches(path, spec.get("version_only") or ()):
+        return status.startswith("M") and all(re.match(r'^[+-]\s*"version"\s*:', l) for l in _changed_lines(repo, path))
+    if _lane_matches(path, spec.get("status_only") or ()):
+        return status.startswith("M") and _status_only(repo, path)
+    return False
+
+
 def release_lane(repos, table=None):
     """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
     cannot be read is refused, never defaulted to `contained`."""
-    matched, sources = [], []
+    matched, sources, light, all_light = [], [], [], True
     for r in repos:
         if table is None:
             t, source = lane_table(r)
@@ -671,16 +716,22 @@ def release_lane(repos, table=None):
             # F1 (review 20261013-202943): a rename touches both its source and its destination;
             # a migration renamed out of its folder is still a change to a migration
             for path in paths:
-                entries.append((path, list(effects), r))
+                entries.append((path, list(effects), r, status))
         # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
-        stems = {path: Path(path).stem for path, _, _ in entries if Path(path).stem not in {"__init__", "index"}}
+        light_spec, owned = lanes.get("light"), _owned_globs(r) if lanes.get("light") else []
+        light_paths = {path for path, _, _, st in entries if light_spec and _light_path(r, path, st, light_spec, owned)}
+        all_light = all_light and len(light_paths) == len({path for path, _, _, _ in entries})
+        light += [{"lane": "light", "decided_by": "path", "path": path, "repo": Path(r["path"]).name} for path in sorted(light_paths)]
+        # a light path has no callers to count: README, a version field and a status line are named everywhere
+        stems = {path: Path(path).stem for path, _, _, _ in entries
+                 if Path(path).stem not in {"__init__", "index"} and path not in light_paths}
         counts = {path: 0 for path in stems}
         if stems:
             try:
                 tracked = git(r["path"], "ls-files").split()
             except Exception:
                 tracked = []
-            changed_names = {path for path, _, _ in entries}
+            changed_names = {path for path, _, _, _ in entries}
             for f in tracked:
                 if f in changed_names or Path(f).suffix not in CALLER_SUFFIXES:
                     continue
@@ -691,7 +742,7 @@ def release_lane(repos, table=None):
                 for path, st in stems.items():
                     if st in body:
                         counts[path] += 1
-        for path, effects, repo in entries:
+        for path, effects, repo, _ in entries:
             if counts.get(path, 0) > wide_callers:
                 effects.append("many_callers")
             for lane in ("closed", "wide"):
@@ -701,13 +752,15 @@ def release_lane(repos, table=None):
                 for eff in effects:
                     if eff in (spec.get("effects") or ()):
                         matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name})
+    if not matched and light and all_light:   # XE-049.7: every path light, nothing wider matched
+        matched = light
     lane = max((m["lane"] for m in matched), key=LANES.index, default="contained")
     decided_by = sorted({m["decided_by"] for m in matched if m["lane"] == lane}) or ["none"]
     return {"lane": lane, "decided_by": decided_by, "matched": [m for m in matched if m["lane"] == lane],
             "table": sources[0] if len(sources) == 1 else sources}
 
 
-def lane_in_force(lane_record, target, coverage_exception=None):
+def lane_in_force(lane_record, target, coverage_exception=None):   # also XE-049.2's rounds exception
     """GA-011: the lane a release into `target` is held to. The lane itself never moves. A closed lane
     into a goal branch (`goal/<id>`) is held to the wide gates and deferred: the goal pull request into
     main is reviewed over the whole goal's diff, so it decides closed again, and
@@ -730,6 +783,27 @@ def lane_instruction(lane_record, target="main"):
                          for m in lane_record.get("matched") or ()) or "nothing recorded"
         text = text.replace("The lane is closed:", f"The lane is closed by {what}:")
     return text
+
+
+def synced_light(path, reviewed, new):
+    """XE-049.11: a branch that merged main in after its review keeps that review when the merge moved
+    its head only by a light delta: every path the merge commit changed from BOTH its parents (the
+    reviewed head and main's tip) is light by criterion 7's own classifier. ponytail: one merge commit
+    of main onto the reviewed head; anything else needs a fix-verification round."""
+    if reviewed == new:
+        return True
+    try:
+        parents = git(path, "rev-list", "--parents", "-n", "1", new).split()[1:]
+    except Exception:
+        return False
+    if len(parents) != 2 or parents[0] != reviewed:
+        return False
+    table = json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8"))
+    spec = (lane_table({"path": path, "head": new})[0].get("lanes") or {}).get("light") or table["lanes"].get("light")
+    repo = {"path": path, "base": reviewed, "head": new}
+    owned = _owned_globs(repo)
+    both = set(git(path, "diff", "--name-only", reviewed, new).split("\n")) & set(git(path, "diff", "--name-only", parents[1], new).split("\n"))
+    return all(_light_path(repo, f, "M", spec, owned) for f in both if f)
 
 
 def ledger_status_now(repos):
@@ -833,6 +907,8 @@ LANE_INSTRUCTION = {
     "wide": "Merge the exact reviewed head through the pull request, then run record-release. The lane is wide: the agent merges under DR-113 only with the ledger clear, coverage checked, links verified and no open unknown needing the repository, which this handoff has checked. This command never merges or accepts an approval flag.",
     "closed": "The lane is closed: DR-113 does not apply, and the agent does not merge. The Release Owner merges under their own login, or instructs the agent on the pull request (merge-instruction). This command never merges or accepts an approval flag.",
     "closed_exception": "Coverage was not checked, and the Release Owner's exception is recorded: \"{words}\". DR-113 does not apply, and the agent does not merge, even on an instruction. The Release Owner merges the exact reviewed head under their own login, then the agent runs record-release. This command never merges or accepts an approval flag.",
+    "light": "The lane is light (XE-049.7): docs, existing tests, version fields and status lines only. No cross-vendor review is needed; with tests green and the check ledger clear, which this handoff has checked, the agent merges the exact head under DR-113, then runs record-release. This command never merges or accepts an approval flag.",
+    "closed_rounds_exception": "Review rounds ran out with a blocker open, and the Release Owner's word to merge as it stands is recorded: \"{words}\" (XE-049.2). DR-113 does not apply, and the agent does not merge. The Release Owner merges the exact reviewed head under their own login, then the agent runs record-release. This command never merges or accepts an approval flag.",
     "closed_deferred": "The lane is closed: into a goal branch the closed lane is deferred to the goal pull request into main, which needs the Release Owner's merge-instruction (GA-011). Here the agent merges under DR-113 with the wide gates, which this handoff has checked: merge the exact reviewed head through the pull request, then run record-release. This command never merges or accepts an approval flag.",
 }
 
@@ -2143,6 +2219,87 @@ def run_reviewer(tool, prompt, root, timeout, schema=None, named=()):
     return text, model
 
 
+def _lane_call(tool, prompt, root, timeout, named, selftest):
+    """XE-049.13: one review lane, in its own process, so the per-call globals run_reviewer sets
+    (usage, sent surface, advisor) are this lane's and no other's."""
+    global _SELFTEST
+    _SELFTEST = selftest
+    raw, model = run_reviewer(tool, prompt, Path(root), timeout, named=named)
+    return raw, model, LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR
+
+
+def lane_groups(packet):
+    """XE-049.13: the changed files split round-robin into the focus lanes of a whole-goal review, or
+    None for a single review. A packet asks for lanes with `review_lanes` (an integer, set by the goal
+    runner on a goal's pull request into main); lane 1 always reviews the whole change. ponytail:
+    round-robin by name; group by directory if lanes start splitting related files badly."""
+    n = packet.get("review_lanes")
+    if type(n) is not int or n < 2:
+        return None
+    files = sorted({f for r in packet["repos"] for f in
+                    git(r["path"], "diff", "--name-only", f"{r['base']}..{r['head']}").splitlines() if f})
+    focus = max(0, min(n - 1, len(files)))
+    return [files[i::focus] for i in range(focus)] if focus else None
+
+
+def lane_prompt(prompt, k, n, files):
+    return (prompt + f"\n\nREVIEW LANE {k} of {n}. Another lane reviews the whole change and judges the acceptance "
+            "criteria; fill acceptance as you judge it all the same. Look hardest at these changed files and report "
+            "findings on them; report anything blocking you see elsewhere too:\n" + "\n".join(f"- {f}" for f in files))
+
+
+def merge_lanes(outs):
+    """XE-049.13: one review from validated lane outputs. Lane 1 (the whole change) supplies acceptance,
+    blocker resolutions, notes and unknowns; every lane's findings are kept once per (file, line,
+    category), the stronger severity winning, renumbered F1..; a lane's regression ids follow its findings."""
+    rank = {"blocking": 0, "follow_up": 1, "separate": 2}
+    merged, by_key, regressions = [], {}, []
+    for out in outs:
+        renamed = {}
+        for f in out["findings"]:
+            key = (f["file"], f["line"], f.get("category", "general"))
+            if key in by_key:
+                kept = by_key[key]
+                if rank.get(f["severity"], 9) < rank.get(kept["severity"], 9):
+                    kept["severity"] = f["severity"]
+            else:
+                kept = dict(f, id=f"F{len(merged) + 1}")
+                by_key[key] = kept
+                merged.append(kept)
+            renamed[f["id"]] = kept["id"]
+        regressions += [renamed[i] for i in out.get("regressions_from_fixes") or [] if i in renamed]
+    first = outs[0]
+    result = dict(first, findings=merged, regressions_from_fixes=sorted(set(regressions), key=regressions.index))
+    blocked = any(f["severity"] == "blocking" for f in merged) or any(not r["met"] for r in first["acceptance"])
+    result["verdict"] = "blocking_findings" if blocked else "no_blocking_findings"
+    result["notes"] = ((first.get("notes") or "") + f" [merged from {len(outs)} review lanes]").strip()
+    return result
+
+
+def run_review_lanes(reviewer, prompt, surf, timeout, named, groups, packet, prior, dispositions):
+    """XE-049.13: lane 1 reviews the whole change on the surface itself; each focus lane gets its own
+    copy of the surface (a CLI reviewer writes its schema and last message there) and runs at once.
+    Every lane's output is validated on its own, so one malformed lane fails the round; the merge is
+    then validated again by the round as one review. Returns (raw, model, usage, sent, advisor, lanes)."""
+    from concurrent.futures import ProcessPoolExecutor
+    import multiprocessing
+    roots = [surf]
+    for k in range(len(groups)):
+        copy = Path(tempfile.mkdtemp(prefix=f"gstack-lane{k + 2}-")) / "surface"
+        shutil.copytree(surf, copy, symlinks=True)
+        roots.append(copy)
+    prompts = [prompt] + [lane_prompt(prompt, k + 2, len(groups) + 1, g) for k, g in enumerate(groups)]
+    with ProcessPoolExecutor(max_workers=len(roots), mp_context=multiprocessing.get_context("spawn")) as pool:
+        futures = [pool.submit(_lane_call, reviewer, pr_, str(root), timeout, named, _SELFTEST)
+                   for pr_, root in zip(prompts, roots)]
+        results = [f.result() for f in futures]
+    outs = [validate(raw, packet, prior, dispositions) for raw, *_ in results]
+    lanes = [{"lane": i + 1, "files": None if i == 0 else groups[i - 1], "model": m, "usage": u,
+              "findings": len(o["findings"])} for i, ((_, m, u, _s, _a), o) in enumerate(zip(results, outs))]
+    _, model, usage, sent, advisor = results[0]
+    return json.dumps(merge_lanes(outs)), model, usage, sent, advisor, lanes
+
+
 def disposition_value(value):
     return value.get("disposition") if isinstance(value, dict) else value
 
@@ -2521,6 +2678,8 @@ def verify_links(d):
             record(f"round {n} {f['id']} -> {f['file']}:0", False,
                    f"names {f['file']}, a file the review surface did not carry; not checked", kind="unverifiable")
         findings = [f for f in findings if f not in unseen]
+        # XE-049.3: a reviewer's note about an instruction inside a file it read gates nothing
+        findings = [f for f in findings if f.get("category") != "embedded_instruction"]
         if subjects is None and findings:
             unbound += 1
             record(f"round {n} finding subjects", False,
@@ -3242,6 +3401,43 @@ def _adjudicated(d, state):
     return adjudicated, (load(d, f"round-{adjudicated}.json") if adjudicated >= 1 else None)
 
 
+def demote_new_blockers(out, prior, repos):
+    """XE-049.1: in a fix-verification round a blocking finding stands only when it is an earlier
+    blocker (same id) or sits on a line the fix changed. Any other is recorded as follow_up with reason
+    new_in_verification. An unmet acceptance criterion blocks the round through the acceptance rows,
+    not through findings, so it is untouched here. Returns the demoted findings."""
+    if prior is None:
+        return []
+    earlier = {f["id"] for f in prior.get("findings", []) if f["severity"] == "blocking"}
+    changed = {}
+    for i, r in enumerate(repos):
+        try:
+            raw = git(r["path"], "diff", "-U0", f"{r['base']}..{r['head']}")
+        except Exception:
+            raw = ""
+        cur = None
+        for l in raw.splitlines():
+            if l.startswith("+++ "):
+                cur = l[6:] if l.startswith("+++ b/") else None
+            elif l.startswith("@@") and cur:
+                m = re.match(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", l)
+                if m:
+                    start, n = int(m.group(1)), int(m.group(2) or 1)
+                    changed.setdefault((i, cur), set()).update(range(start, start + max(n, 1)))
+    demoted = []
+    for f in out["findings"]:
+        if f["severity"] != "blocking" or f["id"] in earlier:
+            continue
+        ri, rel = _subject_path(f["file"], repos)
+        if ri is not None and f.get("line") in changed.get((ri, rel), ()):
+            continue
+        f["severity"], f["demoted"] = "follow_up", "new_in_verification"
+        demoted.append(f)
+    if demoted and not any(f["severity"] == "blocking" for f in out["findings"]):
+        out["verdict"] = "no_blocking_findings"
+    return demoted
+
+
 def cmd_round(a):
     d = rdir(a.review_id)
     state, packet = load(d, "state.json"), load(d, "packet.json")
@@ -3367,12 +3563,21 @@ def cmd_round(a):
         if not api:
             _age_atimes(surf)
             before = _atime_map(surf) if read_tracking_probe(surf) else None
-        try:
-            raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
-                                                named=surf_stats["criterion_files"])
-        finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
+        groups = lane_groups(packet)   # XE-049.13: a whole-goal review runs as parallel lanes
+        if groups:
+            global LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR
+            raw, record["model"], LAST_REVIEWER_USAGE, LAST_SENT_SURFACE, LAST_REVIEWER_ADVISOR, record["lanes"] = \
+                run_review_lanes(reviewer, prompt, surf, state["timeout"], surf_stats["criterion_files"],
+                                 groups, packet, prior, dispositions)
             if reviewer == "claude":
                 record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
+        else:
+            try:
+                raw, record["model"] = run_reviewer(reviewer, prompt, surf, state["timeout"],
+                                                    named=surf_stats["criterion_files"])
+            finally:   # ME-003 review F1: a refused advisor is recorded too; run_reviewer resets it on entry
+                if reviewer == "claude":
+                    record["reviewer_advisor"] = LAST_REVIEWER_ADVISOR
         record["reviewer_usage"] = LAST_REVIEWER_USAGE   # XE-012 criterion 3
         if api:
             # XE-013.6: this reviewer opened nothing because it cannot open anything. EV-008
@@ -3409,6 +3614,7 @@ def cmd_round(a):
                               "reviewer opened 0 of %d offered files; its verdict rests on the "
                               "packet alone" % record["examined"]["offered_count"])
         out = validate(raw, packet, prior, dispositions)
+        demoted = demote_new_blockers(out, prior, packet["repos"])   # XE-049.1
         # GA-010.3: a reviewer key may never land on an executor-written field; the lane is state's
         out.pop("release_lane", None)
         record.update(out)
@@ -3426,6 +3632,15 @@ def cmd_round(a):
         state["embedded_locations"] = (state.get("embedded_locations") or []) + [{"file": e["file"], "line": e["line"]} for e in new_locs]
         state["embedded_instructions_reported"] = len(state["embedded_locations"])
         record["unknowns_raised"] = record_reviewer_unknowns(a.review_id, round_no, out, packet["repos"])   # EV-011.5, EV-012.2
+        if demoted:   # XE-049.1: tracked, not lost; `human` so it never holds the wide lane's repository gate
+            import unknowns
+            raiser = f"{a.review_id} round {round_no}"
+            record["demoted"] = []
+            for f in demoted:
+                uid, _ = unknowns.record(packet["repos"][0]["path"], f"{f['what']} ({f['file']}:{f['line']})", "human",
+                                         raiser, head=packet["repos"][0]["head"], root=review_root(),
+                                         review=a.review_id, seen_in=raiser)
+                record["demoted"].append({"id": f["id"], "reason": "new_in_verification", "unknown": uid})
         # EV-012.4: closing cites this round's record, so the record is written first and the close reads it
         save(d, f"round-{round_no}.json", dict(record, outcome="in_progress"), "external_text", examined_by="peer_review round-record schema check")
         record["unknowns_settled"] = settle_reviewer_unknowns(a.review_id, round_no, out, packet["repos"], dispositions)
@@ -3578,11 +3793,20 @@ def cmd_status(a):
                       "rounds": [load(d, f"round-{i}.json").get("outcome") for i in range(1, load(d, 'state.json')['rounds_used'] + 1)]}, indent=2))
 
 
-def passing_review(d):
+def passing_review(d, rounds_exception=None):
     state, packet = load(d, "state.json"), load_packet(d / "packet.json", allow_unchanged=True)
     packet = effective_packet(state, packet)
+    # XE-049.7: a light-lane change is released with no review; XE-049.2: rounds that ran out with a
+    # blocker open pass only on the Release Owner's recorded word, and his merge
+    if (state.get("release_lane") or {}).get("lane") == "light" and state.get("rounds_used", 0) == 0 \
+            and state["outcome"] == "opened":
+        return state, packet
+    if state["outcome"] == "rounds_exhausted" and str(rounds_exception or "").strip():
+        return state, packet
     if state["outcome"] not in {"no_blocking_findings", "fixes_verified"}:
-        raise ReviewError("release_blocked", "review has not passed")
+        raise ReviewError("release_blocked", "review has not passed" + (
+            "; rounds ran out with a blocker open: ask the Release Owner, and pass --rounds-exception \"<his words>\" "
+            "if he says merge as it stands (XE-049.2)" if state["outcome"] == "rounds_exhausted" else ""))
     n = state["rounds_used"]
     record = load(d, f"round-{n}.json")
     # review 20261027-161517 F1: the round a passing round was measured against is the last ADJUDICATED one
@@ -3596,6 +3820,7 @@ def passing_review(d):
     if not record or record.get("repos") != packet["repos"] or state.get("release_owner") != packet["release_owner"]:
         raise ReviewError("release_blocked", "review identity does not match packet")
     out = validate(record.get("raw", ""), packet, prior, load(d, "dispositions.json"))
+    demote_new_blockers(out, prior, record["repos"])   # XE-049.1, as the round applied it
     if out["verdict"] != "no_blocking_findings" or out["regressions_from_fixes"]:
         raise ReviewError("release_blocked", "review evidence does not pass")
     return state, packet
@@ -3618,10 +3843,15 @@ def coverage_line(state, exception):
 def cmd_release(a):
     """Prepare a revision-bound handoff; deliberately has no merge operation."""
     d = rdir(a.review_id)
-    state, packet = passing_review(d)
+    rounds_words = str(getattr(a, "rounds_exception", None) or "").strip()
+    state, packet = passing_review(d, rounds_words) if rounds_words else passing_review(d)
+    synced = {}
     for repo in packet["repos"]:
-        if resolve_commit(repo["path"], "HEAD") != repo["head"] or git(repo["path"], "status", "--porcelain"):
+        now = resolve_commit(repo["path"], "HEAD")
+        if git(repo["path"], "status", "--porcelain") or not synced_light(repo["path"], repo["head"], now):
             raise ReviewError("stale_release", "working revision changed; review the new revision before release")
+        if now != repo["head"]:
+            synced[repo["path"]] = now   # XE-049.11: main merged in by a light delta; both heads are recorded
     if subprocess.run(["git", "check-ref-format", "--branch", a.target], capture_output=True).returncode:
         raise ReviewError("release_blocked", "invalid target branch")
     links = verify_links(d)
@@ -3639,14 +3869,19 @@ def cmd_release(a):
     open_unknowns_now = [{"id": u["id"], "revision": u["revision"], "needs": u["needs"], "question": u["question"]}
                          for u in open_unknowns(packet["repos"])]
     words = (coverage.get("exception") or {}).get("words")
-    if lane_in_force(state.get("release_lane"), a.target) == "wide":   # GA-011
+    if (state.get("release_lane") or {}).get("lane") == "light":   # XE-049.7: the ledger stands in for a review
+        status, open_failures = ledger_status_now(packet["repos"])
+        if status not in {"clear", "none"}:
+            raise ReviewError("release_blocked", f"the lane is light and the failure ledger has {len(open_failures)} open failure(s)")
+    if lane_in_force(state.get("release_lane"), a.target) == "wide" and not rounds_words:   # GA-011
         failed = wide_gates(state, links, open_unknowns_now, packet["repos"], d)
         if words:   # GA-012.2: the exception answers the coverage gate and nothing else
             failed = [f for f in failed if f != "coverage was not checked"]
         if failed:
             raise ReviewError("release_blocked", "the lane is wide and its gates do not hold: " + "; ".join(failed))
-    in_force = lane_in_force(state.get("release_lane"), a.target, words)   # GA-012
-    record = {"coverage": coverage, "review_id": a.review_id, "action": "merge", "release_owner": state["release_owner"],
+    in_force = lane_in_force(state.get("release_lane"), a.target, words or rounds_words)   # GA-012, XE-049.2
+    rounds_exc = {"words": rounds_words, "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")} if rounds_words else None
+    record = {"coverage": coverage, "review_id": a.review_id, "rounds_exception": rounds_exc, "synced_heads": synced, "action": "merge", "release_owner": state["release_owner"],
               "unknowns_open": open_unknowns_now,
               "repos": packet["repos"], "target": a.target, "requested_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "outcome": "awaiting_human_release",
               "links": {"outcome": links["outcome"], "examined": links["examined"], "broken": links["broken"],
@@ -3656,12 +3891,14 @@ def cmd_release(a):
               "release_lane": state.get("release_lane"),   # GA-010.4
               "lane_in_force": in_force,                    # GA-011
               "instruction": (LANE_INSTRUCTION["closed_exception"].replace("{words}", words) if words
+                              else LANE_INSTRUCTION["closed_rounds_exception"].replace("{words}", rounds_words) if rounds_words
                               else lane_instruction(state.get("release_lane"), a.target))}
     adj = state.get("adjudicated_round") or state.get("rounds_used")   # ME-003 review F2: the adjudicated round's advisor
     adv = (load(d, f"round-{adj}.json") or {}).get("reviewer_advisor") if adj else None
     record["reviewer_advisor"], record["advisor_note"] = adv, advisor_note(adv)
     previous = load(d, "release.json")
-    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage")):
+    if previous and all(previous.get(k) == record[k] for k in ("review_id", "action", "release_owner", "repos", "target", "coverage", "synced_heads")) \
+            and (previous.get("rounds_exception") or {}).get("words") == (rounds_exc or {}).get("words"):
         record["observations"] = previous.get("observations", record["observations"])
         record = previous
         record["unknowns_open"] = open_unknowns_now   # EV-011: the list is of now, whatever the handoff was
@@ -3816,8 +4053,9 @@ def finalized_relation(path, review_state, packet, pr):
 def cmd_record_release(a):
     """Read GitHub's merge record, never create an approval or perform a merge."""
     d = rdir(a.review_id)
-    state, packet = passing_review(d)
     prepared = load(d, "release.json")
+    rounds_words = ((prepared or {}).get("rounds_exception") or {}).get("words")
+    state, packet = passing_review(d, rounds_words) if rounds_words else passing_review(d)
     if not prepared or prepared.get("repos") != packet["repos"] or prepared.get("release_owner") != state["release_owner"]:
         raise ReviewError("release_blocked", "prepare a release handoff for this revision first")
     path = str(Path(a.repo).resolve())
@@ -3842,7 +4080,7 @@ def cmd_record_release(a):
         raise ReviewError("release_blocked", "the goal pull request's release relationship doesn't hold: the merged head isn't "
                           "the recorded finalized head, or the review isn't the whole-goal review pinned to the tested head")
     if (not isinstance(pr, dict) or pr.get("merged") is not True or
-            (not is_goal_pr and pr.get("head", {}).get("sha") != repo["head"]) or
+            (not is_goal_pr and pr.get("head", {}).get("sha") not in {repo["head"], (prepared.get("synced_heads") or {}).get(path)}) or
             pr.get("base", {}).get("repo", {}).get("full_name") != name or
             pr.get("base", {}).get("ref") != prepared["target"] or
             not (agent or (str(merger.get("login", "")).casefold() == state["release_owner"].casefold()
@@ -3855,12 +4093,16 @@ def cmd_record_release(a):
             raise ReviewError("release_blocked", "merge predates the release handoff")
     except (ValueError, TypeError, KeyError):
         raise ReviewError("release_blocked", "invalid release timestamps")
+    missing = done_lines_missing(path, pr["head"]["sha"], packet.get("items") or [], a.pr)   # XE-049.4
+    if missing:
+        raise ReviewError("release_blocked", f"the merged head's DESIGN.md doesn't mark {', '.join(missing)} "
+                          f"'done on merge of #{a.pr}'; the status line rides in the item's own pull request (XE-049.4)")
     decision = {"review_id": a.review_id, "action": "merge", "repo": name, "head": pr["head"]["sha"], "reviewed_head": repo["head"],
                 **({"finalized": finalized} if finalized else {}),
                 "target": prepared["target"], "merge_commit": pr["merge_commit_sha"], "approver": state["release_owner"],
                 "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "merged_at": pr["merged_at"], "source": pr["html_url"], "outcome": "human_merge_recorded"}
-    words = ((prepared.get("coverage") or {}).get("exception") or {}).get("words")
+    words = ((prepared.get("coverage") or {}).get("exception") or {}).get("words") or rounds_words
     in_force = lane_in_force(state.get("release_lane"), prepared["target"], words)
     if agent and words:
         # GA-012.4: a merge on a coverage exception is the Release Owner's to make. An agent merge of
@@ -3900,6 +4142,8 @@ def cmd_record_release(a):
     decision["release_lane"] = state.get("release_lane")   # GA-010.5: every release record carries the lane
     decision["lane_in_force"] = in_force   # GA-011, GA-012
     decision["coverage"] = prepared.get("coverage")   # GA-012.4: as release wrote it
+    if rounds_words:
+        decision["rounds_exception"] = prepared["rounds_exception"]   # XE-049.2
     # An agent merge stands on a quoted human instruction or on DR-113, so the record carries that
     # origin. A human merge is read from the repository's own record.
     line = model_selection_line(d, state, packet, name, a.pr, decision)
@@ -3911,6 +4155,26 @@ def cmd_record_release(a):
          "human_instruction" if agent else "repository_artifact",
          examined_by=None)
     print(json.dumps(decision, indent=2))
+
+
+def done_lines_missing(path, head, items, pr):
+    """XE-049.4: the items whose DESIGN.md status line at the merged head doesn't say
+    `done on merge of #<pr>`. No items, nothing to check. A goal plan item (`<goal>/<n>`) isn't a
+    DESIGN.md item; the goal's own items carry their lines through the goal pull request."""
+    items = [i for i in items or () if "/" not in str(i)]
+    if not items:
+        return []
+    try:
+        lines = git(path, "show", f"{head}:DESIGN.md").splitlines()
+    except Exception:
+        return list(items)
+    missing = []
+    for item in items:
+        start = next((i for i, l in enumerate(lines) if re.match(rf"^### {re.escape(item)}\b", l)), None)
+        status = next((l for l in lines[start + 1:start + 6] if l.startswith("**Status:**")), "") if start is not None else ""
+        if not re.search(rf"done on merge of #{pr}(?!\d)", status):
+            missing.append(item)
+    return missing
 
 
 def model_selection_line(d, state, packet, name, pr_number, decision):
@@ -4065,7 +4329,7 @@ def main():
                    help="open anyway despite a criterion about an off-repo place with no in-repo evidence; recorded in the review state")
     o.add_argument("--accept-open-failure", metavar="REASON",
                    help="open anyway despite a check that failed and hasn't passed since; the reason is recorded verbatim (XE-034)")
-    o.add_argument("--max-rounds", type=int, default=3); o.add_argument("--timeout", type=int, default=900)
+    o.add_argument("--max-rounds", type=int, default=2); o.add_argument("--timeout", type=int, default=900)
     r = sub.add_parser("round"); r.add_argument("review_id"); r.add_argument("--head", action="append", default=[], metavar="REPO=SHA")
     r.add_argument("--ci-run", action="append", default=[], metavar="REPO=RUN_ID")
     r.add_argument("--ledger-run", action="append", default=[], metavar="REPO=RUN_ID")
@@ -4083,6 +4347,7 @@ def main():
     v = sub.add_parser("verify"); v.add_argument("review_id"); v.add_argument("--json", action="store_true")
     release = sub.add_parser("release"); release.add_argument("review_id"); release.add_argument("--target", default="main")
     release.add_argument("--coverage-exception", help="the Release Owner's words, verbatim, for releasing without a checked coverage report")
+    release.add_argument("--rounds-exception", help="XE-049.2: the Release Owner's words, verbatim, to merge as it stands after rounds ran out")
     release.add_argument("--observation", action="append", default=[], metavar="CLAIM :: COMMAND",
                          help="what the approver checked and the command that supports it; re-run by `verify`")
     un = sub.add_parser("unknowns", help="forward to unknowns.py: record, update, close, close-all, list"); un.add_argument("rest", nargs=argparse.REMAINDER)

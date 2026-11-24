@@ -95,7 +95,6 @@ def open_ledger(path, goal_id, pr, builder):
     item merge into goal/<id> rests on DR-113 (merge_allowed), not on the ledger."""
     who = f"Dorian, approving goal {goal_id} in PR #{pr}"
     rows = [("vcs.push", f"goal/{goal_id}", "project"), ("vcs.push", "build/*", "project"),
-            ("vcs.push", f"goal-finalize/{goal_id}", "project"),
             ("pr.open", f"goal/{goal_id}<-*", "project"), ("pr.open", f"main<-goal/{goal_id}", "once")]
     for tool, model, _, hosts in reviewers(builder):
         rows += [("review.send_code", tool, "project"), ("external.model_call", model, "project")]
@@ -189,23 +188,6 @@ def checks_green(target, head, checks, pr):
 
 
 FINAL_CHECKS = ("goal-holdout",)
-
-
-def finalize_merge_allowed(branch, head, tested, changed, parents, record_files, checks, pr):
-    """GO-003.7: the finalize pull request merges into the goal branch as the bot without a review, so
-    the holdout never enters a review surface. It may carry only the run record and the approved
-    holdout, as one commit on the head where the goal tests passed, with goal-envelope green there."""
-    problems = []
-    if (pr.get("head"), pr.get("base_ref")) != (head, branch):
-        problems.append(f"PR #{pr.get('number')} is at {str(pr.get('head'))[:12]} into {pr.get('base_ref')}, not {head[:12]} into {branch}")
-    if parents != [tested]:
-        problems.append(f"{head[:12]} isn't one commit on {tested[:12]}, where the goal tests passed")
-    if set(changed) != set(record_files):
-        problems.append(f"{head[:12]} changes {sorted(changed)}, not only {sorted(record_files)}")
-    if (checks.get("goal-envelope") or (None,))[0] != "success":
-        problems.append(f"goal-envelope at {head[:12]} is {(checks.get('goal-envelope') or ('missing',))[0] or 'missing'}, not success")
-    if problems:
-        raise Refused("; ".join(problems))
 
 
 def release_relationship(state, head, pr, pinned, scope_problems=()):

@@ -487,11 +487,12 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual((L["lane"], [m["path"] for m in L["matched"]]), ("closed", ["docs/a.md"]))
         self.assertTrue(L["table"].endswith(".gstack/release-lanes.json@" + self.head[:7]), L["table"])
 
-    def test_a_readme_only_change_is_contained(self):
+    def test_a_readme_only_change_is_light(self):
+        # XE-049.7: a README-only change was contained; it is now the light lane
         self.base = self.head; self.packet["repos"][0]["base"] = self.base
         self.commit_change("README.md", "# fixture\n")
         L = self.lane()
-        self.assertEqual((L["lane"], L["matched"]), ("contained", []))
+        self.assertEqual((L["lane"], [m["path"] for m in L["matched"]]), ("light", ["README.md"]))
 
     def test_a_migration_renamed_out_of_its_folder_is_still_closed(self):
         # F1 (review 20261013-202943): a rename touches its source too

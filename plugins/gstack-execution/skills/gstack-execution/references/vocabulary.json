@@ -137,6 +137,13 @@
       "skos:definition": "worth doing, not required for this item"
     },
     {
+      "id": "new_in_verification",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "new_in_verification",
+      "skos:definition": "the reason the dispatcher records on a blocking finding it demotes to follow_up in a fix-verification round: not an earlier blocker and not on a line the fix changed; written to the unknowns ledger needing human (XE-049.1)"
+    },
+    {
       "id": "separate",
       "skos:inScheme": "gstack-contract-vocabulary",
       "group": "severity",
@@ -702,6 +709,13 @@
       "group": "state_field",
       "skos:prefLabel": "lane_in_force",
       "skos:definition": "on the release handoff and the release record: the lane release and record-release hold the merge to, from release_lane and the target; equal to release_lane.lane except a closed lane into a goal/<id> target, which is in force as wide and deferred to the goal pull request into main, where goal_guard.final_merge_allowed needs the Release Owner's merge-instruction (GA-011)"
+    },
+    {
+      "id": "light",
+      "skos:inScheme": "gstack-contract-vocabulary",
+      "group": "term",
+      "skos:prefLabel": "light",
+      "skos:definition": "the release lane for a change made only of README or CHANGELOG files, docs/, edits to existing test_*.py files, version-only plugin or marketplace manifests, and DESIGN.md status and Amendments lines, never a CODEOWNERS, .github/ or hooks/ path; no cross-vendor review, the agent merges under DR-113 with tests green and the check ledger clear (XE-049.7)"
     },
     {
       "id": "contained",
