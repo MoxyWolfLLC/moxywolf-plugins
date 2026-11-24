@@ -1452,7 +1452,7 @@ Not covered: Taskade in seven other plugins (23 mentions), and the hardcoded `/U
 
 ### SM-013 — No plugin names Taskade, and no plugin hardcodes a Drive path
 
-**Status:** building. Approved by Dorian on 2026-11-24 ("Approve, plus /Users paths"), after he asked to "get rid of Taskade on the other seven plugins". Scoping found eleven.
+**Status:** done on merge of #413. Approved by Dorian on 2026-11-24 ("Approve, plus /Users paths"), after he asked to "get rid of Taskade on the other seven plugins". Scoping found eleven.
 
 **Links introduced:** board-deck's sprint-source link. board-deck reads sprint data from Jira project MOXY through the Atlassian connector (`searchJiraIssuesUsingJql`), so a renamed tool, or a board that stops using sprints, leaves slide 8 saying "unavailable". vault-code-learn and excalidraw-vault resolve the vault root with project-init's `drive_roots.py`, so they assume project-init is installed, and fall back to the mounted folder when it isn't.
 
