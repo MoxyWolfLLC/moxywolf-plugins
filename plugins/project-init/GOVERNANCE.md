@@ -14,7 +14,7 @@ Risk tiers: `read-only` | `generate` | `side-effectful-gated` | `high-stakes`.
 
 | Skill / command | risk_tier | note |
 |---|---|---|
-| `init-project` (command) | side-effectful-gated | Mounts the standard MoxyWolf roots, gathers active Taskade/GitHub subfolders, and **writes tailored Project Instructions into the project hub** — scaffolding writes to shared Drive/repo locations. Confirm the roots and subfolders with the user before writing (Tests 1, 5). |
+| `init-project` (command) | side-effectful-gated | Mounts the standard MoxyWolf roots, gathers the workspace and active GitHub subfolders, and **writes tailored Project Instructions into the project hub** — scaffolding writes to shared Drive/repo locations. Confirm the roots and subfolders with the user before writing (Tests 1, 5). |
 | `project-init` (skill) | side-effectful-gated | Underlying setup protocol for `init-project`: writes Project Instructions / scaffolding into the project hub. Same gated write surface. |
 | `session-start` (command) | side-effectful-gated | Mounts standard folders, loads Project Instructions, reads the previous handoff, and surfaces a briefing (kanban tasks, recent decisions, open PRs/issues). For an org-shared project it also fast-forwards the local clones (`GitHub/Projects` and each listed repo). That's the only write, and its gate is mechanical: `--ff-only` on a clean tree, so local work is never touched; anything else is reported and left alone. |
 | `session-start` (skill) | side-effectful-gated | Briefing/context-load protocol behind `session-start`. The one write is Step 3b's fast-forward-only pull of the `GitHub/Projects` clone for every project type, plus an org-shared project's listed repos. |

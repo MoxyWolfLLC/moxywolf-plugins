@@ -46,7 +46,7 @@ class SharedMemoryHome(unittest.TestCase):
     def test_session_start_reads_the_new_home_and_skips_taskade(self):
         text = (ROOT / FIXED[0]).read_text()
         self.assertIn(f"{NEW}/INDEX.md", text)
-        self.assertIn("not needed (org-shared or vault-only project)", text)
+        self.assertNotIn("taskade", text.lower())  # SM-012: Taskade is retired, not just skipped
 
     def test_the_check_catches_the_old_path(self):
         self.assertIn(OLD, "Read `Taskade/_Shared Files/_shared-memory/INDEX.md` first.")

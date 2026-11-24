@@ -1,0 +1,100 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "ea2933e3e9d344e39128efd85eade741",
+  "doc": "DESIGN.md",
+  "item": "SM-012",
+  "scope_sha256": "7fe3c2c8cf39dff772f1d708dc3c5d9856231d0458ca07a0aa59b05bba3049a7",
+  "reviewed_at": "2026-11-24T16:53:03+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3912,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 7908,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7908,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 7908,
+      "cache_creation_input_tokens": 3952,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 3952,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 13500,
+      "output_tokens": 2248,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1935,
+      "cache_read_input_tokens": 11860,
+      "cache_creation_input_tokens": 482,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 482,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 19768,
+    "write": 12342
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "SM-012.2",
+        "SM-012.3",
+        "SM-012.6"
+      ],
+      "question": "When more than one folder under ~/Library/CloudStorage holds both tails and none contains GitHub/Projects/_shared-memory/INDEX.md, what does drive_roots.py return (ambiguous with the list, not_found, or another result), and what does session-start then do? Criterion 6 doesn't test this case."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "SM-012.4",
+        "SM-012.5"
+      ],
+      "question": "Criterion 4 removes the Taskade root and Taskade-based project type, yet projects other than MW Plugins keep their old instructions until their next /refresh-project-instructions. How do existing Taskade-based projects behave before that refresh, and how are they migrated?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "SM-012.1",
+        "SM-012.5",
+        "SM-012.6"
+      ],
+      "question": "Must /refresh-project-instructions recognise and migrate a project's old Taskade root? Criterion 6's text test forbids the word Taskade in criterion 1's files, which include the refresh skill. Is a Taskade-aware migration allowed, or must the refresh skill detect old roots without naming Taskade?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "SM-012.5",
+        "SM-012.8",
+        "One release path, checked by code"
+      ],
+      "question": "Criterion 5's hand edits in the Projects repo and criterion 8's post-merge mirror happen outside this repository. Do they gate the item's move to done? If so, what script-checkable condition records them under the one-release-path rule? If not, say so explicitly."
+    }
+  ]
+}
