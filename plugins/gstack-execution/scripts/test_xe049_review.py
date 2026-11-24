@@ -273,6 +273,10 @@ class ReviewerFallback(unittest.TestCase):
         call, _ = self.call({"codex": "review_unavailable"})
         with self.assertRaises(pr.ReviewError):
             pr.run_with_fallback("claude", self.packet(["codex"]), "codex", False, call)
+        call, _ = self.call({"codex": "review_unavailable", "openrouter-gpt": "review_unavailable"})
+        with self.assertRaises(pr.ReviewError) as cm:
+            pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt"]), "codex", False, call)
+        self.assertEqual([t["to"] for t in cm.exception.tried], ["openrouter-gpt"])
         call, ran = self.call({"codex": "timeout"})
         with self.assertRaises(pr.ReviewError):
             pr.run_with_fallback("claude", self.packet(["codex", "openrouter-gpt"]), "codex", False, call)

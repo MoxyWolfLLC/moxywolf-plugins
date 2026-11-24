@@ -1999,6 +1999,7 @@ def run_with_fallback(builder, packet, reviewer, is_fallback, call):
                     nxt = t
                     break
             if nxt is None:
+                e.tried = tried   # the round records who was passed over even when no one could run
                 raise
             tried.append({"from": reviewer, "to": nxt, "outcome": e.outcome, "why": e.detail[-300:]})
             reviewer, is_fallback = nxt, True
@@ -3712,6 +3713,8 @@ def cmd_round(a):
             outcome = "blocking_findings"
     except ReviewError as e:
         outcome, record["error"] = e.outcome, e.detail
+        if getattr(e, "tried", None):   # XE-049.19
+            record["fallbacks"] = e.tried
     finally:
         teardown(packet["repos"], root)
     record["outcome"] = outcome
