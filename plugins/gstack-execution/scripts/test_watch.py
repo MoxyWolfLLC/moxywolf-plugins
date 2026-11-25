@@ -224,6 +224,14 @@ class Push(unittest.TestCase):
         self.assertEqual(out, "refused")
         self.assertIn("vendor/sub", gh.calls[-1][2]["body"])
 
+    def test_r3_f2_deleting_an_ordinary_tracked_file_is_refused(self):
+        # the closed lane's deletes_tracked_file effect, not only its paths
+        r = Repo()
+        git(r.d, "rm", "-q", "a.txt")
+        out, gh = self.push(r, {"outcome": "fixed", "new_head": r.commit("drop a.txt")})
+        self.assertEqual((out, r.pushed()), ("refused", r.old))
+        self.assertIn("a.txt", gh.calls[-1][2]["body"])
+
     def test_a_rewritten_history_is_refused_never_force_pushed(self):
         r = Repo()
         git(r.d, "reset", "-q", "--hard", "HEAD~1")
@@ -272,6 +280,48 @@ class Fix(unittest.TestCase):
         self.assertEqual(result["outcome"], "judgment")
         self.assertIn(".github/ci.yml", result["note"])
         self.assertEqual(git(r.d, "rev-parse", "HEAD"), r.old)
+
+
+    def test_r3_f1_the_workflows_relative_out_holds_the_bundle(self):
+        r = Repo()
+        def claude(text, cwd):
+            (Path(cwd) / "b.txt").write_text("fixed\n")
+            git(Path(cwd), "commit", "-qam", "fix")
+            return '{"outcome": "fixed", "note": "n"}'
+        here, run = os.getcwd(), tmpdir()
+        os.chdir(run)
+        try:
+            result = watch.fix(r.item(), r.d, "out", claude=claude)
+        finally:
+            os.chdir(here)
+        self.assertEqual(result["outcome"], "fixed")
+        self.assertTrue((run / "out" / "watch.bundle").exists())
+        self.assertTrue((run / "out" / "result.json").exists())
+
+    def test_r3_f3_a_fix_that_raises_is_recorded(self):
+        r = Repo()
+        run = tmpdir()
+        (run / "work.json").write_text(json.dumps([r.item()]))
+        real = watch.fix
+        watch.fix = lambda *a, **k: (_ for _ in ()).throw(subprocess.TimeoutExpired("claude", 3000))
+        try:
+            watch.main(["fix", "--work", str(run / "work.json"), "--item", "0", "--dir", str(r.d),
+                        "--out", str(run / "out"), "--log", str(run / "fix.jsonl")])
+        finally:
+            watch.fix = real
+        self.assertEqual(json.loads((run / "out" / "result.json").read_text())["outcome"], "failed")
+        self.assertIn("acme/r#7 fix: failed", watch.summary(run / "fix.jsonl"))
+
+
+class Summary(unittest.TestCase):
+    def test_r3_f3_a_triggered_pull_request_with_no_outcome_is_named(self):
+        log = tmpdir() / "all.jsonl"
+        watch.log(log, step="preflight", missing=[])
+        watch.log(log, step="scan", repo="acme/r", pr=7, triggers=["failing_check"])
+        watch.log(log, step="scan", repo="acme/r", pr=8, triggers=["checks_unreadable"])
+        text = watch.summary(log)
+        self.assertIn("acme/r#7: triggered, but no fix or push outcome was recorded", text)
+        self.assertNotIn("acme/r#8: triggered", text)
 
 
 class Preflight(unittest.TestCase):

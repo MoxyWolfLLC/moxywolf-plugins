@@ -179,21 +179,24 @@ def _blob(d, rev, path):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
-def is_protected(d, heads, paths):
+def is_protected(d, heads, paths, effects=None):
     """The paths, of `paths`, that are protected at ANY of `heads` (review F13: the old head as well as the new,
     so removing or replacing a submodule or symlink, or a rule that protected it, still counts): owned by the
     table or CODEOWNERS, matched by the closed lane, or a symlink or submodule."""
     heads = [heads] if isinstance(heads, str) else list(heads)
+    effects = effects or {}
     checks = []
     for h in heads:
         table, _ = pr.lane_table({"path": d, "head": h})
-        checks.append((h, ((table.get("lanes") or {}).get("closed") or {}).get("paths") or (),
+        closed = ((table.get("lanes") or {}).get("closed") or {})
+        checks.append((h, closed.get("paths") or (), set(closed.get("effects") or ()),
                        pr.owned_check({"path": d, "head": h}, table)))
     hit = []
     for path in sorted(paths):
-        for h, closed, owned in checks:
+        for h, closed, closed_effects, owned in checks:
             mode = subprocess.run(["git", "-C", d, "ls-tree", h, "--", path], capture_output=True, text=True).stdout.split()[:1]
-            if pr._lane_matches(path, closed) or owned(path) or mode in (["120000"], ["160000"]):
+            if (pr._lane_matches(path, closed) or owned(path) or mode in (["120000"], ["160000"])
+                    or closed_effects & set(effects.get(path, ()))):   # review r3 F2: a closed effect, such as a deletion
                 hit.append(path)
                 break
     return hit
@@ -209,7 +212,10 @@ def protected(dirpath, old, new, merged_base=None, base_ref="main"):
     if merged_base and verified_merge(d, old, new, merged_base, base_ref):
         fork = pr.git(d, "merge-base", old, merged_base)
         mine -= {p for p in pr.changed_paths(d, fork, merged_base) if _blob(d, new, p) == _blob(d, merged_base, p)}
-    return is_protected(d, [old, new], mine)
+    effects = {}
+    for path, eff, _ in pr.diff_entries(pr.git(d, "diff", "--raw", "-z", f"{old}..{new}")):
+        effects.setdefault(path, set()).update(eff)
+    return is_protected(d, [old, new], mine, effects)
 
 
 def verified_merge(d, old, new, merged_base, base_ref):
@@ -222,6 +228,7 @@ def verified_merge(d, old, new, merged_base, base_ref):
 
 
 def fix_contract():
+    """The Fix Contract section of plugins/gstack-execution/commands/gstack-ship.md, given to Claude."""
     text = (HERE.parent / "commands" / "gstack-ship.md").read_text(encoding="utf-8")
     m = re.search(r"^## The Fix Contract.*?(?=^## )", text, re.S | re.M)
     return m.group(0) if m else ""
@@ -254,7 +261,7 @@ def run_claude(text, cwd):
 def fix(item, dirpath, out, claude=run_claude):
     """Merge the base in for a conflict (never a rebase), then let Claude work the triggers. Writes
     out/result.json and, when there are new commits, out/watch.bundle. Pushes nothing."""
-    d, out = str(dirpath), Path(out)
+    d, out = str(dirpath), Path(out).resolve()   # review r3 F1: git runs in the clone, so a relative out would land there
     out.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "-C", d, "fetch", "-q", "origin", item["base"]], capture_output=True)
     merged_base = None
@@ -327,6 +334,15 @@ def summary(log_path):
         lines.append("run failed before its preflight was recorded")
     if not prs:
         lines.append("examined no pull requests (EV-001)")
+    # review r3 F3: a triggered pull request whose fix job died before logging is still named
+    done = {(r["repo"], r["pr"]) for r in rows if r.get("step") in ("fix", "push") and r.get("pr")}
+    for r in rows:
+        if r.get("step") == "fix":
+            lines.append(f"{r['repo']}#{r['pr']} fix: {r.get('outcome')}: {r.get('note') or ''}")
+    for r in rows:
+        if (r.get("step") == "scan" and r.get("pr") and (r["repo"], r["pr"]) not in done
+                and any(k not in NOT_TRIGGERS for k in r.get("triggers") or ())):
+            lines.append(f"{r['repo']}#{r['pr']}: triggered, but no fix or push outcome was recorded")
     return "\n".join(lines + [json.dumps(r) for r in rows])
 
 
@@ -361,7 +377,15 @@ def main(argv=None):
                        check=True, env=env)
         return 0
     if a.action == "fix":
-        print(json.dumps(fix(item, a.dir, a.out)))
+        try:
+            result = fix(item, a.dir, a.out)
+        except Exception as e:   # review r3 F3: a timeout or a failed bundle is an outcome, recorded like any other
+            result = {"outcome": "failed", "note": f"{type(e).__name__}: {e}"[:500]}
+            Path(a.out).mkdir(parents=True, exist_ok=True)
+            (Path(a.out) / "result.json").write_text(json.dumps(result))
+        if a.log:
+            log(a.log, step="fix", repo=item["repo"], pr=item["number"], outcome=result.get("outcome"), note=result.get("note"))
+        print(json.dumps(result))
         return 0
     result = json.loads(Path(a.result).read_text())
     token = mint(item["repo"], WRITE)

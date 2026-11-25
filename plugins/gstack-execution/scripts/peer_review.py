@@ -747,6 +747,40 @@ def _light_path(repo, path, status, spec, is_owned):
     return False
 
 
+def diff_entries(raw):
+    """(path, effects, status) for each path in `git diff --raw -z` output. A rename or copy names both paths.
+    One home for the effects, so the release lane and the watcher (GA-013 review r3 F2) read a diff the same way."""
+    out = []
+    fields = raw.split("\0")
+    pos = 0
+    while pos < len(fields):
+        head_field = fields[pos]
+        if not head_field.startswith(":"):
+            pos += 1
+            continue
+        parts = head_field[1:].split()             # :<old mode> <new mode> <old sha> <new sha> <status>
+        old_mode, new_mode, status = parts[0], parts[1], parts[-1]
+        n = 2 if status[:1] in "RC" else 1          # a rename or copy carries two pathnames
+        paths = fields[pos + 1:pos + 1 + n]
+        pos += 1 + n
+        if len(paths) < n or not all(paths):
+            continue
+        effects = []
+        if status.startswith("D"):
+            effects.append("deletes_tracked_file")
+        if status.startswith("R"):
+            effects.append("renames_tracked_file")
+        if new_mode == "120000" and old_mode != "120000":   # GA-013.3: a symlink where none was
+            effects.append("adds_symlink")
+        if "160000" in (old_mode, new_mode):               # GA-013.3: a submodule pointer
+            effects.append("changes_submodule")
+        # F1 (review 20261013-202943): a rename touches both its source and its destination;
+        # a migration renamed out of its folder is still a change to a migration
+        for path in paths:
+            out.append((path, list(effects), status))
+    return out
+
+
 def release_lane(repos, table=None):
     """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
     cannot be read is refused, never defaulted to `contained`."""
@@ -766,34 +800,7 @@ def release_lane(repos, table=None):
             raw = git(r["path"], "diff", "--raw", "-z", f"{r['base']}..{r['head']}")   # GA-013.3: modes, for symlinks and submodules
         except Exception as e:
             raise ReviewError("malformed_packet", f"{r['path']}: cannot read the diff {r['base'][:7]}..{r['head'][:7]}: {e}")
-        entries = []
-        fields = [f for f in raw.split("\0")]
-        pos = 0
-        while pos < len(fields):
-            head_field = fields[pos]
-            if not head_field.startswith(":"):
-                pos += 1
-                continue
-            parts = head_field[1:].split()             # :<old mode> <new mode> <old sha> <new sha> <status>
-            old_mode, new_mode, status = parts[0], parts[1], parts[-1]
-            n = 2 if status[:1] in "RC" else 1          # a rename or copy carries two pathnames
-            paths = fields[pos + 1:pos + 1 + n]
-            pos += 1 + n
-            if len(paths) < n or not all(paths):
-                continue
-            effects = []
-            if status.startswith("D"):
-                effects.append("deletes_tracked_file")
-            if status.startswith("R"):
-                effects.append("renames_tracked_file")
-            if new_mode == "120000" and old_mode != "120000":   # GA-013.3: a symlink where none was
-                effects.append("adds_symlink")
-            if "160000" in (old_mode, new_mode):               # GA-013.3: a submodule pointer
-                effects.append("changes_submodule")
-            # F1 (review 20261013-202943): a rename touches both its source and its destination;
-            # a migration renamed out of its folder is still a change to a migration
-            for path in paths:
-                entries.append((path, list(effects), r, status))
+        entries = [(path, effects, r, status) for path, effects, status in diff_entries(raw)]
         # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
         light_spec = lanes.get("light")
         is_owned = owned_check(r, t) if light_spec else (lambda _p: True)

@@ -86,7 +86,7 @@ jobs:
       - name: fix (branch code and Claude; Anthropic key only)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.GSTACK_WATCH_ANTHROPIC_KEY }}
-        run: python3 plugins/plugins/gstack-execution/scripts/watch.py fix --work work.json --item ${{ matrix.item }} --dir "$RUNNER_TEMP/repo" --out out
+        run: python3 plugins/plugins/gstack-execution/scripts/watch.py fix --work work.json --item ${{ matrix.item }} --dir "$RUNNER_TEMP/repo" --out out --log out/watch-fix-${{ matrix.item }}.jsonl
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -143,7 +143,7 @@ jobs:
           merge-multiple: true
       - name: summary
         run: |
-          cat watch.jsonl watch-push-*.jsonl 2>/dev/null > all.jsonl || true
+          cat watch.jsonl watch-fix-*.jsonl watch-push-*.jsonl 2>/dev/null > all.jsonl || true
           python3 plugins/gstack-execution/scripts/watch.py summary --log all.jsonl --out summary.txt
       - if: always()
         uses: actions/upload-artifact@v4
