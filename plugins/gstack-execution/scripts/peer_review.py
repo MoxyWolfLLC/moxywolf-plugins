@@ -683,22 +683,41 @@ def _lane_matches(path, globs):
     return any(fnmatch.fnmatch(path, g) or fnmatch.fnmatch("/" + path, g) for g in globs)
 
 
-def _owned_globs(repo):
-    """The CODEOWNERS patterns that name an owner, at the reviewed head, as globs. A path one of these
-    matches is never light (XE-049.7). ponytail: an unowning line (no owner) is ignored, so a path it
-    frees still reads as owned; that only ever keeps a change out of `light`."""
+def codeowners_match(pattern, path):
+    """GA-013 review F4: a CODEOWNERS pattern as GitHub reads it. `*` and `?` stay inside one path segment,
+    `**` spans segments, a slash anywhere but the end anchors the pattern at the root, a leading `**/`
+    also matches at the root, and `dir/` (or a bare name) covers everything under it."""
+    anchored = pattern.startswith("/") or "/" in pattern.rstrip("/")
+    is_dir = pattern.endswith("/")
+    body = pattern.strip("/")
+    rx = re.escape(body).replace(r"\*\*", "\0").replace(r"\*", "[^/]*").replace(r"\?", "[^/]").replace("\0", ".*")
+    if rx.startswith(".*/"):
+        rx = "(?:.*/)?" + rx[3:]
+    elif not anchored:
+        rx = "(?:.*/)?" + rx
+    rx += "/.*" if is_dir else "(?:/.*)?"
+    return re.fullmatch(rx, path) is not None
+
+
+def _codeowners_entries(repo):
+    """The committed CODEOWNERS at the reviewed head as owned-list entries, unowning lines included, in order."""
     try:
         text = git(repo["path"], "show", f"{repo['head']}:.github/CODEOWNERS")
     except Exception:
         return []
-    globs = []
+    out = []
     for line in text.splitlines():
         parts = line.split("#", 1)[0].split()
-        if len(parts) >= 2:
-            pat = parts[0].lstrip("/")
-            globs.append(pat + "**" if pat.endswith("/") else pat)
-    return globs
+        if parts:
+            out.append({"paths": [parts[0]], "owners": parts[1:]})
+    return out
 
+
+def owned_check(repo, table=None):
+    """GA-013 review F5: a path is owned when the committed CODEOWNERS or the table's owned list names an owner
+    for it, each read last-match-wins. A path either owns is never light (XE-049.7)."""
+    entries, table_owned = _codeowners_entries(repo), (table or {}).get("owned") or []
+    return lambda path: bool(owners_for(path, entries) or owners_for(path, table_owned))
 
 def _changed_lines(repo, path):
     """The +/- lines of one file's diff, base..head, without the headers."""
@@ -712,10 +731,10 @@ def _status_only(repo, path):
     return all(l[1:].startswith("**Status:**") for l in _changed_lines(repo, path))
 
 
-def _light_path(repo, path, status, spec, owned):
+def _light_path(repo, path, status, spec, is_owned):
     """XE-049.7: whether one changed path is allowed in the `light` lane. Never a CODEOWNERS path,
     anything under .github/, or a hooks/ directory, whatever else it matches."""
-    if _lane_matches(path, owned) or _lane_matches(path, (".github/**", "**/hooks/**", "hooks/**")):
+    if is_owned(path) or _lane_matches(path, (".github/**", "**/hooks/**", "hooks/**")):
         return False
     if _lane_matches(path, spec.get("paths") or ()):
         return True
@@ -731,7 +750,7 @@ def _light_path(repo, path, status, spec, owned):
 def release_lane(repos, table=None):
     """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
     cannot be read is refused, never defaulted to `contained`."""
-    matched, sources, light, all_light = [], [], [], True
+    matched, sources, light, all_light, would_all_light = [], [], [], True, True
     for r in repos:
         if table is None:
             t, source = lane_table(r)
@@ -775,12 +794,18 @@ def release_lane(repos, table=None):
             for path in paths:
                 entries.append((path, list(effects), r, status))
         # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
-        light_spec, owned = lanes.get("light"), _owned_globs(r) if lanes.get("light") else []
+        light_spec = lanes.get("light")
+        is_owned = owned_check(r, t) if light_spec else (lambda _p: True)
         light_observe = (light_spec or {}).get("mode") == "observe"
-        light_paths = {path for path, _, _, st in entries if light_spec and _light_path(r, path, st, light_spec, owned)}
-        all_light = all_light and len(light_paths) == len({path for path, _, _, _ in entries})
+        light_any = {path for path, _, _, st in entries if light_spec and _light_path(r, path, st, light_spec, is_owned)}
+        # review F2: an observe light rule is recorded, and never removes a path from the enforced count or
+        # from caller counting; would_lane is computed from light_any separately
+        light_paths = set() if light_observe else light_any
+        every = {path for path, _, _, _ in entries}
+        all_light = all_light and len(light_paths) == len(every)
+        would_all_light = would_all_light and len(light_any) == len(every)
         light += [{"lane": "light", "decided_by": "path", "path": path, "repo": Path(r["path"]).name,
-                   **({"observe": True} if light_observe else {})} for path in sorted(light_paths)]
+                   **({"observe": True} if light_observe else {})} for path in sorted(light_any)]
         # a light path has no callers to count: README, a version field and a status line are named everywhere
         stems = {path: Path(path).stem for path, _, _, _ in entries
                  if Path(path).stem not in {"__init__", "index"} and path not in light_paths}
@@ -813,18 +838,18 @@ def release_lane(repos, table=None):
                     if eff in (spec.get("effects") or ()):
                         matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name, **obs})
 
-    def decide(ms, lt):
-        if not ms and lt and all_light:   # XE-049.7: every path light, nothing wider matched
+    def decide(ms, lt, every_light):
+        if not ms and lt and every_light:   # XE-049.7: every path light, nothing wider matched
             ms = lt
         ln = max((m["lane"] for m in ms), key=LANES.index, default="contained")
         return ln, ms
     # GA-013.5: a rule in observe mode is computed and recorded, and decides nothing
-    lane, enforced = decide([m for m in matched if not m.get("observe")], [m for m in light if not m.get("observe")])
+    lane, enforced = decide([m for m in matched if not m.get("observe")], [m for m in light if not m.get("observe")], all_light)
     decided_by = sorted({m["decided_by"] for m in enforced if m["lane"] == lane}) or ["none"]
     out = {"lane": lane, "decided_by": decided_by, "matched": [m for m in enforced if m["lane"] == lane],
            "table": sources[0] if len(sources) == 1 else sources}
     if any(m.get("observe") for m in matched + light):
-        would, every = decide(matched, light)
+        would, every = decide(matched, light, would_all_light)
         out["would_lane"] = would
         out["would_matched"] = [m for m in every if m["lane"] == would]
     return out
@@ -834,14 +859,12 @@ STATUS_CONTEXT = "gstack/release-lane"   # GA-013.7
 
 
 def owners_for(path, owned):
-    """GA-013.7: who must approve `path` under a table's `owned` list. Last match wins, as on GitHub;
-    an entry with no owners unowns. ponytail: CODEOWNERS dir/ is read as dir/** and `*` crosses `/`
-    (fnmatch), so a pattern can over-match a deeper path; that only ever says pending, never success."""
+    """GA-013.7: who must approve `path` under an owned list (the table's, or CODEOWNERS read as one). Last
+    match wins, as on GitHub; an entry with no owners unowns. Matching is codeowners_match (review F4)."""
     who = []
     for e in owned or ():
         for pat in e.get("paths") or ():
-            g = pat.lstrip("/")
-            if _lane_matches(path, [g + "**" if g.endswith("/") else g]):
+            if codeowners_match(pat, path):
                 who = list(e.get("owners") or [])
     return who
 
@@ -851,14 +874,28 @@ def lane_status(lane_record, owners):
     closed lane applies, never that a review passed. GitHub caps a description at 140 characters."""
     lane = (lane_record or {}).get("lane") or "contained"
     first = next(iter((lane_record or {}).get("matched") or ()), {})
-    rule = first.get("effect") or first.get("path") or ""
+    rule = (f"{first['effect']} ({first.get('path', '')})" if first.get("effect") else first.get("path")) or "no lane rule matched"
     if lane == "closed":
         state, desc = "pending", f"closed lane (GA-010): {rule}"
     elif owners:
-        state, desc = "pending", f"{lane} lane; needs {', '.join(owners)}'s approving review"
+        state, desc = "pending", f"{lane} lane, {rule}; needs {', '.join(owners)}'s approving review"
     else:
-        state, desc = "success", f"{lane} lane: no owner or closed lane applies (not a review result)"
+        state, desc = "success", f"{lane} lane, {rule}; no owner or closed lane applies (not a review result)"
     return state, desc[:140]
+
+
+def changed_paths(path, base, head):
+    """GA-013 review F3: every path a diff touches, a rename's or copy's source as well as its destination."""
+    fields, out, i = git(path, "diff", "--name-status", "-z", f"{base}..{head}").split("\0"), [], 0
+    while i < len(fields):
+        status = fields[i]
+        if not status:
+            i += 1
+            continue
+        n = 2 if status[:1] in "RC" else 1
+        out += [f for f in fields[i + 1:i + 1 + n] if f]
+        i += 1 + n
+    return out
 
 
 def _agent_token(args, data=None):
@@ -889,9 +926,10 @@ def post_lane_status(repos, lane_record, heads=None, run=_agent_token):
                 done.append((name, "status_unavailable"))
                 continue
             head = (heads or {}).get(r["path"]) or r["head"]
-            changed = git(r["path"], "diff", "--name-only", "-z", f"{r['base']}..{head}").split("\0")
             table, _ = lane_table({**r, "head": head})
-            owners = sorted({o for f in changed if f for o in owners_for(f, table.get("owned"))})
+            entries = _codeowners_entries({**r, "head": head}) + (table.get("owned") or [])
+            owners = sorted({o for f in changed_paths(r["path"], r["base"], head)
+                             for o in (owners_for(f, table.get("owned")) or owners_for(f, entries))})
             state, desc = lane_status(lane_record, owners)
             body = json.dumps({"state": state, "context": STATUS_CONTEXT, "description": desc})
             res = run(["--repo", name, "api", "POST", f"repos/{name}/statuses/{head}", "--data", "-"], body)
@@ -951,7 +989,7 @@ def synced_light(path, reviewed, new):
     table = json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8"))
     spec = (lane_table({"path": path, "head": new})[0].get("lanes") or {}).get("light") or table["lanes"].get("light")
     repo = {"path": path, "base": reviewed, "head": new}
-    owned = _owned_globs(repo)
+    owned = owned_check(repo, lane_table({"path": path, "head": new})[0])
     def changes(a):   # review F3: the real status, so a test file the merge adds is "A", not light
         rows = (line.split("\t") for line in git(path, "diff", "--name-status", a, new).split("\n") if line)
         return {r[-1]: r[0][0] for r in rows}

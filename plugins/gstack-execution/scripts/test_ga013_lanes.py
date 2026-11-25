@@ -234,5 +234,81 @@ class Status(unittest.TestCase):
                                              run=Stub({"statuses": "write"}))[0][1], "skipped")
 
 
+class ReviewFixes(unittest.TestCase):
+    """Review 20261125-133159-b3a488a-2puxulvf round 1, F1 to F5 and F11."""
+
+    def table_repo(self, table):
+        r = Repo()
+        (r.path / ".gstack").mkdir()
+        (r.path / ".gstack" / "release-lanes.json").write_text(json.dumps(table))
+        r.base = r.commit()
+        return r
+
+    def test_f1_a_table_without_owned_leaves_codeowners_alone(self):
+        t = {k: v for k, v in DEFAULT.items() if k != "owned"}
+        r = self.table_repo(t)
+        (r.path / ".github").mkdir()
+        f = r.path / ".github" / "CODEOWNERS"
+        f.write_text("/x @a\n")
+        self.assertEqual(codeowners.main(["generate", "--repo", str(r.path)]), 0)
+        self.assertEqual(f.read_text(), "/x @a\n")
+        self.assertEqual(codeowners.main(["check", "--repo", str(r.path)]), 0)
+
+    def test_f2_an_observe_light_rule_never_hides_many_callers(self):
+        t = copy.deepcopy(DEFAULT)
+        t["lanes"]["light"]["mode"] = "observe"
+        t["lanes"]["light"]["paths"].append("app/widget.py")
+        r = self.table_repo(t)
+        (r.path / "app").mkdir()
+        (r.path / "app" / "widget.py").write_text("x = 1\n")
+        for i in range(6):
+            (r.path / f"caller{i}.py").write_text("import widget\n")
+        r.base = r.commit()
+        (r.path / "app" / "widget.py").write_text("x = 2\n")
+        got = r.lane(r.commit())
+        self.assertEqual(got["lane"], "wide")
+        self.assertIn("many_callers", [m.get("effect") for m in got["matched"]])
+
+    def test_f3_a_renamed_owned_source_still_needs_its_owner(self):
+        r = Repo()
+        git(r.path, "remote", "add", "origin", "https://github.com/acme/r.git")
+        (r.path / "goals" / "a").mkdir(parents=True)
+        (r.path / "goals" / "a" / "GOAL.md").write_text("the goal\n" * 20)
+        r.base = r.commit()
+        (r.path / "archive").mkdir()
+        git(r.path, "mv", "goals/a/GOAL.md", "archive/GOAL.md")
+        head = r.commit()
+        stub = Stub({"statuses": "write"})
+        pr.post_lane_status([{"path": str(r.path), "base": r.base, "head": head}], {"lane": "wide"}, run=stub)
+        (_, body), = stub.posts
+        self.assertEqual(body["state"], "pending")
+        self.assertIn("@dorianatmoxywolf", body["description"])
+
+    def test_f4_star_stays_in_one_segment_for_unowning_lines(self):
+        owned = DEFAULT["owned"]
+        self.assertEqual(pr.owners_for("goals/x--s2/GOAL.md", owned), [])
+        self.assertEqual(pr.owners_for("goals/ordinary/nested--s1/GOAL.md", owned), ["@dorianatmoxywolf"])
+        self.assertEqual(pr.owners_for("goals/ordinary/nested--s2/t.py", owned), ["@dorianatmoxywolf"])
+
+    def test_f5_a_table_owned_file_is_never_light(self):
+        t = copy.deepcopy(DEFAULT)
+        t["owned"] = [{"paths": ["/docs/private.md"], "owners": ["@x"], "purpose": "p"}]
+        r = self.table_repo(t)
+        (r.path / "docs").mkdir()
+        (r.path / "docs" / "private.md").write_text("a\n")
+        (r.path / "docs" / "public.md").write_text("a\n")
+        r.base = r.commit()
+        (r.path / "docs" / "public.md").write_text("b\n")
+        self.assertEqual(r.lane(r.commit())["lane"], "light")   # the control: an unowned doc is light
+        (r.path / "docs" / "private.md").write_text("b\n")
+        self.assertNotEqual(r.lane(r.commit())["lane"], "light")
+
+    def test_f11_every_status_names_its_rule(self):
+        wide = {"lane": "wide", "matched": [{"effect": "many_callers", "path": "app/widget.py"}]}
+        self.assertIn("many_callers (app/widget.py)", pr.lane_status(wide, [])[1])
+        self.assertIn("lib/x.py", pr.lane_status({"lane": "wide", "matched": [{"path": "lib/x.py"}]}, ["@d"])[1])
+        self.assertIn("no lane rule matched", pr.lane_status({"lane": "contained", "matched": []}, [])[1])
+
+
 if __name__ == "__main__":
     unittest.main()

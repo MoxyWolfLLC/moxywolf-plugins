@@ -48,7 +48,12 @@ def main(argv=None):
     ap.add_argument("--repo", default=".")
     a = ap.parse_args(argv)
     path = Path(a.repo) / ".github" / "CODEOWNERS"
-    want = render(table(a.repo))
+    t = table(a.repo)
+    if "owned" not in t:   # review F1: an independently kept CODEOWNERS is never overwritten or judged
+        print(f"codeowners {a.action}: the lane table in force has no owned list, so {path} isn't generated "
+              "from it; skipped, the file left as it is")
+        return 0
+    want = render(t)
     if a.action == "generate":
         path.write_text(want, encoding="utf-8")
         print(f"wrote {path}: {len(rules(want))} rules")

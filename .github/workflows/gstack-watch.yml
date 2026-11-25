@@ -6,7 +6,9 @@
 #           the Anthropic key; it pushes nothing and hands its commits on as a bundle
 #   push    a fresh runner where no branch code ran: checks the change, mints the write token, pushes, comments
 #   summary one line per repository and pull request examined, in the run summary and a 90-day artifact
-# MOXYWOLF_AGENT_APP_KEY appears only in the scan, clone and push steps (test_watch.py checks this file).
+#   preflight (first step of scan) checks both secrets every run and records the result in the artifact
+# MOXYWOLF_AGENT_APP_KEY appears only in steps whose whole run is one watch.py preflight, scan, clone or push
+# command (test_watch.py holds this file to that contract).
 name: gstack-watch
 
 on:
@@ -31,6 +33,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: preflight (both secrets, every run)
+        env:
+          MOXYWOLF_AGENT_APP_KEY: ${{ secrets.MOXYWOLF_AGENT_APP_KEY }}
+          GSTACK_WATCH_ANTHROPIC_KEY: ${{ secrets.GSTACK_WATCH_ANTHROPIC_KEY }}
+        run: python3 plugins/gstack-execution/scripts/watch.py preflight --log watch.jsonl
       - id: scan
         name: scan (read-only tokens, no branch code)
         env:
@@ -137,9 +144,12 @@ jobs:
       - name: summary
         run: |
           cat watch.jsonl watch-push-*.jsonl 2>/dev/null > all.jsonl || true
-          python3 plugins/gstack-execution/scripts/watch.py summary --log all.jsonl
-      - uses: actions/upload-artifact@v4
+          python3 plugins/gstack-execution/scripts/watch.py summary --log all.jsonl --out summary.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: watch-log
-          path: all.jsonl
+          path: |
+            all.jsonl
+            summary.txt
           retention-days: 90

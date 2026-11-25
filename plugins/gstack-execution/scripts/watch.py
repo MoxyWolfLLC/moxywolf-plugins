@@ -44,6 +44,19 @@ def log(path, **entry):
         f.write(json.dumps(entry) + "\n")
 
 
+SECRETS = ("MOXYWOLF_AGENT_APP_KEY", "GSTACK_WATCH_ANTHROPIC_KEY")
+
+
+def preflight(log_path):
+    """GA-013 review F8/F9: both secrets, checked every run before any work, whether or not a pull request
+    needs fixing. Their presence is recorded on the run's log, which is the artifact; a missing one fails the run."""
+    missing = [k for k in SECRETS if not os.environ.get(k, "").strip()]
+    log(log_path, step="preflight", missing=missing)
+    if missing:
+        sys.exit(f"missing secret(s) {', '.join(missing)}: the watcher can't run (GA-013.12)")
+    return 0
+
+
 def mint(repo, permissions):
     """A one-hour installation token for `repo`, from the app key in the environment. The key and the
     settings file live in a temp directory this call removes, so nothing outlasts it."""
@@ -85,28 +98,56 @@ def listed(path=None):
     return names
 
 
-def triggers(call, name, p):
-    """GA-013.9's three triggers for one pull request. ponytail: any failing check run counts, because the
-    app can't read which checks branch protection requires; a check that can't be read is recorded, not a trigger."""
-    n, head, out = p["number"], p["head"]["sha"], []
+THREADS = """query($o:String!,$n:String!,$p:Int!){repository(owner:$o,name:$n){pullRequest(number:$p){
+reviewThreads(first:100){nodes{isResolved comments(first:50){nodes{author{login} body createdAt url path line}}}}}}}"""
+
+
+def required_checks(call, name, branch):
+    """The status checks the base branch's rulesets require, or None when they can't be read. ponytail: classic
+    branch protection isn't readable by the app, so a repository protected only that way has none here."""
     try:
-        runs = call("GET", f"repos/{name}/commits/{head}/check-runs?per_page=100").get("check_runs") or []
-        failed = sorted({r["name"] for r in runs if r.get("conclusion") in ("failure", "timed_out")})
-        if failed:
-            out.append({"kind": "failing_check", "checks": failed})
-    except Exception as e:
-        out.append({"kind": "checks_unreadable", "why": str(e)[:200]})
+        rules = call("GET", f"repos/{name}/rules/branches/{branch}") or []
+    except Exception:
+        return None
+    return sorted({c["context"] for r in rules if r.get("type") == "required_status_checks"
+                   for c in (r.get("parameters") or {}).get("required_status_checks") or []})
+
+
+def triggers(call, name, p):
+    """GA-013.9's three triggers for one pull request (review F6): a failing REQUIRED check, a merge conflict,
+    and an UNRESOLVED review thread with a comment newer than the head that the agent didn't write. Ordinary
+    conversation comments don't count. What can't be read is recorded, never a trigger."""
+    n, head, out = p["number"], p["head"]["sha"], []
+    required = required_checks(call, name, p["base"]["ref"])
+    if required is None:
+        out.append({"kind": "required_checks_unreadable"})
+    elif required:
+        try:
+            runs = call("GET", f"repos/{name}/commits/{head}/check-runs?per_page=100").get("check_runs") or []
+            failed = sorted({r["name"] for r in runs if r["name"] in required and r.get("conclusion") in ("failure", "timed_out")})
+            if failed:
+                out.append({"kind": "failing_check", "checks": failed})
+        except Exception as e:
+            out.append({"kind": "checks_unreadable", "why": str(e)[:200]})
     if call("GET", f"repos/{name}/pulls/{n}").get("mergeable") is False:
         out.append({"kind": "merge_conflict"})
     since = call("GET", f"repos/{name}/commits/{head}")["commit"]["committer"]["date"]
-    comments = [c for c in (call("GET", f"repos/{name}/pulls/{n}/comments?per_page=100") or [])
-                + (call("GET", f"repos/{name}/issues/{n}/comments?per_page=100") or [])
-                if (c.get("user") or {}).get("login") != AGENT and c.get("created_at", "") > since]
+    owner, repo = name.split("/")
+    data = call("POST", "graphql", {"query": THREADS, "variables": {"o": owner, "n": repo, "p": n}}) or {}
+    threads = ((((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}).get("reviewThreads") or {}).get("nodes")
+    if threads is None:
+        out.append({"kind": "threads_unreadable"})
+        threads = []
+    comments = [c for t in threads if not t.get("isResolved") for c in (t.get("comments") or {}).get("nodes") or []
+                if ((c.get("author") or {}).get("login") or "") not in (AGENT, "moxywolf-agent") and c.get("createdAt", "") > since]
     if comments:
         out.append({"kind": "review_comment", "comments": [
-            {"by": c["user"]["login"], "body": c.get("body", "")[:4000], "path": c.get("path"), "line": c.get("line"),
-             "url": c.get("html_url")} for c in comments]})
+            {"by": (c.get("author") or {}).get("login"), "body": c.get("body", "")[:4000], "path": c.get("path"),
+             "line": c.get("line"), "url": c.get("url")} for c in comments]})
     return out
+
+
+NOT_TRIGGERS = {"required_checks_unreadable", "checks_unreadable", "threads_unreadable"}
 
 
 def scan(names, call_for, log_path):
@@ -125,7 +166,7 @@ def scan(names, call_for, log_path):
                 log(log_path, step="scan", repo=name, pr=p["number"], skipped=why)
                 continue
             found = triggers(call, name, p)
-            act = [t for t in found if t["kind"] != "checks_unreadable"]
+            act = [t for t in found if t["kind"] not in NOT_TRIGGERS]
             log(log_path, step="scan", repo=name, pr=p["number"], triggers=[t["kind"] for t in found])
             if act:
                 items.append({"repo": name, "number": p["number"], "branch": p["head"]["ref"], "head": p["head"]["sha"],
@@ -133,25 +174,36 @@ def scan(names, call_for, log_path):
     return items
 
 
-def protected(dirpath, old, new, base_ref):
-    """The watcher's own changed paths (changed from both the old head and the base, so a path that arrived
-    from the base through a merge isn't the watcher's) that the table owns, CODEOWNERS owns, the closed lane
-    matches, or that are a symlink or submodule. Any of these and nothing is pushed."""
-    d = str(dirpath)
-    mine = set(pr.git(d, "diff", "--name-only", "-z", old, new).split("\0")) & \
-        set(pr.git(d, "diff", "--name-only", "-z", f"origin/{base_ref}", new).split("\0"))
-    mine.discard("")
-    table, _ = pr.lane_table({"path": d, "head": new})
+def _blob(d, rev, path):
+    r = subprocess.run(["git", "-C", d, "rev-parse", "-q", "--verify", f"{rev}:{path}"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def is_protected(d, head, paths):
+    """The paths, of `paths`, that the table or CODEOWNERS owns, the closed lane matches, or that are a symlink
+    or a submodule at `head`."""
+    table, _ = pr.lane_table({"path": d, "head": head})
     closed = (table.get("lanes") or {}).get("closed") or {}
-    owned = pr._owned_globs({"path": d, "head": new})
-    modes = {}
-    for line in pr.git(d, "diff", "--raw", old, new).splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 2:
-            modes[parts[-1]] = [x.lstrip(":") for x in parts[0].split()[:2]]
-    return [path for path in sorted(mine)
-            if pr._lane_matches(path, closed.get("paths") or ()) or pr.owners_for(path, table.get("owned"))
-            or pr._lane_matches(path, owned) or {"120000", "160000"} & set(modes.get(path, []))]
+    owned = pr.owned_check({"path": d, "head": head}, table)
+    hit = []
+    for path in sorted(paths):
+        mode = subprocess.run(["git", "-C", d, "ls-tree", head, "--", path], capture_output=True, text=True).stdout.split()[:1]
+        if pr._lane_matches(path, closed.get("paths") or ()) or owned(path) or mode in (["120000"], ["160000"]):
+            hit.append(path)
+    return hit
+
+
+def protected(dirpath, old, new, merged_base=None):
+    """Review F7: the watcher's own change is every path old..new touches, less only what a merge of the specific
+    base commit `merged_base` brought in cleanly (a path the base changed since the fork, with the base's exact
+    content at the new head). A path reverted to the base, or deleted when the base never had it, is still the
+    watcher's. Any protected path among them and nothing is pushed."""
+    d = str(dirpath)
+    mine = set(pr.changed_paths(d, old, new))
+    if merged_base and not subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", merged_base, new]).returncode:
+        fork = pr.git(d, "merge-base", old, merged_base)
+        mine -= {p for p in pr.changed_paths(d, fork, merged_base) if _blob(d, new, p) == _blob(d, merged_base, p)}
+    return is_protected(d, new, mine)
 
 
 def fix_contract():
@@ -190,8 +242,17 @@ def fix(item, dirpath, out, claude=run_claude):
     d, out = str(dirpath), Path(out)
     out.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "-C", d, "fetch", "-q", "origin", item["base"]], capture_output=True)
+    merged_base = None
     if any(t["kind"] == "merge_conflict" for t in item["triggers"]):
-        subprocess.run(["git", "-C", d, "merge", "--no-edit", f"origin/{item['base']}"], capture_output=True)
+        merged_base = pr.git(d, "rev-parse", f"origin/{item['base']}")
+        subprocess.run(["git", "-C", d, "merge", "--no-edit", merged_base], capture_output=True)
+        conflicted = [f for f in pr.git(d, "diff", "--name-only", "--diff-filter=U").split("\n") if f]
+        hit = is_protected(d, item["head"], conflicted)   # review F7: refused before Claude sees it
+        if hit:
+            subprocess.run(["git", "-C", d, "merge", "--abort"], capture_output=True)
+            result = {"outcome": "judgment", "note": f"the merge with the base conflicts in protected paths {hit}"}
+            (out / "result.json").write_text(json.dumps(result))
+            return result
     said = claude(prompt(item), d) or ""
     last = next((l for l in reversed(said.strip().splitlines()) if l.strip().startswith("{")), "")
     try:
@@ -205,6 +266,8 @@ def fix(item, dirpath, out, claude=run_claude):
     if new != item["head"] and result.get("outcome") == "fixed":
         pr.git(d, "bundle", "create", str(out / "watch.bundle"), f"{item['head']}..HEAD")
         result["new_head"] = new
+        if merged_base:
+            result["merged_base"] = merged_base
     (out / "result.json").write_text(json.dumps(result))
     return result
 
@@ -223,7 +286,7 @@ def push(item, result, dirpath, call, git_env, log_path):
     if subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", old, new]).returncode:
         reason = "the new head doesn't descend from the reviewed head, and the watcher never force-pushes"
     else:
-        hit = protected(d, old, new, item["base"])
+        hit = protected(d, old, new, result.get("merged_base"))
         reason = f"it changes protected paths {hit}" if hit else None
     if reason:
         call("POST", f"repos/{name}/issues/{n}/comments", {"body": f"gstack-watch: not pushed, because {reason}."})
@@ -241,7 +304,12 @@ def summary(log_path):
     p = Path(log_path)
     rows = [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
     prs = {(r["repo"], r["pr"]) for r in rows if r.get("pr")}
-    lines = [f"gstack-watch: {len({r['repo'] for r in rows})} repositories, {len(prs)} pull requests examined"]
+    missing = [m for r in rows if r.get("step") == "preflight" for m in r.get("missing") or []]
+    lines = [f"gstack-watch: {len({r['repo'] for r in rows if r.get('repo')})} repositories, {len(prs)} pull requests examined"]
+    if missing:
+        lines.append(f"run failed: missing secret(s) {', '.join(missing)}")
+    elif not any(r.get("step") == "preflight" for r in rows):
+        lines.append("run failed before its preflight was recorded")
     if not prs:
         lines.append("examined no pull requests (EV-001)")
     return "\n".join(lines + [json.dumps(r) for r in rows])
@@ -249,14 +317,18 @@ def summary(log_path):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("action", choices=("scan", "clone", "fix", "push", "summary"))
+    ap.add_argument("action", choices=("preflight", "scan", "clone", "fix", "push", "summary"))
     for flag in ("--out", "--log", "--work", "--dir", "--result"):
         ap.add_argument(flag)
     ap.add_argument("--item", type=int)
     a = ap.parse_args(argv)
+    if a.action == "preflight":
+        return preflight(a.log)
     if a.action == "summary":
         text = summary(a.log)
         print(text)
+        if a.out:
+            Path(a.out).write_text(text + "\n")
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
                 f.write("```\n" + text + "\n```\n")
