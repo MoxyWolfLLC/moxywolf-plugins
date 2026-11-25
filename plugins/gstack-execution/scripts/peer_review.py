@@ -751,6 +751,7 @@ def release_lane(repos, table=None):
     """{lane, decided_by, matched, table} from `git diff --name-status base..head`. A diff that
     cannot be read is refused, never defaulted to `contained`."""
     matched, sources, light, all_light, would_all_light = [], [], [], True, True
+    would_only, any_observe = [], False   # review F12: the hypothetical lane's own matches
     for r in repos:
         if table is None:
             t, source = lane_table(r)
@@ -827,16 +828,31 @@ def release_lane(repos, table=None):
                     if st in body:
                         counts[path] += 1
         for path, effects, repo, _ in entries:
-            if counts.get(path, 0) > wide_callers:
-                effects.append("many_callers")
+            many = counts.get(path, 0) > wide_callers
+            # review F12: the enforced lane counts callers of every path an enforced rule doesn't exempt; the
+            # hypothetical lane also exempts what an observe light rule would, so each has its own effects
+            enforced_effects = effects + (["many_callers"] if many else [])
+            would_effects = effects + (["many_callers"] if many and path not in light_any else [])
             for lane in ("closed", "wide"):
                 spec = lanes.get(lane) or {}
-                obs = {"observe": True} if spec.get("mode") == "observe" else {}   # GA-013.5
+                observe = spec.get("mode") == "observe"   # GA-013.5
+                base = {"lane": lane, "path": path, "repo": Path(repo["path"]).name}
                 if _lane_matches(path, spec.get("paths") or ()):
-                    matched.append({"lane": lane, "decided_by": "path", "path": path, "repo": Path(repo["path"]).name, **obs})
-                for eff in effects:
-                    if eff in (spec.get("effects") or ()):
-                        matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name, **obs})
+                    (would_only if observe else matched).append({**base, "decided_by": "path"})
+                    if not observe:
+                        would_only.append({**base, "decided_by": "path"})
+                for eff in set(enforced_effects) | set(would_effects):
+                    if eff not in (spec.get("effects") or ()):
+                        continue
+                    rec = {**base, "decided_by": "effect", "effect": eff}
+                    if eff in enforced_effects and not observe:
+                        matched.append(rec)
+                    if eff in would_effects:
+                        would_only.append(rec)
+                    if observe:
+                        any_observe = True
+                if observe and _lane_matches(path, spec.get("paths") or ()):
+                    any_observe = True
 
     def decide(ms, lt, every_light):
         if not ms and lt and every_light:   # XE-049.7: every path light, nothing wider matched
@@ -844,12 +860,12 @@ def release_lane(repos, table=None):
         ln = max((m["lane"] for m in ms), key=LANES.index, default="contained")
         return ln, ms
     # GA-013.5: a rule in observe mode is computed and recorded, and decides nothing
-    lane, enforced = decide([m for m in matched if not m.get("observe")], [m for m in light if not m.get("observe")], all_light)
+    lane, enforced = decide(matched, [m for m in light if not m.get("observe")], all_light)
     decided_by = sorted({m["decided_by"] for m in enforced if m["lane"] == lane}) or ["none"]
     out = {"lane": lane, "decided_by": decided_by, "matched": [m for m in enforced if m["lane"] == lane],
            "table": sources[0] if len(sources) == 1 else sources}
-    if any(m.get("observe") for m in matched + light):
-        would, every = decide(matched, light, would_all_light)
+    if any_observe or any(m.get("observe") for m in light):
+        would, every = decide(would_only, light, would_all_light)
         out["would_lane"] = would
         out["would_matched"] = [m for m in every if m["lane"] == would]
     return out
@@ -875,12 +891,13 @@ def lane_status(lane_record, owners):
     lane = (lane_record or {}).get("lane") or "contained"
     first = next(iter((lane_record or {}).get("matched") or ()), {})
     rule = (f"{first['effect']} ({first.get('path', '')})" if first.get("effect") else first.get("path")) or "no lane rule matched"
+    # review F14: what the status requires comes first; only the rule is ever cut at GitHub's 140 characters
     if lane == "closed":
         state, desc = "pending", f"closed lane (GA-010): {rule}"
     elif owners:
-        state, desc = "pending", f"{lane} lane, {rule}; needs {', '.join(owners)}'s approving review"
+        state, desc = "pending", f"needs {', '.join(owners)}'s approving review; {lane} lane, {rule}"
     else:
-        state, desc = "success", f"{lane} lane, {rule}; no owner or closed lane applies (not a review result)"
+        state, desc = "success", f"no owner or closed lane applies (not a review result); {lane} lane, {rule}"
     return state, desc[:140]
 
 

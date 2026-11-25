@@ -179,31 +179,46 @@ def _blob(d, rev, path):
     return r.stdout.strip() if r.returncode == 0 else None
 
 
-def is_protected(d, head, paths):
-    """The paths, of `paths`, that the table or CODEOWNERS owns, the closed lane matches, or that are a symlink
-    or a submodule at `head`."""
-    table, _ = pr.lane_table({"path": d, "head": head})
-    closed = (table.get("lanes") or {}).get("closed") or {}
-    owned = pr.owned_check({"path": d, "head": head}, table)
+def is_protected(d, heads, paths):
+    """The paths, of `paths`, that are protected at ANY of `heads` (review F13: the old head as well as the new,
+    so removing or replacing a submodule or symlink, or a rule that protected it, still counts): owned by the
+    table or CODEOWNERS, matched by the closed lane, or a symlink or submodule."""
+    heads = [heads] if isinstance(heads, str) else list(heads)
+    checks = []
+    for h in heads:
+        table, _ = pr.lane_table({"path": d, "head": h})
+        checks.append((h, ((table.get("lanes") or {}).get("closed") or {}).get("paths") or (),
+                       pr.owned_check({"path": d, "head": h}, table)))
     hit = []
     for path in sorted(paths):
-        mode = subprocess.run(["git", "-C", d, "ls-tree", head, "--", path], capture_output=True, text=True).stdout.split()[:1]
-        if pr._lane_matches(path, closed.get("paths") or ()) or owned(path) or mode in (["120000"], ["160000"]):
-            hit.append(path)
+        for h, closed, owned in checks:
+            mode = subprocess.run(["git", "-C", d, "ls-tree", h, "--", path], capture_output=True, text=True).stdout.split()[:1]
+            if pr._lane_matches(path, closed) or owned(path) or mode in (["120000"], ["160000"]):
+                hit.append(path)
+                break
     return hit
 
 
-def protected(dirpath, old, new, merged_base=None):
+def protected(dirpath, old, new, merged_base=None, base_ref="main"):
     """Review F7: the watcher's own change is every path old..new touches, less only what a merge of the specific
     base commit `merged_base` brought in cleanly (a path the base changed since the fork, with the base's exact
     content at the new head). A path reverted to the base, or deleted when the base never had it, is still the
     watcher's. Any protected path among them and nothing is pushed."""
     d = str(dirpath)
     mine = set(pr.changed_paths(d, old, new))
-    if merged_base and not subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", merged_base, new]).returncode:
+    if merged_base and verified_merge(d, old, new, merged_base, base_ref):
         fork = pr.git(d, "merge-base", old, merged_base)
         mine -= {p for p in pr.changed_paths(d, fork, merged_base) if _blob(d, new, p) == _blob(d, merged_base, p)}
-    return is_protected(d, new, mine)
+    return is_protected(d, [old, new], mine)
+
+
+def verified_merge(d, old, new, merged_base, base_ref):
+    """Review F7: the fix step's claim of which base commit it merged is believed only when this runner can see
+    it is true: the commit is on the base branch as fetched here, and a merge commit in old..new has it as a
+    parent. Otherwise nothing is exempt."""
+    on_base = not subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", merged_base, f"origin/{base_ref}"]).returncode
+    merges = pr.git(d, "rev-list", "--merges", "--parents", f"{old}..{new}").splitlines()
+    return on_base and any(merged_base in line.split()[2:] for line in merges)
 
 
 def fix_contract():
@@ -247,7 +262,7 @@ def fix(item, dirpath, out, claude=run_claude):
         merged_base = pr.git(d, "rev-parse", f"origin/{item['base']}")
         subprocess.run(["git", "-C", d, "merge", "--no-edit", merged_base], capture_output=True)
         conflicted = [f for f in pr.git(d, "diff", "--name-only", "--diff-filter=U").split("\n") if f]
-        hit = is_protected(d, item["head"], conflicted)   # review F7: refused before Claude sees it
+        hit = is_protected(d, [item["head"], merged_base], conflicted)   # review F7/F13: refused before Claude sees it
         if hit:
             subprocess.run(["git", "-C", d, "merge", "--abort"], capture_output=True)
             result = {"outcome": "judgment", "note": f"the merge with the base conflicts in protected paths {hit}"}
@@ -286,7 +301,7 @@ def push(item, result, dirpath, call, git_env, log_path):
     if subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", old, new]).returncode:
         reason = "the new head doesn't descend from the reviewed head, and the watcher never force-pushes"
     else:
-        hit = protected(d, old, new, result.get("merged_base"))
+        hit = protected(d, old, new, result.get("merged_base"), item["base"])
         reason = f"it changes protected paths {hit}" if hit else None
     if reason:
         call("POST", f"repos/{name}/issues/{n}/comments", {"body": f"gstack-watch: not pushed, because {reason}."})

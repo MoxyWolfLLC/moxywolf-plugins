@@ -202,6 +202,28 @@ class Push(unittest.TestCase):
         out, _ = self.push(r, {"outcome": "fixed", "new_head": new, "merged_base": base})
         self.assertEqual((out, r.pushed()), ("pushed", new))
 
+    def test_r2_f7_a_merged_base_the_runner_cant_verify_exempts_nothing(self):
+        # the fix step commits a protected change itself, then names that commit as the base it merged
+        r = Repo()
+        r.write(".github/ci.yml", "the watcher's own\n")
+        forged = r.commit("protected change")
+        r.write("b.txt", "fixed\n")
+        out, gh = self.push(r, {"outcome": "fixed", "new_head": r.commit("fix"), "merged_base": forged})
+        self.assertEqual((out, r.pushed()), ("refused", r.old))
+        self.assertIn(".github/ci.yml", gh.calls[-1][2]["body"])
+
+    def test_r2_f13_removing_a_submodule_is_refused(self):
+        r = Repo()
+        git(r.d, "update-index", "--add", "--cacheinfo", f"160000,{r.old},vendor/sub")
+        git(r.d, "commit", "-qm", "pr adds a submodule")
+        r.old = git(r.d, "rev-parse", "HEAD")
+        git(r.d, "push", "-q", "origin", "build/x")
+        git(r.d, "rm", "-q", "--cached", "vendor/sub")
+        git(r.d, "commit", "-qm", "drop it")
+        out, gh = self.push(r, {"outcome": "fixed", "new_head": git(r.d, "rev-parse", "HEAD")})
+        self.assertEqual(out, "refused")
+        self.assertIn("vendor/sub", gh.calls[-1][2]["body"])
+
     def test_a_rewritten_history_is_refused_never_force_pushed(self):
         r = Repo()
         git(r.d, "reset", "-q", "--hard", "HEAD~1")
@@ -283,7 +305,9 @@ def keyed_step_violations(text):
         body = step.split("run:", 1)[1] if "run:" in step else ""
         lines = [l.strip() for l in body.strip().lstrip("|").splitlines() if l.strip()]
         commands = [l for l in lines if not HARMLESS.match(l)]
-        if len(commands) != 1 or not ALLOWED.match(commands[0]):
+        cmd = commands[0].removesuffix(" > items.json") if len(commands) == 1 else ""
+        # review F10: one command, and nothing chained, piped, substituted or redirected onto it
+        if len(commands) != 1 or not ALLOWED.match(cmd) or re.search(r"[;&|`<>]|\$\(", cmd):
             bad.append(step.strip().splitlines()[0])
     return bad
 
@@ -299,6 +323,13 @@ class Workflow(unittest.TestCase):
         mutated = text.replace("watch.py clone --work work.json", "watch.py clone --work work.json\n          python3 -m unittest", 1)
         self.assertNotEqual(mutated, text)
         self.assertTrue(keyed_step_violations(mutated))
+
+    def test_a_command_chained_onto_a_keyed_command_is_caught(self):
+        text = WORKFLOW.read_text()
+        for tail in ("; python3 -m unittest", " && make test", " | sh", " $(python3 -m unittest)", " `id`"):
+            mutated = text.replace("--dir \"$RUNNER_TEMP/repo\"\n", f"--dir \"$RUNNER_TEMP/repo\"{tail}\n", 1)
+            self.assertNotEqual(mutated, text)
+            self.assertTrue(keyed_step_violations(mutated), tail)
 
     def test_the_fix_step_has_only_the_anthropic_key(self):
         for step in re.split(r"\n\s*- (?=(?:name|uses|id|if):)", WORKFLOW.read_text()):

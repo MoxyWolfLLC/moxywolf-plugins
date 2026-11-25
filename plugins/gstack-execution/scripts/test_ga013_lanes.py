@@ -303,6 +303,27 @@ class ReviewFixes(unittest.TestCase):
         (r.path / "docs" / "private.md").write_text("b\n")
         self.assertNotEqual(r.lane(r.commit())["lane"], "light")
 
+    def test_r2_f12_the_would_lane_counts_callers_as_the_observe_rule_would(self):
+        # enforced: widget.py has six callers, so wide; would: the observe light rule exempts it, so light
+        t = copy.deepcopy(DEFAULT)
+        t["lanes"]["light"]["mode"] = "observe"
+        t["lanes"]["light"]["paths"].append("app/widget.py")
+        r = self.table_repo(t)
+        (r.path / "app").mkdir()
+        (r.path / "app" / "widget.py").write_text("x = 1\n")
+        for i in range(6):
+            (r.path / f"caller{i}.py").write_text("import widget\n")
+        r.base = r.commit()
+        (r.path / "app" / "widget.py").write_text("x = 2\n")
+        got = r.lane(r.commit())
+        self.assertEqual((got["lane"], got["would_lane"]), ("wide", "light"))
+
+    def test_r2_f14_the_owner_survives_a_long_rule(self):
+        state, desc = pr.lane_status({"lane": "wide", "matched": [{"path": "a/" * 100 + "x.py"}]}, ["@dorianatmoxywolf"])
+        self.assertEqual(state, "pending")
+        self.assertLessEqual(len(desc), 140)
+        self.assertIn("needs @dorianatmoxywolf's approving review", desc)
+
     def test_f11_every_status_names_its_rule(self):
         wide = {"lane": "wide", "matched": [{"effect": "many_callers", "path": "app/widget.py"}]}
         self.assertIn("many_callers (app/widget.py)", pr.lane_status(wide, [])[1])
