@@ -1,0 +1,111 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "c775a24e2477428d999bc9bcb76441d5",
+  "doc": "DESIGN.md",
+  "item": "GA-013",
+  "scope_sha256": "982b49cea35575041cf0695e4c481aa93eed2e4c1f0c9f8be1dfb5cd942f40c9",
+  "reviewed_at": "2026-11-25T17:48:48+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 6502,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 9089,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9089,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 17184,
+      "output_tokens": 3396,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1750,
+      "cache_read_input_tokens": 9089,
+      "cache_creation_input_tokens": 7151,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 7151,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 9089,
+    "write": 16240
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GA-013.7",
+        "GA-013.3"
+      ],
+      "question": "GA-013.7 says a light-lane change never touches an owned path (XE-049.7), but GA-013.3 closes only four paths and hooks/, goals/ and the gate scripts stay outside the closed lane. Can a change touching only hooks/ classify as light and merge with no review, against the ruleset's code-owner review? State how owned paths are excluded from the light lane."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GA-013.9",
+        "GA-013.10"
+      ],
+      "question": "Criterion 10 says the watcher never merges, but criterion 9 merges main into the branch. Does 'merges' in criterion 10 mean only the pull request merge?"
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GA-013.9"
+      ],
+      "question": "Does 'isn't the watcher's own' differ from 'comments by moxywolf-agent never trigger it'? Do the bot's cross-vendor review comments count as the watcher's own?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GA-013.4",
+        "GA-013.1",
+        "GA-013.3"
+      ],
+      "question": "A repository table replaces the default whole, but only closed paths are checked. Must it also carry owned entries and the new effects adds_symlink and changes_submodule, and what exactly must CKI's table contain?"
+    },
+    {
+      "id": "A5",
+      "requirements": [
+        "GA-013.6",
+        "GA-013.14"
+      ],
+      "question": "Is criterion 6 (the permission step) a condition of done, or does done not wait for it, given the text that the item can be done before this step?"
+    },
+    {
+      "id": "A6",
+      "requirements": [
+        "GA-013.3",
+        "GA-013.5",
+        "GA-013.1"
+      ],
+      "question": "Do the new effects, the mode values and would_lane count as new vocabulary barred by the boundary-tests constraint, or as fields on the item's own record?"
+    },
+    {
+      "id": "A7",
+      "requirements": [
+        "GA-013.7",
+        "GA-013.9"
+      ],
+      "question": "After a watcher push the new head has no gstack/release-lane status and nothing in the plan posts or clears one. Is a head with no lane status acceptable?"
+    }
+  ]
+}
