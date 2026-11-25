@@ -1,0 +1,64 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "33f7d80862404ccbba87f97f2934f19c",
+  "doc": "DESIGN.md",
+  "item": "SH-001",
+  "scope_sha256": "5296d3b24d5ad99387bc75ddb92f8d506c5f99caf4f9a8428bbfa370dfe8cb09",
+  "reviewed_at": "2026-11-25T07:49:21+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 3811,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 8847,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 8847,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 14251,
+      "output_tokens": 3716,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1058,
+      "cache_read_input_tokens": 8847,
+      "cache_creation_input_tokens": 4435,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 4435,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 8847,
+    "write": 13282
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "SH-001 criterion 4",
+        "SH-001 Links introduced (review-to-head link)",
+        "The agent merges on a clean review, not on words",
+        "One release path, checked by code"
+      ],
+      "question": "When a PR Steward push moves the head only by a `light`-lane delta and both heads are recorded, XE-049.11 says the earlier review counts for the synced head. Does Steward still comment that the review 'covers an old head and needs a new round', and does `release` still refuse? Decide whether a Steward push counts as a XE-049.11 sync, and whether the criterion 4 comment and the 'release ... refuses' statement apply only when XE-049.11 doesn't."
+    }
+  ]
+}
