@@ -44,6 +44,10 @@ def log(path, **entry):
         f.write(json.dumps(entry) + "\n")
 
 
+# review r4 F2: a fresh runner has no git identity; merges and Claude's commits are the agent's
+AGENT_NAME = "moxywolf-agent[bot]"
+AGENT_EMAIL = "331509232+moxywolf-agent[bot]@users.noreply.github.com"
+
 SECRETS = ("MOXYWOLF_AGENT_APP_KEY", "GSTACK_WATCH_ANTHROPIC_KEY")
 
 
@@ -174,9 +178,10 @@ def scan(names, call_for, log_path):
     return items
 
 
-def _blob(d, rev, path):
-    r = subprocess.run(["git", "-C", d, "rev-parse", "-q", "--verify", f"{rev}:{path}"], capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+def _entry(d, rev, path):
+    """The tree entry, mode and object, so a mode change is a change (review r4 F1: a symlink or an exec bit)."""
+    r = subprocess.run(["git", "-C", d, "ls-tree", rev, "--", path], capture_output=True, text=True)
+    return r.stdout.split("\t")[0] or None if r.returncode == 0 else None
 
 
 def is_protected(d, heads, paths, effects=None):
@@ -211,7 +216,7 @@ def protected(dirpath, old, new, merged_base=None, base_ref="main"):
     mine = set(pr.changed_paths(d, old, new))
     if merged_base and verified_merge(d, old, new, merged_base, base_ref):
         fork = pr.git(d, "merge-base", old, merged_base)
-        mine -= {p for p in pr.changed_paths(d, fork, merged_base) if _blob(d, new, p) == _blob(d, merged_base, p)}
+        mine -= {p for p in pr.changed_paths(d, fork, merged_base) if _entry(d, new, p) == _entry(d, merged_base, p)}
     effects = {}
     for path, eff, _ in pr.diff_entries(pr.git(d, "diff", "--raw", "-z", f"{old}..{new}")):
         effects.setdefault(path, set()).update(eff)
@@ -264,11 +269,20 @@ def fix(item, dirpath, out, claude=run_claude):
     d, out = str(dirpath), Path(out).resolve()   # review r3 F1: git runs in the clone, so a relative out would land there
     out.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "-C", d, "fetch", "-q", "origin", item["base"]], capture_output=True)
+    subprocess.run(["git", "-C", d, "config", "user.name", AGENT_NAME], check=True)
+    subprocess.run(["git", "-C", d, "config", "user.email", AGENT_EMAIL], check=True)
+    ident = {**os.environ, "GIT_AUTHOR_NAME": AGENT_NAME, "GIT_AUTHOR_EMAIL": AGENT_EMAIL,
+             "GIT_COMMITTER_NAME": AGENT_NAME, "GIT_COMMITTER_EMAIL": AGENT_EMAIL}
     merged_base = None
     if any(t["kind"] == "merge_conflict" for t in item["triggers"]):
         merged_base = pr.git(d, "rev-parse", f"origin/{item['base']}")
-        subprocess.run(["git", "-C", d, "merge", "--no-edit", merged_base], capture_output=True)
+        m = subprocess.run(["git", "-C", d, "merge", "--no-edit", merged_base], capture_output=True, text=True, env=ident)
         conflicted = [f for f in pr.git(d, "diff", "--name-only", "--diff-filter=U").split("\n") if f]
+        if m.returncode and not conflicted:   # review r4 F2: a merge that failed outright is not a conflict to hand on
+            subprocess.run(["git", "-C", d, "merge", "--abort"], capture_output=True)
+            result = {"outcome": "failed", "note": f"the merge with the base failed: {(m.stderr or m.stdout).strip()[:300]}"}
+            (out / "result.json").write_text(json.dumps(result))
+            return result
         hit = is_protected(d, [item["head"], merged_base], conflicted)   # review F7/F13: refused before Claude sees it
         if hit:
             subprocess.run(["git", "-C", d, "merge", "--abort"], capture_output=True)

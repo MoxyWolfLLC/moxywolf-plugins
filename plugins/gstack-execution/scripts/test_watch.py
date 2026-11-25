@@ -202,6 +202,32 @@ class Push(unittest.TestCase):
         out, _ = self.push(r, {"outcome": "fixed", "new_head": new, "merged_base": base})
         self.assertEqual((out, r.pushed()), ("pushed", new))
 
+    def _merge_main_change(self, r, name, text):
+        git(r.d, "checkout", "-q", "main")
+        r.write(name, text)
+        base = r.commit("main changes " + name)
+        git(r.d, "push", "-q", "origin", "main")
+        git(r.d, "checkout", "-q", "build/x")
+        git(r.d, "merge", "-q", "--no-edit", base)
+        return base
+
+    def test_r4_f1_an_exec_bit_on_a_path_merged_from_main_is_the_watchers(self):
+        r = Repo()
+        base = self._merge_main_change(r, ".github/ci.yml", "from main\n")
+        os.chmod(r.d / ".github/ci.yml", 0o755)
+        out, gh = self.push(r, {"outcome": "fixed", "new_head": r.commit("chmod"), "merged_base": base})
+        self.assertEqual((out, r.pushed()), ("refused", r.old))
+        self.assertIn(".github/ci.yml", gh.calls[-1][2]["body"])
+
+    def test_r4_f1_a_same_blob_symlink_after_a_main_merge_is_the_watchers(self):
+        r = Repo()
+        base = self._merge_main_change(r, "link", "target")
+        (r.d / "link").unlink()
+        os.symlink("target", r.d / "link")
+        out, gh = self.push(r, {"outcome": "fixed", "new_head": r.commit("symlink"), "merged_base": base})
+        self.assertEqual((out, r.pushed()), ("refused", r.old))
+        self.assertIn("link", gh.calls[-1][2]["body"])
+
     def test_r2_f7_a_merged_base_the_runner_cant_verify_exempts_nothing(self):
         # the fix step commits a protected change itself, then names that commit as the base it merged
         r = Repo()
@@ -281,6 +307,43 @@ class Fix(unittest.TestCase):
         self.assertIn(".github/ci.yml", result["note"])
         self.assertEqual(git(r.d, "rev-parse", "HEAD"), r.old)
 
+
+    def test_r4_f2_a_conflict_merges_with_the_agents_identity_on_a_bare_runner(self):
+        r = Repo()
+        git(r.d, "checkout", "-q", "main")
+        r.write("b.txt", "main's\n")
+        r.commit("main"); git(r.d, "push", "-q", "origin", "main")
+        git(r.d, "checkout", "-q", "build/x")
+        r.write("b.txt", "the pr's\n")
+        r.old = r.commit("pr"); git(r.d, "push", "-q", "origin", "build/x")
+        item = {**r.item(), "triggers": [{"kind": "merge_conflict"}]}
+        seen = []
+        def claude(text, cwd):
+            seen.append(subprocess.run(["git", "-C", cwd, "diff", "--name-only", "--diff-filter=U"],
+                                       capture_output=True, text=True).stdout.split())
+            return '{"outcome": "judgment", "note": "n"}'
+        bare = {k: v for k, v in os.environ.items() if not k.startswith(("GIT_AUTHOR", "GIT_COMMITTER", "EMAIL"))}
+        bare.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_COMMITTER_NAME="", GIT_AUTHOR_NAME="")
+        saved = dict(os.environ)
+        os.environ.clear(); os.environ.update(bare)
+        try:
+            watch.fix(item, r.d, r.d.parent / "out", claude=claude)
+        finally:
+            os.environ.clear(); os.environ.update(saved)
+        self.assertEqual(seen, [["b.txt"]])
+
+    def test_r4_f2_a_merge_that_fails_outright_stops_before_claude(self):
+        r = Repo()
+        git(r.d, "checkout", "-q", "main")
+        r.write("c.txt", "main's\n")
+        r.commit("main"); git(r.d, "push", "-q", "origin", "main")
+        git(r.d, "checkout", "-q", "build/x")
+        r.write("c.txt", "untracked, in the way\n")   # the merge refuses outright, with no conflict entries
+        item = {**r.item(), "triggers": [{"kind": "merge_conflict"}]}
+        seen = []
+        result = watch.fix(item, r.d, r.d.parent / "out", claude=lambda text, cwd: seen.append(text) or "")
+        self.assertEqual(seen, [])
+        self.assertEqual(result["outcome"], "failed")
 
     def test_r3_f1_the_workflows_relative_out_holds_the_bundle(self):
         r = Repo()
