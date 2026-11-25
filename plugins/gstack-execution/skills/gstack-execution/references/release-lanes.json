@@ -15,11 +15,18 @@
         "**/.github/workflows/**",
         "**/rulesets/**",
         "CODEOWNERS",
-        "**/CODEOWNERS"
+        "**/CODEOWNERS",
+        "**/.gitattributes",
+        "**/.gitmodules",
+        "**/.gstack/release-lanes.json",
+        "plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json"
       ],
       "effects": [
-        "deletes_tracked_file"
-      ]
+        "deletes_tracked_file",
+        "adds_symlink",
+        "changes_submodule"
+      ],
+      "purpose": "Changes that touch money, migrations, credentials, the agent's identity, workflows, rulesets, ownership, how git reads the tree, or this table itself. DR-113 does not apply (GA-010)."
     },
     "wide": {
       "paths": [
@@ -31,7 +38,8 @@
       "effects": [
         "renames_tracked_file",
         "many_callers"
-      ]
+      ],
+      "purpose": "Shared code and changes many files name: the agent merges only with the ledger clear, coverage checked, links verified and no open unknown needing the repository (GA-010)."
     },
     "light": {
       "paths": [
@@ -49,8 +57,77 @@
       "status_only": [
         "DESIGN.md"
       ],
-      "note": "XE-049.7: every changed path must match one of these, as the key says (existing_paths: modified, not added; version_only: only version fields change; status_only: only item **Status:** lines change; an Amendments-log line never). Never a CODEOWNERS path, .github/ or a hooks/ directory. No cross-vendor review: tests green and the check ledger clear, and the agent merges."
+      "note": "XE-049.7: every changed path must match one of these, as the key says (existing_paths: modified, not added; version_only: only version fields change; status_only: only item **Status:** lines change; an Amendments-log line never). Never a CODEOWNERS path, .github/ or a hooks/ directory. No cross-vendor review: tests green and the check ledger clear, and the agent merges.",
+      "purpose": "Docs, existing tests, version fields and status lines: merged on green tests and a clear check ledger with no cross-vendor review (XE-049.7)."
     }
   },
-  "wide_callers": 5
+  "wide_callers": 5,
+  "owned": [
+    {
+      "purpose": "GA-008: what CI runs to gate main, every hooks directory, the scorer's dependency files, what sets the agent's token and data permissions, and the spend cap.",
+      "owners": [
+        "@dorianatmoxywolf"
+      ],
+      "paths": [
+        "/.github/",
+        "**/hooks/",
+        "/plugins/gstack-execution/package.json",
+        "/plugins/gstack-execution/package-lock.json",
+        "/plugins/gstack-execution/scripts/agent_token.py",
+        "/plugins/gstack-execution/scripts/governance.py",
+        "/plugins/gstack-execution/scripts/run_all_tests.py",
+        "/plugins/gstack-execution/scripts/goal_envelope.py",
+        "/plugins/gstack-execution/scripts/goal_spend.py",
+        "/plugins/gstack-execution/scripts/goal_checks.py",
+        "/plugins/gstack-execution/scripts/goal_guard.py"
+      ]
+    },
+    {
+      "purpose": "GO-001: a goal's brief, plan, tests and run record change only with his approval.",
+      "owners": [
+        "@dorianatmoxywolf"
+      ],
+      "paths": [
+        "/goals/"
+      ]
+    },
+    {
+      "purpose": "GO-011.9: the first two successors of a goal carry no owner; goal_successor.py, run in the required tests check, holds them.",
+      "owners": [],
+      "paths": [
+        "/goals/*--s1/",
+        "/goals/*--s2/"
+      ]
+    },
+    {
+      "purpose": "GO-011.9: the script that holds the unowned successors.",
+      "owners": [
+        "@dorianatmoxywolf"
+      ],
+      "paths": [
+        "/plugins/gstack-execution/scripts/goal_successor.py"
+      ]
+    },
+    {
+      "purpose": "GO-011.2: a goal's own goal-runs/<id>/ is not owned; the folder's README is.",
+      "owners": [
+        "@dorianatmoxywolf"
+      ],
+      "paths": [
+        "/goal-runs/README.md"
+      ]
+    },
+    {
+      "purpose": "GA-013: how git reads the tree (.gitattributes, .gitmodules) and this policy table, in both its homes.",
+      "owners": [
+        "@dorianatmoxywolf"
+      ],
+      "paths": [
+        ".gitattributes",
+        ".gitmodules",
+        "/.gstack/release-lanes.json",
+        "/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json"
+      ]
+    }
+  ]
 }

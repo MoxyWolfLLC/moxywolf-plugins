@@ -614,19 +614,69 @@ LANE_TABLE_REPO = ".gstack/release-lanes.json"
 WIDE_CALLERS = 5
 
 
+TABLE_KEYS = {"version", "note", "lanes", "wide_callers", "owned"}
+LANE_KEYS = {"paths", "effects", "purpose", "mode", "note", "existing_paths", "version_only", "status_only"}
+OWNED_KEYS = {"paths", "owners", "purpose"}   # GA-013.1: an owned rule has no mode; it is always enforced
+
+
+def check_lane_table(t, where, default=None):
+    """GA-013.4: refuse, naming the key or the path, a table with an unknown key, a lane or owned rule
+    with no purpose, an owned rule with no paths, or a mode other than enforce/observe. Given the
+    default, a repository table must keep every default closed path and effect and may not set the
+    closed lane to observe; it may add paths."""
+    def bad(why):
+        raise ReviewError("malformed_packet", f"{where}: {why} (GA-013.4)")
+    if not isinstance(t, dict):
+        bad("the table is not an object")
+    for k in t:
+        if k not in TABLE_KEYS:
+            bad(f"unknown key {k!r}")
+    for name, spec in (t.get("lanes") or {}).items():
+        if name not in LANES:
+            bad(f"unknown lane {name!r}")
+        for k in spec:
+            if k not in LANE_KEYS:
+                bad(f"unknown key {k!r} in lane {name}")
+        if not str(spec.get("purpose") or "").strip():
+            bad(f"lane {name} has no purpose")
+        if spec.get("mode", "enforce") not in ("enforce", "observe"):
+            bad(f"lane {name} has mode {spec.get('mode')!r}")
+    for i, e in enumerate(t.get("owned") or []):
+        for k in e:
+            if k not in OWNED_KEYS:
+                bad(f"unknown key {k!r} in owned[{i}]")
+        if not str(e.get("purpose") or "").strip():
+            bad(f"owned[{i}] has no purpose")
+        if not e.get("paths"):
+            bad(f"owned[{i}] has no paths")
+    if default is not None:
+        closed, want = (t.get("lanes") or {}).get("closed") or {}, (default.get("lanes") or {}).get("closed") or {}
+        if closed.get("mode", "enforce") == "observe":
+            bad("sets the closed lane to observe")
+        for key in ("paths", "effects"):
+            missing = [x for x in want.get(key) or () if x not in (closed.get(key) or ())]
+            if missing:
+                bad(f"drops the default closed {key} {missing}")
+
+
 def lane_table(repo):
     """The table in force for ONE repository: its own `.gstack/release-lanes.json` at its reviewed
     head replaces the default whole (never merged, so a reader finds one table); else the plugin's.
-    F3 (review 20261013-202943): each repository is judged by its own table, never its neighbour's."""
+    F3 (review 20261013-202943): each repository is judged by its own table, never its neighbour's.
+    GA-013.4: either table is checked before it decides anything."""
+    default = json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8"))
+    check_lane_table(default, "default release-lanes.json")
     try:
         text = git(repo["path"], "show", f"{repo['head']}:{LANE_TABLE_REPO}")
     except Exception:
-        return json.loads(LANE_TABLE_DEFAULT.read_text(encoding="utf-8")), "default"
+        return default, "default"
     try:
         t = json.loads(text)
     except json.JSONDecodeError as e:
         raise ReviewError("malformed_packet", f"{repo['path']}: {LANE_TABLE_REPO} at {repo['head'][:7]} is not JSON: {e}")
-    return t, f"{Path(repo['path']).name}:{LANE_TABLE_REPO}@{repo['head'][:7]}"
+    source = f"{Path(repo['path']).name}:{LANE_TABLE_REPO}@{repo['head'][:7]}"
+    check_lane_table(t, source, default)
+    return t, source
 
 
 def _lane_matches(path, globs):
@@ -693,17 +743,19 @@ def release_lane(repos, table=None):
         # F1 (review 20261013-204622): -z, so a pathname is bytes between NULs, never git's quoted
         # and escaped rendering that a glob cannot match
         try:
-            raw = git(r["path"], "diff", "--name-status", "-z", f"{r['base']}..{r['head']}")
+            raw = git(r["path"], "diff", "--raw", "-z", f"{r['base']}..{r['head']}")   # GA-013.3: modes, for symlinks and submodules
         except Exception as e:
             raise ReviewError("malformed_packet", f"{r['path']}: cannot read the diff {r['base'][:7]}..{r['head'][:7]}: {e}")
         entries = []
         fields = [f for f in raw.split("\0")]
         pos = 0
         while pos < len(fields):
-            status = fields[pos]
-            if not status:
+            head_field = fields[pos]
+            if not head_field.startswith(":"):
                 pos += 1
                 continue
+            parts = head_field[1:].split()             # :<old mode> <new mode> <old sha> <new sha> <status>
+            old_mode, new_mode, status = parts[0], parts[1], parts[-1]
             n = 2 if status[:1] in "RC" else 1          # a rename or copy carries two pathnames
             paths = fields[pos + 1:pos + 1 + n]
             pos += 1 + n
@@ -714,15 +766,21 @@ def release_lane(repos, table=None):
                 effects.append("deletes_tracked_file")
             if status.startswith("R"):
                 effects.append("renames_tracked_file")
+            if new_mode == "120000" and old_mode != "120000":   # GA-013.3: a symlink where none was
+                effects.append("adds_symlink")
+            if "160000" in (old_mode, new_mode):               # GA-013.3: a submodule pointer
+                effects.append("changes_submodule")
             # F1 (review 20261013-202943): a rename touches both its source and its destination;
             # a migration renamed out of its folder is still a change to a migration
             for path in paths:
                 entries.append((path, list(effects), r, status))
         # many_callers: a file more than wide_callers tracked files name (one pass over the tree)
         light_spec, owned = lanes.get("light"), _owned_globs(r) if lanes.get("light") else []
+        light_observe = (light_spec or {}).get("mode") == "observe"
         light_paths = {path for path, _, _, st in entries if light_spec and _light_path(r, path, st, light_spec, owned)}
         all_light = all_light and len(light_paths) == len({path for path, _, _, _ in entries})
-        light += [{"lane": "light", "decided_by": "path", "path": path, "repo": Path(r["path"]).name} for path in sorted(light_paths)]
+        light += [{"lane": "light", "decided_by": "path", "path": path, "repo": Path(r["path"]).name,
+                   **({"observe": True} if light_observe else {})} for path in sorted(light_paths)]
         # a light path has no callers to count: README, a version field and a status line are named everywhere
         stems = {path: Path(path).stem for path, _, _, _ in entries
                  if Path(path).stem not in {"__init__", "index"} and path not in light_paths}
@@ -748,17 +806,28 @@ def release_lane(repos, table=None):
                 effects.append("many_callers")
             for lane in ("closed", "wide"):
                 spec = lanes.get(lane) or {}
+                obs = {"observe": True} if spec.get("mode") == "observe" else {}   # GA-013.5
                 if _lane_matches(path, spec.get("paths") or ()):
-                    matched.append({"lane": lane, "decided_by": "path", "path": path, "repo": Path(repo["path"]).name})
+                    matched.append({"lane": lane, "decided_by": "path", "path": path, "repo": Path(repo["path"]).name, **obs})
                 for eff in effects:
                     if eff in (spec.get("effects") or ()):
-                        matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name})
-    if not matched and light and all_light:   # XE-049.7: every path light, nothing wider matched
-        matched = light
-    lane = max((m["lane"] for m in matched), key=LANES.index, default="contained")
-    decided_by = sorted({m["decided_by"] for m in matched if m["lane"] == lane}) or ["none"]
-    return {"lane": lane, "decided_by": decided_by, "matched": [m for m in matched if m["lane"] == lane],
-            "table": sources[0] if len(sources) == 1 else sources}
+                        matched.append({"lane": lane, "decided_by": "effect", "effect": eff, "path": path, "repo": Path(repo["path"]).name, **obs})
+
+    def decide(ms, lt):
+        if not ms and lt and all_light:   # XE-049.7: every path light, nothing wider matched
+            ms = lt
+        ln = max((m["lane"] for m in ms), key=LANES.index, default="contained")
+        return ln, ms
+    # GA-013.5: a rule in observe mode is computed and recorded, and decides nothing
+    lane, enforced = decide([m for m in matched if not m.get("observe")], [m for m in light if not m.get("observe")])
+    decided_by = sorted({m["decided_by"] for m in enforced if m["lane"] == lane}) or ["none"]
+    out = {"lane": lane, "decided_by": decided_by, "matched": [m for m in enforced if m["lane"] == lane],
+           "table": sources[0] if len(sources) == 1 else sources}
+    if any(m.get("observe") for m in matched + light):
+        would, every = decide(matched, light)
+        out["would_lane"] = would
+        out["would_matched"] = [m for m in every if m["lane"] == would]
+    return out
 
 
 def lane_in_force(lane_record, target, coverage_exception=None):   # also XE-049.2's rounds exception
