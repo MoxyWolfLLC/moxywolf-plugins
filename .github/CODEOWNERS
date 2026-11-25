@@ -27,8 +27,8 @@
 # GO-011.2: a goal's own goal-runs/<id>/ is not owned; the folder's README is.
 /goal-runs/README.md @dorianatmoxywolf
 
-# GA-013: how git reads the tree (.gitattributes, .gitmodules) and this policy table, in both its homes.
-.gitattributes @dorianatmoxywolf
-.gitmodules @dorianatmoxywolf
+# GA-013: how git reads the tree (root .gitattributes and .gitmodules; anchored, because goal_ready refuses an unanchored pattern, and the closed lane covers a nested .gitattributes) and this policy table, in both its homes.
+/.gitattributes @dorianatmoxywolf
+/.gitmodules @dorianatmoxywolf
 /.gstack/release-lanes.json @dorianatmoxywolf
 /plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json @dorianatmoxywolf

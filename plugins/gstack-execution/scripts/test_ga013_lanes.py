@@ -161,7 +161,7 @@ class CodeOwners(unittest.TestCase):
 
     def test_the_generated_file_is_todays_rules_plus_the_four_new_paths(self):
         rules = codeowners.rules(codeowners.render(DEFAULT))
-        new = [(p, ("@dorianatmoxywolf",)) for p in (".gitattributes", ".gitmodules", "/.gstack/release-lanes.json",
+        new = [(p, ("@dorianatmoxywolf",)) for p in ("/.gitattributes", "/.gitmodules", "/.gstack/release-lanes.json",
                "/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json")]
         self.assertEqual(rules[-4:], new)
         self.assertIn(("/goals/*--s1/", ()), rules)

@@ -118,13 +118,13 @@
       ]
     },
     {
-      "purpose": "GA-013: how git reads the tree (.gitattributes, .gitmodules) and this policy table, in both its homes.",
+      "purpose": "GA-013: how git reads the tree (root .gitattributes and .gitmodules; anchored, because goal_ready refuses an unanchored pattern, and the closed lane covers a nested .gitattributes) and this policy table, in both its homes.",
       "owners": [
         "@dorianatmoxywolf"
       ],
       "paths": [
-        ".gitattributes",
-        ".gitmodules",
+        "/.gitattributes",
+        "/.gitmodules",
         "/.gstack/release-lanes.json",
         "/plugins/gstack-execution/skills/gstack-execution/references/release-lanes.json"
       ]

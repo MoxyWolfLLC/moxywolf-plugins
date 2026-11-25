@@ -19,6 +19,13 @@ def load_pr():
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     return mod
 
+
+def table_with_closed(*extra):
+    """GA-013.4: a valid repository table: the default, whole, with closed paths added."""
+    t = json.loads((Path(__file__).resolve().parents[1] / "skills/gstack-execution/references/release-lanes.json").read_text())
+    t["lanes"]["closed"]["paths"] += list(extra)
+    return json.dumps(t)
+
 class GovernedReview(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -480,9 +487,10 @@ class ReleaseLanes(GovernedReview):
         self.assertEqual(self.lane()["lane"], "closed")
 
     def test_a_repository_table_replaces_the_default_whole(self):
-        self.commit_change(".gstack/release-lanes.json", json.dumps({"lanes": {"closed": {"paths": ["docs/**"], "effects": []}, "wide": {"paths": [], "effects": []}}}))
-        self.commit_change("db/migrations/0003.sql", "x\n")   # closed by the default table, nothing by this one
-        self.commit_change("docs/a.md", "# a\n")
+        # GA-013.4: a repository table keeps every default closed path; it may add its own
+        self.commit_change(".gstack/release-lanes.json", table_with_closed("docs/**"))
+        self.base = self.head; self.packet["repos"][0]["base"] = self.base
+        self.commit_change("docs/a.md", "# a\n")             # closed by this table, light by the default
         L = self.lane()
         self.assertEqual((L["lane"], [m["path"] for m in L["matched"]]), ("closed", ["docs/a.md"]))
         self.assertTrue(L["table"].endswith(".gstack/release-lanes.json@" + self.head[:7]), L["table"])
@@ -508,11 +516,12 @@ class ReleaseLanes(GovernedReview):
         other = self.root / "other"; other.mkdir()
         g = lambda *a: subprocess.run(["git", "-C", str(other), *a], check=True, capture_output=True, text=True).stdout.strip()
         g("init", "-q"); g("config", "user.name", "F"); g("config", "user.email", "f@x"); g("config", "core.hooksPath", "/dev/null")
-        (other / ".gstack").mkdir(); (other / ".gstack" / "release-lanes.json").write_text(json.dumps({"lanes": {"closed": {"paths": ["docs/**"], "effects": []}, "wide": {"paths": [], "effects": []}}}))
+        (other / ".gstack").mkdir(); (other / ".gstack" / "release-lanes.json").write_text(table_with_closed("docs/**"))
         (other / "a.txt").write_text("a"); g("add", "."); g("commit", "-qm", "base"); obase = g("rev-parse", "HEAD")
         (other / "docs").mkdir(); (other / "docs" / "x.md").write_text("x"); g("add", "."); g("commit", "-qm", "docs"); ohead = g("rev-parse", "HEAD")
-        self.commit_change(".gstack/release-lanes.json", json.dumps({"lanes": {"closed": {"paths": [], "effects": []}, "wide": {"paths": [], "effects": []}}}))
-        self.commit_change("db/migrations/0009.sql", "x\n")      # permissive table: nothing closes here
+        self.commit_change(".gstack/release-lanes.json", table_with_closed())
+        self.base = self.head; self.packet["repos"][0]["base"] = self.base
+        self.commit_change("docs/y.md", "y\n")                    # this repository's table doesn't close docs
         self.packet["repos"].append({"path": str(other), "base": obase, "head": ohead})
         L = self.lane()
         self.assertEqual(L["lane"], "closed")
