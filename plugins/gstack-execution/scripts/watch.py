@@ -346,6 +346,13 @@ def summary(log_path):
     return "\n".join(lines + [json.dumps(r) for r in rows])
 
 
+def fetch_bundle(d, result_path):
+    """Fetch the fix job's commits, if it made any, from the bundle beside result.json."""
+    bundle = Path(result_path).resolve().with_name("watch.bundle")   # review r3 F11: git runs in the clone
+    if bundle.exists():
+        subprocess.run(["git", "-C", d, "fetch", "-q", str(bundle), "HEAD"], check=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=("preflight", "scan", "clone", "fix", "push", "summary"))
@@ -393,9 +400,7 @@ def main(argv=None):
     subprocess.run(["git", "clone", "-q", "--branch", item["branch"], f"https://github.com/{item['repo']}.git", a.dir],
                    check=True, env=env)
     subprocess.run(["git", "-C", a.dir, "fetch", "-q", "origin", item["base"]], check=True, env=env)
-    bundle = Path(a.result).with_name("watch.bundle")
-    if bundle.exists():
-        subprocess.run(["git", "-C", a.dir, "fetch", "-q", str(bundle), "HEAD"], check=True)
+    fetch_bundle(a.dir, a.result)
     print(push(item, result, a.dir, rest(token), env, a.log))
     return 0
 

@@ -313,6 +313,24 @@ class Fix(unittest.TestCase):
         self.assertIn("acme/r#7 fix: failed", watch.summary(run / "fix.jsonl"))
 
 
+    def test_r3_f11_the_push_runner_fetches_the_bundle_from_the_workflows_relative_out(self):
+        r = Repo()
+        def claude(text, cwd):
+            (Path(cwd) / "b.txt").write_text("fixed\n")
+            git(Path(cwd), "commit", "-qam", "fix")
+            return '{"outcome": "fixed", "note": "n"}'
+        here, run = os.getcwd(), tmpdir()
+        fresh = run / "fresh"
+        git(run, "clone", "-q", "--branch", "build/x", str(r.origin), str(fresh))
+        os.chdir(run)
+        try:
+            new = watch.fix(r.item(), r.d, "out", claude=claude)["new_head"]
+            watch.fetch_bundle(str(fresh), "out/result.json")
+        finally:
+            os.chdir(here)
+        self.assertEqual(git(fresh, "cat-file", "-t", new), "commit")
+
+
 class Summary(unittest.TestCase):
     def test_r3_f3_a_triggered_pull_request_with_no_outcome_is_named(self):
         log = tmpdir() / "all.jsonl"
