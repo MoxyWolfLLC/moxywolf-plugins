@@ -830,6 +830,83 @@ def release_lane(repos, table=None):
     return out
 
 
+STATUS_CONTEXT = "gstack/release-lane"   # GA-013.7
+
+
+def owners_for(path, owned):
+    """GA-013.7: who must approve `path` under a table's `owned` list. Last match wins, as on GitHub;
+    an entry with no owners unowns. ponytail: CODEOWNERS dir/ is read as dir/** and `*` crosses `/`
+    (fnmatch), so a pattern can over-match a deeper path; that only ever says pending, never success."""
+    who = []
+    for e in owned or ():
+        for pat in e.get("paths") or ():
+            g = pat.lstrip("/")
+            if _lane_matches(path, [g + "**" if g.endswith("/") else g]):
+                who = list(e.get("owners") or [])
+    return who
+
+
+def lane_status(lane_record, owners):
+    """GA-013.7: (state, description) for gstack/release-lane. success means only that no owner or
+    closed lane applies, never that a review passed. GitHub caps a description at 140 characters."""
+    lane = (lane_record or {}).get("lane") or "contained"
+    first = next(iter((lane_record or {}).get("matched") or ()), {})
+    rule = first.get("effect") or first.get("path") or ""
+    if lane == "closed":
+        state, desc = "pending", f"closed lane (GA-010): {rule}"
+    elif owners:
+        state, desc = "pending", f"{lane} lane; needs {', '.join(owners)}'s approving review"
+    else:
+        state, desc = "success", f"{lane} lane: no owner or closed lane applies (not a review result)"
+    return state, desc[:140]
+
+
+def _agent_token(args, data=None):
+    script = Path(__file__).with_name("agent_token.py")
+    return subprocess.run([sys.executable, str(script), *args], input=data, capture_output=True, text=True, timeout=120)
+
+
+def post_lane_status(repos, lane_record, heads=None, run=_agent_token):
+    """GA-013.7: post gstack/release-lane on each repository's head under review (or, for a light-lane
+    release, the head being released). GA-013.6: only once that repository's own moxywolf-agent
+    installation grants statuses: write; until then it prints status_unavailable and skips. It never
+    raises: whatever happens here, the rest of open and release runs unchanged. Returns what it did."""
+    done = []
+    for r in repos:
+        try:
+            name = github_name(r["path"])
+        except Exception:
+            name = None
+        if not name:
+            print(f"lane status: {r['path']}: no github.com origin; skipped", file=sys.stderr)
+            done.append((r["path"], "skipped"))
+            continue
+        try:
+            granted = run(["permissions", "--repo", name])
+            if granted.returncode or not re.search(r"^\s*statuses\s+write\b", granted.stdout, re.M):
+                print(f"status_unavailable: {name}: the moxywolf-agent installation doesn't grant statuses: write "
+                      "(GA-013.6); lane status skipped", file=sys.stderr)
+                done.append((name, "status_unavailable"))
+                continue
+            head = (heads or {}).get(r["path"]) or r["head"]
+            changed = git(r["path"], "diff", "--name-only", "-z", f"{r['base']}..{head}").split("\0")
+            table, _ = lane_table({**r, "head": head})
+            owners = sorted({o for f in changed if f for o in owners_for(f, table.get("owned"))})
+            state, desc = lane_status(lane_record, owners)
+            body = json.dumps({"state": state, "context": STATUS_CONTEXT, "description": desc})
+            res = run(["--repo", name, "api", "POST", f"repos/{name}/statuses/{head}", "--data", "-"], body)
+            if res.returncode:
+                print(f"lane status: {name}@{head[:7]} not posted: {(res.stderr or res.stdout).strip()[-200:]}", file=sys.stderr)
+                done.append((name, "not_posted"))
+            else:
+                print(f"lane status: {name}@{head[:7]} {state}: {desc}", file=sys.stderr)
+                done.append((name, state, desc, head))
+        except Exception as e:   # the post is a convenience; open and release never hang on it
+            print(f"lane status: {name}: not posted: {e}", file=sys.stderr)
+            done.append((name, "not_posted"))
+    return done
+
+
 def lane_in_force(lane_record, target, coverage_exception=None):   # also XE-049.2's rounds exception
     """GA-011: the lane a release into `target` is held to. The lane itself never moves. A closed lane
     into a goal branch (`goal/<id>`) is held to the wide gates and deferred: the goal pull request into
@@ -3501,6 +3578,7 @@ def cmd_open(a):
         r["review_base"] = r["base"]                # XE-029.1: fix rounds still see the whole change
     save(d, "packet.json", packet, "gate_output"); save(d, "state.json", state, "gate_output")
     print(json.dumps(state, indent=2))
+    post_lane_status(packet["repos"], lane)          # GA-013.7: after the review is opened, never instead
     return state
 
 
@@ -4051,6 +4129,8 @@ def cmd_release(a):
         print(record["advisor_note"], file=sys.stderr)
     print(json.dumps(record, indent=2))
     record_measurement(a.review_id)
+    if (state.get("release_lane") or {}).get("lane") == "light":   # GA-013.7: the head being released
+        post_lane_status(packet["repos"], state.get("release_lane"), synced)
     raise ReviewError("awaiting_human_release", "handoff written; no merge executed. Merge the reviewed head, then run record-release")
 
 

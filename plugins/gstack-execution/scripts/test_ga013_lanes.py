@@ -167,5 +167,72 @@ class CodeOwners(unittest.TestCase):
         self.assertIn(("/goals/*--s1/", ()), rules)
 
 
+class Stub:
+    """agent_token.py stood in for: `permissions` answers from `granted`, `api POST` records the call."""
+    def __init__(self, granted, post_rc=0):
+        self.granted, self.post_rc, self.posts = granted, post_rc, []
+
+    def __call__(self, args, data=None):
+        from types import SimpleNamespace as NS
+        if args[0] == "permissions":
+            return NS(returncode=0, stdout="installation 1\n" + "".join(f"  {k:<24} {v}\n" for k, v in self.granted.items()), stderr="")
+        self.posts.append((args, json.loads(data)))
+        return NS(returncode=self.post_rc, stdout="{}", stderr="boom" if self.post_rc else "")
+
+
+class Status(unittest.TestCase):
+    def test_owners_last_match_wins_and_an_unowning_line_unowns(self):
+        owned = DEFAULT["owned"]
+        self.assertEqual(pr.owners_for(".github/workflows/t.yml", owned), ["@dorianatmoxywolf"])
+        self.assertEqual(pr.owners_for("goals/x/GOAL.md", owned), ["@dorianatmoxywolf"])
+        self.assertEqual(pr.owners_for("goals/x--s1/GOAL.md", owned), [])
+        self.assertEqual(pr.owners_for("README.md", owned), [])
+
+    def test_the_state_says_closed_owned_or_neither(self):
+        closed = {"lane": "closed", "matched": [{"path": "db/migrations/1.sql"}]}
+        self.assertEqual(pr.lane_status(closed, []), ("pending", "closed lane (GA-010): db/migrations/1.sql"))
+        self.assertEqual(pr.lane_status({"lane": "wide"}, ["@d"])[0], "pending")
+        self.assertIn("needs @d's approving review", pr.lane_status({"lane": "wide"}, ["@d"])[1])
+        state, desc = pr.lane_status({"lane": "contained"}, [])
+        self.assertEqual(state, "success")
+        self.assertIn("not a review result", desc)
+        self.assertLessEqual(len(pr.lane_status({"lane": "closed", "matched": [{"path": "x" * 300}]}, [])[1]), 140)
+
+    def repo(self, name):
+        r = Repo()
+        git(r.path, "remote", "add", "origin", "https://github.com/acme/r.git")
+        p = r.path / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n")
+        head = r.commit()
+        return [{"path": str(r.path), "base": r.base, "head": head}], head
+
+    def test_without_statuses_write_nothing_is_posted(self):
+        repos, _ = self.repo("app.txt")
+        stub = Stub({"contents": "write", "checks": "read"})
+        self.assertEqual(pr.post_lane_status(repos, {"lane": "contained"}, run=stub), [("acme/r", "status_unavailable")])
+        self.assertEqual(stub.posts, [])
+
+    def test_with_statuses_write_the_head_gets_the_lane(self):
+        repos, head = self.repo(".github/x.yml")
+        stub = Stub({"statuses": "write"})
+        got = pr.post_lane_status(repos, {"lane": "contained"}, run=stub)
+        (args, body), = stub.posts
+        self.assertEqual(args[-4:], ["POST", f"repos/acme/r/statuses/{head}", "--data", "-"])
+        self.assertEqual((body["context"], body["state"]), ("gstack/release-lane", "pending"))
+        self.assertIn("@dorianatmoxywolf", body["description"])
+        self.assertEqual(got[0][:2], ("acme/r", "pending"))
+
+    def test_a_failed_post_is_reported_not_raised(self):
+        repos, _ = self.repo("app.txt")
+        self.assertEqual(pr.post_lane_status(repos, {"lane": "contained"}, run=Stub({"statuses": "write"}, post_rc=1)),
+                         [("acme/r", "not_posted")])
+
+    def test_a_repository_without_a_github_origin_is_skipped(self):
+        r = Repo()
+        self.assertEqual(pr.post_lane_status([{"path": str(r.path), "base": r.base, "head": r.base}], {"lane": "contained"},
+                                             run=Stub({"statuses": "write"}))[0][1], "skipped")
+
+
 if __name__ == "__main__":
     unittest.main()
