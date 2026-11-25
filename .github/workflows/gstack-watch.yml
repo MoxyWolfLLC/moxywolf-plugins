@@ -1,0 +1,155 @@
+# GA-013 part C: the watcher. Every 20 minutes, over the repositories in .github/gstack-watch.json, it works
+# moxywolf-agent's own build/ and goal/ pull requests that have a failing check, a merge conflict or a new
+# review comment. Each job runs on its own runner:
+#   scan    read-only tokens; no branch code runs
+#   fix     clones with a read-only token (not persisted), then runs the branch's code and Claude with only
+#           the Anthropic key; it pushes nothing and hands its commits on as a bundle
+#   push    a fresh runner where no branch code ran: checks the change, mints the write token, pushes, comments
+#   summary one line per repository and pull request examined, in the run summary and a 90-day artifact
+#   preflight (first step of scan) checks both secrets every run and records the result in the artifact
+# MOXYWOLF_AGENT_APP_KEY appears only in steps whose whole run is one watch.py preflight, scan, clone or push
+# command (test_watch.py holds this file to that contract).
+name: gstack-watch
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: gstack-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      items: ${{ steps.scan.outputs.items }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: preflight (both secrets, every run)
+        env:
+          MOXYWOLF_AGENT_APP_KEY: ${{ secrets.MOXYWOLF_AGENT_APP_KEY }}
+          GSTACK_WATCH_ANTHROPIC_KEY: ${{ secrets.GSTACK_WATCH_ANTHROPIC_KEY }}
+        run: python3 plugins/gstack-execution/scripts/watch.py preflight --log watch.jsonl
+      - id: scan
+        name: scan (read-only tokens, no branch code)
+        env:
+          MOXYWOLF_AGENT_APP_KEY: ${{ secrets.MOXYWOLF_AGENT_APP_KEY }}
+        run: |
+          set -euo pipefail
+          python3 plugins/gstack-execution/scripts/watch.py scan --out work.json --log watch.jsonl > items.json
+          echo "items=$(cat items.json)" >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-scan
+          path: |
+            work.json
+            watch.jsonl
+          retention-days: 90
+          if-no-files-found: warn
+
+  fix:
+    needs: scan
+    if: needs.scan.outputs.items != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        item: ${{ fromJSON(needs.scan.outputs.items) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugins
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: watch-scan
+      - name: clone (read-only token, not persisted)
+        env:
+          MOXYWOLF_AGENT_APP_KEY: ${{ secrets.MOXYWOLF_AGENT_APP_KEY }}
+        run: python3 plugins/plugins/gstack-execution/scripts/watch.py clone --work work.json --item ${{ matrix.item }} --dir "$RUNNER_TEMP/repo"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: install claude
+        run: npm install -g @anthropic-ai/claude-code
+      - name: fix (branch code and Claude; Anthropic key only)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.GSTACK_WATCH_ANTHROPIC_KEY }}
+        run: python3 plugins/plugins/gstack-execution/scripts/watch.py fix --work work.json --item ${{ matrix.item }} --dir "$RUNNER_TEMP/repo" --out out --log out/watch-fix-${{ matrix.item }}.jsonl
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-fix-${{ matrix.item }}
+          path: out/
+          retention-days: 90
+          if-no-files-found: warn
+
+  push:
+    needs: [scan, fix]
+    if: always() && needs.scan.outputs.items != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        item: ${{ fromJSON(needs.scan.outputs.items) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugins
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: watch-scan
+      - uses: actions/download-artifact@v4
+        with:
+          name: watch-fix-${{ matrix.item }}
+          path: out
+      - name: push (fresh runner, write token)
+        env:
+          MOXYWOLF_AGENT_APP_KEY: ${{ secrets.MOXYWOLF_AGENT_APP_KEY }}
+        run: python3 plugins/plugins/gstack-execution/scripts/watch.py push --work work.json --item ${{ matrix.item }} --result out/result.json --dir "$RUNNER_TEMP/repo" --log watch-push-${{ matrix.item }}.jsonl
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-push-${{ matrix.item }}
+          path: watch-push-${{ matrix.item }}.jsonl
+          retention-days: 90
+          if-no-files-found: ignore
+
+  summary:
+    needs: [scan, fix, push]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: watch-*
+          merge-multiple: true
+      - name: summary
+        run: |
+          cat watch.jsonl watch-fix-*.jsonl watch-push-*.jsonl 2>/dev/null > all.jsonl || true
+          python3 plugins/gstack-execution/scripts/watch.py summary --log all.jsonl --out summary.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-log
+          path: |
+            all.jsonl
+            summary.txt
+          retention-days: 90

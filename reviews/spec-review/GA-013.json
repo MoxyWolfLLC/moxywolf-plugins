@@ -1,0 +1,98 @@
+{
+  "schema": "spec-review/3",
+  "review_id": "a54ea2c7beab4144a802c12d8a99a7a3",
+  "doc": "DESIGN.md",
+  "item": "GA-013",
+  "scope_sha256": "0ee142f17725775f4f5f758b9c4fb94d24aa5479de2c1c7221743cbe7017b9ac",
+  "reviewed_at": "2026-11-25T21:13:20+00:00",
+  "executor": "claude-sonnet-5-5",
+  "advisor": "claude-fable-5-2",
+  "advisor_calls": 1,
+  "usage": [
+    {
+      "input_tokens": 4,
+      "output_tokens": 9824,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 9893,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9893,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 4,
+      "output_tokens": 26,
+      "cache_read_input_tokens": 9893,
+      "cache_creation_input_tokens": 9864,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 9864,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    },
+    {
+      "input_tokens": 21397,
+      "output_tokens": 4096,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "advisor_message",
+      "model": "claude-fable-5-2"
+    },
+    {
+      "input_tokens": 2,
+      "output_tokens": 1365,
+      "cache_read_input_tokens": 19757,
+      "cache_creation_input_tokens": 54,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 54,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "type": "message"
+    }
+  ],
+  "cache": {
+    "read": 29650,
+    "write": 19811
+  },
+  "contradictions": [],
+  "ambiguities": [
+    {
+      "id": "A1",
+      "requirements": [
+        "GA-013.3",
+        "GA-013.4"
+      ],
+      "question": "Does 'every default closed path' that a repository table must list include the two new effects (adds_symlink, changes_submodule)? If not, a repository table can drop them and still pass open's check."
+    },
+    {
+      "id": "A2",
+      "requirements": [
+        "GA-013.9",
+        "GA-013.1",
+        "GA-013.10"
+      ],
+      "question": "For a listed repository such as OpenControls-AI/cki, what source defines 'a path that owned lists'? CKI's table may have no owned list, and CKI's real CODEOWNERS is not generated from it, so the watcher's refusal rule could miss CODEOWNERS paths there."
+    },
+    {
+      "id": "A3",
+      "requirements": [
+        "GA-013.12",
+        "GA-013.11"
+      ],
+      "question": "Does a run that fails on a missing secret still write the run-summary line and 90-day artifact that 'every run' requires, or is the failure the only output?"
+    },
+    {
+      "id": "A4",
+      "requirements": [
+        "GA-013.14",
+        "GA-013.13"
+      ],
+      "question": "Does an unedited run_all_tests.py discover and run the new tests, including the static gstack-watch.yml check? Must the nonzero count include them?"
+    }
+  ]
+}

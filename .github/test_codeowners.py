@@ -102,6 +102,12 @@ if __name__ == "__main__":
     print(f"examined {examined} paths")
     if examined == 0:
         errs.append("examined nothing")
+    # GA-013.2: CODEOWNERS is generated from the lane table's owned list; a hand edit fails here
+    gen = subprocess.run([sys.executable, str(ROOT / "plugins/gstack-execution/scripts/codeowners.py"), "check",
+                          "--repo", str(ROOT)], capture_output=True, text=True)
+    print(gen.stdout.strip() or gen.stderr.strip())
+    if gen.returncode:
+        errs.append("CODEOWNERS differs from the lane table's owned list: " + gen.stderr.strip())
     for e in errs:
         print("FAIL:", e)
     sys.exit(1 if errs else 0)
