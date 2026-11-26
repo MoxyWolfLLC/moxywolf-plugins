@@ -20,7 +20,7 @@ In the briefing, name the source actually read or state that it was unavailable.
 
 The skill assumes the project was already set up via `/init-project` and has a saved `cowork-project-instructions.md` in its `00 – Project Hub/` folder. If the previous session ended with `/session-end`, it will also have a `cowork-session-handoff.md` in the same folder — that's the freshest source of state, and the briefing surfaces its open-work and suggested-opening-line at the top.
 
-Steps 2b and 4-7 below run in the `project-init:session-gatherer` agent on Haiku (ME-002, skill Step 3a), which returns raw lists; this session runs the rest and writes the briefing from those lists. If the agent can't run, the steps run inline.
+Steps 4-7 below are reads and run in the `project-init:session-gatherer` agent on Haiku (ME-002, skill Step 3c), which returns raw lists; this session runs the rest, including the clone update in 2b, and writes the briefing from those lists. If the agent can't run, the steps run inline.
 
 It then:
 
