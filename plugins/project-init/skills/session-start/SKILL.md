@@ -119,14 +119,6 @@ The required roots are the MoxyWolf Vault and GitHub, resolved for this Mac by `
 
 Record each root in the briefing as "already available", "newly mounted (auto-requested)", or — if still missing after the fallback prompt — "not mounted (user hasn't added it)". If a root stays unmounted, note it and continue. A missing mount never drops a section: Step 4 reads through the Reader order (Step C), and the team-shared `GitHub/Projects/_shared-memory/INDEX.md` comes from Desktop Commander, the GitHub connector or the Project copy.
 
-### Step 3a: Hand the gathering to Haiku (ME-002)
-
-Steps 3b and 4a-4f are mechanical reads plus one fast-forward-only write, and they are most of the session's tokens. Don't spend the main model on them. Dispatch the `project-init:session-gatherer` agent (it runs on Haiku) in one Agent call, in the foreground, and pass it: the absolute path of this `SKILL.md`, the project name, the workspace path, the vault project folder if known, the `Jira label(s):` value exactly as written in Step 2, the repo list, and which roots Step 3 mounted.
-
-The agent returns raw lists, one per section, each naming the sources tried. Use them as the results of Steps 3b and 4a-4f. Then run 4g and 4h yourself: they read this session's own context and settings, which the agent can't see. Write the Step 5 briefing yourself from the agent's lists. Ranking the work, the STALE cross-check in 4f and the Step 6 focus options are judgment, and stay with this session.
-
-**Fallback.** If the Agent tool isn't available, the agent isn't listed, or it returns without a section, run that step inline as written below. A section the agent marked `unavailable` keeps that status; don't re-run it inline unless you have a reader the agent didn't try. Never drop a section (SM-011). Say on the Shared services line which happened: `Gathering: Haiku (session-gatherer)` or `Gathering: inline (<reason>)`.
-
 ### Step 3b: Bring local clones up to date
 
 **Every project type fast-forwards `GitHub/Projects`**, because the team-shared rules live there (SM-007): run the steps below on that clone alone for a vault-only project, before Step 4f reads the INDEX. A clone that can't be fast-forwarded is reported and read as it is. **Org-shared projects also update every listed repo.** Every session on an org-shared project starts from current clones, because teammates push to the same repos. Do this before Step 4, so the handoff, backlog and DRs are read from the latest commit.
@@ -141,6 +133,16 @@ The clones to update are `GitHub/Projects` (the workspace repo, always) plus eve
 If git fails with `Operation not permitted` on a `.lock` file, the GitHub folder hasn't been allowed deletes yet. Ask once with `device_request_delete_permission` for the GitHub root, then retry. If declined, report the clones as not updated and carry on.
 
 Record one line per clone for the briefing: `updated <old>..<new> (N commits)`, `already current`, or `skipped: <reason>`. This step never blocks the session.
+
+### Step 3c: Hand the Step 4 reads to Haiku (ME-002)
+
+Run Step 3b yourself, in this session, before this step: it is the only write, and its rules (git on the Mac through Desktop Commander, never in `device_bash`; fast-forward only; ask once for delete permission on a `.lock` failure) need this session's tools and approvals. A helper got this wrong on 2026-11-25: it ran git in `device_bash` and left a half-applied pull and a stranded `index.lock`.
+
+Steps 4a-4f are reads only, and they are most of the session's tokens. Don't spend the main model on them. Dispatch the `project-init:session-gatherer` agent (it runs on Haiku) in one Agent call, in the foreground, and pass it: the absolute path of this `SKILL.md`, the project name, the workspace path, the vault project folder if known, the `Jira label(s):` value exactly as written in Step 2, the repo list, and which roots Step 3 mounted.
+
+The agent returns raw lists, one per section, each naming the sources tried. Use them as the results of Steps 4a-4f. Then run 4g and 4h yourself: they read this session's own context and settings, which the agent can't see. Write the Step 5 briefing yourself from the agent's lists. Ranking the work, the STALE cross-check in 4f and the Step 6 focus options are judgment, and stay with this session.
+
+**Fallback.** If the Agent tool isn't available, the agent isn't listed, or it returns without a section, run that step inline as written below. A section the agent marked `unavailable` keeps that status; don't re-run it inline unless you have a reader the agent didn't try. Never drop a section (SM-011). The Shared services block must carry the `Gathering:` line saying which happened: `Gathering: Haiku (session-gatherer)` or `Gathering: inline (<reason>)`. Don't omit it.
 
 ### Step 4: Gather context (parallel)
 
