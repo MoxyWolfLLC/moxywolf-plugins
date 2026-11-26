@@ -177,6 +177,7 @@ Optional versioned context now complements the existing executable workflows. No
 
 ## Version history
 
+- **0.120.2**: the goal sandbox image gains python3-pytest (pinned, by apt), so a goal test may run the candidate's pytest suites inside the sandbox; `goal_sandbox.Dockerfile` amended, new image name. Authorized by Dorian 2026-11-25 (16:15 PT, "ask codex") on Codex's pick (a).
 - **0.119.1**: SM-013: Taskade is retired; paths that pointed into Taskade now point at the project's GitHub/Projects folder.
 - **0.119.0**: XE-049. Reviews get two rounds and a later round blocks only on what it was checking; an item is marked done in its own pull request; a goal is its brief and one pull request, with the run record and versions on the goal branch and no automatic successor; a `light` lane merges status-line, version, docs and existing-test changes on green CI; goals go as wide as their independent items (up to 10), tests run in parallel (`run_all_tests.py --jobs`), and a whole-goal review runs in parallel lanes.
 - **0.118.0**: GO-026. `agentflow_autostart.sh` and `/gstack-viewer always-on|always-off|always-status` install an always-on agent-flow viewer per Mac as a LaunchAgent, for local Claude Code sessions only.

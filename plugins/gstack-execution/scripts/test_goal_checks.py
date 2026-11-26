@@ -424,6 +424,27 @@ class Sandbox(unittest.TestCase):
         results = json.loads(r.stdout.strip().splitlines()[-1])
         self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_stub_runs": "passed"})
 
+    def test_a_goal_test_can_run_pytest_in_the_sandbox(self):
+        """Amended 2026-11-25: pytest is in the image (python3-pytest, pinned), so a goal test may run the
+        candidate's pytest suites inside the sandbox, as walkthrough-questions--s1b's controls test does."""
+        t = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, t, True)
+        main = t / "main"
+        shutil.copytree(HERE, main / "plugins" / "gstack-execution" / "scripts",
+                        ignore=shutil.ignore_patterns("__pycache__", "node_modules"))
+        (main / ".github").mkdir(); shutil.copy(ROOT / ".github" / "test_codeowners.py", main / ".github")
+        shutil.copy(ROOT / ".github" / "CODEOWNERS", main / ".github")
+        (main / "goals" / "g1" / "tests").mkdir(parents=True)
+        (main / "goals" / "g1" / "GOAL.md").write_text("## Goal tests\n- `tests/test_p.py::P.test_pytest_runs` (invariant)\n")
+        (main / "goals" / "g1" / "tests" / "test_p.py").write_text(
+            "import os, subprocess, sys, tempfile, unittest\n\n\nclass P(unittest.TestCase):\n"
+            "    def test_pytest_runs(self):\n        d = tempfile.mkdtemp()\n"
+            "        open(os.path.join(d, 'test_one.py'), 'w').write('def test_one():\\n    assert 1 + 1 == 2\\n')\n"
+            "        r = subprocess.run([sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider', d], capture_output=True, text=True, timeout=120)\n"
+            "        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)\n")
+        r = subprocess.run(gc.sandbox_cmd(main, main, "g1"), capture_output=True, text=True, timeout=600)
+        results = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertEqual({k.split(".")[-1]: v["result"] for k, v in results.items()}, {"test_pytest_runs": "passed"})
+
     def test_a_node_candidate_builds_with_its_locked_dependencies_and_no_network(self):
         """GO-002.6: the dependencies install from the lockfile in their own container; the goal test
         then runs the candidate's build in the sandbox, which writes into its own folder, still offline."""

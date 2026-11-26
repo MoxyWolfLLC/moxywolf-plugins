@@ -3,9 +3,13 @@
 # The base: Playwright 1.64.1 on Ubuntu noble (Python 3.12, Node 24, corepack, browsers in /ms-playwright),
 # pinned by digest. Added (amended 2026-10-25): PostgreSQL 16 with its contrib extensions (pg_trgm), at one
 # pinned package version, on PATH, so a goal test can start its own throwaway database as the sandbox user.
-# ponytail: the pin fails the build when Ubuntu retires that version; the fix is a one-line version bump.
+# Added (amended 2026-11-25, Dorian 16:15 PT "ask codex", Codex: "(a). Approve the sandbox repair through the plugin's own PR
+# process."): python3-pytest at one pinned package version, so a goal test may run pytest inside the sandbox
+# (goal walkthrough-questions--s1b's controls test did and found "No module named pytest"). apt, not pip: the base
+# image has no pip and the sandbox has no network, so the package is the only route that stays pinned and offline.
+# ponytail: each pin fails the build when Ubuntu retires that version; the fix is a one-line version bump.
 FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
 RUN apt-get update \
- && apt-get install -y --no-install-recommends postgresql-16=16.15-0ubuntu0.24.04.1 \
+ && apt-get install -y --no-install-recommends postgresql-16=16.15-0ubuntu0.24.04.1 python3-pytest=7.4.4-1 \
  && rm -rf /var/lib/apt/lists/*
 ENV PATH=/usr/lib/postgresql/16/bin:$PATH
