@@ -57,7 +57,10 @@ def at(repo, ref, path):
 
 def path_in(glob, path):
     """Does the literal path match the glob? Only the glob's segments are patterns; '**' spans
-    any number of segments."""
+    any number of segments. A folder entry (`docs/notes/`) covers what's inside it, as
+    goal_brief.to_glob reads a folder rule; it never matches the folder name alone."""
+    if glob.endswith("/"):
+        glob += "*/**"
     def go(g, p):
         if not g:
             return not p

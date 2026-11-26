@@ -152,6 +152,22 @@ class Envelope(unittest.TestCase):
         e, _ = self.check()
         self.assertTrue(any(".github/CODEOWNERS, a CODEOWNERS path" in x for x in e), e)
 
+    def test_a_folder_entry_covers_what_is_inside_it(self):  # a brief's `docs/notes/` is read as goal_brief.to_glob reads a folder rule
+        self.assertTrue(ge.path_in("docs/notes/", "docs/notes/a.md"))
+        self.assertTrue(ge.path_in("docs/notes/", "docs/notes/deep/er/a.md"))
+        self.assertFalse(ge.path_in("docs/notes/", "docs/notes"))
+        self.assertFalse(ge.path_in("docs/notes/", "docs/notes.md"))
+        self.assertFalse(ge.path_in("docs/notes/", "docs/notes-2/a.md"))
+        self.assertTrue(ge.path_in("tests/", "tests/fixtures/x.json"))
+        self.assertFalse(ge.path_in("tests/", "src/tests/x.json"))
+        self.write("goals/g1/GOAL.md", BRIEF.replace("- `docs/notes.md`\n", "- `docs/notes.md`\n- docs/rulings/\n"))
+        self.git("switch", "-q", "main"); self.git("add", "-A"); self.git("commit", "-q", "-m", "folder entry")
+        self.git("switch", "-q", "-C", "goal/g1", "main")
+        self.commit("item", {"docs/rulings/run-1/votes.json": "[]\n", "docs/rulings/report.md": "r\n"})
+        self.assertEqual(self.check(), ([], 1))
+        self.commit("item 2", {"docs/rulings.md": "x\n"})
+        self.assertTrue(any("docs/rulings.md, outside Allowed paths" in x for x in self.check()[0]))
+
     def test_a_changed_path_is_literal_never_a_pattern(self):  # review F2
         for name in ("docs/*.md", "docs/?otes.md", "docs/[n]otes.md"):
             with self.subTest(name=name):
