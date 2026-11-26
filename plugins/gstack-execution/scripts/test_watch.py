@@ -50,8 +50,9 @@ def thread(resolved, by, when, body="please rename"):
 
 class GitHub:
     """A stubbed GitHub: answers reads from the knobs given, records every call."""
-    def __init__(self, pulls, required=("tests",), runs=None, conflict=(), threads=None, rules_error=False):
+    def __init__(self, pulls, required=("tests",), runs=None, conflict=(), threads=None, rules_error=False, comments=None):
         self.pulls, self.required, self.runs, self.conflict = pulls, required, runs or {}, set(conflict)
+        self.comments = comments or {}
         self.threads, self.rules_error, self.calls = threads or {}, rules_error, []
 
     def __call__(self, method, path, body=None):
@@ -67,6 +68,8 @@ class GitHub:
                      "parameters": {"required_status_checks": [{"context": c} for c in self.required]}}]
         if m.startswith("pulls?"):
             return self.pulls
+        if re.match(r"issues/\d+/comments", m):
+            return self.comments.get(int(m.split("/")[1]), [])
         if m.startswith("commits/") and m.endswith("check-runs?per_page=100"):
             return {"check_runs": [{"name": k, "conclusion": v} for k, v in self.runs.get(m.split("/")[1], {}).items()]}
         if m.startswith("commits/"):
@@ -119,6 +122,60 @@ class Scan(unittest.TestCase):
         gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}})
         watch.scan(["acme/r"], lambda name: gh, self.log)
         self.assertEqual({(m, p) for m, p, _ in gh.calls if m != "GET"}, {("POST", "graphql")})
+
+
+def said(body, when=LATER, by=AGENT):
+    return {"user": {"login": by}, "created_at": when, "body": body}
+
+
+class Answered(unittest.TestCase):
+    """The watcher answers a head once: a trigger it already commented on at this head isn't worked again."""
+    def setUp(self):
+        self.log = tmpdir() / "watch.jsonl"
+
+    def kinds(self, gh):
+        return {i["number"]: [t["kind"] for t in i["triggers"]] for i in watch.scan(["acme/r"], lambda name: gh, self.log)}
+
+    def test_a_check_already_answered_at_this_head_is_skipped(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}},
+                    comments={1: [said("gstack-watch: no change pushed for failing_check: needs a design call")]})
+        self.assertEqual(self.kinds(gh), {})
+        self.assertIn("already answered at this head", self.log.read_text())
+
+    def test_an_answer_older_than_the_head_doesnt_count(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}},
+                    comments={1: [said("gstack-watch: no change pushed for failing_check: x", when=EARLIER)]})
+        self.assertEqual(self.kinds(gh), {1: ["failing_check"]})
+
+    def test_a_trigger_the_answer_didnt_cover_is_still_worked(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}}, conflict={1},
+                    comments={1: [said("gstack-watch: no change pushed for merge_conflict: x")]})
+        self.assertEqual(self.kinds(gh), {1: ["failing_check"]})
+
+    def test_a_refusal_answers_every_trigger(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}}, conflict={1},
+                    comments={1: [said("gstack-watch: not pushed, because it changes protected paths ['.github/x'].")]})
+        self.assertEqual(self.kinds(gh), {})
+
+    def test_a_review_comment_after_the_answer_is_still_worked(self):
+        later = "2026-11-25T12:00:00Z"
+        gh = GitHub([pull(1)], threads={1: [thread(False, "dorianatmoxywolf", LATER), thread(False, "dorianatmoxywolf", later)]},
+                    comments={1: [said("gstack-watch: no change pushed for review_comment: x", when="2026-11-25T11:30:00Z")]})
+        (item,) = watch.scan(["acme/r"], lambda name: gh, self.log)
+        self.assertEqual([c["at"] for t in item["triggers"] for c in t["comments"]], [later])
+
+    def test_the_summary_names_a_skip_as_answered_not_as_a_failure(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}},
+                    comments={1: [said("gstack-watch: no change pushed for failing_check: x")]})
+        watch.scan(["acme/r"], lambda name: gh, self.log)
+        text = watch.summary(self.log)
+        self.assertNotIn("no fix or push outcome", text)
+        self.assertIn("acme/r#1: already answered at this head", text)
+
+    def test_someone_elses_comment_answers_nothing(self):
+        gh = GitHub([pull(1)], runs={"h1": {"tests": "failure"}},
+                    comments={1: [said("gstack-watch: no change pushed for failing_check: x", by="someone")]})
+        self.assertEqual(self.kinds(gh), {1: ["failing_check"]})
 
 
 class Repo:

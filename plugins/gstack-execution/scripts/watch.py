@@ -147,11 +147,39 @@ def triggers(call, name, p):
     if comments:
         out.append({"kind": "review_comment", "comments": [
             {"by": (c.get("author") or {}).get("login"), "body": c.get("body", "")[:4000], "path": c.get("path"),
-             "line": c.get("line"), "url": c.get("url")} for c in comments]})
+             "line": c.get("line"), "url": c.get("url"), "at": c.get("createdAt")} for c in comments]})
     return out
 
 
 NOT_TRIGGERS = {"required_checks_unreadable", "checks_unreadable", "threads_unreadable"}
+ANSWERED = re.compile(r"gstack-watch: no change pushed for ([a-z_, ]+):")
+
+
+def unanswered(call, name, p, found):
+    """The triggers in `found` the watcher hasn't already answered at this head (first live run, 2026-11-25: the
+    same two stale pull requests got Claude and a fresh comment every 20 minutes). An answer is the agent's own
+    gstack-watch comment made after the head commit; it covers the kinds it names, or every kind when it refused a
+    push. A review comment newer than the answer is still worked. A new push makes a new head, so it is worked again."""
+    since = call("GET", f"repos/{name}/commits/{p['head']['sha']}")["commit"]["committer"]["date"]
+    said = call("GET", f"repos/{name}/issues/{p['number']}/comments?since={since}&per_page=100") or []
+    answers = [c for c in said if ((c.get("user") or {}).get("login") in (AGENT, "moxywolf-agent")
+               and (c.get("body") or "").startswith("gstack-watch:") and c.get("created_at", "") > since)]
+    if not answers:
+        return found
+    at = max(c["created_at"] for c in answers)
+    covered = set()
+    for c in answers:
+        m = ANSWERED.match(c["body"])
+        covered |= {k.strip() for k in m.group(1).split(",")} if m else {"*"}
+    out = []
+    for t in found:
+        if t["kind"] == "review_comment":
+            newer = [c for c in t["comments"] if (c.get("at") or "") > at]
+            if newer:
+                out.append({**t, "comments": newer})
+        elif t["kind"] not in covered and "*" not in covered:
+            out.append(t)
+    return out
 
 
 def scan(names, call_for, log_path):
@@ -171,7 +199,10 @@ def scan(names, call_for, log_path):
                 continue
             found = triggers(call, name, p)
             act = [t for t in found if t["kind"] not in NOT_TRIGGERS]
-            log(log_path, step="scan", repo=name, pr=p["number"], triggers=[t["kind"] for t in found])
+            fresh = unanswered(call, name, p, act) if act else act
+            log(log_path, step="scan", repo=name, pr=p["number"], triggers=[t["kind"] for t in found],
+                **({"answered": "already answered at this head"} if act and not fresh else {}))
+            act = fresh
             if act:
                 items.append({"repo": name, "number": p["number"], "branch": p["head"]["ref"], "head": p["head"]["sha"],
                               "base": p["base"]["ref"], "triggers": act})
@@ -354,7 +385,10 @@ def summary(log_path):
         if r.get("step") == "fix":
             lines.append(f"{r['repo']}#{r['pr']} fix: {r.get('outcome')}: {r.get('note') or ''}")
     for r in rows:
-        if (r.get("step") == "scan" and r.get("pr") and (r["repo"], r["pr"]) not in done
+        if r.get("step") == "scan" and r.get("answered"):
+            lines.append(f"{r['repo']}#{r['pr']}: {r['answered']}")
+    for r in rows:
+        if (r.get("step") == "scan" and r.get("pr") and not r.get("answered") and (r["repo"], r["pr"]) not in done
                 and any(k not in NOT_TRIGGERS for k in r.get("triggers") or ())):
             lines.append(f"{r['repo']}#{r['pr']}: triggered, but no fix or push outcome was recorded")
     return "\n".join(lines + [json.dumps(r) for r in rows])
