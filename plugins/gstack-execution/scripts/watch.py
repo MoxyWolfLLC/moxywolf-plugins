@@ -153,28 +153,48 @@ def triggers(call, name, p):
 
 NOT_TRIGGERS = {"required_checks_unreadable", "checks_unreadable", "threads_unreadable"}
 ANSWERED = re.compile(r"gstack-watch: no change pushed for ([a-z_, ]+):")
+HEAD_MARK = re.compile(r"<!-- gstack-watch head=(\S+) -->\s*$")
+
+
+def head_mark(sha):
+    """The line every watcher comment ends with: the full head it answered (review w90kiucg F2)."""
+    return f"\n\n<!-- gstack-watch head={sha} -->"
+
+
+def comments_on(call, name, n):
+    """Every conversation comment on the pull request, all pages (review w90kiucg F3)."""
+    out, page = [], 1
+    while True:
+        got = call("GET", f"repos/{name}/issues/{n}/comments?per_page=100&page={page}") or []
+        out += got
+        if len(got) < 100:
+            return out
+        page += 1
 
 
 def unanswered(call, name, p, found):
     """The triggers in `found` the watcher hasn't already answered at this head (first live run, 2026-11-25: the
     same two stale pull requests got Claude and a fresh comment every 20 minutes). An answer is the agent's own
-    gstack-watch comment made after the head commit; it covers the kinds it names, or every kind when it refused a
-    push. A review comment newer than the answer is still worked. A new push makes a new head, so it is worked again."""
-    since = call("GET", f"repos/{name}/commits/{p['head']['sha']}")["commit"]["committer"]["date"]
-    said = call("GET", f"repos/{name}/issues/{p['number']}/comments?since={since}&per_page=100") or []
-    answers = [c for c in said if ((c.get("user") or {}).get("login") in (AGENT, "moxywolf-agent")
-               and (c.get("body") or "").startswith("gstack-watch:") and c.get("created_at", "") > since)]
+    gstack-watch comment whose head mark is this exact head; one without a mark answers nothing. It covers the kinds
+    it names, or every kind when it refused a push. A review comment is answered only by an answer covering review
+    comments made after it (review w90kiucg F1). A new push makes a new head, so it is worked again."""
+    head = p["head"]["sha"]
+    answers = []
+    for c in comments_on(call, name, p["number"]):
+        body = c.get("body") or ""
+        m = HEAD_MARK.search(body)
+        if ((c.get("user") or {}).get("login") in (AGENT, "moxywolf-agent") and body.startswith("gstack-watch:")
+                and m and m.group(1) == head):
+            k = ANSWERED.match(body)
+            answers.append((c.get("created_at") or "", {s.strip() for s in k.group(1).split(",")} if k else {"*"}))
     if not answers:
         return found
-    at = max(c["created_at"] for c in answers)
-    covered = set()
-    for c in answers:
-        m = ANSWERED.match(c["body"])
-        covered |= {k.strip() for k in m.group(1).split(",")} if m else {"*"}
+    covered = set().union(*(kinds for _, kinds in answers))
     out = []
     for t in found:
         if t["kind"] == "review_comment":
-            newer = [c for c in t["comments"] if (c.get("at") or "") > at]
+            cut = max((at for at, kinds in answers if {"review_comment", "*"} & kinds), default="")
+            newer = [c for c in t["comments"] if (c.get("at") or "") > cut]
             if newer:
                 out.append({**t, "comments": newer})
         elif t["kind"] not in covered and "*" not in covered:
@@ -347,7 +367,7 @@ def push(item, result, dirpath, call, git_env, log_path):
     new = result.get("new_head")
     if not new:
         call("POST", f"repos/{name}/issues/{n}/comments",
-             {"body": f"gstack-watch: no change pushed for {kinds}: {result.get('note', '')}"[:3000]})
+             {"body": f"gstack-watch: no change pushed for {kinds}: {result.get('note', '')}"[:3000] + head_mark(old)})
         log(log_path, step="push", repo=name, pr=n, outcome=result.get("outcome"), note=result.get("note"))
         return "commented"
     if subprocess.run(["git", "-C", d, "merge-base", "--is-ancestor", old, new]).returncode:
@@ -356,7 +376,7 @@ def push(item, result, dirpath, call, git_env, log_path):
         hit = protected(d, old, new, result.get("merged_base"), item["base"])
         reason = f"it changes protected paths {hit}" if hit else None
     if reason:
-        call("POST", f"repos/{name}/issues/{n}/comments", {"body": f"gstack-watch: not pushed, because {reason}."})
+        call("POST", f"repos/{name}/issues/{n}/comments", {"body": f"gstack-watch: not pushed, because {reason}."[:3000] + head_mark(old)})
         log(log_path, step="push", repo=name, pr=n, outcome="refused", note=reason)
         return "refused"
     subprocess.run(["git", "-C", d, "push", "origin", f"{new}:refs/heads/{item['branch']}"], check=True, env=git_env)
